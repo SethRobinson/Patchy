@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15036,6 +15066,14 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15209,6 +15247,81 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -15733,6 +15846,526 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>No matching presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -19957,6 +20590,14 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Spread every line across the text box, the last one too</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -33791,6 +34432,33 @@ Locked: %1</source>
         <source>Blend Mode</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36785,6 +37453,26 @@ Locked: %1</source>
     </message>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

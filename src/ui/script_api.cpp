@@ -6,6 +6,7 @@
 // mutations run prepare_mutation() first so the run's single undo entry exists.
 
 #include "ui/script_api.hpp"
+#include "ui/book_pdf_export.hpp"
 #include "ui/font_face_name_index.hpp"
 
 #include "filters/gmic/gmic_engine.hpp"
@@ -4068,6 +4069,81 @@ bool ScriptAppObject::exportPdf(const QJSValue& documents, const QString& path, 
     return false;
   }
   return true;
+}
+
+int ScriptAppObject::buildBookPdf(const QString& folder, const QString& path, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (folder.trimmed().isEmpty() || path.trimmed().isEmpty()) {
+    host_.throw_js_error(ScriptEngineHost::tr("buildBookPdf needs a book scan folder and an output path."));
+    return 0;
+  }
+  QString error;
+  auto project = load_book_project(folder, &error);
+  if (!project) {
+    host_.throw_js_error(ScriptEngineHost::tr("buildBookPdf could not open %1: %2")
+                             .arg(QDir::toNativeSeparators(folder), error));
+    return 0;
+  }
+  if (options.isObject()) {
+    if (const auto value = options.property(QStringLiteral("mode")); value.isString()) {
+      const QString mode = value.toString();
+      if (mode == QLatin1String("color")) {
+        project->output.mode = BookOutputMode::Color;
+      } else if (mode == QLatin1String("gray")) {
+        project->output.mode = BookOutputMode::Grayscale;
+      } else if (mode == QLatin1String("bw")) {
+        project->output.mode = BookOutputMode::BlackAndWhite;
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("buildBookPdf mode must be \"color\", \"gray\" or \"bw\"."));
+        return 0;
+      }
+    }
+    if (const auto value = options.property(QStringLiteral("threshold")); value.isNumber()) {
+      project->output.threshold = std::clamp(value.toInt(), 1, 255);
+    }
+    if (const auto value = options.property(QStringLiteral("dpi")); value.isNumber()) {
+      project->output_dpi = std::clamp(value.toInt(), 0, 2400);
+    }
+    if (const auto value = options.property(QStringLiteral("imageQuality")); value.isString()) {
+      PdfExportOptions probe;
+      if (!apply_pdf_image_quality(value.toString(), probe)) {
+        host_.throw_js_error(ScriptEngineHost::tr(
+            "buildBookPdf imageQuality must be \"lossless\", \"high\", \"medium\", or \"low\"."));
+        return 0;
+      }
+      project->quality_id = value.toString();
+    }
+    if (const auto value = options.property(QStringLiteral("pageSize")); !value.isUndefined()) {
+      const QString token = value.isString() ? value.toString() : QString();
+      if (token == QLatin1String("median")) {
+        project->size_policy = BookPageSizePolicy::Median;
+      } else if (token == QLatin1String("largest")) {
+        project->size_policy = BookPageSizePolicy::Largest;
+      } else if (token == QLatin1String("cover") && project->cover) {
+        project->size_policy = BookPageSizePolicy::Cover;
+      } else if (value.isArray() && value.property(QStringLiteral("length")).toInt() == 2 &&
+                 value.property(0).toNumber() > 0.0 && value.property(1).toNumber() > 0.0) {
+        project->size_policy = BookPageSizePolicy::Custom;
+        project->custom_size = {value.property(0).toNumber(), value.property(1).toNumber()};
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr(
+            "buildBookPdf pageSize must be \"median\", \"largest\", \"cover\" or [width, height] in inches."));
+        return 0;
+      }
+    }
+    if (const auto value = options.property(QStringLiteral("title")); value.isString()) {
+      project->title = value.toString();
+    }
+    if (const auto value = options.property(QStringLiteral("author")); value.isString()) {
+      project->author = value.toString();
+    }
+  }
+  const BookPdfResult result = write_book_pdf(*project, path);
+  if (!result.ok) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not export %1: %2").arg(QDir::toNativeSeparators(path), result.error));
+    return 0;
+  }
+  return result.pages;
 }
 
 bool ScriptAppObject::runCommand(const QString& commandId) {

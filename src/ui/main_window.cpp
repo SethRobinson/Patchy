@@ -13233,6 +13233,8 @@ bool command_works_without_document(const QAction& action, const QString& comman
       QStringLiteral("file.import_scanner"),
       QStringLiteral("file.import_photocopy"),
       QStringLiteral("file.import_divide_photos"),
+      QStringLiteral("file.import_scan_book_pdf"),
+      QStringLiteral("file.import_resume_book_scan"),
       QStringLiteral("file.import_sprite_sheet"),
       QStringLiteral("file.import_image_sequence"),
       QStringLiteral("file.preferences"),

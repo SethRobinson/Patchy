@@ -1597,6 +1597,28 @@ interface PatchyApp {
       artboardPages?: boolean;
     },
   ): boolean;
+  /**
+   * Writes the PDF of a book scan project folder (the folder File > Import > Scan a Book to
+   * PDF keeps its scans and book.json in): every page the same size, in the project's page
+   * order. Options override the project's saved output settings for this export only:
+   * mode ("color", "gray" or "bw" for one bit per pixel), threshold (1 to 255, Black and
+   * White), dpi (0 keeps the scan resolution), imageQuality, pageSize ("median",
+   * "largest", "cover", or [width, height] in inches), title and author. Returns the page
+   * count; throws on bad arguments, an unreadable project, or a write failure.
+   */
+  buildBookPdf(
+    folder: string,
+    path: string,
+    options?: {
+      mode?: "color" | "gray" | "bw";
+      threshold?: number;
+      dpi?: number;
+      imageQuality?: "lossless" | "high" | "medium" | "low";
+      pageSize?: "median" | "largest" | "cover" | [number, number];
+      title?: string;
+      author?: string;
+    },
+  ): number;
 }
 
 /** One field of a patchy.ui.showDialog / showOptions form. */

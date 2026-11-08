@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation>この本のスキャンを読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation>本に書き出すページがありません。</translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation>このフォルダーには Patchy の本のスキャンがありません。</translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation>この本のスキャンは新しいバージョンの Patchy で保存されています。</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation>本のスキャンのマニフェストが、フォルダー外のスキャンを指しています。</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation>本のスキャンのマニフェストを %1 に書き込めませんでした。</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15007,6 +15037,14 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation>単位</translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation>%1 x %2 mm</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation>%1 x %2 in</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15181,6 +15219,81 @@ Do you want to replace it?</source>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
         <translation>画像はもうカメラにありません。デバイスを選び直して一覧を更新してください。</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation>システムのスキャンダイアログ</translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation>スキャンダイアログで選択</translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation>スキャンをプロジェクトフォルダーに移動できませんでした。</translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation>スキャナーは別のジョブまたはプログラムで使用中です。</translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation>スキャナーが応答しなくなりました。電源が入っていて接続されていることを確認してください。</translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation>スキャナーからカバーが開いていると報告されました。</translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation>スキャナーから紙詰まりが報告されました。</translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation>スキャナーのランプが消えています。</translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation>スキャナーはまだウォームアップ中です。しばらくしてから、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation>このスキャンに必要なメモリが足りません。より低い解像度をお試しください。</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation>スキャンを完了できませんでした (%1)。</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation>Windows Image Acquisition</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Windows Image Acquisition を利用できません (%1)</translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation>このスキャナーには、Patchy が直接制御できるフラットベッドがありません。</translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation>開いているスキャナーがありません。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation>スキャナーは %1 dpi に対応していません。</translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation>スキャナーは直接転送に対応していません。</translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
+        <translation>スキャナーをウォームアップしています...</translation>
     </message>
 </context>
 <context>
@@ -15705,6 +15818,523 @@ Do you want to replace it?</source>
     <message>
         <source>No matching presets</source>
         <translation>一致するプリセットはありません</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation>本をスキャンして PDF に</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>閉じる</translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation>Patchy 本のスキャン</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>本</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>タイトル:</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation>著者:</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>参照...</translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation>プロジェクトフォルダー:</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>更新</translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation>スキャナー:</translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation>スキャンごとにシステムのスキャンダイアログを使う</translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation>Patchy が直接制御できないスキャナー用です。この場合、解像度とモードは毎回ダイアログで選択します。</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation>本を開いてガラス面に伏せて置き、裏表紙、背、表表紙がすべてガラス面に載るようにしてから、「表紙をスキャン」を押してください。Patchy はこのスキャンから本のサイズを測ります。スキップすると、代わりに最初のページから測ります (その場合、表紙は PDF に含まれません)。</translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation>表紙をスキップ</translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation>表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation>プロジェクトフォルダーを選択</translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>空き容量: %1 GB。300 dpi のカラーの本には、約 2 から 4 GB のスキャンが必要です。</translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>ディスクの空き容量が少なくなっています (空き %1 GB)。300 dpi のカラーの本には、約 2 から 4 GB のスキャンが必要です。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation>本の輪郭を確認し、2 本の背の線を背の両端にドラッグしてください。</translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation>スキャン内で本の上端が向いている方向</translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation>本の上端の向き:</translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation>左から右</translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation>右から左</translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation>読む方向:</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> 度</translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation>傾き:</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>ページサイズ:</translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation>ページのスキャン</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解像度:</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>カラー</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>グレースケール</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>モード:</translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation>本の範囲 (高速)</translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation>ガラス面全体</translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation>スキャン範囲:</translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation>1 回のスキャンで 2 ページ</translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation>1 回のスキャンで 1 ページ</translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation>ページ:</translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation>表紙を PDF に含める</translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation>表紙を再スキャン</translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation>ページのスキャンを開始</translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation>本がスキャン範囲からはみ出している可能性があります。ページが切れている場合は、「ガラス面全体」で再スキャンしてください。</translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation>これらのページはグレースケールのようです。グレースケールでスキャンすると速く、PDF も小さくなります。</translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation>グレースケールに切り替え</translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation>両方のページ</translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation>左ページのみ</translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation>右ページのみ</translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation>空白の見返しや、最後の見開きの空白側を除外します</translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation>使用:</translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation>このスキャンを 180 度回転</translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation>スキャン完了時にビープ音を鳴らす</translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation>直前を再スキャン</translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation>スキャンをキャンセル</translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation>完了</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>スキャン</translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation>次のページからはグレースケールでスキャンします。</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation>180 度回転</translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation>空白ページを挿入</translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation>さらにページをスキャン</translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation>測定値 (中央値)</translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation>測定した最大のページ</translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation>表紙から</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>カスタム</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>USレター</translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation>6 x 9 in</translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation>5.5 x 8.5 in</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation> in</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation>白黒</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>出力:</translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation>しきい値:</translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation>スキャンのまま</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation>画質:</translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation>ページをドキュメントとして開く</translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation>PDF を書き出し...</translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation>本の PDF を書き出し</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation>ここではスキャンを利用できません</translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation>スキャナーが見つかりません</translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation>1. 設定して表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation>2. 本を確認</translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation>3. ページをスキャン</translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation>4. 確認して書き出し</translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation>先にプロジェクトフォルダーを選択してください。</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation>このフォルダーにはすでに本のスキャンがあります。続けるには ファイル &gt; 読み込み &gt; 本のスキャンを再開 を使用するか、別のフォルダーを選択してください。</translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation>プロジェクトフォルダー %1 を作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation>ここではスキャンを利用できません。</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation>スキャナーを開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation>表紙をスキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation>スキャンをキャンセルしました。</translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation>スキャナーが見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation>スキャンに失敗しました。</translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation>表紙のスキャンをプロジェクトフォルダーに保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation>開いた本がガラス面より広いため、各ページを個別にスキャンします。</translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation>スキャンごとの解像度とモードはスキャンダイアログで設定します。</translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation>開いた本がガラス面より広いようです。「1 回のスキャンで 1 ページ」が必要になる場合があります。</translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation>約 %1</translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation>ページから測定</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>スキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation>再スキャンしています...</translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation>スキャンをプロジェクトフォルダーに保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation>スキャン %1 が完了しました。</translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>最初のページをガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation>本の最初のページを開いてガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>%1 ページ目をガラス面に伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>次のページを開いて本を伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation>
+            <numerusform>完了 (%n ページ)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>表表紙</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>裏表紙</translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation>空白</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation>
+            <numerusform>%n ページ、各 %1。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation>本の PDF を書き込んでいます...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation>ページ %1 / %2 を書き込み中...</translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation>書き出しをキャンセルしました。</translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation>PDF を書き込めませんでした。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation>
+            <numerusform>%n ページを %1 に書き出しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation>PDF を書き出しました。後でページを変更して再度書き出せるように、スキャンのプロジェクトフォルダー (%1) を残しますか?</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>手順 1 で「スキャンごとにシステムのスキャンダイアログを使う」を試してください。</translation>
     </message>
 </context>
 <context>
@@ -19929,6 +20559,14 @@ Do you want to replace it?</source>
     <message>
         <source>Spread every line across the text box, the last one too</source>
         <translation>最終行も含めて各行をテキストボックスの幅いっぱいに広げる</translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation>本を 1 ページずつスキャンして 1 つの PDF にします</translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
+        <translation>以前に開始した本のスキャンを続けます</translation>
     </message>
 </context>
 <context>
@@ -33785,6 +34423,32 @@ Locked: %1</source>
         <source>Blend Mode</source>
         <translation>描画モード</translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation>本をスキャンして PDF に(&amp;B)...</translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation>本のスキャンを再開(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation>本のスキャンを再開</translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation>本のページを開いています...</translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation>本をスキャン</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation>
+            <numerusform>本のページを %n ページ開きました</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36776,6 +37440,26 @@ Locked: %1</source>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation>align は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos;、&apos;justifyAll&apos; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation>buildBookPdf には本のスキャンフォルダーと出力パスが必要です。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation>buildBookPdf で %1 を開けませんでした: %2</translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation>buildBookPdf の mode は &quot;color&quot;、&quot;gray&quot;、&quot;bw&quot; のいずれかである必要があります。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation>buildBookPdf の imageQuality は &quot;lossless&quot;、&quot;high&quot;、&quot;medium&quot;、&quot;low&quot; のいずれかでなければなりません。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
+        <translation>buildBookPdf の pageSize は &quot;median&quot;、&quot;largest&quot;、&quot;cover&quot;、またはインチ単位の [幅, 高さ] である必要があります。</translation>
     </message>
 </context>
 <context>

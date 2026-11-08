@@ -116,6 +116,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"fileClearRecentFoldersAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Empty the list of recent folders")},
     {"file.import_photocopy", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scan and print in one step")},
     {"file.import_divide_photos", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scan several photos and split them apart")},
+    {"file.import_scan_book_pdf", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scan a book page by page into one PDF")},
+    {"file.import_resume_book_scan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Continue a book scan you started earlier")},
     {"file.import_sprite_sheet", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Cut a sprite sheet into layers")},
     {"file.import_image_sequence", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Load numbered images as layers")},
     {"file.export_multipage_pdf", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save several documents as one PDF")},

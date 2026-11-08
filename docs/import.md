@@ -4,6 +4,7 @@ The File > Import features, the folder open/export pair, plus the seamless-tilin
 
 Related documents:
 
+- [book-scan.md](book-scan.md): Scan a Book to PDF, the book scanning wizard, its project folder and PDF.
 - [import-scanner.md](import-scanner.md): scanner and camera acquisition per platform (WIA, ImageKit, SANE and libgphoto2 on Linux), the Linux device dialog, SANE frame assembly, failure messages and the fake-scanner test hooks.
 
 ## Scanner import

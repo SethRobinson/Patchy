@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation>이 책의 스캔 하나를 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation>책에 내보낼 페이지가 없습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation>이 폴더에는 Patchy 책 스캔이 없습니다.</translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation>이 책 스캔은 더 새로운 버전의 Patchy로 저장되었습니다.</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation>책 스캔의 매니페스트가 폴더 밖의 스캔을 가리킵니다.</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation>책 스캔의 매니페스트를 %1에 쓸 수 없습니다.</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15007,6 +15037,14 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation>단위</translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation>%1 x %2 mm</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation>%1 x %2인치</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15181,6 +15219,81 @@ Do you want to replace it?</source>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
         <translation>이미지가 더 이상 카메라에 없습니다. 장치를 다시 선택해 목록을 새로 고치세요.</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation>시스템 스캔 대화 상자</translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation>스캔 대화 상자에서 선택</translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation>스캔을 프로젝트 폴더로 옮길 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation>스캐너가 다른 작업이나 프로그램에서 사용 중입니다.</translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation>스캐너가 응답하지 않습니다. 전원이 켜져 있고 연결되어 있는지 확인하세요.</translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation>스캐너에서 덮개가 열려 있다고 알립니다.</translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation>스캐너에서 용지 걸림을 알립니다.</translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation>스캐너 램프가 꺼져 있습니다.</translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation>스캐너가 아직 예열 중입니다. 잠시 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation>이 스캔에 필요한 메모리가 부족합니다. 더 낮은 해상도를 시도하세요.</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation>스캔을 완료할 수 없습니다(%1).</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation>Windows Image Acquisition</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Windows Image Acquisition을 사용할 수 없습니다(%1)</translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation>이 스캐너에는 Patchy가 직접 제어할 수 있는 평판이 없습니다.</translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation>열려 있는 스캐너가 없습니다.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation>스캐너가 %1 dpi를 지원하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation>스캐너가 직접 전송을 지원하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
+        <translation>스캐너 예열 중...</translation>
     </message>
 </context>
 <context>
@@ -15705,6 +15818,523 @@ Do you want to replace it?</source>
     <message>
         <source>No matching presets</source>
         <translation>일치하는 사전 설정이 없습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation>책을 PDF로 스캔</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>닫기</translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation>Patchy 책 스캔</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>책</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>제목:</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation>저자:</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>찾아보기...</translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation>프로젝트 폴더:</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>새로 고침</translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation>스캐너:</translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation>스캔할 때마다 시스템 스캔 대화 상자 사용</translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation>Patchy가 직접 제어할 수 없는 스캐너용입니다. 이 경우 매번 대화 상자에서 해상도와 모드를 선택합니다.</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation>책을 펼쳐 뒤표지, 책등, 앞표지가 모두 유리면에 놓이도록 엎어 놓은 다음 &apos;표지 스캔&apos;을 누르세요. Patchy는 이 스캔으로 책의 크기를 측정합니다. 건너뛰면 처음 몇 페이지로 대신 측정합니다(이 경우 표지는 PDF에 포함되지 않습니다).</translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation>표지 건너뛰기</translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation>표지 스캔</translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation>프로젝트 폴더 선택</translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>여유 공간: %1GB. 300 dpi 컬러 책은 스캔에 약 2~4GB가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>디스크 공간 부족: %1GB 남음. 300 dpi 컬러 책은 스캔에 약 2~4GB가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation>책의 윤곽을 확인하고 두 책등 선을 책등의 양쪽 가장자리로 끌어 놓으세요.</translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation>위쪽</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>오른쪽</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation>아래쪽</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>왼쪽</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation>스캔에서 책의 위쪽이 향하는 방향</translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation>책 위쪽 방향:</translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation>왼쪽에서 오른쪽으로</translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation>오른쪽에서 왼쪽으로</translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation>읽기 방향:</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation>도</translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation>기울기:</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>페이지 크기:</translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation>페이지 스캔</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>해상도:</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>컬러</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>회색조</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>모드:</translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation>책 영역(더 빠름)</translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation>유리면 전체</translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation>스캔 영역:</translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation>스캔당 2페이지</translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation>스캔당 1페이지</translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation>페이지:</translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation>PDF에 표지 포함</translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation>표지 다시 스캔</translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation>페이지 스캔 시작</translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation>책이 스캔 영역을 벗어날 수 있습니다. 페이지가 잘리면 &apos;유리면 전체&apos;로 다시 스캔하세요.</translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation>이 페이지는 회색조로 보입니다. &apos;회색조&apos;로 스캔하면 더 빠르고 PDF도 더 작아집니다.</translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation>회색조로 전환</translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation>양쪽 페이지</translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation>왼쪽 페이지만</translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation>오른쪽 페이지만</translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation>빈 속표지나 마지막 펼침면의 빈 쪽을 제외합니다</translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation>사용:</translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation>이 스캔을 180도 회전</translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation>스캔이 끝나면 알림음 재생</translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation>마지막 스캔 다시 하기</translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation>스캔 취소</translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation>완료</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>스캔</translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation>다음 페이지부터 회색조로 스캔합니다.</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>삭제</translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation>180도 회전</translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation>빈 페이지 삽입</translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation>페이지 더 스캔</translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation>측정값(중앙값)</translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation>측정된 가장 큰 페이지</translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation>표지 기준</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>사용자 지정</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>US Letter</translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation>6 x 9인치</translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation>5.5 x 8.5인치</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation> 인치</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation>흑백</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>출력:</translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation>한계값:</translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation>스캔한 그대로</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation>이미지 품질:</translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation>페이지를 문서로 열기</translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation>PDF 내보내기...</translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation>책 PDF 내보내기</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation>여기에서는 스캔을 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation>스캐너를 찾을 수 없음</translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation>1. 설정 및 표지 스캔</translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation>2. 책 확인</translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation>3. 페이지 스캔</translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation>4. 검토 및 내보내기</translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation>먼저 프로젝트 폴더를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation>그 폴더에는 이미 책 스캔이 있습니다. 이어서 하려면 파일 &gt; 가져오기 &gt; 책 스캔 재개를 사용하거나 다른 폴더를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation>프로젝트 폴더 %1을(를) 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation>여기에서는 스캔을 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation>스캐너를 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation>표지를 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation>스캔을 취소했습니다.</translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation>스캐너를 찾을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation>스캔하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation>표지 스캔을 프로젝트 폴더에 저장할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation>펼친 책이 유리면보다 넓어서 각 페이지를 따로 스캔합니다.</translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation>스캔할 때마다 스캔 대화 상자에서 해상도와 모드를 설정합니다.</translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation>펼친 책이 유리면보다 넓어 보입니다. &apos;스캔당 1페이지&apos;가 필요할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation>약 %1</translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation>페이지에서 측정</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation>다시 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation>스캔을 프로젝트 폴더에 저장할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation>스캔 %1 완료.</translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>첫 페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation>책의 첫 페이지를 펼쳐 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>%1페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 다음에는 &apos;완료&apos;를 누르세요.</translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>다음 페이지로 넘기고 책을 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 다음에는 &apos;완료&apos;를 누르세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation>
+            <numerusform>완료(%n페이지)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>앞표지</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>뒤표지</translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation>빈 페이지</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation>
+            <numerusform>%n페이지, 각각 %1.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation>책 PDF를 쓰는 중...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>취소</translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation>%2페이지 중 %1페이지를 쓰는 중...</translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation>내보내기를 취소했습니다.</translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation>PDF를 쓸 수 없습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation>
+            <numerusform>%1에 %n페이지를 썼습니다</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation>PDF를 썼습니다. 나중에 페이지를 바꾸고 다시 내보낼 수 있도록 스캔 프로젝트 폴더(%1)를 유지하시겠습니까?</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>1단계에서 &apos;스캔할 때마다 시스템 스캔 대화 상자 사용&apos;을 시도해 보세요.</translation>
     </message>
 </context>
 <context>
@@ -19929,6 +20559,14 @@ Do you want to replace it?</source>
     <message>
         <source>Spread every line across the text box, the last one too</source>
         <translation>마지막 줄까지 모든 줄을 텍스트 상자 너비에 맞게 펼침</translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation>책을 한 페이지씩 스캔하여 하나의 PDF로 만들기</translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
+        <translation>이전에 시작한 책 스캔 계속하기</translation>
     </message>
 </context>
 <context>
@@ -33785,6 +34423,32 @@ Locked: %1</source>
         <source>Blend Mode</source>
         <translation>혼합 모드</translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation>책을 PDF로 스캔(&amp;B)...</translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation>책 스캔 재개(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation>책 스캔 재개</translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation>책 페이지를 여는 중...</translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation>책 스캔</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation>
+            <numerusform>책 페이지 %n개를 열었습니다</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36776,6 +37440,26 @@ Locked: %1</source>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation>align은 &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; 또는 &apos;justifyAll&apos;여야 합니다.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation>buildBookPdf에는 책 스캔 폴더와 출력 경로가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation>buildBookPdf에서 %1을(를) 열 수 없습니다: %2</translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation>buildBookPdf mode는 &quot;color&quot;, &quot;gray&quot;, &quot;bw&quot; 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation>buildBookPdf imageQuality는 &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, &quot;low&quot; 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
+        <translation>buildBookPdf pageSize는 &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; 또는 인치 단위의 [width, height]여야 합니다.</translation>
     </message>
 </context>
 <context>

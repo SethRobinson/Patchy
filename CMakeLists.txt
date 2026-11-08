@@ -216,6 +216,7 @@ add_library(patchy_core
   src/core/pattern_resource.cpp
   src/core/photo_develop.cpp
   src/core/photo_divide.cpp
+  src/core/book_scan.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_depth.cpp
   src/core/hdr_color.cpp
@@ -1602,6 +1603,14 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/raw_develop_settings.hpp
       src/ui/raw_develop_settings.cpp
       src/ui/scanner_import.hpp
+      src/ui/scanner_session.hpp
+      src/ui/scanner_session.cpp
+      src/ui/book_scan_project.hpp
+      src/ui/book_scan_project.cpp
+      src/ui/book_pdf_export.hpp
+      src/ui/book_pdf_export.cpp
+      src/ui/book_scan_dialog.hpp
+      src/ui/book_scan_dialog.cpp
       src/ui/js_syntax_highlighter.hpp
       src/ui/js_syntax_highlighter.cpp
       src/ui/script_api.hpp
@@ -1931,14 +1940,16 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       # legacy_plugin_runner_win.cpp drives the out-of-process 8BF host.
       # display_hdr_info_win.cpp reads DXGI outputs (dxgi; Qt6Gui already imports dxgi.dll,
       # so linking it adds no startup load).
-      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp src/ui/legacy_plugin_runner_win.cpp
+      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp src/ui/scanner_session_win.cpp
+                     src/ui/legacy_plugin_runner_win.cpp
                      src/ui/display_hdr_info_win.cpp)
       add_dependencies(patchy_ui patchy-8bf-host64 patchy_8bf_host32)
       # winmm: PlaySound for the script sound effects (sound_effects.cpp).
       # ws2_32: getaddrinfo for the network clients' own host resolve (host_resolve.cpp).
       # wintrust, crypt32: the one-click update checks the installer's Authenticode signer
     # (update_installer.cpp).
-    target_link_libraries(patchy_ui PUBLIC wiaguid winmm ws2_32 wintrust crypt32 dxgi)
+    # shlwapi: SHCreateStreamOnFileEx for the WIA book-scan transfers (scanner_session_win.cpp).
+    target_link_libraries(patchy_ui PUBLIC wiaguid shlwapi winmm ws2_32 wintrust crypt32 dxgi)
     endif()
     patchy_configure_target(patchy_ui)
 
@@ -2483,6 +2494,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pattern_styles_fixtures_tests.cpp
     tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
+    tests/core/book_scan_tests.cpp
     tests/core/pixel_depth_tests.cpp
     tests/core/hdr_color_tests.cpp
     tests/core/pixel_tools_tests.cpp
@@ -2674,6 +2686,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/import_print_resolution_tests_pdf_upgrade.cpp
       tests/ui/import_print_resolution_tests_geometry_rendering.cpp
       tests/ui/divide_photos_tests.cpp
+      tests/ui/book_scan_tests.cpp
       tests/ui/folder_open_export_tests.cpp
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp

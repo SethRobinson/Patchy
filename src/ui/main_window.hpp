@@ -178,6 +178,7 @@ using SelectiveColorSettings = SelectiveColorAdjustment;
 using VibranceSettings = VibranceAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
+struct BookProject;
 struct UpdateInfo;
 enum class DividePhotosExistingFiles : int;
 enum class ExportDocumentsExistingFiles : int;
@@ -1256,6 +1257,12 @@ private:
   // platen, and open (or save) each one separately. The scan itself is a
   // throwaway, never a session (the photocopy precedent).
   void import_and_divide_from_scanner();
+  // File > Import > Scan a Book to PDF and Resume Book Scan (docs/book-scan.md).
+  void import_scan_book_pdf();
+  void resume_book_scan();
+  // Opens a saved book scan folder in the wizard; false with a message when it is not one.
+  bool resume_book_scan_folder(const QString& folder);
+  void open_book_pages(const BookProject& project);
   // Returns true when the batch finished and the user asked to scan another
   // (the caller loops back into acquisition).
   bool finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after);

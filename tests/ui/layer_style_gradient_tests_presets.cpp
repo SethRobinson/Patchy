@@ -38,6 +38,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/view_extras.hpp"
+#include "ui/book_scan_dialog.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>
@@ -1610,6 +1611,11 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     }
     grab_dialog(QStringLiteral("patchySplashScreen"), "about");
     patchy::ui::show_about_splash();
+    // Scan a Book to PDF on the test scanner, so the sweep never opens real hardware.
+    grab_dialog(QStringLiteral("bookScanDialog"), "book_scan");
+    qputenv("PATCHY_FAKE_BOOK_SCANNER", "sweep-no-scan.png");
+    (void)patchy::ui::run_book_scan_dialog(nullptr, std::nullopt);
+    qunsetenv("PATCHY_FAKE_BOOK_SCANNER");
     // The color picker is a top-level widget, not a dialog.
     patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));
     picker.show();
@@ -1637,7 +1643,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 40);
+  CHECK(captured == 42);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

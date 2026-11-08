@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation>Une numérisation de ce livre n&apos;a pas pu être lue.</translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation>Le livre n&apos;a aucune page à exporter.</translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation>Ce dossier ne contient pas de numérisation de livre Patchy.</translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation>Cette numérisation de livre a été enregistrée par une version plus récente de Patchy.</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation>Le manifeste de la numérisation de livre désigne une numérisation située hors de son dossier.</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation>Le manifeste de la numérisation de livre n&apos;a pas pu être écrit dans %1.</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15054,6 +15084,14 @@ Voulez-vous le remplacer ?</translation>
         <source>Units</source>
         <translation>Unités</translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation>%1 x %2 mm</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation>%1 x %2 po</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15228,6 +15266,81 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
         <translation>L&apos;image n&apos;est plus sur l&apos;appareil photo. Sélectionnez de nouveau le périphérique pour actualiser la liste.</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation>Boîte de dialogue de numérisation du système</translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation>Choisir dans la boîte de dialogue de numérisation</translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation>La numérisation n&apos;a pas pu être déplacée dans le dossier du projet.</translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation>Le scanner est occupé par une autre tâche ou un autre programme.</translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation>Le scanner ne répond plus. Vérifiez qu&apos;il est allumé et connecté.</translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation>Le scanner signale que son capot est ouvert.</translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation>Le scanner signale un bourrage papier.</translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation>La lampe du scanner est éteinte.</translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation>Le scanner est encore en préchauffage. Réessayez dans un instant.</translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation>Mémoire insuffisante pour cette numérisation. Essayez une résolution plus basse.</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation>La numérisation n&apos;a pas pu aboutir (%1).</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation>Windows Image Acquisition</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Windows Image Acquisition n&apos;est pas disponible (%1)</translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation>Ce scanner n&apos;a pas de vitre à plat que Patchy puisse piloter directement.</translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation>Aucun scanner n&apos;est ouvert.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation>Le scanner n&apos;accepte pas %1 ppp.</translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation>Le scanner ne prend pas en charge les transferts directs.</translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
+        <translation>Préchauffage du scanner...</translation>
     </message>
 </context>
 <context>
@@ -15752,6 +15865,526 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>No matching presets</source>
         <translation>Aucun préréglage correspondant</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation>Numériser un livre en PDF</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Fermer</translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation>Livres numérisés Patchy</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Livre</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>Titre :</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation>Auteur :</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Parcourir...</translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation>Dossier du projet :</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>Actualiser</translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation>Scanner :</translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation>Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation</translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation>Pour les scanners que Patchy ne peut pas piloter directement. Vous choisissez alors la résolution et le mode dans la boîte de dialogue à chaque fois.</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation>Ouvrez le livre et posez-le face vers le bas sur la vitre de sorte que la couverture arrière, le dos et la couverture avant y reposent tous, puis appuyez sur « Numériser la couverture ». Patchy mesure le livre à partir de cette numérisation. Ignorez-la pour mesurer plutôt à partir des premières pages (les couvertures ne figurent alors pas dans le PDF).</translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation>Ignorer la couverture</translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation>Numériser la couverture</translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation>Choisir le dossier du projet</translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>Espace libre : %1 Go. Un livre en couleur à 300 ppp nécessite environ 2 à 4 Go de numérisations.</translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>Espace disque faible : %1 Go libres. Un livre en couleur à 300 ppp nécessite environ 2 à 4 Go de numérisations.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation>Vérifiez le contour du livre et faites glisser les deux lignes du dos sur les bords du dos.</translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation>Haut</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Droite</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation>Bas</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Gauche</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation>Direction vers laquelle pointe le haut du livre dans la numérisation</translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation>Le haut du livre pointe vers :</translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation>De gauche à droite</translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation>De droite à gauche</translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation>Sens de lecture :</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> degrés</translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation>Inclinaison :</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>Taille de page :</translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation>Numérisation des pages</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Résolution :</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Couleur</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Niveaux de gris</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Mode :</translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation>Zone du livre (plus rapide)</translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation>Vitre entière</translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation>Zone de numérisation :</translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation>Deux pages par numérisation</translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation>Une page par numérisation</translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation>Pages :</translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation>Inclure les couvertures dans le PDF</translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation>Numériser à nouveau la couverture</translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation>Commencer la numérisation des pages</translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation>Le livre dépasse peut-être de la zone numérisée. Numérisez à nouveau avec « Vitre entière » si une page est coupée.</translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation>Ces pages semblent en niveaux de gris. La numérisation en niveaux de gris est plus rapide et produit un PDF plus léger.</translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation>Passer en niveaux de gris</translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation>Les deux pages</translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation>Page de gauche uniquement</translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation>Page de droite uniquement</translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation>Omettre un intérieur de couverture vierge ou le côté vide de la dernière double page</translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation>Utiliser :</translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation>Faire pivoter cette numérisation de 180 degrés</translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation>Émettre un bip à la fin de chaque numérisation</translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation>Numériser à nouveau la dernière</translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation>Annuler la numérisation</translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation>Terminé</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Numériser</translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation>Les pages suivantes sont numérisées en niveaux de gris.</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Supprimer</translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation>Faire pivoter de 180 degrés</translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation>Insérer une page vierge</translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation>Numériser d&apos;autres pages</translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation>Mesurée (médiane)</translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation>Plus grande page mesurée</translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation>D&apos;après la couverture</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Personnalisée</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>Lettre US</translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation>6 x 9 po</translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation>5,5 x 8,5 po</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation> po</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation>Noir et blanc</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>Sortie :</translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation>Seuil :</translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation>Identique à la numérisation</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 ppp</translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation>Qualité d&apos;image :</translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation>Ouvrir les pages comme documents</translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation>Exporter en PDF...</translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation>Exporter le PDF du livre</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation>La numérisation n&apos;est pas disponible ici</translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation>Aucun scanner trouvé</translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation>1. Configurer et numériser la couverture</translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation>2. Vérifier le livre</translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation>3. Numériser les pages</translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation>4. Revoir et exporter</translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation>Choisissez d&apos;abord un dossier de projet.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation>Ce dossier contient déjà une numérisation de livre. Utilisez Fichier &gt; Importer &gt; Reprendre la numérisation de livre pour la poursuivre, ou choisissez un autre dossier.</translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation>Le dossier de projet %1 n&apos;a pas pu être créé.</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation>La numérisation n&apos;est pas disponible ici.</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation>Le scanner n&apos;a pas pu être ouvert.</translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation>Numérisation de la couverture...</translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation>Numérisation annulée.</translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation>Aucun scanner n&apos;a été trouvé.</translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation>La numérisation a échoué.</translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation>La numérisation de la couverture n&apos;a pas pu être enregistrée dans le dossier du projet.</translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation>Le livre ouvert est plus large que la vitre, chaque page est donc numérisée séparément.</translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation>La boîte de dialogue de numérisation définit la résolution et le mode de chaque numérisation.</translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation>Le livre ouvert semble plus large que la vitre. Une page par numérisation peut être nécessaire.</translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation>environ %1</translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation>mesurée à partir des pages</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Numérisation...</translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation>Nouvelle numérisation...</translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation>La numérisation n&apos;a pas pu être enregistrée dans le dossier du projet.</translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation>Numérisation %1 terminée.</translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Posez la première page face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation>Ouvrez le livre aux premières pages, posez-le face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Posez la page %1 face vers le bas sur la vitre, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après la dernière page.</translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Passez aux pages suivantes, posez le livre face vers le bas, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après les dernières pages.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation>
+            <numerusform>Terminé (%n page)</numerusform>
+            <numerusform>Terminé (%n pages)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>Couverture avant</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>Couverture arrière</translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation>Vierge</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation>
+            <numerusform>%n page de %1.</numerusform>
+            <numerusform>%n pages, chacune de %1.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation>Écriture du PDF du livre...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation>Écriture de la page %1 sur %2...</translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation>Exportation annulée.</translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation>Le PDF n&apos;a pas pu être écrit.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation>
+            <numerusform>%n page écrite dans %1</numerusform>
+            <numerusform>%n pages écrites dans %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation>Le PDF est écrit. Conserver le dossier du projet de numérisation (%1) pour pouvoir modifier des pages et exporter à nouveau plus tard ?</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>Essayez « Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation » à l&apos;étape 1.</translation>
     </message>
 </context>
 <context>
@@ -19976,6 +20609,14 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Spread every line across the text box, the last one too</source>
         <translation>Répartir chaque ligne sur la largeur du cadre de texte, la dernière aussi</translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation>Numériser un livre page par page dans un seul PDF</translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
+        <translation>Reprendre une numérisation de livre commencée plus tôt</translation>
     </message>
 </context>
 <context>
@@ -33873,6 +34514,33 @@ Verrouillé : %1</translation>
         <source>Blend Mode</source>
         <translation>Mode de fusion</translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation>Numériser un &amp;livre en PDF...</translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation>&amp;Reprendre la numérisation de livre...</translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation>Reprendre la numérisation de livre</translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation>Ouverture des pages du livre...</translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation>Numériser un livre</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation>
+            <numerusform>%n page du livre ouverte</numerusform>
+            <numerusform>%n pages du livre ouvertes</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36868,6 +37536,26 @@ Verrouillé : %1</translation>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation>align doit valoir &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; ou &apos;justifyAll&apos;.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation>buildBookPdf nécessite un dossier de numérisation de livre et un chemin de sortie.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation>buildBookPdf n&apos;a pas pu ouvrir %1 : %2</translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation>buildBookPdf : mode doit valoir &quot;color&quot;, &quot;gray&quot; ou &quot;bw&quot;.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation>buildBookPdf : imageQuality doit valoir &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot; ou &quot;low&quot;.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
+        <translation>buildBookPdf : pageSize doit valoir &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; ou [largeur, hauteur] en pouces.</translation>
     </message>
 </context>
 <context>

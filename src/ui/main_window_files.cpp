@@ -172,6 +172,8 @@
 #include "ui/scanner_import.hpp"
 #include "core/photo_divide.hpp"
 #include "ui/divide_photos_dialog.hpp"
+#include "ui/book_scan_dialog.hpp"
+#include "ui/book_scan_project.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "ui/image_sequence_dialog.hpp"
@@ -4538,6 +4540,103 @@ void MainWindow::import_and_divide_from_scanner() {
     }
   });
 #endif
+}
+
+namespace {
+
+// Gray8 or RGB8 book page pixels as the RGBA8 a document layer holds.
+PixelBuffer book_page_layer_pixels(const PixelBuffer& page) {
+  PixelBuffer rgba(page.width(), page.height(), PixelFormat::rgba8());
+  const int channels = page.format().channels;
+  for (std::int32_t y = 0; y < page.height(); ++y) {
+    const auto* in = page.row(y).data();
+    auto* out = rgba.row(y).data();
+    for (std::int32_t x = 0; x < page.width(); ++x) {
+      const auto* px = in + static_cast<std::size_t>(x) * channels;
+      out[x * 4] = px[0];
+      out[x * 4 + 1] = channels == 1 ? px[0] : px[1];
+      out[x * 4 + 2] = channels == 1 ? px[0] : px[2];
+      out[x * 4 + 3] = 255;
+    }
+  }
+  return rgba;
+}
+
+}  // namespace
+
+void MainWindow::import_scan_book_pdf() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto opened = run_book_scan_dialog(this, std::nullopt);
+  if (opened) {
+    open_book_pages(*opened);
+  }
+}
+
+void MainWindow::resume_book_scan() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const QString start = app_settings().value(QStringLiteral("bookScan/folderRoot")).toString();
+  const QString folder = QFileDialog::getExistingDirectory(this, tr("Resume Book Scan"), start);
+  if (!folder.isEmpty()) {
+    resume_book_scan_folder(folder);
+  }
+}
+
+bool MainWindow::resume_book_scan_folder(const QString& folder) {
+  QString error;
+  auto project = load_book_project(folder, &error);
+  if (!project) {
+    show_critical_message(this, tr("Resume Book Scan"), error, QStringLiteral("bookScanResumeErrorMessageBox"));
+    return false;
+  }
+  const auto opened = run_book_scan_dialog(this, std::move(project));
+  if (opened) {
+    open_book_pages(*opened);
+  }
+  return true;
+}
+
+void MainWindow::open_book_pages(const BookProject& project) {
+  const auto pages = book_page_order(project);
+  const BookPageSize size = resolved_page_size(project);
+  QProgressDialog progress(tr("Opening book pages..."), tr("Cancel"), 0, static_cast<int>(pages.size()), this);
+  progress.setObjectName(QStringLiteral("bookScanOpenPagesProgress"));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(400);
+  BookScanCache cache(project);
+  int number = 0;
+  for (const auto& page : pages) {
+    if (progress.wasCanceled()) {
+      break;
+    }
+    ++number;
+    progress.setLabelText(tr("Opening page %1 of %2...").arg(number).arg(pages.size()));
+    progress.setValue(number - 1);
+    QCoreApplication::processEvents();
+    const PixelBuffer rendered = render_book_page(project, page, size, project.output_dpi, cache);
+    if (rendered.empty()) {
+      continue;
+    }
+    const double ppi = rendered.width() / size.width;
+    Document document(rendered.width(), rendered.height(), PixelFormat::rgba8());
+    document.print_settings().horizontal_ppi = ppi;
+    document.print_settings().vertical_ppi = ppi;
+    document.add_pixel_layer("Background", book_page_layer_pixels(rendered));
+    // Untitled and modified, like a scanner import: the page exists nowhere else yet.
+    add_document_session(std::move(document), tr("Page %1").arg(number), QString(), tr("Scan a book"));
+    canvas_->fit_to_view_without_enlarging();
+    mark_session_modified(session());
+  }
+  progress.setValue(static_cast<int>(pages.size()));
+  refresh_layer_list();
+  refresh_layer_controls();
+  update_undo_redo_actions();
+  statusBar()->showMessage(tr("Opened %n book page(s)", nullptr, number));
 }
 
 bool MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after) {

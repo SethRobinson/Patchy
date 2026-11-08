@@ -447,6 +447,9 @@ public:
   // One PDF with a page per document: exportPdf([docA, docB], "out.pdf", { lossless,
   // editableLayers, missingFontsAsImages }). A single document is accepted too.
   Q_INVOKABLE bool exportPdf(const QJSValue& documents, const QString& path, const QJSValue& options = QJSValue());
+  // Writes the PDF of a Scan a Book to PDF project folder (docs/book-scan.md); options
+  // override its saved output settings for this export only. Returns the page count.
+  Q_INVOKABLE int buildBookPdf(const QString& folder, const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QStringList commandIds();
   Q_INVOKABLE QJSValue listFonts();
   // One entry per screen with its HDR capability (ui/display_hdr_info.hpp).

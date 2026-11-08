@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation>無法讀取這本書的一張掃描影像。</translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation>這本書沒有可匯出的頁面。</translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation>此資料夾中沒有 Patchy 書籍掃描。</translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation>此書籍掃描是由較新版本的 Patchy 儲存的。</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation>書籍掃描的資訊清單參照了其資料夾以外的掃描。</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation>無法將書籍掃描的資訊清單寫入 %1。</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15007,6 +15037,14 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation>單位</translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation>%1 x %2 mm</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation>%1 x %2 英吋</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15181,6 +15219,81 @@ Do you want to replace it?</source>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
         <translation>該影像已不在相機上。請重新選擇裝置以重新整理清單。</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation>系統掃描對話方塊</translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation>在掃描對話方塊中選擇</translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation>無法將掃描移入專案資料夾。</translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation>掃描器正忙於其他工作或程式。</translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation>掃描器停止回應。請檢查它是否已開機並已連接。</translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation>掃描器回報其上蓋已開啟。</translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation>掃描器回報卡紙。</translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation>掃描器燈管已關閉。</translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation>掃描器仍在暖機。請稍後再試一次。</translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation>記憶體不足，無法進行此次掃描。請嘗試較低的解析度。</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation>無法完成掃描（%1）。</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation>Windows Image Acquisition</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>無法使用 Windows Image Acquisition (%1)</translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation>此掃描器沒有 Patchy 可以直接控制的平台。</translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation>沒有開啟的掃描器。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation>掃描器不接受 %1 dpi。</translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation>掃描器不支援直接傳輸。</translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
+        <translation>掃描器正在暖機...</translation>
     </message>
 </context>
 <context>
@@ -15705,6 +15818,523 @@ Do you want to replace it?</source>
     <message>
         <source>No matching presets</source>
         <translation>沒有相符的預設</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation>將書籍掃描為 PDF</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>關閉</translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation>Patchy 書籍掃描</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>書籍</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>書名:</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation>作者:</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>瀏覽...</translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation>專案資料夾:</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>重新整理</translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation>掃描器:</translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation>每次掃描都使用系統掃描對話方塊</translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation>用於 Patchy 無法直接控制的掃描器。這樣每次都要在對話方塊中選擇解析度和模式。</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation>打開書本，將其正面朝下放在玻璃板上，讓封底、書背和封面都在玻璃板上，然後按「掃描封面」。Patchy 會根據這次掃描測量書本。略過此步驟則改為根據前幾頁測量（這樣封面不會包含在 PDF 中）。</translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation>略過封面</translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation>掃描封面</translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation>選擇專案資料夾</translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>可用空間：%1 GB。以 300 dpi 掃描彩色書籍約需 2 到 4 GB 的空間。</translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>磁碟空間不足：僅剩 %1 GB。以 300 dpi 掃描彩色書籍約需 2 到 4 GB 的空間。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation>檢查書本的輪廓，並將兩條書背線拖曳到書背的邊緣。</translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation>書本頂端在掃描中朝向的方向</translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation>書本頂端朝向:</translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation>由左至右</translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation>由右至左</translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation>閱讀方向:</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> 度</translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation>傾斜:</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>頁面大小:</translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation>頁面掃描</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解析度:</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>彩色</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>灰階</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation>書本區域（較快）</translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation>整個玻璃板</translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation>掃描區域:</translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation>每次掃描兩頁</translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation>每次掃描一頁</translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation>頁面:</translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation>在 PDF 中包含封面</translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation>重新掃描封面</translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation>開始掃描頁面</translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation>書本可能超出了掃描區域。如果頁面被裁切，請使用「整個玻璃板」重新掃描。</translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation>這些頁面看起來是灰階的。使用「灰階」掃描更快，產生的 PDF 也更小。</translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation>切換為灰階</translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation>兩頁</translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation>僅左頁</translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation>僅右頁</translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation>略去空白的封面內頁或最後一個跨頁的空白面</translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation>使用:</translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation>將此掃描旋轉 180 度</translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation>掃描完成時發出提示音</translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation>重新掃描上一張</translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation>取消掃描</translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation>完成</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>掃描</translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation>接下來的頁面將以灰階掃描。</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>刪除</translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation>旋轉 180 度</translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation>插入空白頁</translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation>掃描更多頁面</translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation>測量值（中位數）</translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation>測得的最大頁面</translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation>依據封面</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>自訂</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>美國 Letter</translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation>6 x 9 英吋</translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation>5.5 x 8.5 英吋</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation> 英吋</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation>黑白</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>輸出:</translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation>臨界值:</translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation>與掃描相同</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation>影像品質:</translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation>將頁面作為文件開啟</translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation>匯出 PDF...</translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation>匯出書籍 PDF</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation>此處無法使用掃描</translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation>找不到掃描器</translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation>1. 設定並掃描封面</translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation>2. 檢查書本</translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation>3. 掃描頁面</translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation>4. 檢視並匯出</translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation>請先選擇專案資料夾。</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation>該資料夾中已有書籍掃描。請使用「檔案 &gt; 讀入 &gt; 繼續書籍掃描」繼續，或選擇其他資料夾。</translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation>無法建立專案資料夾 %1。</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation>此處無法使用掃描。</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation>無法開啟掃描器。</translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation>正在掃描封面...</translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation>已取消掃描。</translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation>找不到掃描器。</translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation>掃描失敗。</translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation>無法將封面掃描儲存到專案資料夾中。</translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation>打開的書本比玻璃板寬，因此每頁將單獨掃描。</translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation>每次掃描的解析度和模式由掃描對話方塊設定。</translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation>打開的書本看起來比玻璃板寬。可能需要「每次掃描一頁」。</translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation>約 %1</translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation>依據頁面測量</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>正在掃描...</translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation>正在重新掃描...</translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation>無法將掃描儲存到專案資料夾中。</translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation>第 %1 次掃描完成。</translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>將第一頁正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation>將書本翻開到最前面幾頁，正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>將第 %1 頁正面朝下放在玻璃板上，然後按「掃描」。掃描完最後一頁後按「完成」。</translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>翻到接下來的頁面，將書本正面朝下放好，然後按「掃描」。掃描完最後幾頁後按「完成」。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation>
+            <numerusform>完成（%n 頁）</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>封面</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>封底</translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation>空白</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation>
+            <numerusform>%n 頁，每頁 %1。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation>正在寫入書籍 PDF...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation>正在寫入第 %1 頁，共 %2 頁...</translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation>已取消匯出。</translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation>無法寫入 PDF。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation>
+            <numerusform>已將 %n 頁寫入 %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation>PDF 已寫入。是否保留掃描專案資料夾（%1），以便日後變更頁面並再次匯出？</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>請在第 1 步中嘗試「每次掃描都使用系統掃描對話方塊」。</translation>
     </message>
 </context>
 <context>
@@ -19929,6 +20559,14 @@ Do you want to replace it?</source>
     <message>
         <source>Spread every line across the text box, the last one too</source>
         <translation>將每行文字展開到文字框寬度，末行也一樣</translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation>逐頁掃描書籍並產生一個 PDF</translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
+        <translation>繼續先前開始的書籍掃描</translation>
     </message>
 </context>
 <context>
@@ -33785,6 +34423,32 @@ Locked: %1</source>
         <source>Blend Mode</source>
         <translation>混合模式</translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation>將書籍掃描為 PDF(&amp;B)...</translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation>繼續書籍掃描(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation>繼續書籍掃描</translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation>正在開啟書籍頁面...</translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation>掃描書籍</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation>
+            <numerusform>已開啟 %n 個書籍頁面</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36776,6 +37440,26 @@ Locked: %1</source>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation>align 必須是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos; 或 &apos;justifyAll&apos;。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation>buildBookPdf 需要書籍掃描資料夾和輸出路徑。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation>buildBookPdf 無法開啟 %1: %2</translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation>buildBookPdf mode 必須是 &quot;color&quot;、&quot;gray&quot; 或 &quot;bw&quot;。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation>buildBookPdf imageQuality 必須是 &quot;lossless&quot;、&quot;high&quot;、&quot;medium&quot; 或 &quot;low&quot;。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
+        <translation>buildBookPdf pageSize 必須是 &quot;median&quot;、&quot;largest&quot;、&quot;cover&quot; 或以英吋為單位的 [width, height]。</translation>
     </message>
 </context>
 <context>

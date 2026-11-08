@@ -2493,6 +2493,35 @@ void pdf_probe_refuses_pages_that_are_more_than_one_image() {
 }
 
 // /Rotate, a carried placement matrix, and one shared ICC profile for every page.
+// Scan a Book to PDF's Black and White pages: one bit per pixel, DeviceGray.
+void pdf_image_writer_one_bit_pages() {
+  std::filesystem::create_directories("test-artifacts");
+  const std::filesystem::path path = "test-artifacts/pdf_image_writer_one_bit.pdf";
+  {
+    patchy::pdf::ImageWriter writer(path);
+    for (int index = 0; index < 2; ++index) {
+      patchy::pdf::ImagePage page;
+      page.width_points = 432.0;  // 6 x 9 inches
+      page.height_points = 648.0;
+      page.image.width = 10;
+      page.image.height = 3;
+      page.image.bits_per_component = 1;
+      page.image.color_space = "/DeviceGray";
+      // Two bytes per row (10 bits, padded): white, then a black first pixel.
+      page.image.bytes = {0xFF, 0xC0, 0x7F, 0xC0, 0xFF, 0xC0};
+      writer.add_page(page);
+    }
+    writer.finish();
+  }
+  const auto bytes = read_whole_file(path);
+  const std::string text = as_text(bytes);
+  CHECK(text.find("/BitsPerComponent 1") != std::string::npos);
+  CHECK(text.find("/ColorSpace /DeviceGray") != std::string::npos);
+  CHECK(text.find("/MediaBox [0 0 432 648]") != std::string::npos);
+  auto file = patchy::pdf::File::open(bytes, nullptr);
+  CHECK(file.has_value() && file->pages().size() == 2);
+}
+
 void pdf_image_writer_repeats_rotation_placement_and_profile() {
   std::filesystem::create_directories("test-artifacts");
   const std::filesystem::path path = "test-artifacts/pdf_image_writer_source_page.pdf";
@@ -2625,6 +2654,7 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_probe_captures_a_full_page_scan", pdf_probe_captures_a_full_page_scan},
       {"pdf_probe_refuses_pages_that_are_more_than_one_image", pdf_probe_refuses_pages_that_are_more_than_one_image},
       {"pdf_image_writer_repeats_rotation_placement_and_profile", pdf_image_writer_repeats_rotation_placement_and_profile},
+      {"pdf_image_writer_one_bit_pages", pdf_image_writer_one_bit_pages},
       {"pdf_pixel_hash_tells_changed_bytes_apart", pdf_pixel_hash_tells_changed_bytes_apart},
   };
 }

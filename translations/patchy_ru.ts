@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation>Не удалось прочитать один из сканов этой книги.</translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation>В книге нет страниц для экспорта.</translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation>В этой папке нет сканирования книги Patchy.</translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation>Это сканирование книги сохранено более новой версией Patchy.</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation>Манифест сканирования книги ссылается на скан за пределами его папки.</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation>Не удалось записать манифест сканирования книги в %1.</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15101,6 +15131,14 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation>Единицы</translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation>%1 x %2 мм</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation>%1 x %2 дюйм</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15275,6 +15313,81 @@ Do you want to replace it?</source>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
         <translation>Этого изображения больше нет на камере. Выберите устройство снова, чтобы обновить список.</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation>Системное окно сканирования</translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation>Выбрать в окне сканирования</translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation>Не удалось переместить скан в папку проекта.</translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation>Сканер занят другим заданием или программой.</translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation>Сканер перестал отвечать. Проверьте, что он включён и подключён.</translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation>Сканер сообщает, что крышка открыта.</translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation>Сканер сообщает о замятии бумаги.</translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation>Лампа сканера выключена.</translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation>Сканер ещё прогревается. Повторите попытку чуть позже.</translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation>Недостаточно памяти для этого сканирования. Попробуйте более низкое разрешение.</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation>Не удалось завершить сканирование (%1).</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation>Windows Image Acquisition</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Служба Windows Image Acquisition недоступна (%1)</translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation>У этого сканера нет планшета, которым Patchy может управлять напрямую.</translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation>Сканер не открыт.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation>Сканер не поддерживает разрешение %1 dpi.</translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation>Сканер не поддерживает прямую передачу.</translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
+        <translation>Прогрев сканера...</translation>
     </message>
 </context>
 <context>
@@ -15799,6 +15912,529 @@ Do you want to replace it?</source>
     <message>
         <source>No matching presets</source>
         <translation>Нет подходящих шаблонов</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation>Сканирование книги в PDF</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Закрыть</translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation>Сканы книг Patchy</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Книга</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>Название:</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation>Автор:</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Обзор...</translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation>Папка проекта:</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>Обновить</translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation>Сканер:</translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation>Открывать системное окно сканирования при каждом сканировании</translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation>Для сканеров, которыми Patchy не может управлять напрямую. Разрешение и режим тогда каждый раз выбираются в этом окне.</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation>Откройте книгу и положите её лицом вниз на стекло так, чтобы задняя обложка, корешок и передняя обложка были на стекле, затем нажмите «Сканировать обложку». Patchy измеряет книгу по этому скану. Пропустите этот шаг, чтобы измерить её по первым страницам (тогда обложки не попадут в PDF).</translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation>Пропустить обложку</translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation>Сканировать обложку</translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation>Выбор папки проекта</translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>Свободно: %1 ГБ. Цветной книге при 300 dpi нужно примерно от 2 до 4 ГБ сканов.</translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>Мало места на диске: свободно %1 ГБ. Цветной книге при 300 dpi нужно примерно от 2 до 4 ГБ сканов.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation>Проверьте контур книги и перетащите две линии корешка на края корешка.</translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation>Вверх</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Вправо</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation>Вниз</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Влево</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation>Куда направлен верх книги на скане</translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation>Верх книги направлен:</translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation>Слева направо</translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation>Справа налево</translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation>Направление чтения:</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> град</translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation>Наклон:</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>Размер страницы:</translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation>Сканирование страниц</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Разрешение:</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Цвет</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Оттенки серого</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Режим:</translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation>Область книги (быстрее)</translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation>Всё стекло</translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation>Область сканирования:</translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation>Две страницы за скан</translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation>Одна страница за скан</translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation>Страницы:</translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation>Включить обложки в PDF</translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation>Пересканировать обложку</translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation>Начать сканирование страниц</translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation>Книга может выходить за пределы области сканирования. Если страница обрезана, пересканируйте с вариантом «Всё стекло».</translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation>Похоже, эти страницы в оттенках серого. Сканирование в режиме «Оттенки серого» быстрее и даёт PDF меньшего размера.</translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation>Переключить на оттенки серого</translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation>Обе страницы</translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation>Только левая страница</translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation>Только правая страница</translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation>Пропустить пустой форзац или пустую сторону последнего разворота</translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation>Использовать:</translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation>Повернуть этот скан на 180 градусов</translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation>Звуковой сигнал по завершении сканирования</translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation>Повторить последний скан</translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation>Отменить сканирование</translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation>Готово</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Сканировать</translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation>Следующие страницы будут сканироваться в оттенках серого.</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation>Повернуть на 180 градусов</translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation>Вставить пустую страницу</translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation>Сканировать ещё страницы</translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation>Измеренный (медиана)</translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation>Наибольшая измеренная страница</translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation>По обложке</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Пользовательский</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>US Letter</translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation>6 x 9 дюйм</translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation>5,5 x 8,5 дюйм</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> мм</translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation> дюйм</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation>Чёрно-белый</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>Выход:</translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation>Порог:</translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation>Как при сканировании</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation>Качество изображения:</translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation>Открыть страницы как документы</translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation>Экспорт PDF...</translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation>Экспорт PDF книги</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation>Сканирование здесь недоступно</translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation>Сканер не найден</translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation>1. Настройка и сканирование обложки</translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation>2. Проверка книги</translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation>3. Сканирование страниц</translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation>4. Просмотр и экспорт</translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation>Сначала выберите папку проекта.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation>В этой папке уже есть сканирование книги. Чтобы продолжить его, выберите Файл &gt; Импорт &gt; Продолжить сканирование книги, или выберите другую папку.</translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation>Не удалось создать папку проекта %1.</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation>Сканирование здесь недоступно.</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation>Не удалось открыть сканер.</translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation>Сканирование обложки...</translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation>Сканирование отменено.</translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation>Сканер не найден.</translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation>Сканирование не удалось.</translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation>Не удалось сохранить скан обложки в папке проекта.</translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation>Открытая книга шире стекла, поэтому каждая страница сканируется отдельно.</translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation>Окно сканирования задаёт разрешение и режим для каждого сканирования.</translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation>Открытая книга, похоже, шире стекла. Возможно, понадобится вариант «Одна страница за скан».</translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation>около %1</translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation>измерено по страницам</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Сканирование...</translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation>Повторное сканирование...</translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation>Не удалось сохранить скан в папке проекта.</translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation>Скан %1 готов.</translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Положите первую страницу лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation>Откройте книгу на первых страницах, положите её лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Положите страницу %1 лицом вниз на стекло, затем нажмите «Сканировать». После последней страницы нажмите «Готово».</translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Переверните на следующие страницы, положите книгу лицом вниз, затем нажмите «Сканировать». После последних страниц нажмите «Готово».</translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation>
+            <numerusform>Готово (%n страница)</numerusform>
+            <numerusform>Готово (%n страницы)</numerusform>
+            <numerusform>Готово (%n страниц)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>Передняя обложка</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>Задняя обложка</translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation>Пустая</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation>
+            <numerusform>%n страница размером %1.</numerusform>
+            <numerusform>%n страницы, каждая размером %1.</numerusform>
+            <numerusform>%n страниц, каждая размером %1.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation>Запись PDF книги...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation>Запись страницы %1 из %2...</translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation>Экспорт отменён.</translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation>Не удалось записать PDF.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation>
+            <numerusform>Записана %n страница в %1</numerusform>
+            <numerusform>Записано %n страницы в %1</numerusform>
+            <numerusform>Записано %n страниц в %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation>PDF записан. Сохранить папку проекта сканирования (%1), чтобы позже можно было изменить страницы и экспортировать снова?</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>На шаге 1 попробуйте вариант «Открывать системное окно сканирования при каждом сканировании».</translation>
     </message>
 </context>
 <context>
@@ -20023,6 +20659,14 @@ Do you want to replace it?</source>
     <message>
         <source>Spread every line across the text box, the last one too</source>
         <translation>Растянуть все строки на ширину текстовой рамки, включая последнюю</translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation>Сканировать книгу страница за страницей в один PDF</translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
+        <translation>Продолжить начатое ранее сканирование книги</translation>
     </message>
 </context>
 <context>
@@ -33961,6 +34605,34 @@ Locked: %1</source>
         <source>Blend Mode</source>
         <translation>Режим наложения</translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation>Сканировать &amp;книгу в PDF...</translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation>&amp;Продолжить сканирование книги...</translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation>Продолжить сканирование книги</translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation>Открытие страниц книги...</translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation>Сканировать книгу</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation>
+            <numerusform>Открыта %n страница книги</numerusform>
+            <numerusform>Открыто %n страницы книги</numerusform>
+            <numerusform>Открыто %n страниц книги</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36960,6 +37632,26 @@ Locked: %1</source>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation>align должен быть «left», «center», «right», «justify», «justifyCenter», «justifyRight» или «justifyAll».</translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation>Для buildBookPdf нужны папка сканирования книги и путь вывода.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation>buildBookPdf: не удалось открыть %1: %2</translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation>Для buildBookPdf параметр mode должен быть &quot;color&quot;, &quot;gray&quot; или &quot;bw&quot;.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation>Для buildBookPdf параметр imageQuality должен быть &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot; или &quot;low&quot;.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
+        <translation>Для buildBookPdf параметр pageSize должен быть &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; или [ширина, высота] в дюймах.</translation>
     </message>
 </context>
 <context>

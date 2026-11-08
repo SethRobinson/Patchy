@@ -23,6 +23,11 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-08 (additive): `app.buildBookPdf(folder, path, options)` writes the PDF of a Scan a Book
+to PDF project folder ([book-scan.md](book-scan.md)). Its option keys (`mode` with `"color"`,
+`"gray"`, `"bw"`; `threshold`, `dpi`, `imageQuality`, `pageSize` with `"median"`, `"largest"`,
+`"cover"` or `[width, height]`; `title`, `author`) and the `book.json` format id `patchy-book-scan`
+are permanent identifiers.
 2026-11-08 (additive): the Type Mask tool (#670, [type-mask.md](type-mask.md)). Its tool id
 `tools.type_mask` (theme tool id `type_mask`) and the Type group's cycle command `tools.cycle.type`
 are permanent identifiers; `patchy.ui.toolPalette`'s `hiddenTools` accepts `tools.type_mask`.

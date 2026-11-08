@@ -64,6 +64,36 @@
     </message>
 </context>
 <context>
+    <name>BookPdfExport</name>
+    <message>
+        <source>A scan of this book could not be read.</source>
+        <translation>无法读取这本书的一张扫描图像。</translation>
+    </message>
+    <message>
+        <source>The book has no pages to export.</source>
+        <translation>这本书没有可导出的页面。</translation>
+    </message>
+</context>
+<context>
+    <name>BookScanProject</name>
+    <message>
+        <source>This folder does not hold a Patchy book scan.</source>
+        <translation>此文件夹中没有 Patchy 书籍扫描。</translation>
+    </message>
+    <message>
+        <source>This book scan was saved by a newer version of Patchy.</source>
+        <translation>此书籍扫描是由更新版本的 Patchy 保存的。</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <translation>书籍扫描的清单引用了其文件夹之外的扫描。</translation>
+    </message>
+    <message>
+        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <translation>无法将书籍扫描的清单写入 %1。</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -15007,6 +15037,14 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation>单位</translation>
     </message>
+    <message>
+        <source>%1 x %2 mm</source>
+        <translation>%1 x %2 mm</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <translation>%1 x %2 英寸</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15181,6 +15219,81 @@ Do you want to replace it?</source>
     <message>
         <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
         <translation>该图像已不在相机上。请重新选择设备以刷新列表。</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerSession</name>
+    <message>
+        <source>System scan dialog</source>
+        <translation>系统扫描对话框</translation>
+    </message>
+    <message>
+        <source>Choose in the scan dialog</source>
+        <translation>在扫描对话框中选择</translation>
+    </message>
+    <message>
+        <source>The scan could not be moved into the project folder.</source>
+        <translation>无法将扫描移入项目文件夹。</translation>
+    </message>
+    <message>
+        <source>The scanner is busy with another job or program.</source>
+        <translation>扫描仪正忙于其他作业或程序。</translation>
+    </message>
+    <message>
+        <source>The scanner stopped responding. Check that it is switched on and connected.</source>
+        <translation>扫描仪停止响应。请检查它是否已开机并已连接。</translation>
+    </message>
+    <message>
+        <source>The scanner reports that its cover is open.</source>
+        <translation>扫描仪报告其盖板已打开。</translation>
+    </message>
+    <message>
+        <source>The scanner reports a paper jam.</source>
+        <translation>扫描仪报告卡纸。</translation>
+    </message>
+    <message>
+        <source>The scanner lamp is off.</source>
+        <translation>扫描仪灯管已关闭。</translation>
+    </message>
+    <message>
+        <source>The scanner is still warming up. Try again in a moment.</source>
+        <translation>扫描仪仍在预热。请稍后重试。</translation>
+    </message>
+    <message>
+        <source>Not enough memory for this scan. Try a lower resolution.</source>
+        <translation>内存不足，无法进行此次扫描。请尝试较低的分辨率。</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1).</source>
+        <translation>无法完成扫描（%1）。</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition</source>
+        <translation>Windows Image Acquisition</translation>
+    </message>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Windows Image Acquisition 不可用 (%1)</translation>
+    </message>
+    <message>
+        <source>This scanner has no flatbed that Patchy can control directly.</source>
+        <translation>此扫描仪没有 Patchy 可以直接控制的平板。</translation>
+    </message>
+    <message>
+        <source>No scanner is open.</source>
+        <translation>没有打开的扫描仪。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept %1 dpi.</source>
+        <translation>扫描仪不接受 %1 dpi。</translation>
+    </message>
+    <message>
+        <source>The scanner does not support direct transfers.</source>
+        <translation>扫描仪不支持直接传输。</translation>
+    </message>
+    <message>
+        <source>Scanner warming up...</source>
+        <translation>扫描仪正在预热...</translation>
     </message>
 </context>
 <context>
@@ -15705,6 +15818,523 @@ Do you want to replace it?</source>
     <message>
         <source>No matching presets</source>
         <translation>没有匹配的预设</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BookScanDialog</name>
+    <message>
+        <source>Scan a Book to PDF</source>
+        <translation>将书籍扫描为 PDF</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Patchy Book Scans</source>
+        <translation>Patchy 书籍扫描</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>书籍</translation>
+    </message>
+    <message>
+        <source>Title:</source>
+        <translation>书名:</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation>作者:</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>浏览...</translation>
+    </message>
+    <message>
+        <source>Project folder:</source>
+        <translation>项目文件夹:</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>刷新</translation>
+    </message>
+    <message>
+        <source>Scanner:</source>
+        <translation>扫描仪:</translation>
+    </message>
+    <message>
+        <source>Use the system scan dialog for each scan</source>
+        <translation>每次扫描都使用系统扫描对话框</translation>
+    </message>
+    <message>
+        <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
+        <translation>用于 Patchy 无法直接控制的扫描仪。这样每次都要在对话框中选择分辨率和模式。</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
+        <translation>打开书本，将其正面朝下放在玻璃板上，使封底、书脊和封面都在玻璃板上，然后按“扫描封面”。Patchy 会根据这次扫描测量书本。跳过此步骤则改为根据前几页测量（这样封面不会包含在 PDF 中）。</translation>
+    </message>
+    <message>
+        <source>Skip Cover</source>
+        <translation>跳过封面</translation>
+    </message>
+    <message>
+        <source>Scan Cover</source>
+        <translation>扫描封面</translation>
+    </message>
+    <message>
+        <source>Choose Project Folder</source>
+        <translation>选择项目文件夹</translation>
+    </message>
+    <message>
+        <source>Free space: %1 GB. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>可用空间：%1 GB。以 300 dpi 扫描彩色书籍约需 2 到 4 GB 的空间。</translation>
+    </message>
+    <message>
+        <source>Low disk space: %1 GB free. A color book at 300 dpi needs about 2 to 4 GB of scans.</source>
+        <translation>磁盘空间不足：仅剩 %1 GB。以 300 dpi 扫描彩色书籍约需 2 到 4 GB 的空间。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <translation>检查书本的轮廓，并将两条书脊线拖到书脊的边缘。</translation>
+    </message>
+    <message>
+        <source>Up</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points in the scan</source>
+        <translation>书本顶部在扫描中朝向的方向</translation>
+    </message>
+    <message>
+        <source>Top of the book points:</source>
+        <translation>书本顶部朝向:</translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation>从左到右</translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation>从右到左</translation>
+    </message>
+    <message>
+        <source>Reading direction:</source>
+        <translation>阅读方向:</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> 度</translation>
+    </message>
+    <message>
+        <source>Tilt:</source>
+        <translation>倾斜:</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>页面大小:</translation>
+    </message>
+    <message>
+        <source>Page scans</source>
+        <translation>页面扫描</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>分辨率:</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>彩色</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>灰度</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Book area (faster)</source>
+        <translation>书本区域（较快）</translation>
+    </message>
+    <message>
+        <source>Whole glass</source>
+        <translation>整个玻璃板</translation>
+    </message>
+    <message>
+        <source>Scan area:</source>
+        <translation>扫描区域:</translation>
+    </message>
+    <message>
+        <source>Two pages per scan</source>
+        <translation>每次扫描两页</translation>
+    </message>
+    <message>
+        <source>One page per scan</source>
+        <translation>每次扫描一页</translation>
+    </message>
+    <message>
+        <source>Pages:</source>
+        <translation>页面:</translation>
+    </message>
+    <message>
+        <source>Include the covers in the PDF</source>
+        <translation>在 PDF 中包含封面</translation>
+    </message>
+    <message>
+        <source>Rescan Cover</source>
+        <translation>重新扫描封面</translation>
+    </message>
+    <message>
+        <source>Start Scanning Pages</source>
+        <translation>开始扫描页面</translation>
+    </message>
+    <message>
+        <source>The book may reach past the scanned area. Rescan with Whole glass if a page is cut off.</source>
+        <translation>书本可能超出了扫描区域。如果页面被裁掉，请使用“整个玻璃板”重新扫描。</translation>
+    </message>
+    <message>
+        <source>These pages look grayscale. Scanning in Grayscale is faster and makes a smaller PDF.</source>
+        <translation>这些页面看起来是灰度的。使用“灰度”扫描更快，生成的 PDF 也更小。</translation>
+    </message>
+    <message>
+        <source>Switch to Grayscale</source>
+        <translation>切换到灰度</translation>
+    </message>
+    <message>
+        <source>Both pages</source>
+        <translation>两页</translation>
+    </message>
+    <message>
+        <source>Left page only</source>
+        <translation>仅左页</translation>
+    </message>
+    <message>
+        <source>Right page only</source>
+        <translation>仅右页</translation>
+    </message>
+    <message>
+        <source>Leave out a blank inside cover or the empty side of the last spread</source>
+        <translation>略去空白的封面内页或最后一个跨页的空白面</translation>
+    </message>
+    <message>
+        <source>Use:</source>
+        <translation>使用:</translation>
+    </message>
+    <message>
+        <source>Turn This Scan 180 Degrees</source>
+        <translation>将此扫描旋转 180 度</translation>
+    </message>
+    <message>
+        <source>Beep when a scan finishes</source>
+        <translation>扫描完成时发出提示音</translation>
+    </message>
+    <message>
+        <source>Rescan Last</source>
+        <translation>重新扫描上一张</translation>
+    </message>
+    <message>
+        <source>Cancel Scan</source>
+        <translation>取消扫描</translation>
+    </message>
+    <message>
+        <source>Finished</source>
+        <translation>完成</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>扫描</translation>
+    </message>
+    <message>
+        <source>The next pages are scanned in Grayscale.</source>
+        <translation>接下来的页面将以灰度扫描。</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>删除</translation>
+    </message>
+    <message>
+        <source>Turn 180 Degrees</source>
+        <translation>旋转 180 度</translation>
+    </message>
+    <message>
+        <source>Insert Blank Page</source>
+        <translation>插入空白页</translation>
+    </message>
+    <message>
+        <source>Scan More Pages</source>
+        <translation>扫描更多页面</translation>
+    </message>
+    <message>
+        <source>Measured (median)</source>
+        <translation>测量值（中位数）</translation>
+    </message>
+    <message>
+        <source>Largest measured page</source>
+        <translation>测得的最大页面</translation>
+    </message>
+    <message>
+        <source>From the cover</source>
+        <translation>根据封面</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>自定义</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>美国信纸</translation>
+    </message>
+    <message>
+        <source>6 x 9 in</source>
+        <translation>6 x 9 英寸</translation>
+    </message>
+    <message>
+        <source>5.5 x 8.5 in</source>
+        <translation>5.5 x 8.5 英寸</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source> in</source>
+        <translation> 英寸</translation>
+    </message>
+    <message>
+        <source>Black and white</source>
+        <translation>黑白</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>输出:</translation>
+    </message>
+    <message>
+        <source>Threshold:</source>
+        <translation>阈值:</translation>
+    </message>
+    <message>
+        <source>As scanned</source>
+        <translation>与扫描相同</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Image quality:</source>
+        <translation>图像品质:</translation>
+    </message>
+    <message>
+        <source>Open Pages as Documents</source>
+        <translation>将页面作为文档打开</translation>
+    </message>
+    <message>
+        <source>Export PDF...</source>
+        <translation>导出 PDF...</translation>
+    </message>
+    <message>
+        <source>Export Book PDF</source>
+        <translation>导出书籍 PDF</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here</source>
+        <translation>此处无法使用扫描</translation>
+    </message>
+    <message>
+        <source>No scanner found</source>
+        <translation>未找到扫描仪</translation>
+    </message>
+    <message>
+        <source>1. Set up and scan the cover</source>
+        <translation>1. 设置并扫描封面</translation>
+    </message>
+    <message>
+        <source>2. Check the book</source>
+        <translation>2. 检查书本</translation>
+    </message>
+    <message>
+        <source>3. Scan the pages</source>
+        <translation>3. 扫描页面</translation>
+    </message>
+    <message>
+        <source>4. Review and export</source>
+        <translation>4. 查看并导出</translation>
+    </message>
+    <message>
+        <source>Choose a project folder first.</source>
+        <translation>请先选择项目文件夹。</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
+        <translation>该文件夹中已有书籍扫描。请使用“文件 &gt; 导入 &gt; 继续书籍扫描”继续，或选择其他文件夹。</translation>
+    </message>
+    <message>
+        <source>The project folder %1 could not be created.</source>
+        <translation>无法创建项目文件夹 %1。</translation>
+    </message>
+    <message>
+        <source>Scanning is not available here.</source>
+        <translation>此处无法使用扫描。</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened.</source>
+        <translation>无法打开扫描仪。</translation>
+    </message>
+    <message>
+        <source>Scanning the cover...</source>
+        <translation>正在扫描封面...</translation>
+    </message>
+    <message>
+        <source>Scan cancelled.</source>
+        <translation>已取消扫描。</translation>
+    </message>
+    <message>
+        <source>No scanner was found.</source>
+        <translation>未找到扫描仪。</translation>
+    </message>
+    <message>
+        <source>The scan failed.</source>
+        <translation>扫描失败。</translation>
+    </message>
+    <message>
+        <source>The cover scan could not be saved in the project folder.</source>
+        <translation>无法将封面扫描保存到项目文件夹中。</translation>
+    </message>
+    <message>
+        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
+        <translation>打开的书本比玻璃板宽，因此每页将单独扫描。</translation>
+    </message>
+    <message>
+        <source>The scan dialog sets the resolution and mode for each scan.</source>
+        <translation>每次扫描的分辨率和模式由扫描对话框设置。</translation>
+    </message>
+    <message>
+        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
+        <translation>打开的书本看起来比玻璃板宽。可能需要“每次扫描一页”。</translation>
+    </message>
+    <message>
+        <source>about %1</source>
+        <translation>约 %1</translation>
+    </message>
+    <message>
+        <source>measured from the pages</source>
+        <translation>根据页面测量</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>正在扫描...</translation>
+    </message>
+    <message>
+        <source>Scanning again...</source>
+        <translation>正在重新扫描...</translation>
+    </message>
+    <message>
+        <source>The scan could not be saved in the project folder.</source>
+        <translation>无法将扫描保存到项目文件夹中。</translation>
+    </message>
+    <message>
+        <source>Scan %1 done.</source>
+        <translation>第 %1 次扫描完成。</translation>
+    </message>
+    <message>
+        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>将第一页正面朝下放在玻璃板上，然后按“扫描”（或空格键）。</translation>
+    </message>
+    <message>
+        <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
+        <translation>将书本翻开到最前面几页，正面朝下放在玻璃板上，然后按“扫描”（或空格键）。</translation>
+    </message>
+    <message>
+        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>将第 %1 页正面朝下放在玻璃板上，然后按“扫描”。扫描完最后一页后按“完成”。</translation>
+    </message>
+    <message>
+        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>翻到接下来的页面，将书本正面朝下放好，然后按“扫描”。扫描完最后几页后按“完成”。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Finished (%n page(s))</source>
+        <translation>
+            <numerusform>完成（%n 页）</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>封面</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>封底</translation>
+    </message>
+    <message>
+        <source>Blank</source>
+        <translation>空白</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s), each %1.</source>
+        <translation>
+            <numerusform>%n 页，每页 %1。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing the book PDF...</source>
+        <translation>正在写入书籍 PDF...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Writing page %1 of %2...</source>
+        <translation>正在写入第 %1 页，共 %2 页...</translation>
+    </message>
+    <message>
+        <source>Export cancelled.</source>
+        <translation>已取消导出。</translation>
+    </message>
+    <message>
+        <source>The PDF could not be written.</source>
+        <translation>无法写入 PDF。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n page(s) to %1</source>
+        <translation>
+            <numerusform>已将 %n 页写入 %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
+        <translation>PDF 已写入。是否保留扫描项目文件夹（%1），以便以后更改页面并再次导出？</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>请在第 1 步中尝试“每次扫描都使用系统扫描对话框”。</translation>
     </message>
 </context>
 <context>
@@ -19929,6 +20559,14 @@ Do you want to replace it?</source>
     <message>
         <source>Spread every line across the text box, the last one too</source>
         <translation>将每行文字铺满文本框宽度，末行也一样</translation>
+    </message>
+    <message>
+        <source>Scan a book page by page into one PDF</source>
+        <translation>逐页扫描书籍并生成一个 PDF</translation>
+    </message>
+    <message>
+        <source>Continue a book scan you started earlier</source>
+        <translation>继续之前开始的书籍扫描</translation>
     </message>
 </context>
 <context>
@@ -33785,6 +34423,32 @@ Locked: %1</source>
         <source>Blend Mode</source>
         <translation>混合模式</translation>
     </message>
+    <message>
+        <source>Scan a &amp;Book to PDF...</source>
+        <translation>将书籍扫描为 PDF(&amp;B)...</translation>
+    </message>
+    <message>
+        <source>&amp;Resume Book Scan...</source>
+        <translation>继续书籍扫描(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Resume Book Scan</source>
+        <translation>继续书籍扫描</translation>
+    </message>
+    <message>
+        <source>Opening book pages...</source>
+        <translation>正在打开书籍页面...</translation>
+    </message>
+    <message>
+        <source>Scan a book</source>
+        <translation>扫描书籍</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n book page(s)</source>
+        <translation>
+            <numerusform>已打开 %n 个书籍页面</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36776,6 +37440,26 @@ Locked: %1</source>
     <message>
         <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation>align 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos; 或 &apos;justifyAll&apos;。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf needs a book scan folder and an output path.</source>
+        <translation>buildBookPdf 需要书籍扫描文件夹和输出路径。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf could not open %1: %2</source>
+        <translation>buildBookPdf 无法打开 %1: %2</translation>
+    </message>
+    <message>
+        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
+        <translation>buildBookPdf mode 必须是 &quot;color&quot;、&quot;gray&quot; 或 &quot;bw&quot;。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
+        <translation>buildBookPdf imageQuality 必须是 &quot;lossless&quot;、&quot;high&quot;、&quot;medium&quot; 或 &quot;low&quot;。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
+        <translation>buildBookPdf pageSize 必须是 &quot;median&quot;、&quot;largest&quot;、&quot;cover&quot; 或以英寸为单位的 [width, height]。</translation>
     </message>
 </context>
 <context>

@@ -449,6 +449,7 @@ int main(int argc, char* argv[]) {
            warp_tests,
            import_print_resolution_tests,
            divide_photos_tests,
+           book_scan_ui_tests,
            folder_open_export_tests,
            artboard_ui_tests,
            image_adjustments_curves_tests,
