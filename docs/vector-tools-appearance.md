@@ -43,14 +43,19 @@ line endpoints) or, for a plain path with no modeled origination (custom shape, 
 outline; #642), the path's bounds (`ShapeAppearanceSettings::path_box`): a changed box
 moves and scales the path (`fit_vector_path_to_box`) and drops any unmodeled origination
 read from the file. A plain path's Geometry ends with the Custom Shape tool's Shape picker
-(`shapeGeometryCustomShapeCombo`, #644): the layer keeps no preset id, so it opens with no
-shape chosen, and a pick replaces the outline (`path_shape`, one shape group) with that
-preset stretched to the box shown. Radius holds the four corners, Top left: to Bottom left:
+(`shapeGeometryCustomShapeCombo`, #644): a pick replaces the outline (`path_shape`, one shape
+group) with that preset stretched to the box shown. It opens on the shape the layer was
+stamped from or last picked (`VectorShapeContent::library_shape_id`, session only, never
+written), by one id lookup plus one check that the outline still is that shape fitted to its
+bounds (`vector_path_is_fitted_shape`): moves and axis scales keep it, point edits, combines,
+rotations and flips end it, and a reopened file or a deleted shape opens it empty. Never
+match an outline against the whole library (slow with the bundled pack). Radius holds the four corners, Top left: to Bottom left:
 (#641); Polygon holds Sides and Star inset (#643). With several layers selected the
 single-layer rows (X, Y, Width, Height, Start, End) are off or absent; Weight
 (#622 follow-up 2) sits in a Geometry box of its own when no single shape is shown, and
 Weight, Shape, Radius, Arrowheads and Polygon apply per field to the layers they fit. A
-line's arrowheads (Start, End, Width, Length, Concavity) are its Arrowheads section
+line's arrowheads (a Heads: row with Start and End, `shapeArrowHeadsLabel`; Width, Length,
+Concavity) are its Arrowheads section
 ([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,

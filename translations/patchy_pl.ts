@@ -15155,6 +15155,10 @@ Czy chcesz go zastąpić?</translation>
         <source>%1 x %2 in</source>
         <translation>%1 x %2 cal</translation>
     </message>
+    <message>
+        <source>Heads:</source>
+        <translation>Groty:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

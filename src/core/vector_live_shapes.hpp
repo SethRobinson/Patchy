@@ -32,6 +32,13 @@ inline constexpr double kLiveShapeKappa = 0.5522847498307936;
 [[nodiscard]] PathSubpath generate_polygon_subpath(double cx, double cy, double radius,
                                                   double angle_radians, int sides, int star_inset);
 
+// The live polygon whose generate_live_shape_subpaths output `path` is (within a
+// fraction of a pixel), or nullopt. Only a path of exactly one closed corner-only
+// subpath qualifies; an axis-aligned rectangle never does (it may be a rectangle whose
+// live data is gone). The PSD reader uses it to give a reopened polygon back its Sides,
+// Star inset and box, since the writer leaves polygon origination out (GitHub #643).
+[[nodiscard]] std::optional<LiveShapeParams> recognize_live_polygon(const VectorPath& path);
+
 // Fills box_corners (A..D clockwise from top-left) from the bbox.
 void populate_live_shape_box_corners(LiveShapeParams& params) noexcept;
 

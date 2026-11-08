@@ -15108,6 +15108,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>%1 x %2 in</source>
         <translation>%1 x %2 Zoll</translation>
     </message>
+    <message>
+        <source>Heads:</source>
+        <translation>Spitzen:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -209,9 +209,11 @@ std::optional<StrokeDashPreset> stroke_dash_preset_for(const std::vector<double>
 // integers (rect 1, rounded rect 2, line 4, ellipse 5) map at I/O. Kinds
 // Photoshop was not observed writing import as Custom with the raw origination
 // descriptor preserved (the path still renders and stays editable; only
-// live-parameter editing is unavailable). Polygon (GitHub #521) is live in the
-// session only: Photoshop's polygon origination is unprobed, so the writers
-// leave it out and a saved polygon reopens as a plain path. Append only.
+// live-parameter editing is unavailable). Polygon (GitHub #521) has no record in
+// the file: Photoshop's polygon origination (keyOriginType 7) is only partly
+// probed, so the writers leave it out, and the PSD reader gives a reopened
+// single-outline regular polygon or star its parameters back by recognizing the
+// path (recognize_live_polygon, GitHub #643). Append only.
 enum class LiveShapeKind : std::uint8_t {
   None,
   Rectangle,
@@ -300,6 +302,12 @@ struct VectorShapeContent {
   VectorFill fill{};
   VectorStroke stroke{};
   std::vector<LiveShapeParams> origination;
+  // The Custom Shape library entry (CustomShapeLibraryEntry::id) the whole path was
+  // stamped from or last replaced with (GitHub #644), so Shape Appearance's picker can
+  // show it. Session only: never serialized (Photoshop has no field for it). A direct
+  // geometry edit clears it (drop_live_shape_origination); the picker also checks that
+  // the path still is that shape fitted to its bounds before showing it.
+  std::string library_shape_id;
   // Empty for an ordinary single-appearance PSD shape. When nonempty, these
   // independent paints replace the top-level fill/stroke during rendering.
   std::vector<VectorShapePart> parts;
@@ -374,6 +382,7 @@ inline constexpr const char* kVectorRasterStatusPatchy = "patchy_raster";
 void mark_layer_vector_block_dirty(Layer& layer);
 // A direct geometry edit invalidates the live-shape annotation of the touched
 // shape groups (Photoshop's keyShapeInvalidated rule); the path itself stays.
+// It also clears library_shape_id (the outline is no longer that library shape).
 void drop_live_shape_origination(VectorShapeContent& content, const std::vector<int>& groups);
 // The rasterize / merge-target semantic: drops the vector fields, every
 // patchy.vector.* key, and the preserved PSD vector blocks so the layer

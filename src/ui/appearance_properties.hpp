@@ -19,6 +19,9 @@ namespace patchy::ui {
 // Maps `path` from its own bounds onto `box` (each axis scaled on its own; an axis with no
 // extent only moves). Geometry's box edit and the Shape picker's fit (GitHub #642, #644).
 void fit_vector_path_to_box(VectorPath& path, const ShapePathBox& box);
+// True when `outline` is the library shape `shape` fitted to the outline's own bounds (the
+// Custom Shape tool's stamp, moved or resized), within a small tolerance (GitHub #644).
+[[nodiscard]] bool vector_path_is_fitted_shape(const VectorPath& outline, const VectorPath& shape);
 // Arrowhead width and length are stored in pixels and shown as a percent of the line
 // weight (GitHub #622 follow-up). Photoshop's default head is 500% wide and 1000% long;
 // its Line tool takes 10% to 1000% for width, 10% to 5000% for length, -50% to 50% concavity.

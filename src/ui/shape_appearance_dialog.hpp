@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 class QWidget;
@@ -22,6 +23,12 @@ namespace patchy::ui {
 class CustomShapeLibrary;
 class GradientLibrary;
 class PatternLibrary;
+
+// A shape picked in Geometry's Shape picker (GitHub #644): its library id and unit-box path.
+struct PickedCustomShape {
+  std::string id;
+  VectorPath path;
+};
 
 // Geometry's box for a shape layer drawn as a plain path (a custom shape, a Pen outline;
 // GitHub #642): the path's bounds (VectorPath::bounds) in document pixels.
@@ -49,7 +56,12 @@ struct ShapeAppearanceSettings {
   std::optional<ShapePathBox> path_box{};
   // A custom shape picked in Geometry (GitHub #644): a unit-box library path that
   // replaces the layer's outline, fitted to `path_box`. Only set by that pick.
-  std::shared_ptr<const VectorPath> path_shape{};
+  std::shared_ptr<const PickedCustomShape> path_shape{};
+  // The library shape the layer was stamped from (VectorShapeContent::library_shape_id)
+  // and its current outline, so the picker can show that shape when the outline still is
+  // it (GitHub #644 follow-up). Read when the dialog opens; never compared, edited or applied.
+  std::string library_shape_id{};
+  std::shared_ptr<const VectorPath> library_shape_outline{};
   // Layer transparency (the Layers panel values) and the shape's vector-mask
   // Feather / Density (VectorShapeContent::feather/density), all PSD-native.
   float layer_opacity{1.0F};

@@ -15108,6 +15108,10 @@ Sostituirlo?</translation>
         <source>%1 x %2 in</source>
         <translation>%1 x %2 pollici</translation>
     </message>
+    <message>
+        <source>Heads:</source>
+        <translation>Punte:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
