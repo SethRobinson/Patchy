@@ -5,8 +5,9 @@ default key; `CanvasTool::TypeMask`) shares the Type tool's slot: the Type flyou
 (`typeToolButton`, `typeToolMenu`) holds Type and Type Mask, and Shift+T (`tools.cycle.type`,
 `toolCycleTypeAction`) walks them ([tool-flyouts.md](tool-flyouts.md)). Typed text becomes a
 selection in the shape of the letters; no layer is made. Vertical mask text follows the Type
-tool's Vertical toggle, so there is no separate vertical tool. Icon: `tool-type-mask.svg`, a
-dashed T outline with an accent fill.
+tool's Vertical toggle, so there is no separate vertical tool. Icon: `tool-type-mask.svg`, a T
+outline of round ink dots, one on every corner and evenly spaced along each edge, over an accent fill
+(Seth's pick of eight variants).
 
 ## Session
 
