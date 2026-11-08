@@ -3979,8 +3979,8 @@ void MainWindow::build_layer_filter_menu() {
   layer_filter_menu_->setObjectName(QStringLiteral("layerFilterMenu"));
   auto* keep_open = new LayerFilterMenuKeepOpen(layer_filter_menu_);
   layer_filter_menu_->installEventFilter(keep_open);
-  const auto add_header = [this](QMenu* menu, const char* text, const char* object_name) {
-    auto* action = menu->addAction(tr(text));
+  const auto add_header = [](QMenu* menu, const char* text, const char* object_name) {
+    auto* action = menu->addAction(MainWindow::tr(text));
     action->setObjectName(QLatin1String(object_name));
     action->setEnabled(false);
     action->setMenuRole(QAction::NoRole);
@@ -4334,7 +4334,14 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
       }
     }
     const auto* background = document_background_layer();
-    const auto background_id = background != nullptr ? std::optional<LayerId>(background->id()) : std::nullopt;
+    // Storage written before reset(): GCC 12 -Wmaybe-uninitialized flags copying a
+    // disengaged optional<LayerId> built from a conditional.
+    std::optional<LayerId> background_id{std::in_place, LayerId{}};
+    if (background != nullptr) {
+      *background_id = background->id();
+    } else {
+      background_id.reset();
+    }
     for (const auto id : present_ids) {
       const auto* layer = std::as_const(document()).find_layer(id);
       if (layer == nullptr || !layer_matches_list_filter(*layer, criteria, active_id, background_id)) {

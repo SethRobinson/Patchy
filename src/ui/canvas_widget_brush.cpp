@@ -1925,7 +1925,7 @@ std::optional<QRect> CanvasWidget::draw_banded_brush_dab(QPointF point, bool era
   }
 
   // The mutable access detaches the layer's bytes here, on the launching thread.
-  auto* const data = pixels.data().data();
+  auto* const layer_bytes = pixels.data().data();
   const auto stride = pixels.stride_bytes();
   const auto channels = pixels.format().channels;
   const auto pixel_bytes = bytes_per_pixel(pixels.format());
@@ -1950,7 +1950,7 @@ std::optional<QRect> CanvasWidget::draw_banded_brush_dab(QPointF point, bool era
     QRect dirty;
     for (auto index = first_span; index < end_span; ++index) {
       const auto& span = spans[index];
-      auto* const row = data + static_cast<std::size_t>(span.y - bounds.y) * stride;
+      auto* const row = layer_bytes + static_cast<std::size_t>(span.y - bounds.y) * stride;
       auto changed_first = std::numeric_limits<std::int32_t>::max();
       auto changed_last = std::numeric_limits<std::int32_t>::min();
       const auto end = std::min(span.end, column_end);

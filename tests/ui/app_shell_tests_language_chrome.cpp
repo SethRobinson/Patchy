@@ -2100,10 +2100,10 @@ void ui_frameless_window_keeps_caption_and_themed_border() {
     }
   }
   constexpr std::intptr_t kPopup = static_cast<std::intptr_t>(0x80000000U);  // WS_POPUP
-  constexpr std::intptr_t kCaption = 0x00C00000;                              // WS_CAPTION
-  constexpr std::intptr_t kSysMenu = 0x00080000;                              // WS_SYSMENU
-  constexpr std::intptr_t kThickFrame = 0x00040000;                           // WS_THICKFRAME
-  constexpr std::intptr_t kSizeBoxes = 0x00030000;  // WS_MINIMIZEBOX | WS_MAXIMIZEBOX
+  [[maybe_unused]] constexpr std::intptr_t kCaption = 0x00C00000;                              // WS_CAPTION
+  [[maybe_unused]] constexpr std::intptr_t kSysMenu = 0x00080000;                              // WS_SYSMENU
+  [[maybe_unused]] constexpr std::intptr_t kThickFrame = 0x00040000;                           // WS_THICKFRAME
+  [[maybe_unused]] constexpr std::intptr_t kSizeBoxes = 0x00030000;  // WS_MINIMIZEBOX | WS_MAXIMIZEBOX
   const std::intptr_t style = patchy::ui::frameless_main_window_style(kPopup);
 #ifdef Q_OS_WIN
   CHECK((style & kCaption) == kCaption);

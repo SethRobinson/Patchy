@@ -16,6 +16,7 @@ namespace patchy::ui {
 
 namespace {
 
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX) || defined(Q_OS_MACOS)
 // Moves a finished scan to `base_path` + its own extension (rename, or copy and remove
 // across volumes). Returns the new path, or empty on failure.
 QString move_scan_file(const QString& from, const QString& base_path) {
@@ -31,6 +32,7 @@ QString move_scan_file(const QString& from, const QString& base_path) {
   }
   return {};
 }
+#endif
 
 // Test scanner: PATCHY_FAKE_BOOK_SCANNER lists image files (QDir::listSeparator between
 // them) handed out one per scan. Each image is taken as a whole-bed scan at the
