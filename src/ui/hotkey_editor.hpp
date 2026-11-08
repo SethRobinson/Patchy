@@ -62,11 +62,18 @@ public:
   // The tool modifiers of the set shown, which OK makes the canvas use (GitHub issue 302).
   [[nodiscard]] ToolModifierStyle staged_tool_modifier_style() const;
 
+  // What the "Show" combo limits the list to (GitHub issue 676). Not saved between sessions.
+  enum class ListFilter { All, MenuCommands, WithShortcuts, Tools, OtherCommands };
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   void changeEvent(QEvent* event) override;
 
 private:
+  // Where a row came from: the menu bar, the Tools category or another category outside the
+  // menus, or the fixed built-in canvas keys.
+  enum class RowSource { Menu, Tools, Other, BuiltIn };
+
   struct Row {
     const HotkeyCommand* command{nullptr};  // nullptr for built-in reference rows
     QWidget* container{nullptr};
@@ -78,6 +85,7 @@ private:
     QFrame* panel{nullptr};
     QString label;
     QString search_haystack;
+    RowSource source{RowSource::BuiltIn};
   };
 
   QWidget* build_set_row(QWidget* parent);
@@ -111,6 +119,9 @@ private:
   void add_built_in_row(QFrame* panel, const QString& keys, const QString& description);
   void refresh_rows();
   void filter_rows();
+  void fill_filter_combo();
+  [[nodiscard]] ListFilter list_filter() const;
+  [[nodiscard]] bool row_matches_filter(const Row& row, ListFilter filter) const;
   void begin_capture(const QString& id, int slot);
   void end_capture_widget();
   void handle_capture_commit(QKeySequence sequence);
@@ -131,6 +142,7 @@ private:
   std::vector<Row> rows_;
   QHash<QFrame*, QString> panel_titles_;
   QLineEdit* search_edit_{nullptr};
+  QComboBox* filter_combo_{nullptr};
   // The user's own sets and the set shown, staged like the keys: OK stores them.
   std::vector<UserHotkeySet> user_sets_;
   QString active_set_id_;

@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -389,6 +390,25 @@ void ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries() {
         auto* button = dialog.findChild<QPushButton*>(QString::fromLatin1(name));
         CHECK(button != nullptr);
         CHECK(button->width() >= button->sizeHint().width());
+      }
+      // The Show box beside the search (GitHub issue 676) shows its entry whole, and the search
+      // row ends inside the page: Reset All is never cut off.
+      auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+      auto* filter = dialog.findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
+      auto* reset_all = dialog.findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+      auto* page_stack = dialog.findChild<QWidget*>(QStringLiteral("preferencesPageStack"));
+      CHECK(search != nullptr && filter != nullptr && reset_all != nullptr && page_stack != nullptr);
+      if (search != nullptr && filter != nullptr && reset_all != nullptr && page_stack != nullptr) {
+        CHECK(filter->width() >= filter->sizeHint().width());
+        CHECK(search->geometry().right() < filter->geometry().left());
+        CHECK(filter->geometry().right() < reset_all->geometry().left());
+        CHECK(reset_all->width() >= reset_all->sizeHint().width());
+        const int reset_right = reset_all->mapTo(&dialog, QPoint(reset_all->width(), 0)).x();
+        const int page_right = page_stack->mapTo(&dialog, QPoint(page_stack->width(), 0)).x();
+        if (reset_right > page_right) {
+          std::fprintf(stderr, "%s: Reset All ends at %d, past the page (%d)\n", language, reset_right, page_right);
+        }
+        CHECK(reset_right <= page_right);
       }
       if (std::string(language) == "de") {
         save_widget_artifact("hotkey_editor_shortcut_set_combo_de", dialog);

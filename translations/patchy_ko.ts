@@ -21311,6 +21311,35 @@ Do you want to replace it?</source>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1은(는) 기본 제공 세트이므로 변경 내용은 사용자 지정 세트에 있습니다. 내 세트로 유지하려면 이름을 바꾸세요.</translation>
     </message>
+    <message>
+        <source>Show:</source>
+        <extracomment>Preferences &gt; Hotkeys: label of the box that limits the list to some kinds of commands.</extracomment>
+        <translation>표시:</translation>
+    </message>
+    <message>
+        <source>List only some kinds of commands</source>
+        <translation>일부 종류의 명령만 표시합니다</translation>
+    </message>
+    <message>
+        <source>All commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: every command.</extracomment>
+        <translation>모든 명령</translation>
+    </message>
+    <message>
+        <source>Menu commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands found in the menus.</extracomment>
+        <translation>메뉴 명령</translation>
+    </message>
+    <message>
+        <source>Commands with shortcuts</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands that have a key.</extracomment>
+        <translation>단축키가 있는 명령</translation>
+    </message>
+    <message>
+        <source>Other commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
+        <translation>기타 명령</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

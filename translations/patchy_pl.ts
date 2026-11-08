@@ -21421,6 +21421,35 @@ Czy chcesz go zastąpić?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 jest wbudowany, więc Twoje zmiany są w zestawie Niestandardowy. Zmień jego nazwę, aby zachować go jako własny zestaw.</translation>
     </message>
+    <message>
+        <source>Show:</source>
+        <extracomment>Preferences &gt; Hotkeys: label of the box that limits the list to some kinds of commands.</extracomment>
+        <translation>Pokaż:</translation>
+    </message>
+    <message>
+        <source>List only some kinds of commands</source>
+        <translation>Pokaż tylko wybrane rodzaje poleceń</translation>
+    </message>
+    <message>
+        <source>All commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: every command.</extracomment>
+        <translation>Wszystkie polecenia</translation>
+    </message>
+    <message>
+        <source>Menu commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands found in the menus.</extracomment>
+        <translation>Polecenia menu</translation>
+    </message>
+    <message>
+        <source>Commands with shortcuts</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands that have a key.</extracomment>
+        <translation>Polecenia ze skrótami</translation>
+    </message>
+    <message>
+        <source>Other commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
+        <translation>Inne polecenia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

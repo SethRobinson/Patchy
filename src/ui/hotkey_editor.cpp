@@ -197,6 +197,18 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   search_edit_->setPlaceholderText(tr("Search commands or shortcuts..."));
   search_edit_->setClearButtonEnabled(true);
   top_layout->addWidget(search_edit_, 1);
+  // GitHub issue 676: limits the list together with the search; the choice is not saved.
+  //: Preferences > Hotkeys: label of the box that limits the list to some kinds of commands.
+  auto* filter_label = new QLabel(tr("Show:"), top_row);
+  top_layout->addWidget(filter_label);
+  filter_combo_ = new QComboBox(top_row);
+  filter_combo_->setObjectName(QStringLiteral("hotkeyFilterCombo"));
+  filter_combo_->setToolTip(tr("List only some kinds of commands"));
+  filter_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  fill_filter_combo();
+  fit_combo_popup_to_entries(*filter_combo_);
+  filter_label->setBuddy(filter_combo_);
+  top_layout->addWidget(filter_combo_);
   auto* reset_all_button = new QPushButton(tr("Reset All"), top_row);
   reset_all_button->setObjectName(QStringLiteral("hotkeyResetAllButton"));
   reset_all_button->setToolTip(tr("Restore every hotkey to its default"));
@@ -232,6 +244,10 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   list_scroll_->verticalScrollBar()->installEventFilter(this);
 
   connect(search_edit_, &QLineEdit::textChanged, this, [this] {
+    filter_rows();
+    list_scroll_->verticalScrollBar()->setValue(0);
+  });
+  connect(filter_combo_, &QComboBox::currentIndexChanged, this, [this] {
     filter_rows();
     list_scroll_->verticalScrollBar()->setValue(0);
   });
@@ -827,6 +843,7 @@ void HotkeyEditorPanel::fit_set_combo_width() {
 void HotkeyEditorPanel::changeEvent(QEvent* event) {
   QWidget::changeEvent(event);
   if (event->type() == QEvent::LanguageChange) {
+    fill_filter_combo();
     rebuild_set_combo();
   } else if (event->type() == QEvent::StyleChange || event->type() == QEvent::FontChange) {
     fit_set_combo_width();
@@ -949,6 +966,7 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
     const HotkeyCommand* command;
     QString label;
     QString category;
+    RowSource source;
   };
   std::vector<PendingRow> pending;
   QSet<QString> added;
@@ -966,7 +984,7 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
     if (!submenus.isEmpty()) {
       label = submenus.join(path_separator) + path_separator + label;
     }
-    pending.push_back({command, label, top});
+    pending.push_back({command, label, top, RowSource::Menu});
   });
   for (const auto& command : registry_.commands()) {
     if (added.contains(command.id) || command.action == nullptr) {
@@ -974,7 +992,8 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
     }
     added.insert(command.id);
     pending.push_back({&command, strip_menu_ellipsis(clean_action_text(command.action.data())),
-                       category_display_name(command.category)});
+                       category_display_name(command.category),
+                       command.category == QStringLiteral("tools") ? RowSource::Tools : RowSource::Other});
   }
 
   QFrame* current_panel = nullptr;
@@ -984,7 +1003,7 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
       current_panel = add_category_panel(row.category, false);
       current_category = row.category;
     }
-    add_command_row(current_panel, row.command, row.label);
+    add_command_row(current_panel, row.command, row.label).source = row.source;
   }
 
   auto* built_in_panel = add_category_panel(tr("Built-in canvas keys (not editable)"), true);
@@ -1077,11 +1096,58 @@ void HotkeyEditorPanel::refresh_rows() {
   sync_set_combo();
 }
 
+void HotkeyEditorPanel::fill_filter_combo() {
+  if (filter_combo_ == nullptr) {
+    return;
+  }
+  const QSignalBlocker blocker(filter_combo_);
+  const auto current = filter_combo_->currentData();
+  filter_combo_->clear();
+  //: Preferences > Hotkeys "Show" box: every command.
+  filter_combo_->addItem(tr("All commands"), static_cast<int>(ListFilter::All));
+  //: Preferences > Hotkeys "Show" box: only the commands found in the menus.
+  filter_combo_->addItem(tr("Menu commands"), static_cast<int>(ListFilter::MenuCommands));
+  //: Preferences > Hotkeys "Show" box: only the commands that have a key.
+  filter_combo_->addItem(tr("Commands with shortcuts"), static_cast<int>(ListFilter::WithShortcuts));
+  filter_combo_->addItem(tr("Tools"), static_cast<int>(ListFilter::Tools));
+  //: Preferences > Hotkeys "Show" box: commands outside the menus that are not tools.
+  filter_combo_->addItem(tr("Other commands"), static_cast<int>(ListFilter::OtherCommands));
+  const int index = current.isValid() ? filter_combo_->findData(current) : 0;
+  filter_combo_->setCurrentIndex(std::max(index, 0));
+}
+
+HotkeyEditorPanel::ListFilter HotkeyEditorPanel::list_filter() const {
+  if (filter_combo_ == nullptr || filter_combo_->currentIndex() < 0) {
+    return ListFilter::All;
+  }
+  return static_cast<ListFilter>(filter_combo_->currentData().toInt());
+}
+
+// Commands with shortcuts counts the keys the rows show (the resolved ones), so assigning or
+// clearing a key updates the list at once: every edit ends in refresh_rows, which filters.
+bool HotkeyEditorPanel::row_matches_filter(const Row& row, ListFilter filter) const {
+  switch (filter) {
+    case ListFilter::All:
+      return true;
+    case ListFilter::MenuCommands:
+      return row.source == RowSource::Menu;
+    case ListFilter::WithShortcuts:
+      return row.command == nullptr || !resolution_.effective.value(row.command->id).isEmpty();
+    case ListFilter::Tools:
+      return row.command != nullptr && row.command->category == QStringLiteral("tools");
+    case ListFilter::OtherCommands:
+      return row.source == RowSource::Other;
+  }
+  return true;
+}
+
 void HotkeyEditorPanel::filter_rows() {
   const auto needle = search_edit_ != nullptr ? search_edit_->text().trimmed().toLower() : QString();
+  const auto filter = list_filter();
   QHash<QFrame*, bool> panel_visible;
   for (auto& row : rows_) {
-    const bool visible = needle.isEmpty() || row.search_haystack.contains(needle);
+    const bool visible =
+        row_matches_filter(row, filter) && (needle.isEmpty() || row.search_haystack.contains(needle));
     row.container->setVisible(visible);
     panel_visible[row.panel] = panel_visible.value(row.panel, false) || visible;
   }

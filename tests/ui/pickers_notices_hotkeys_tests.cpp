@@ -4628,6 +4628,171 @@ void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
   QApplication::processEvents();
   CHECK(saw_dialog);
 }
+// GitHub issue 676: the "Show" box beside the search limits the list to some kinds of
+// commands; it works together with the search text and starts on All commands each time.
+void hotkey_filter_choose(QDialog& dialog, const QString& entry) {
+  auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
+  CHECK(combo != nullptr);
+  if (combo == nullptr) {
+    return;
+  }
+  const int index = combo->findText(entry);
+  CHECK(index >= 0);
+  combo->setCurrentIndex(index);
+  QApplication::processEvents();
+}
+bool hotkey_row_shown(QDialog& dialog, const QString& id) {
+  auto* row = dialog.findChild<QWidget*>(QStringLiteral("hotkeyRow.") + id);
+  CHECK(row != nullptr);
+  return row != nullptr && row->isVisible();
+}
+bool hotkey_built_in_keys_shown(QDialog& dialog) {
+  for (auto* label : dialog.findChildren<QLabel*>()) {
+    if (label->text() == QStringLiteral("Built-in canvas keys (not editable)")) {
+      return label->isVisible();
+    }
+  }
+  CHECK(false);
+  return false;
+}
+void hotkey_set_search(QDialog& dialog, const QString& text) {
+  auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+  CHECK(search != nullptr);
+  if (search != nullptr) {
+    search->setText(text);
+    QApplication::processEvents();
+  }
+}
+template <typename Body>
+void with_hotkey_page(Body body) {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  bool saw_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_hotkeys_tab(*dialog);
+    QApplication::processEvents();
+    body(window, *dialog);
+    saw_dialog = true;
+    dialog->reject();
+  }));
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+void ui_hotkey_editor_filter_menu_commands() {
+  with_hotkey_page([](auto& window, QDialog& dialog) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
+    CHECK(combo != nullptr && combo->currentText() == QStringLiteral("All commands"));
+    QStringList entries;
+    for (int index = 0; combo != nullptr && index < combo->count(); ++index) {
+      entries << combo->itemText(index);
+    }
+    CHECK((entries == QStringList{QStringLiteral("All commands"), QStringLiteral("Menu commands"),
+                                  QStringLiteral("Commands with shortcuts"), QStringLiteral("Tools"),
+                                  QStringLiteral("Other commands")}));
+    const auto pong_id = patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js"));
+    CHECK(window.hotkey_registry().find_command(pong_id) != nullptr);
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("tools.line")));
+    CHECK(hotkey_built_in_keys_shown(dialog));
+    hotkey_filter_choose(dialog, QStringLiteral("Menu commands"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("image.levels")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("tools.line")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("color.default")));
+    CHECK(!hotkey_row_shown(dialog, pong_id));
+    CHECK(!hotkey_built_in_keys_shown(dialog));
+    // Together with the search: both must match.
+    hotkey_set_search(dialog, QStringLiteral("levels"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("image.levels")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    hotkey_set_search(dialog, QStringLiteral("line"));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("tools.line")));
+  });
+}
+void ui_hotkey_editor_filter_commands_with_shortcuts() {
+  with_hotkey_page([](auto&, QDialog& dialog) {
+    hotkey_filter_choose(dialog, QStringLiteral("Commands with shortcuts"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("color.default")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("tools.line")));  // ships without a key
+    CHECK(hotkey_built_in_keys_shown(dialog));
+    hotkey_set_search(dialog, QStringLiteral("opacity"));
+    CHECK(hotkey_built_in_keys_shown(dialog));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    hotkey_set_search(dialog, QStringLiteral("new"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    CHECK(!hotkey_built_in_keys_shown(dialog));
+    // Clearing the row's only key takes it off the list at once.
+    auto* chip = dialog.findChild<QPushButton*>(QStringLiteral("hotkeyChip.file.new.0"));
+    CHECK(chip != nullptr);
+    if (chip == nullptr) {
+      return;
+    }
+    CHECK(dialog.findChild<QPushButton*>(QStringLiteral("hotkeyChip.file.new.1")) == nullptr);
+    chip->click();
+    QApplication::processEvents();
+    auto* capture = dialog.findChild<QLineEdit*>(QStringLiteral("hotkeyCaptureEdit"));
+    CHECK(capture != nullptr);
+    if (capture == nullptr) {
+      return;
+    }
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+    QApplication::sendEvent(capture, &press);
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    // A key coming back (Reset All here) shows it again.
+    auto* reset_all = dialog.findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+    CHECK(reset_all != nullptr);
+    if (reset_all != nullptr) {
+      reset_all->click();
+      QApplication::processEvents();
+      QApplication::processEvents();
+    }
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
+  });
+}
+void ui_hotkey_editor_filter_tools() {
+  with_hotkey_page([](auto&, QDialog& dialog) {
+    hotkey_filter_choose(dialog, QStringLiteral("Tools"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("tools.line")));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("tools.brush")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("color.default")));
+    CHECK(!hotkey_built_in_keys_shown(dialog));
+    save_widget_artifact("hotkey_editor_filter_tools", dialog);
+    hotkey_set_search(dialog, QStringLiteral("line"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("tools.line")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("tools.brush")));
+  });
+  // The choice is not kept: the page opens on All commands again.
+  with_hotkey_page([](auto&, QDialog& dialog) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
+    CHECK(combo != nullptr && combo->currentText() == QStringLiteral("All commands"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
+  });
+}
+void ui_hotkey_editor_filter_other_commands() {
+  with_hotkey_page([](auto&, QDialog& dialog) {
+    const auto pong_id = patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js"));
+    hotkey_filter_choose(dialog, QStringLiteral("Other commands"));
+    CHECK(hotkey_row_shown(dialog, QStringLiteral("color.default")));
+    CHECK(hotkey_row_shown(dialog, pong_id));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("tools.line")));
+    CHECK(!hotkey_built_in_keys_shown(dialog));
+    save_widget_artifact("hotkey_editor_filter_other_commands", dialog);
+    hotkey_set_search(dialog, QStringLiteral("pong"));
+    CHECK(hotkey_row_shown(dialog, pong_id));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("color.default")));
+  });
+}
 // GitHub issue 554: Help > Search Commands (and the menu bar's button after Help) lists every
 // enabled menu command with its menu path and shortcut, filters as you type, and Enter runs
 // the chosen command once the popup has closed.
@@ -5909,6 +6074,10 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
       {"ui_hotkey_editor_lists_scripts_category", ui_hotkey_editor_lists_scripts_category},
       {"ui_hotkey_editor_search_row_stays_while_list_scrolls", ui_hotkey_editor_search_row_stays_while_list_scrolls},
+      {"ui_hotkey_editor_filter_menu_commands", ui_hotkey_editor_filter_menu_commands},
+      {"ui_hotkey_editor_filter_commands_with_shortcuts", ui_hotkey_editor_filter_commands_with_shortcuts},
+      {"ui_hotkey_editor_filter_tools", ui_hotkey_editor_filter_tools},
+      {"ui_hotkey_editor_filter_other_commands", ui_hotkey_editor_filter_other_commands},
       {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},
       {"ui_color_picker_opens_with_hex_field_selected_for_paste", ui_color_picker_opens_with_hex_field_selected_for_paste},
       {"ui_color_picker_cmyk_fields_follow_working_space", ui_color_picker_cmyk_fields_follow_working_space},
