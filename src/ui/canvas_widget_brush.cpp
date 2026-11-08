@@ -1617,9 +1617,13 @@ bool CanvasWidget::tool_supports_shift_click_stroke_connect(CanvasTool tool) noe
 
 std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
   // Shift alone: Ctrl is the painting tools' temporary Move and Alt picks a color
-  // or sets a clone source, so a click with either would not draw this line.
+  // or sets a clone source, so a click with either would not draw this line. On Dodge,
+  // Burn, Blur and Sharpen Alt swaps the tool instead (GitHub issue 662), and
+  // Alt+Shift+click draws the swapped tool's line, so the line shows with Alt too.
   const auto held = stroke_connect_preview_modifiers_ & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
-  if (held != Qt::ShiftModifier || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
+  const auto alt_swaps = alt_swapped_toning_tool(effective_tool_for_input()) != effective_tool_for_input();
+  const auto line_modifiers = held == Qt::ShiftModifier || (alt_swaps && held == (Qt::ShiftModifier | Qt::AltModifier));
+  if (!line_modifiers || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
       document_ == nullptr || painting_ || spacebar_panning_ || panning_ || brush_adjust_dragging_ ||
       move_drag_pending_ || moving_layer_ || !isVisible() || transient_read_callback_ ||
       !tool_supports_shift_click_stroke_connect(effective_tool_for_input())) {

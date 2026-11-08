@@ -728,6 +728,88 @@ void ui_sharpen_photo_keeps_color_over_passes_if_available() {
   }
 }
 
+// GitHub issue 662 follow-up: Alt+Shift+click on Dodge, Burn, Blur or Sharpen draws the swapped
+// tool's straight line, so the Shift+click line preview shows with Alt+Shift too, and it follows
+// Alt going down and up with the pointer still. Smudge keeps Alt as its eyedropper: Alt+Shift
+// shows no line there.
+void ui_toning_alt_shift_shows_line_preview() {
+  for (const auto tool : {patchy::ui::CanvasTool::Dodge, patchy::ui::CanvasTool::BlurBrush,
+                          patchy::ui::CanvasTool::Smudge}) {
+    patchy::Document document(200, 80, patchy::PixelFormat::rgba8());
+    const auto layer_id =
+        document.add_pixel_layer("Gray", solid_pixels(200, 80, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)))
+            .id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(320, 160);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.set_tool(tool);
+    canvas.set_brush_size(8);
+    canvas.set_brush_softness(0);
+    canvas.set_local_adjustment_strength(100);
+    canvas.show();
+    QApplication::processEvents();
+    const auto widget_point = [&canvas](QPoint document_point) {
+      return canvas.widget_position_for_document_point(document_point);
+    };
+    // The preview is a light line on a dark halo; the gray canvas has neither.
+    const auto shows_line_at = [&canvas, &widget_point](QPoint document_point) {
+      const auto image = canvas.grab().toImage();
+      const auto center = widget_point(document_point);
+      int brightest = 0;
+      int darkest = 255;
+      for (int dy = -3; dy <= 3; ++dy) {
+        const auto color = image.pixelColor(center.x(), center.y() + dy);
+        brightest = std::max(brightest, std::max({color.red(), color.green(), color.blue()}));
+        darkest = std::min(darkest, std::min({color.red(), color.green(), color.blue()}));
+      }
+      return brightest >= 180 && darkest <= 90;
+    };
+    const auto anchor = widget_point(QPoint(30, 40));
+    send_mouse(canvas, QEvent::MouseButtonPress, anchor, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, anchor, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    const auto target = widget_point(QPoint(170, 40));
+    send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::processEvents();
+    CHECK(!shows_line_at(QPoint(100, 40)));
+    // Shift shows the line for every one of these tools.
+    send_key_press(canvas, Qt::Key_Shift);
+    QApplication::processEvents();
+    CHECK(shows_line_at(QPoint(100, 40)));
+    // Alt going down with Shift held and the pointer still.
+    send_key_press(canvas, Qt::Key_Alt, Qt::ShiftModifier);
+    QApplication::processEvents();
+    const bool swaps = tool != patchy::ui::CanvasTool::Smudge;
+    if (tool == patchy::ui::CanvasTool::Dodge) {
+      save_image_artifact("issue662_alt_shift_line_preview", canvas.grab().toImage());
+    }
+    CHECK(shows_line_at(QPoint(100, 40)) == swaps);
+    // A move with Alt+Shift held follows the pointer the same way.
+    send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier | Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(shows_line_at(QPoint(100, 40)) == swaps);
+    // Alt going up leaves Shift's line.
+    send_key_release(canvas, Qt::Key_Alt, Qt::ShiftModifier | Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(shows_line_at(QPoint(100, 40)));
+    send_key_release(canvas, Qt::Key_Shift, Qt::ShiftModifier);
+    QApplication::processEvents();
+    CHECK(!shows_line_at(QPoint(100, 40)));
+    if (tool == patchy::ui::CanvasTool::Dodge) {
+      // Alt+Shift+click burns along the previewed line.
+      send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier | Qt::AltModifier);
+      send_mouse(canvas, QEvent::MouseButtonPress, target, Qt::LeftButton, Qt::LeftButton,
+                 Qt::ShiftModifier | Qt::AltModifier);
+      send_mouse(canvas, QEvent::MouseButtonRelease, target, Qt::LeftButton, Qt::NoButton,
+                 Qt::ShiftModifier | Qt::AltModifier);
+      QApplication::processEvents();
+      const auto& pixels = std::as_const(*document.find_layer(layer_id)).pixels();
+      CHECK(pixels.pixel(100, 40)[0] < 128U);
+      CHECK(pixels.pixel(100, 15)[0] == 128U);
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
@@ -737,6 +819,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
        ui_toning_stroke_coalesces_queued_moves_and_keeps_bytes},
       {"ui_dodge_burn_ranges_follow_calibrated_curves", ui_dodge_burn_ranges_follow_calibrated_curves},
       {"ui_toning_alt_stroke_paints_opposite_operation", ui_toning_alt_stroke_paints_opposite_operation},
+      {"ui_toning_alt_shift_shows_line_preview", ui_toning_alt_shift_shows_line_preview},
       {"ui_blur_sharpen_brushes_build_up_per_dab", ui_blur_sharpen_brushes_build_up_per_dab},
       {"ui_sharpen_keeps_color_and_stays_bounded", ui_sharpen_keeps_color_and_stays_bounded},
       {"ui_sharpen_photo_keeps_color_over_passes_if_available", ui_sharpen_photo_keeps_color_over_passes_if_available},
