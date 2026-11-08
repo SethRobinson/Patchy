@@ -3879,14 +3879,6 @@
         <translation>원본은 채널당 %1비트입니다. Patchy는 편집을 위해 8비트로 변환하며 8비트 파일로 저장합니다. 높은 비트 심도의 데이터가 필요하면 원본을 보관하세요.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>문서에 알 수 없는 PSD 이미지 리소스 %1개가 보존되어 있습니다.</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>문서에 스마트 개체 원본 파일 %1개(%2MB)가 포함되어 있으며, 다시 저장해도 이 파일의 바이트는 그대로 유지됩니다.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>PSD 호환성 보고서</translation>
     </message>

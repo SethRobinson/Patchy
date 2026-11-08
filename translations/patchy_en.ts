@@ -3811,14 +3811,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation type="unfinished"></translation>
     </message>

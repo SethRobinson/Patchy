@@ -3811,14 +3811,6 @@
         <translation>Il metodo di colore sorgente è %1; Patchy attualmente modifica tramite flussi di lavoro RGB/RGBA.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>Il documento conserva %1 risorse immagine PSD sconosciute.</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>Il documento incorpora %1 file sorgente di oggetti avanzati (%2 MB); il round-trip è byte per byte.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>Rapporto di compatibilità PSD</translation>
     </message>

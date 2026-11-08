@@ -3895,14 +3895,6 @@
         <translation>Źródło ma %1 bitów na kanał; Patchy przekonwertował je do 8 bitów do edycji i zapisuje plik 8-bitowy. Zachowaj oryginał, jeśli potrzebujesz większej głębi bitowej.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>Dokument zachowuje %1 nieznanych zasobów obrazu PSD.</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>Dokument zawiera osadzone pliki źródłowe obiektów inteligentnych: %1 (%2 MB); przy ponownym zapisie są zachowywane bez zmiany bajtów.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>Raport zgodności PSD</translation>
     </message>

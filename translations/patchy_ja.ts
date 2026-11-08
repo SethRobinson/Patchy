@@ -2963,14 +2963,6 @@ RGB: %2, %3, %4</translation>
         <translation>元のカラーモードは %1 です。Patchy は現在 RGB/RGBA ワークフローで編集します。</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>ドキュメントは不明な PSD 画像リソース %1 個を保持しています。</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>このドキュメントは %1 個のスマートオブジェクトソースファイル (%2 MB) を埋め込んでいます。バイト単位でそのまま保持されます。</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>PSD 互換性レポート</translation>
     </message>

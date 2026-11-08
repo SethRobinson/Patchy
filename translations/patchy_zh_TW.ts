@@ -3803,14 +3803,6 @@
         <translation>來源色彩模式為 %1；Patchy 目前透過 RGB/RGBA 工作流程進行編輯。</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>此文件保留了 %1 個未知的 PSD 影像資源。</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>此文件內嵌了 %1 個智慧型物件來源檔案 (%2 MB)；重新儲存時會逐位元組完整保留這些檔案。</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>PSD 相容性報告</translation>
     </message>
