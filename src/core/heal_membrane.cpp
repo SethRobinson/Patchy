@@ -1,6 +1,7 @@
 #include "core/heal_membrane.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <vector>
 
@@ -272,6 +273,40 @@ void fade_heal_offsets_to_edge_band(const std::uint8_t* interior, std::int32_t w
           static_cast<std::int16_t>(value >= 0 ? (value + 128) / 256 : -((-value + 128) / 256));
     }
   }
+}
+
+std::array<std::int32_t, 4> heal_alpha_offsets(const std::array<float, 4>& destination,
+                                               const std::array<float, 4>& source, float scale) noexcept {
+  const auto clamp_offset = [](double value) {
+    return static_cast<std::int32_t>(std::clamp<long>(std::lround(value), -32767L, 32767L));
+  };
+  std::array<std::int32_t, 4> offsets{};
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    const auto premultiplied = (static_cast<double>(destination[channel]) * destination[3] -
+                                static_cast<double>(source[channel]) * source[3]) /
+                               255.0;
+    offsets[channel] = clamp_offset(premultiplied * scale);
+  }
+  offsets[3] = clamp_offset((static_cast<double>(destination[3]) - source[3]) * scale);
+  return offsets;
+}
+
+std::array<float, 4> heal_with_alpha(const std::array<float, 4>& source, const std::int16_t* color_offsets,
+                                     std::int16_t alpha_offset, float scale, bool unbounded_color) noexcept {
+  std::array<float, 4> healed{};
+  const auto alpha = std::clamp(static_cast<double>(source[3]) + static_cast<double>(alpha_offset) / scale, 0.0, 255.0);
+  healed[3] = static_cast<float>(alpha);
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    if (alpha <= 0.0) {
+      healed[channel] = source[channel];
+      continue;
+    }
+    const auto premultiplied = static_cast<double>(source[channel]) * source[3] / 255.0 +
+                               static_cast<double>(color_offsets[channel]) / scale;
+    const auto value = std::max(0.0, premultiplied * 255.0 / alpha);
+    healed[channel] = static_cast<float>(unbounded_color ? value : std::min(value, 255.0));
+  }
+  return healed;
 }
 
 }  // namespace patchy
