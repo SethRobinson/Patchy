@@ -139,6 +139,28 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"tools.cycle.stamp", ""},
     HotkeySetEntry{"tools.cycle.detail", ""},
     HotkeySetEntry{"tools.cycle.pen", ""},
+    // Issue 645 follow-up. GIMP cycles no tool group from the keyboard (its manual's Toolbox
+    // page: a right click lists a group's tools), so the remaining Shift+letter cycles that
+    // GIMP gives nothing go. N, K and A are the Pencil, Ink and Airbrush tools: the Brush tool
+    // with that preset here (A was Path Select; GIMP's Paths tool is B, tools.pen). Ctrl+1 to
+    // Ctrl+0 open recent images in GIMP, so the channel keys go; plain , and . have no key
+    // there (only Ctrl+, and Ctrl+. fill).
+    HotkeySetEntry{"tools.cycle.move", ""},
+    HotkeySetEntry{"tools.cycle.wand", ""},
+    HotkeySetEntry{"tools.cycle.healing", ""},
+    HotkeySetEntry{"tools.cycle.path_select", ""},
+    HotkeySetEntry{"tools.cycle.pick", ""},
+    HotkeySetEntry{"tools.path_select", ""},
+    HotkeySetEntry{"brush.preset_pencil", "N"},
+    HotkeySetEntry{"brush.preset_ink", "K"},
+    HotkeySetEntry{"brush.preset_airbrush", "A"},
+    HotkeySetEntry{"brush.preset_previous", ""},
+    HotkeySetEntry{"brush.preset_next", ""},
+    HotkeySetEntry{"channel.view_composite", ""},
+    HotkeySetEntry{"channel.view_first", ""},
+    HotkeySetEntry{"channel.view_second", ""},
+    HotkeySetEntry{"channel.view_third", ""},
+    HotkeySetEntry{"channel.view_fourth", ""},
 };
 
 // Krita-style: Krita's own default scheme (not its Photoshop-compatible one), from the Krita

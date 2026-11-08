@@ -20744,6 +20744,50 @@ Do you want to replace it?</source>
         <source>Scan a book page by page into one PDF</source>
         <translation>Сканировать книгу страница за страницей в один PDF</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>Переключиться на инструмент «Кисть» с предустановкой «Карандаш»</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>Переключиться на инструмент «Кисть» с предустановкой «Чернила»</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>Переключиться на инструмент «Кисть» с предустановкой «Аэрограф»</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>Уменьшить кисть на 1 пиксель</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>Увеличить кисть на 1 пиксель</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>Уменьшить кисть на 10 пикселей</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>Увеличить кисть на 10 пикселей</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>Уменьшить непрозрачность инструмента на 1%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>Увеличить непрозрачность инструмента на 1%</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>Уменьшить непрозрачность инструмента на 10%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>Увеличить непрозрачность инструмента на 10%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34717,6 +34761,50 @@ Locked: %1</source>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>Как далеко Палец тянет цвет: чем больше значение, тем дальше, а при 100% начальный цвет тянется через весь штрих. Задаётся цифровыми клавишами (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>Размер кисти -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>Размер кисти +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>Размер кисти -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>Размер кисти +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>Непрозрачность инструмента -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>Непрозрачность инструмента +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>Непрозрачность инструмента -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>Непрозрачность инструмента +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>Инструмент «Кисть»: предустановка «Карандаш»</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>Инструмент «Кисть»: предустановка «Чернила»</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>Инструмент «Кисть»: предустановка «Аэрограф»</translation>
     </message>
 </context>
 <context>

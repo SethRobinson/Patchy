@@ -20691,6 +20691,50 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Scan a book page by page into one PDF</source>
         <translation>Ein Buch Seite für Seite in ein einziges PDF scannen</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>Zum Pinsel-Werkzeug mit der Vorgabe Bleistift wechseln</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>Zum Pinsel-Werkzeug mit der Vorgabe Tinte wechseln</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>Zum Pinsel-Werkzeug mit der Vorgabe Airbrush wechseln</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>Den Pinsel um 1 Pixel verkleinern</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>Den Pinsel um 1 Pixel vergrößern</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>Den Pinsel um 10 Pixel verkleinern</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>Den Pinsel um 10 Pixel vergrößern</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>Die Deckkraft des Werkzeugs um 1 % verringern</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>Die Deckkraft des Werkzeugs um 1 % erhöhen</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>Die Deckkraft des Werkzeugs um 10 % verringern</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>Die Deckkraft des Werkzeugs um 10 % erhöhen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34623,6 +34667,50 @@ Fixiert: %1</translation>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>Wie weit der Wischfinger Farbe zieht: höhere Werte tragen sie weiter, 100% zieht die Startfarbe durch den ganzen Strich. Zifferntasten setzen den Wert (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>Pinselgröße -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>Pinselgröße +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>Pinselgröße -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>Pinselgröße +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>Werkzeugdeckkraft -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>Werkzeugdeckkraft +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>Werkzeugdeckkraft -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>Werkzeugdeckkraft +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>Pinsel-Werkzeug: Vorgabe Bleistift</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>Pinsel-Werkzeug: Vorgabe Tinte</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>Pinsel-Werkzeug: Vorgabe Airbrush</translation>
     </message>
 </context>
 <context>

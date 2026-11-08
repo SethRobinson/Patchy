@@ -20691,6 +20691,50 @@ Deseja substituí-lo?</translation>
         <source>Scan a book page by page into one PDF</source>
         <translation>Digitalizar um livro página por página em um único PDF</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>Mudar para a ferramenta Pincel com a predefinição Lápis</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>Mudar para a ferramenta Pincel com a predefinição Tinta</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>Mudar para a ferramenta Pincel com a predefinição Aerógrafo</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>Diminuir o pincel em 1 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>Aumentar o pincel em 1 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>Diminuir o pincel em 10 pixels</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>Aumentar o pincel em 10 pixels</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>Diminuir a opacidade da ferramenta em 1%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>Aumentar a opacidade da ferramenta em 1%</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>Diminuir a opacidade da ferramenta em 10%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>Aumentar a opacidade da ferramenta em 10%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34623,6 +34667,50 @@ Bloqueado: %1</translation>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>Até onde o Borrar arrasta a cor: valores maiores a levam mais longe, e 100% arrasta a cor inicial por todo o traço. As teclas numéricas definem o valor (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>Tamanho do pincel -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>Tamanho do pincel +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>Tamanho do pincel -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>Tamanho do pincel +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>Opacidade da ferramenta -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>Opacidade da ferramenta +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>Opacidade da ferramenta -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>Opacidade da ferramenta +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>Ferramenta Pincel: predefinição Lápis</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>Ferramenta Pincel: predefinição Tinta</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>Ferramenta Pincel: predefinição Aerógrafo</translation>
     </message>
 </context>
 <context>

@@ -1681,6 +1681,9 @@ public:
   // main window for a digit typed while a panel or the tool palette has focus (GitHub issue
   // 562). False when the key is not one the current tool takes.
   bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
+  // Tool Opacity -1/+1/-10/+10 (GitHub issue 645): moves the current tool's own opacity (the
+  // Gradient's, Smudge's Strength, else the brush Opacity) by delta. False for a tool without one.
+  bool step_tool_opacity(int delta);
   // The canvas asks the host (the layer panel is the selection's source of
   // truth) to make exactly these layers selected with active_id current; the
   // host pushes the result back through set_selected_layer_ids. Move-tool

@@ -627,6 +627,17 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"brush.preset_next", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the next brush preset")},
     {"brush.preset_first", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the first brush preset in the list")},
     {"brush.preset_last", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the last brush preset in the list")},
+    {"brush.preset_pencil", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch to the Brush tool with the Pencil preset")},
+    {"brush.preset_ink", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch to the Brush tool with the Ink preset")},
+    {"brush.preset_airbrush", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch to the Brush tool with the Airbrush preset")},
+    {"brush.size_minus_1", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush 1 pixel smaller")},
+    {"brush.size_plus_1", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush 1 pixel bigger")},
+    {"brush.size_minus_10", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush 10 pixels smaller")},
+    {"brush.size_plus_10", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush 10 pixels bigger")},
+    {"brush.opacity_minus_1", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Lower the tool's opacity by 1%")},
+    {"brush.opacity_plus_1", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Raise the tool's opacity by 1%")},
+    {"brush.opacity_minus_10", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Lower the tool's opacity by 10%")},
+    {"brush.opacity_plus_10", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Raise the tool's opacity by 10%")},
 };
 
 // The non-menu hotkey categories the search lists, with their row path. Panel commands

@@ -20638,6 +20638,50 @@ Do you want to replace it?</source>
         <source>Scan a book page by page into one PDF</source>
         <translation>책을 한 페이지씩 스캔하여 하나의 PDF로 만들기</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>연필 사전 설정으로 브러시 도구로 전환</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>잉크 사전 설정으로 브러시 도구로 전환</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>에어브러시 사전 설정으로 브러시 도구로 전환</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>브러시를 1픽셀 작게</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>브러시를 1픽셀 크게</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>브러시를 10픽셀 작게</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>브러시를 10픽셀 크게</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>도구 불투명도를 1% 낮추기</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>도구 불투명도를 1% 높이기</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>도구 불투명도를 10% 낮추기</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>도구 불투명도를 10% 높이기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34529,6 +34573,50 @@ Locked: %1</source>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>손가락 도구가 색을 끌고 가는 거리입니다. 값이 클수록 더 멀리 옮기며, 100%에서는 시작 색을 획 전체에 끌고 갑니다. 숫자 키로 설정할 수 있습니다 (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>브러시 크기 -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>브러시 크기 +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>브러시 크기 -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>브러시 크기 +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>도구 불투명도 -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>도구 불투명도 +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>도구 불투명도 -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>도구 불투명도 +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>브러시 도구: 연필 사전 설정</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>브러시 도구: 잉크 사전 설정</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>브러시 도구: 에어브러시 사전 설정</translation>
     </message>
 </context>
 <context>

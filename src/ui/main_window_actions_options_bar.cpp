@@ -4001,13 +4001,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   addAction(brush_much_larger_action);
   // The bracket keys resize whichever brush the active tool uses (Quick Select
   // has its own; for the Magnetic Lasso they adjust the edge search width).
-  const auto adjust_brush_size = [this, brush_size, quick_select_size, magnetic_width](int direction, bool coarse) {
+  // fixed_step > 0 moves the size by exactly that many pixels (Brush Size -1/+1/-10/+10).
+  const auto adjust_brush_size = [this, brush_size, quick_select_size, magnetic_width](int direction, bool coarse,
+                                                                                     int fixed_step = 0) {
     const bool quick_select = current_tool_ == CanvasTool::QuickSelect;
     const bool magnetic = current_tool_ == CanvasTool::MagneticLasso;
     auto* spin = quick_select ? quick_select_size : magnetic ? magnetic_width : brush_size;
     const int cap = quick_select ? 512 : magnetic ? 256 : kMaxBrushSize;
     const int value = spin->value();
-    const int step = proportional_brush_step(value, direction, coarse);
+    const int step = fixed_step > 0 ? fixed_step : proportional_brush_step(value, direction, coarse);
     spin->setValue(std::clamp(value + direction * step, 1, cap));
   };
   connect(brush_smaller_action, &QAction::triggered, brush_size,
@@ -4020,6 +4022,37 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [adjust_brush_size] { adjust_brush_size(1, true); });
   for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
                        brush_much_larger_action}) {
+    register_document_action(action);
+  }
+  // Fixed steps for the size and the tool's opacity (GitHub issue 645): by 1 and by 10 pixels or
+  // percent. No default keys; the GIMP-style set may bind them (docs/hotkey-sets.md).
+  for (const auto& [object_name, text, hotkey_id, step, opacity] :
+       {std::tuple{"brushSizeMinus1Action", QT_TR_NOOP("Brush Size -1"), "brush.size_minus_1", -1, false},
+        std::tuple{"brushSizePlus1Action", QT_TR_NOOP("Brush Size +1"), "brush.size_plus_1", 1, false},
+        std::tuple{"brushSizeMinus10Action", QT_TR_NOOP("Brush Size -10"), "brush.size_minus_10", -10, false},
+        std::tuple{"brushSizePlus10Action", QT_TR_NOOP("Brush Size +10"), "brush.size_plus_10", 10, false},
+        std::tuple{"toolOpacityMinus1Action", QT_TR_NOOP("Tool Opacity -1"), "brush.opacity_minus_1", -1, true},
+        std::tuple{"toolOpacityPlus1Action", QT_TR_NOOP("Tool Opacity +1"), "brush.opacity_plus_1", 1, true},
+        std::tuple{"toolOpacityMinus10Action", QT_TR_NOOP("Tool Opacity -10"), "brush.opacity_minus_10", -10, true},
+        std::tuple{"toolOpacityPlus10Action", QT_TR_NOOP("Tool Opacity +10"), "brush.opacity_plus_10", 10, true}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id), QKeySequence(), QStringLiteral("brush"));
+    const int amount = step;
+    if (opacity) {
+      connect(action, &QAction::triggered, this, [this, amount] {
+        if (canvas_ != nullptr) {
+          (void)canvas_->step_tool_opacity(amount);
+        }
+      });
+    } else {
+      connect(action, &QAction::triggered, brush_size, [adjust_brush_size, amount] {
+        adjust_brush_size(amount > 0 ? 1 : -1, false, std::abs(amount));
+      });
+    }
+    addAction(action);
     register_document_action(action);
   }
   // Photoshop's Shift+[ / Shift+] (GitHub issue 522): brush hardness down or up a quarter,
@@ -4072,6 +4105,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     const bool preset_to_end = to_end;
     connect(action, &QAction::triggered, this,
             [this, preset_direction, preset_to_end] { step_active_tool_preset(preset_direction, preset_to_end); });
+    addAction(action);
+    register_document_action(action);
+  }
+  // The Brush tool with one of the built-in presets (GitHub issue 645; GIMP's Pencil, Ink and
+  // Airbrush tool keys in the GIMP-style set). A preset already chosen is left as it is, so the
+  // key never undoes a size or opacity change made since.
+  for (const auto& [object_name, text, hotkey_id, preset_id] :
+       {std::tuple{"brushPencilPresetAction", QT_TR_NOOP("Brush Tool: Pencil Preset"), "brush.preset_pencil", "pencil"},
+        std::tuple{"brushInkPresetAction", QT_TR_NOOP("Brush Tool: Ink Preset"), "brush.preset_ink", "ink"},
+        std::tuple{"brushAirbrushPresetAction", QT_TR_NOOP("Brush Tool: Airbrush Preset"), "brush.preset_airbrush",
+                   "airbrush"}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id), QKeySequence(), QStringLiteral("brush"));
+    const auto preset = QString::fromLatin1(preset_id);
+    connect(action, &QAction::triggered, this, [this, preset] { activate_brush_preset_tool(preset); });
     addAction(action);
     register_document_action(action);
   }

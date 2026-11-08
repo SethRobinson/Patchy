@@ -20638,6 +20638,50 @@ Do you want to replace it?</source>
         <source>Scan a book page by page into one PDF</source>
         <translation>逐頁掃描書籍並產生一個 PDF</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>切換到筆刷工具並使用鉛筆預設集</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>切換到筆刷工具並使用墨水預設集</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>切換到筆刷工具並使用噴槍預設集</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>將筆刷縮小 1 像素</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>將筆刷放大 1 像素</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>將筆刷縮小 10 像素</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>將筆刷放大 10 像素</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>將工具不透明度降低 1%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>將工具不透明度提高 1%</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>將工具不透明度降低 10%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>將工具不透明度提高 10%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34529,6 +34573,50 @@ Locked: %1</source>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>指尖工具拖曳顏色的距離：數值越高，顏色帶得越遠；100% 會把起始顏色拖過整個筆畫。可用數字鍵設定（5 = 50%，0 = 100%）</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>筆刷大小 -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>筆刷大小 +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>筆刷大小 -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>筆刷大小 +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>工具不透明度 -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>工具不透明度 +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>工具不透明度 -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>工具不透明度 +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>筆刷工具：鉛筆預設集</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>筆刷工具：墨水預設集</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>筆刷工具：噴槍預設集</translation>
     </message>
 </context>
 <context>

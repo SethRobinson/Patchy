@@ -2359,6 +2359,22 @@ void MainWindow::choose_gradient_preset() {
                              });
 }
 
+void MainWindow::activate_brush_preset_tool(const QString& preset_id) {
+  if (canvas_ == nullptr || brush_preset_combo_ == nullptr) {
+    return;
+  }
+  activate_tool(CanvasTool::Brush);
+  const int index = brush_preset_combo_->findData(preset_id);
+  if (index < 0) {
+    return;
+  }
+  if (brush_preset_combo_->currentIndex() != index) {
+    // Picking the entry runs the combo's own handler, exactly as choosing it in the list.
+    brush_preset_combo_->setCurrentIndex(index);
+  }
+  statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_combo_->itemText(index)));
+}
+
 void MainWindow::step_active_tool_preset(int direction, bool to_end) {
   if (canvas_ == nullptr) {
     return;

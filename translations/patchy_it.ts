@@ -20691,6 +20691,50 @@ Sostituirlo?</translation>
         <source>Scan a book page by page into one PDF</source>
         <translation>Scansiona un libro pagina per pagina in un unico PDF</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>Passa allo strumento Pennello con il predefinito Matita</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>Passa allo strumento Pennello con il predefinito Inchiostro</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>Passa allo strumento Pennello con il predefinito Aerografo</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>Rimpicciolisci il pennello di 1 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>Ingrandisci il pennello di 1 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>Rimpicciolisci il pennello di 10 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>Ingrandisci il pennello di 10 pixel</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>Riduci l&apos;opacità dello strumento dell&apos;1%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>Aumenta l&apos;opacità dello strumento dell&apos;1%</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>Riduci l&apos;opacità dello strumento del 10%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>Aumenta l&apos;opacità dello strumento del 10%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34623,6 +34667,50 @@ Bloccato: %1</translation>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>Quanto lontano lo sfumino trascina il colore: valori più alti lo portano più lontano e 100% trascina il colore iniziale per tutto il tratto. I tasti numerici lo impostano (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>Dimensione pennello -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>Dimensione pennello +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>Dimensione pennello -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>Dimensione pennello +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>Opacità strumento -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>Opacità strumento +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>Opacità strumento -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>Opacità strumento +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>Strumento Pennello: predefinito Matita</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>Strumento Pennello: predefinito Inchiostro</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>Strumento Pennello: predefinito Aerografo</translation>
     </message>
 </context>
 <context>

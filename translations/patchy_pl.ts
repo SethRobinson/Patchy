@@ -20744,6 +20744,50 @@ Czy chcesz go zastąpić?</translation>
         <source>Scan a book page by page into one PDF</source>
         <translation>Skanuj książkę strona po stronie do jednego pliku PDF</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>Przełącz na narzędzie Pędzel z ustawieniem wstępnym Ołówek</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>Przełącz na narzędzie Pędzel z ustawieniem wstępnym Atrament</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>Przełącz na narzędzie Pędzel z ustawieniem wstępnym Aerograf</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>Zmniejsz pędzel o 1 piksel</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>Powiększ pędzel o 1 piksel</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>Zmniejsz pędzel o 10 pikseli</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>Powiększ pędzel o 10 pikseli</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>Zmniejsz krycie narzędzia o 1%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>Zwiększ krycie narzędzia o 1%</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>Zmniejsz krycie narzędzia o 10%</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>Zwiększ krycie narzędzia o 10%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34717,6 +34761,50 @@ Zablokowano: %1</translation>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>Jak daleko Smuga ciągnie kolor: wyższe wartości niosą go dalej, a 100% ciągnie kolor początkowy przez cały ruch. Ustawiają ją klawisze cyfr (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>Rozmiar pędzla -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>Rozmiar pędzla +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>Rozmiar pędzla -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>Rozmiar pędzla +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>Krycie narzędzia -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>Krycie narzędzia +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>Krycie narzędzia -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>Krycie narzędzia +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>Narzędzie Pędzel: ustawienie Ołówek</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>Narzędzie Pędzel: ustawienie Atrament</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>Narzędzie Pędzel: ustawienie Aerograf</translation>
     </message>
 </context>
 <context>

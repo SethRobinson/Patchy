@@ -20691,6 +20691,50 @@ Voulez-vous le remplacer ?</translation>
         <source>Scan a book page by page into one PDF</source>
         <translation>Numériser un livre page par page dans un seul PDF</translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation>Passer à l&apos;outil Pinceau avec le préréglage Crayon</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation>Passer à l&apos;outil Pinceau avec le préréglage Encre</translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation>Passer à l&apos;outil Pinceau avec le préréglage Aérographe</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation>Réduire le pinceau de 1 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation>Agrandir le pinceau de 1 pixel</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation>Réduire le pinceau de 10 pixels</translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation>Agrandir le pinceau de 10 pixels</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation>Baisser l&apos;opacité de l&apos;outil de 1 %</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation>Augmenter l&apos;opacité de l&apos;outil de 1 %</translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation>Baisser l&apos;opacité de l&apos;outil de 10 %</translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation>Augmenter l&apos;opacité de l&apos;outil de 10 %</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34623,6 +34667,50 @@ Verrouillé : %1</translation>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation>Distance sur laquelle le doigt entraîne la couleur : une valeur plus élevée l’entraîne plus loin, et 100% traîne la couleur de départ sur tout le tracé. Les touches numériques la règlent (5 = 50%, 0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation>Taille du pinceau -1</translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation>Taille du pinceau +1</translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation>Taille du pinceau -10</translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation>Taille du pinceau +10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation>Opacité de l&apos;outil -1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation>Opacité de l&apos;outil +1</translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation>Opacité de l&apos;outil -10</translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation>Opacité de l&apos;outil +10</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation>Outil Pinceau : préréglage Crayon</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation>Outil Pinceau : préréglage Encre</translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
+        <translation>Outil Pinceau : préréglage Aérographe</translation>
     </message>
 </context>
 <context>

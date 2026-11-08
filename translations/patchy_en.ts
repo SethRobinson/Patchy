@@ -20673,6 +20673,50 @@ Do you want to replace it?</source>
         <source>Scan a book page by page into one PDF</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Switch to the Brush tool with the Pencil preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Ink preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to the Brush tool with the Airbrush preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel smaller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the brush 1 pixel bigger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels smaller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the brush 10 pixels bigger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lower the tool&apos;s opacity by 10%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Raise the tool&apos;s opacity by 10%</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -34540,6 +34584,50 @@ Locked: %1</source>
     </message>
     <message>
         <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Size -1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Size +1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Size -10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Size +10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tool Opacity -1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tool Opacity +1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tool Opacity -10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tool Opacity +10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Tool: Pencil Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Tool: Ink Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Tool: Airbrush Preset</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

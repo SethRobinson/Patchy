@@ -2911,6 +2911,8 @@ private:
   // (the brush Preset combo or the gradient presets), wrapping at the ends. With to_end,
   // First Preset / Last Preset (issue 645): -1 picks the first entry, 1 the last.
   void step_active_tool_preset(int direction, bool to_end = false);
+  // Brush Tool: Pencil/Ink/Airbrush Preset (GitHub issue 645): the Brush tool with that built-in preset.
+  void activate_brush_preset_tool(const QString& preset_id);
   void refresh_gradient_controls_from_canvas();
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();

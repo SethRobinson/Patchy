@@ -5056,6 +5056,31 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   return true;
 }
 
+bool CanvasWidget::step_tool_opacity(int delta) {
+  // The tools the opacity digits reach, never the layer fallback: these commands step a tool.
+  if (!tool_supports_opacity_digit_keys(tool_)) {
+    return false;
+  }
+  if (tool_ == CanvasTool::Gradient) {
+    set_gradient_opacity(gradient_opacity_ + delta);
+    if (status_callback_) {
+      status_callback_(tr("Gradient opacity: %1%").arg(gradient_opacity_));
+    }
+  } else if (tool_ == CanvasTool::Smudge) {
+    set_smudge_strength(smudge_strength_ + delta);  // Smudge's opacity is its Strength (issue 675)
+    if (status_callback_) {
+      status_callback_(tr("Smudge strength: %1%").arg(smudge_strength_));
+    }
+  } else {
+    set_brush_opacity(brush_opacity_ + delta);
+    if (status_callback_) {
+      status_callback_(tr("Brush opacity: %1%").arg(brush_opacity_));
+    }
+  }
+  notify_brush_settings_changed();
+  return true;
+}
+
 bool CanvasWidget::defer_coalesced_drag_move(const QMouseEvent& event) {
   if (replaying_drag_move_ || handling_tablet_event_ || !coalescing_drag_active() ||
       drag_move_coalescing_mode_ == DragMoveCoalescing::Off) {
