@@ -2462,10 +2462,19 @@ private:
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
   // Blur and Sharpen: per-dab fixed 3x3 steps that build up (GitHub #660 follow-up).
   [[nodiscard]] QRect blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation);
+  // Counts one toning or detail brush segment and its time (RenderCacheDiagnostics::toning_*).
+  void count_toning_segment(std::chrono::steady_clock::time_point started) noexcept;
+  // True while a Dodge, Burn or Sponge stroke has not yet moved its segment spacing from the
+  // last painted point (GitHub #660; docs/performance-strokes.md).
+  [[nodiscard]] bool toning_segment_waits_for_spacing(QPoint from, QPoint to) const;
+  [[nodiscard]] bool smudge_segment_waits_for_spacing(QPoint from, QPoint to) const;
+  void paint_toning_tail();
   // The operation a Dodge, Burn, Sponge, Blur or Sharpen stroke paints with: the tool, or
   // its opposite for a stroke that started with Alt held (GitHub #662).
   [[nodiscard]] CanvasTool local_adjustment_operation() const noexcept;
   [[nodiscard]] float local_adjustment_stroke_amount(CanvasTool operation) const noexcept;
+  struct DodgeBurnStrokeTable;
+  const DodgeBurnStrokeTable& dodge_burn_stroke_table(bool dodge);
   [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] PixelBuffer retouch_source_deep();
   void notify_clone_source_changed();
@@ -3734,6 +3743,11 @@ private:
   bool brush_smoothing_zoom_adjust_{true};
   patchy::StrokeStabilizer stroke_stabilizer_;
   QBasicTimer stabilizer_timer_;
+  // A Dodge, Burn, Sponge or Smudge point the segment spacing held back, painted when the
+  // pointer pauses this long (paint_toning_tail, GitHub #660), on the next segment or release.
+  static constexpr int kToningTailPauseMs = 30;
+  std::optional<QPoint> toning_pending_point_;
+  QBasicTimer toning_tail_timer_;
   QRect stroke_leash_overlay_rect_{};
   Qt::KeyboardModifiers stroke_connect_preview_modifiers_{};
   QPoint stroke_connect_preview_pointer_{};
@@ -4454,6 +4468,14 @@ private:
   bool local_adjustment_alt_swap_{false};
   // Blur and Sharpen dab spacing along the stroke: whether the first dab is down, and the
   // distance travelled since the last one (blur_sharpen_brush_segment).
+  // The 8-bit Dodge/Burn walk's tone curve, sampled per setting (dodge_burn_stroke_table).
+  struct DodgeBurnStrokeTable {
+    const std::array<double, 17>* knots{nullptr};
+    bool protect_tones{false};
+    std::vector<double> lightness_change;  // by 54R + 183G + 19B, Protect Tones on
+    std::array<std::uint8_t, 256> channel{};  // adjusted byte by channel byte, Protect Tones off
+  };
+  DodgeBurnStrokeTable dodge_burn_stroke_table_;
   bool toning_dab_placed_{false};
   double toning_dab_distance_{0.0};
   SpongeMode sponge_mode_{SpongeMode::Desaturate};

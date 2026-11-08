@@ -3,11 +3,13 @@
 // (brush_engine_stroke_tests.cpp registers it last, so the earlier order is unchanged).
 
 #include "core/document.hpp"
+#include "core/blend_math.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/dodge_burn_curves.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui_test_support.hpp"
 
@@ -22,6 +24,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <utility>
 #include <vector>
@@ -810,6 +813,158 @@ void ui_toning_alt_shift_shows_line_preview() {
   }
 }
 
+// GitHub issue 660, second report (a 775 px Dodge lagged and kept painting after the pointer
+// stopped): Dodge, Burn and Sponge paint a segment only once the stroke has moved a tenth of
+// the brush from the last painted point, and the release paints the rest. A queued burst of 160
+// one-pixel moves at 400 px paints a handful of segments, gives the same bytes queued or
+// sent one by one, and still reaches the release point. The per-stroke tone tables give exactly
+// the bytes the curve gives per pixel (a full-strength hard click is the adjusted pixel itself).
+void ui_toning_big_brush_burst_paints_by_spacing_and_keeps_bytes() {
+  using Range = patchy::ui::CanvasWidget::LocalToneRange;
+  // The tables against the curve, Protect Tones on and off.
+  struct TableCase {
+    patchy::ui::CanvasTool tool;
+    Range range;
+    bool protect;
+    const patchy::ui::dodge_burn::Knots* knots;
+  };
+  for (const auto& table_case :
+       {TableCase{patchy::ui::CanvasTool::Dodge, Range::Highlights, true, &patchy::ui::dodge_burn::kProtectDodgeHighlights},
+        TableCase{patchy::ui::CanvasTool::Burn, Range::Shadows, true, &patchy::ui::dodge_burn::kProtectBurnShadows},
+        TableCase{patchy::ui::CanvasTool::Dodge, Range::Midtones, false, &patchy::ui::dodge_burn::kDodgeMidtones}}) {
+    constexpr int kSide = 64;
+    auto pixels = solid_pixels(kSide, kSide, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+    for (int y = 0; y < kSide; ++y) {
+      for (int x = 0; x < kSide; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>((x * 4 + y) % 256);
+        px[1] = static_cast<std::uint8_t>((y * 4 + 7 * x) % 256);
+        px[2] = static_cast<std::uint8_t>((x * y + 31) % 256);
+      }
+    }
+    const auto original = pixels;
+    patchy::Document document(kSide, kSide, patchy::PixelFormat::rgb8());
+    const auto layer_id = document.add_pixel_layer("Colors", std::move(pixels)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(160, 160);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(table_case.tool);
+    canvas.set_brush_size(41);
+    canvas.set_brush_softness(0);
+    canvas.set_local_adjustment_strength(100);
+    canvas.set_local_tone_range(table_case.range);
+    canvas.set_local_protect_tones(table_case.protect);
+    const auto center = canvas.widget_position_for_document_point(QPoint(32, 32));
+    send_mouse(canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto& result = std::as_const(*document.find_layer(layer_id)).pixels();
+    int mismatches = 0;
+    for (int y = 16; y < 48; ++y) {
+      for (int x = 16; x < 48; ++x) {
+        if ((x - 32) * (x - 32) + (y - 32) * (y - 32) > 18 * 18) {
+          continue;
+        }
+        const auto* before = original.pixel(x, y);
+        const auto lightness = (54.0 * before[0] + 183.0 * before[1] + 19.0 * before[2]) / (256.0 * 255.0);
+        for (int channel = 0; channel < 3; ++channel) {
+          const auto value = static_cast<double>(before[channel]);
+          const auto change = table_case.protect ? patchy::ui::dodge_burn::curve_at(*table_case.knots, lightness)
+                                                 : patchy::ui::dodge_burn::curve_at(*table_case.knots, value / 255.0);
+          if (result.pixel(x, y)[channel] != patchy::clamp_byte(static_cast<float>(value + change))) {
+            ++mismatches;
+          }
+        }
+      }
+    }
+    CHECK(mismatches == 0);
+  }
+
+  // A burst of one-pixel moves at 400 px, queued and coalesced against sent one by one.
+  struct Result {
+    std::vector<std::uint8_t> bytes;
+    int segments{0};
+    bool reached_end{false};
+  };
+  const auto paint = [](bool coalesce) {
+    constexpr int kWidth = 700;
+    constexpr int kHeight = 500;
+    auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(150 + (x / 5) % 100);
+        px[1] = static_cast<std::uint8_t>(140 + (y / 3) % 110);
+        px[2] = static_cast<std::uint8_t>(130 + ((x + y) / 7) % 120);
+      }
+    }
+    const auto original = pixels;
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+    const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(760, 560);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.set_drag_move_coalescing_for_testing(coalesce ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                         : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(patchy::ui::CanvasTool::Dodge);
+    canvas.set_brush_size(400);
+    canvas.set_brush_softness(12);
+    canvas.set_local_adjustment_strength(25);
+    canvas.set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Highlights);
+    canvas.set_local_protect_tones(true);
+    const auto point_at = [&canvas](int index) {
+      return canvas.widget_position_for_document_point(
+          QPoint(200 + index, static_cast<int>(std::lround(250.0 + 20.0 * std::sin(index * 0.04)))));
+    };
+    send_mouse(canvas, QEvent::MouseButtonPress, point_at(0), Qt::LeftButton, Qt::LeftButton);
+    const auto before = canvas.render_cache_diagnostics().toning_segments;
+    constexpr int kMoves = 160;
+    for (int index = 1; index <= kMoves; ++index) {
+      if (coalesce) {
+        const auto position = QPointF(point_at(index));
+        QApplication::postEvent(&canvas, new QMouseEvent(QEvent::MouseMove, position, canvas.mapToGlobal(position),
+                                                         Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+        if (index % 8 == 0) {
+          QApplication::processEvents();
+        }
+      } else {
+        send_mouse(canvas, QEvent::MouseMove, point_at(index), Qt::NoButton, Qt::LeftButton);
+      }
+    }
+    QApplication::processEvents();
+    Result result;
+    result.segments = canvas.render_cache_diagnostics().toning_segments - before;
+    // The release lands 9 px past the last move, less than the spacing: it is painted anyway.
+    const auto release_y = static_cast<int>(std::lround(250.0 + 20.0 * std::sin(kMoves * 0.04)));
+    send_mouse(canvas, QEvent::MouseButtonRelease,
+               canvas.widget_position_for_document_point(QPoint(200 + kMoves + 9, release_y)), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+    const auto& painted = std::as_const(*document.find_layer(layer_id)).pixels();
+    // 192 px ahead of the release, more than a radius past every earlier point: only the release
+    // segment reaches it.
+    const auto end = QPoint(200 + kMoves + 9 + 192, release_y);
+    result.reached_end = std::memcmp(painted.pixel(end.x(), end.y()), original.pixel(end.x(), end.y()), 3) != 0;
+    const auto bytes = painted.data();
+    result.bytes.assign(bytes.begin(), bytes.end());
+    return result;
+  };
+  const auto one_by_one = paint(false);
+  const auto coalesced = paint(true);
+  std::printf("[INFO] 400 px Dodge, 160 one-pixel moves: %d segments one by one, %d coalesced\n", one_by_one.segments,
+              coalesced.segments);
+  CHECK(one_by_one.segments >= 3 && one_by_one.segments <= 8);
+  CHECK(coalesced.segments == one_by_one.segments);
+  CHECK(coalesced.bytes == one_by_one.bytes);
+  CHECK(one_by_one.reached_end);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
@@ -820,6 +975,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
       {"ui_dodge_burn_ranges_follow_calibrated_curves", ui_dodge_burn_ranges_follow_calibrated_curves},
       {"ui_toning_alt_stroke_paints_opposite_operation", ui_toning_alt_stroke_paints_opposite_operation},
       {"ui_toning_alt_shift_shows_line_preview", ui_toning_alt_shift_shows_line_preview},
+      {"ui_toning_big_brush_burst_paints_by_spacing_and_keeps_bytes",
+       ui_toning_big_brush_burst_paints_by_spacing_and_keeps_bytes},
       {"ui_blur_sharpen_brushes_build_up_per_dab", ui_blur_sharpen_brushes_build_up_per_dab},
       {"ui_sharpen_keeps_color_and_stays_bounded", ui_sharpen_keeps_color_and_stays_bounded},
       {"ui_sharpen_photo_keeps_color_over_passes_if_available", ui_sharpen_photo_keeps_color_over_passes_if_available},

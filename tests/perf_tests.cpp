@@ -4063,6 +4063,174 @@ void toning_stroke_perf() {
   }
 }
 
+// GitHub issue 660, second report: a 775 px Dodge (Soft 12%, Strength 25%, Highlights, Protect
+// Tones on) on the 3580x5370 portrait lagged and kept painting after the pointer stopped. He
+// paints zoomed out to fit, where a screen pixel of pointer travel is several image pixels and
+// Wayland delivers every motion. Per tool, at fit and at 100%: the press, 60 sent moves of a few
+// screen pixels with their paint, and a queue of 240 one-or-two-pixel moves (coalesced as a
+// window system's are) until it has drained, with the segments the tool painted and the time it
+// spent in them (RenderCacheDiagnostics::toning_*). PATCHY_PERF_TONING_SIZE (775) and
+// PATCHY_PERF_TONING_TOOLS (dodge,burn,sponge,blur,sharpen,smudge) narrow it.
+void toning_big_brush_perf() {
+  isolate_perf_settings();
+  constexpr int kWidth = 3580;
+  constexpr int kHeight = 5370;
+  const auto image_path = std::filesystem::absolute("test-artifacts/perf_toning_3580x5370.jpg");
+  {
+    std::filesystem::create_directories(image_path.parent_path());
+    QImage image(kWidth, kHeight, QImage::Format_RGB32);
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+      for (int x = 0; x < kWidth; ++x) {
+        row[x] = qRgb(128 + (x / 7) % 128, 128 + (y / 9) % 128, 128 + ((x + y) / 13) % 128);
+      }
+    }
+    CHECK(image.save(patchy::ui::to_qstring(image_path), "JPG", 92));
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(image_path));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  const auto settle = [canvas] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons) {
+    QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &event);
+  };
+  const auto summary = [](std::vector<double> values) {
+    std::sort(values.begin(), values.end());
+    double total = 0.0;
+    for (const auto value : values) {
+      total += value;
+    }
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+         << " median=" << values[values.size() / 2] << " max=" << values.back();
+    return text.str();
+  };
+  const auto size = qEnvironmentVariableIsSet("PATCHY_PERF_TONING_SIZE")
+                        ? qEnvironmentVariableIntValue("PATCHY_PERF_TONING_SIZE")
+                        : 775;
+  const auto tools_filter = qEnvironmentVariable("PATCHY_PERF_TONING_TOOLS");
+  struct ToolCase {
+    const char* label;
+    patchy::ui::CanvasTool tool;
+  };
+  canvas->set_local_adjustment_strength(25);
+  canvas->set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Highlights);
+  canvas->set_local_protect_tones(true);
+  for (const auto& tool_case : {ToolCase{"dodge", patchy::ui::CanvasTool::Dodge},
+                                ToolCase{"burn", patchy::ui::CanvasTool::Burn},
+                                ToolCase{"sponge", patchy::ui::CanvasTool::Sponge},
+                                ToolCase{"blur", patchy::ui::CanvasTool::BlurBrush},
+                                ToolCase{"sharpen", patchy::ui::CanvasTool::SharpenBrush},
+                                ToolCase{"smudge", patchy::ui::CanvasTool::Smudge}}) {
+    if (!tools_filter.isEmpty() && !tools_filter.split(QLatin1Char(',')).contains(QString::fromLatin1(tool_case.label))) {
+      continue;
+    }
+    canvas->set_tool(tool_case.tool);
+    canvas->set_brush_opacity(25);
+    canvas->set_brush_size(size);
+    canvas->set_brush_softness(12);
+    for (const bool fit : {true, false}) {
+      if (fit) {
+        canvas->fit_to_view();
+      } else {
+        canvas->set_zoom_centered(1.0);
+      }
+      settle();
+      const auto start = QPointF(canvas->widget_position_for_document_point(QPoint(1700, 2400)));
+      const auto step = fit ? 4.0 : 12.0;
+      const auto at = [&](double index) { return start + QPointF(step * index, step * 3.0 * std::sin(index * 0.15)); };
+      send(QEvent::MouseMove, at(0), Qt::NoButton, Qt::NoButton);
+      QApplication::processEvents();
+      canvas->repaint();
+      settle();
+      const auto before = canvas->render_cache_diagnostics();
+      const auto press_ms = elapsed_ms([&] { send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton); });
+      std::vector<double> move_ms;
+      std::vector<double> paint_ms;
+      const auto stroke_ms = elapsed_ms([&] {
+        for (int index = 1; index <= 60; ++index) {
+          move_ms.push_back(elapsed_ms([&] {
+            send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton);
+            QApplication::processEvents();
+          }));
+          paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        }
+      });
+      const auto after_moves = canvas->render_cache_diagnostics();
+      send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      settle();
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] toningbig " << tool_case.label << " size=" << size
+                << (fit ? " fit" : " 100%") << " zoom=" << canvas->zoom() << " press_ms=" << press_ms
+                << " stroke_ms=" << stroke_ms << " segments=" << after_moves.toning_segments - before.toning_segments
+                << " segment_ms=" << after_moves.toning_segment_ms - before.toning_segment_ms
+                << " segment_mpx=" << (after_moves.toning_segment_pixels - before.toning_segment_pixels) / 1.0e6
+                << " move_ms " << summary(move_ms) << " paint_ms " << summary(paint_ms) << '\n';
+      patchy::ui::MainWindowTestAccess::undo(window);
+      settle();
+
+      // 240 moves a pixel or two apart, queued as a fast pointer queues them and coalesced per pass.
+      canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves);
+      const auto queued_at = [&](double index) {
+        return start + QPointF(1.5 * index, 6.0 * std::sin(index * 0.05));
+      };
+      send(QEvent::MouseMove, queued_at(0), Qt::NoButton, Qt::NoButton);
+      QApplication::processEvents();
+      settle();
+      send(QEvent::MouseButtonPress, queued_at(0), Qt::LeftButton, Qt::LeftButton);
+      const auto queued_before = canvas->render_cache_diagnostics();
+      for (int index = 1; index <= 240; ++index) {
+        QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, queued_at(index),
+                                                        canvas->mapToGlobal(queued_at(index)), Qt::NoButton,
+                                                        Qt::LeftButton, Qt::NoModifier));
+      }
+      int frames = 0;
+      const auto drain_ms = elapsed_ms([&] {
+        int idle = 0;
+        while (idle < 3 && frames < 2000) {
+          // Only what the strokes invalidated repaints (a forced full repaint would never go idle).
+          const auto pass_ms = elapsed_ms([&] { QApplication::processEvents(); });
+          ++frames;
+          idle = pass_ms < 1.0 ? idle + 1 : 0;
+        }
+      });
+      const auto queued_after = canvas->render_cache_diagnostics();
+      send(QEvent::MouseButtonRelease, queued_at(240), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      settle();
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] toningbig " << tool_case.label << " size=" << size
+                << (fit ? " fit" : " 100%") << " queued240 drain_ms=" << drain_ms << " frames=" << frames
+                << " segments=" << queued_after.toning_segments - queued_before.toning_segments
+                << " segment_ms=" << queued_after.toning_segment_ms - queued_before.toning_segment_ms
+                << " segment_mpx=" << (queued_after.toning_segment_pixels - queued_before.toning_segment_pixels) / 1.0e6
+                << " moves_coalesced=" << queued_after.drag_moves_coalesced - queued_before.drag_moves_coalesced
+                << '\n';
+      canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::Default);
+      patchy::ui::MainWindowTestAccess::undo(window);
+      settle();
+    }
+  }
+}
+
 // A small 8-bit CMYK PSD painted with the Brush, in CMYK Proof and after leaving it,
 // against a plain RGB document of the same size (GitHub issue 220's second sample, ag-psd's
 // test/read/cmyk/src.psd). PATCHY_PERF_CMYK_PSD overrides the fixture path.
@@ -4546,6 +4714,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "toningstroke") {
       run_scenario("toningstroke", toning_stroke_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "toningbig") {
+      run_scenario("toningbig", toning_big_brush_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {
