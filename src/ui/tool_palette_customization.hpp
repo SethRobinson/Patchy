@@ -2,7 +2,8 @@
 
 // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md, "Customizing
 // the palette"): which tools the palette shows, one or two columns, tool groups or every tool
-// on its own button (499), wheel scrolling in a short window, which of the palette's bottom items (color swatches, Quick Mask, screen mode) show,
+// on its own button (499), wheel scrolling in a short window (with or without its expand button and
+// scroll arrows, 668), which of the palette's bottom items (color swatches, Quick Mask, screen mode) show,
 // and which Layers panel footer buttons show. The dialog also shows two Preferences settings,
 // the toolbar icon size and when tool groups open, stored under their own keys. The settings keys and the tool and button
 // ids stored under them are compatibility contracts. Only what the user hid is stored, never a
@@ -34,6 +35,11 @@ struct ToolPaletteCustomization {
   bool ungroup_tools{false};
   // The wheel scrolls an overflowing column instead of the > arrow opening more columns.
   bool wheel_scroll{true};
+  // Wheel-scroll mode only (GitHub issue 668): the expand row that opens the overflow columns,
+  // and the up and down scroll arrows. Without wheel scrolling both always show: they are the
+  // only way to reach tools that do not fit.
+  bool show_expand_button{true};
+  bool show_scroll_arrows{true};
   // Layers panel footer button ids (kLayerFooterButtonIds) left out of the footer. The
   // buttons of kLayerFooterButtonIdsHiddenByDefault start in it (GitHub issue 470).
   QStringList hidden_layer_buttons{QStringLiteral("link"), QStringLiteral("merge_down"),

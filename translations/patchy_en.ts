@@ -15036,6 +15036,26 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Expand button</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll arrows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The &gt; row under the tools that opens more columns.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The small arrows above and below the tools that scroll them.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
