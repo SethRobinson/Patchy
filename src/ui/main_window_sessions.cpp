@@ -151,6 +151,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_content_aware_move_object_selection(canvas_->content_aware_move_object_selection());
     session->canvas->set_healing_diffusion(current_healing_diffusion_);
     session->canvas->set_local_adjustment_strength(current_local_adjustment_strength_);
+    session->canvas->set_smudge_strength(current_smudge_strength_);
     session->canvas->set_local_tone_range(current_local_tone_range_);
     session->canvas->set_local_protect_tones(current_local_protect_tones_);
     session->canvas->set_sponge_mode(current_sponge_mode_);
@@ -224,6 +225,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   session->canvas->set_healing_diffusion(current_healing_diffusion_);
   session->canvas->set_local_adjustment_strength(current_local_adjustment_strength_);
+  session->canvas->set_smudge_strength(current_smudge_strength_);
   session->canvas->set_local_tone_range(current_local_tone_range_);
   session->canvas->set_local_protect_tones(current_local_protect_tones_);
   session->canvas->set_sponge_mode(current_sponge_mode_);
@@ -492,6 +494,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   canvas_->set_healing_diffusion(current_healing_diffusion_);
   canvas_->set_local_adjustment_strength(current_local_adjustment_strength_);
+  canvas_->set_smudge_strength(current_smudge_strength_);
   canvas_->set_local_tone_range(current_local_tone_range_);
   canvas_->set_local_protect_tones(current_local_protect_tones_);
   canvas_->set_sponge_mode(current_sponge_mode_);

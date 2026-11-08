@@ -6066,6 +6066,8 @@ void MainWindow::refresh_document_info() {
         if (canvas_->mixer_sample_all_layers()) {
           lines << tr("Sample All Layers");
         }
+      } else if (current_tool_ == CanvasTool::Smudge) {
+        lines << tr("Strength: %1%").arg(canvas_->smudge_strength());  // GitHub issue 675
       } else {
         lines << tr("Opacity: %1%").arg(canvas_->brush_opacity());
       }

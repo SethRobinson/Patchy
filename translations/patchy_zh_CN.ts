@@ -18208,6 +18208,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation>更改不透明度色标</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>涂抹强度：%1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -34521,6 +34525,10 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>将书籍扫描为 PDF(&amp;B)...</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>涂抹工具拖动颜色的距离：数值越高，颜色带得越远；100% 会把起始颜色拖过整个笔画。可用数字键设置（5 = 50%，0 = 100%）</translation>
     </message>
 </context>
 <context>

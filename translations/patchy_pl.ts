@@ -18314,6 +18314,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Change Opacity Stop</source>
         <translation>Zmień znacznik krycia</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>Siła smugi: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -34709,6 +34713,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Skanuj &amp;książkę do PDF...</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>Jak daleko Smuga ciągnie kolor: wyższe wartości niosą go dalej, a 100% ciągnie kolor początkowy przez cały ruch. Ustawiają ją klawisze cyfr (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

@@ -2846,9 +2846,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
     });
   }
+  // Smudge has no Opacity: its own Strength sits in this slot (GitHub issue 675).
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Opacity:"),
-      {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+      {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing,
        CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
@@ -2859,11 +2860,33 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_opacity->setSuffix(percent_suffix());
   configure_toolbar_spinbox(brush_opacity, 52);
   add_option_widget(brush_opacity,
-                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   // Opacity and Soft have no inline slider (Flow and Smooth never did): the field's
   // popup slider, a drag on its label or inside the field, and the number keys set them.
   bind_tooltip(brush_opacity, QT_TR_NOOP("Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)"));
+  // Smudge's Strength (GitHub issue 675): how much of the carried color each dab lays down
+  // and keeps. Before, Smudge read the shared Opacity, whose default 100% dragged the press
+  // color along the whole stroke.
+  add_option_label(QT_TR_NOOP("Strength:"), {CanvasTool::Smudge});
+  smudge_strength_spin_ = new QSpinBox(toolbar);
+  smudge_strength_spin_->setObjectName(QStringLiteral("smudgeStrengthSpin"));
+  smudge_strength_spin_->setRange(0, 100);  // 0..100 like Opacity (issue 253)
+  smudge_strength_spin_->setValue(current_smudge_strength_);
+  smudge_strength_spin_->setSuffix(percent_suffix());
+  configure_toolbar_spinbox(smudge_strength_spin_, 52);
+  add_option_widget(smudge_strength_spin_, {CanvasTool::Smudge});
+  bind_tooltip(smudge_strength_spin_,
+               QT_TR_NOOP("How far Smudge drags color: higher values carry it further, and 100% drags the "
+                          "starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)"));
+  connect(smudge_strength_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+    current_smudge_strength_ = value;
+    if (canvas_ != nullptr) {
+      canvas_->set_smudge_strength(value);
+    }
+    schedule_save_tool_settings();
+    refresh_document_info();
+  });
   // Mode and Opacity | the tip's own settings (GitHub issue 364). Pixels mode only on the
   // shape tools, like the controls on either side.
   {

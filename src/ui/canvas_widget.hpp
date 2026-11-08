@@ -636,6 +636,9 @@ public:
                                 bool record_history = true);
   void set_local_adjustment_strength(int strength) noexcept;
   [[nodiscard]] int local_adjustment_strength() const noexcept;
+  // Smudge's own Strength, 0..100 (GitHub issue 675); Smudge ignores the brush Opacity.
+  void set_smudge_strength(int strength) noexcept;
+  [[nodiscard]] int smudge_strength() const noexcept;
   void set_local_tone_range(LocalToneRange range) noexcept;
   [[nodiscard]] LocalToneRange local_tone_range() const noexcept;
   void set_local_protect_tones(bool enabled) noexcept;
@@ -4461,6 +4464,7 @@ private:
   SampleLayers retouch_sample_layers_{SampleLayers::AllLayers};
   bool retouch_ignore_adjustments_{false};
   int local_adjustment_strength_{50};
+  int smudge_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};
   bool local_protect_tones_{true};
   // The current stroke started with Alt held: Dodge paints as Burn, Blur as Sharpen and

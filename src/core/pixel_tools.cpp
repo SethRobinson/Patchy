@@ -2417,7 +2417,7 @@ Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0
   auto& pixels = layer.pixels();
   const auto bounds = layer.bounds();
   const auto format = pixels.format();
-  const auto strength = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  const auto strength = smudge_carry_amount(options.smudge_strength);
   if (!state.initialized || state.diameter != diameter || state.sample_deep.empty()) {
     capture_smudge_sample_deep(state, layer, x0, y0, radius);
   }
@@ -2516,6 +2516,35 @@ Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0
 
 }  // namespace
 
+float smudge_carry_amount(float strength) noexcept {
+  // Knots: Strength -> the per-dab amount whose stroke matched Photoshop 2026's Smudge (hard
+  // 40 px brush, one stroke across a 50|210 edge, least-squares over the profile; GitHub
+  // issue 675). Linear between knots.
+  static constexpr std::array<std::array<float, 2>, 13> kKnots{{{0.0F, 0.0F},
+                                                               {0.05F, 0.051F},
+                                                               {0.10F, 0.090F},
+                                                               {0.25F, 0.182F},
+                                                               {0.35F, 0.249F},
+                                                               {0.50F, 0.339F},
+                                                               {0.60F, 0.409F},
+                                                               {0.75F, 0.524F},
+                                                               {0.85F, 0.625F},
+                                                               {0.90F, 0.695F},
+                                                               {0.95F, 0.783F},
+                                                               {0.98F, 0.891F},
+                                                               {1.0F, 1.0F}}};
+  const auto s = std::clamp(std::isfinite(strength) ? strength : 0.0F, 0.0F, 1.0F);
+  for (std::size_t index = 1; index < kKnots.size(); ++index) {
+    if (s <= kKnots[index][0]) {
+      const auto& low = kKnots[index - 1];
+      const auto& high = kKnots[index];
+      const auto t = (s - low[0]) / (high[0] - low[0]);
+      return low[1] + (high[1] - low[1]) * t;
+    }
+  }
+  return 1.0F;
+}
+
 Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                           std::int32_t y1, const EditOptions& options, SmudgeState& state) {
   if (auto* deep = paintable_layer(document, layer_id);
@@ -2565,7 +2594,7 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
   const auto color_channels = std::min<std::uint16_t>(channels, 3);
-  const auto strength = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  const auto strength = smudge_carry_amount(options.smudge_strength);
   if (!state.initialized || state.diameter != diameter) {
     capture_smudge_sample(state, *layer, x0, y0, radius);
   }

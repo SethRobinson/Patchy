@@ -18261,6 +18261,10 @@ Deseja substituí-lo?</translation>
         <source>Change Opacity Stop</source>
         <translation>Alterar parada de opacidade</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>Intensidade do borrar: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -34615,6 +34619,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Digitalizar um &amp;livro para PDF...</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>Até onde o Borrar arrasta a cor: valores maiores a levam mais longe, e 100% arrasta a cor inicial por todo o traço. As teclas numéricas definem o valor (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

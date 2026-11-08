@@ -18314,6 +18314,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation>Изменить контрольную точку непрозрачности</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>Сила пальца: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -34709,6 +34713,10 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Сканировать &amp;книгу в PDF...</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>Как далеко Палец тянет цвет: чем больше значение, тем дальше, а при 100% начальный цвет тянется через весь штрих. Задаётся цифровыми клавишами (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

@@ -1934,6 +1934,7 @@ void ui_retouch_tools_transparent_edge_gallery() {
   {
     auto scene = make_disc(false);
     scene.canvas->set_tool(patchy::ui::CanvasTool::Smudge);
+    scene.canvas->set_smudge_strength(75);
     scene.canvas->set_brush_size(14);
     scene.canvas->set_brush_opacity(60);
     drag_document_pixel_centers(*scene.canvas, {QPoint(50, 26), QPoint(90, 26)}, 12);

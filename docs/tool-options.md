@@ -82,6 +82,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Content-Aware Move | Object Selection (`contentAwareMoveObjectSelectionCheck`; builds with the Object Selection model only) | `contentAwareMoveObjectSelection` (default off) | new (issue 599) | yes |
 | Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
+| Smudge | Strength (`smudgeStrengthSpin`, 0..100, default 50; replaces Opacity on its bar) | `smudgeStrength` | new (issue 675) | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |
 | Gradient | Method, Opacity, Reverse, gradient stops | `gradientMethod`, `gradientOpacity`, `gradientReverse`, `gradientUseCustomStops`, `gradientStops`, `gradientDefinition` (two tracks; [gradients.md](gradients.md#grd-files)) | yes | yes |
 | Gradient | Mode (`gradientModeCombo`: Pixels, Fill Layer; [gradients.md](gradients.md#gradient-tool-fill-layer-mode)) | `gradientMode` (token) | new (issue 580) | yes |

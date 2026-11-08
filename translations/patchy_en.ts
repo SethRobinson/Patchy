@@ -18243,6 +18243,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -34532,6 +34536,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

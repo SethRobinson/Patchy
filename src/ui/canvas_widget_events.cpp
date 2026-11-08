@@ -118,7 +118,7 @@ bool is_local_adjustment_tool(CanvasTool tool) noexcept {
   }
 }
 
-// Tools whose opacity the bare digit keys adjust while the canvas has focus.
+// Tools whose opacity the bare digit keys adjust while the canvas has focus (Smudge: its Strength).
 bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
@@ -5037,6 +5037,11 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     set_gradient_opacity(value);
     if (status_callback_) {
       status_callback_(tr("Gradient opacity: %1%").arg(gradient_opacity_));
+    }
+  } else if (tool_ == CanvasTool::Smudge) {
+    set_smudge_strength(value);  // Smudge's digits set its Strength (GitHub issue 675)
+    if (status_callback_) {
+      status_callback_(tr("Smudge strength: %1%").arg(smudge_strength_));
     }
   } else {
     set_brush_opacity(value);

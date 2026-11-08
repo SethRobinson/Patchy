@@ -2980,12 +2980,13 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
-  if (brush_opacity_ <= 0) {
-    return {};  // Strength 0 smudges nothing (issue 253); the core floors primary.a at 1/255
+  if (smudge_strength_ <= 0) {
+    return {};  // Strength 0 smudges nothing (issue 253)
   }
 
   const auto brush = effective_brush_input();
   auto options = current_brush_edit_options(brush);
+  options.smudge_strength = static_cast<float>(smudge_strength_) / 100.0F;  // GitHub issue 675
   smudge_state_.single_threaded = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
   return to_qrect(patchy::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
                                                   to.x(), to.y(), options, smudge_state_));
