@@ -17520,6 +17520,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation>變更不透明度色標</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>指尖強度：%1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33796,6 +33800,10 @@ Locked: %1</source>
     <message>
         <source>Blend Mode</source>
         <translation>混合模式</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>指尖工具拖曳顏色的距離：數值越高，顏色帶得越遠；100% 會把起始顏色拖過整個筆畫。可用數字鍵設定（5 = 50%，0 = 100%）</translation>
     </message>
 </context>
 <context>

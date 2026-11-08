@@ -17567,6 +17567,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Change Opacity Stop</source>
         <translation>Deckkraftunterbrechung ändern</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>Wischfinger-Stärke: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33884,6 +33888,10 @@ Fixiert: %1</translation>
     <message>
         <source>Blend Mode</source>
         <translation>Füllmethode</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>Wie weit der Wischfinger Farbe zieht: höhere Werte tragen sie weiter, 100% zieht die Startfarbe durch den ganzen Strich. Zifferntasten setzen den Wert (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

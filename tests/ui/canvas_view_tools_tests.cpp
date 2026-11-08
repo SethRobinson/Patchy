@@ -8818,7 +8818,10 @@ void ui_options_bar_tracks_active_tool() {
   require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
   QApplication::processEvents();
   CHECK(brush_size->isVisible());
-  CHECK(brush_opacity->isVisible());
+  // Smudge shows its own Strength where the others show Opacity (GitHub issue 675).
+  CHECK(!brush_opacity->isVisible());
+  auto* smudge_strength = window.findChild<QSpinBox*>(QStringLiteral("smudgeStrengthSpin"));
+  CHECK(smudge_strength != nullptr && smudge_strength->isVisible());
   CHECK(brush_softness->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!healing_diffusion->isVisible());

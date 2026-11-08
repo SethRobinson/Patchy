@@ -17520,6 +17520,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation>不透明度の分岐点を変更</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>指先の強さ: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33796,6 +33800,10 @@ Locked: %1</source>
     <message>
         <source>Blend Mode</source>
         <translation>描画モード</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>指先ツールが色を引きずる距離です。値が大きいほど遠くまで運び、100%では最初の色をストローク全体に引きずります。数字キーで設定できます (5 = 50%、0 = 100%)</translation>
     </message>
 </context>
 <context>

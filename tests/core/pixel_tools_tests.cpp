@@ -420,6 +420,7 @@ void tool_smudge_drags_source_pixels_and_writes_artifact() {
   const auto layer_id = document.add_pixel_layer("Smudge", std::move(pixels)).id();
   auto options = tool_options();
   options.brush_size = 13;
+  options.smudge_strength = 1.0F;  // 100% carries the press color unchanged (GitHub issue 675)
 
   const auto dirty = patchy::smudge_brush_segment(document, layer_id, 20, 20, 48, 20, options);
   CHECK(!dirty.empty());
@@ -461,7 +462,7 @@ void tool_smudge_banded_dabs_keep_bytes() {
       auto options = tool_options();
       options.brush_size = 241;
       options.brush_softness = 60;
-      options.primary.a = 150;
+      options.smudge_strength = 0.6F;
       options.selection_coverage = [](std::int32_t x, std::int32_t y) {
         const auto dx = static_cast<float>(x - 210);
         const auto dy = static_cast<float>(y - 180);
@@ -487,6 +488,65 @@ void tool_smudge_banded_dabs_keep_bytes() {
     const auto banded = paint(false);
     CHECK(banded.first == single.first);
     CHECK(banded.second == single.second);
+  }
+}
+
+// GitHub issue 675: Smudge's own Strength. One stroke from a dark area across a light one with
+// a hard 41 px brush: at 50% the carried dark fades within about a brush width past the edge
+// (Photoshop 2026: 31 px for a 40 px brush), higher Strength carries it further, and 100%
+// drags the press color the whole way, as in Photoshop. 8 and 16-bit layers.
+void tool_smudge_strength_sets_how_far_color_travels() {
+  CHECK(patchy::smudge_carry_amount(0.0F) == 0.0F);
+  CHECK(patchy::smudge_carry_amount(1.0F) == 1.0F);
+  CHECK(patchy::smudge_carry_amount(-1.0F) == 0.0F);
+  CHECK(patchy::smudge_carry_amount(2.0F) == 1.0F);
+  for (int step = 1; step <= 100; ++step) {
+    CHECK(patchy::smudge_carry_amount(static_cast<float>(step) / 100.0F) >
+          patchy::smudge_carry_amount(static_cast<float>(step - 1) / 100.0F));
+  }
+  constexpr std::int32_t kWidth = 600;
+  constexpr std::int32_t kEdge = 100;
+  constexpr std::int32_t kRow = 30;
+  for (const bool deep : {false, true}) {
+    const auto travel = [deep](float strength) {
+      patchy::Document document(kWidth, 60, patchy::PixelFormat::rgb8());
+      auto pixels = solid_rgba(kWidth, 60, 210, 210, 210, 255);
+      for (std::int32_t y = 0; y < 60; ++y) {
+        for (std::int32_t x = 0; x < kEdge; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = px[1] = px[2] = 50;
+        }
+      }
+      const auto layer_id = document.add_pixel_layer("Smudge", std::move(pixels)).id();
+      if (deep) {
+        patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+      }
+      auto options = tool_options();
+      options.brush_size = 41;
+      options.smudge_strength = strength;
+      CHECK(!patchy::smudge_brush_segment(document, layer_id, 40, kRow, 560, kRow, options).empty());
+      const auto* layer = std::as_const(document).find_layer(layer_id);
+      const auto pixels8 =
+          deep ? patchy::convert_pixel_buffer_depth(layer->pixels(), patchy::BitDepth::UInt8, patchy::SampleKind::Color)
+               : layer->pixels();
+      // How far past the edge the smear stays darker than the middle level.
+      for (std::int32_t x = kEdge; x < kWidth; ++x) {
+        if (pixels8.pixel(x - layer->bounds().x, kRow - layer->bounds().y)[0] >= 130) {
+          return x - kEdge;
+        }
+      }
+      return kWidth - kEdge;
+    };
+    const auto at25 = travel(0.25F);
+    const auto at50 = travel(0.5F);
+    const auto at75 = travel(0.75F);
+    const auto at100 = travel(1.0F);
+    std::cout << "smudge travel" << (deep ? " (16-bit)" : "") << ": 25% " << at25 << " px, 50% " << at50
+              << " px, 75% " << at75 << " px, 100% " << at100 << " px\n";
+    CHECK(at50 >= 20 && at50 <= 45);
+    CHECK(at25 < at50);
+    CHECK(at75 > at50 && at75 <= 130);
+    CHECK(at100 >= 560 - 20 - kEdge);  // the dark reaches the stroke's end
   }
 }
 
@@ -1734,6 +1794,9 @@ void tool_write_paths_digest_baseline() {
     CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 32, 48}, tool_options(220, 30, 20)).empty());
     auto options = tool_options();
     options.brush_size = 13;
+    // Strength 100% is the full-Opacity smear this digest pinned before Smudge had a Strength
+    // of its own (GitHub issue 675): the same bytes.
+    options.smudge_strength = 1.0F;
     CHECK(!patchy::smudge_brush_segment(document, layer_id, 20, 20, 48, 20, options).empty());
     digests.emplace_back("smudge_segment", layer_pixels_digest(document, layer_id));
   }
@@ -2217,6 +2280,7 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_eraser_converts_rgb_layer_to_transparency", tool_eraser_converts_rgb_layer_to_transparency},
       {"tool_smudge_drags_source_pixels_and_writes_artifact", tool_smudge_drags_source_pixels_and_writes_artifact},
       {"tool_smudge_banded_dabs_keep_bytes", tool_smudge_banded_dabs_keep_bytes},
+      {"tool_smudge_strength_sets_how_far_color_travels", tool_smudge_strength_sets_how_far_color_travels},
       {"tool_line_draws_and_writes_artifact", tool_line_draws_and_writes_artifact},
       {"tool_rectangle_draws_outline_and_writes_artifact", tool_rectangle_draws_outline_and_writes_artifact},
       {"tool_ellipse_draws_and_writes_artifact", tool_ellipse_draws_and_writes_artifact},

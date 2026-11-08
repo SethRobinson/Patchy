@@ -17520,6 +17520,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation>불투명도 정지점 변경</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>손가락 강도: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33796,6 +33800,10 @@ Locked: %1</source>
     <message>
         <source>Blend Mode</source>
         <translation>혼합 모드</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>손가락 도구가 색을 끌고 가는 거리입니다. 값이 클수록 더 멀리 옮기며, 100%에서는 시작 색을 획 전체에 끌고 갑니다. 숫자 키로 설정할 수 있습니다 (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

@@ -32,6 +32,7 @@
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
+#include "local_psd_fixtures.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -3222,7 +3223,7 @@ void ui_smudge_keeps_color_at_transparent_edges() {
       auto scene = make_scene(format, paint, false, layer_width, lock);
       scene.canvas->set_tool(patchy::ui::CanvasTool::Smudge);
       scene.canvas->set_brush_size(12);
-      scene.canvas->set_brush_opacity(70);
+      scene.canvas->set_smudge_strength(90);  // about the per-dab amount 70% Opacity gave before #675
       stroke(scene, from, to);
       return scene;
     };
@@ -3398,6 +3399,125 @@ void ui_retouch_tools_keep_color_and_alpha_at_transparent_edges() {
   toning(patchy::ui::CanvasTool::Sponge, "sponge");
 }
 
+// GitHub issue 675: Smudge has a Strength of its own (default 50%, settings key
+// tools/smudgeStrength) in the slot where the brush Opacity sits for the painting tools. The
+// brush Opacity no longer reaches Smudge, number keys set the Strength, and it persists.
+void ui_smudge_strength_is_its_own_setting() {
+  SettingsValueRestorer saved_strength(QStringLiteral("tools/smudgeStrength"));
+  SettingsValueRestorer saved_opacity(QStringLiteral("tools/brushOpacity"));
+  SettingsValueRestorer saved_tool(QStringLiteral("tools/activeTool"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/smudgeStrength"));
+    settings.sync();
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(2400, 900);
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    auto* strength = window.findChild<QSpinBox*>(QStringLiteral("smudgeStrengthSpin"));
+    auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    CHECK(strength != nullptr);
+    CHECK(opacity != nullptr);
+    if (strength == nullptr || opacity == nullptr) {
+      return;
+    }
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    CHECK(opacity->isVisible());
+    CHECK(!strength->isVisible());
+    opacity->setValue(100);
+    require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Smudge);
+    CHECK(strength->isVisible());
+    CHECK(!opacity->isVisible());
+    CHECK(strength->value() == 50);
+    CHECK(canvas->smudge_strength() == 50);
+    CHECK(!strength->toolTip().isEmpty());
+    strength->setValue(30);
+    CHECK(canvas->smudge_strength() == 30);
+    CHECK(canvas->brush_opacity() == 100);
+    // Number keys set Smudge's Strength, not the brush Opacity.
+    canvas->setFocus();
+    send_key(*canvas, Qt::Key_7);
+    QApplication::processEvents();
+    CHECK(canvas->smudge_strength() == 70);
+    CHECK(strength->value() == 70);
+    CHECK(canvas->brush_opacity() == 100);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/smudgeStrength")).toInt() == 70);
+  }
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  QApplication::processEvents();
+  auto* strength = reopened.findChild<QSpinBox*>(QStringLiteral("smudgeStrengthSpin"));
+  CHECK(strength != nullptr && strength->value() == 70);
+  CHECK(require_canvas(reopened)->smudge_strength() == 70);
+}
+
+// Picture for the desk card (GitHub issue 675): the reporter's portrait at quarter size
+// (local-test-fixtures/sharpen-photo/small.png), one Smudge stroke from the dark fence across
+// the white shirt, Size 110 and Soft 75% (his 443 px brush at quarter size). Left: Strength 100%,
+// the same bytes the old default (Opacity 100%) gave; right: the new default 50%. Writes
+// test-artifacts/ui_smudge_strength_photo.png. 100% must leave the fence's dark far along the
+// stroke, 50% must fade it.
+void ui_smudge_strength_photo_picture_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("sharpen-photo", "small.png");
+  patchy::test::skip_unless_exists(path);
+  QImage source(patchy::ui::to_qstring(path));
+  CHECK(!source.isNull());
+  source = source.convertToFormat(QImage::Format_RGB888);
+  const auto width = source.width();
+  const auto height = source.height();
+  constexpr int kTop = 250;
+  constexpr int kGap = 8;
+  QImage picture(width * 2 + kGap, height - kTop, QImage::Format_RGB32);
+  picture.fill(qRgb(255, 255, 255));
+  std::array<int, 2> lightness_at_end{};
+  for (int panel = 0; panel < 2; ++panel) {
+    auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+    for (int y = 0; y < height; ++y) {
+      const auto* line = source.constScanLine(y);
+      for (int x = 0; x < width; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = line[x * 3];
+        px[1] = line[x * 3 + 1];
+        px[2] = line[x * 3 + 2];
+      }
+    }
+    patchy::Document document(width, height, patchy::PixelFormat::rgb8());
+    const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(width + 140, height + 140);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(patchy::ui::CanvasTool::Smudge);
+    canvas.set_brush_size(110);
+    canvas.set_brush_softness(75);
+    canvas.set_smudge_strength(panel == 0 ? 100 : 50);
+    drag_document_path(canvas, {QPoint(470, 400), QPoint(60, 420)}, 80);
+    QApplication::processEvents();
+    const auto& result = std::as_const(*document.find_layer(layer_id)).pixels();
+    for (int y = kTop; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const auto* px = result.pixel(x, y);
+        picture.setPixel(panel * (width + kGap) + x, y - kTop, qRgb(px[0], px[1], px[2]));
+      }
+    }
+    const auto* end = result.pixel(120, 418);
+    lightness_at_end[static_cast<std::size_t>(panel)] = (end[0] + end[1] + end[2]) / 3;
+  }
+  std::cout << "smudge photo: lightness near the stroke end at 100% " << lightness_at_end[0] << ", at 50% "
+            << lightness_at_end[1] << "\n";
+  save_image_artifact("ui_smudge_strength_photo", picture);
+  CHECK(lightness_at_end[0] < 150);
+  CHECK(lightness_at_end[1] > 200);
+}
+
 void ui_smudge_tool_drags_painted_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3415,7 +3535,7 @@ void ui_smudge_tool_drags_painted_pixels() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Smudge);
   canvas->set_brush_size(28);
-  canvas->set_brush_opacity(70);
+  canvas->set_smudge_strength(90);  // about the per-dab amount 70% Opacity gave before #675
   canvas->set_brush_softness(100);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 120)),
        canvas->widget_position_for_document_point(QPoint(170, 120)));
@@ -5746,6 +5866,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_retouch_tools_keep_color_and_alpha_at_transparent_edges",
        ui_retouch_tools_keep_color_and_alpha_at_transparent_edges},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
+      {"ui_smudge_strength_is_its_own_setting", ui_smudge_strength_is_its_own_setting},
+      {"ui_smudge_strength_photo_picture_if_available", ui_smudge_strength_photo_picture_if_available},
       {"ui_wet_edges_uses_one_continuous_stroke_boundary",
        ui_wet_edges_uses_one_continuous_stroke_boundary},
       {"ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels",

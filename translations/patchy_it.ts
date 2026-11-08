@@ -17567,6 +17567,10 @@ Sostituirlo?</translation>
         <source>Change Opacity Stop</source>
         <translation>Cambia interruzione di opacità</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>Intensità sfumino: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33884,6 +33888,10 @@ Bloccato: %1</translation>
     <message>
         <source>Blend Mode</source>
         <translation>Metodo di fusione</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>Quanto lontano lo sfumino trascina il colore: valori più alti lo portano più lontano e 100% trascina il colore iniziale per tutto il tratto. I tasti numerici lo impostano (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

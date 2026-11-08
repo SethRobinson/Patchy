@@ -60,6 +60,9 @@ struct EditOptions {
   int flood_tolerance{0};
   bool flood_contiguous{true};
   bool lock_transparent_pixels{false};
+  // Smudge only: its Strength, 0..1 (GitHub issue 675; the options bar's own field, default 50%).
+  // smudge_brush_segment maps it through smudge_carry_amount; `primary` plays no part.
+  float smudge_strength{0.5F};
   // Palette-mode write constraint (non-owning, caller keeps the LUT alive for the
   // operation). When set, pixel writes binarize coverage at its threshold, blend
   // at full strength, then snap RGB to the palette and alpha to 0/255. Null =
@@ -272,6 +275,11 @@ enum class CanvasAnchor {
 // distance): at the press point, along the stroke's travel, or at the base angle for a click.
 [[nodiscard]] Rect finish_brush_tip_stroke(Document& document, LayerId layer_id, const EditOptions& options,
                                            bool erase, BrushTipStrokeState& state);
+// Smudge's per-dab amount for a Strength of 0..1 (GitHub issue 675): each dab mixes that much
+// of the carried sample into the pixels and picks up the rest. Calibrated against Photoshop's
+// Smudge so the carried color travels as far at each Strength (docs/brushes.md, "Smudge
+// Strength"); 1 carries the start color the whole stroke, as in Photoshop.
+[[nodiscard]] float smudge_carry_amount(float strength) noexcept;
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,

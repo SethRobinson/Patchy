@@ -1276,6 +1276,14 @@ int CanvasWidget::local_adjustment_strength() const noexcept {
   return local_adjustment_strength_;
 }
 
+void CanvasWidget::set_smudge_strength(int strength) noexcept {
+  smudge_strength_ = std::clamp(strength, 0, 100);  // 0 smudges nothing (issue 253)
+}
+
+int CanvasWidget::smudge_strength() const noexcept {
+  return smudge_strength_;
+}
+
 void CanvasWidget::set_local_tone_range(LocalToneRange range) noexcept {
   local_tone_range_ = range;
 }

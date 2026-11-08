@@ -17567,6 +17567,10 @@ Do you want to replace it?</source>
         <source>Change Opacity Stop</source>
         <translation>Cambiar parada de opacidad</translation>
     </message>
+    <message>
+        <source>Smudge strength: %1%</source>
+        <translation>Intensidad del dedo: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33884,6 +33888,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Blend Mode</source>
         <translation>Modo de fusión</translation>
+    </message>
+    <message>
+        <source>How far Smudge drags color: higher values carry it further, and 100% drags the starting color through the whole stroke. Number keys set it (5 = 50%, 0 = 100%)</source>
+        <translation>Hasta dónde arrastra el color el dedo: los valores altos lo llevan más lejos y 100% arrastra el color inicial por todo el trazo. Las teclas numéricas lo ajustan (5 = 50%, 0 = 100%)</translation>
     </message>
 </context>
 <context>

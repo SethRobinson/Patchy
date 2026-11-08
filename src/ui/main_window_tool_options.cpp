@@ -2848,6 +2848,9 @@ void MainWindow::load_tool_settings() {
       std::clamp(settings.value(QStringLiteral("tools/localAdjustmentStrength"),
                                 current_local_adjustment_strength_).toInt(),
                  1, 100);
+  // A key of its own (GitHub issue 675): before, Smudge used the shared brush Opacity.
+  current_smudge_strength_ =
+      std::clamp(settings.value(QStringLiteral("tools/smudgeStrength"), current_smudge_strength_).toInt(), 0, 100);
   const auto local_tone_range =
       settings.value(QStringLiteral("tools/localToneRange"), QStringLiteral("midtones")).toString();
   current_local_tone_range_ = local_tone_range == QStringLiteral("shadows")
@@ -2865,6 +2868,7 @@ void MainWindow::load_tool_settings() {
   current_sponge_vibrance_ =
       settings.value(QStringLiteral("tools/spongeVibrance"), current_sponge_vibrance_).toBool();
   canvas_->set_local_adjustment_strength(current_local_adjustment_strength_);
+  canvas_->set_smudge_strength(current_smudge_strength_);
   canvas_->set_local_tone_range(current_local_tone_range_);
   canvas_->set_local_protect_tones(current_local_protect_tones_);
   canvas_->set_sponge_mode(current_sponge_mode_);
@@ -3479,6 +3483,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
   settings.setValue(QStringLiteral("tools/localAdjustmentStrength"), current_local_adjustment_strength_);
+  settings.setValue(QStringLiteral("tools/smudgeStrength"), current_smudge_strength_);
   QString local_tone_range = QStringLiteral("midtones");
   switch (current_local_tone_range_) {
     case CanvasWidget::LocalToneRange::Shadows:
@@ -4492,6 +4497,10 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(local_adjustment_strength_spin_);
     local_adjustment_strength_spin_->setValue(current_local_adjustment_strength_);
   }
+  if (smudge_strength_spin_ != nullptr) {
+    QSignalBlocker blocker(smudge_strength_spin_);
+    smudge_strength_spin_->setValue(current_smudge_strength_);
+  }
   if (local_tone_range_combo_ != nullptr) {
     const auto index = local_tone_range_combo_->findData(static_cast<int>(current_local_tone_range_));
     QSignalBlocker blocker(local_tone_range_combo_);
@@ -4723,6 +4732,11 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (auto* brush_flow = findChild<QSpinBox*>(QStringLiteral("brushFlowSpin")); brush_flow != nullptr) {
     QSignalBlocker blocker(brush_flow);
     brush_flow->setValue(canvas_->brush_flow());
+  }
+  current_smudge_strength_ = canvas_->smudge_strength();  // the digit keys set it (GitHub issue 675)
+  if (smudge_strength_spin_ != nullptr) {
+    QSignalBlocker blocker(smudge_strength_spin_);
+    smudge_strength_spin_->setValue(current_smudge_strength_);
   }
   if (auto* brush_airbrush = findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
       brush_airbrush != nullptr) {

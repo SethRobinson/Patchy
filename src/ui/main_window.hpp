@@ -3701,6 +3701,7 @@ private:
   QComboBox* pattern_stamp_pattern_combo_{nullptr};
   QCheckBox* pattern_stamp_aligned_check_{nullptr};
   QSpinBox* local_adjustment_strength_spin_{nullptr};
+  QSpinBox* smudge_strength_spin_{nullptr};
   QComboBox* local_tone_range_combo_{nullptr};
   QCheckBox* local_protect_tones_check_{nullptr};
   QComboBox* sponge_mode_combo_{nullptr};
@@ -4409,6 +4410,7 @@ private:
   QString current_pattern_stamp_pattern_id_;
   bool current_pattern_stamp_aligned_{true};
   int current_local_adjustment_strength_{50};
+  int current_smudge_strength_{50};  // GitHub issue 675; settings key tools/smudgeStrength
   LocalToneRange current_local_tone_range_{LocalToneRange::Midtones};
   bool current_local_protect_tones_{true};
   SpongeMode current_sponge_mode_{SpongeMode::Desaturate};
