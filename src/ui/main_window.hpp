@@ -3000,8 +3000,11 @@ private:
   // when that family offers it and falling back to the face the caller's bold/italic flags
   // describe; `current_text_style_name` is the selected face ("Demi", "Bold Italic", empty
   // for Regular).
+  // A family this computer lacks shows the face its name carries, marked missing (issue 669).
   void refresh_text_style_combo(const QString& family, const QString& preferred,
                                 bool fallback_bold = false, bool fallback_italic = false);
+  void fill_text_style_combo(const QString& family, const QString& preferred, bool fallback_bold,
+                             bool fallback_italic);
   [[nodiscard]] QString current_text_style_name() const;
   [[nodiscard]] QString current_text_family_for_editor(const QTextEdit& editor) const;
   void apply_text_style_to_active_editor();

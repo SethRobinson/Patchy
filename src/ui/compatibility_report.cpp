@@ -218,30 +218,8 @@ QStringList compatibility_warnings_for_document(const Document& document) {
                             "saves an 8-bit file. Keep the original if you need the deeper data.")
                     .arg(QString::fromStdString(depth->second));
   }
-  if (const auto unknown_resources = std::count_if(
-          document.metadata().unknown_psd_resources.begin(), document.metadata().unknown_psd_resources.end(),
-          [](const UnknownPsdBlock& block) { return !psd::is_understood_global_block_key(block.key); });
-      unknown_resources > 0) {
-    warnings << QObject::tr("The document preserves %1 unknown PSD image resource(s).").arg(unknown_resources);
-  }
-  {
-    std::size_t source_count = 0;
-    std::size_t source_bytes = 0;
-    for (const auto& block : document.metadata().smart_objects.blocks) {
-      for (const auto& source : block.sources) {
-        ++source_count;
-        if (source.file_bytes != nullptr) {
-          source_bytes += source.file_bytes->size();
-        }
-      }
-    }
-    if (source_count > 0) {
-      warnings << QObject::tr("The document embeds %1 smart object source file(s) (%2 MB); they round-trip "
-                              "byte-for-byte.")
-                      .arg(source_count)
-                      .arg(QString::number(static_cast<double>(source_bytes) / (1024.0 * 1024.0), 'f', 1));
-    }
-  }
+  // Unknown image resources and embedded smart object sources round-trip unchanged and ask
+  // nothing of the user, so the report does not list them (GitHub issue 669).
   for (const auto& layer : document.layers()) {
     append_layer_warnings(layer, warnings, native_color_candidate);
   }

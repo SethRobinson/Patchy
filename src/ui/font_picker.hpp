@@ -105,8 +105,10 @@ public:
   // row, so the combo stays parked on an installed row; set_missing_family shows the missing name
   // in the closed control instead, in italics with the missing-font warning badge and a tooltip.
   // An empty name, any pick (popup or a name typed into the control) and any edit clear it.
+  // `shown` is the text the control shows (the family without its face words, issue 669;
+  // empty: `family` itself); the tooltip names the whole font.
   // docs/font-resolution-missing-fonts.md, "The bar names a missing font".
-  void set_missing_family(const QString& family);
+  void set_missing_family(const QString& family, const QString& shown = QString());
   [[nodiscard]] const QString& missing_family() const { return missing_family_; }
   // The installed row the control is parked on: the family new type and the popup start from.
   // Equals currentText() unless a missing family is shown.

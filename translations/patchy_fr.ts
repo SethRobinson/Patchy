@@ -3811,14 +3811,6 @@
         <translation>Le mode colorimétrique source est %1 ; Patchy modifie actuellement les images via des flux de travail RVB/RVBA.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>Le document conserve %1 ressource(s) d&apos;image PSD inconnue(s).</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>Le document intègre %1 fichier(s) source d&apos;objet dynamique (%2 Mo) ; ils sont conservés octet par octet.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>Rapport de compatibilité PSD</translation>
     </message>

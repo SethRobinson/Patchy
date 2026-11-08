@@ -3887,14 +3887,6 @@
         <translation>A origem tem %1 bits por canal; o Patchy a converteu para 8 bits para edição e salva um arquivo de 8 bits. Mantenha o original se precisar da maior profundidade de bits.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>O documento preserva %1 recurso(s) de imagem PSD desconhecido(s).</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>O documento incorpora %1 arquivo(s) de origem de objetos inteligentes (%2 MB); eles são preservados byte a byte ao salvar e reabrir.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>Relatório de compatibilidade PSD</translation>
     </message>

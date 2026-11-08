@@ -15,6 +15,7 @@
 #include "core/rect_utils.hpp"
 #include "color/color_management.hpp"
 #include "core/palette.hpp"
+#include "core/font_substitutes.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/alpha_row_bands.hpp"
@@ -9155,6 +9156,26 @@ QString MainWindow::current_text_style_name() const {
   return text_style_combo_->currentData().toString();
 }
 
+namespace {
+
+// A family the options bar shows marked missing (GitHub issue 652): named, and neither an
+// installed family nor an installed family + face.
+bool text_family_missing_from_computer(const QString& family) {
+  return !family.trimmed().isEmpty() && !available_text_family_match(family).has_value() &&
+         !available_text_family_style_match(family).has_value();
+}
+
+// A missing font's family and face as the bar shows them, split the way Photoshop names a
+// missing font (GitHub issue 669): "Museo Sans Rounded 500" shows "Museo Sans Rounded" + "500".
+std::pair<QString, QString> missing_text_family_parts(const QString& family) {
+  const auto parts = split_font_family_and_style(family.trimmed().toStdString());
+  return {QString::fromStdString(parts.family), QString::fromStdString(parts.style)};
+}
+
+constexpr const char* kTextStyleComboShowsMissingProperty = "patchy.showsMissingFontStyle";
+
+}  // namespace
+
 void MainWindow::refresh_text_style_combo(const QString& family, const QString& preferred,
                                           bool fallback_bold, bool fallback_italic) {
   if (text_style_combo_ == nullptr) {
@@ -9162,6 +9183,41 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
   }
   QSignalBlocker blocker(text_style_combo_);
   text_style_combo_->clear();
+  if (text_style_combo_->property(kTextStyleComboShowsMissingProperty).toBool()) {
+    text_style_combo_->setProperty(kTextStyleComboShowsMissingProperty, false);
+    text_style_combo_->setPlaceholderText(QString());
+    text_style_combo_->setFont(QFont());  // nothing set explicitly: inherit the bar's font again
+    apply_bound_translation(text_style_combo_);  // back to "Font style"
+  }
+  fill_text_style_combo(family, preferred, fallback_bold, fallback_italic);
+  if (!text_family_missing_from_computer(family)) {
+    return;
+  }
+  // A missing font's face is marked like its family (GitHub issue 669): italic, with the face
+  // its name carries ("500") shown in place of a row, since the list holds only faces that can
+  // draw. current_text_style_name() then reads empty, so new type starts Regular in the
+  // installed family the font picker is parked on.
+  auto shown_style = missing_text_family_parts(family).second;
+  if (const auto recorded = preferred.trimmed();
+      shown_style.isEmpty() && !recorded.isEmpty() &&
+      text_style_combo_->findData(recorded, Qt::UserRole, Qt::MatchFixedString) < 0) {
+    shown_style = recorded;
+  }
+  text_style_combo_->setProperty(kTextStyleComboShowsMissingProperty, true);
+  QFont italic;
+  italic.setItalic(true);  // only the italic attribute is explicit; the rest still inherits
+  text_style_combo_->setFont(italic);
+  if (!shown_style.isEmpty()) {
+    text_style_combo_->setPlaceholderText(shown_style);
+    text_style_combo_->setCurrentIndex(-1);
+  }
+  text_style_combo_->setToolTip(QCoreApplication::translate("patchy::ui::FontPickerCombo",
+                                                            "Font is missing on this computer: %1")
+                                    .arg(family.trimmed()));
+}
+
+void MainWindow::fill_text_style_combo(const QString& family, const QString& preferred, bool fallback_bold,
+                                       bool fallback_italic) {
   // Each row previews its own face, the way Photoshop renders its style list.
   const auto query_family = text_style_query_family(family);
   const auto db_styles = QFontDatabase::styles(query_family);
@@ -10933,10 +10989,14 @@ void MainWindow::show_text_family_in_options_bar(const QString& family) {
   }
   // A family this computer lacks has no row to show: the closed control names it instead, marked
   // missing (GitHub issue 652), while it stays parked on the installed row new type starts from.
+  // Like Photoshop, the field shows the family without its face words; the style field shows
+  // the face (refresh_text_style_combo, GitHub issue 669).
   if (auto* picker = qobject_cast<FontPickerCombo*>(text_font_combo_); picker != nullptr) {
-    const bool installed = family.trimmed().isEmpty() || available_text_family_match(family).has_value() ||
-                           available_text_family_style_match(family).has_value();
-    picker->set_missing_family(installed ? QString() : family);
+    if (text_family_missing_from_computer(family)) {
+      picker->set_missing_family(family, missing_text_family_parts(family).first);
+    } else {
+      picker->set_missing_family(QString());
+    }
   }
 }
 

@@ -779,16 +779,24 @@ void ui_compatibility_report_counts_routine_photoshop_blocks_as_known() {
   warnings = patchy::ui::compatibility_warnings_for_document(document);
   CHECK(warnings.size() == 1);
   CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("Shape preserves 1 unknown PSD layer block")));
-  // Document-level blocks: Photoshop's Patt and FMsk are understood, an unknown key is not.
+  // Document-level blocks round-trip unchanged and ask nothing of the user, so even an unknown
+  // key is not listed (GitHub issue 669).
   document.layers().front().unknown_psd_blocks().pop_back();
   document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"Patt", {}});
   document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"FMsk", {0, 0, 0, 0}});
   document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"Txt2", {0, 0}});
   CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
   document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
-  warnings = patchy::ui::compatibility_warnings_for_document(document);
-  CHECK(warnings.size() == 1);
-  CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("preserves 1 unknown PSD image resource")));
+  CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
+  // Embedded smart object sources round-trip byte for byte: nothing to report either.
+  patchy::SmartObjectLinkBlock block;
+  patchy::SmartObjectSource source;
+  source.uuid = "issue-669";
+  source.filename = "Art.psb";
+  source.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(std::vector<std::uint8_t>(4096, 7));
+  block.sources.push_back(std::move(source));
+  document.metadata().smart_objects.blocks.push_back(std::move(block));
+  CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
 }
 // A file Patchy saved reopens with nothing to report: its Background carries the 'lspf'
 // lock block from the second save on (GitHub issue 559).

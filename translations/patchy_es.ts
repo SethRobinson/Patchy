@@ -3811,14 +3811,6 @@
         <translation>El modo de color de origen es %1; actualmente Patchy edita mediante flujos de trabajo RGB/RGBA.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>El documento conserva %1 recurso(s) de imagen PSD desconocido(s).</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>El documento incrusta %1 archivo(s) de origen de objetos inteligentes (%2 MB); se conservan byte a byte.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>Informe de compatibilidad PSD</translation>
     </message>

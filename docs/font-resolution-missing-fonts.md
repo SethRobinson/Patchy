@@ -37,6 +37,21 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
   tooltip "Font is missing on this computer: <name>". Any pick (popup, a name typed and
   entered, any edit of the text), a layer in an installed font, no text layer and a session that
   moved onto a substitute all clear it. Test: `ui_options_bar_names_a_missing_font_family`.
+- **A missing font's face goes in the style field** (issue 669, Photoshop's "[MuseoSansRounded]"
+  + "[500]"). `split_font_family_and_style` (core/font_substitutes) splits the name: a
+  PostScript-style name without spaces at its first hyphen, any other name by dropping trailing
+  face words (weights Thin to Black with a Semi/Demi/Extra/Ultra prefix, numeric weights 100 to
+  1000, Regular/Normal/Plain, Italic, Oblique; never widths or "Roman", and one family word
+  always stays). The PSD reader humanizes an uninstalled `MuseoSansRounded-500` to "Museo Sans
+  Rounded 500", so the family field shows "Museo Sans Rounded" (tooltip and layer keep the
+  whole name) and `refresh_text_style_combo` shows "500" as the style combo's placeholder at
+  index -1, italic, with the same tooltip; with no face in the name (or a recorded style no row
+  matches) the combo keeps its row and is only marked. `current_text_style_name()` reads empty
+  then, so new type starts Regular. Display only: the stored name and the PSD are unchanged; an
+  installed family is never split. `FontPickerCombo::set_missing_family` sets that shorter text
+  with the combo's signals blocked: QFontComboBox reads an edit-text change as a pick and would
+  apply it to the layer. Test: `ui_options_bar_splits_a_missing_font_into_family_and_style`, core
+  `font_substitutes_split_font_names_into_family_and_style`.
 - **New type takes the installed row, never the missing name** (`text_options_bar_family`, issue
   180). It reads the row the combo is parked on (`FontPickerCombo::row_family`), not the line
   edit, which shows the missing name; with no text layer to mirror,

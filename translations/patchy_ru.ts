@@ -3895,14 +3895,6 @@
         <translation>Исходная глубина: %1 бит на канал. Patchy преобразовал файл в 8-битный для редактирования и сохраняет его в 8-битном виде. Сохраните оригинал, если нужны данные большей разрядности.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>В документе сохранены неизвестные ресурсы изображения PSD: %1.</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>В документ встроены исходные файлы смарт-объектов: %1 (%2 МБ). Они сохраняются побайтно без изменений.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>Отчет о совместимости PSD</translation>
     </message>

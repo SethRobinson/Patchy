@@ -3811,14 +3811,6 @@
         <translation>Der Quellfarbmodus ist %1. Patchy bearbeitet derzeit über RGB/RGBA-Workflows.</translation>
     </message>
     <message>
-        <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>Das Dokument behält %1 unbekannte PSD-Bildressource(n) bei.</translation>
-    </message>
-    <message>
-        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>Das Dokument bettet %1 Smartobjekt-Quelldatei(en) ein (%2 MB). Sie bleiben Byte für Byte erhalten.</translation>
-    </message>
-    <message>
         <source>PSD Compatibility Report</source>
         <translation>PSD-Kompatibilitätsbericht</translation>
     </message>
