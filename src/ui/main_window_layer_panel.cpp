@@ -3770,9 +3770,10 @@ bool layer_name_matches_filter(const Layer& layer, const QString& text) {
 
 // The filter menu's criteria (GitHub issue 671): within a group any ticked item matches, and
 // every group with a tick must match. `active_id` is listed by Selected only whatever the
-// snapshot holds; the Background counts as locked, as its row shows.
+// snapshot holds; the Background (`background`, null when the document has none) counts as
+// locked, as its row shows.
 bool layer_matches_list_filter(const Layer& layer, const LayerListFilter& filter, std::optional<LayerId> active_id,
-                               std::optional<LayerId> background_id) {
+                               const Layer* background) {
   if (filter.kinds != 0U) {
     std::uint32_t kind = kLayerFilterPixel;
     if (layer.kind() == LayerKind::Group) {
@@ -3797,7 +3798,7 @@ bool layer_matches_list_filter(const Layer& layer, const LayerListFilter& filter
         (has(kLayerFilterHasStyle) && layer.layer_style().effect_count() > 0) ||
         (has(kLayerFilterHidden) && !layer.visible()) ||
         (has(kLayerFilterLocked) && ((layer_lock_flags(layer) & kLayerLockAll) != kLayerLockNone ||
-                                     (background_id.has_value() && *background_id == layer.id())));
+                                     (background != nullptr && background->id() == layer.id())));
     if (!matches) {
       return false;
     }
@@ -4102,8 +4103,7 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel) {
     const auto* background = document_background_layer();
     const auto name_text = layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
     if (target == nullptr || !layer_name_matches_filter(*target, name_text) ||
-        !layer_matches_list_filter(*target, filter, id,
-                                   background != nullptr ? std::optional<LayerId>(background->id()) : std::nullopt)) {
+        !layer_matches_list_filter(*target, filter, id, background)) {
       // The whole filter goes, name text and criteria (the refresh below re-reads them).
       clear_layer_list_filter_silently();
       rows_change = true;
@@ -4334,17 +4334,9 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
       }
     }
     const auto* background = document_background_layer();
-    // Storage written before reset(): GCC 12 -Wmaybe-uninitialized flags copying a
-    // disengaged optional<LayerId> built from a conditional.
-    std::optional<LayerId> background_id{std::in_place, LayerId{}};
-    if (background != nullptr) {
-      *background_id = background->id();
-    } else {
-      background_id.reset();
-    }
     for (const auto id : present_ids) {
       const auto* layer = std::as_const(document()).find_layer(id);
-      if (layer == nullptr || !layer_matches_list_filter(*layer, criteria, active_id, background_id)) {
+      if (layer == nullptr || !layer_matches_list_filter(*layer, criteria, active_id, background)) {
         filter_matches_all = false;
       }
     }
@@ -4751,9 +4743,10 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
       layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
   const auto& list_filter = session().layer_filter;
   const bool filter_active = !filter_text.isEmpty() || list_filter.active();
+  const auto* background_layer = document_background_layer();
   std::optional<LayerId> background_id;
-  if (const auto* background = document_background_layer(); background != nullptr) {
-    background_id = background->id();
+  if (background_layer != nullptr) {
+    background_id = background_layer->id();
   }
   // A selection change from outside the panel rebuilds before it selects its rows, so
   // Selected only lists the layer about to become active rather than the one leaving.
@@ -4763,7 +4756,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   if (filter_active) {
     std::function<bool(const Layer&)> mark_included = [&](const Layer& layer) {
       bool included = layer_name_matches_filter(layer, filter_text) &&
-                      layer_matches_list_filter(layer, list_filter, filter_active_id, background_id);
+                      layer_matches_list_filter(layer, list_filter, filter_active_id, background_layer);
       for (const auto& child : layer.children()) {
         if (mark_included(child)) {
           included = true;  // No short-circuit: every subtree must be visited.
