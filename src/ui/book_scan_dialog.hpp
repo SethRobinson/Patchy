@@ -15,6 +15,7 @@
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
+class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -31,26 +32,29 @@ class BookScanPreview;
 // Setup (project folder, title, scanner) -> Cover (outline, spine, up direction,
 // reading direction, capture settings) -> Scanning (one Scan per spread) -> Review and
 // export (page order, page size, output mode, PDF). The project folder is saved after
-// every scan and edit, so closing the window or a crash keeps the work for File >
-// Import > Resume Book Scan.
+// every scan and edit, so closing the window or a crash keeps the work: the setup step
+// finds the book in its folder and continues it.
 class BookScanDialog final : public QDialog {
   Q_OBJECT
 
 public:
   enum class Step { Setup, Cover, Scanning, Review };
 
-  // `resumed` reopens a saved project at its scanning or review step.
-  BookScanDialog(QWidget* parent, std::optional<BookProject> resumed);
+  explicit BookScanDialog(QWidget* parent);
   ~BookScanDialog() override;
 
   [[nodiscard]] Step step() const noexcept { return step_; }
   [[nodiscard]] const BookProject& project() const noexcept { return project_; }
-  // True when the user chose Open Pages as Documents; the caller then opens them.
-  [[nodiscard]] bool open_pages_requested() const noexcept { return open_pages_requested_; }
 
   // Test and script surface: the same actions the buttons run, without file dialogs.
   void set_project_folder(const QString& folder);
   void set_title(const QString& title);
+  // The book saved in the chosen folder, at its scanning or review step.
+  void continue_book();
+  // Deletes the files of the book saved in the chosen folder (after asking, unless
+  // quiet) and keeps the folder for a new book.
+  void start_over();
+  void set_scan_mode(BookScanMode mode);
   void start_cover_scan();
   void skip_cover();
   void start_page_scanning();
@@ -92,6 +96,11 @@ private:
   void insert_blank_page();
   void show_scan_error(const QString& text);
   void update_page_size_label();
+  void update_cover_labels();
+  void refresh_folder_state();
+  void open_book_folder();
+  [[nodiscard]] SpreadLayout detect_scan_layout(const PixelBuffer& upright, double dpi,
+                                                const std::optional<OrientedBox>& fallback) const;
   [[nodiscard]] QImage thumbnail_for(const BookPageRef& page);
   struct SmallScan {
     PixelBuffer pixels;  // the unturned scan at kSmallScanDpi
@@ -104,8 +113,6 @@ private:
   [[nodiscard]] QImage upright_preview(const QString& file, int turns);
   [[nodiscard]] QString default_project_folder() const;
   [[nodiscard]] std::optional<QRectF> scan_area_for_pages() const;
-  void open_pages_as_documents();
-  void delete_project_files();
 
   BookProject project_;
   std::unique_ptr<ScannerSession> session_;
@@ -115,7 +122,9 @@ private:
   enum class PendingScan { None, Cover, Page, Rescan };
   PendingScan pending_{PendingScan::None};
   QString last_error_;
-  bool open_pages_requested_{false};
+  // The book found in the setup step's folder, if any.
+  std::optional<BookProject> folder_book_;
+  bool title_from_folder_book_{false};
   bool quiet_{false};
   bool grayscale_hint_shown_{false};
   QMap<QString, QImage> thumbnails_;
@@ -135,7 +144,12 @@ private:
   QComboBox* device_combo_{nullptr};
   QCheckBox* system_dialog_check_{nullptr};
   QLabel* disk_label_{nullptr};
+  QLabel* folder_status_label_{nullptr};
+  QLabel* setup_instructions_{nullptr};
   QPushButton* scan_cover_button_{nullptr};
+  QPushButton* skip_cover_button_{nullptr};
+  QPushButton* continue_button_{nullptr};
+  QPushButton* start_over_button_{nullptr};
   // Cover.
   BookScanPreview* cover_preview_{nullptr};
   QComboBox* up_combo_{nullptr};
@@ -156,7 +170,9 @@ private:
   QLabel* grayscale_hint_{nullptr};
   QPushButton* grayscale_switch_{nullptr};
   QProgressBar* progress_bar_{nullptr};
+  QComboBox* pages_combo_{nullptr};
   QComboBox* use_combo_{nullptr};
+  QFormLayout* scan_form_{nullptr};
   QDoubleSpinBox* spread_tilt_spin_{nullptr};
   QListWidget* strip_{nullptr};
   QCheckBox* beep_check_{nullptr};
@@ -178,8 +194,7 @@ private:
   bool refreshing_{false};
 };
 
-// Runs the wizard; returns the dialog's project when the user asked to open its pages
-// as documents.
-[[nodiscard]] std::optional<BookProject> run_book_scan_dialog(QWidget* parent, std::optional<BookProject> resumed);
+// Runs the wizard as a non-modal window.
+void run_book_scan_dialog(QWidget* parent);
 
 }  // namespace patchy::ui

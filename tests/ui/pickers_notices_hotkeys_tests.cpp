@@ -4834,7 +4834,6 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
 #if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS) && !defined(Q_OS_LINUX)
         QStringLiteral("file.import_scanner"), QStringLiteral("file.import_photocopy"),
         QStringLiteral("file.import_divide_photos"), QStringLiteral("file.import_scan_book_pdf"),
-        QStringLiteral("file.import_resume_book_scan"),
 #endif
     };
     // A build without ONNX Runtime or the model has no Object Selection tool.

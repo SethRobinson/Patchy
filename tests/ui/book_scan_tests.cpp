@@ -14,15 +14,20 @@
 #include "unicode_path_names.hpp"
 
 #include <QAction>
+#include <QApplication>
 #include <QComboBox>
 #include <QDir>
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTest>
 #include <QtGlobal>
 
 #include <cmath>
@@ -200,20 +205,18 @@ void ui_book_scan_menu_actions_registered() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* scan_action = window.findChild<QAction*>(QStringLiteral("fileImportScanBookAction"));
-  auto* resume_action = window.findChild<QAction*>(QStringLiteral("fileImportResumeBookScanAction"));
+  // Continuing a book is part of the wizard's setup step, not a menu command of its own.
+  CHECK(window.findChild<QAction*>(QStringLiteral("fileImportResumeBookScanAction")) == nullptr);
+  CHECK(window.hotkey_registry().find_command(QStringLiteral("file.import_resume_book_scan")) == nullptr);
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
   CHECK(scan_action != nullptr);
-  CHECK(resume_action != nullptr);
   auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));
   CHECK(import_menu != nullptr && import_menu->actions().contains(scan_action));
   const auto* command = window.hotkey_registry().find_command(QStringLiteral("file.import_scan_book_pdf"));
   CHECK(command != nullptr && command->action == scan_action);
-  const auto* resume = window.hotkey_registry().find_command(QStringLiteral("file.import_resume_book_scan"));
-  CHECK(resume != nullptr && resume->action == resume_action);
   CHECK(scan_action->menuRole() == QAction::NoRole);
 #else
   CHECK(scan_action == nullptr);
-  CHECK(resume_action == nullptr);
 #endif
 }
 
@@ -222,7 +225,7 @@ void ui_book_scan_full_flow_exports_uniform_pages() {
   const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_project")) + QStringLiteral("/book");
   const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 3).join(QDir::listSeparator()).toUtf8());
   const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
-  patchy::ui::BookScanDialog dialog(nullptr, std::nullopt);
+  patchy::ui::BookScanDialog dialog(nullptr);
   scan_book(dialog, project, 3, "ui_book_scan_step");
   const auto& book = dialog.project();
   CHECK(book.cover.has_value());
@@ -282,7 +285,7 @@ void ui_book_scan_black_and_white_and_script_export() {
   {
     const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 2).join(QDir::listSeparator()).toUtf8());
     const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
-    patchy::ui::BookScanDialog dialog(nullptr, std::nullopt);
+    patchy::ui::BookScanDialog dialog(nullptr);
     scan_book(dialog, project, 2);
     auto* output = dialog.findChild<QComboBox*>(QStringLiteral("bookScanOutputCombo"));
     CHECK(output != nullptr);
@@ -330,7 +333,7 @@ void ui_book_scan_resume_and_rescan() {
   const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
   QByteArray saved_json;
   {
-    patchy::ui::BookScanDialog dialog(nullptr, std::nullopt);
+    patchy::ui::BookScanDialog dialog(nullptr);
     dialog.set_quiet(true);
     dialog.set_project_folder(project);
     dialog.start_cover_scan();
@@ -360,9 +363,25 @@ void ui_book_scan_resume_and_rescan() {
   }
   CHECK(error.isEmpty());
   CHECK(patchy::ui::book_project_json(*loaded) == saved_json);
-  patchy::ui::BookScanDialog resumed(nullptr, std::move(loaded));
-  CHECK(resumed.step() == patchy::ui::BookScanDialog::Step::Scanning);
-  CHECK(resumed.project().scans.size() == 2);
+  {
+    // The next wizard opens on the same folder and offers to continue its book.
+    patchy::ui::BookScanDialog resumed(nullptr);
+    resumed.set_quiet(true);
+    auto* folder_edit = resumed.findChild<QLineEdit*>(QStringLiteral("bookScanFolderEdit"));
+    CHECK(folder_edit != nullptr && QDir::fromNativeSeparators(folder_edit->text()) == QDir(project).absolutePath());
+    auto* continue_button = resumed.findChild<QPushButton*>(QStringLiteral("bookScanContinueButton"));
+    auto* cover_button = resumed.findChild<QPushButton*>(QStringLiteral("bookScanCoverButton"));
+    CHECK(continue_button != nullptr && !continue_button->isHidden());
+    CHECK(cover_button != nullptr && cover_button->isHidden());
+    auto* status = resumed.findChild<QLabel*>(QStringLiteral("bookScanFolderStatus"));
+    CHECK(status != nullptr && status->text().contains(QStringLiteral("3")));
+    resumed.show();
+    patchy::test::ui::save_widget_artifact("ui_book_scan_step_setup_continue", resumed);
+    resumed.continue_book();
+    CHECK(resumed.last_error().isEmpty());
+    CHECK(resumed.step() == patchy::ui::BookScanDialog::Step::Scanning);
+    CHECK(resumed.project().scans.size() == 2);
+  }
 
   // Not a book folder: a clear error, nothing created.
   QString not_book_error;
@@ -380,14 +399,137 @@ void ui_book_scan_one_page_mode_offered_for_wide_book() {
   // A 2 x 2 inch bed cannot hold the 2.4 inch open book.
   const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 0).join(QDir::listSeparator()).toUtf8());
   const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "2x2");
-  patchy::ui::BookScanDialog dialog(nullptr, std::nullopt);
+  patchy::ui::BookScanDialog dialog(nullptr);
   dialog.set_quiet(true);
   dialog.set_project_folder(project);
   dialog.start_cover_scan();
   wait_for_scan(dialog);
-  CHECK(dialog.project().mode == patchy::ui::BookScanMode::OnePage);
+  // The cover cannot show whether a book that fills the glass fits open: two pages per
+  // scan stays, with a notice offering one page per scan.
+  CHECK(dialog.project().mode == patchy::ui::BookScanMode::TwoPages);
+  auto* notice = dialog.findChild<QLabel*>(QStringLiteral("bookScanModeNotice"));
+  CHECK(notice != nullptr && !notice->text().isEmpty());
   auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("bookScanModeCombo"));
-  CHECK(mode != nullptr && mode->currentIndex() == 1);
+  CHECK(mode != nullptr && mode->currentIndex() == 0);
+  if (mode != nullptr) {
+    mode->setCurrentIndex(1);
+  }
+  CHECK(dialog.project().mode == patchy::ui::BookScanMode::OnePage);
+}
+
+// Pages per scan changed after scanning: the scans so far are read again in the new mode.
+void ui_book_scan_switch_pages_per_scan_redetects() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_switch_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_switch_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 2).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.set_project_folder(project);
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  dialog.start_page_scanning();
+  for (int i = 0; i < 2; ++i) {
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+  }
+  auto* pages = dialog.findChild<QComboBox*>(QStringLiteral("bookScanPagesCombo"));
+  auto* use = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUseCombo"));
+  CHECK(pages != nullptr && pages->currentIndex() == 0 && use != nullptr && !use->isHidden());
+  CHECK(patchy::ui::book_page_order(dialog.project()).size() == 6);
+  if (pages == nullptr || use == nullptr) {
+    return;
+  }
+  pages->setCurrentIndex(1);
+  CHECK(dialog.project().mode == patchy::ui::BookScanMode::OnePage);
+  CHECK(use->isHidden());
+  // Each scan is one page now: its box is the whole open book on the dark bed.
+  CHECK(patchy::ui::book_page_order(dialog.project()).size() == 4);
+  CHECK(std::abs(dialog.project().scans[0].layout.spread.width / dialog.project().scans[0].dpi - 2.4) < 0.1);
+  pages->setCurrentIndex(0);
+  CHECK(dialog.project().mode == patchy::ui::BookScanMode::TwoPages);
+  CHECK(!use->isHidden());
+  CHECK(patchy::ui::book_page_order(dialog.project()).size() == 6);
+  for (const auto& scan : dialog.project().scans) {
+    CHECK(std::abs(scan.layout.gutter - 0.5) < 0.02);
+  }
+}
+
+// The two spine lines start close together; either can be dragged past the other.
+void ui_book_scan_spine_lines_drag_past_each_other() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_spine_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_spine_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 0).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  QApplication::processEvents();
+  auto* preview = dialog.findChild<QWidget*>(QStringLiteral("bookScanCoverPreview"));
+  CHECK(preview != nullptr && dialog.project().cover.has_value());
+  if (preview == nullptr || !dialog.project().cover) {
+    return;
+  }
+  // The cover scan is 900 x 600 pixels, shown fitted in the preview.
+  const double scale = std::min(preview->width() / 900.0, preview->height() / 600.0);
+  const QPointF origin((preview->width() - 900.0 * scale) / 2.0, (preview->height() - 600.0 * scale) / 2.0);
+  const auto& outline = dialog.project().cover->layout.outline;
+  const auto at = [&](double fraction) {
+    const double x = outline.center_x + (fraction - 0.5) * outline.width;
+    return (origin + QPointF(x, outline.center_y) * scale).toPoint();
+  };
+  const auto drag = [&](double from, double to) {
+    QTest::mousePress(preview, Qt::LeftButton, Qt::NoModifier, at(from));
+    QTest::mouseMove(preview, at((from + to) / 2.0));
+    QTest::mouseMove(preview, at(to));
+    QTest::mouseRelease(preview, Qt::LeftButton, Qt::NoModifier, at(to));
+  };
+  patchy::test::ui::save_widget_artifact("ui_book_scan_spine_before", dialog);
+  const double left = dialog.project().cover->layout.spine_left;
+  const double right = dialog.project().cover->layout.spine_right;
+  // Press on the right line and drag it well right.
+  drag(right, 0.65);
+  CHECK(std::abs(dialog.project().cover->layout.spine_left - left) < 0.01);
+  CHECK(std::abs(dialog.project().cover->layout.spine_right - 0.65) < 0.02);
+  // Drag the left line past the right one: they swap roles and stay ordered.
+  drag(left, 0.8);
+  CHECK(std::abs(dialog.project().cover->layout.spine_left - 0.65) < 0.02);
+  CHECK(std::abs(dialog.project().cover->layout.spine_right - 0.8) < 0.02);
+  patchy::test::ui::save_widget_artifact("ui_book_scan_spine_after", dialog);
+  // The edit is what the manifest holds.
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved.has_value() && saved->cover && std::abs(saved->cover->layout.spine_right - 0.8) < 0.02);
+}
+
+// Start Over deletes the old book's files but keeps the folder and anything else in it.
+void ui_book_scan_start_over_keeps_folder() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_over_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_over_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  {
+    patchy::ui::BookScanDialog dialog(nullptr);
+    scan_book(dialog, project, 1);
+    CHECK(dialog.export_pdf(QDir(project).filePath(QStringLiteral("Test Book.pdf")), false));
+  }
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.set_project_folder(project);
+  auto* title = dialog.findChild<QLineEdit*>(QStringLiteral("bookScanTitleEdit"));
+  CHECK(title != nullptr && title->text() == QStringLiteral("Test Book"));
+  dialog.start_over();
+  CHECK(QDir(project).exists());
+  CHECK(!QFile::exists(QDir(project).filePath(QStringLiteral("book.json"))));
+  CHECK(!QDir(project).exists(QStringLiteral("scans")));
+  CHECK(QFile::exists(QDir(project).filePath(QStringLiteral("Test Book.pdf"))));
+  auto* cover_button = dialog.findChild<QPushButton*>(QStringLiteral("bookScanCoverButton"));
+  auto* continue_button = dialog.findChild<QPushButton*>(QStringLiteral("bookScanContinueButton"));
+  CHECK(cover_button != nullptr && !cover_button->isHidden());
+  CHECK(continue_button != nullptr && continue_button->isHidden());
+  CHECK(title != nullptr && title->text().isEmpty());
 }
 
 void ui_book_scan_rtl_orders_pages() {
@@ -428,7 +570,7 @@ void ui_unicode_book_scan_project_folder() {
                                             static_cast<qsizetype>(patchy::test::kUnicodeDirName.size())));
   const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
   const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
-  patchy::ui::BookScanDialog dialog(nullptr, std::nullopt);
+  patchy::ui::BookScanDialog dialog(nullptr);
   scan_book(dialog, project, 1);
   CHECK(QFile::exists(QDir(project).filePath(QStringLiteral("book.json"))));
   CHECK(patchy::ui::load_book_project(project, nullptr).has_value());
@@ -448,6 +590,9 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_black_and_white_and_script_export", ui_book_scan_black_and_white_and_script_export},
       {"ui_book_scan_resume_and_rescan", ui_book_scan_resume_and_rescan},
       {"ui_book_scan_one_page_mode_offered_for_wide_book", ui_book_scan_one_page_mode_offered_for_wide_book},
+      {"ui_book_scan_switch_pages_per_scan_redetects", ui_book_scan_switch_pages_per_scan_redetects},
+      {"ui_book_scan_spine_lines_drag_past_each_other", ui_book_scan_spine_lines_drag_past_each_other},
+      {"ui_book_scan_start_over_keeps_folder", ui_book_scan_start_over_keeps_folder},
       {"ui_book_scan_rtl_orders_pages", ui_book_scan_rtl_orders_pages},
       {"ui_unicode_book_scan_project_folder", ui_unicode_book_scan_project_folder},
   };

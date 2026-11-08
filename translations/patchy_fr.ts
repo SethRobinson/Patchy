@@ -16194,10 +16194,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Qualité d&apos;image :</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>Ouvrir les pages comme documents</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>Exporter en PDF...</translation>
     </message>
@@ -16238,10 +16234,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Choisissez d&apos;abord un dossier de projet.</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>Ce dossier contient déjà une numérisation de livre. Utilisez Fichier &gt; Importer &gt; Reprendre la numérisation de livre pour la poursuivre, ou choisissez un autre dossier.</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Le dossier de projet %1 n&apos;a pas pu être créé.</translation>
     </message>
@@ -16274,16 +16266,8 @@ Voulez-vous le remplacer ?</translation>
         <translation>La numérisation de la couverture n&apos;a pas pu être enregistrée dans le dossier du projet.</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>Le livre ouvert est plus large que la vitre, chaque page est donc numérisée séparément.</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>La boîte de dialogue de numérisation définit la résolution et le mode de chaque numérisation.</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>Le livre ouvert semble plus large que la vitre. Une page par numérisation peut être nécessaire.</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16310,20 +16294,8 @@ Voulez-vous le remplacer ?</translation>
         <translation>Numérisation %1 terminée.</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Posez la première page face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Ouvrez le livre aux premières pages, posez-le face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Posez la page %1 face vers le bas sur la vitre, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après la dernière page.</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Passez aux pages suivantes, posez le livre face vers le bas, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après les dernières pages.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16385,6 +16357,91 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>Essayez « Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation » à l&apos;étape 1.</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>Recommencer...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Supprimer les numérisations de livre de ce dossier et numériser un nouveau livre ici</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Continuer ce livre</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>Ouvrir le dossier du livre</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Affiche les numérisations dans le gestionnaire de fichiers. Cette fenêtre reste ouverte.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>Ce dossier contient déjà une numérisation de livre. Continuez-la, recommencez ou choisissez un autre dossier.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Sans titre</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Ce dossier contient « %1 » (%n numérisation), prêt à exporter. « Continuer ce livre » permet de le vérifier et de l&apos;exporter ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+            <numerusform>Ce dossier contient « %1 » (%n numérisations), prêt à exporter. « Continuer ce livre » permet de le vérifier et de l&apos;exporter ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Ce dossier contient « %1 » (%n numérisation pour l&apos;instant). « Continuer ce livre » reprend là où vous vous étiez arrêté ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+            <numerusform>Ce dossier contient « %1 » (%n numérisations pour l&apos;instant). « Continuer ce livre » reprend là où vous vous étiez arrêté ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>Ce dossier contient une numérisation de livre que Patchy ne peut pas lire : %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>Un nouveau livre sera enregistré dans ce dossier.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Supprimer la %n numérisation de « %1 » dans %2 et y commencer un nouveau livre ? Les autres fichiers du dossier, comme un PDF exporté, sont conservés. Cette action est irréversible.</numerusform>
+            <numerusform>Supprimer les %n numérisations de « %1 » dans %2 et y commencer un nouveau livre ? Les autres fichiers du dossier, comme un PDF exporté, sont conservés. Cette action est irréversible.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Impossible d&apos;ouvrir le dossier du livre %1.</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>Le livre ouvert atteint les bords de la vitre. Si les deux pages ne tiennent pas sur la vitre, choisissez « Une page par numérisation ».</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Chaque numérisation contient maintenant une page.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Chaque numérisation contient maintenant deux pages.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Une page par numérisation : posez la première page face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Une page par numérisation : posez la page %1 face vers le bas sur la vitre, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après la dernière page.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Tournez aux pages %1 et %2, posez le livre face vers le bas, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après les dernières pages.</translation>
     </message>
 </context>
 <context>
@@ -20613,10 +20670,6 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>Numériser un livre page par page dans un seul PDF</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>Reprendre une numérisation de livre commencée plus tôt</translation>
     </message>
 </context>
 <context>
@@ -34517,29 +34570,6 @@ Verrouillé : %1</translation>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Numériser un &amp;livre en PDF...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>&amp;Reprendre la numérisation de livre...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>Reprendre la numérisation de livre</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>Ouverture des pages du livre...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>Numériser un livre</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>%n page du livre ouverte</numerusform>
-            <numerusform>%n pages du livre ouvertes</numerusform>
-        </translation>
     </message>
 </context>
 <context>

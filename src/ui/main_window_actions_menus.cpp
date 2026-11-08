@@ -396,12 +396,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   scan_book_action->setMenuRole(QAction::NoRole);
   register_hotkey(scan_book_action, "file.import_scan_book_pdf");
   connect(scan_book_action, &QAction::triggered, this, [this] { import_scan_book_pdf(); });
-  auto* resume_book_action = import_menu->addAction(tr("&Resume Book Scan..."));
-  bind_action_text(resume_book_action, QT_TR_NOOP("&Resume Book Scan..."));
-  resume_book_action->setObjectName(QStringLiteral("fileImportResumeBookScanAction"));
-  resume_book_action->setMenuRole(QAction::NoRole);
-  register_hotkey(resume_book_action, "file.import_resume_book_scan");
-  connect(resume_book_action, &QAction::triggered, this, [this] { resume_book_scan(); });
 #endif
   auto* import_sprite_sheet_action = import_menu->addAction(tr("Sprite Sheet to &Layers..."));
   bind_action_text(import_sprite_sheet_action, QT_TR_NOOP("Sprite Sheet to &Layers..."));

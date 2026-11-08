@@ -16194,10 +16194,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Bildqualität:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>Seiten als Dokumente öffnen</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>PDF exportieren...</translation>
     </message>
@@ -16238,10 +16234,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Wählen Sie zuerst einen Projektordner.</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>Dieser Ordner enthält bereits einen Buchscan. Verwenden Sie Datei &gt; Importieren &gt; Buchscan fortsetzen, um ihn fortzusetzen, oder wählen Sie einen anderen Ordner.</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Der Projektordner %1 konnte nicht erstellt werden.</translation>
     </message>
@@ -16274,16 +16266,8 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Der Einbandscan konnte nicht im Projektordner gespeichert werden.</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>Das aufgeschlagene Buch ist breiter als das Vorlagenglas, daher wird jede Seite einzeln gescannt.</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>Der Scandialog legt Auflösung und Modus für jeden Scan fest.</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>Das aufgeschlagene Buch wirkt breiter als das Vorlagenglas. Möglicherweise ist eine Seite pro Scan nötig.</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16310,20 +16294,8 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Scan %1 fertig.</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Legen Sie die erste Seite mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“ (oder die Leertaste).</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Schlagen Sie das Buch bei den ersten Seiten auf, legen Sie es mit den Seiten nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“ (oder die Leertaste).</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Legen Sie Seite %1 mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach der letzten Seite „Fertig“.</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Blättern Sie zu den nächsten Seiten um, legen Sie das Buch mit den Seiten nach unten auf und drücken Sie dann „Scannen“. Drücken Sie nach den letzten Seiten „Fertig“.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16385,6 +16357,91 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>Versuchen Sie „Für jeden Scan den Scandialog des Systems verwenden“ in Schritt 1.</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>Neu beginnen...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Die Buchscans dieses Ordners löschen und hier ein neues Buch scannen</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Dieses Buch fortsetzen</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>Buchordner öffnen</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Zeigt die Scans im Dateimanager. Dieses Fenster bleibt geöffnet.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>Dieser Ordner enthält bereits einen Buchscan. Setzen Sie ihn fort, beginnen Sie neu oder wählen Sie einen anderen Ordner.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Unbenannt</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Dieser Ordner enthält „%1“ (%n Scan), bereit zum Export. „Dieses Buch fortsetzen“ prüft und exportiert es; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+            <numerusform>Dieser Ordner enthält „%1“ (%n Scans), bereit zum Export. „Dieses Buch fortsetzen“ prüft und exportiert es; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Dieser Ordner enthält „%1“ (bisher %n Scan). „Dieses Buch fortsetzen“ macht dort weiter, wo Sie aufgehört haben; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+            <numerusform>Dieser Ordner enthält „%1“ (bisher %n Scans). „Dieses Buch fortsetzen“ macht dort weiter, wo Sie aufgehört haben; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>Dieser Ordner enthält einen Buchscan, den Patchy nicht lesen kann: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>Ein neues Buch wird in diesem Ordner gespeichert.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Den %n Scan von „%1“ in %2 löschen und dort ein neues Buch beginnen? Andere Dateien im Ordner, etwa ein exportiertes PDF, bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</numerusform>
+            <numerusform>Die %n Scans von „%1“ in %2 löschen und dort ein neues Buch beginnen? Andere Dateien im Ordner, etwa ein exportiertes PDF, bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Der Buchordner %1 konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>Das aufgeschlagene Buch reicht bis an die Ränder des Vorlagenglases. Wenn nicht beide Seiten auf das Glas passen, wählen Sie „Eine Seite pro Scan“.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Jeder Scan enthält jetzt eine Seite.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Jeder Scan enthält jetzt zwei Seiten.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Eine Seite pro Scan: Legen Sie die erste Seite mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“ (oder die Leertaste).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Eine Seite pro Scan: Legen Sie Seite %1 mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach der letzten Seite „Fertig“.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Blättern Sie zu den Seiten %1 und %2, legen Sie das Buch mit den Seiten nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach den letzten Seiten „Fertig“.</translation>
     </message>
 </context>
 <context>
@@ -20613,10 +20670,6 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>Ein Buch Seite für Seite in ein einziges PDF scannen</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>Einen früher begonnenen Buchscan fortsetzen</translation>
     </message>
 </context>
 <context>
@@ -34517,29 +34570,6 @@ Fixiert: %1</translation>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Ein &amp;Buch als PDF scannen...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>Buchscan &amp;fortsetzen...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>Buchscan fortsetzen</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>Buchseiten werden geöffnet...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>Ein Buch scannen</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>%n Buchseite geöffnet</numerusform>
-            <numerusform>%n Buchseiten geöffnet</numerusform>
-        </translation>
     </message>
 </context>
 <context>

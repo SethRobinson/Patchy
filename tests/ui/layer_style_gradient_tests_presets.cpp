@@ -1614,7 +1614,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     // Scan a Book to PDF on the test scanner, so the sweep never opens real hardware.
     grab_dialog(QStringLiteral("bookScanDialog"), "book_scan");
     qputenv("PATCHY_FAKE_BOOK_SCANNER", "sweep-no-scan.png");
-    (void)patchy::ui::run_book_scan_dialog(nullptr, std::nullopt);
+    patchy::ui::run_book_scan_dialog(nullptr);
     qunsetenv("PATCHY_FAKE_BOOK_SCANNER");
     // The color picker is a top-level widget, not a dialog.
     patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));

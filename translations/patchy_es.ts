@@ -16194,10 +16194,6 @@ Do you want to replace it?</source>
         <translation>Calidad de imagen:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>Abrir páginas como documentos</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>Exportar PDF...</translation>
     </message>
@@ -16238,10 +16234,6 @@ Do you want to replace it?</source>
         <translation>Elija primero una carpeta de proyecto.</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>Esa carpeta ya contiene un escaneo de libro. Use Archivo &gt; Importar &gt; Reanudar escaneo de libro para continuarlo, o elija otra carpeta.</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>No se pudo crear la carpeta del proyecto %1.</translation>
     </message>
@@ -16274,16 +16266,8 @@ Do you want to replace it?</source>
         <translation>No se pudo guardar el escaneo de la cubierta en la carpeta del proyecto.</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>El libro abierto es más ancho que el cristal, por lo que cada página se escanea por separado.</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>El cuadro de diálogo de escaneo establece la resolución y el modo de cada escaneo.</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>El libro abierto parece más ancho que el cristal. Puede que se necesite una página por escaneo.</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16310,20 +16294,8 @@ Do you want to replace it?</source>
         <translation>Escaneo %1 terminado.</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Coloque la primera página boca abajo sobre el cristal y pulse &quot;Escanear&quot; (o Espacio).</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Abra el libro por las primeras páginas, colóquelo boca abajo sobre el cristal y pulse &quot;Escanear&quot; (o Espacio).</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Coloque la página %1 boca abajo sobre el cristal y pulse &quot;Escanear&quot;. Pulse &quot;Terminado&quot; después de la última página.</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Pase a las páginas siguientes, coloque el libro boca abajo y pulse &quot;Escanear&quot;. Pulse &quot;Terminado&quot; después de las últimas páginas.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16385,6 +16357,91 @@ Do you want to replace it?</source>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>Pruebe &quot;Usar el cuadro de diálogo de escaneo del sistema para cada escaneo&quot; en el paso 1.</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>Empezar de nuevo...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Eliminar los escaneos de libro de esta carpeta y escanear aquí un libro nuevo</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Continuar este libro</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>Abrir carpeta del libro</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Muestra los escaneos en el administrador de archivos. Esta ventana sigue abierta.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>Esa carpeta ya contiene un escaneo de libro. Continúelo, empiece de nuevo o elija otra carpeta.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Sin título</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Esta carpeta contiene &quot;%1&quot; (%n escaneo), listo para exportar. &quot;Continuar este libro&quot; lo revisa y lo exporta; &quot;Empezar de nuevo&quot; elimina sus escaneos para poder escanear aquí un libro nuevo.</numerusform>
+            <numerusform>Esta carpeta contiene &quot;%1&quot; (%n escaneos), listo para exportar. &quot;Continuar este libro&quot; lo revisa y lo exporta; &quot;Empezar de nuevo&quot; elimina sus escaneos para poder escanear aquí un libro nuevo.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Esta carpeta contiene &quot;%1&quot; (%n escaneo hasta ahora). &quot;Continuar este libro&quot; sigue donde lo dejó; &quot;Empezar de nuevo&quot; elimina sus escaneos para poder escanear aquí un libro nuevo.</numerusform>
+            <numerusform>Esta carpeta contiene &quot;%1&quot; (%n escaneos hasta ahora). &quot;Continuar este libro&quot; sigue donde lo dejó; &quot;Empezar de nuevo&quot; elimina sus escaneos para poder escanear aquí un libro nuevo.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>Esta carpeta contiene un escaneo de libro que Patchy no puede leer: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>El libro nuevo se guarda en esta carpeta.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>¿Eliminar el %n escaneo de &quot;%1&quot; en %2 y empezar allí un libro nuevo? Los demás archivos de la carpeta, como un PDF exportado, se conservan. Esta acción no se puede deshacer.</numerusform>
+            <numerusform>¿Eliminar los %n escaneos de &quot;%1&quot; en %2 y empezar allí un libro nuevo? Los demás archivos de la carpeta, como un PDF exportado, se conservan. Esta acción no se puede deshacer.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>No se pudo abrir la carpeta del libro %1.</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>El libro abierto llega a los bordes del cristal. Si las dos páginas no caben en el cristal, elija &quot;Una página por escaneo&quot;.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Ahora cada escaneo contiene una página.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Ahora cada escaneo contiene dos páginas.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Una página por escaneo: coloque la primera página boca abajo sobre el cristal y pulse &quot;Escanear&quot; (o Espacio).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Una página por escaneo: coloque la página %1 boca abajo sobre el cristal y pulse &quot;Escanear&quot;. Pulse &quot;Terminado&quot; después de la última página.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Pase a las páginas %1 y %2, coloque el libro boca abajo y pulse &quot;Escanear&quot;. Pulse &quot;Terminado&quot; después de las últimas páginas.</translation>
     </message>
 </context>
 <context>
@@ -20613,10 +20670,6 @@ Do you want to replace it?</source>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>Escanear un libro página a página en un solo PDF</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>Continuar un escaneo de libro que empezó antes</translation>
     </message>
 </context>
 <context>
@@ -34517,29 +34570,6 @@ Bloqueada: %1</translation>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Escanear un &amp;libro a PDF...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>&amp;Reanudar escaneo de libro...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>Reanudar escaneo de libro</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>Abriendo las páginas del libro...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>Escanear un libro</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>Se abrió %n página del libro</numerusform>
-            <numerusform>Se abrieron %n páginas del libro</numerusform>
-        </translation>
     </message>
 </context>
 <context>

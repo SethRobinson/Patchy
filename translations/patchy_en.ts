@@ -16176,10 +16176,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16220,10 +16216,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16256,15 +16248,7 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -16292,19 +16276,7 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
@@ -16366,6 +16338,91 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -20594,10 +20651,6 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Scan a book page by page into one PDF</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -34435,29 +34488,6 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
     </message>
 </context>
 <context>

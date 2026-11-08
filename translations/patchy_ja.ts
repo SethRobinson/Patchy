@@ -16147,10 +16147,6 @@ Do you want to replace it?</source>
         <translation>画質:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>ページをドキュメントとして開く</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>PDF を書き出し...</translation>
     </message>
@@ -16191,10 +16187,6 @@ Do you want to replace it?</source>
         <translation>先にプロジェクトフォルダーを選択してください。</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>このフォルダーにはすでに本のスキャンがあります。続けるには ファイル &gt; 読み込み &gt; 本のスキャンを再開 を使用するか、別のフォルダーを選択してください。</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>プロジェクトフォルダー %1 を作成できませんでした。</translation>
     </message>
@@ -16227,16 +16219,8 @@ Do you want to replace it?</source>
         <translation>表紙のスキャンをプロジェクトフォルダーに保存できませんでした。</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>開いた本がガラス面より広いため、各ページを個別にスキャンします。</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>スキャンごとの解像度とモードはスキャンダイアログで設定します。</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>開いた本がガラス面より広いようです。「1 回のスキャンで 1 ページ」が必要になる場合があります。</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16263,20 +16247,8 @@ Do you want to replace it?</source>
         <translation>スキャン %1 が完了しました。</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>最初のページをガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>本の最初のページを開いてガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>%1 ページ目をガラス面に伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>次のページを開いて本を伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16335,6 +16307,88 @@ Do you want to replace it?</source>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>手順 1 で「スキャンごとにシステムのスキャンダイアログを使う」を試してください。</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>やり直す...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>このフォルダーの本のスキャンを削除して、ここで新しい本をスキャンします</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>この本を続ける</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>本のフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>スキャンをファイル マネージャーで表示します。このウィンドウは開いたままです。</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>そのフォルダーにはすでに本のスキャンがあります。続けるか、やり直すか、別のフォルダーを選んでください。</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>無題</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>このフォルダーには「%1」(%n 回のスキャン) があり、書き出しの準備ができています。「この本を続ける」で確認して書き出せます。「やり直す」はスキャンを削除し、ここで新しい本をスキャンできるようにします。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>このフォルダーには「%1」(これまでに %n 回のスキャン) があります。「この本を続ける」で中断したところから再開できます。「やり直す」はスキャンを削除し、ここで新しい本をスキャンできるようにします。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>このフォルダーには Patchy が読み取れない本のスキャンがあります: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>新しい本はこのフォルダーに保存されます。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>%2 にある「%1」の %n 件のスキャンを削除して、そこで新しい本を始めますか? 書き出した PDF など、フォルダー内のほかのファイルは残ります。この操作は元に戻せません。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>本のフォルダー %1 を開けませんでした。</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>開いた本がガラス面の端まで届いています。両方のページがガラス面に収まらない場合は「1 回のスキャンで 1 ページ」を選んでください。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>各スキャンは 1 ページになりました。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>各スキャンは 2 ページになりました。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>1 回のスキャンで 1 ページ: 最初のページをガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>1 回のスキャンで 1 ページ: %1 ページ目をガラス面に伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>%1 ページと %2 ページを開いて本を伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
     </message>
 </context>
 <context>
@@ -20563,10 +20617,6 @@ Do you want to replace it?</source>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>本を 1 ページずつスキャンして 1 つの PDF にします</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>以前に開始した本のスキャンを続けます</translation>
     </message>
 </context>
 <context>
@@ -34426,28 +34476,6 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>本をスキャンして PDF に(&amp;B)...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>本のスキャンを再開(&amp;R)...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>本のスキャンを再開</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>本のページを開いています...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>本をスキャン</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>本のページを %n ページ開きました</numerusform>
-        </translation>
     </message>
 </context>
 <context>

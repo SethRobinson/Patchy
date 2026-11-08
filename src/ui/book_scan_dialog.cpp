@@ -10,12 +10,13 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QDate>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetricsF>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -39,6 +40,7 @@
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -102,6 +104,35 @@ BookPageRef page_from_variant(const QVariant& value) {
   return page;
 }
 
+// Removes the files a book project wrote, one by one, then its scans and thumbs folders
+// if they are empty and, with `remove_folder`, the project folder too: never a
+// recursive delete. Other files in the folder (an exported PDF) stay.
+void delete_book_project_files(const BookProject& project, bool remove_folder) {
+  const QDir folder(project.folder);
+  if (project.folder.isEmpty() || !folder.exists(QString::fromLatin1(kBookProjectFileName))) {
+    return;
+  }
+  const auto remove_scan = [&folder](const QString& file) {
+    QFile::remove(folder.filePath(file));
+    QFile::remove(folder.filePath(QStringLiteral("thumbs/") + QFileInfo(file).fileName()));
+  };
+  if (project.cover) {
+    remove_scan(project.cover->file);
+  }
+  for (const auto& scan : project.scans) {
+    remove_scan(scan.file);
+  }
+  folder.rmdir(scans_dir_name());
+  folder.rmdir(QStringLiteral("thumbs"));
+  QFile::remove(folder.filePath(QString::fromLatin1(kBookProjectFileName)));
+  if (remove_folder) {
+    QDir parent = folder;
+    if (parent.cdUp()) {
+      parent.rmdir(folder.dirName());
+    }
+  }
+}
+
 // The page sizes the review step offers besides the measured ones (inches).
 struct SizePreset {
   const char* token;
@@ -151,6 +182,12 @@ public:
     line_b_ = second;
     update();
   }
+  // Names drawn over the two outer parts of a cover (the covers either side of the spine).
+  void set_region_labels(const QString& left, const QString& right) {
+    left_label_ = left;
+    right_label_ = right;
+    update();
+  }
   [[nodiscard]] const OrientedBox& box() const { return box_; }
   [[nodiscard]] double line_a() const { return line_a_; }
   [[nodiscard]] double line_b() const { return line_b_; }
@@ -190,6 +227,10 @@ protected:
     if (kind_ == Kind::Cover) {
       draw_line(line_a_, QColor(255, 200, 0));  // color-literal-ok: spine marker over scan content
       draw_line(line_b_, QColor(255, 200, 0));  // color-literal-ok: spine marker over scan content
+      const double first = std::min(line_a_, line_b_);
+      const double second = std::max(line_a_, line_b_);
+      draw_label(painter, first / 2.0, left_label_);
+      draw_label(painter, (second + 1.0) / 2.0, right_label_);
     } else if (kind_ == Kind::Spread) {
       draw_line(line_a_, QColor(0, 200, 255));  // color-literal-ok: gutter marker over scan content
     }
@@ -215,6 +256,15 @@ protected:
       return;
     }
     const QPointF now = to_image(event->position());
+    if (drag_ == Drag::LineEither) {
+      // Both spine lines under the press: the drag direction picks one.
+      const double moved = (now.x() - press_.x()) * std::cos(press_box_.angle_degrees * kPi / 180.0) +
+                           (now.y() - press_.y()) * std::sin(press_box_.angle_degrees * kPi / 180.0);
+      if (std::abs(moved) < 1e-9) {
+        return;
+      }
+      drag_ = (moved < 0.0) == (line_a_ <= line_b_) ? Drag::LineA : Drag::LineB;
+    }
     const double radians = press_box_.angle_degrees * kPi / 180.0;
     const double c = std::cos(radians);
     const double s = std::sin(radians);
@@ -249,11 +299,12 @@ protected:
         shift(0.0, (box.height - press_box_.height) / 2.0);
         break;
       case Drag::LineA:
-        line_a_ = std::clamp(press_line_a_ + along / press_box_.width, 0.0, kind_ == Kind::Cover ? line_b_ : 1.0);
+        line_a_ = std::clamp(press_line_a_ + along / press_box_.width, 0.0, 1.0);
         break;
       case Drag::LineB:
-        line_b_ = std::clamp(press_line_b_ + along / press_box_.width, line_a_, 1.0);
+        line_b_ = std::clamp(press_line_b_ + along / press_box_.width, 0.0, 1.0);
         break;
+      case Drag::LineEither:
       case Drag::None:
         break;
     }
@@ -265,6 +316,10 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton && drag_ != Drag::None) {
       drag_ = Drag::None;
+      // A spine line dragged across the other one: they stay ordered left to right.
+      if (line_a_ > line_b_) {
+        std::swap(line_a_, line_b_);
+      }
       if (on_edited) {
         on_edited();
       }
@@ -272,7 +327,24 @@ protected:
   }
 
 private:
-  enum class Drag { None, Move, Left, Right, Top, Bottom, LineA, LineB };
+  enum class Drag { None, Move, Left, Right, Top, Bottom, LineA, LineB, LineEither };
+
+  void draw_label(QPainter& painter, double fraction, const QString& text) const {
+    if (text.isEmpty()) {
+      return;
+    }
+    const double radians = box_.angle_degrees * kPi / 180.0;
+    const double local_x = (fraction - 0.5) * box_.width;
+    const QPointF at = to_widget({box_.center_x + local_x * std::cos(radians), box_.center_y + local_x * std::sin(radians)});
+    QRectF plate = QFontMetricsF(painter.font()).boundingRect(text).adjusted(-6.0, -3.0, 6.0, 3.0);
+    plate.moveCenter(at);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 170));  // color-literal-ok: label plate over scan content
+    painter.drawRoundedRect(plate, 4.0, 4.0);
+    painter.setPen(QColor(255, 255, 255));  // color-literal-ok: label text over scan content
+    painter.drawText(plate, Qt::AlignCenter, text);
+    painter.setBrush(Qt::NoBrush);
+  }
 
   [[nodiscard]] QRectF image_rect() const {
     const QSizeF scaled = QSizeF(full_size_).scaled(QSizeF(size()), Qt::KeepAspectRatio);
@@ -313,11 +385,14 @@ private:
     const bool within_y = std::abs(local_y) <= half_h + tolerance;
     const bool within_x = std::abs(local_x) <= half_w + tolerance;
     if (kind_ != Kind::Page && within_y) {
-      if (std::abs(local_x - (line_a_ - 0.5) * box_.width) <= tolerance) {
-        return Drag::LineA;
-      }
-      if (kind_ == Kind::Cover && std::abs(local_x - (line_b_ - 0.5) * box_.width) <= tolerance) {
-        return Drag::LineB;
+      const double to_a = std::abs(local_x - (line_a_ - 0.5) * box_.width);
+      const double to_b = kind_ == Kind::Cover ? std::abs(local_x - (line_b_ - 0.5) * box_.width) : tolerance * 2.0;
+      if (to_a <= tolerance || to_b <= tolerance) {
+        // The nearer line; lines on top of each other wait for the drag direction.
+        if (std::abs(to_a - to_b) < 1.0) {
+          return Drag::LineEither;
+        }
+        return to_a < to_b ? Drag::LineA : Drag::LineB;
       }
     }
     if (within_y && std::abs(local_x + half_w) <= tolerance) {
@@ -344,6 +419,8 @@ private:
   OrientedBox box_;
   double line_a_{0.5};
   double line_b_{0.5};
+  QString left_label_;
+  QString right_label_;
   Drag drag_{Drag::None};
   QPointF press_;
   OrientedBox press_box_;
@@ -351,26 +428,22 @@ private:
   double press_line_b_{0.5};
 };
 
-BookScanDialog::BookScanDialog(QWidget* parent, std::optional<BookProject> resumed) : QDialog(parent) {
+BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   setObjectName(QStringLiteral("bookScanDialog"));
   setWindowTitle(tr("Scan a Book to PDF"));
   setModal(false);
   resize(980, 720);
   QSettings settings = app_settings();
-  if (resumed) {
-    project_ = std::move(*resumed);
-  } else {
-    project_.capture_dpi = settings.value(QStringLiteral("bookScan/dpi"), 300).toInt();
-    project_.capture_mode = settings.value(QStringLiteral("bookScan/colorMode")).toString() == QLatin1String("gray")
-                                ? ScanColorMode::Grayscale
-                                : ScanColorMode::Color;
-    project_.direction = settings.value(QStringLiteral("bookScan/readingDirection")).toString() == QLatin1String("rtl")
-                             ? BookReadingDirection::RightToLeft
-                             : BookReadingDirection::LeftToRight;
-    project_.include_covers = settings.value(QStringLiteral("bookScan/includeCovers"), true).toBool();
-    project_.scan_book_area = settings.value(QStringLiteral("bookScan/scanArea")).toString() != QLatin1String("glass");
-    project_.device_id = settings.value(QStringLiteral("bookScan/deviceId")).toString();
-  }
+  project_.capture_dpi = settings.value(QStringLiteral("bookScan/dpi"), 300).toInt();
+  project_.capture_mode = settings.value(QStringLiteral("bookScan/colorMode")).toString() == QLatin1String("gray")
+                              ? ScanColorMode::Grayscale
+                              : ScanColorMode::Color;
+  project_.direction = settings.value(QStringLiteral("bookScan/readingDirection")).toString() == QLatin1String("rtl")
+                           ? BookReadingDirection::RightToLeft
+                           : BookReadingDirection::LeftToRight;
+  project_.include_covers = settings.value(QStringLiteral("bookScan/includeCovers"), true).toBool();
+  project_.scan_book_area = settings.value(QStringLiteral("bookScan/scanArea")).toString() != QLatin1String("glass");
+  project_.device_id = settings.value(QStringLiteral("bookScan/deviceId")).toString();
   session_ = create_scanner_session(this);
 
   auto* root = new QVBoxLayout(this);
@@ -406,39 +479,20 @@ BookScanDialog::BookScanDialog(QWidget* parent, std::optional<BookProject> resum
             [this](const QString& text) { status_label_->setText(text); });
   }
   refresh_devices();
-
-  if (resumed) {
-    title_edit_->setText(project_.title);
-    author_edit_->setText(project_.author);
-    folder_edit_->setText(QDir::toNativeSeparators(project_.folder));
-    go_to(project_.finished_scanning ? Step::Review
-          : (project_.cover || !project_.scans.empty()) ? Step::Scanning
-                                                       : Step::Setup);
-  } else {
-    folder_edit_->setText(QDir::toNativeSeparators(default_project_folder()));
-    go_to(Step::Setup);
-  }
+  go_to(Step::Setup);
+  // The last book's folder: the setup step then offers to continue that book.
+  folder_edit_->setText(QDir::toNativeSeparators(default_project_folder()));
+  refresh_folder_state();
 }
 
 BookScanDialog::~BookScanDialog() = default;
 
 QString BookScanDialog::default_project_folder() const {
-  QSettings settings = app_settings();
-  QString base = settings.value(QStringLiteral("bookScan/folderRoot")).toString();
-  if (base.isEmpty()) {
-    base = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
-               .filePath(tr("Patchy Book Scans"));
+  const QString last = app_settings().value(QStringLiteral("bookScan/lastFolder")).toString();
+  if (!last.isEmpty()) {
+    return last;
   }
-  QString name = project_.title.trimmed().isEmpty() ? tr("Book") : project_.title.trimmed();
-  for (const QChar bad : QStringLiteral("\\/:*?\"<>|")) {
-    name.replace(bad, QLatin1Char('_'));
-  }
-  const QString stem = name + QLatin1Char(' ') + QDate::currentDate().toString(Qt::ISODate);
-  QString candidate = QDir(base).filePath(stem);
-  for (int n = 2; QFileInfo::exists(candidate) && n < 1000; ++n) {
-    candidate = QDir(base).filePath(stem + QStringLiteral(" (%1)").arg(n));
-  }
-  return candidate;
+  return QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath(tr("Patchy Book Scans"));
 }
 
 void BookScanDialog::build_setup_page() {
@@ -477,24 +531,40 @@ void BookScanDialog::build_setup_page() {
   disk_label_ = new QLabel(page);
   disk_label_->setObjectName(QStringLiteral("bookScanDiskLabel"));
   layout->addWidget(disk_label_);
+  folder_status_label_ = new QLabel(page);
+  folder_status_label_->setObjectName(QStringLiteral("bookScanFolderStatus"));
+  folder_status_label_->setWordWrap(true);
+  QFont status_font = folder_status_label_->font();
+  status_font.setBold(true);
+  folder_status_label_->setFont(status_font);
+  layout->addWidget(folder_status_label_);
   auto* instructions = new QLabel(
       tr("Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all "
          "on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first "
          "pages instead (the covers are then not in the PDF)."),
       page);
   instructions->setWordWrap(true);
+  setup_instructions_ = instructions;
   layout->addWidget(instructions);
   layout->addStretch(1);
   auto* buttons = new QHBoxLayout;
+  start_over_button_ = new QPushButton(tr("Start Over..."), page);
+  start_over_button_->setObjectName(QStringLiteral("bookScanStartOverButton"));
+  start_over_button_->setAutoDefault(false);
+  start_over_button_->setToolTip(tr("Delete this folder's book scans and scan a new book here"));
+  buttons->addWidget(start_over_button_);
   buttons->addStretch(1);
-  auto* skip = new QPushButton(tr("Skip Cover"), page);
-  skip->setObjectName(QStringLiteral("bookScanSkipCoverButton"));
-  skip->setAutoDefault(false);
+  skip_cover_button_ = new QPushButton(tr("Skip Cover"), page);
+  skip_cover_button_->setObjectName(QStringLiteral("bookScanSkipCoverButton"));
+  skip_cover_button_->setAutoDefault(false);
   scan_cover_button_ = new QPushButton(tr("Scan Cover"), page);
   scan_cover_button_->setObjectName(QStringLiteral("bookScanCoverButton"));
   scan_cover_button_->setDefault(true);
-  buttons->addWidget(skip);
+  continue_button_ = new QPushButton(tr("Continue This Book"), page);
+  continue_button_->setObjectName(QStringLiteral("bookScanContinueButton"));
+  buttons->addWidget(skip_cover_button_);
   buttons->addWidget(scan_cover_button_);
+  buttons->addWidget(continue_button_);
   layout->addLayout(buttons);
   stack_->addWidget(page);
 
@@ -505,14 +575,10 @@ void BookScanDialog::build_setup_page() {
       folder_edit_->setText(QDir::toNativeSeparators(chosen));
     }
   });
-  connect(title_edit_, &QLineEdit::textEdited, this, [this](const QString& text) {
-    const bool default_folder = QDir::fromNativeSeparators(folder_edit_->text()) == QDir::fromNativeSeparators(default_project_folder());
-    project_.title = text;
-    if (default_folder || folder_edit_->text().isEmpty()) {
-      folder_edit_->setText(QDir::toNativeSeparators(default_project_folder()));
-    }
-  });
+  connect(title_edit_, &QLineEdit::textEdited, this, [this] { title_from_folder_book_ = false; });
+  connect(author_edit_, &QLineEdit::textEdited, this, [this] { title_from_folder_book_ = false; });
   connect(folder_edit_, &QLineEdit::textChanged, this, [this] {
+    refresh_folder_state();
     const QStorageInfo storage(QFileInfo(QDir::fromNativeSeparators(folder_edit_->text())).absolutePath());
     if (!storage.isValid()) {
       disk_label_->clear();
@@ -543,7 +609,9 @@ void BookScanDialog::build_setup_page() {
     refresh_devices();
   });
   connect(scan_cover_button_, &QPushButton::clicked, this, &BookScanDialog::start_cover_scan);
-  connect(skip, &QPushButton::clicked, this, &BookScanDialog::skip_cover);
+  connect(skip_cover_button_, &QPushButton::clicked, this, &BookScanDialog::skip_cover);
+  connect(continue_button_, &QPushButton::clicked, this, &BookScanDialog::continue_book);
+  connect(start_over_button_, &QPushButton::clicked, this, &BookScanDialog::start_over);
 }
 
 void BookScanDialog::build_cover_page() {
@@ -632,20 +700,32 @@ void BookScanDialog::build_cover_page() {
     if (refreshing_ || !project_.cover) {
       return;
     }
+    const int old_turns = project_.up_turns;
     project_.up_turns = (4 - index) % 4;
-    // A new orientation changes every coordinate: detect again on the turned scan.
     const PixelBuffer upright = load_upright_scan(project_, project_.cover->file, project_.up_turns);
-    const auto outline = detect_book_outline(upright, {});
-    project_.cover->layout = default_cover_layout(
-        outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0, static_cast<double>(upright.width()),
-                                     static_cast<double>(upright.height()), 0.0}));
-    project_.cover->user_edited = false;
+    if ((project_.up_turns - old_turns + 4) % 4 == 2) {
+      // Half a turn: the same outline and spine, mirrored, so edits survive.
+      auto& cover = project_.cover->layout;
+      cover.outline.center_x = upright.width() - cover.outline.center_x;
+      cover.outline.center_y = upright.height() - cover.outline.center_y;
+      const double spine_left = cover.spine_left;
+      cover.spine_left = 1.0 - cover.spine_right;
+      cover.spine_right = 1.0 - spine_left;
+    } else {
+      // A quarter turn changes which way the spine runs: detect again on the turned scan.
+      const auto outline = detect_book_outline(upright, {});
+      project_.cover->layout = default_cover_layout(
+          outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0,
+                                       static_cast<double>(upright.width()), static_cast<double>(upright.height()), 0.0}));
+      project_.cover->user_edited = false;
+    }
     refresh_cover_page();
     cover_settings_changed();
   });
   connect(direction_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (!refreshing_) {
       project_.direction = index == 1 ? BookReadingDirection::RightToLeft : BookReadingDirection::LeftToRight;
+      update_cover_labels();
       cover_settings_changed();
     }
   });
@@ -715,6 +795,11 @@ void BookScanDialog::build_scanning_page() {
   grayscale_switch_->setVisible(false);
   side->addWidget(grayscale_switch_);
   auto* form = new QFormLayout;
+  scan_form_ = form;
+  pages_combo_ = new QComboBox(page);
+  pages_combo_->setObjectName(QStringLiteral("bookScanPagesCombo"));
+  pages_combo_->addItems({tr("Two pages per scan"), tr("One page per scan")});
+  form->addRow(tr("Pages:"), pages_combo_);
   use_combo_ = new QComboBox(page);
   use_combo_->setObjectName(QStringLiteral("bookScanUseCombo"));
   use_combo_->addItems({tr("Both pages"), tr("Left page only"), tr("Right page only")});
@@ -791,6 +876,11 @@ void BookScanDialog::build_scanning_page() {
     save_project_quietly();
     refresh_scanning_page();
   };
+  connect(pages_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (!refreshing_) {
+      set_scan_mode(index == 1 ? BookScanMode::OnePage : BookScanMode::TwoPages);
+    }
+  });
   connect(use_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (refreshing_ || project_.scans.empty()) {
       return;
@@ -816,14 +906,7 @@ void BookScanDialog::build_scanning_page() {
     auto& scan = project_.scans.back();
     scan.extra_turns = (scan.extra_turns + 2) % 4;
     const PixelBuffer upright = load_upright_scan(project_, scan.file, project_.up_turns + scan.extra_turns);
-    if (project_.mode == BookScanMode::OnePage) {
-      const auto outline = detect_book_outline(upright, {});
-      scan.layout.spread = outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0,
-                                                       static_cast<double>(upright.width()),
-                                                       static_cast<double>(upright.height()), 0.0});
-    } else {
-      scan.layout = detect_spread(upright, {}, std::nullopt);
-    }
+    scan.layout = detect_scan_layout(upright, scan.dpi, std::nullopt);
     scan.user_edited = false;
     thumbnails_.clear();
     save_project_quietly();
@@ -945,13 +1028,14 @@ void BookScanDialog::build_review_page() {
   review_summary_->setWordWrap(true);
   side->addWidget(review_summary_);
   auto* buttons = new QHBoxLayout;
-  auto* open_pages = new QPushButton(tr("Open Pages as Documents"), page);
-  open_pages->setObjectName(QStringLiteral("bookScanOpenPagesButton"));
-  open_pages->setAutoDefault(false);
+  auto* open_folder = new QPushButton(tr("Open Book Folder"), page);
+  open_folder->setObjectName(QStringLiteral("bookScanOpenFolderButton"));
+  open_folder->setToolTip(tr("Show the scans in the file manager. This window stays open."));
+  open_folder->setAutoDefault(false);
   auto* export_button = new QPushButton(tr("Export PDF..."), page);
   export_button->setObjectName(QStringLiteral("bookScanExportButton"));
   export_button->setDefault(true);
-  buttons->addWidget(open_pages);
+  buttons->addWidget(open_folder);
   buttons->addStretch(1);
   buttons->addWidget(export_button);
   side->addLayout(buttons);
@@ -1037,7 +1121,7 @@ void BookScanDialog::build_review_page() {
       save_project_quietly();
     }
   });
-  connect(open_pages, &QPushButton::clicked, this, &BookScanDialog::open_pages_as_documents);
+  connect(open_folder, &QPushButton::clicked, this, &BookScanDialog::open_book_folder);
   connect(export_button, &QPushButton::clicked, this, [this] {
     QString name = project_.title.trimmed().isEmpty() ? tr("Book") : project_.title.trimmed();
     for (const QChar bad : QStringLiteral("\\/:*?\"<>|")) {
@@ -1121,8 +1205,7 @@ bool BookScanDialog::ensure_project_folder() {
   }
   const QDir dir(folder);
   if (dir.exists(QString::fromLatin1(kBookProjectFileName))) {
-    show_scan_error(tr("That folder already holds a book scan. Use File > Import > Resume Book Scan to continue it, or "
-                       "choose another folder."));
+    show_scan_error(tr("That folder already holds a book scan. Continue it, start over, or choose another folder."));
     return false;
   }
   if (!QDir().mkpath(QDir(folder).filePath(scans_dir_name()))) {
@@ -1132,9 +1215,133 @@ bool BookScanDialog::ensure_project_folder() {
   project_.folder = QDir(folder).absolutePath();
   project_.title = title_edit_->text().trimmed();
   project_.author = author_edit_->text().trimmed();
-  QSettings settings = app_settings();
-  settings.setValue(QStringLiteral("bookScan/folderRoot"), QFileInfo(project_.folder).absolutePath());
+  app_settings().setValue(QStringLiteral("bookScan/lastFolder"), QDir::toNativeSeparators(project_.folder));
   return true;
+}
+
+void BookScanDialog::refresh_folder_state() {
+  if (folder_status_label_ == nullptr || continue_button_ == nullptr || step_ != Step::Setup ||
+      !project_.folder.isEmpty()) {
+    return;
+  }
+  const QString folder = QDir::fromNativeSeparators(folder_edit_->text().trimmed());
+  folder_book_.reset();
+  QString error;
+  const bool has_manifest =
+      !folder.isEmpty() && QFileInfo::exists(QDir(folder).filePath(QString::fromLatin1(kBookProjectFileName)));
+  if (has_manifest) {
+    folder_book_ = load_book_project(folder, &error);
+  }
+  const bool has_book = folder_book_.has_value();
+  if (has_book) {
+    const QString title = folder_book_->title.trimmed().isEmpty() ? tr("Untitled") : folder_book_->title.trimmed();
+    const int scans = static_cast<int>(folder_book_->scans.size()) + (folder_book_->cover ? 1 : 0);
+    folder_status_label_->setText(
+        folder_book_->finished_scanning
+            ? tr("This folder holds \"%1\" (%n scan(s)), ready to export. Continue This Book reviews and exports it; "
+                 "Start Over deletes its scans so a new book can be scanned here.",
+                 nullptr, scans)
+                  .arg(title)
+            : tr("This folder holds \"%1\" (%n scan(s) so far). Continue This Book picks up where you stopped; "
+                 "Start Over deletes its scans so a new book can be scanned here.",
+                 nullptr, scans)
+                  .arg(title));
+    if (title_edit_->text().isEmpty() || title_from_folder_book_) {
+      title_edit_->setText(folder_book_->title);
+      author_edit_->setText(folder_book_->author);
+      title_from_folder_book_ = true;
+    }
+    const int device = device_combo_->findData(folder_book_->device_id);
+    if (device >= 0) {
+      device_combo_->setCurrentIndex(device);
+    }
+  } else {
+    if (title_from_folder_book_) {
+      title_edit_->clear();
+      author_edit_->clear();
+      title_from_folder_book_ = false;
+    }
+    folder_status_label_->setText(has_manifest ? tr("This folder holds a book scan Patchy cannot read: %1").arg(error)
+                                               : tr("A new book is saved in this folder."));
+  }
+  continue_button_->setVisible(has_book);
+  start_over_button_->setVisible(has_book);
+  scan_cover_button_->setVisible(!has_book);
+  skip_cover_button_->setVisible(!has_book);
+  setup_instructions_->setVisible(!has_book);
+  scan_cover_button_->setDefault(!has_book);
+  continue_button_->setDefault(has_book);
+}
+
+void BookScanDialog::continue_book() {
+  if (scan_in_progress() || step_ != Step::Setup) {
+    return;
+  }
+  const QString folder = QDir::fromNativeSeparators(folder_edit_->text().trimmed());
+  QString error;
+  auto loaded = load_book_project(folder, &error);
+  if (!loaded) {
+    show_scan_error(error);
+    refresh_folder_state();
+    return;
+  }
+  // The settings step needs to know what the scanner can do; the other steps open it
+  // on the first scan.
+  const bool to_cover = loaded->scans.empty() && !loaded->finished_scanning;
+  if (to_cover && !ensure_session_open()) {
+    return;
+  }
+  const QString device = device_combo_->currentData().toString();
+  project_ = std::move(*loaded);
+  if (session_open_ && !device.isEmpty()) {
+    project_.device_id = device;
+  }
+  if (!title_edit_->text().trimmed().isEmpty()) {
+    project_.title = title_edit_->text().trimmed();
+  }
+  project_.author = author_edit_->text().trimmed();
+  thumbnails_.clear();
+  small_scans_.clear();
+  preview_key_.clear();
+  review_cache_.reset();
+  grayscale_hint_shown_ = !project_.scans.empty();
+  folder_book_.reset();
+  app_settings().setValue(QStringLiteral("bookScan/lastFolder"), QDir::toNativeSeparators(project_.folder));
+  save_project_quietly();
+  go_to(project_.finished_scanning ? Step::Review : to_cover ? Step::Cover : Step::Scanning);
+}
+
+void BookScanDialog::start_over() {
+  if (scan_in_progress() || step_ != Step::Setup || !folder_book_) {
+    return;
+  }
+  const BookProject old = *folder_book_;
+  if (!quiet_) {
+    const int scans = static_cast<int>(old.scans.size()) + (old.cover ? 1 : 0);
+    const auto answer = show_warning_message(
+        this, tr("Scan a Book to PDF"),
+        tr("Delete the %n scan(s) of \"%1\" in %2 and start a new book there? Other files in the folder, such as an "
+           "exported PDF, are kept. This cannot be undone.",
+           nullptr, scans)
+            .arg(old.title.trimmed().isEmpty() ? tr("Untitled") : old.title.trimmed(), QDir::toNativeSeparators(old.folder)),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No, QStringLiteral("bookScanStartOverMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+  }
+  delete_book_project_files(old, false);
+  thumbnails_.clear();
+  small_scans_.clear();
+  preview_key_.clear();
+  review_cache_.reset();
+  refresh_folder_state();
+}
+
+void BookScanDialog::open_book_folder() {
+  save_project_quietly();
+  if (project_.folder.isEmpty() || !QDesktopServices::openUrl(QUrl::fromLocalFile(project_.folder))) {
+    show_scan_error(tr("The book folder %1 could not be opened.").arg(QDir::toNativeSeparators(project_.folder)));
+  }
 }
 
 bool BookScanDialog::ensure_session_open() {
@@ -1299,20 +1506,12 @@ void BookScanDialog::apply_cover_scan(const QString& file, double dpi) {
                                    static_cast<double>(upright.height()), 0.0}));
   project_.cover = cover;
   project_.include_covers = app_settings().value(QStringLiteral("bookScan/includeCovers"), true).toBool();
-  // Defaults from what was measured: two pages per scan when the open book fits on
-  // the glass with a margin, else one page per scan.
-  const double width_in = cover.layout.outline.width / dpi;
-  const double height_in = cover.layout.outline.height / dpi;
-  const bool fits = book_spread_fits_bed(width_in, height_in, capabilities_.bed_width_inches,
-                                         capabilities_.bed_height_inches, kBedFitMarginInches);
-  project_.mode = fits ? BookScanMode::TwoPages : BookScanMode::OnePage;
+  // Two pages per scan unless the user picks otherwise: a book that fills the glass may
+  // still fit, so a wide outline only brings up the notice that offers one page per scan.
+  project_.mode = BookScanMode::TwoPages;
   save_project_quietly();
   status_label_->clear();
   go_to(Step::Cover);
-  if (!fits) {
-    mode_notice_->setText(
-        tr("The open book is wider than the glass, so each page is scanned on its own."));
-  }
 }
 
 std::optional<QRectF> BookScanDialog::scan_area_for_pages() const {
@@ -1364,6 +1563,10 @@ void BookScanDialog::refresh_cover_page() {
     mode_notice_->setText(tr("The scan dialog sets the resolution and mode for each scan."));
   }
   refreshing_ = false;
+  update_cover_labels();
+  if (project_.cover) {
+    cover_settings_changed();  // the book area and the notice for the measured book
+  }
   update_page_size_label();
 }
 
@@ -1391,10 +1594,11 @@ void BookScanDialog::cover_settings_changed() {
     const double height_in = project_.cover->layout.outline.height / dpi;
     const bool fits = book_spread_fits_bed(width_in, height_in, capabilities_.bed_width_inches,
                                            capabilities_.bed_height_inches, kBedFitMarginInches);
+    // The cover scan cannot show more than the glass, so a book that reaches its edges
+    // may or may not fit open: say so and leave the choice to the user.
     if (!fits && project_.mode == BookScanMode::TwoPages) {
-      mode_notice_->setText(tr("The open book looks wider than the glass. One page per scan may be needed."));
-    } else if (!fits) {
-      mode_notice_->setText(tr("The open book is wider than the glass, so each page is scanned on its own."));
+      mode_notice_->setText(tr("The open book reaches the edges of the glass. If both pages do not fit on the "
+                               "glass, choose One page per scan."));
     } else if (capabilities_.direct_control) {
       mode_notice_->clear();
     }
@@ -1410,6 +1614,12 @@ void BookScanDialog::cover_settings_changed() {
   settings.setValue(QStringLiteral("bookScan/includeCovers"), covers_check_->isChecked());
   save_project_quietly();
   update_page_size_label();
+}
+
+void BookScanDialog::update_cover_labels() {
+  const bool rtl = project_.direction == BookReadingDirection::RightToLeft;
+  // Seen from outside, a left-to-right book has its front cover on the right.
+  cover_preview_->set_region_labels(rtl ? tr("Front cover") : tr("Back cover"), rtl ? tr("Back cover") : tr("Front cover"));
 }
 
 void BookScanDialog::update_page_size_label() {
@@ -1489,8 +1699,6 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool repla
   entry.file = relative;
   entry.dpi = dpi;
   const PixelBuffer upright = load_upright_scan(project_, relative, project_.up_turns);
-  BookDetectOptions options;
-  options.source_ppi = dpi;
   std::optional<OrientedBox> fallback;
   const std::size_t previous_index = replace_last ? project_.scans.size() - 1 : project_.scans.size();
   if (previous_index > 0 && previous_index <= project_.scans.size()) {
@@ -1499,14 +1707,7 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool repla
       fallback = previous.layout.spread;
     }
   }
-  if (project_.mode == BookScanMode::OnePage) {
-    const auto outline = detect_book_outline(upright, options);
-    entry.layout.spread = outline.value_or(fallback.value_or(OrientedBox{
-        upright.width() / 2.0, upright.height() / 2.0, static_cast<double>(upright.width()),
-        static_cast<double>(upright.height()), 0.0}));
-  } else {
-    entry.layout = detect_spread(upright, options, fallback);
-  }
+  entry.layout = detect_scan_layout(upright, dpi, fallback);
   if (replace_last) {
     const QString old_file = project_.scans.back().file;
     entry.use = project_.scans.back().use;
@@ -1553,6 +1754,50 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool repla
     grayscale_switch_->setVisible(gray);
   }
   status_label_->setText(tr("Scan %1 done.").arg(project_.scans.size()));
+  refresh_scanning_page();
+}
+
+SpreadLayout BookScanDialog::detect_scan_layout(const PixelBuffer& upright, double dpi,
+                                                const std::optional<OrientedBox>& fallback) const {
+  BookDetectOptions options;
+  options.source_ppi = dpi;
+  if (project_.mode != BookScanMode::OnePage) {
+    return detect_spread(upright, options, fallback);
+  }
+  SpreadLayout layout;
+  layout.spread = detect_book_outline(upright, options)
+                      .value_or(fallback.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0,
+                                                              static_cast<double>(upright.width()),
+                                                              static_cast<double>(upright.height()), 0.0}));
+  return layout;
+}
+
+void BookScanDialog::set_scan_mode(BookScanMode mode) {
+  if (mode == project_.mode || scan_in_progress()) {
+    refresh_scanning_page();
+    return;
+  }
+  project_.mode = mode;
+  if (!project_.scans.empty()) {
+    // The scans so far hold the other number of pages: find their pages again. Page
+    // edits and a custom page order belong to the old pages, so they go.
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    for (auto& scan : project_.scans) {
+      const PixelBuffer upright = load_upright_scan(project_, scan.file, project_.up_turns + scan.extra_turns);
+      scan.layout = detect_scan_layout(upright, scan.dpi, std::nullopt);
+      scan.use = BookPageUse::Both;
+      scan.user_edited = false;
+    }
+    project_.custom_order.reset();
+    QApplication::restoreOverrideCursor();
+  }
+  thumbnails_.clear();
+  if (review_cache_) {
+    review_cache_->clear();
+  }
+  save_project_quietly();
+  status_label_->setText(mode == BookScanMode::OnePage ? tr("Each scan now holds one page.")
+                                                       : tr("Each scan now holds two pages."));
   refresh_scanning_page();
 }
 
@@ -1655,20 +1900,25 @@ void BookScanDialog::refresh_scanning_page() {
     return count;
   }();
   if (project_.scans.empty()) {
-    instruction_label_->setText(one_page ? tr("Lay the first page face down on the glass, then press Scan (or Space).")
-                                         : tr("Open the book at the first pages, lay it face down on the glass, then press "
-                                              "Scan (or Space)."));
+    instruction_label_->setText(
+        one_page ? tr("One page per scan: lay the first page face down on the glass, then press Scan (or Space).")
+                 : tr("Open the book at the first pages, lay it face down on the glass, then press Scan (or Space)."));
   } else if (one_page) {
     instruction_label_->setText(
-        tr("Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.")
+        tr("One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.")
             .arg(scanned_pages + 1));
   } else {
-    instruction_label_->setText(tr("Turn to the next pages, lay the book face down, then press Scan. Press Finished "
-                                   "after the last pages."));
+    instruction_label_->setText(tr("Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished "
+                                   "after the last pages.")
+                                    .arg(scanned_pages + 1)
+                                    .arg(scanned_pages + 2));
   }
   spread_preview_->set_kind(one_page ? BookScanPreview::Kind::Page : BookScanPreview::Kind::Spread);
   rescan_button_->setEnabled(!project_.scans.empty() && !scan_in_progress());
-  use_combo_->setEnabled(!project_.scans.empty() && !one_page);
+  pages_combo_->setCurrentIndex(one_page ? 1 : 0);
+  pages_combo_->setEnabled(!scan_in_progress());
+  scan_form_->setRowVisible(use_combo_, !one_page);
+  use_combo_->setEnabled(!project_.scans.empty());
   spread_tilt_spin_->setEnabled(!project_.scans.empty());
   if (project_.scans.empty()) {
     spread_preview_->clear_image();
@@ -1895,44 +2145,13 @@ bool BookScanDialog::export_pdf(const QString& path, bool ask_keep_folder) {
           .arg(QDir::toNativeSeparators(project_.folder)),
       QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes, QStringLiteral("bookScanKeepFolderMessageBox"));
   if (answer == QMessageBox::No) {
-    delete_project_files();
+    delete_book_project_files(project_, true);
+    project_.folder.clear();
     accept();
   }
   return true;
 }
 
-void BookScanDialog::delete_project_files() {
-  // Only the files this project wrote, one by one, then its two folders if they are
-  // empty: never a recursive delete.
-  const QDir folder(project_.folder);
-  if (project_.folder.isEmpty() || !folder.exists(QString::fromLatin1(kBookProjectFileName))) {
-    return;
-  }
-  if (project_.cover) {
-    QFile::remove(folder.filePath(project_.cover->file));
-  }
-  for (const auto& scan : project_.scans) {
-    QFile::remove(folder.filePath(scan.file));
-    QFile::remove(folder.filePath(QStringLiteral("thumbs/") + QFileInfo(scan.file).fileName()));
-  }
-  if (project_.cover) {
-    QFile::remove(folder.filePath(QStringLiteral("thumbs/") + QFileInfo(project_.cover->file).fileName()));
-  }
-  folder.rmdir(scans_dir_name());
-  folder.rmdir(QStringLiteral("thumbs"));
-  QFile::remove(folder.filePath(QString::fromLatin1(kBookProjectFileName)));
-  QDir parent = folder;
-  if (parent.cdUp()) {
-    parent.rmdir(folder.dirName());
-  }
-  project_.folder.clear();
-}
-
-void BookScanDialog::open_pages_as_documents() {
-  save_project_quietly();
-  open_pages_requested_ = true;
-  accept();
-}
 
 void BookScanDialog::done(int result) {
   if (scan_in_progress() && session_ != nullptr) {
@@ -1944,13 +2163,9 @@ void BookScanDialog::done(int result) {
   QDialog::done(result);
 }
 
-std::optional<BookProject> run_book_scan_dialog(QWidget* parent, std::optional<BookProject> resumed) {
-  BookScanDialog dialog(parent, std::move(resumed));
+void run_book_scan_dialog(QWidget* parent) {
+  BookScanDialog dialog(parent);
   run_non_modal_dialog(dialog);
-  if (dialog.open_pages_requested()) {
-    return dialog.project();
-  }
-  return std::nullopt;
 }
 
 }  // namespace patchy::ui

@@ -16194,10 +16194,6 @@ Deseja substituí-lo?</translation>
         <translation>Qualidade da imagem:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>Abrir páginas como documentos</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>Exportar PDF...</translation>
     </message>
@@ -16238,10 +16234,6 @@ Deseja substituí-lo?</translation>
         <translation>Escolha uma pasta de projeto primeiro.</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>Essa pasta já contém uma digitalização de livro. Use Arquivo &gt; Importar &gt; Retomar digitalização de livro para continuá-la ou escolha outra pasta.</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Não foi possível criar a pasta do projeto %1.</translation>
     </message>
@@ -16274,16 +16266,8 @@ Deseja substituí-lo?</translation>
         <translation>Não foi possível salvar a digitalização da capa na pasta do projeto.</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>O livro aberto é mais largo que o vidro, então cada página é digitalizada separadamente.</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>A caixa de diálogo de digitalização define a resolução e o modo de cada digitalização.</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>O livro aberto parece mais largo que o vidro. Pode ser necessário usar Uma página por digitalização.</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16310,20 +16294,8 @@ Deseja substituí-lo?</translation>
         <translation>Digitalização %1 concluída.</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Coloque a primeira página com a face para baixo sobre o vidro e pressione Digitalizar (ou Espaço).</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Abra o livro nas primeiras páginas, coloque-o com a face para baixo sobre o vidro e pressione Digitalizar (ou Espaço).</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Coloque a página %1 com a face para baixo sobre o vidro e pressione Digitalizar. Pressione Concluído após a última página.</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Vire para as próximas páginas, coloque o livro com a face para baixo e pressione Digitalizar. Pressione Concluído após as últimas páginas.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16385,6 +16357,91 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>Tente &quot;Usar a caixa de diálogo de digitalização do sistema em cada digitalização&quot; na etapa 1.</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>Recomeçar...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Excluir as digitalizações de livro desta pasta e digitalizar um novo livro aqui</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Continuar este livro</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>Abrir pasta do livro</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Mostra as digitalizações no gerenciador de arquivos. Esta janela continua aberta.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>Essa pasta já contém uma digitalização de livro. Continue-a, recomece ou escolha outra pasta.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Sem título</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Esta pasta contém &quot;%1&quot; (%n digitalização), pronto para exportar. &quot;Continuar este livro&quot; revisa e exporta o livro; &quot;Recomeçar&quot; exclui as digitalizações para que um novo livro seja digitalizado aqui.</numerusform>
+            <numerusform>Esta pasta contém &quot;%1&quot; (%n digitalizações), pronto para exportar. &quot;Continuar este livro&quot; revisa e exporta o livro; &quot;Recomeçar&quot; exclui as digitalizações para que um novo livro seja digitalizado aqui.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Esta pasta contém &quot;%1&quot; (%n digitalização até agora). &quot;Continuar este livro&quot; retoma de onde você parou; &quot;Recomeçar&quot; exclui as digitalizações para que um novo livro seja digitalizado aqui.</numerusform>
+            <numerusform>Esta pasta contém &quot;%1&quot; (%n digitalizações até agora). &quot;Continuar este livro&quot; retoma de onde você parou; &quot;Recomeçar&quot; exclui as digitalizações para que um novo livro seja digitalizado aqui.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>Esta pasta contém uma digitalização de livro que o Patchy não consegue ler: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>O novo livro é salvo nesta pasta.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Excluir a %n digitalização de &quot;%1&quot; em %2 e começar um novo livro ali? Os outros arquivos da pasta, como um PDF exportado, são mantidos. Isso não pode ser desfeito.</numerusform>
+            <numerusform>Excluir as %n digitalizações de &quot;%1&quot; em %2 e começar um novo livro ali? Os outros arquivos da pasta, como um PDF exportado, são mantidos. Isso não pode ser desfeito.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Não foi possível abrir a pasta do livro %1.</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>O livro aberto chega às bordas do vidro. Se as duas páginas não couberem no vidro, escolha &quot;Uma página por digitalização&quot;.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Agora cada digitalização contém uma página.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Agora cada digitalização contém duas páginas.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Uma página por digitalização: coloque a primeira página com a face para baixo sobre o vidro e pressione Digitalizar (ou Espaço).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Uma página por digitalização: coloque a página %1 com a face para baixo sobre o vidro e pressione Digitalizar. Pressione Concluído depois da última página.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Vá para as páginas %1 e %2, coloque o livro com a face para baixo e pressione Digitalizar. Pressione Concluído depois das últimas páginas.</translation>
     </message>
 </context>
 <context>
@@ -20613,10 +20670,6 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>Digitalizar um livro página por página em um único PDF</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>Continuar uma digitalização de livro iniciada antes</translation>
     </message>
 </context>
 <context>
@@ -34517,29 +34570,6 @@ Bloqueado: %1</translation>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Digitalizar um &amp;livro para PDF...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>&amp;Retomar digitalização de livro...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>Retomar digitalização de livro</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>Abrindo páginas do livro...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>Digitalizar um livro</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>%n página do livro aberta</numerusform>
-            <numerusform>%n páginas do livro abertas</numerusform>
-        </translation>
     </message>
 </context>
 <context>

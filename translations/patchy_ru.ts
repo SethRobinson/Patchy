@@ -16241,10 +16241,6 @@ Do you want to replace it?</source>
         <translation>Качество изображения:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>Открыть страницы как документы</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>Экспорт PDF...</translation>
     </message>
@@ -16285,10 +16281,6 @@ Do you want to replace it?</source>
         <translation>Сначала выберите папку проекта.</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>В этой папке уже есть сканирование книги. Чтобы продолжить его, выберите Файл &gt; Импорт &gt; Продолжить сканирование книги, или выберите другую папку.</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Не удалось создать папку проекта %1.</translation>
     </message>
@@ -16321,16 +16313,8 @@ Do you want to replace it?</source>
         <translation>Не удалось сохранить скан обложки в папке проекта.</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>Открытая книга шире стекла, поэтому каждая страница сканируется отдельно.</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>Окно сканирования задаёт разрешение и режим для каждого сканирования.</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>Открытая книга, похоже, шире стекла. Возможно, понадобится вариант «Одна страница за скан».</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16357,20 +16341,8 @@ Do you want to replace it?</source>
         <translation>Скан %1 готов.</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Положите первую страницу лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Откройте книгу на первых страницах, положите её лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Положите страницу %1 лицом вниз на стекло, затем нажмите «Сканировать». После последней страницы нажмите «Готово».</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Переверните на следующие страницы, положите книгу лицом вниз, затем нажмите «Сканировать». После последних страниц нажмите «Готово».</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16435,6 +16407,94 @@ Do you want to replace it?</source>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>На шаге 1 попробуйте вариант «Открывать системное окно сканирования при каждом сканировании».</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>Начать заново...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Удалить сканы книги в этой папке и отсканировать здесь новую книгу</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Продолжить эту книгу</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>Открыть папку книги</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Показывает сканы в файловом менеджере. Это окно остаётся открытым.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>В этой папке уже есть скан книги. Продолжите его, начните заново или выберите другую папку.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Без названия</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>В этой папке находится «%1» (%n скан), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (%n скана), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (%n сканов), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>В этой папке находится «%1» (пока %n скан). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (пока %n скана). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (пока %n сканов). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>В этой папке есть скан книги, который Patchy не может прочитать: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>Новая книга будет сохранена в этой папке.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Удалить %n скан книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить %n скана книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить %n сканов книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Не удалось открыть папку книги %1.</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>Раскрытая книга доходит до краёв стекла. Если обе страницы не помещаются на стекле, выберите «Одна страница за скан».</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Теперь каждый скан содержит одну страницу.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Теперь каждый скан содержит две страницы.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Одна страница за скан: положите первую страницу лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Одна страница за скан: положите страницу %1 лицом вниз на стекло, затем нажмите «Сканировать». После последней страницы нажмите «Готово».</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Перейдите к страницам %1 и %2, положите книгу лицом вниз, затем нажмите «Сканировать». После последних страниц нажмите «Готово».</translation>
     </message>
 </context>
 <context>
@@ -20663,10 +20723,6 @@ Do you want to replace it?</source>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>Сканировать книгу страница за страницей в один PDF</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>Продолжить начатое ранее сканирование книги</translation>
     </message>
 </context>
 <context>
@@ -34608,30 +34664,6 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>Сканировать &amp;книгу в PDF...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>&amp;Продолжить сканирование книги...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>Продолжить сканирование книги</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>Открытие страниц книги...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>Сканировать книгу</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>Открыта %n страница книги</numerusform>
-            <numerusform>Открыто %n страницы книги</numerusform>
-            <numerusform>Открыто %n страниц книги</numerusform>
-        </translation>
     </message>
 </context>
 <context>

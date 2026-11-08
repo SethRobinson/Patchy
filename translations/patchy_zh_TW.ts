@@ -16147,10 +16147,6 @@ Do you want to replace it?</source>
         <translation>影像品質:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>將頁面作為文件開啟</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>匯出 PDF...</translation>
     </message>
@@ -16191,10 +16187,6 @@ Do you want to replace it?</source>
         <translation>請先選擇專案資料夾。</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>該資料夾中已有書籍掃描。請使用「檔案 &gt; 讀入 &gt; 繼續書籍掃描」繼續，或選擇其他資料夾。</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>無法建立專案資料夾 %1。</translation>
     </message>
@@ -16227,16 +16219,8 @@ Do you want to replace it?</source>
         <translation>無法將封面掃描儲存到專案資料夾中。</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>打開的書本比玻璃板寬，因此每頁將單獨掃描。</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>每次掃描的解析度和模式由掃描對話方塊設定。</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>打開的書本看起來比玻璃板寬。可能需要「每次掃描一頁」。</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16263,20 +16247,8 @@ Do you want to replace it?</source>
         <translation>第 %1 次掃描完成。</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>將第一頁正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>將書本翻開到最前面幾頁，正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>將第 %1 頁正面朝下放在玻璃板上，然後按「掃描」。掃描完最後一頁後按「完成」。</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>翻到接下來的頁面，將書本正面朝下放好，然後按「掃描」。掃描完最後幾頁後按「完成」。</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16335,6 +16307,88 @@ Do you want to replace it?</source>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>請在第 1 步中嘗試「每次掃描都使用系統掃描對話方塊」。</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>重新開始...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>刪除此資料夾中的書籍掃描，並在這裡掃描新書</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>繼續這本書</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>開啟書籍資料夾</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>在檔案管理員中顯示掃描。此視窗會保持開啟。</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>該資料夾已包含書籍掃描。請繼續掃描、重新開始或選擇其他資料夾。</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>未命名</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>此資料夾包含「%1」（%n 次掃描），可以匯出。「繼續這本書」可檢查並匯出它；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>此資料夾包含「%1」（目前已掃描 %n 次）。「繼續這本書」會從上次停下的地方繼續；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>此資料夾包含 Patchy 無法讀取的書籍掃描：%1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>新書將儲存在此資料夾中。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>刪除 %2 中「%1」的 %n 次掃描，並在那裡開始新書？資料夾中的其他檔案（例如匯出的 PDF）會保留。此動作無法復原。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>無法開啟書籍資料夾 %1。</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>打開的書已到達玻璃板邊緣。如果兩頁無法同時放在玻璃板上，請選擇「每次掃描一頁」。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>現在每次掃描包含一頁。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>現在每次掃描包含兩頁。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>每次掃描一頁：將第一頁正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>每次掃描一頁：將第 %1 頁正面朝下放在玻璃板上，然後按「掃描」。最後一頁之後按「完成」。</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>翻到第 %1 頁和第 %2 頁，將書正面朝下放好，然後按「掃描」。最後幾頁之後按「完成」。</translation>
     </message>
 </context>
 <context>
@@ -20563,10 +20617,6 @@ Do you want to replace it?</source>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>逐頁掃描書籍並產生一個 PDF</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>繼續先前開始的書籍掃描</translation>
     </message>
 </context>
 <context>
@@ -34426,28 +34476,6 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>將書籍掃描為 PDF(&amp;B)...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>繼續書籍掃描(&amp;R)...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>繼續書籍掃描</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>正在開啟書籍頁面...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>掃描書籍</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>已開啟 %n 個書籍頁面</numerusform>
-        </translation>
     </message>
 </context>
 <context>

@@ -16147,10 +16147,6 @@ Do you want to replace it?</source>
         <translation>이미지 품질:</translation>
     </message>
     <message>
-        <source>Open Pages as Documents</source>
-        <translation>페이지를 문서로 열기</translation>
-    </message>
-    <message>
         <source>Export PDF...</source>
         <translation>PDF 내보내기...</translation>
     </message>
@@ -16191,10 +16187,6 @@ Do you want to replace it?</source>
         <translation>먼저 프로젝트 폴더를 선택하세요.</translation>
     </message>
     <message>
-        <source>That folder already holds a book scan. Use File &gt; Import &gt; Resume Book Scan to continue it, or choose another folder.</source>
-        <translation>그 폴더에는 이미 책 스캔이 있습니다. 이어서 하려면 파일 &gt; 가져오기 &gt; 책 스캔 재개를 사용하거나 다른 폴더를 선택하세요.</translation>
-    </message>
-    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>프로젝트 폴더 %1을(를) 만들 수 없습니다.</translation>
     </message>
@@ -16227,16 +16219,8 @@ Do you want to replace it?</source>
         <translation>표지 스캔을 프로젝트 폴더에 저장할 수 없습니다.</translation>
     </message>
     <message>
-        <source>The open book is wider than the glass, so each page is scanned on its own.</source>
-        <translation>펼친 책이 유리면보다 넓어서 각 페이지를 따로 스캔합니다.</translation>
-    </message>
-    <message>
         <source>The scan dialog sets the resolution and mode for each scan.</source>
         <translation>스캔할 때마다 스캔 대화 상자에서 해상도와 모드를 설정합니다.</translation>
-    </message>
-    <message>
-        <source>The open book looks wider than the glass. One page per scan may be needed.</source>
-        <translation>펼친 책이 유리면보다 넓어 보입니다. &apos;스캔당 1페이지&apos;가 필요할 수 있습니다.</translation>
     </message>
     <message>
         <source>about %1</source>
@@ -16263,20 +16247,8 @@ Do you want to replace it?</source>
         <translation>스캔 %1 완료.</translation>
     </message>
     <message>
-        <source>Lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>첫 페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
-    </message>
-    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>책의 첫 페이지를 펼쳐 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
-    </message>
-    <message>
-        <source>Lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>%1페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 다음에는 &apos;완료&apos;를 누르세요.</translation>
-    </message>
-    <message>
-        <source>Turn to the next pages, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>다음 페이지로 넘기고 책을 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 다음에는 &apos;완료&apos;를 누르세요.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16335,6 +16307,88 @@ Do you want to replace it?</source>
     <message>
         <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
         <translation>1단계에서 &apos;스캔할 때마다 시스템 스캔 대화 상자 사용&apos;을 시도해 보세요.</translation>
+    </message>
+    <message>
+        <source>Start Over...</source>
+        <translation>다시 시작...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>이 폴더의 책 스캔을 삭제하고 여기에서 새 책을 스캔합니다</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>이 책 계속하기</translation>
+    </message>
+    <message>
+        <source>Open Book Folder</source>
+        <translation>책 폴더 열기</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>파일 관리자에서 스캔을 표시합니다. 이 창은 계속 열려 있습니다.</translation>
+    </message>
+    <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>이 폴더에는 이미 책 스캔이 있습니다. 계속하거나 다시 시작하거나 다른 폴더를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>제목 없음</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>이 폴더에는 &apos;%1&apos;(스캔 %n개)이 있으며 내보낼 준비가 되었습니다. &apos;이 책 계속하기&apos;로 검토하고 내보낼 수 있고, &apos;다시 시작&apos;은 스캔을 삭제하여 여기에서 새 책을 스캔할 수 있게 합니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>이 폴더에는 &apos;%1&apos;(지금까지 스캔 %n개)이 있습니다. &apos;이 책 계속하기&apos;는 멈춘 곳부터 이어서 진행하고, &apos;다시 시작&apos;은 스캔을 삭제하여 여기에서 새 책을 스캔할 수 있게 합니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>이 폴더에는 Patchy가 읽을 수 없는 책 스캔이 있습니다: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>새 책은 이 폴더에 저장됩니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>%2에 있는 &apos;%1&apos;의 스캔 %n개를 삭제하고 그곳에서 새 책을 시작할까요? 내보낸 PDF 같은 폴더의 다른 파일은 유지됩니다. 이 작업은 되돌릴 수 없습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>책 폴더 %1을(를) 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>펼친 책이 유리면 가장자리까지 닿습니다. 두 페이지가 유리면에 모두 들어가지 않으면 &apos;스캔당 1페이지&apos;를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds one page.</source>
+        <translation>이제 각 스캔에 1페이지가 들어갑니다.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>이제 각 스캔에 2페이지가 들어갑니다.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>스캔당 1페이지: 첫 페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>스캔당 1페이지: %1페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 후에는 &apos;완료&apos;를 누르세요.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>%1페이지와 %2페이지를 펼쳐 책을 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 후에는 &apos;완료&apos;를 누르세요.</translation>
     </message>
 </context>
 <context>
@@ -20563,10 +20617,6 @@ Do you want to replace it?</source>
     <message>
         <source>Scan a book page by page into one PDF</source>
         <translation>책을 한 페이지씩 스캔하여 하나의 PDF로 만들기</translation>
-    </message>
-    <message>
-        <source>Continue a book scan you started earlier</source>
-        <translation>이전에 시작한 책 스캔 계속하기</translation>
     </message>
 </context>
 <context>
@@ -34426,28 +34476,6 @@ Locked: %1</source>
     <message>
         <source>Scan a &amp;Book to PDF...</source>
         <translation>책을 PDF로 스캔(&amp;B)...</translation>
-    </message>
-    <message>
-        <source>&amp;Resume Book Scan...</source>
-        <translation>책 스캔 재개(&amp;R)...</translation>
-    </message>
-    <message>
-        <source>Resume Book Scan</source>
-        <translation>책 스캔 재개</translation>
-    </message>
-    <message>
-        <source>Opening book pages...</source>
-        <translation>책 페이지를 여는 중...</translation>
-    </message>
-    <message>
-        <source>Scan a book</source>
-        <translation>책 스캔</translation>
-    </message>
-    <message numerus="yes">
-        <source>Opened %n book page(s)</source>
-        <translation>
-            <numerusform>책 페이지 %n개를 열었습니다</numerusform>
-        </translation>
     </message>
 </context>
 <context>
