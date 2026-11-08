@@ -33896,6 +33896,51 @@ Zablokowano: %1</translation>
         <source>Clear Filter</source>
         <translation>Wyczyść filtr</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtr</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>Warstwa przez kopiowanie</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>Warstwa przez wycinanie</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>Odłącz maskę warstwy</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>Ułóż</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>Obrysuj zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Odbij w poziomie</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Odbij w pionie</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>Dopasuj warstwę do palety</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1: najpierw zaznacz warstwę</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>Tryb mieszania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

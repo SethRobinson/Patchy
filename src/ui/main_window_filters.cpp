@@ -2501,6 +2501,8 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
   select_only_layer_if_none_active();
   auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    const auto* named = registry.find(identifier.toStdString());
+    show_select_layer_first(named != nullptr ? filter_display_name(*named) : tr("Filter"));
     return;
   }
   auto* layer = doc.find_layer(*active);
@@ -2988,6 +2990,7 @@ void MainWindow::auto_all_adjustments() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Auto All"));
     return;
   }
   auto* layer = doc.find_layer(*active);
@@ -3109,6 +3112,7 @@ void MainWindow::liquify_dialog() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Liquify"));
     return;
   }
   const auto& read_only_doc = std::as_const(doc);
@@ -3258,6 +3262,7 @@ void MainWindow::visual_filter_gallery_dialog(const FilterRecipe* repeat) {
   select_only_layer_if_none_active();
   const auto active = target_session->document.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Filter Gallery"));
     return;
   }
   // Reads through the const layer are important here: mutable Layer accessors

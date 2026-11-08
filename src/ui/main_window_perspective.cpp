@@ -295,6 +295,7 @@ void MainWindow::perspective_planes_dialog() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Perspective Planes"));
     return;
   }
   const auto* source_layer = std::as_const(doc).find_layer(*active);

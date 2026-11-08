@@ -33720,6 +33720,51 @@ Locked: %1</source>
         <source>Clear Filter</source>
         <translation>清除筛选</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>滤镜</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>通过拷贝的图层</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>通过剪切的图层</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>取消链接图层蒙版</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>排列</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>描边选区</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>水平翻转</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>垂直翻转</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>将图层颜色匹配到调色板</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1：请先选择一个图层</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>混合模式</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

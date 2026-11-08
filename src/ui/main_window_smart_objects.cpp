@@ -1470,7 +1470,9 @@ void MainWindow::convert_to_smart_object() {
   }
   finish_active_text_editor();
   auto& doc = document();
-  select_only_layer_if_none_active();
+  if (!require_target_layer(tr("Convert to Smart Object"))) {
+    return;
+  }
   convert_layers_to_smart_object(root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids()));
 }
 

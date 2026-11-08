@@ -2481,6 +2481,13 @@ private:
   // refusing. Call it right before the command reads its target. See
   // docs/layer-panel-selection.md, "Deselected state".
   void select_only_layer_if_none_active();
+  // For a command that needs a target layer: select_only_layer_if_none_active, then, when
+  // still no layer is selected, show_select_layer_first(command) and return false. Use it in
+  // place of a silent return so a hotkey never fires and does nothing.
+  [[nodiscard]] bool require_target_layer(const QString& command);
+  // The one refusal for a command that needs a layer and has none: "<command>: select a layer
+  // first" in the red status bar (select_layer_first_message).
+  void show_select_layer_first(const QString& command);
   void zoom_canvas_to_layer_content(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
   void set_layer_visibility(LayerId id, bool visible);

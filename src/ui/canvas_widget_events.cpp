@@ -5281,6 +5281,10 @@ bool CanvasWidget::begin_edit(QString label) {
     return false;
   }
   select_only_layer_if_none_active();
+  if (document_ != nullptr && !std::as_const(*document_).active_layer_id().has_value()) {
+    report_status_error(select_layer_first_message(tool_name(effective_tool_for_input())));
+    return false;
+  }
   if (active_layer_locks_image_pixels()) {
     show_layer_pixels_locked_message();
     return false;
@@ -5386,6 +5390,12 @@ bool CanvasWidget::can_begin_pixel_edit(bool report) {
     // A reporting precheck is a real press; the silent one (hover, cursor)
     // must not change the selection.
     select_only_layer_if_none_active();
+  }
+  if (document_ == nullptr || !std::as_const(*document_).active_layer_id().has_value()) {
+    if (report && document_ != nullptr) {
+      report_status_error(select_layer_first_message(tool_name(effective_tool_for_input())));
+    }
+    return false;
   }
   if (active_layer_locks_image_pixels()) {
     if (report) {

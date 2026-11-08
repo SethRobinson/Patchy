@@ -67,6 +67,7 @@ void MainWindow::levels_dialog() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Levels"));
     return;
   }
   auto* layer = doc.find_layer(*active);
@@ -230,6 +231,7 @@ void MainWindow::curves_dialog() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Curves"));
     return;
   }
   auto* layer = doc.find_layer(*active);
@@ -438,6 +440,7 @@ void MainWindow::direct_adjustment_dialog(
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(display_name);
     return;
   }
   auto* layer = doc.find_layer(*active);
@@ -718,6 +721,7 @@ void MainWindow::camera_raw_filter_dialog() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Camera Raw Filter"));
     return;
   }
   auto* layer = doc.find_layer(*active);

@@ -33720,6 +33720,51 @@ Locked: %1</source>
         <source>Clear Filter</source>
         <translation>필터 해제</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>필터</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>복사한 레이어</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>잘라낸 레이어</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>레이어 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>정돈</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>선택 영역에 획 적용</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>수평으로 뒤집기</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>수직으로 뒤집기</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>레이어를 팔레트에 스냅</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1: 먼저 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>혼합 모드</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

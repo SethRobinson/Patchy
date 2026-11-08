@@ -70,7 +70,7 @@ Layers panel rows: [layer-panel.md](layer-panel.md).
 
 QStatusBar hides non-permanent widgets while a message shows, so Patchy's left-side status widgets are positioned children of `ZoomStatusBar`; never use `addWidget()`.
 
-Blocking refusals and failed operations use `MainWindow::show_status_error` or `CanvasWidget::report_status_error`, which add the red flash and warning icon. Import notes on open use `show_import_notes_status`: the same in the yellow `status_notice_*` roles. Informational confirmations, cancellations, no-op results, and readouts use `showMessage`. Status text reaches `currentMessage()` unchanged; tests may assert it.
+Blocking refusals and failed operations use `MainWindow::show_status_error` or `CanvasWidget::report_status_error`, which add the red flash and warning icon. Import notes on open use `show_import_notes_status`: the same in the yellow `status_notice_*` roles. A command that needs a layer and has none refuses with `show_select_layer_first` ("<command>: select a layer first"), never a silent return ([layer-panel-selection.md](layer-panel-selection.md#deselected-state)). Informational confirmations, cancellations, no-op results, and readouts use `showMessage`. Status text reaches `currentMessage()` unchanged; tests may assert it.
 
 ## Number fields
 

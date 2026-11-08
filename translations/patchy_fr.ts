@@ -33808,6 +33808,51 @@ Verrouillé : %1</translation>
         <source>Clear Filter</source>
         <translation>Supprimer le filtre</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtre</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>Calque par copier</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>Calque par couper</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>Dissocier le masque de fusion</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>Disposition</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>Contour de la sélection</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Symétrie horizontale</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Symétrie verticale</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>Ajuster le calque à la palette</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1 : sélectionnez d'abord un calque</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>Mode de fusion</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

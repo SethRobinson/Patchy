@@ -33896,6 +33896,51 @@ Locked: %1</source>
         <source>Clear Filter</source>
         <translation>Снять фильтр</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>Фильтр</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>Скопировать на новый слой</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>Вырезать на новый слой</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>Отвязать маску слоя</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>Упорядочить</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>Обвести выделение</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Отразить по горизонтали</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Отразить по вертикали</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>Привести слой к палитре</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1: сначала выберите слой</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>Режим наложения</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

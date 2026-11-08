@@ -33808,6 +33808,51 @@ Fixiert: %1</translation>
         <source>Clear Filter</source>
         <translation>Filter aufheben</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>Ebene durch Kopieren</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>Ebene durch Ausschneiden</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>Verknüpfung der Ebenenmaske aufheben</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>Anordnen</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>Kontur füllen</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Horizontal spiegeln</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Vertikal spiegeln</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>Ebene an Palette anpassen</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1: Zuerst eine Ebene auswählen</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>Füllmethode</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

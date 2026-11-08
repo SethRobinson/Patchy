@@ -1667,12 +1667,19 @@ void MainWindow::set_blend_mode_from_shortcut(BlendMode mode) {
     statusBar()->showMessage(tr("Blend mode: %1").arg(tool_mode_combo->itemText(index)));
     return;
   }
-  if (!has_active_document() || blend_combo_ == nullptr || !blend_combo_->isEnabled() ||
-      blend_combo_->view()->isVisible()) {
+  if (!has_active_document() || blend_combo_ == nullptr || blend_combo_->view()->isVisible()) {
     return;
   }
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
+    return;
+  }
+  // The layer blend combo is disabled with no layer selected: say why the shortcut did nothing.
+  if (selected_or_active_layer_ids().empty()) {
+    show_select_layer_first(tr("Blend Mode"));
+    return;
+  }
+  if (!blend_combo_->isEnabled()) {
     return;
   }
   const auto ids = selected_or_active_layer_ids();
@@ -1927,6 +1934,7 @@ void MainWindow::toggle_active_layer_clipping() {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Create Clipping Mask"));
     return;
   }
   const auto location = find_layer_location(std::as_const(doc).layers(), *active);

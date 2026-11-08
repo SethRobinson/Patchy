@@ -838,7 +838,11 @@ void MainWindow::snap_layers_to_palette(bool active_layer_only) {
   if (snap == nullptr || snap->lut == nullptr) {
     return;
   }
-  select_only_layer_if_none_active();
+  if (active_layer_only) {
+    if (!require_target_layer(tr("Snap Layer to Palette"))) {
+      return;
+    }
+  }
   const auto& current_doc = std::as_const(document());
   const bool would_rewrite_smart_object = [&] {
     if (!active_layer_only) {
