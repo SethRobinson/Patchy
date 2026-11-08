@@ -488,7 +488,7 @@ std::optional<FilterInvocation> request_filter_settings(
   dialog.setWindowTitle(spec.display_name);
   auto* layout = new QVBoxLayout(&dialog);
 
-  // Preview sits in the button row beside Reset (added there below) and starts as the user
+  // Preview sits in the button row before Reset (added there below) and starts as the user
   // last left it in any filter dialog; on until first turned off (GitHub issue 667).
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(QStringLiteral("filterPreviewCheck"));
@@ -887,12 +887,9 @@ std::optional<FilterInvocation> request_filter_settings(
   }
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
                                        &dialog);
-  // Reset role so Preview sits just right of Reset on every platform: Qt lays out a role's
-  // buttons in insertion order, the standard Reset was added first, and the Reset role is
-  // never the accept or reject role, so toggling Preview never closes the dialog.
-  buttons->addButton(preview, QDialogButtonBox::ResetRole);
   if (spec.show_about) {
-    // Reset role too, so it follows Reset and Preview.
+    // Reset role so it sits just right of Reset on every platform: Qt lays out a role's
+    // buttons in insertion order, and the standard Reset was added first.
     auto* about = buttons->addButton(spec.about_text, QDialogButtonBox::ResetRole);
     about->setObjectName(QStringLiteral("filterDialogAboutButton"));
     about->setAutoDefault(false);
@@ -902,7 +899,12 @@ std::optional<FilterInvocation> request_filter_settings(
   }
   // OK as wide as Cancel in every language (GitHub issue 667); Reset and About keep their own.
   match_ok_cancel_widths(*buttons);
-  layout->addWidget(buttons);
+  // Preview sits at the left of the button row, before Reset, as in the other preview dialogs
+  // (GitHub issue 667). Outside the box, so no platform's button order can move it.
+  auto* footer = new QHBoxLayout();
+  footer->addWidget(preview);
+  footer->addWidget(buttons, 1);
+  layout->addLayout(footer);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   if (auto* reset = buttons->button(QDialogButtonBox::Reset); reset != nullptr) {
