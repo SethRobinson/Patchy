@@ -6,7 +6,8 @@
 // and its Shift+letter cycle membership are decided here, not by QAction visibility (a hidden
 // QAction drops its shortcut). In wheel-scroll mode the leading items of an overflowing
 // column scroll off the top, small arrows scroll it, and an expand row of the palette's own
-// stands in for the overflow extension (GitHub issue 488). A tool group with one tool left, or
+// stands in for the overflow extension (GitHub issue 488); the customization can leave the
+// arrows or the expand row off in that mode (GitHub issue 668). A tool group with one tool left, or
 // every group when the customization asks for no tool groups, shows its tools on plain buttons
 // of their own (GitHub issue 499).
 
@@ -133,6 +134,12 @@ private:
   void place_arrows();
   [[nodiscard]] bool expanded() const;
   [[nodiscard]] bool scroll_mode() const;
+  // Wheel-scroll mode with the scroll arrows or the expand row shown (GitHub issue 668).
+  [[nodiscard]] bool scroll_arrows_shown() const;
+  [[nodiscard]] bool expand_row_shown() const;
+  // Wheel-scroll mode without scroll arrows, collapsed: Qt keeps no band for its extension
+  // (kToolBarExtensionHiddenProperty), so the tools get the room.
+  void update_extension_band();
   [[nodiscard]] int scrollable_count() const;
 
   QPointer<QToolBar> palette_;

@@ -371,6 +371,13 @@ QString photoshop_style_template() {
       max-height: 14px;
       padding: 0;
     }
+    /* Wheel-scroll mode with the scroll arrows hidden (GitHub issue 668): no band, no button. */
+    QToolBar#toolPalette[toolBarExtensionHidden="true"] QToolButton#qt_toolbar_ext_button {
+      min-height: 0px;
+      max-height: 0px;
+      border: none;
+      margin: 0;
+    }
     QWidget#toolPaletteFooter {
       background: @tool_palette_bg;
     }

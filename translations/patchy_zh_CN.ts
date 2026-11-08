@@ -15007,6 +15007,26 @@ Do you want to replace it?</source>
         <source>Units</source>
         <translation>单位</translation>
     </message>
+    <message>
+        <source>Expand button</source>
+        <translation>展开按钮</translation>
+    </message>
+    <message>
+        <source>Scroll arrows</source>
+        <translation>滚动箭头</translation>
+    </message>
+    <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>需要开启“放不下时用鼠标滚轮滚动面板”：否则只能靠它们找到放不下的工具。</translation>
+    </message>
+    <message>
+        <source>The &gt; row under the tools that opens more columns.</source>
+        <translation>工具下方用于展开更多列的 &gt; 行。</translation>
+    </message>
+    <message>
+        <source>The small arrows above and below the tools that scroll them.</source>
+        <translation>工具上方和下方用于滚动工具的小箭头。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
