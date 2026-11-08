@@ -215,20 +215,44 @@ void apply_windows_frameless_resize_style(WId window_id) {
   if (style == 0) {
     return;
   }
-  const LONG_PTR next_style = (style | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX) & ~WS_CAPTION;
+  // A full native frame, caption included (frameless_main_window_style says why);
+  // WM_NCCALCSIZE in nativeEvent keeps every pixel of it out of view.
+  const LONG_PTR next_style = frameless_main_window_style(style);
   if (next_style != style) {
     SetWindowLongPtrW(hwnd, GWL_STYLE, next_style);
   }
   SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 
-  // Windows 11 draws a 1px DWM "visible border" around WS_THICKFRAME windows that turns
-  // light/white when the window is deactivated. COLOR_NONE removes it in every state; our
-  // own dark QSS frame still draws inside the client area. The call is a harmless no-op on
-  // pre-22000 builds (it just returns a failure HRESULT), so we call it unconditionally.
-  constexpr DWORD kDwmwaBorderColor = 34;        // DWMWA_BORDER_COLOR (Win11 22000+)
-  constexpr COLORREF kDwmColorNone = 0xFFFFFFFE; // DWMWA_COLOR_NONE
-  DwmSetWindowAttribute(hwnd, kDwmwaBorderColor, &kDwmColorNone, sizeof(kDwmColorNone));
+  // Windows 11's 1px border in the theme's window_border color, steady across activation
+  // (GitHub issue 674: with the default color it turned white on deactivation, with none
+  // the window had no edge on a dark desktop). apply_color_scheme sets it again on a theme
+  // switch.
+  apply_window_border_color(window_id);
+}
+
+// The native window behind `widget`, or null where its id is not a real HWND (the
+// offscreen platform the UI suite runs on).
+HWND native_window_of(const QWidget& widget) {
+  auto* handle = widget.windowHandle();
+  if (handle == nullptr) {
+    return nullptr;
+  }
+  auto* hwnd = reinterpret_cast<HWND>(handle->winId());
+  return IsWindow(hwnd) != 0 ? hwnd : nullptr;
+}
+
+// Runs a window command the way a native caption button does, so DWM plays its
+// minimize, maximize or restore animation (Qt's own state change for this frameless
+// window is a plain resize). Qt follows the result through WM_SIZE, as it does for a
+// title-bar double-click or Win+Up. False where there is no native window.
+bool send_native_window_command(const QWidget& widget, WPARAM command) {
+  HWND hwnd = native_window_of(widget);
+  if (hwnd == nullptr) {
+    return false;
+  }
+  SendMessageW(hwnd, WM_SYSCOMMAND, command, 0);
+  return true;
 }
 
 void apply_windows_pen_feedback_suppression(WId window_id) {
@@ -276,6 +300,36 @@ void set_windows_normal_placement(HWND hwnd, const QRect& window_geometry, qreal
   placement.rcNormalPosition = rect;
   placement.flags = 0;
   SetWindowPlacement(hwnd, &placement);
+}
+
+// The bounds a zoomed window restores to, from Windows' own normal placement, as a Qt
+// geometry on `screen`. Qt reads that placement for this frameless window through frame
+// margins it does not have (8 px in on every side at 100%), so a size saved from Qt's
+// normalGeometry() shrank the window on every restart after a native maximize. In the
+// normal state the frameless window rect is its client rect, so the placement is the
+// geometry itself; Qt's high-DPI mapping takes it from the monitor to the screen.
+// Invalid when anything is missing.
+QRect windows_normal_bounds(HWND hwnd, const QScreen* screen) {
+  WINDOWPLACEMENT placement{};
+  placement.length = sizeof(placement);
+  MONITORINFO monitor_info{};
+  monitor_info.cbSize = sizeof(monitor_info);
+  HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+  if (screen == nullptr || screen->devicePixelRatio() <= 0 || GetWindowPlacement(hwnd, &placement) == 0 ||
+      monitor == nullptr || GetMonitorInfoW(monitor, &monitor_info) == 0) {
+    return {};
+  }
+  const qreal ratio = screen->devicePixelRatio();
+  const RECT& normal = placement.rcNormalPosition;
+  // rcNormalPosition counts from the monitor's work area (set_windows_normal_placement).
+  const LONG left = normal.left + (monitor_info.rcWork.left - monitor_info.rcMonitor.left);
+  const LONG top = normal.top + (monitor_info.rcWork.top - monitor_info.rcMonitor.top);
+  const auto logical = [ratio](LONG physical) { return qRound(static_cast<qreal>(physical) / ratio); };
+  const QPoint origin = screen->geometry().topLeft();
+  const QRect bounds(origin.x() + logical(left - monitor_info.rcMonitor.left),
+                     origin.y() + logical(top - monitor_info.rcMonitor.top), logical(normal.right - normal.left),
+                     logical(normal.bottom - normal.top));
+  return bounds.width() > 0 && bounds.height() > 0 ? bounds : QRect();
 }
 #endif
 
@@ -557,13 +611,13 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
       return true;
     }
     if (nc_message->message == WM_GETMINMAXINFO) {
-      // Qt maximizes this frameless window itself from the maximize button (plain resize to
-      // the work area, never a native zoom), but OS-initiated maximizes (title-bar
-      // double-click via HTCAPTION, drag-to-top snap, Win+Up) go through DefWindowProc,
-      // whose default for a caption-less window is the full monitor. That
-      // hides the taskbar and, combined with the WM_NCCALCSIZE handling below, exposed a
-      // white non-client ring around the screen. Publish the work area as the maximize
-      // geometry so the OS path lands exactly where Qt's own maximize does. ptMaxPosition
+      // Native maximizes (the maximize button, title-bar double-click via HTCAPTION,
+      // drag-to-top snap, Win+Up) go through DefWindowProc, whose default does not match
+      // the work area this frameless window fills (the full monitor while it had no
+      // caption, which hid the taskbar and exposed a white non-client ring around the
+      // screen). Qt's own maximize (the start-up restore) is a plain resize to the work
+      // area. Publish the work area as the maximize geometry so both paths land on the
+      // same rect. ptMaxPosition
       // is relative to the monitor the window maximizes on. Deliberately not consumed:
       // Qt still applies its min/max size hints to the same MINMAXINFO afterwards.
       MONITORINFO monitor_info{};
@@ -763,7 +817,21 @@ void MainWindow::restore_maximized_under_cursor(QPoint global_cursor) {
 }
 
 QRect MainWindow::normal_bounds() const {
-  return maximized_return_normal_geometry_.isValid() ? maximized_return_normal_geometry_ : normalGeometry();
+  if (maximized_return_normal_geometry_.isValid()) {
+    return maximized_return_normal_geometry_;
+  }
+#ifdef Q_OS_WIN
+  // A native zoom (the maximize button, a title-bar double-click, snap, Win+Up): Windows'
+  // placement is exact where Qt's normalGeometry() is not (windows_normal_bounds).
+  if (isMaximized()) {
+    if (HWND hwnd = native_window_of(*this); hwnd != nullptr && IsZoomed(hwnd) != 0) {
+      if (const QRect placed = windows_normal_bounds(hwnd, screen()); placed.isValid()) {
+        return placed;
+      }
+    }
+  }
+#endif
+  return normalGeometry();
 }
 
 void MainWindow::restore_window_from_maximize() {
@@ -1007,14 +1075,37 @@ void MainWindow::configure_window_chrome() {
   position_window_chrome_controls();
   controls->show();
 
-  connect(minimize_button, &QToolButton::clicked, this, [this] { showMinimized(); });
+  connect(minimize_button, &QToolButton::clicked, this, [this] {
+#ifdef Q_OS_WIN
+    // The native command, so it animates (GitHub issue 674).
+    if (send_native_window_command(*this, SC_MINIMIZE)) {
+      return;
+    }
+#endif
+    showMinimized();
+  });
   connect(maximize_button_, &QToolButton::clicked, this, [this] {
     if (screen_mode_ != ScreenMode::Standard) {
       // Full Screen with Menus shows the controls: maximize/restore goes back to Standard.
       set_screen_mode(ScreenMode::Standard);
-    } else {
-      isMaximized() ? restore_window_from_maximize() : showMaximized();
+      return;
     }
+#ifdef Q_OS_WIN
+    // A native zoom and restore, so they animate (GitHub issue 674). A window Qt maximized
+    // itself (the start-up restore of a maximized window) is not zoomed natively, so its
+    // restore stays on the Qt path below.
+    if (HWND hwnd = native_window_of(*this); hwnd != nullptr) {
+      if (!isMaximized()) {
+        send_native_window_command(*this, SC_MAXIMIZE);
+        return;
+      }
+      if (IsZoomed(hwnd) != 0) {
+        send_native_window_command(*this, SC_RESTORE);
+        return;
+      }
+    }
+#endif
+    isMaximized() ? restore_window_from_maximize() : showMaximized();
   });
   connect(close_button, &QToolButton::clicked, this, &QWidget::close);
 }

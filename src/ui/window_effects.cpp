@@ -1,5 +1,8 @@
 #include "ui/window_effects.hpp"
 
+#include "ui/theme_palette.hpp"
+
+#include <QColor>
 #include <QEvent>
 #include <QObject>
 #include <QWidget>
@@ -22,9 +25,9 @@ namespace {
 // Spelled out rather than taken from the SDK headers, which do not declare them
 // unless the build targets a recent enough Windows SDK. Passing an attribute an
 // older DWM does not know just returns a failure HRESULT and changes nothing, so
-// the calls below are unconditional. This mirrors the DWMWA_BORDER_COLOR call in
-// main_window_chrome.cpp.
+// the calls below are unconditional.
 constexpr DWORD kDwmwaWindowCornerPreference = 33;  // DWMWA_WINDOW_CORNER_PREFERENCE
+constexpr DWORD kDwmwaBorderColor = 34;             // DWMWA_BORDER_COLOR
 constexpr DWORD kDwmwcpRound = 2;                   // DWMWCP_ROUND
 constexpr DWORD kDwmwcpRoundSmall = 3;              // DWMWCP_ROUNDSMALL
 
@@ -43,12 +46,19 @@ public:
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
+    // Read the handle rather than calling winId(), which would create a native
+    // window as a side effect if one did not already exist.
     if (event->type() == QEvent::Show) {
-      // Read the handle rather than calling winId(), which would create a native
-      // window as a side effect if one did not already exist.
       if (auto* handle = window_.windowHandle(); handle != nullptr) {
         apply_rounded_window_corners(handle->winId(), radius_);
         apply_frameless_window_shadow(handle->winId());
+        apply_window_border_color(handle->winId());
+      }
+    } else if (event->type() == QEvent::StyleChange) {
+      // A theme switch restyles the dialog (Preferences stays open through it),
+      // so its border follows the new window_border color.
+      if (auto* handle = window_.windowHandle(); handle != nullptr && window_.isVisible()) {
+        apply_window_border_color(handle->winId());
       }
     }
     return QObject::eventFilter(watched, event);
@@ -93,6 +103,31 @@ void apply_frameless_window_shadow([[maybe_unused]] WId window_id) {
   // along the top is the smallest strip the client is certain to paint over.
   const MARGINS frame{0, 0, 1, 0};
   DwmExtendFrameIntoClientArea(hwnd, &frame);
+#endif
+}
+
+void apply_window_border_color([[maybe_unused]] WId window_id) {
+#ifdef Q_OS_WIN
+  auto* hwnd = reinterpret_cast<HWND>(window_id);
+  if (!IsWindow(hwnd)) {
+    return;
+  }
+  const COLORREF color = dwm_border_colorref(theme().window_border);
+  DwmSetWindowAttribute(hwnd, kDwmwaBorderColor, &color, sizeof(color));
+#endif
+}
+
+std::uint32_t dwm_border_colorref(const QColor& color) {
+  const QColor rgb = color.toRgb();
+  return static_cast<std::uint32_t>(rgb.red()) | (static_cast<std::uint32_t>(rgb.green()) << 8U) |
+         (static_cast<std::uint32_t>(rgb.blue()) << 16U);
+}
+
+std::intptr_t frameless_main_window_style(std::intptr_t style) {
+#ifdef Q_OS_WIN
+  return style | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+#else
+  return style;
 #endif
 }
 

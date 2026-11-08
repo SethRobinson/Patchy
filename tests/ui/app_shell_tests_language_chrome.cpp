@@ -17,6 +17,7 @@
 #include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
+#include "ui/window_effects.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/single_instance.hpp"
 #include "test_harness.hpp"
@@ -2056,6 +2057,34 @@ void ui_window_chrome_controls_drive_window_state() {
   CHECK(!window.isVisible());
 }
 
+// GitHub issue 674: on Windows the frameless main window keeps a full native frame
+// (WM_NCCALCSIZE hides it), because Windows animates minimize, maximize and restore
+// only for a captioned window, and Windows 11's border takes the theme's window_border
+// role. The style bits are spelled as numbers so the test needs no windows.h.
+void ui_frameless_window_keeps_caption_and_themed_border() {
+  CHECK(patchy::ui::dwm_border_colorref(QColor(0x12, 0x34, 0x56)) == 0x563412U);
+  CHECK(patchy::ui::dwm_border_colorref(QColor(0x12, 0x34, 0x56, 0x40)) == 0x563412U);
+  CHECK(patchy::ui::dwm_border_colorref(patchy::ui::theme().window_border) ==
+        patchy::ui::dwm_border_colorref(patchy::ui::theme().window_border.toRgb()));
+  constexpr std::intptr_t kPopup = static_cast<std::intptr_t>(0x80000000U);  // WS_POPUP
+  constexpr std::intptr_t kCaption = 0x00C00000;                              // WS_CAPTION
+  constexpr std::intptr_t kSysMenu = 0x00080000;                              // WS_SYSMENU
+  constexpr std::intptr_t kThickFrame = 0x00040000;                           // WS_THICKFRAME
+  constexpr std::intptr_t kSizeBoxes = 0x00030000;  // WS_MINIMIZEBOX | WS_MAXIMIZEBOX
+  const std::intptr_t style = patchy::ui::frameless_main_window_style(kPopup);
+#ifdef Q_OS_WIN
+  CHECK((style & kCaption) == kCaption);
+  CHECK((style & kSysMenu) == kSysMenu);
+  CHECK((style & kThickFrame) == kThickFrame);
+  CHECK((style & kSizeBoxes) == kSizeBoxes);
+  CHECK((style & kPopup) == kPopup);
+  // Already framed: nothing changes, so the frame is not re-applied on every show.
+  CHECK(patchy::ui::frameless_main_window_style(style) == style);
+#else
+  CHECK(style == kPopup);
+#endif
+}
+
 // The Qt-level title-bar drag of a restored window (Linux without a system move, the
 // offscreen platform): a click or a sub-threshold wiggle leaves the window where it is,
 // and a drag past the threshold moves it by the full pointer travel, the threshold
@@ -2711,6 +2740,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_maximized_title_bar_click_keeps_window_maximized", ui_maximized_title_bar_click_keeps_window_maximized},
       {"ui_window_chrome_controls_drive_window_state", ui_window_chrome_controls_drive_window_state},
+      {"ui_frameless_window_keeps_caption_and_themed_border", ui_frameless_window_keeps_caption_and_themed_border},
       {"ui_title_bar_drag_moves_window_only_past_threshold", ui_title_bar_drag_moves_window_only_past_threshold},
       {"ui_menu_bar_reserves_badge_space_only_with_custom_chrome",
        ui_menu_bar_reserves_badge_space_only_with_custom_chrome},

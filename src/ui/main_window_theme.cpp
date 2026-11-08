@@ -6,6 +6,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/theme_script_host.hpp"
+#include "ui/window_effects.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
@@ -21,6 +22,7 @@
 #include <QRegularExpression>
 #include <QString>
 #include <QStyle>
+#include <QWindow>
 #include <QWidget>
 
 // Icon resources live in the static patchy_ui library; force registration before first use.
@@ -1388,6 +1390,10 @@ void MainWindow::apply_color_scheme() {
   //    chain, and a float window is a child of this window).
   theme_apply_phase("signal handlers before the window");
   setStyleSheet(photoshop_style(tool_palette_factor_));
+  // Windows 11's border around the main window: DWM keeps the color it was given.
+  if (auto* handle = windowHandle(); handle != nullptr && native_resizable_frame_applied_) {
+    apply_window_border_color(handle->winId());
+  }
   theme_apply_phase("window stylesheet");
 
   // 2. Top-level windows that are not in this window's child tree, plus any
