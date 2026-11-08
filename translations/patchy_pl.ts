@@ -22922,14 +22922,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Styl czcionki</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>Wygładzanie:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>Wygładzanie tekstu</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>Ostry</translation>
     </message>
@@ -33835,6 +33827,34 @@ Zablokowano: %1</translation>
     <message>
         <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
         <translation>Wyrównanie akapitu. Opcje justowania rozciągają każdy wiersz ramki tekstu na jej szerokość i różnią się położeniem ostatniego wiersza; tekst punktowy pozostaje wyrównany do lewej</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>Jak gładkie są krawędzie tekstu (wygładzanie)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>Wygładzanie:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>Pogrubienie (sztuczne pogrubienie: pogrubia bieżący krój)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>Kursywa (sztuczna kursywa: pochyla bieżący krój)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>Wyjustuj: rozciąga wiersze do obu krawędzi; ostatni wiersz idzie za wyrównaniem do lewej, do środka lub do prawej</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>Kierunek akapitu od prawej do lewej (naciśnij ponownie, aby od lewej do prawej)</translation>
     </message>
 </context>
 <context>

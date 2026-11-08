@@ -22824,14 +22824,6 @@ Do you want to replace it?</source>
         <translation>글꼴 스타일</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>스무딩:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>텍스트 다듬기</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>선명하게</translation>
     </message>
@@ -33659,6 +33651,34 @@ Locked: %1</source>
     <message>
         <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
         <translation>단락 정렬입니다. 양쪽 맞춤 항목은 텍스트 상자의 각 줄을 상자 너비에 맞춰 펼치며 마지막 줄의 위치만 다릅니다. 포인트 텍스트는 왼쪽 정렬로 유지됩니다</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>텍스트 가장자리의 매끄러움(앤티앨리어싱)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>앤티앨리어싱:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>굵게(가상 볼드체: 현재 글꼴 스타일을 두껍게 합니다)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>기울임꼴(가상 기울임꼴: 현재 글꼴 스타일을 기울입니다)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>양쪽 맞춤: 줄을 양쪽 가장자리까지 늘립니다. 마지막 줄은 왼쪽, 가운데 또는 오른쪽 정렬을 따릅니다</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>오른쪽에서 왼쪽 단락 방향(다시 누르면 왼쪽에서 오른쪽)</translation>
     </message>
 </context>
 <context>

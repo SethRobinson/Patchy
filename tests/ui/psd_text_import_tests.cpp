@@ -2743,10 +2743,7 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
-  CHECK(text_smoothing != nullptr);
-  CHECK(text_smoothing->currentData().toInt() == 4);
-  CHECK(text_smoothing->currentText() == QStringLiteral("Sharp"));
+  CHECK(shown_text_anti_alias(window) == patchy::kTextAntiAliasSharp);
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 4);
   CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
   CHECK(editor->property("patchy.documentTextX").toInt() <= 116);

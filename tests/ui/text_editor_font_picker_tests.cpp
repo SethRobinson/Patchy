@@ -37,6 +37,7 @@
 #include <QFontComboBox>
 #include <QFontDatabase>
 #include <QFrame>
+#include <QMenu>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -126,16 +127,18 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->document()->textWidth() == editor->width());
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
-  auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
   auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
+  auto* anti_alias_menu = window.findChild<QMenu*>(QStringLiteral("typeAntiAliasMenu"));
   CHECK(text_size != nullptr);
-  CHECK(text_smoothing != nullptr);
   CHECK(text_color != nullptr);
-  // The bar has no B/I buttons (Photoshop model): the style picker and Ctrl+B/Ctrl+I are the
-  // face controls.
-  CHECK(window.findChild<QPushButton*>(QStringLiteral("textBoldButton")) == nullptr);
-  CHECK(window.findChild<QPushButton*>(QStringLiteral("textItalicButton")) == nullptr);
-  CHECK(text_smoothing->currentData().toInt() == 3);
+  CHECK(anti_alias_menu != nullptr);
+  if (anti_alias_menu == nullptr) {
+    return;
+  }
+  // Smoothing is off the options bar (GitHub issue 673); Type > Anti-Alias and the Character
+  // panel carry it, and the saved default still seeds new text.
+  CHECK(window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo")) == nullptr);
+  CHECK(shown_text_anti_alias(window) == 3);
   // Each entry carries the EngineData /AntiAlias number Photoshop writes for that mode (#344).
   const std::array<std::pair<const char*, int>, 7> smoothing_modes{{{"None", patchy::kTextAntiAliasNone},
                                                                     {"Sharp", patchy::kTextAntiAliasSharp},
@@ -144,10 +147,13 @@ void ui_text_tool_creates_visible_text_layer() {
                                                                     {"Smooth", patchy::kTextAntiAliasSmooth},
                                                                     {"Windows LCD", patchy::kTextAntiAliasWindowsLcd},
                                                                     {"Windows", patchy::kTextAntiAliasWindows}}};
-  CHECK(text_smoothing->count() == static_cast<int>(smoothing_modes.size()));
-  for (const auto& [name, value] : smoothing_modes) {
-    const auto index = text_smoothing->findData(value);
-    CHECK(index >= 0 && text_smoothing->itemText(index) == QString::fromLatin1(name));
+  const auto anti_alias_actions = anti_alias_menu->actions();
+  CHECK(anti_alias_actions.size() == static_cast<qsizetype>(smoothing_modes.size()));
+  for (std::size_t index = 0; index < smoothing_modes.size() && index < static_cast<std::size_t>(anti_alias_actions.size());
+       ++index) {
+    const auto* action = anti_alias_actions[static_cast<qsizetype>(index)];
+    CHECK(action->data().toInt() == smoothing_modes[index].second);
+    CHECK(action->text().remove(QLatin1Char('&')) == QString::fromLatin1(smoothing_modes[index].first));
   }
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 3);
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(40, 220, 120));
@@ -172,8 +178,7 @@ void ui_text_tool_creates_visible_text_layer() {
   text_size->setValue(text_points_for_pixels(64));
   QTest::keyClick(editor, Qt::Key_B, Qt::ControlModifier);
   QTest::keyClick(editor, Qt::Key_I, Qt::ControlModifier);
-  text_smoothing->setCurrentIndex(text_smoothing->findData(0));
-  QApplication::processEvents();
+  choose_text_anti_alias(window, 0);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
   CHECK(editor->property("patchy.documentTextSize").toInt() == 64);
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 0);
@@ -2076,15 +2081,15 @@ void ui_text_placeholder_survives_options_bar_changes() {
   QApplication::processEvents();
   auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   auto* align_center = window.findChild<QPushButton*>(QStringLiteral("textAlignCenterButton"));
-  auto* smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
+  auto* bold = window.findChild<QPushButton*>(QStringLiteral("textFauxBoldButton"));
   auto* size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* font_picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
   CHECK(text_color != nullptr);
   CHECK(align_center != nullptr);
-  CHECK(smoothing != nullptr);
+  CHECK(bold != nullptr);
   CHECK(size != nullptr);
   CHECK(font_picker != nullptr);
-  if (text_color == nullptr || align_center == nullptr || smoothing == nullptr || size == nullptr ||
+  if (text_color == nullptr || align_center == nullptr || bold == nullptr || size == nullptr ||
       font_picker == nullptr) {
     return;
   }
@@ -2169,13 +2174,13 @@ void ui_text_placeholder_survives_options_bar_changes() {
     CHECK(active_layer_text(window) == QStringLiteral("Hello"));
   }
 
-  // Alignment button, smoothing pick, size typed + Enter, and a font picker pick: after each,
+  // Alignment button, Bold button, size typed + Enter, and a font picker pick: after each,
   // the keyboard is back in the editor with the placeholder selected.
   {
     auto* editor = open_point_text_session(window, *canvas, QPoint(40, 200));
     const bool opened = editor != nullptr;
     bool align_kept = false;
-    bool smoothing_back = false;
+    bool bold_kept = false;
     bool size_back = false;
     bool font_back = false;
     bool still_selected = false;
@@ -2185,13 +2190,12 @@ void ui_text_placeholder_survives_options_bar_changes() {
       QApplication::processEvents();
       align_kept = QApplication::focusWidget() == editor && placeholder_selected(*editor);
 
-      // A popup pick: focus sits on the combo, the choice lands, then activated fires.
-      smoothing->setFocus(Qt::MouseFocusReason);
-      const auto crisp = smoothing->findData(patchy::kTextAntiAliasCrisp);
-      smoothing->setCurrentIndex(crisp);
-      emit smoothing->activated(crisp);
-      process_events_for(20);
-      smoothing_back = QApplication::focusWidget() == editor && placeholder_selected(*editor);
+      // Bold styles what will be typed and keeps the keyboard in the editor (GitHub issue 673).
+      click_widget_like_a_user(*bold, bold->rect().center());
+      QApplication::processEvents();
+      bold_kept = QApplication::focusWidget() == editor && placeholder_selected(*editor) && bold->isChecked();
+      click_widget_like_a_user(*bold, bold->rect().center());
+      QApplication::processEvents();
 
       size->setFocus(Qt::MouseFocusReason);
       size->setValue(size->value() + 6.0);
@@ -2221,7 +2225,7 @@ void ui_text_placeholder_survives_options_bar_changes() {
     }
     CHECK(opened);
     CHECK(align_kept);
-    CHECK(smoothing_back);
+    CHECK(bold_kept);
     CHECK(size_back);
     CHECK(font_back);
     CHECK(still_selected);

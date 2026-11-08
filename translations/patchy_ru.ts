@@ -22922,14 +22922,6 @@ Do you want to replace it?</source>
         <translation>Начертание</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>Сглаживание:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>Сглаживание текста</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>Резкое</translation>
     </message>
@@ -33835,6 +33827,34 @@ Locked: %1</source>
     <message>
         <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
         <translation>Выравнивание абзаца. Варианты выравнивания по ширине растягивают каждую строку текстовой рамки до её границ и различаются положением последней строки; точечный текст остаётся выровненным по левому краю</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>Насколько гладкие края текста (сглаживание)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>Сглаживание:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>Жирный (псевдожирный: утолщает текущее начертание)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>Курсив (псевдокурсив: наклоняет текущее начертание)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>По ширине: растягивает строки до обоих краёв; последняя строка выравнивается влево, по центру или вправо</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>Направление абзаца справа налево (нажмите ещё раз для слева направо)</translation>
     </message>
 </context>
 <context>

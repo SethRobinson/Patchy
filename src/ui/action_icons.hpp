@@ -44,9 +44,9 @@ QIcon align_edge_icon(AlignEdge edge);
 // with equal marked gaps for the spacing modes.
 QIcon distribute_mode_icon(DistributeMode mode);
 // Text alignment glyphs for the Type options bar: four lines of text pushed to the
-// start, center, or end. `alignment` is Qt::AlignLeft, Qt::AlignHCenter, or
-// Qt::AlignRight; `vertical` turns the lines into columns aligned top, center, or
-// bottom, for vertical type.
+// start, center, or end. `alignment` is Qt::AlignLeft, Qt::AlignHCenter, Qt::AlignRight,
+// or Qt::AlignJustify (full lines over a short last one); `vertical` turns the lines into
+// columns aligned top, center, or bottom, for vertical type.
 QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical);
 // Line tool arrowhead toggles on the options bar: a line with a filled head at its
 // start (left) or end (right).

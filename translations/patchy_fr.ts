@@ -22481,14 +22481,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Style de police</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>Lissage :</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>Lissage du texte</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>Nette</translation>
     </message>
@@ -33747,6 +33739,34 @@ Verrouillé : %1</translation>
     <message>
         <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
         <translation>Alignement du paragraphe. Les options Justifier étalent chaque ligne d&apos;un cadre de texte sur sa largeur et diffèrent par la place de la dernière ligne ; le texte de point reste aligné à gauche</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>Douceur des bords du texte (lissage)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>Lissage :</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>Gras (faux gras : épaissit le style actuel)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>Italique (faux italique : incline le style actuel)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>Justifier : étend les lignes jusqu&apos;aux deux bords ; la dernière ligne suit Gauche, Centre ou Droite</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>Sens du paragraphe de droite à gauche (appuyez à nouveau pour gauche à droite)</translation>
     </message>
 </context>
 <context>

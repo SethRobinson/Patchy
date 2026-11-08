@@ -22463,14 +22463,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation type="unfinished"></translation>
     </message>
@@ -33664,6 +33656,34 @@ Locked: %1</source>
     </message>
     <message>
         <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

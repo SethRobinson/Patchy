@@ -442,6 +442,7 @@ int main(int argc, char* argv[]) {
            text_canvas_session_tests,
            text_color_targets_tests,
            text_character_styles_tests,
+           text_options_bar_toggles_tests,
            flat_image_format_tests,
            smart_filter_tests,
            smart_object_tests,

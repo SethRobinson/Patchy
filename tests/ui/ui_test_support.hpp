@@ -505,6 +505,12 @@ void send_layer_drop_to_widget(QWidget& target, QPoint position, const std::vect
 
 QAction* require_action(QWidget& root, const char* object_name);
 
+// The anti-alias the Type tool shows: Type > Anti-Alias's checked entry after the menu's
+// refresh (GitHub issue 673 took the Smoothing list off the options bar). -1 when none is.
+int shown_text_anti_alias(QWidget& window);
+// Picks an anti-alias the way Type > Anti-Alias (and the Character panel's list) does.
+void choose_text_anti_alias(QWidget& window, int value);
+
 QAction* require_hotkey_action(patchy::ui::MainWindow& window, const QString& id);
 
 patchy::RgbColor filter_rgb(const QColor& color);
