@@ -83,23 +83,41 @@ void wait_for_run_end(patchy::ui::ScriptEngineHost& host, int timeout_ms = 15000
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
 }
 
-// The Script Manager running the bundled Breakout: the game plays on a real
-// document canvas (bricks/paddle/ball are layers, several bricks already
-// knocked out) while the manager shows breakout.js loaded from the tree, its
-// console line, and the live run status - spinner, elapsed time, and the
-// enabled stop button - with the controller window parked below.
-void shot_readme_script_manager() {
-  EnvironmentVariableRestorer sound_restorer("PATCHY_NO_SOUND");
-  qputenv("PATCHY_NO_SOUND", "1");
-  // Isolate the user scripts folder so a developer-machine shadow override
-  // can never relabel the bundled Breakout row.
-  const StandardPathsTestMode test_paths;
-  patchy::ui::MainWindow window;
-  show_readme_shot_window(window);
+// --- Breakout (scripts/bundled/Games/breakout.js) ---------------------------------
 
-  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
-  dialog.show();
-  QApplication::processEvents();
+// The sprite layers move each frame; reading their bounds through the const
+// document is how the autopilot sees the game state.
+std::optional<patchy::Rect> breakout_layer_bounds(patchy::ui::MainWindow& window, const char* name) {
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  for (const auto& layer : document.layers()) {
+    if (layer.name() == name) {
+      return layer.bounds();
+    }
+  }
+  return std::nullopt;
+}
+
+// Opaque pixels left on the Bricks layer (-1 without one).
+long long breakout_bricks_opaque(patchy::ui::MainWindow& window) {
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  for (const auto& layer : document.layers()) {
+    if (layer.name() == "Bricks") {
+      const auto data = layer.pixels().data();
+      long long opaque = 0;
+      for (std::size_t i = 3; i < data.size(); i += 4) {
+        opaque += data[i] != 0 ? 1 : 0;
+      }
+      return opaque;
+    }
+  }
+  return -1;
+}
+
+constexpr long long kBreakoutBrickPixels = 44 * 14;  // breakout.js BRICK_W x BRICK_H
+
+// Loads the bundled Breakout from the Script Manager's tree and runs it, the way a user
+// starts it. Returns its controller window (null when something is missing).
+QDialog* start_bundled_breakout(patchy::ui::MainWindow& window, patchy::ui::ScriptEditorDialog& dialog) {
   auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("scriptEditorTree"));
   auto* code = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCode"));
   auto* console_pane = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorConsole"));
@@ -139,101 +157,196 @@ void shot_readme_script_manager() {
 
   auto* pad = window.findChild<QDialog*>(QStringLiteral("scriptCanvasWindowDialog"));
   CHECK(pad != nullptr);
+  return pad;
+}
 
-  const auto bricks_opaque = [&window]() -> long long {
-    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
-    for (const auto& layer : document.layers()) {
-      if (layer.name() == "Bricks") {
-        const auto data = layer.pixels().data();
-        long long opaque = 0;
-        for (std::size_t i = 3; i < data.size(); i += 4) {
-          opaque += data[i] != 0 ? 1 : 0;
-        }
-        return opaque;
-      }
-    }
-    return -1;
-  };
-  const auto full_bricks = bricks_opaque();
-  CHECK(full_bricks > 0);
-  constexpr long long kBrickPixels = 44 * 14;  // breakout.js BRICK_W x BRICK_H
-
-  // The sprite layers move each frame; reading their bounds through the const
-  // document is how the autopilot below sees the game state.
-  const auto layer_bounds = [&window](const char* name) -> std::optional<patchy::Rect> {
-    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
-    for (const auto& layer : document.layers()) {
-      if (layer.name() == name) {
-        return layer.bounds();
-      }
-    }
-    return std::nullopt;
-  };
-
-  // Hold Space on the controller window (isKeyDown latches until release, so
-  // the ball launches now and relaunches instantly after a lost life) and
-  // steer the paddle under the ball so the rally survives - the shot should
-  // read mid-game: lives left, ball in flight, gaps knocked in the wall. Six
-  // cleared bricks plus the ball and paddle sitting in the playfield's right
-  // side (the part the Script Manager overlay leaves visible) is the
-  // composition target; one cleared brick is the hard CHECK floor.
-  const auto composition_ready = [&] {
-    if (bricks_opaque() > full_bricks - 6 * kBrickPixels) {
-      return false;
-    }
-    const auto ball = layer_bounds("Ball");
-    const auto paddle = layer_bounds("Paddle");
-    return ball.has_value() && paddle.has_value() && ball->x >= 240 && ball->y >= 90 &&
-           ball->y <= 310 && paddle->x >= 230;
-  };
-  send_key_press(*pad, Qt::Key_Space);
-  bool left_down = false;
-  bool right_down = false;
-  QElapsedTimer play_timer;
-  play_timer.start();
-  while (play_timer.elapsed() < 25000 && !composition_ready()) {
-    const auto ball = layer_bounds("Ball");
-    const auto paddle = layer_bounds("Paddle");
-    if (ball.has_value() && paddle.has_value()) {
-      const int offset = (ball->x + 3) - (paddle->x + 32);  // ball center vs paddle center
-      const bool want_left = offset < -6;
-      const bool want_right = offset > 6;
-      if (want_left != left_down) {
-        want_left ? send_key_press(*pad, Qt::Key_Left) : send_key_release(*pad, Qt::Key_Left);
-        left_down = want_left;
-      }
-      if (want_right != right_down) {
-        want_right ? send_key_press(*pad, Qt::Key_Right) : send_key_release(*pad, Qt::Key_Right);
-        right_down = want_right;
-      }
-    }
-    process_events_for(30);
+// Holds Space on the controller window (isKeyDown latches until release, so the ball
+// launches now and relaunches at once after a lost life) and steers the paddle under the
+// ball so the rally survives.
+class BreakoutAutopilot {
+public:
+  BreakoutAutopilot(patchy::ui::MainWindow& window, QDialog& pad) : window_(window), pad_(pad) {
+    send_key_press(pad_, Qt::Key_Space);
   }
-  if (left_down) {
-    send_key_release(*pad, Qt::Key_Left);
+  ~BreakoutAutopilot() {
+    if (left_down_) {
+      send_key_release(pad_, Qt::Key_Left);
+    }
+    if (right_down_) {
+      send_key_release(pad_, Qt::Key_Right);
+    }
+    send_key_release(pad_, Qt::Key_Space);
   }
-  if (right_down) {
-    send_key_release(*pad, Qt::Key_Right);
+  BreakoutAutopilot(const BreakoutAutopilot&) = delete;
+  BreakoutAutopilot& operator=(const BreakoutAutopilot&) = delete;
+
+  void steer() {
+    const auto ball = breakout_layer_bounds(window_, "Ball");
+    const auto paddle = breakout_layer_bounds(window_, "Paddle");
+    if (!ball.has_value() || !paddle.has_value()) {
+      return;
+    }
+    const int offset = (ball->x + 3) - (paddle->x + 32);  // ball center vs paddle center
+    const bool want_left = offset < -6;
+    const bool want_right = offset > 6;
+    if (want_left != left_down_) {
+      want_left ? send_key_press(pad_, Qt::Key_Left) : send_key_release(pad_, Qt::Key_Left);
+      left_down_ = want_left;
+    }
+    if (want_right != right_down_) {
+      want_right ? send_key_press(pad_, Qt::Key_Right) : send_key_release(pad_, Qt::Key_Right);
+      right_down_ = want_right;
+    }
   }
-  CHECK(bricks_opaque() <= full_bricks - kBrickPixels);
-  CHECK(host.run_active());
 
-  const QPoint dialog_offset(48, 108);
-  dialog.resize(600, 788);
-  dialog.move(window.geometry().topLeft() + dialog_offset);
-  const QPoint pad_offset(1040, 630);
-  pad->move(window.geometry().topLeft() + pad_offset);
-  QApplication::processEvents();
-  reset_readme_status_bar(window);
-  auto base = window.grab().toImage();
-  draw_readme_overlay(base, dialog.grab().toImage(), dialog_offset);
-  draw_readme_overlay(base, pad->grab().toImage(), pad_offset);
-  save_readme_shot("shot_readme_script_manager", base);
+private:
+  patchy::ui::MainWindow& window_;
+  QDialog& pad_;
+  bool left_down_{false};
+  bool right_down_{false};
+};
 
-  send_key_release(*pad, Qt::Key_Space);
+void stop_breakout(patchy::ui::MainWindow& window) {
+  auto& host = window.script_engine_host();
   host.stop_active_run();
   wait_for_run_end(host);
   CHECK(!host.run_active());
+}
+
+// The Script Manager running the bundled Breakout: the game plays on a real
+// document canvas (bricks/paddle/ball are layers, several bricks already
+// knocked out) while the manager shows breakout.js loaded from the tree, its
+// console line, and the live run status - spinner, elapsed time, and the
+// enabled stop button - with the controller window parked below.
+void shot_readme_script_manager() {
+  EnvironmentVariableRestorer sound_restorer("PATCHY_NO_SOUND");
+  qputenv("PATCHY_NO_SOUND", "1");
+  // Isolate the user scripts folder so a developer-machine shadow override
+  // can never relabel the bundled Breakout row.
+  const StandardPathsTestMode test_paths;
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents();
+  auto* pad = start_bundled_breakout(window, dialog);
+  if (pad == nullptr) {
+    return;
+  }
+  const auto full_bricks = breakout_bricks_opaque(window);
+  CHECK(full_bricks > 0);
+
+  // The shot should read mid-game: lives left, ball in flight, gaps knocked in the wall.
+  // Six cleared bricks plus the ball and paddle sitting in the playfield's right side (the
+  // part the Script Manager overlay leaves visible) is the composition target; one
+  // cleared brick is the hard CHECK floor.
+  const auto composition_ready = [&] {
+    if (breakout_bricks_opaque(window) > full_bricks - 6 * kBreakoutBrickPixels) {
+      return false;
+    }
+    const auto ball = breakout_layer_bounds(window, "Ball");
+    const auto paddle = breakout_layer_bounds(window, "Paddle");
+    return ball.has_value() && paddle.has_value() && ball->x >= 240 && ball->y >= 90 &&
+           ball->y <= 310 && paddle->x >= 230;
+  };
+  {
+    BreakoutAutopilot autopilot(window, *pad);
+    QElapsedTimer play_timer;
+    play_timer.start();
+    while (play_timer.elapsed() < 25000 && !composition_ready()) {
+      autopilot.steer();
+      process_events_for(30);
+    }
+    CHECK(breakout_bricks_opaque(window) <= full_bricks - kBreakoutBrickPixels);
+    CHECK(window.script_engine_host().run_active());
+
+    const QPoint dialog_offset(48, 108);
+    dialog.resize(600, 788);
+    dialog.move(window.geometry().topLeft() + dialog_offset);
+    const QPoint pad_offset(1040, 630);
+    pad->move(window.geometry().topLeft() + pad_offset);
+    QApplication::processEvents();
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog.grab().toImage(), dialog_offset);
+    draw_readme_overlay(base, pad->grab().toImage(), pad_offset);
+    save_readme_shot("shot_readme_script_manager", base);
+  }
+  stop_breakout(window);
+  dialog.close();
+  QApplication::processEvents();
+}
+
+// An animated WebP of the bundled Breakout being played (breakout.webp): the bricks,
+// paddle and ball are live layers on the document canvas, the Layers panel lists them, and
+// the controller window with its score floats over the panel column. The game starts from
+// the Script Manager, which then steps aside. Each frame records the real time it took, so
+// the animation plays at the game's own speed (breakout.js moves by elapsed time).
+void shot_readme_breakout() {
+  EnvironmentVariableRestorer sound_restorer("PATCHY_NO_SOUND");
+  qputenv("PATCHY_NO_SOUND", "1");
+  const StandardPathsTestMode test_paths;
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  // Smaller than the stills, so the playfield is a larger share of each frame and the file
+  // stays small; still 16:10, so it pairs with the other cards.
+  window.resize(1280, 800);
+  QApplication::processEvents();
+
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents();
+  auto* pad = start_bundled_breakout(window, dialog);
+  if (pad == nullptr) {
+    return;
+  }
+  dialog.hide();
+  // Without the Color group the layer list is tall enough for the controller to sit under
+  // the four game layers.
+  if (auto* column = patchy::ui::MainWindowTestAccess::panel_column(window)) {
+    column->set_panel_visible(QStringLiteral("colorDock"), false);
+    column->set_panel_visible(QStringLiteral("paletteDock"), false);
+  }
+  QApplication::processEvents();
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  const auto full_bricks = breakout_bricks_opaque(window);
+  CHECK(full_bricks > 0);
+
+  // The controller sits over the empty lower part of the layer list.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    stop_breakout(window);
+    return;
+  }
+  const QRect list_rect(layer_list->mapTo(&window, QPoint(0, 0)), layer_list->size());
+  const QPoint pad_offset(list_rect.right() - pad->width() - 14, list_rect.bottom() - pad->height() - 14);
+  pad->move(window.geometry().topLeft() + pad_offset);
+  reset_readme_status_bar(window);
+
+  // Twelve seconds of play from the launch, at about 25 frames a second. The writer encodes
+  // each frame as the next arrives, so memory holds one frame, not the whole capture.
+  constexpr qint64 kCaptureMs = 12000;
+  ReadmeAnimationWriter writer("shot_readme_breakout", window.size(), 88);
+  {
+    BreakoutAutopilot autopilot(window, *pad);
+    QElapsedTimer clock;
+    clock.start();
+    while (clock.elapsed() < kCaptureMs) {
+      autopilot.steer();
+      process_events_for(25);
+      QImage base = window.grab().toImage();
+      draw_readme_overlay(base, pad->grab().toImage(), pad_offset);
+      writer.add(base, clock.elapsed());
+    }
+  }
+  CHECK(writer.frame_count() > 120);
+  CHECK(breakout_bricks_opaque(window) <= full_bricks - 4 * kBreakoutBrickPixels);
+  CHECK(window.script_engine_host().run_active());
+  stop_breakout(window);
+  // A short hold on the last frame before the loop starts over.
+  writer.finish(800);
   dialog.close();
   QApplication::processEvents();
 }
@@ -397,6 +510,7 @@ void shot_readme_affinity_import() {
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part2() {
   return {
       {"shot_readme_script_manager", shot_readme_script_manager},
+      {"shot_readme_breakout", shot_readme_breakout},
       {"shot_readme_script_options", shot_readme_script_options},
       {"shot_readme_affinity_import", shot_readme_affinity_import},
   };

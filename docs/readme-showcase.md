@@ -1,7 +1,8 @@
 # Rebuilding the README showcase
 
 The README uses a hero image and six feature cards: `layered_import`, `tile_preview`,
-`object_select`, `warp_text`, `plugin_kpt5` and `web_export`. The [full gallery](screenshots.md)
+`object_select`, `breakout` (animated), `plugin_kpt5` and `web_export_quad` (animated). The
+[full gallery](screenshots.md)
 holds every capture, grouped under topic headings. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
 
@@ -47,6 +48,8 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `tilt_shift.png` | `shot_readme_tilt_shift` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg` |
 | `gmic.png` | `shot_readme_gmic` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped around the car; needs a build with the G'MIC engine |
 | `web_export.png` | `shot_readme_web_export` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`, graded into eight frame layers in the scene |
+| `web_export_quad.webp` (animated) | `shot_readme_web_export_quad` | The same eight-frame time-lapse, exported as an animated WebP in the 4-up view |
+| `breakout.webp` (animated) | `shot_readme_breakout` | The bundled `scripts/bundled/Games/breakout.js`, started from the Script Manager |
 | `flame.png` | `shot_readme_flame` | Generated night backdrop and Arial Black lettering; the letters' outline is a saved path |
 | `perspective_planes.png` | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
 | `long_shadow.png` | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
@@ -172,6 +175,25 @@ bars are not part of a widget grab, so `readme_captioned_dialog` draws the dark 
 "Let's play with letters / Let's enjoy color." Every sample is an editable
 type layer. The scene registers its Latin and Japanese test fonts and reports
 a skip if no Japanese family is available; it never publishes missing-glyph boxes.
+
+Two scenes are animations, written as looping lossy WebP (GitHub shows animated WebP in
+`<img>`): `save_readme_animation` and its streaming form `ReadmeAnimationWriter`
+(`tests/ui/readme_screenshot_test_support.hpp`) round each frame's corners like a still and
+encode with Patchy's own `patchy::webp::AnimationEncoder`, which stores only what changed
+between frames. The driver publishes `.webp` artifacts beside the PNGs.
+
+- `shot_readme_breakout` starts the bundled Breakout from the Script Manager, hides the
+  manager and the Color group, and captures a 1280 x 800 window for twelve seconds while the
+  Breakout autopilot (shared with `shot_readme_script_manager`) holds Space and steers the
+  paddle under the ball. Each frame's delay is the real time between captures, so it plays at
+  the game's speed (breakout.js moves by elapsed time); frames stream into the writer, so
+  memory holds one frame. The controller window sits over the empty lower layer list.
+- `shot_readme_web_export_quad` opens Export for Web on the time-lapse with animated WebP at
+  quality 80 in the 4-up view (80, 40, 20 beside the original), waits for every tile's
+  frames, zooms to 100% so the lower qualities' blocking reads, then steps the eight frames,
+  checking each tile shows the same index before capturing. Frames show 450 ms, the last
+  1.4 s. The animation's own lossy encoding (quality 90) is mild next to the tiles' quality
+  20, so the differences stay visible.
 
 The vector and SVG scenes select actual path anchors for their editing overlays.
 A drag that starts over another shape's fill can pick and move that shape, so these

@@ -120,6 +120,30 @@ QImage timelapse_frame(const QImage& city, int index) {
   return frame;
 }
 
+// Eight layers of San Francisco from afternoon to blue hour, the top layer the first frame.
+patchy::Document timelapse_document() {
+  const auto path = patchy::test::committed_format_fixture_path("readme", "san_francisco_cityscape_cc0.jpg");
+  QImage city(QString::fromStdString(path.string()));
+  CHECK(!city.isNull());
+  city = city.scaled(1400, 930, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+  patchy::Document document(kTimelapseWidth, kTimelapseHeight, patchy::PixelFormat::rgba8());
+  // The top layer is the first frame, so the evening frames go in first. The last frame
+  // holds for a second (its name's time).
+  const std::array<const char*, kTimelapseFrames> names{
+      "Afternoon", "Late afternoon", "Golden hour", "Sunset", "Last light", "Dusk", "Evening", "Blue hour 1s"};
+  patchy::LayerId top{};
+  for (int index = kTimelapseFrames - 1; index >= 0; --index) {
+    patchy::Layer layer(document.allocate_layer_id(), names[static_cast<std::size_t>(index)],
+                        patchy::ui::pixels_from_image_rgba(timelapse_frame(city, index)));
+    layer.set_bounds(patchy::Rect{0, 0, kTimelapseWidth, kTimelapseHeight});
+    top = layer.id();
+    document.add_layer(std::move(layer));
+  }
+  document.set_active_layer(top);
+  return document;
+}
+
 // Every exportForWeb/* key the scene writes, restored afterward.
 std::vector<std::unique_ptr<SettingsValueRestorer>> web_export_settings_restorers() {
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
@@ -154,29 +178,9 @@ void shot_readme_web_export() {
   settings.compare = patchy::ui::WebExportCompare::Split;
   patchy::ui::save_web_export_settings(settings);
 
-  const auto path = patchy::test::committed_format_fixture_path("readme", "san_francisco_cityscape_cc0.jpg");
-  QImage city(QString::fromStdString(path.string()));
-  CHECK(!city.isNull());
-  city = city.scaled(1400, 930, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-  patchy::Document document(kTimelapseWidth, kTimelapseHeight, patchy::PixelFormat::rgba8());
-  // The top layer is the first frame, so the evening frames go in first. The last frame
-  // holds for a second (its name's time).
-  const std::array<const char*, kTimelapseFrames> names{
-      "Afternoon", "Late afternoon", "Golden hour", "Sunset", "Last light", "Dusk", "Evening", "Blue hour 1s"};
-  patchy::LayerId top{};
-  for (int index = kTimelapseFrames - 1; index >= 0; --index) {
-    patchy::Layer layer(document.allocate_layer_id(), names[static_cast<std::size_t>(index)],
-                        patchy::ui::pixels_from_image_rgba(timelapse_frame(city, index)));
-    layer.set_bounds(patchy::Rect{0, 0, kTimelapseWidth, kTimelapseHeight});
-    top = layer.id();
-    document.add_layer(std::move(layer));
-  }
-  document.set_active_layer(top);
-
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
-  window.add_document_session(std::move(document), QStringLiteral("city_timelapse.psd"));
+  window.add_document_session(timelapse_document(), QStringLiteral("city_timelapse.psd"));
   close_untitled_start_tab(window);
 
   bool captured = false;
@@ -208,6 +212,92 @@ void shot_readme_web_export() {
       dialog->repaint();
       process_events_for(100);
       save_readme_shot("shot_readme_web_export", dialog->grab().toImage());
+      captured = true;
+    } catch (...) {
+      error = std::current_exception();
+    }
+    if (dialog != nullptr) dialog->reject();
+  });
+  require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  if (error) std::rethrow_exception(error);
+  CHECK(captured);
+}
+
+// An animated WebP of Export for Web making an animated WebP: the 4-up view plays the
+// city time-lapse with the original top left, WebP at quality 80 top right, and the same
+// animation at 40 and 20 below, each tile tagged with its quality and real encoded size.
+// The view sits at 100% so the lower qualities' blocking reads. Stepped frame by frame
+// (deterministic, every tile on the same index) and written as web_export_quad.webp.
+void shot_readme_web_export_quad() {
+  const auto restorers = web_export_settings_restorers();
+  auto settings = patchy::ui::load_web_export_settings();
+  settings.format = patchy::ui::WebExportFormat::Webp;
+  settings.webp_animate = true;
+  settings.webp_lossless = false;
+  settings.webp_quality = 80;
+  settings.animation_frame_delay_ms = 150;
+  settings.compare = patchy::ui::WebExportCompare::Quad;
+  patchy::ui::save_web_export_settings(settings);
+
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(timelapse_document(), QStringLiteral("city_timelapse.psd"));
+  close_untitled_start_tab(window);
+
+  bool captured = false;
+  std::exception_ptr error;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      dialog->resize(1280, 800);
+      QApplication::processEvents();
+      auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+      auto* half = dialog->findChild<QWidget*>(QStringLiteral("webExportHalfQualityPreview"));
+      auto* quarter = dialog->findChild<QWidget*>(QStringLiteral("webExportQuarterQualityPreview"));
+      auto* play = dialog->findChild<QPushButton*>(QStringLiteral("webExportPlayButton"));
+      auto* next = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportNextFrameButton"));
+      auto* zoom_100 = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportZoom100"));
+      auto* timer = dialog->findChild<QTimer*>(QStringLiteral("webExportPlaybackTimer"));
+      CHECK(preview != nullptr && half != nullptr && quarter != nullptr && play != nullptr && next != nullptr &&
+            zoom_100 != nullptr && timer != nullptr);
+      CHECK(half->isVisible() && quarter->isVisible());
+      const auto frames = [preview] { return preview->property("webExportFrameCount").toInt(); };
+      const auto frame = [preview] { return preview->property("webExportFrameIndex").toInt(); };
+      const auto tile_frame = [](QWidget* tile) {
+        const auto value = tile->property("webExportFrameIndex");
+        return value.isValid() ? value.toInt() : -1;
+      };
+      CHECK(process_events_until(
+          [&] {
+            return preview->property("webExportShowsCurrent").toBool() && frames() == kTimelapseFrames &&
+                   half->property("webExportShowsCurrent").toBool() &&
+                   quarter->property("webExportShowsCurrent").toBool();
+          },
+          180000));
+      // Let the other rows' sizes land (AVIF and JPEG XL wait to be selected).
+      process_events_for(4000);
+      zoom_100->click();
+      if (timer->isActive()) {
+        play->click();
+      }
+      while (frame() != 0) {
+        next->click();
+      }
+      std::vector<ReadmeAnimationFrame> captures;
+      for (int index = 0; index < kTimelapseFrames; ++index) {
+        CHECK(process_events_until(
+            [&] { return frame() == index && tile_frame(half) == index && tile_frame(quarter) == index; }, 5000));
+        process_events_for(120);
+        dialog->repaint();
+        process_events_for(30);
+        // The source holds its last frame for a second; the rest play a little slower than
+        // the preview so each quality can be read.
+        captures.push_back({dialog->grab().toImage(), index == kTimelapseFrames - 1 ? 1400 : 450});
+        next->click();
+      }
+      save_readme_animation("shot_readme_web_export_quad", captures);
       captured = true;
     } catch (...) {
       error = std::current_exception();
@@ -585,6 +675,7 @@ void shot_readme_flame() {
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part3() {
   return {
       {"shot_readme_web_export", shot_readme_web_export},
+      {"shot_readme_web_export_quad", shot_readme_web_export_quad},
       {"shot_readme_perspective_planes", shot_readme_perspective_planes},
       {"shot_readme_flame", shot_readme_flame},
   };

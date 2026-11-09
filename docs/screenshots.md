@@ -129,6 +129,13 @@ Click any image to inspect it at full size. These are captures of the real edito
       <br><sub>Export for Web: eight layers become an animated GIF that plays in the preview, a draggable split compares the original with a 16-color dithered result, and every format lists its real encoded size</sub>
     </td>
 </tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/web_export_quad.webp"><img src="images/screenshots/web_export_quad.webp" width="430" alt="Animation: Export for Web in its 4-up view playing an animated WebP time-lapse at quality 80, 40 and 20 beside the original, each tile tagged with its encoded size"></a>
+      <br><sub>Export for Web in 4-up: an animated WebP plays at three qualities beside the original, each with its real encoded size</sub>
+    </td>
+<td width="50%"></td>
+</tr>
 </table>
 
 ## Documents and formats
@@ -171,6 +178,9 @@ Click any image to inspect it at full size. These are captures of the real edito
       <a href="images/screenshots/script_options.png"><img src="images/screenshots/script_options.png" width="430" alt="Duotone script options dialog with instructions, shadow and highlight color fields, and a contrast slider over a photo already remapped to navy and amber"></a>
       <br><sub>Scripts ask with real options dialogs; the same script runs unattended from the command line with the same defaults</sub>
     </td>
-<td width="50%"></td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/breakout.webp"><img src="images/screenshots/breakout.webp" width="430" alt="Animation: the bundled Breakout script being played, the ball knocking out bricks on a Patchy document while the Layers panel lists the game layers and the controller window keeps the score"></a>
+      <br><sub>Breakout, a bundled script, played on a real document: bricks, paddle and ball are layers, and the controller window is the script's own</sub>
+    </td>
 </tr>
 </table>

@@ -1,6 +1,8 @@
 #include <QStatusBar>
 
 
+#include "formats/webp_animation_io.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
@@ -78,6 +80,75 @@ void save_readme_shot(const std::string& name, const QImage& image) {
   CHECK(!image.isNull());
   const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
   CHECK(rounded_readme_window_image(image).save(path));
+}
+
+struct ReadmeAnimationWriter::Impl {
+  std::string name;
+  QSize size;
+  patchy::webp::AnimationEncoder encoder;
+  QImage pending;
+  qint64 pending_time{0};
+  std::size_t frames{0};
+
+  Impl(std::string animation_name, QSize frame_size, int quality)
+      : name(std::move(animation_name)), size(frame_size),
+        encoder(frame_size.width(), frame_size.height(), /*loops=*/0, quality, /*lossless=*/false) {}
+
+  void encode_pending(qint64 duration_ms) {
+    // 20 ms is the shortest delay browsers honor; shorter ones play at 100 ms.
+    encoder.add(patchy::ui::pixels_from_image_rgba(rounded_readme_window_image(pending)),
+                static_cast<std::uint32_t>(std::max<qint64>(duration_ms, 20)));
+    ++frames;
+  }
+};
+
+ReadmeAnimationWriter::ReadmeAnimationWriter(std::string name, QSize size, int quality)
+    : impl_(std::make_unique<Impl>(std::move(name), size, quality)) {}
+
+ReadmeAnimationWriter::~ReadmeAnimationWriter() = default;
+
+void ReadmeAnimationWriter::add(const QImage& image, qint64 time_ms) {
+  CHECK(image.size() == impl_->size);
+  if (!impl_->pending.isNull()) {
+    impl_->encode_pending(time_ms - impl_->pending_time);
+  }
+  impl_->pending = image;
+  impl_->pending_time = time_ms;
+}
+
+std::size_t ReadmeAnimationWriter::frame_count() const {
+  return impl_->frames + (impl_->pending.isNull() ? 0U : 1U);
+}
+
+void ReadmeAnimationWriter::finish(int last_frame_ms) {
+  ensure_artifact_dir();
+  CHECK(!impl_->pending.isNull());
+  if (impl_->pending.isNull()) {
+    return;
+  }
+  impl_->encode_pending(last_frame_ms);
+  impl_->pending = QImage();
+  const auto bytes = impl_->encoder.finish();
+  CHECK(!bytes.empty());
+  std::ofstream out(std::filesystem::path("test-artifacts") / (impl_->name + ".webp"),
+                    std::ios::binary | std::ios::trunc);
+  out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  CHECK(out.good());
+}
+
+void save_readme_animation(const std::string& name, const std::vector<ReadmeAnimationFrame>& frames,
+                           int quality) {
+  CHECK(!frames.empty());
+  if (frames.empty()) {
+    return;
+  }
+  ReadmeAnimationWriter writer(name, frames.front().image.size(), quality);
+  qint64 time = 0;
+  for (const auto& frame : frames) {
+    writer.add(frame.image, time);
+    time += frame.duration_ms;
+  }
+  writer.finish(frames.back().duration_ms);
 }
 
 void reset_readme_status_bar(patchy::ui::MainWindow& window) {

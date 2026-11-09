@@ -4,7 +4,11 @@
 // tests/ui/readme_screenshot_tests.cpp monolith (used by more than one
 // readme_screenshot_tests part TU). Moved, never copied.
 
+#include <cstddef>
+#include <memory>
 #include <string>
+#include <vector>
+#include <QSize>
 #include <QIcon>
 #include <QImage>
 #include <QListWidget>
@@ -32,6 +36,37 @@ void show_readme_shot_window(patchy::ui::MainWindow& window);
 void close_untitled_start_tab(patchy::ui::MainWindow& window);
 
 void save_readme_shot(const std::string& name, const QImage& image);
+
+// One captured frame of a README animation and how long it shows.
+struct ReadmeAnimationFrame {
+  QImage image;
+  int duration_ms{100};
+};
+
+// Writes test-artifacts/<name>.webp: an animated WebP that loops forever, each frame
+// rounded like save_readme_shot, lossy at `quality` (static areas cost nothing: the
+// encoder stores only what changed between frames). Every frame must share one size.
+void save_readme_animation(const std::string& name, const std::vector<ReadmeAnimationFrame>& frames,
+                           int quality = 90);
+
+// The streaming form of save_readme_animation, for long captures: each frame is encoded
+// when the next one arrives (a frame shows until the next frame's time), so memory holds
+// one frame, not the whole capture. finish() writes test-artifacts/<name>.webp.
+class ReadmeAnimationWriter {
+public:
+  ReadmeAnimationWriter(std::string name, QSize size, int quality = 90);
+  ~ReadmeAnimationWriter();
+  ReadmeAnimationWriter(const ReadmeAnimationWriter&) = delete;
+  ReadmeAnimationWriter& operator=(const ReadmeAnimationWriter&) = delete;
+  // `time_ms` is when the frame was captured, counted from any fixed start.
+  void add(const QImage& image, qint64 time_ms);
+  [[nodiscard]] std::size_t frame_count() const;
+  void finish(int last_frame_ms);
+
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
 
 // Scene setup leaves transient status messages ("Folder expanded", tool names);
 // restore the idle text so every shot reads the same.

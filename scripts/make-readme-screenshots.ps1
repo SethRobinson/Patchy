@@ -176,11 +176,13 @@ if ($runOffscreen) {
     $exe = Join-Path $buildDir 'patchy_ui_visual_tests.exe'
     if (-not (Test-Path $exe)) { throw "missing $exe (run without -SkipBuild)" }
     $filter = if ($Scene.StartsWith('shot_readme')) { $Scene } else { "shot_readme_$Scene" }
-    $artifactPattern = "$filter*.png"
+    # Stills are PNG; animated scenes (shot_readme_breakout, shot_readme_web_export_quad) write WebP.
+    $artifactPatterns = @("$filter*.png", "$filter*.webp")
     $artifactDir = Join-Path $buildDir 'test-artifacts'
     if (Test-Path $artifactDir) {
-        Get-ChildItem (Join-Path $artifactDir $artifactPattern) -ErrorAction SilentlyContinue |
-            Remove-Item -Force
+        foreach ($pattern in $artifactPatterns) {
+            Get-ChildItem (Join-Path $artifactDir $pattern) -ErrorAction SilentlyContinue | Remove-Item -Force
+        }
     }
 
     $oldPlatform = $env:QT_QPA_PLATFORM
@@ -200,8 +202,8 @@ if ($runOffscreen) {
         $env:PATCHY_NO_SOUND = $oldSound
     }
 
-    $shots = @(Get-ChildItem (Join-Path $artifactDir $artifactPattern) -ErrorAction SilentlyContinue)
-    if ($shots.Count -eq 0 -and $jsToRun.Count -eq 0) { throw "no $artifactPattern artifacts were produced" }
+    $shots = @($artifactPatterns | ForEach-Object { Get-ChildItem (Join-Path $artifactDir $_) -ErrorAction SilentlyContinue })
+    if ($shots.Count -eq 0 -and $jsToRun.Count -eq 0) { throw "no $($artifactPatterns -join ' or ') artifacts were produced" }
     foreach ($shot in $shots) {
         $name = $shot.Name -replace '^shot_readme_', ''
         if ($retiredScenes -contains [System.IO.Path]::GetFileNameWithoutExtension($name)) { continue }

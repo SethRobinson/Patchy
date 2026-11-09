@@ -66,16 +66,16 @@ Click an image for the full-size capture.
   </tr>
   <tr>
     <td valign="top" width="50%"><a href="docs/images/screenshots/object_select.png"><img src="docs/images/screenshots/object_select.png" width="460" alt="Object Selection tool with a vintage car selected in a busy Havana street from one loose box drag, the rest of the photo muted."></a><br><strong>Select the object, not the box</strong><br>Drag a loose box around anything and Object Selection picks out just the object. Runs on your CPU.</td>
-    <td valign="top" width="50%"><a href="docs/images/screenshots/warp_text.png"><img src="docs/images/screenshots/warp_text.png" width="460" alt="Editable warped text with the Warp Text dialog and the Character and Paragraph panels open, a paragraph with bold, italic, color, underline, strikethrough, superscript, subscript, small caps and mixed fonts, tracked lettering, and vertical Japanese columns."></a><br><strong>Give type its own voice</strong><br>Warped text, mixed fonts and styles in one paragraph (underline, strikethrough, super and subscript, small caps), letter spacing, and vertical Japanese.</td>
+    <td valign="top" width="50%"><a href="docs/images/screenshots/breakout.webp"><img src="docs/images/screenshots/breakout.webp" width="460" alt="Animation: the bundled Breakout script being played on a Patchy document, the ball knocking out bricks while the Layers panel lists the Ball, Paddle, Bricks and Background layers and a small controller window keeps the score."></a><br><strong>Scripts can be games</strong><br>The bundled Breakout plays on a real document: the bricks, paddle and ball are layers you can see in the Layers panel. Scripts are JavaScript, with their own windows, timers and sounds.</td>
   </tr>
   <tr>
     <td valign="top" width="50%"><a href="docs/images/screenshots/plugin_kpt5.png"><img src="docs/images/screenshots/plugin_kpt5.png" width="460" alt="Kai's Power Tools 5 running in its own window over Patchy. Classic 32-bit and 64-bit 8BF filters work on Windows."></a><br><strong>Bring your old plug-ins</strong><br>Kai's Power Tools 5 running in its own window over Patchy. Classic 32-bit and 64-bit 8BF filters work on Windows.</td>
-    <td valign="top" width="50%"><a href="docs/images/screenshots/web_export.png"><img src="docs/images/screenshots/web_export.png" width="460" alt="Export for Web making an animated GIF of San Francisco going from afternoon to blue hour, paused on frame 4 of 8, with a split view comparing the original and the 16-color dithered result and the encoded size of every format."></a><br><strong>Export for the web</strong><br>Compare JPEG, WebP, AVIF, JPEG XL, PNG and GIF by their real encoded sizes, with a split view against the original. Layers can become an animated GIF that plays in the preview.</td>
+    <td valign="top" width="50%"><a href="docs/images/screenshots/web_export_quad.webp"><img src="docs/images/screenshots/web_export_quad.webp" width="460" alt="Animation: Export for Web in its 4-up view making an animated WebP of a San Francisco time-lapse, the original beside WebP at quality 80, 40 and 20, each tagged with its encoded size, all four playing in step."></a><br><strong>Export for the web</strong><br>The 4-up view plays an animated WebP at three qualities beside the original, each with its real encoded size. JPEG, JPEG XL, AVIF, PNG and GIF list their sizes too.</td>
   </tr>
 </table>
 
-[See the full gallery](docs/screenshots.md) for layer styles, vector tools, artboards, the G'MIC
-filter library, Tilt-Shift and other filters, palette mode, Camera Raw, Perspective Planes, scripting, and more.
+[See the full gallery](docs/screenshots.md) for layer styles, vector tools, Warp Text and type, artboards,
+the G'MIC filter library, Tilt-Shift and other filters, palette mode, Camera Raw, Perspective Planes, and more.
 
 ## Features
 
