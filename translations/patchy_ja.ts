@@ -15069,6 +15069,49 @@ Do you want to replace it?</source>
         <source>Symbol font: no installed font has the same symbols</source>
         <translation>記号フォント: 同じ記号を持つフォントがインストールされていません</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>行</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>コンパクトな行: 描画モードと不透明度の行を表示しない</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>行のツールチップを表示</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>ポインターを行に置いたときに、レイヤー名、不透明度、ロックを示すヒント。</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>レイヤーのカラーラベルの表示方法: 行の左端の帯、または行全体の色付け。</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>帯</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>行全体</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>行の色:</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>サムネイルのサイズ:</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>サムネイルの表示:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

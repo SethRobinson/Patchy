@@ -852,7 +852,12 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   // Layers Panel tab: one tickable row per footer button, in footer order. Move Up and Move
   // Down beside the list, or a drag, change the order (GitHub issue 471).
   auto* layers_page = new QWidget(tabs);
-  auto* layers_layout = new QVBoxLayout(layers_page);
+  auto* layers_columns = new QHBoxLayout(layers_page);
+  auto* layers_layout = new QVBoxLayout();
+  layers_columns->addLayout(layers_layout, 1);
+  auto* layer_buttons_label = new QLabel(QObject::tr("Buttons"), layers_page);
+  layer_buttons_label->setFont(heading_font);
+  layers_layout->addWidget(layer_buttons_label);
   auto* layers_hint = new QLabel(QObject::tr("Tick the buttons the Layers panel shows, and drag them or use Move Up "
                                              "and Move Down to set their order. Hidden buttons' commands stay in the "
                                              "menus."),
@@ -916,6 +921,57 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   order_column->addStretch(1);
   layers_row->addLayout(order_column);
   layers_layout->addLayout(layers_row, 1);
+  // The rows (GitHub issue 680): a compact height without the blend mode and opacity line, the
+  // row tooltip, how a color label shows, and the thumbnail size and display the Layers gear's
+  // menu and the thumbnail menus also set.
+  auto* rows_column = new QVBoxLayout();
+  auto* rows_label = new QLabel(QObject::tr("Rows", "Layers panel rows heading"), layers_page);
+  rows_label->setFont(heading_font);
+  rows_column->addWidget(rows_label);
+  auto* compact_rows = new QCheckBox(QObject::tr("Compact rows: no blend mode and opacity line"), layers_page);
+  compact_rows->setObjectName(QStringLiteral("layerRowsCompactCheck"));
+  rows_column->addWidget(compact_rows);
+  auto* row_tooltips = new QCheckBox(QObject::tr("Show row tooltips"), layers_page);
+  row_tooltips->setObjectName(QStringLiteral("layerRowsTooltipsCheck"));
+  row_tooltips->setToolTip(QObject::tr("The tip that names the layer, its opacity and its locks when the pointer "
+                                       "rests on a row."));
+  rows_column->addWidget(row_tooltips);
+  auto* rows_form = new QFormLayout();
+  rows_form->setContentsMargins(0, 4, 0, 0);
+  auto* row_color = new QComboBox(layers_page);
+  row_color->setObjectName(QStringLiteral("layerRowColorCombo"));
+  row_color->setToolTip(QObject::tr("How a layer's color label shows: a strip at the row's left edge, or a tint "
+                                    "over the whole row."));
+  row_color->addItem(QObject::tr("Strip", "layer color label shown as a strip"),
+                     layer_row_color_style_token(LayerRowColorStyle::Strip));
+  row_color->addItem(QObject::tr("Whole row", "layer color label tints the whole row"),
+                     layer_row_color_style_token(LayerRowColorStyle::WholeRow));
+  row_color->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  rows_form->addRow(QObject::tr("Row color:"), row_color);
+  // The thumbnail menus' own entries and translations (MainWindow's Thumbnail Size and
+  // Thumbnail Display submenus).
+  auto* thumbnail_size = new QComboBox(layers_page);
+  thumbnail_size->setObjectName(QStringLiteral("layerThumbnailSizeCombo"));
+  thumbnail_size->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "None"),
+                          layer_thumbnail_size_token(LayerThumbnailSize::None));
+  thumbnail_size->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Small"),
+                          layer_thumbnail_size_token(LayerThumbnailSize::Small));
+  thumbnail_size->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Medium"),
+                          layer_thumbnail_size_token(LayerThumbnailSize::Medium));
+  thumbnail_size->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Large"),
+                          layer_thumbnail_size_token(LayerThumbnailSize::Large));
+  thumbnail_size->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  rows_form->addRow(QObject::tr("Thumbnail size:"), thumbnail_size);
+  auto* thumbnail_display = new QComboBox(layers_page);
+  thumbnail_display->setObjectName(QStringLiteral("layerThumbnailDisplayCombo"));
+  thumbnail_display->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Layer Content"), true);
+  thumbnail_display->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Whole Document"), false);
+  thumbnail_display->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  rows_form->addRow(QObject::tr("Thumbnail display:"), thumbnail_display);
+  rows_column->addLayout(rows_form);
+  rows_column->addStretch(1);
+  layers_columns->addSpacing(12);
+  layers_columns->addLayout(rows_column);
   // GitHub issue 538: named for the panel, as the Layers panel gear's Customize Layers Panel...
   tabs->addTab(layers_page, QObject::tr("Layers Panel"));
 
@@ -1031,6 +1087,11 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     choice.icon_size = toolbar_icon_size_from_token(icon_size->currentData().toString());
     choice.flyout_open_mode = tool_flyout_open_mode_from_token(flyout_open->currentData().toString());
     choice.layer_icon_size = toolbar_icon_size_from_token(layer_icon_size->currentData().toString());
+    choice.layer_rows.compact = compact_rows->isChecked();
+    choice.layer_rows.tooltips = row_tooltips->isChecked();
+    choice.layer_rows.color_style = layer_row_color_style_from_token(row_color->currentData().toString());
+    choice.layer_thumbnail_size = layer_thumbnail_size_from_token(thumbnail_size->currentData().toString());
+    choice.zoom_layer_thumbnails_to_content = thumbnail_display->currentData().toBool();
     return choice;
   };
   const auto refresh_preview = [&] {
@@ -1113,6 +1174,14 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
         std::max(0, flyout_open->findData(tool_flyout_open_mode_token(choice.flyout_open_mode))));
     layer_icon_size->setCurrentIndex(
         std::max(0, layer_icon_size->findData(toolbar_icon_size_token(choice.layer_icon_size))));
+    compact_rows->setChecked(choice.layer_rows.compact);
+    row_tooltips->setChecked(choice.layer_rows.tooltips);
+    row_color->setCurrentIndex(
+        std::max(0, row_color->findData(layer_row_color_style_token(choice.layer_rows.color_style))));
+    thumbnail_size->setCurrentIndex(
+        std::max(0, thumbnail_size->findData(layer_thumbnail_size_token(choice.layer_thumbnail_size))));
+    thumbnail_display->setCurrentIndex(
+        std::max(0, thumbnail_display->findData(choice.zoom_layer_thumbnails_to_content)));
     populating = false;
     refresh_preview();
   };

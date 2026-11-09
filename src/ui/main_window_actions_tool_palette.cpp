@@ -2312,7 +2312,9 @@ void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab, QW
   }
   const auto catalog = tool_palette_catalog();
   const ToolPaletteDialogChoice current{tool_palette_customization_, stored_toolbar_icon_size(),
-                                        tool_flyout_open_mode_, layer_footer_icon_size_};
+                                        tool_flyout_open_mode_, layer_footer_icon_size_,
+                                        layer_row_options_, layer_thumbnail_size_,
+                                        zoom_layer_thumbnails_to_content_};
   // Opened from Preferences, the dialog is its child, so it closes with Preferences
   // (run_non_modal_dialog rejects children when their parent finishes). The footer shows the
   // Layers Panel tab's icon size while it is picked; Cancel puts the old one back.
@@ -2324,6 +2326,11 @@ void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab, QW
     apply_tool_palette_preferences(chosen->icon_size, chosen->flyout_open_mode);
     set_stored_layer_footer_icon_size(chosen->layer_icon_size);
     apply_layer_footer_icon_size(chosen->layer_icon_size);
+    // The Layers rows (GitHub issue 680): the thumbnail settings through the menus' own setters,
+    // so the menus, Preferences and the stored keys stay in step.
+    apply_layer_row_options(chosen->layer_rows);
+    set_layer_thumbnail_size(chosen->layer_thumbnail_size);
+    set_zoom_layer_thumbnails_to_content(chosen->zoom_layer_thumbnails_to_content);
   }
 }
 

@@ -25,6 +25,7 @@
 #include "ui/image_save_options.hpp"
 #include "ui/watermark_settings.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/layer_row_options.hpp"
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
 #include "ui/preferences_themes_page.hpp"
@@ -2548,6 +2549,9 @@ private:
   // content" as two radio actions. The setter saves, syncs both and rebuilds the rows.
   void add_layer_thumbnail_bounds_actions(QMenu* menu);
   void set_zoom_layer_thumbnails_to_content(bool zoom);
+  // Customize Layers Panel's row options (GitHub issue 680; layer_row_options.hpp): stores them
+  // and rebuilds the rows when they changed.
+  void apply_layer_row_options(const LayerRowOptions& options);
   // Ends a thumbnail's own right-click menu (pixel, layer mask and vector mask thumbnails) with the
   // Thumbnail Size and Thumbnail Display submenus, after a separator (#481).
   void add_layer_thumbnail_view_menus(QMenu* menu);
@@ -4495,6 +4499,8 @@ private:
   std::array<QAction*, 4> layer_thumbnail_size_actions_{};
   // layerThumbnailBoundsLayerAction, layerThumbnailBoundsDocumentAction (#481).
   std::array<QAction*, 2> layer_thumbnail_bounds_actions_{};
+  // layersPanel/compactRows, rowTooltips, rowColor (GitHub issue 680). Persisted identifiers.
+  LayerRowOptions layer_row_options_{};
   // The rows were built with the folder-arrow slot reserved (#386 follow-up).
   bool layer_list_arrow_column_{false};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;

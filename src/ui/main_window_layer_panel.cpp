@@ -479,6 +479,79 @@ QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* pare
   return badge;
 }
 
+// The theme role that paints a color label (GitHub issues 244, 635); none for kLayerColorNone.
+QColor ThemePalette::* layer_color_label_role(LayerColorLabel label) {
+  switch (label) {
+    case kLayerColorRed:
+      return &ThemePalette::layer_color_red;
+    case kLayerColorOrange:
+      return &ThemePalette::layer_color_orange;
+    case kLayerColorYellow:
+      return &ThemePalette::layer_color_yellow;
+    case kLayerColorGreen:
+      return &ThemePalette::layer_color_green;
+    case kLayerColorBlue:
+      return &ThemePalette::layer_color_blue;
+    case kLayerColorViolet:
+      return &ThemePalette::layer_color_violet;
+    case kLayerColorGray:
+      return &ThemePalette::layer_color_gray;
+    case kLayerColorSeafoam:
+      return &ThemePalette::layer_color_seafoam;
+    case kLayerColorIndigo:
+      return &ThemePalette::layer_color_indigo;
+    case kLayerColorMagenta:
+      return &ThemePalette::layer_color_magenta;
+    case kLayerColorFuchsia:
+      return &ThemePalette::layer_color_fuchsia;
+    default:
+      return nullptr;
+  }
+}
+
+// Row color "Whole row" (GitHub issue 680): the label's theme color laid thinly over the whole
+// row, under its controls, so text stays readable in Dark and Light. A selected row shows the
+// selection color alone (the 4 px strip still names the label), so selection stays plain. The
+// color is read from theme() when painted, so a scheme change recolors it.
+class LayerRowColorTint final : public QWidget {
+public:
+  // About 22 percent of the label color over the row background.
+  static constexpr int kAlpha = 56;
+
+  LayerRowColorTint(QWidget* row, LayerColorLabel label) : QWidget(row), label_(label) {
+    setObjectName(QStringLiteral("layerRowColorTint"));
+    setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    setFocusPolicy(Qt::NoFocus);
+    setGeometry(row->rect());
+    lower();
+    row->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == parentWidget() && event->type() == QEvent::Resize) {
+      setGeometry(parentWidget()->rect());
+      lower();
+    }
+    return QWidget::eventFilter(watched, event);
+  }
+
+  void paintEvent(QPaintEvent*) override {
+    const auto role = layer_color_label_role(label_);
+    if (role == nullptr || parentWidget() == nullptr || parentWidget()->property("layerRowSelected").toBool()) {
+      return;
+    }
+    auto color = theme().*role;
+    color.setAlpha(kAlpha);
+    QPainter painter(this);
+    // The row's bottom border stays the theme's.
+    painter.fillRect(rect().adjusted(0, 0, 0, -1), color);
+  }
+
+private:
+  LayerColorLabel label_;
+};
+
 // The row's lock badges, one per lock while they fit; a row out of room (every badge at once
 // in a narrow panel, the #494 follow-up) folds them into one padlock whose tooltip lists the
 // locks. The strip's minimum is the folded padlock, so the list sizes rows to fit folded
@@ -1877,7 +1950,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                bool arrow_column = false,
                                std::function<void(LayerId, bool)> set_vector_mask_linked = {},
                                std::function<void()> unlock_background = {}, bool layer_linked = false,
-                               std::function<void(LayerId)> select_linked = {}) {
+                               std::function<void(LayerId)> select_linked = {}, bool compact_row = false,
+                               bool tint_whole_row = false) {
   // One crop per row for the content and Smart Filter mask previews; the layer
   // and vector mask previews frame the mask itself (raster_mask_thumbnail_crop).
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -1898,7 +1972,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
   auto* main_row = new QWidget(row);
   main_row->setObjectName(QStringLiteral("layerMainRow"));
-  main_row->setFixedHeight(layer_main_row_height(thumbnail_size));
+  // Compact rows (GitHub issue 680) drop the details line, so the row can be shorter.
+  main_row->setFixedHeight(layer_main_row_height(thumbnail_size, compact_row));
   main_row->setAutoFillBackground(false);
   if (list_parent != nullptr) {
     main_row->installEventFilter(list_parent);
@@ -1910,6 +1985,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // column alone. Mouse presses pass through to the row.
   if (const auto color = layer.color_label();
       color != kLayerColorNone && color <= kLayerColorLast) {
+    if (tint_whole_row) {
+      new LayerRowColorTint(row, color);
+      // The row's own opaque parts (lock strip, Layer Styles rows) let the tint through (QSS).
+      row->setProperty("layerRowTinted", true);
+    }
     auto* strip = new QWidget(main_row);
     strip->setObjectName(QStringLiteral("layerRowColorStrip"));
     const auto id = layer_color_label_id(color);
@@ -1920,7 +2000,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
 
   auto* layout = new QHBoxLayout(main_row);
-  layout->setContentsMargins(kLayerRowBaseIndent, 4, 8, 4);
+  const int vertical_margin = layer_main_row_vertical_margin(compact_row);
+  layout->setContentsMargins(kLayerRowBaseIndent, vertical_margin, 8, vertical_margin);
   layout->setSpacing(kLayerRowHorizontalSpacing);
 
   auto* visibility = new QToolButton(row);
@@ -2151,10 +2232,18 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (list_parent != nullptr) {
     details->installEventFilter(list_parent);
   }
-  auto* details_row = new QHBoxLayout();
-  details_row->setContentsMargins(0, 0, 0, 0);
-  details_row->setSpacing(3);
-  details_row->addWidget(details, 1, Qt::AlignVCenter);
+  // Compact rows (GitHub issue 680) keep the label, hidden and out of the layout, so
+  // refresh_layer_thumbnails still re-syncs its text. An empty details layout in the text column
+  // would cap the column's maximum width at 0 and spread the row's controls.
+  QHBoxLayout* details_row = nullptr;
+  if (compact_row) {
+    details->hide();
+  } else {
+    details_row = new QHBoxLayout();
+    details_row->setContentsMargins(0, 0, 0, 0);
+    details_row->setSpacing(3);
+    details_row->addWidget(details, 1, Qt::AlignVCenter);
+  }
 
   // The old "fx"/"smart" text badges are icon buttons now: clicking one opens the
   // layer styles dialog / the smart object contents for this row's layer.
@@ -2231,7 +2320,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                      QObject::tr("Linked layer. Click to select the layers linked to it."),
                      std::move(select_linked));
   }
-  text_column->addLayout(details_row);
+  if (details_row != nullptr) {
+    text_column->addLayout(details_row);
+  }
   layout->addLayout(badge_row, 0);
 
   const auto direct_lock_flags = layer_lock_flags(layer);
@@ -4891,6 +4982,10 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
 }
 
 QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
+  // Customize Layers Panel's "Show row tooltips" (GitHub issue 680): off, rows have none.
+  if (!layer_row_options_.tooltips) {
+    return {};
+  }
   const auto& layer = *row.layer;
   const auto effective_lock_flags = row.ancestor_lock_flags | layer_lock_flags(layer);
   // One line for every lock (GitHub issue 483): "Locked: All", or the partial locks joined.
@@ -4959,7 +5054,7 @@ QListWidgetItem* MainWindow::make_layer_list_item(const LayerListRowSpec& row, s
   const auto effects_expanded = session().expanded_layer_effects.contains(layer.id());
   const auto effect_row_count =
       effect_count > 0 ? 1 + (effects_expanded ? static_cast<int>(effect_count) : 0) : 0;
-  item->setSizeHint(QSize(0, layer_main_row_height(layer_thumbnail_size_) +
+  item->setSizeHint(QSize(0, layer_main_row_height(layer_thumbnail_size_, layer_row_options_.compact) +
                                  26 * (smart_filter_row_count + effect_row_count)));
   if (active.has_value() && *active == layer.id()) {
     auto font = item->font();
@@ -5128,7 +5223,9 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
       // A badge click: the row is under the pointer, so the list keeps its scroll (issue 266).
       select_layers_in_layer_list(ids, layer_id, true);
       refresh_options_bar();
-    });
+    },
+                                    layer_row_options_.compact,
+                                    layer_row_options_.color_style == LayerRowColorStyle::WholeRow);
   if (session_layer == layer.id() && layer_is_text(layer)) {
     // The content tile above came without the badge; the tooltip has to agree.
     if (auto* thumbnail = row_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));

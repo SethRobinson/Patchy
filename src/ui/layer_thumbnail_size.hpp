@@ -35,9 +35,18 @@ inline constexpr LayerThumbnailSize kDefaultLayerThumbnailSize = LayerThumbnailS
                                           : layer_thumbnail_tile_size(size);
 }
 
+// The main row's vertical margin above and below its content: 4 px, 2 px in compact rows.
+[[nodiscard]] constexpr int layer_main_row_vertical_margin(bool compact) { return compact ? 2 : 4; }
+
 // The main row's height; Smart Filter and effect rows below it stay 26 px. None and Small keep
-// room for the name and details lines.
-[[nodiscard]] constexpr int layer_main_row_height(LayerThumbnailSize size) {
+// room for the name and details lines. Compact rows (GitHub issue 680) have no details line:
+// the tallest of the 22 px eye and the thumbnail slot (the tile and its 1 px ring) and 2 px
+// above and below.
+[[nodiscard]] constexpr int layer_main_row_height(LayerThumbnailSize size, bool compact = false) {
+  if (compact) {
+    const int slot = layer_mask_thumbnail_tile_size(size) + 2;
+    return (slot > 22 ? slot : 22) + 2 * layer_main_row_vertical_margin(true);
+  }
   switch (size) {
     case LayerThumbnailSize::None:
     case LayerThumbnailSize::Small:

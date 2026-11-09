@@ -3498,6 +3498,7 @@ void MainWindow::load_view_settings() {
           .toBool();
   layer_thumbnail_size_ = layer_thumbnail_size_from_token(
       settings.value(QLatin1String(kLayerThumbnailSizeSettingsKey)).toString());
+  layer_row_options_ = stored_layer_row_options();
   const bool migrate_legacy_guide_default =
       !settings.value(QStringLiteral("view/guideColorDefaultMigrated"), false).toBool();
   if (!view_grid_color_.isValid()) {

@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
+#include <QCheckBox>
 #include <QColor>
 #include <QAbstractItemView>
 #include <QComboBox>
@@ -4859,6 +4860,12 @@ void MainWindow::set_layer_thumbnail_size(LayerThumbnailSize size) {
   layer_thumbnail_size_actions_[static_cast<std::size_t>(size)]->setChecked(true);
   auto settings = app_settings();
   settings.setValue(QLatin1String(kLayerThumbnailSizeSettingsKey), layer_thumbnail_size_token(size));
+  // Customize Layers Panel shows the size too (GitHub issue 680): an open one follows.
+  for (auto* combo : findChildren<QComboBox*>(QStringLiteral("layerThumbnailSizeCombo"))) {
+    if (const int index = combo->findData(layer_thumbnail_size_token(size)); index >= 0) {
+      combo->setCurrentIndex(index);
+    }
+  }
   // The tile size is a shape input the revision-keyed cache does not track (the
   // zoom-to-content preference precedent): drop the pixmaps and rebuild the rows.
   layer_thumbnail_cache_.clear();
@@ -4920,9 +4927,27 @@ void MainWindow::set_zoom_layer_thumbnails_to_content(bool zoom) {
   layer_thumbnail_bounds_actions_[zoom ? 0 : 1]->setChecked(true);
   auto settings = app_settings();
   settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom);
+  // Customize Layers Panel and Preferences show it too (GitHub issue 680): open ones follow.
+  for (auto* combo : findChildren<QComboBox*>(QStringLiteral("layerThumbnailDisplayCombo"))) {
+    combo->setCurrentIndex(std::max(0, combo->findData(zoom)));
+  }
+  for (auto* check : findChildren<QCheckBox*>(QStringLiteral("preferencesZoomLayerThumbnailsCheck"))) {
+    check->setChecked(zoom);
+  }
   // The mode is a shape input the revision-keyed cache does not track; drop the pixmaps and
   // rebuild (the color-scheme precedent).
   layer_thumbnail_cache_.clear();
+  if (has_active_document()) {
+    refresh_layer_list();
+  }
+}
+
+void MainWindow::apply_layer_row_options(const LayerRowOptions& options) {
+  if (options == layer_row_options_) {
+    return;
+  }
+  layer_row_options_ = options;
+  set_stored_layer_row_options(options);
   if (has_active_document()) {
     refresh_layer_list();
   }

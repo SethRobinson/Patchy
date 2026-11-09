@@ -15069,6 +15069,49 @@ Do you want to replace it?</source>
         <source>Symbol font: no installed font has the same symbols</source>
         <translation>符號字型：沒有已安裝的字型包含相同的符號</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>列</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>精簡列：不顯示混合模式和不透明度列</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>顯示列工具提示</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>指標停留在列上時顯示圖層名稱、不透明度和鎖定的提示。</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>圖層顏色標籤的顯示方式：列左邊緣的色條，或為整列著色。</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>色條</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>整列</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>列顏色：</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>縮圖大小：</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>縮圖顯示：</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

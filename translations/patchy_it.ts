@@ -15116,6 +15116,49 @@ Sostituirlo?</translation>
         <source>Symbol font: no installed font has the same symbols</source>
         <translation>Font di simboli: nessun font installato ha gli stessi simboli</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>Righe</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>Righe compatte: senza la riga di metodo di fusione e opacità</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>Mostra i suggerimenti delle righe</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>Il suggerimento con il nome del livello, l&apos;opacità e i blocchi quando il puntatore si ferma su una riga.</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>Come appare l&apos;etichetta colore di un livello: una striscia sul bordo sinistro della riga o una tinta su tutta la riga.</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>Striscia</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>Tutta la riga</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>Colore riga:</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>Dimensione miniature:</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>Visualizzazione miniature:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
