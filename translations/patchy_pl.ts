@@ -17351,6 +17351,78 @@ Czy chcesz go zastąpić?</translation>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>Nie ma okładki do zeskanowania? Pomiń okładkę mierzy książkę na podstawie pierwszych stron, a okładki nie trafią do PDF.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Okładki:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Obie okładki w jednym skanie</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Jedna okładka naraz</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Jedna okładka naraz pasuje do książki zbyt dużej, by leżała otwarta na szybie.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Pokaż:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Skanuj tylną okładkę</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Skanowanie przedniej okładki...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Skanowanie tylnej okładki...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Najpierw zeskanuj okładki</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Zamknij książkę i połóż ją na szybie przednią okładką w dół.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Kliknij Skanuj okładkę, aby zeskanować przednią okładkę.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>W następnym kroku odwróć książkę i zeskanuj tylną okładkę.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>Tylna okładka została zeskanowana ponownie.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>Tylna okładka została zeskanowana.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Sprawdź obrys przedniej okładki. Następnie odwróć książkę, połóż ją tylną okładką w dół na szybie i kliknij Skanuj tylną okładkę.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Sprawdź obrys każdej okładki: przeciągnij jej krawędzie lub całą ramkę. Pokaż wybiera okładkę.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Edycja tylnej okładki: przeciągnij obrys lub kliknij Skanuj okładkę ponownie.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Edycja przedniej okładki: przeciągnij obrys lub kliknij Skanuj okładkę ponownie.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

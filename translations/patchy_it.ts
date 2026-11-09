@@ -17289,6 +17289,78 @@ Sostituirlo?</translation>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>Nessuna copertina da scansionare? Salta copertina misura il libro dalle prime pagine, e le copertine restano fuori dal PDF.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Copertine:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Entrambe le copertine in una scansione</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Una copertina alla volta</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Una copertina alla volta va bene per un libro troppo grande per stare aperto sul vetro.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Mostra:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Scansiona copertina posteriore</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Scansione della copertina anteriore...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Scansione della copertina posteriore...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Prima scansiona le copertine</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Chiudi il libro e appoggialo sul vetro con la copertina anteriore rivolta in giù.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Premi Scansiona copertina per scansionare la copertina anteriore.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>Nel passaggio successivo, gira il libro e scansiona la copertina posteriore.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>La copertina posteriore è stata scansionata di nuovo.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>La copertina posteriore è stata scansionata.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Controlla il contorno della copertina anteriore. Poi gira il libro, appoggia la copertina posteriore rivolta in giù sul vetro e premi Scansiona copertina posteriore.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Controlla il contorno di ogni copertina: trascina i bordi o l'intero riquadro. Mostra sceglie la copertina.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Modifica della copertina posteriore: trascina il contorno o premi Ripeti scansione copertina.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Modifica della copertina anteriore: trascina il contorno o premi Ripeti scansione copertina.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

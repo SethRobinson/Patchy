@@ -17289,6 +17289,78 @@ Do you want to replace it?</source>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>¿No hay cubierta que escanear? Omitir cubierta mide el libro a partir de sus primeras páginas, y las cubiertas quedan fuera del PDF.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Cubiertas:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Ambas cubiertas en un escaneo</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Una cubierta cada vez</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Una cubierta cada vez sirve para un libro demasiado grande para quedar abierto sobre el cristal.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Mostrar:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Escanear cubierta trasera</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Escaneando la cubierta delantera...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Escaneando la cubierta trasera...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Primero escanee las cubiertas</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Cierre el libro y colóquelo sobre el cristal con la cubierta delantera boca abajo.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Pulse Escanear cubierta para escanear la cubierta delantera.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>En el paso siguiente, dé la vuelta al libro y escanee la cubierta trasera.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>La cubierta trasera se escaneó de nuevo.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>La cubierta trasera se escaneó.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Revise el contorno de la cubierta delantera. Luego dé la vuelta al libro, coloque la cubierta trasera boca abajo sobre el cristal y pulse Escanear cubierta trasera.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Revise el contorno de cada cubierta: arrastre sus bordes o todo el recuadro. Mostrar elige la cubierta.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Editando la cubierta trasera: arrastre su contorno o pulse Volver a escanear cubierta.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Editando la cubierta delantera: arrastre su contorno o pulse Volver a escanear cubierta.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

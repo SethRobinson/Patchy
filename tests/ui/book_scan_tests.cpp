@@ -23,8 +23,10 @@
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFile>
+#include <QCheckBox>
 #include <QFileInfo>
 #include <QFontInfo>
+#include <QFontMetrics>
 #include <QImage>
 #include <QImageReader>
 #include <QJsonArray>
@@ -295,6 +297,10 @@ void ui_book_scan_setup_page_guides_the_cover_scan() {
   // Large where it is drawn: the page's sheet, not a setFont the application sheet replaces.
   CHECK(QFontInfo(heading->font()).pixelSize() >= 20);
   CHECK(cover->isVisible() && cover->isEnabled() && cover->isDefault());
+  // The bold label fits its button: it was drawn wider than the size Qt gave the button.
+  QFont bold = cover->font();
+  bold.setBold(true);
+  CHECK(cover->width() >= QFontMetrics(bold).horizontalAdvance(cover->text()) + 2 * 28);
   CHECK(bar->accessibleName() == QStringLiteral("1. Set up and scan the cover"));
   patchy::test::ui::save_widget_artifact("ui_book_scan_setup_dark", dialog);
   // MainWindow re-resolves every window's themed sheets on a scheme change; here the test does.
@@ -315,6 +321,123 @@ void ui_book_scan_setup_page_guides_the_cover_scan() {
   dialog.set_project_folder(project);
   CHECK(guide->isHidden());
   dialog.reject();
+}
+
+// Covers one at a time (a book too large to lie open on the glass): the setup guide shows
+// the two-pane picture and its steps, the cover step asks for the back cover after the
+// front, each cover is its own page, and the choice is kept with the book.
+void ui_book_scan_covers_one_at_a_time() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_separate_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_separate_project")) + QStringLiteral("/book");
+  // The closed book is 1.2 x 1.6 inches, like one page of the test spreads.
+  QStringList files;
+  files << write_bed(inputs, QStringLiteral("front.png"), 900, 600, {420.0, 300.0, 360.0, 480.0, 0.0}, false, 0);
+  files << write_bed(inputs, QStringLiteral("back.png"), 900, 600, {480.0, 290.0, 360.0, 480.0, 0.0}, false, 0);
+  files << write_book_inputs(inputs, 2).mid(1);
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  auto settings = patchy::ui::app_settings();
+  const QVariant entry_style = settings.value(QStringLiteral("bookScan/coverStyle"));
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.set_title(QStringLiteral("Atlas"));
+  auto* style = dialog.findChild<QComboBox*>(QStringLiteral("bookScanCoverStyleCombo"));
+  auto* heading = dialog.findChild<QLabel*>(QStringLiteral("bookScanGuideHeading"));
+  CHECK(style != nullptr && heading != nullptr);
+  if (style == nullptr || heading == nullptr) {
+    return;
+  }
+  style->setCurrentIndex(1);  // One cover at a time
+  CHECK(dialog.project().cover_style == patchy::ui::BookCoverStyle::Separate);
+  CHECK(heading->text() == QStringLiteral("Scan the covers first"));
+  QApplication::processEvents();
+  patchy::test::ui::save_widget_artifact("ui_book_scan_separate_setup", dialog);
+
+  // The front cover, then the cover step asks for the back cover.
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.step() == patchy::ui::BookScanDialog::Step::Cover);
+  auto* back_button = dialog.findChild<QPushButton*>(QStringLiteral("bookScanBackCoverButton"));
+  auto* side = dialog.findChild<QComboBox*>(QStringLiteral("bookScanCoverSideCombo"));
+  auto* hint = dialog.findChild<QLabel*>(QStringLiteral("bookScanCoverHint"));
+  auto* covers = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanCoversCheck"));
+  CHECK(back_button != nullptr && side != nullptr && hint != nullptr && covers != nullptr);
+  if (back_button == nullptr || side == nullptr || hint == nullptr || covers == nullptr || !dialog.project().cover) {
+    return;
+  }
+  CHECK(!dialog.project().back_cover.has_value());
+  CHECK(back_button->isVisible() && hint->text().contains(QStringLiteral("Scan Back Cover")));
+  // One cover does not show where the open book lies: the pages scan the whole glass.
+  if (auto* area = dialog.findChild<QComboBox*>(QStringLiteral("bookScanAreaCombo"))) {
+    CHECK(!area->isEnabled() && area->currentIndex() == 1);
+  }
+  CHECK(!dialog.project().book_area_inches.has_value());
+  const auto& front = dialog.project().cover->layout.outline;
+  CHECK(std::abs(front.width - 360.0) < 10.0 && std::abs(front.height - 480.0) < 10.0);
+  patchy::test::ui::save_widget_artifact("ui_book_scan_separate_front", dialog);
+  dialog.start_back_cover_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.project().back_cover.has_value());
+  CHECK(dialog.back_cover_shown() && side->isVisible() && side->currentIndex() == 1);
+  CHECK(!back_button->isVisible());
+  if (dialog.project().back_cover) {
+    CHECK(dialog.project().back_cover->file == QStringLiteral("scans/back-cover.png"));
+    CHECK(std::abs(dialog.project().back_cover->layout.outline.center_x - 480.0) < 6.0);
+  }
+  patchy::test::ui::save_widget_artifact("ui_book_scan_separate_back", dialog);
+  // The cover page size is one cover, not half of it.
+  const auto cover_size = patchy::ui::book_cover_page_size(dialog.project());
+  CHECK(cover_size && std::abs(cover_size->width - 1.2) < 0.05 && std::abs(cover_size->height - 1.6) < 0.05);
+  side->setCurrentIndex(0);
+  CHECK(!dialog.back_cover_shown());
+  covers->setChecked(true);
+  if (auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"))) {
+    resolution->setCurrentIndex(resolution->findData(kDpi));
+  }
+
+  dialog.start_page_scanning();
+  for (int i = 0; i < 2; ++i) {
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+  }
+  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 2U);
+  const auto order = patchy::ui::book_page_order(dialog.project());
+  CHECK(order.size() == 6U);
+  if (order.size() == 6U) {
+    CHECK(order.front().kind == patchy::ui::BookPageRef::Kind::FrontCover);
+    CHECK(order.back().kind == patchy::ui::BookPageRef::Kind::BackCover);
+    const patchy::BookPageSize size = patchy::ui::resolved_page_size(dialog.project());
+    const auto front_source = patchy::ui::book_page_source(dialog.project(), order.front(), size);
+    const auto back_source = patchy::ui::book_page_source(dialog.project(), order.back(), size);
+    CHECK(front_source && front_source->file == QStringLiteral("scans/cover.png"));
+    CHECK(back_source && back_source->file == QStringLiteral("scans/back-cover.png"));
+  }
+  // Each cover is picked on its own in the scanning step's strip.
+  dialog.show_back_cover(true);
+  CHECK(dialog.cover_selected() && dialog.back_cover_shown());
+  auto* strip = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPageStrip"));
+  CHECK(strip != nullptr && strip->count() == 6);
+  if (strip != nullptr && strip->count() == 6) {
+    CHECK(strip->item(5)->text() == QStringLiteral("Back cover") && strip->item(5)->isSelected());
+    CHECK(!strip->item(0)->isSelected());
+  }
+  patchy::test::ui::save_widget_artifact("ui_book_scan_separate_scanning", dialog);
+  dialog.back_to_next_pages();
+  dialog.finish_scanning();
+  const QString pdf_path = QDir(project).filePath(QStringLiteral("atlas.pdf"));
+  CHECK(dialog.export_pdf(pdf_path, false));
+  CHECK(media_boxes(read_file(pdf_path)).size() == 6);
+  // The style and the back cover are kept with the book.
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved && saved->cover_style == patchy::ui::BookCoverStyle::Separate && saved->back_cover.has_value());
+  dialog.reject();
+  if (entry_style.isValid()) {
+    settings.setValue(QStringLiteral("bookScan/coverStyle"), entry_style);
+  } else {
+    settings.remove(QStringLiteral("bookScan/coverStyle"));
+  }
 }
 
 QStringList turned_inputs(const QStringList& files);
@@ -1376,6 +1499,7 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_cancel_shows_feedback", ui_book_scan_cancel_shows_feedback},
       {"ui_book_scan_skip_cover_sets_top_of_book", ui_book_scan_skip_cover_sets_top_of_book},
       {"ui_book_scan_setup_page_guides_the_cover_scan", ui_book_scan_setup_page_guides_the_cover_scan},
+      {"ui_book_scan_covers_one_at_a_time", ui_book_scan_covers_one_at_a_time},
       {"ui_book_scan_full_flow_exports_uniform_pages", ui_book_scan_full_flow_exports_uniform_pages},
       {"ui_book_scan_black_and_white_and_script_export", ui_book_scan_black_and_white_and_script_export},
       {"ui_book_scan_resume_and_rescan", ui_book_scan_resume_and_rescan},

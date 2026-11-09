@@ -17227,6 +17227,78 @@ Do you want to replace it?</source>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>沒有封面要掃描？「略過封面」會根據最初幾頁測量書本，PDF 中不包含封面。</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>封面：</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>一次掃描兩面封面</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>一次掃描一面</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>一次掃描一面適合打開後放不下玻璃的大書。</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>顯示：</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>掃描封底</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>正在掃描封面...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>正在掃描封底...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>先掃描封面和封底</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>闔上書本，封面朝下放在玻璃上。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>按「掃描封面」掃描封面。</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>下一步中，把書翻過來掃描封底。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>已重新掃描封底。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>已掃描封底。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>檢查封面的輪廓。然後把書翻過來，封底朝下放在玻璃上，按「掃描封底」。</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>檢查每面封面的輪廓：拖曳邊緣或整個框。用「顯示」選擇要看的一面。</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>正在編輯封底：拖曳輪廓，或按「重新掃描封面」。</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>正在編輯封面：拖曳輪廓，或按「重新掃描封面」。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

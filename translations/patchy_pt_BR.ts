@@ -17289,6 +17289,78 @@ Deseja substituí-lo?</translation>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>Sem capa para digitalizar? Pular capa mede o livro pelas primeiras páginas, e as capas ficam fora do PDF.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Capas:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>As duas capas em uma digitalização</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Uma capa de cada vez</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Uma capa de cada vez serve para um livro grande demais para ficar aberto no vidro.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Mostrar:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Digitalizar contracapa</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Digitalizando a capa...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Digitalizando a contracapa...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Digitalize as capas primeiro</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Feche o livro e coloque-o no vidro com a capa virada para baixo.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Clique em Digitalizar capa para digitalizar a capa.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>Na próxima etapa, vire o livro e digitalize a contracapa.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>A contracapa foi digitalizada novamente.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>A contracapa foi digitalizada.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Confira o contorno da capa. Depois vire o livro, coloque a contracapa virada para baixo no vidro e clique em Digitalizar contracapa.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Confira o contorno de cada capa: arraste as bordas ou a caixa inteira. Mostrar escolhe a capa.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Editando a contracapa: arraste o contorno ou clique em Digitalizar capa novamente.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Editando a capa: arraste o contorno ou clique em Digitalizar capa novamente.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

@@ -17227,6 +17227,78 @@ Do you want to replace it?</source>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>表紙をスキャンしない場合は「表紙をスキップ」で最初のページから大きさを測ります。表紙は PDF に入りません。</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>表紙:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>表裏を 1 回でスキャン</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>表裏を 1 枚ずつ</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>1 枚ずつは、開くとガラス面に収まらない大きな本に向いています。</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>表示:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>裏表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>表表紙をスキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>裏表紙をスキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>まず表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>本を閉じ、表表紙を下にしてガラス面に置きます。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>「表紙をスキャン」を押して表表紙をスキャンします。</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>次の手順で本を裏返し、裏表紙をスキャンします。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>裏表紙を再スキャンしました。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>裏表紙をスキャンしました。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>表表紙の輪郭を確認します。次に本を裏返し、裏表紙を下にしてガラス面に置き、「裏表紙をスキャン」を押します。</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>各表紙の輪郭を確認します。辺または枠全体をドラッグします。「表示」で表紙を選びます。</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>裏表紙を編集中: 輪郭をドラッグするか、「表紙を再スキャン」を押します。</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>表表紙を編集中: 輪郭をドラッグするか、「表紙を再スキャン」を押します。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

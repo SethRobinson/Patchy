@@ -17227,6 +17227,78 @@ Do you want to replace it?</source>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>스캔할 표지가 없나요? 표지 건너뛰기는 첫 페이지로 책 크기를 재며, 표지는 PDF에 들어가지 않습니다.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>표지:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>앞뒤 표지를 한 번에 스캔</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>표지를 한 장씩</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>표지를 한 장씩 스캔하면 펼쳐서 유리에 올릴 수 없는 큰 책에 좋습니다.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>표시:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>뒤표지 스캔</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>앞표지를 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>뒤표지를 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>먼저 표지를 스캔하세요</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>책을 덮고 앞표지가 아래로 가게 유리 위에 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>표지 스캔을 눌러 앞표지를 스캔합니다.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>다음 단계에서 책을 뒤집어 뒤표지를 스캔합니다.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>뒤표지를 다시 스캔했습니다.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>뒤표지를 스캔했습니다.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>앞표지의 윤곽을 확인합니다. 그런 다음 책을 뒤집어 뒤표지가 아래로 가게 유리 위에 놓고 뒤표지 스캔을 누릅니다.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>각 표지의 윤곽을 확인합니다. 가장자리나 상자 전체를 끕니다. 표시에서 표지를 고릅니다.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>뒤표지 편집 중: 윤곽을 끌거나 표지 다시 스캔을 누릅니다.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>앞표지 편집 중: 윤곽을 끌거나 표지 다시 스캔을 누릅니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

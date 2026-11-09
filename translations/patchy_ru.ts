@@ -17351,6 +17351,78 @@ Do you want to replace it?</source>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>Нет обложки для сканирования? «Пропустить обложку» измеряет книгу по первым страницам, а обложки не попадут в PDF.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Обложки:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Обе обложки одним сканом</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>По одной обложке</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>По одной обложке подходит для книги, которая в раскрытом виде не помещается на стекле.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Показать:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Сканировать заднюю обложку</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Сканирование передней обложки...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Сканирование задней обложки...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Сначала отсканируйте обложки</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Закройте книгу и положите её на стекло передней обложкой вниз.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Нажмите «Сканировать обложку», чтобы отсканировать переднюю обложку.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>На следующем шаге переверните книгу и отсканируйте заднюю обложку.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>Задняя обложка отсканирована повторно.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>Задняя обложка отсканирована.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Проверьте контур передней обложки. Затем переверните книгу, положите её задней обложкой вниз на стекло и нажмите «Сканировать заднюю обложку».</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Проверьте контур каждой обложки: перетащите края или всю рамку. «Показать» выбирает обложку.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Правка задней обложки: перетащите контур или нажмите «Пересканировать обложку».</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Правка передней обложки: перетащите контур или нажмите «Пересканировать обложку».</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

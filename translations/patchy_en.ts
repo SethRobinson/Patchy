@@ -17271,6 +17271,78 @@ Do you want to replace it?</source>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

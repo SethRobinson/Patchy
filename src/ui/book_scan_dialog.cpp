@@ -156,6 +156,9 @@ void delete_book_project_files(const BookProject& project, bool remove_folder) {
   if (project.cover) {
     remove_scan(project.cover->file);
   }
+  if (project.back_cover) {
+    remove_scan(project.back_cover->file);
+  }
   for (const auto& scan : project.scans) {
     remove_scan(scan.file);
   }
@@ -712,10 +715,10 @@ private:
   int current_{0};
 };
 
-namespace {
-
-// How the open book lies on the glass for the cover scan, as the scanner sees it: back
-// cover, spine and front cover side by side, with the scan light passing under them.
+// How the book lies on the glass for the cover scan, as the scanner sees it. One scan: the
+// open book's back cover, spine and front cover side by side. One cover at a time: two
+// panes, the closed book front cover down, then turned over for the back cover. The scan
+// light passes under the glass.
 class BookPlacementPicture final : public QWidget {
 public:
   BookPlacementPicture(QString back, QString spine, QString front, QWidget* parent)
@@ -724,43 +727,69 @@ public:
     setFixedSize(280, 196);
   }
 
+  void set_style(BookCoverStyle style) {
+    style_ = style;
+    update();
+  }
+
 protected:
   void paintEvent(QPaintEvent* /*event*/) override {
-    const ThemePalette& colors = theme();
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     const double label_height = QFontMetricsF(font()).height() + 6.0;
-    const QRectF glass = QRectF(rect()).adjusted(4.0, 4.0, -4.0, -4.0 - label_height);
-    painter.setPen(QPen(colors.panel_inset_border, 1.5));
-    painter.setBrush(colors.panel_inset_bg);
-    painter.drawRoundedRect(glass, 8.0, 8.0);
+    const QRectF area = QRectF(rect()).adjusted(4.0, 4.0, -4.0, -4.0 - label_height);
+    if (style_ == BookCoverStyle::Separate) {
+      const double gap = 26.0;
+      const double pane_width = (area.width() - gap) / 2.0;
+      const QRectF first(area.left(), area.top(), pane_width, area.height());
+      const QRectF second(first.right() + gap, area.top(), pane_width, area.height());
+      paint_closed_book(painter, first, front_, true, 1);
+      paint_closed_book(painter, second, back_, false, 2);
+      // "Turn the book over" between the panes.
+      const ThemePalette& colors = theme();
+      const QPointF mid(first.right() + gap / 2.0, area.center().y());
+      painter.setPen(QPen(colors.accent_bright, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      painter.setBrush(Qt::NoBrush);
+      painter.drawLine(mid + QPointF(-7.0, 0.0), mid + QPointF(6.0, 0.0));
+      painter.drawLine(mid + QPointF(1.5, -4.5), mid + QPointF(6.0, 0.0));
+      painter.drawLine(mid + QPointF(1.5, 4.5), mid + QPointF(6.0, 0.0));
+      return;
+    }
+    paint_glass(painter, area);
+    const ThemePalette& colors = theme();
     // The open book: two covers and the spine between them.
-    const QRectF book(glass.center().x() - glass.width() * 0.4, glass.center().y() - glass.height() * 0.36,
-                      glass.width() * 0.8, glass.height() * 0.72);
+    const QRectF book(area.center().x() - area.width() * 0.4, area.center().y() - area.height() * 0.36,
+                      area.width() * 0.8, area.height() * 0.72);
     const double spine_width = book.width() * 0.08;
     const double cover_width = (book.width() - spine_width) / 2.0;
     const QRectF back(book.left(), book.top(), cover_width, book.height());
     const QRectF spine(back.right(), book.top(), spine_width, book.height());
     const QRectF front(spine.right(), book.top(), cover_width, book.height());
+    paint_cover(painter, back, back_, false);
+    paint_cover(painter, front, front_, true);
     painter.setPen(QPen(colors.accent_bright, 1.5));
-    painter.setBrush(colors.accent);
-    painter.drawRoundedRect(back, 3.0, 3.0);
-    painter.drawRoundedRect(front, 3.0, 3.0);
     painter.setBrush(colors.accent_bright);
     painter.drawRect(spine);
-    // A title on the front cover, so the picture reads as a book.
-    QColor title = colors.text_on_accent;
-    title.setAlphaF(0.55F);
-    painter.setPen(QPen(title, 3.0, Qt::SolidLine, Qt::RoundCap));
-    const double inset = front.width() * 0.2;
-    painter.drawLine(QPointF(front.left() + inset, front.top() + front.height() * 0.2),
-                     QPointF(front.right() - inset, front.top() + front.height() * 0.2));
-    painter.drawLine(QPointF(front.left() + inset * 1.5, front.top() + front.height() * 0.3),
-                     QPointF(front.right() - inset * 1.5, front.top() + front.height() * 0.3));
-    // The scan light passing under the glass.
+    paint_scan_light(painter, area);
+    // The spine named under the glass.
+    painter.setFont(font());
+    painter.setPen(QPen(colors.text_secondary, 1.0));
+    painter.drawLine(QPointF(spine.center().x(), book.bottom() + 2.0), QPointF(spine.center().x(), area.bottom() + 3.0));
+    painter.drawText(QRectF(0.0, area.bottom() + 4.0, width(), label_height), Qt::AlignHCenter | Qt::AlignTop, spine_);
+  }
+
+private:
+  static void paint_glass(QPainter& painter, const QRectF& glass) {
+    const ThemePalette& colors = theme();
+    painter.setPen(QPen(colors.panel_inset_border, 1.5));
+    painter.setBrush(colors.panel_inset_bg);
+    painter.drawRoundedRect(glass, 8.0, 8.0);
+  }
+
+  static void paint_scan_light(QPainter& painter, const QRectF& glass) {
     const double light_x = glass.left() + glass.width() * 0.16;
     QLinearGradient gradient(light_x - 14.0, 0.0, light_x + 14.0, 0.0);
-    QColor glow = colors.accent_bright;
+    QColor glow = theme().accent_bright;
     glow.setAlphaF(0.0F);
     gradient.setColorAt(0.0, glow);
     glow.setAlphaF(0.5F);
@@ -770,26 +799,60 @@ protected:
     painter.setPen(Qt::NoPen);
     painter.setBrush(gradient);
     painter.drawRect(QRectF(light_x - 14.0, glass.top() + 1.0, 28.0, glass.height() - 2.0));
-    // The covers named on them, the spine named under the glass.
+  }
+
+  // One cover, named on it; the front cover carries a title so the picture reads as a book.
+  void paint_cover(QPainter& painter, const QRectF& cover, const QString& name, bool front) const {
+    const ThemePalette& colors = theme();
+    painter.setPen(QPen(colors.accent_bright, 1.5));
+    painter.setBrush(colors.accent);
+    painter.drawRoundedRect(cover, 3.0, 3.0);
+    if (front) {
+      QColor title = colors.text_on_accent;
+      title.setAlphaF(0.55F);
+      painter.setPen(QPen(title, 3.0, Qt::SolidLine, Qt::RoundCap));
+      const double inset = cover.width() * 0.2;
+      painter.drawLine(QPointF(cover.left() + inset, cover.top() + cover.height() * 0.2),
+                       QPointF(cover.right() - inset, cover.top() + cover.height() * 0.2));
+      painter.drawLine(QPointF(cover.left() + inset * 1.5, cover.top() + cover.height() * 0.3),
+                       QPointF(cover.right() - inset * 1.5, cover.top() + cover.height() * 0.3));
+    }
     QFont label_font = font();
     label_font.setBold(true);
     painter.setFont(label_font);
     painter.setPen(colors.text_on_accent);
-    painter.drawText(back.adjusted(4.0, 0.0, -4.0, 0.0), Qt::AlignCenter | Qt::TextWordWrap, back_);
-    painter.drawText(front.adjusted(4.0, front.height() * 0.3, -4.0, 0.0), Qt::AlignCenter | Qt::TextWordWrap, front_);
-    painter.setFont(font());
-    painter.setPen(QPen(colors.text_secondary, 1.0));
-    painter.drawLine(QPointF(spine.center().x(), book.bottom() + 2.0), QPointF(spine.center().x(), glass.bottom() + 3.0));
-    painter.drawText(QRectF(0.0, glass.bottom() + 4.0, width(), label_height), Qt::AlignHCenter | Qt::AlignTop, spine_);
+    painter.drawText(cover.adjusted(4.0, front ? cover.height() * 0.3 : 0.0, -4.0, 0.0),
+                     Qt::AlignCenter | Qt::TextWordWrap, name);
   }
 
-private:
+  // A pane of glass with the closed book on it, one cover down, numbered under the pane.
+  void paint_closed_book(QPainter& painter, const QRectF& glass, const QString& name, bool front, int number) const {
+    paint_glass(painter, glass);
+    const QRectF cover(glass.center().x() - glass.width() * 0.32, glass.center().y() - glass.height() * 0.36,
+                       glass.width() * 0.64, glass.height() * 0.72);
+    paint_cover(painter, cover, name, front);
+    // The spine along the cover's bound edge, as in the open book seen from below: left of
+    // the front cover, right of the back cover.
+    const ThemePalette& colors = theme();
+    const double spine_width = cover.width() * 0.1;
+    painter.setPen(QPen(colors.accent_bright, 1.5));
+    painter.setBrush(colors.accent_bright);
+    painter.drawRect(front ? QRectF(cover.left(), cover.top(), spine_width, cover.height())
+                           : QRectF(cover.right() - spine_width, cover.top(), spine_width, cover.height()));
+    paint_scan_light(painter, glass);
+    QFont number_font = font();
+    number_font.setBold(true);
+    painter.setFont(number_font);
+    painter.setPen(colors.text_secondary);
+    painter.drawText(QRectF(glass.left(), glass.bottom() + 4.0, glass.width(), height() - glass.bottom() - 4.0),
+                     Qt::AlignHCenter | Qt::AlignTop, QString::number(number));
+  }
+
   QString back_;
   QString spine_;
   QString front_;
+  BookCoverStyle style_{BookCoverStyle::Spread};
 };
-
-}  // namespace
 
 BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   setObjectName(QStringLiteral("bookScanDialog"));
@@ -807,6 +870,9 @@ BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   project_.include_covers = settings.value(QStringLiteral("bookScan/includeCovers"), true).toBool();
   project_.scan_book_area = settings.value(QStringLiteral("bookScan/scanArea")).toString() != QLatin1String("glass");
   project_.device_id = settings.value(QStringLiteral("bookScan/deviceId")).toString();
+  project_.cover_style = settings.value(QStringLiteral("bookScan/coverStyle")).toString() == QLatin1String("separate")
+                             ? BookCoverStyle::Separate
+                             : BookCoverStyle::Spread;
   session_ = create_scanner_session(this);
 
   auto* root = new QVBoxLayout(this);
@@ -910,39 +976,54 @@ void BookScanDialog::build_setup_page() {
   auto* guide_layout = new QHBoxLayout(guide);
   guide_layout->setContentsMargins(18, 18, 18, 18);
   guide_layout->setSpacing(22);
-  guide_layout->addWidget(new BookPlacementPicture(tr("Back cover"), tr("Spine"), tr("Front cover"), guide), 0,
-                          Qt::AlignTop);
+  placement_picture_ = new BookPlacementPicture(tr("Back cover"), tr("Spine"), tr("Front cover"), guide);
+  guide_layout->addWidget(placement_picture_, 0, Qt::AlignTop);
   auto* guide_text = new QVBoxLayout;
   guide_text->setSpacing(10);
   // Text sizes live in the page's sheet below: the application sheet sets label fonts, which
-  // a setFont would lose to.
-  auto* heading = new QLabel(tr("Scan the cover first"), guide);
-  heading->setObjectName(QStringLiteral("bookScanGuideHeading"));
-  guide_text->addWidget(heading);
-  const QStringList steps{tr("Open the book and lay it face down on the glass."),
-                          tr("Fit the back cover, the spine and the front cover all on the glass."),
-                          tr("Press Scan Cover. Patchy measures the book from this scan.")};
-  for (qsizetype i = 0; i < steps.size(); ++i) {
+  // a setFont would lose to. The texts follow the cover style (update_setup_guide).
+  guide_heading_ = new QLabel(guide);
+  guide_heading_->setObjectName(QStringLiteral("bookScanGuideHeading"));
+  guide_text->addWidget(guide_heading_);
+  auto* style_row = new QHBoxLayout;
+  style_row->setSpacing(8);
+  auto* style_label = new QLabel(tr("Covers:"), guide);
+  cover_style_combo_ = new QComboBox(guide);
+  cover_style_combo_->setObjectName(QStringLiteral("bookScanCoverStyleCombo"));
+  cover_style_combo_->addItem(tr("Both covers in one scan"), QStringLiteral("spread"));
+  cover_style_combo_->addItem(tr("One cover at a time"), QStringLiteral("separate"));
+  cover_style_combo_->setToolTip(tr("One cover at a time suits a book too large to lie open on the glass."));
+  style_row->addWidget(style_label);
+  style_row->addWidget(cover_style_combo_);
+  style_row->addStretch(1);
+  guide_text->addLayout(style_row);
+  for (int i = 0; i < 3; ++i) {
     auto* row = new QHBoxLayout;
     row->setSpacing(10);
     auto* badge = new QLabel(QString::number(i + 1), guide);
     badge->setProperty("bookScanStepBadge", true);
     badge->setAlignment(Qt::AlignCenter);
-    auto* text = new QLabel(steps[i], guide);
+    auto* text = new QLabel(guide);
     text->setProperty("bookScanStepText", true);
     text->setWordWrap(true);
     row->addWidget(badge, 0, Qt::AlignTop);
     row->addWidget(text, 1);
     guide_text->addLayout(row);
+    guide_steps_.push_back(text);
   }
-  auto* hint = new QLabel(tr("No cover to scan? Skip Cover measures the book from its first pages instead, and the "
-                             "covers are left out of the PDF."),
-                          guide);
-  hint->setObjectName(QStringLiteral("bookScanGuideHint"));
-  hint->setWordWrap(true);
+  guide_hint_ = new QLabel(tr("No cover to scan? Skip Cover measures the book from its first pages instead, and the "
+                              "covers are left out of the PDF."),
+                           guide);
+  guide_hint_->setObjectName(QStringLiteral("bookScanGuideHint"));
+  guide_hint_->setWordWrap(true);
   guide_text->addSpacing(4);
-  guide_text->addWidget(hint);
+  guide_text->addWidget(guide_hint_);
   guide_text->addStretch(1);
+  cover_style_combo_->setCurrentIndex(separate_covers() ? 1 : 0);
+  update_setup_guide();
+  connect(cover_style_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    set_cover_style(index == 1 ? BookCoverStyle::Separate : BookCoverStyle::Spread);
+  });
   guide_layout->addLayout(guide_text, 1);
   setup_instructions_ = guide;
   layout->addWidget(guide);
@@ -968,7 +1049,7 @@ void BookScanDialog::build_setup_page() {
   layout->addLayout(buttons);
   stack_->addWidget(page);
   // The guide card, the step numbers, the folder note and a larger primary button. Only
-  // enabled buttons get the primary look: the application sheet styles disabled ones.
+  // enabled buttons get the primary colors: the application sheet styles disabled ones.
   append_themed_style(*page, ThemedQss(QStringLiteral(R"(
     QFrame#bookScanSetupGuide {
       background: @panel_card_bg;
@@ -1011,18 +1092,22 @@ void BookScanDialog::build_setup_page() {
       border-radius: 4px;
       padding: 5px 9px;
     }
-    QPushButton#bookScanCoverButton,
-    QPushButton#bookScanContinueButton,
     QPushButton#bookScanSkipCoverButton {
       min-height: 28px;
       padding: 4px 18px;
+    }
+    /* Weight and padding in the state-free rule: the button is sized from it, so a bold
+       label set only on :enabled was drawn wider than its button and clipped. */
+    QPushButton#bookScanCoverButton,
+    QPushButton#bookScanContinueButton {
+      min-height: 28px;
+      padding: 4px 28px;
+      font-weight: 700;
     }
     QPushButton#bookScanCoverButton:enabled,
     QPushButton#bookScanContinueButton:enabled {
       background: @primary_bg;
       border: 1px solid @primary_border;
-      font-weight: 700;
-      padding: 4px 28px;
     }
     QPushButton#bookScanCoverButton:enabled:hover,
     QPushButton#bookScanContinueButton:enabled:hover {
@@ -1084,10 +1169,18 @@ void BookScanDialog::build_cover_page() {
   cover_preview_->set_kind(BookScanPreview::Kind::Cover);
   layout->addWidget(cover_preview_, 1);
   auto* side = new QVBoxLayout;
-  auto* hint = new QLabel(tr("Check the outline of the book and drag the two spine lines onto the spine's edges."), page);
-  hint->setWordWrap(true);
-  side->addWidget(hint);
+  // Its text follows the cover style (update_cover_style_controls).
+  cover_hint_ = new QLabel(page);
+  cover_hint_->setObjectName(QStringLiteral("bookScanCoverHint"));
+  cover_hint_->setWordWrap(true);
+  side->addWidget(cover_hint_);
   auto* form = new QFormLayout;
+  cover_form_ = form;
+  // Covers one at a time: which cover the editor shows.
+  cover_side_combo_ = new QComboBox(page);
+  cover_side_combo_->setObjectName(QStringLiteral("bookScanCoverSideCombo"));
+  cover_side_combo_->addItems({tr("Front cover"), tr("Back cover")});
+  form->addRow(tr("Show:"), cover_side_combo_);
   up_combo_ = new QComboBox(page);
   up_combo_->setObjectName(QStringLiteral("bookScanUpCombo"));
   up_combo_->addItems({tr("Up"), tr("Right"), tr("Down"), tr("Left")});
@@ -1138,26 +1231,39 @@ void BookScanDialog::build_cover_page() {
   auto* rescan = new QPushButton(tr("Rescan Cover"), page);
   rescan->setObjectName(QStringLiteral("bookScanRescanCoverButton"));
   rescan->setAutoDefault(false);
+  back_cover_button_ = new QPushButton(tr("Scan Back Cover"), page);
+  back_cover_button_->setObjectName(QStringLiteral("bookScanBackCoverButton"));
+  back_cover_button_->setVisible(false);
   auto* start = new QPushButton(tr("Start Scanning Pages"), page);
   start->setObjectName(QStringLiteral("bookScanStartPagesButton"));
   start->setDefault(true);
   buttons->addWidget(rescan);
   buttons->addStretch(1);
+  buttons->addWidget(back_cover_button_);
   buttons->addWidget(start);
   side->addLayout(buttons);
   layout->addLayout(side);
   stack_->addWidget(page);
 
   cover_preview_->on_edited = [this] {
-    if (!project_.cover) {
+    BookCover* cover = shown_cover();
+    if (cover == nullptr) {
       return;
     }
-    project_.cover->layout.outline = cover_preview_->box();
-    project_.cover->layout.spine_left = cover_preview_->line_a();
-    project_.cover->layout.spine_right = cover_preview_->line_b();
-    project_.cover->user_edited = true;
+    cover->layout.outline = cover_preview_->box();
+    if (!separate_covers()) {
+      cover->layout.spine_left = cover_preview_->line_a();
+      cover->layout.spine_right = cover_preview_->line_b();
+    }
+    cover->user_edited = true;
     cover_settings_changed();
   };
+  connect(cover_side_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (!refreshing_) {
+      show_back_cover(index == 1);
+    }
+  });
+  connect(back_cover_button_, &QPushButton::clicked, this, &BookScanDialog::start_back_cover_scan);
   connect(up_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (refreshing_) {
       return;
@@ -1174,10 +1280,11 @@ void BookScanDialog::build_cover_page() {
     }
   });
   connect(cover_tilt_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-    if (!refreshing_ && project_.cover) {
-      project_.cover->layout.outline.angle_degrees = value;
-      project_.cover->user_edited = true;
-      cover_preview_->set_box(project_.cover->layout.outline);
+    BookCover* cover = shown_cover();
+    if (!refreshing_ && cover != nullptr) {
+      cover->layout.outline.angle_degrees = value;
+      cover->user_edited = true;
+      cover_preview_->set_box(cover->layout.outline);
       cover_settings_changed();
     }
   });
@@ -1193,7 +1300,14 @@ void BookScanDialog::build_cover_page() {
       cover_settings_changed();
     }
   });
-  connect(rescan, &QPushButton::clicked, this, &BookScanDialog::start_cover_scan);
+  // Rescan Cover scans the cover shown again.
+  connect(rescan, &QPushButton::clicked, this, [this] {
+    if (separate_covers() && back_cover_shown_) {
+      start_back_cover_scan();
+    } else {
+      start_cover_scan();
+    }
+  });
   connect(start, &QPushButton::clicked, this, &BookScanDialog::start_page_scanning);
 }
 
@@ -1343,13 +1457,16 @@ void BookScanDialog::build_scanning_page() {
   });
   spread_preview_->on_edited = [this] {
     if (edit_cover_) {
-      if (!project_.cover) {
+      BookCover* cover = shown_cover();
+      if (cover == nullptr) {
         return;
       }
-      project_.cover->layout.outline = spread_preview_->box();
-      project_.cover->layout.spine_left = spread_preview_->line_a();
-      project_.cover->layout.spine_right = spread_preview_->line_b();
-      project_.cover->user_edited = true;
+      cover->layout.outline = spread_preview_->box();
+      if (!separate_covers()) {
+        cover->layout.spine_left = spread_preview_->line_a();
+        cover->layout.spine_right = spread_preview_->line_b();
+      }
+      cover->user_edited = true;
       update_book_area();
       thumbnails_.clear();
       save_project_quietly();
@@ -1398,11 +1515,12 @@ void BookScanDialog::build_scanning_page() {
       return;
     }
     if (edit_cover_) {
-      if (!project_.cover) {
+      BookCover* cover = shown_cover();
+      if (cover == nullptr) {
         return;
       }
-      project_.cover->layout.outline.angle_degrees = value;
-      project_.cover->user_edited = true;
+      cover->layout.outline.angle_degrees = value;
+      cover->user_edited = true;
       update_book_area();
     } else if (const int scan = selected_scan(); scan >= 0) {
       project_.scans[static_cast<std::size_t>(scan)].layout.spread.angle_degrees = value;
@@ -1895,7 +2013,7 @@ void BookScanDialog::refresh_folder_state() {
   const bool has_book = folder_book_.has_value();
   if (has_book) {
     const QString title = folder_book_->title.trimmed().isEmpty() ? tr("Untitled") : folder_book_->title.trimmed();
-    const int scans = static_cast<int>(folder_book_->scans.size()) + (folder_book_->cover ? 1 : 0);
+    const int scans = static_cast<int>(folder_book_->scans.size()) + (folder_book_->cover ? 1 : 0) + (folder_book_->back_cover ? 1 : 0);
     folder_status_label_->setText(
         folder_book_->finished_scanning
             ? tr("This folder holds \"%1\" (%n scan(s)), ready to export. Continue This Book reviews and exports it; "
@@ -1969,6 +2087,7 @@ void BookScanDialog::continue_book() {
   strip_signature_.clear();
   grayscale_hint_shown_ = !project_.scans.empty();
   edit_cover_ = false;
+  back_cover_shown_ = false;
   edit_scan_.reset();
   folder_book_.reset();
   app_settings().setValue(QStringLiteral("bookScan/lastFolder"), QDir::toNativeSeparators(project_.folder));
@@ -1982,7 +2101,7 @@ void BookScanDialog::start_over() {
   }
   const BookProject old = *folder_book_;
   if (!quiet_) {
-    const int scans = static_cast<int>(old.scans.size()) + (old.cover ? 1 : 0);
+    const int scans = static_cast<int>(old.scans.size()) + (old.cover ? 1 : 0) + (old.back_cover ? 1 : 0);
     const auto answer = show_warning_message(
         this, tr("Scan a Book to PDF"),
         tr("Delete the %n scan(s) of \"%1\" in %2 and start a new book there? Other files in the folder, such as an "
@@ -2095,11 +2214,80 @@ void BookScanDialog::start_cover_scan() {
   }
   const ScanRequest request = cover_scan_request();
   pending_ = PendingScan::Cover;
+  scanning_back_cover_ = false;
   scan_cover_button_->setEnabled(false);
-  status_label_->setText(tr("Scanning the cover..."));
+  status_label_->setText(separate_covers() ? tr("Scanning the front cover...") : tr("Scanning the cover..."));
   progress_bar_->setRange(0, 0);
   progress_bar_->setVisible(true);
   start_session_scan(request);
+}
+
+void BookScanDialog::start_back_cover_scan() {
+  if (scan_in_progress() || !separate_covers() || !project_.cover || !ensure_session_open()) {
+    return;
+  }
+  const ScanRequest request = cover_scan_request();
+  // A rescan of a back cover already scanned keeps the book's settings, as Rescan Cover does.
+  pending_ = project_.back_cover ? PendingScan::RescanCover : PendingScan::Cover;
+  scanning_back_cover_ = true;
+  // The status line is on the scanning step: the button says the scan is running.
+  back_cover_button_->setEnabled(false);
+  back_cover_button_->setText(tr("Scanning..."));
+  status_label_->setText(tr("Scanning the back cover..."));
+  progress_bar_->setRange(0, 0);
+  progress_bar_->setVisible(true);
+  start_session_scan(request);
+}
+
+void BookScanDialog::set_cover_style(BookCoverStyle style) {
+  // The style is the setup step's choice; a scanned cover keeps the style it was scanned in.
+  if (style != project_.cover_style && !project_.cover && !scan_in_progress()) {
+    project_.cover_style = style;
+    back_cover_shown_ = false;
+    app_settings().setValue(QStringLiteral("bookScan/coverStyle"),
+                            style == BookCoverStyle::Separate ? QStringLiteral("separate") : QStringLiteral("spread"));
+  }
+  if (cover_style_combo_ != nullptr) {
+    const QSignalBlocker blocker(cover_style_combo_);
+    cover_style_combo_->setCurrentIndex(separate_covers() ? 1 : 0);
+  }
+  update_setup_guide();
+}
+
+void BookScanDialog::update_setup_guide() {
+  if (guide_heading_ == nullptr || placement_picture_ == nullptr) {
+    return;
+  }
+  const bool separate = separate_covers();
+  placement_picture_->set_style(project_.cover_style);
+  guide_heading_->setText(separate ? tr("Scan the covers first") : tr("Scan the cover first"));
+  const QStringList steps =
+      separate ? QStringList{tr("Close the book and lay it on the glass with the front cover face down."),
+                             tr("Press Scan Cover to scan the front cover."),
+                             tr("In the next step, turn the book over and scan the back cover.")}
+               : QStringList{tr("Open the book and lay it face down on the glass."),
+                             tr("Fit the back cover, the spine and the front cover all on the glass."),
+                             tr("Press Scan Cover. Patchy measures the book from this scan.")};
+  for (std::size_t i = 0; i < guide_steps_.size() && i < static_cast<std::size_t>(steps.size()); ++i) {
+    guide_steps_[i]->setText(steps[static_cast<qsizetype>(i)]);
+  }
+}
+
+BookCover* BookScanDialog::shown_cover() {
+  if (separate_covers() && back_cover_shown_ && project_.back_cover) {
+    return &*project_.back_cover;
+  }
+  return project_.cover ? &*project_.cover : nullptr;
+}
+
+void BookScanDialog::show_back_cover(bool back) {
+  back_cover_shown_ = back && separate_covers() && project_.back_cover.has_value();
+  if (step_ == Step::Cover) {
+    refresh_cover_page();
+  } else if (step_ == Step::Scanning) {
+    edit_page({back_cover_shown_ ? BookPageRef::Kind::BackCover : BookPageRef::Kind::FrontCover, -1,
+               BookPageSide::Left, 0});
+  }
 }
 
 ScanRequest BookScanDialog::cover_scan_request() const {
@@ -2127,6 +2315,8 @@ void BookScanDialog::skip_cover() {
     return;
   }
   project_.cover.reset();
+  project_.back_cover.reset();
+  back_cover_shown_ = false;
   project_.include_covers = false;
   save_project_quietly();
   go_to(Step::Cover);
@@ -2212,9 +2402,12 @@ void BookScanDialog::scan_finished(const ScanResult& result) {
   }
   const PendingScan pending = pending_;
   pending_ = PendingScan::None;
+  const bool back_cover = std::exchange(scanning_back_cover_, false);
   progress_bar_->setVisible(false);
   cancel_scan_button_->setVisible(false);
   scan_cover_button_->setEnabled(true);
+  back_cover_button_->setEnabled(true);
+  back_cover_button_->setText(tr("Scan Back Cover"));
   scan_button_->setEnabled(true);
   rescan_button_->setEnabled(!project_.scans.empty() || edit_cover_);
   finished_button_->setEnabled(true);
@@ -2235,7 +2428,7 @@ void BookScanDialog::scan_finished(const ScanResult& result) {
   const double dpi = result.horizontal_dpi > 0.0 ? result.horizontal_dpi : last_request_.dpi;
   if (pending == PendingScan::Cover || pending == PendingScan::RescanCover) {
     apply_cover_scan(result.file_path, result.horizontal_dpi > 0.0 ? result.horizontal_dpi : kCoverDpi,
-                     pending == PendingScan::RescanCover);
+                     pending == PendingScan::RescanCover, back_cover);
   } else if (pending == PendingScan::Page) {
     apply_page_scan(result.file_path, dpi, last_request_.mode, -1);
   } else if (pending == PendingScan::Rescan) {
@@ -2246,16 +2439,18 @@ void BookScanDialog::scan_finished(const ScanResult& result) {
   }
 }
 
-void BookScanDialog::apply_cover_scan(const QString& file, double dpi, bool keep_settings) {
+void BookScanDialog::apply_cover_scan(const QString& file, double dpi, bool keep_settings, bool back) {
+  std::optional<BookCover>& target = back ? project_.back_cover : project_.cover;
   // A new cover scan is written beside the old one first, so a failure keeps the old one.
-  const bool replace = project_.cover.has_value();
-  QString relative = store_scan_file(file, replace ? QStringLiteral("cover-new") : QStringLiteral("cover"));
+  const bool replace = target.has_value();
+  const QString base = back ? QStringLiteral("back-cover") : QStringLiteral("cover");
+  QString relative = store_scan_file(file, replace ? base + QStringLiteral("-new") : base);
   if (relative.isEmpty()) {
     show_scan_error(tr("The cover scan could not be saved in the project folder."));
     return;
   }
   if (replace) {
-    const QString old_file = project_.cover->file;
+    const QString old_file = target->file;
     const QDir folder(project_.folder);
     QFile::remove(folder.filePath(old_file));
     if (QFile::rename(folder.filePath(relative), folder.filePath(old_file))) {
@@ -2276,7 +2471,24 @@ void BookScanDialog::apply_cover_scan(const QString& file, double dpi, bool keep
   cover.layout = default_cover_layout(
       outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0, static_cast<double>(upright.width()),
                                    static_cast<double>(upright.height()), 0.0}));
-  project_.cover = cover;
+  target = cover;
+  if (back) {
+    // The back cover joins a book whose settings are chosen; the editor shows it.
+    back_cover_shown_ = true;
+    thumbnails_.clear();
+    save_project_quietly();
+    if (step_ == Step::Scanning) {
+      edit_cover_ = true;
+      edit_scan_.reset();
+      status_label_->setText(replace ? tr("The back cover was scanned again.") : tr("The back cover was scanned."));
+      refresh_scanning_page();
+    } else {
+      status_label_->clear();
+      refresh_cover_page();
+    }
+    return;
+  }
+  back_cover_shown_ = false;
   if (keep_settings) {
     // Rescanned while scanning pages: the book's settings stay, its sizing follows the new outline.
     update_book_area();
@@ -2409,17 +2621,20 @@ void BookScanDialog::refresh_cover_page() {
   fill_resolution_combo();
   color_combo_->setCurrentIndex(project_.capture_mode == ScanColorMode::Grayscale ? 1 : 0);
   color_combo_->setEnabled(capabilities_.direct_control && device_listed_);
-  area_combo_->setCurrentIndex(project_.scan_book_area ? 0 : 1);
-  area_combo_->setEnabled(capabilities_.scan_area && project_.cover.has_value());
+  // One cover's scan does not show where the open book lies: pages scan the whole glass,
+  // which the box shows without changing the book area choice.
+  area_combo_->setCurrentIndex(project_.scan_book_area && !separate_covers() ? 0 : 1);
+  area_combo_->setEnabled(capabilities_.scan_area && project_.cover.has_value() && !separate_covers());
   mode_combo_->setCurrentIndex(project_.mode == BookScanMode::OnePage ? 1 : 0);
   covers_check_->setChecked(project_.include_covers && project_.cover.has_value());
   covers_check_->setEnabled(project_.cover.has_value());
-  if (project_.cover) {
-    const UprightView& view = upright_preview(project_.cover->file, project_.cover->dpi, project_.up_turns);
+  update_cover_style_controls();
+  if (const BookCover* cover = shown_cover(); cover != nullptr) {
+    const UprightView& view = upright_preview(cover->file, cover->dpi, project_.up_turns);
     cover_preview_->set_image(view.image, view.full_size);
-    cover_preview_->set_box(project_.cover->layout.outline);
-    cover_preview_->set_lines(project_.cover->layout.spine_left, project_.cover->layout.spine_right);
-    cover_tilt_spin_->setValue(project_.cover->layout.outline.angle_degrees);
+    cover_preview_->set_box(cover->layout.outline);
+    cover_preview_->set_lines(cover->layout.spine_left, cover->layout.spine_right);
+    cover_tilt_spin_->setValue(cover->layout.outline.angle_degrees);
     cover_tilt_spin_->setEnabled(true);
   } else {
     // Without a cover scan, Top of the book stays available: it is how the pages will lie.
@@ -2440,13 +2655,16 @@ void BookScanDialog::refresh_cover_page() {
 void BookScanDialog::cover_settings_changed() {
   project_.capture_dpi = resolution_combo_->currentData().toInt() > 0 ? resolution_combo_->currentData().toInt() : 300;
   project_.capture_mode = color_combo_->currentIndex() == 1 ? ScanColorMode::Grayscale : ScanColorMode::Color;
-  project_.scan_book_area = area_combo_->currentIndex() == 0;
+  if (!separate_covers()) {
+    project_.scan_book_area = area_combo_->currentIndex() == 0;
+  }
   project_.mode = mode_combo_->currentIndex() == 1 ? BookScanMode::OnePage : BookScanMode::TwoPages;
   project_.include_covers = covers_check_->isChecked() && project_.cover.has_value();
   if (project_.cover) {
     update_book_area();
     const double dpi = project_.cover->dpi;
-    const double width_in = project_.cover->layout.outline.width / dpi;
+    // One cover alone: the open book is about two covers wide.
+    const double width_in = project_.cover->layout.outline.width / dpi * (separate_covers() ? 2.0 : 1.0);
     const double height_in = project_.cover->layout.outline.height / dpi;
     const bool fits = book_spread_fits_bed(width_in, height_in, capabilities_.bed_width_inches,
                                            capabilities_.bed_height_inches, kBedFitMarginInches);
@@ -2463,8 +2681,10 @@ void BookScanDialog::cover_settings_changed() {
   settings.setValue(QStringLiteral("bookScan/dpi"), project_.capture_dpi);
   settings.setValue(QStringLiteral("bookScan/colorMode"),
                     project_.capture_mode == ScanColorMode::Grayscale ? QStringLiteral("gray") : QStringLiteral("color"));
-  settings.setValue(QStringLiteral("bookScan/scanArea"),
-                    project_.scan_book_area ? QStringLiteral("book") : QStringLiteral("glass"));
+  if (!separate_covers()) {
+    settings.setValue(QStringLiteral("bookScan/scanArea"),
+                      project_.scan_book_area ? QStringLiteral("book") : QStringLiteral("glass"));
+  }
   settings.setValue(QStringLiteral("bookScan/readingDirection"),
                     project_.direction == BookReadingDirection::RightToLeft ? QStringLiteral("rtl") : QStringLiteral("ltr"));
   // Without a cover the box is unchecked and disabled: that is no choice for the next book.
@@ -2477,6 +2697,11 @@ void BookScanDialog::cover_settings_changed() {
 
 void BookScanDialog::update_book_area() {
   if (!project_.cover) {
+    return;
+  }
+  if (separate_covers()) {
+    // A closed book's outline says nothing about where the open book will lie.
+    project_.book_area_inches.reset();
     return;
   }
   // The book area in scanner coordinates: the outline's bounds in the unturned scan,
@@ -2508,20 +2733,30 @@ void BookScanDialog::set_up_turns(int turns) {
   };
   QApplication::setOverrideCursor(Qt::WaitCursor);
   // Half a turn: the same outline, spine and pages, turned, so edits survive. A quarter
-  // turn changes which way the spine runs: detect again on the turned scans.
-  if (!project_.cover) {
-    // Nothing to turn but the page scans below.
-  } else if (half) {
-    const QSize size = upright_size(project_.cover->file, turns);
-    project_.cover->layout = half_turned_cover(project_.cover->layout, size.width(), size.height());
-  } else {
-    const PixelBuffer upright = load_upright_scan(project_, project_.cover->file, turns);
+  // turn changes which way the spine runs: detect again on the turned scans. A book
+  // without a cover scan turns only its page scans.
+  const auto turn_cover = [&](std::optional<BookCover>& cover, bool spine_lines) {
+    if (!cover) {
+      return;
+    }
+    if (half) {
+      const QSize size = upright_size(cover->file, turns);
+      if (spine_lines) {
+        cover->layout = half_turned_cover(cover->layout, size.width(), size.height());
+      } else {
+        cover->layout.outline = half_turned_spread({cover->layout.outline, 0.5}, size.width(), size.height()).spread;
+      }
+      return;
+    }
+    const PixelBuffer upright = load_upright_scan(project_, cover->file, turns);
     const auto outline = detect_book_outline(upright, {});
-    project_.cover->layout = default_cover_layout(
+    cover->layout = default_cover_layout(
         outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0, static_cast<double>(upright.width()),
                                      static_cast<double>(upright.height()), 0.0}));
-    project_.cover->user_edited = false;
-  }
+    cover->user_edited = false;
+  };
+  turn_cover(project_.cover, !separate_covers());
+  turn_cover(project_.back_cover, false);
   for (auto& scan : project_.scans) {
     if (half) {
       const QSize size = upright_size(scan.file, turns + scan.extra_turns);
@@ -2560,10 +2795,35 @@ void BookScanDialog::update_page_size_label() {
   if (page_size_label_ == nullptr) {
     return;
   }
-  if (project_.cover) {
-    page_size_label_->setText(tr("about %1").arg(size_text(cover_page_size(project_.cover->layout, project_.cover->dpi))));
+  if (const auto size = book_cover_page_size(project_)) {
+    page_size_label_->setText(tr("about %1").arg(size_text(*size)));
   } else {
     page_size_label_->setText(tr("measured from the pages"));
+  }
+}
+
+void BookScanDialog::update_cover_style_controls() {
+  const bool separate = separate_covers();
+  const bool front = project_.cover.has_value();
+  const bool back = project_.back_cover.has_value();
+  if (!back) {
+    back_cover_shown_ = false;
+  }
+  cover_preview_->set_kind(separate ? BookScanPreview::Kind::Page : BookScanPreview::Kind::Cover);
+  cover_form_->setRowVisible(cover_side_combo_, separate && front);
+  cover_side_combo_->setCurrentIndex(back_cover_shown_ ? 1 : 0);
+  if (auto* model = qobject_cast<QStandardItemModel*>(cover_side_combo_->model())) {
+    model->item(1)->setEnabled(back);
+  }
+  // After the front cover, the back cover is the next thing to do.
+  back_cover_button_->setVisible(separate && front && !back);
+  if (!separate) {
+    cover_hint_->setText(tr("Check the outline of the book and drag the two spine lines onto the spine's edges."));
+  } else if (front && !back) {
+    cover_hint_->setText(tr("Check the outline of the front cover. Then turn the book over, lay the back cover face "
+                            "down on the glass and press Scan Back Cover."));
+  } else {
+    cover_hint_->setText(tr("Check the outline of each cover: drag its edges or the whole box. Show picks the cover."));
   }
 }
 
@@ -2628,6 +2888,8 @@ void BookScanDialog::edit_page(const BookPageRef& page) {
       return;
     }
     edit_cover_ = true;
+    back_cover_shown_ =
+        separate_covers() && page.kind == BookPageRef::Kind::BackCover && project_.back_cover.has_value();
     edit_scan_.reset();
   } else if (page.kind == BookPageRef::Kind::Scan && page.scan >= 0 &&
              page.scan < static_cast<int>(project_.scans.size())) {
@@ -2679,11 +2941,12 @@ void BookScanDialog::rescan_selected() {
     }
     const ScanRequest request = cover_scan_request();
     pending_ = PendingScan::RescanCover;
+    scanning_back_cover_ = separate_covers() && back_cover_shown_ && project_.back_cover.has_value();
     scan_button_->setEnabled(false);
     rescan_button_->setEnabled(false);
     finished_button_->setEnabled(false);
     cancel_scan_button_->setVisible(capabilities_.direct_control);
-    status_label_->setText(tr("Scanning the cover..."));
+    status_label_->setText(scanning_back_cover_ ? tr("Scanning the back cover...") : tr("Scanning the cover..."));
     progress_bar_->setRange(0, 0);
     progress_bar_->setVisible(true);
     start_session_scan(request);
@@ -3052,15 +3315,21 @@ void BookScanDialog::refresh_scanning_page() {
   if (edit_cover_ && !project_.cover) {
     edit_cover_ = false;
   }
+  if (!project_.back_cover) {
+    back_cover_shown_ = false;
+  }
+  const bool separate = separate_covers();
   const int selected = selected_scan();
   const bool earlier = editing_earlier_scan();
   if (edit_cover_ || earlier) {
     const QString editing =
-        edit_cover_ ? tr("Editing the cover: drag its outline and the two spine lines onto the spine's edges, or press "
-                         "Rescan Cover.")
-                    : tr("Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.")
-                          .arg(selected + 1)
-                          .arg(static_cast<int>(project_.scans.size()));
+        !edit_cover_ ? tr("Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.")
+                           .arg(selected + 1)
+                           .arg(static_cast<int>(project_.scans.size()))
+        : !separate        ? tr("Editing the cover: drag its outline and the two spine lines onto the spine's edges, or "
+                                "press Rescan Cover.")
+        : back_cover_shown_ ? tr("Editing the back cover: drag its outline, or press Rescan Cover.")
+                            : tr("Editing the front cover: drag its outline, or press Rescan Cover.");
     const QString next = one_page ? tr("Press Back to Next Pages to go on with page %1.").arg(scanned_pages + 1)
                                   : tr("Press Back to Next Pages to go on with pages %1 and %2.")
                                         .arg(scanned_pages + 1)
@@ -3080,9 +3349,9 @@ void BookScanDialog::refresh_scanning_page() {
                                     .arg(scanned_pages + 1)
                                     .arg(scanned_pages + 2));
   }
-  spread_preview_->set_kind(edit_cover_ ? BookScanPreview::Kind::Cover
-                            : one_page  ? BookScanPreview::Kind::Page
-                                        : BookScanPreview::Kind::Spread);
+  spread_preview_->set_kind(edit_cover_ && !separate ? BookScanPreview::Kind::Cover
+                            : edit_cover_ || one_page ? BookScanPreview::Kind::Page
+                                                      : BookScanPreview::Kind::Spread);
   rescan_button_->setText(edit_cover_ ? tr("Rescan Cover") : earlier ? tr("Rescan This Scan") : tr("Rescan Last"));
   rescan_button_->setEnabled((edit_cover_ || !project_.scans.empty()) && !scan_in_progress());
   back_to_next_button_->setVisible(edit_cover_ || earlier);
@@ -3096,13 +3365,14 @@ void BookScanDialog::refresh_scanning_page() {
   spread_tilt_spin_->setEnabled(edit_cover_ || selected >= 0);
   if (edit_cover_) {
     const bool rtl = project_.direction == BookReadingDirection::RightToLeft;
-    const UprightView& view = upright_preview(project_.cover->file, project_.cover->dpi, project_.up_turns);
+    const BookCover& cover = *shown_cover();
+    const UprightView& view = upright_preview(cover.file, cover.dpi, project_.up_turns);
     spread_preview_->set_image(view.image, view.full_size);
-    spread_preview_->set_box(project_.cover->layout.outline);
-    spread_preview_->set_lines(project_.cover->layout.spine_left, project_.cover->layout.spine_right);
+    spread_preview_->set_box(cover.layout.outline);
+    spread_preview_->set_lines(cover.layout.spine_left, cover.layout.spine_right);
     spread_preview_->set_region_labels(rtl ? tr("Front cover") : tr("Back cover"),
                                        rtl ? tr("Back cover") : tr("Front cover"));
-    spread_tilt_spin_->setValue(project_.cover->layout.outline.angle_degrees);
+    spread_tilt_spin_->setValue(cover.layout.outline.angle_degrees);
     edge_warning_->setVisible(false);
   } else if (selected < 0) {
     spread_preview_->clear_image();
@@ -3128,6 +3398,9 @@ void BookScanDialog::refresh_scanning_page() {
   if (project_.cover && !covers_listed) {
     // A cover left out of the PDF still sets the book area and the cover page size.
     strip_pages.push_back({BookPageRef::Kind::FrontCover, -1, BookPageSide::Left, 0});
+    if (separate && project_.back_cover) {
+      strip_pages.push_back({BookPageRef::Kind::BackCover, -1, BookPageSide::Left, 0});
+    }
   }
   for (const auto& page : order) {
     if (page.kind != BookPageRef::Kind::Blank) {
@@ -3141,7 +3414,7 @@ void BookScanDialog::refresh_scanning_page() {
   for (const auto& page : strip_pages) {
     const bool cover_page = page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover;
     QString label;
-    if (!covers_listed && cover_page) {
+    if (!covers_listed && cover_page && !separate) {
       label = tr("Cover");
     } else if (page.kind == BookPageRef::Kind::FrontCover) {
       label = tr("Front cover");
@@ -3169,7 +3442,10 @@ void BookScanDialog::refresh_scanning_page() {
   for (std::size_t i = 0; i < strip_pages.size(); ++i) {
     const auto& page = strip_pages[i];
     const bool cover_page = page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover;
-    const bool selected_page = cover_page ? edit_cover_ : (!edit_cover_ && page.scan == selected);
+    // One scan holds both covers; covers scanned one at a time are selected one at a time.
+    const bool cover_shown =
+        edit_cover_ && (!separate || (page.kind == BookPageRef::Kind::BackCover) == back_cover_shown_);
+    const bool selected_page = cover_page ? cover_shown : (!edit_cover_ && page.scan == selected);
     QListWidgetItem* item = strip_->item(static_cast<int>(i));
     if (item->isSelected() != selected_page) {
       item->setSelected(selected_page);

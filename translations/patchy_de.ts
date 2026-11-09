@@ -17289,6 +17289,78 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
         <translation>Kein Einband zum Scannen? „Einband überspringen“ misst das Buch stattdessen an den ersten Seiten, und der Einband fehlt in der PDF.</translation>
     </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Einband:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Beide Seiten in einem Scan</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Eine Seite nach der anderen</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Eine Seite nach der anderen eignet sich für ein Buch, das aufgeschlagen nicht auf das Glas passt.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Anzeigen:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Hinteren Einband scannen</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Vorderer Einband wird gescannt...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Hinterer Einband wird gescannt...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Zuerst den Einband scannen</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Das Buch schließen und mit dem vorderen Einband nach unten auf das Glas legen.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Auf „Einband scannen“ klicken, um den vorderen Einband zu scannen.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>Im nächsten Schritt das Buch umdrehen und den hinteren Einband scannen.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>Der hintere Einband wurde erneut gescannt.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>Der hintere Einband wurde gescannt.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Den Umriss des vorderen Einbands prüfen. Dann das Buch umdrehen, den hinteren Einband nach unten auf das Glas legen und auf „Hinteren Einband scannen“ klicken.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Den Umriss jeder Seite prüfen: Kanten oder den ganzen Rahmen ziehen. „Anzeigen“ wählt die Seite.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Hinterer Einband: Umriss ziehen oder auf „Einband erneut scannen“ klicken.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Vorderer Einband: Umriss ziehen oder auf „Einband erneut scannen“ klicken.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>
