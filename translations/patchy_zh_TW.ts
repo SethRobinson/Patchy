@@ -15646,6 +15646,46 @@ Do you want to replace it?</source>
         <source>Page numbers:</source>
         <translation>頁碼：</translation>
     </message>
+    <message>
+        <source>the left half of page %1</source>
+        <translation>第 %1 頁的左半邊</translation>
+    </message>
+    <message>
+        <source>the right half of page %1</source>
+        <translation>第 %1 頁的右半邊</translation>
+    </message>
+    <message>
+        <source>None (one book page per PDF page)</source>
+        <translation>無（每個 PDF 頁面為書的一頁）</translation>
+    </message>
+    <message>
+        <source>Split wide pages in two</source>
+        <translation>分割寬頁面</translation>
+    </message>
+    <message>
+        <source>Split, first page is the cover spread</source>
+        <translation>分割，第一頁為封面跨頁</translation>
+    </message>
+    <message>
+        <source>Every page wider than tall is cut down the middle into a left and a right page. Tall pages stay whole.</source>
+        <translation>寬度大於高度的頁面會從中間切成左右兩頁。直式頁面保持完整。</translation>
+    </message>
+    <message>
+        <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
+        <translation>同上，且第一頁是攤平的封面外側：封底與封面並排。封底會成為最後一頁。</translation>
+    </message>
+    <message>
+        <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
+        <translation>適用於每頁並排包含兩頁書頁的 PDF，例如攤平掃描的小冊子</translation>
+    </message>
+    <message>
+        <source>Two-page spreads:</source>
+        <translation>跨頁：</translation>
+    </message>
+    <message>
+        <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation>這些頁面寬度大於高度。如果每頁包含兩頁書頁，請在「跨頁」中選擇分割選項。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

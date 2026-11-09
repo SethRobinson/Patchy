@@ -15646,6 +15646,46 @@ Do you want to replace it?</source>
         <source>Page numbers:</source>
         <translation>ページ番号:</translation>
     </message>
+    <message>
+        <source>the left half of page %1</source>
+        <translation>%1ページの左半分</translation>
+    </message>
+    <message>
+        <source>the right half of page %1</source>
+        <translation>%1ページの右半分</translation>
+    </message>
+    <message>
+        <source>None (one book page per PDF page)</source>
+        <translation>なし (PDFの1ページを本の1ページとする)</translation>
+    </message>
+    <message>
+        <source>Split wide pages in two</source>
+        <translation>横長のページを2つに分割</translation>
+    </message>
+    <message>
+        <source>Split, first page is the cover spread</source>
+        <translation>分割し、最初のページを表紙の見開きとする</translation>
+    </message>
+    <message>
+        <source>Every page wider than tall is cut down the middle into a left and a right page. Tall pages stay whole.</source>
+        <translation>幅が高さより大きいページを中央で左右2ページに分割します。縦長のページはそのままです。</translation>
+    </message>
+    <message>
+        <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
+        <translation>上記に加え、最初のページを広げた表紙の外側 (裏表紙と表表紙が並んだもの) として扱います。裏表紙は最後のページになります。</translation>
+    </message>
+    <message>
+        <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
+        <translation>スキャンした冊子を広げた状態など、各ページに本の2ページが並んでいるPDF用</translation>
+    </message>
+    <message>
+        <source>Two-page spreads:</source>
+        <translation>見開きページ:</translation>
+    </message>
+    <message>
+        <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation>ページが横長です。各ページに本の2ページが含まれている場合は、[見開きページ] で分割の項目を選んでください。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

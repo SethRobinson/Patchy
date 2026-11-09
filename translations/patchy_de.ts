@@ -15702,6 +15702,46 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Page numbers:</source>
         <translation>Seitenzahlen:</translation>
     </message>
+    <message>
+        <source>the left half of page %1</source>
+        <translation>die linke Hälfte von Seite %1</translation>
+    </message>
+    <message>
+        <source>the right half of page %1</source>
+        <translation>die rechte Hälfte von Seite %1</translation>
+    </message>
+    <message>
+        <source>None (one book page per PDF page)</source>
+        <translation>Ohne (eine Buchseite pro PDF-Seite)</translation>
+    </message>
+    <message>
+        <source>Split wide pages in two</source>
+        <translation>Breite Seiten halbieren</translation>
+    </message>
+    <message>
+        <source>Split, first page is the cover spread</source>
+        <translation>Halbieren, erste Seite ist der Umschlag</translation>
+    </message>
+    <message>
+        <source>Every page wider than tall is cut down the middle into a left and a right page. Tall pages stay whole.</source>
+        <translation>Jede Seite, die breiter als hoch ist, wird in der Mitte in eine linke und eine rechte Seite geteilt. Hohe Seiten bleiben ganz.</translation>
+    </message>
+    <message>
+        <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
+        <translation>Wie oben, und die erste Seite ist die flach liegende Außenseite des Umschlags: die Rückseite neben der Vorderseite. Die Rückseite des Umschlags wird zur letzten Seite.</translation>
+    </message>
+    <message>
+        <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
+        <translation>Für PDFs mit zwei Buchseiten nebeneinander auf jeder Seite, etwa ein flach eingescanntes Heft</translation>
+    </message>
+    <message>
+        <source>Two-page spreads:</source>
+        <translation>Doppelseiten:</translation>
+    </message>
+    <message>
+        <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation>Die Seiten sind breiter als hoch. Wenn jede zwei Buchseiten enthält, wählen Sie unter „Doppelseiten“ eine Option zum Halbieren.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

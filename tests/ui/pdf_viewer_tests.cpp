@@ -18,6 +18,7 @@
 #include "unicode_path_names.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QAbstractItemView>
 #include <QDialog>
@@ -81,6 +82,30 @@ QByteArray numbered_pdf_bytes(int pages) {
                                 " 20 20 re f";
     objects.push_back("<</Type/Page/Parent 2 0 R/MediaBox[0 0 " + number(kPageWidth) + " " + number(kPageHeight) +
                       "]/Contents " + std::to_string(4 + 2 * page) + " 0 R>>");
+    objects.push_back("<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream");
+  }
+  return pdf_from_objects(objects);
+}
+
+// Pages of two 200 x 300 halves side by side, like a scanned booklet laid flat: halves[i] is
+// {left, right}, each filled with page_gray(number), so a sample names the half.
+QByteArray spread_pdf_bytes(const std::vector<std::pair<int, int>>& halves) {
+  std::vector<std::string> objects;
+  objects.emplace_back("<</Type/Catalog/Pages 2 0 R>>");
+  std::string kids;
+  for (std::size_t page = 0; page < halves.size(); ++page) {
+    kids += std::to_string(3 + 2 * page) + " 0 R ";
+  }
+  objects.push_back("<</Type/Pages/Kids[" + kids + "]/Count " + std::to_string(halves.size()) + ">>");
+  for (std::size_t page = 0; page < halves.size(); ++page) {
+    const std::string left = number(page_gray(halves[page].first));
+    const std::string right = number(page_gray(halves[page].second));
+    const std::string content = left + " " + left + " " + left + " rg 0 0 " + number(kPageWidth) + " " +
+                                number(kPageHeight) + " re f " + right + " " + right + " " + right + " rg " +
+                                number(kPageWidth) + " 0 " + number(kPageWidth) + " " + number(kPageHeight) +
+                                " re f";
+    objects.push_back("<</Type/Page/Parent 2 0 R/MediaBox[0 0 " + number(2 * kPageWidth) + " " +
+                      number(kPageHeight) + "]/Contents " + std::to_string(4 + 2 * page) + " 0 R>>");
     objects.push_back("<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream");
   }
   return pdf_from_objects(objects);
@@ -418,9 +443,10 @@ void ui_pdf_book_print_imposes_sheets() {
   options.paper = QPageSize::Letter;
   options.marks = false;
   constexpr double kDpi = 36.0;  // a Letter sheet is 396 x 306
+  const auto sizes = patchy::ui::book_pdf_page_sizes(document);
   const auto side = [&](int sheet, bool back) {
-    const auto imposition = patchy::ui::book_imposition_for(options, document.pageCount());
-    const auto pages = patchy::ui::book_source_pages(options, document.pageCount());
+    const auto pages = patchy::ui::book_source_pages(options, sizes);
+    const auto imposition = patchy::ui::book_imposition_for(options, pages);
     return patchy::ui::render_book_sheet_side(document, options, imposition, pages, sheet, back, kDpi);
   };
   // Booklet of 6 pages padded to 8: [blank|1][2|blank] and [6|3][4|5] (one-based).
@@ -474,8 +500,8 @@ void ui_pdf_book_print_imposes_sheets() {
 
   // The steps name what the first sheet shows.
   options.style = patchy::BookPrintStyle::Booklet;
-  const auto imposition = patchy::ui::book_imposition_for(options, document.pageCount());
-  const auto guide = patchy::ui::book_assembly_guide(options, imposition, document.pageCount());
+  const auto imposition = patchy::ui::book_imposition_for(options, patchy::ui::book_source_pages(options, sizes));
+  const auto guide = patchy::ui::book_assembly_guide(options, imposition, patchy::ui::book_source_pages(options, sizes));
   CHECK(guide.steps.size() == 6U && guide.notes.size() == 2);
   CHECK(guide.steps[1].title == QStringLiteral("Check sheet 1"));
   const QString text = patchy::ui::book_assembly_text(guide);
@@ -490,8 +516,8 @@ void ui_pdf_book_print_imposes_sheets() {
   options.page_numbers = patchy::ui::BookPageNumbers::SkipCovers;
   constexpr double kNumberDpi = 150.0;
   const auto number_ink = [&](int sheet, bool back, int x0, int x1) {
-    const auto numbered = patchy::ui::book_imposition_for(options, document.pageCount());
-    const auto pages = patchy::ui::book_source_pages(options, document.pageCount());
+    const auto pages = patchy::ui::book_source_pages(options, sizes);
+    const auto numbered = patchy::ui::book_imposition_for(options, pages);
     const QImage sheet_image =
         patchy::ui::render_book_sheet_side(document, options, numbered, pages, sheet, back, kNumberDpi);
     // The strip below the pages: a Letter half is 396 points across, a 200 x 300 page fits it by
@@ -504,6 +530,83 @@ void ui_pdf_book_print_imposes_sheets() {
   CHECK(number_ink(0, true, 0, half - 1) > 0);           // page 2
   options.page_numbers = patchy::ui::BookPageNumbers::All;
   CHECK(number_ink(0, false, half, 2 * half - 1) > 0);
+}
+
+// A PDF of two-page spreads prints its halves as the book's pages: a booklet sheet holds two
+// of them, not two whole spreads (four pages to a sheet).
+void ui_pdf_book_print_splits_spreads() {
+  // The outside of the cover first (back cover 7 beside front cover 0), then spreads 1-2 to 5-6.
+  const QString path = write_file(QStringLiteral("test-artifacts/ui_pdf_book_spreads.pdf"),
+                                  spread_pdf_bytes({{7, 0}, {1, 2}, {3, 4}, {5, 6}}));
+  QPdfDocument document;
+  CHECK(document.load(path) == QPdfDocument::Error::None);
+  const auto sizes = patchy::ui::book_pdf_page_sizes(document);
+  patchy::ui::PdfBookPrintOptions options;
+  options.paper = QPageSize::Letter;
+  options.marks = false;
+  constexpr double kDpi = 36.0;  // a Letter sheet is 396 x 306, a cell 198 x 306
+  const auto side = [&](int sheet, bool back) {
+    const auto pages = patchy::ui::book_source_pages(options, sizes);
+    const auto imposition = patchy::ui::book_imposition_for(options, pages);
+    return patchy::ui::render_book_sheet_side(document, options, imposition, pages, sheet, back, kDpi);
+  };
+  const auto cells = [](const QImage& image) { return std::make_pair(page_at(image, 99, 153), page_at(image, 297, 153)); };
+  // Unsplit, each spread is one book page.
+  CHECK(patchy::ui::book_source_pages(options, sizes).size() == 4U);
+  // Split: 8 pages in file order, the cover's back half first.
+  options.spreads = patchy::BookSpreads::Split;
+  CHECK(patchy::ui::book_source_pages(options, sizes).size() == 8U);
+  CHECK(cells(side(0, false)) == std::make_pair(6, 7));
+  // Cover spread: front cover first, back cover last, so the booklet reads 0 to 7.
+  options.spreads = patchy::BookSpreads::SplitCoverSpread;
+  QImage image = side(0, false);
+  image.save(QStringLiteral("test-artifacts/ui_pdf_book_spreads_front.png"));
+  CHECK(cells(image) == std::make_pair(7, 0));
+  CHECK(cells(side(0, true)) == std::make_pair(1, 6));
+  CHECK(cells(side(1, false)) == std::make_pair(5, 2));
+  CHECK(cells(side(1, true)) == std::make_pair(3, 4));
+  // The check step names the halves.
+  const auto pages = patchy::ui::book_source_pages(options, sizes);
+  const QString text = patchy::ui::book_assembly_text(
+      patchy::ui::book_assembly_guide(options, patchy::ui::book_imposition_for(options, pages), pages));
+  CHECK(text.contains(QStringLiteral("the left half of page 1 and the right half of page 1")));
+  // One spread short (6 pages padded to 8): the blanks go before the back cover, which stays
+  // on the outside: 0 1 2 3 4 blank blank 7.
+  options.last_page = 2;
+  CHECK(cells(side(0, false)) == std::make_pair(7, 0));
+  CHECK(cells(side(1, false)) == std::make_pair(-1, 2));
+
+  // The dialog: wide pages get a hint, the cover spread locks "Keep the last page as the back
+  // cover" on, and the user's own choice comes back after.
+  SettingsValueRestorer back_cover_setting(QStringLiteral("pdfBookPrint/backCover"));
+  patchy::ui::app_settings().setValue(QStringLiteral("pdfBookPrint/backCover"), false);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  when_dialog_visible(QStringLiteral("pdfBookPrintDialog"), [&saw_dialog](QDialog& dialog) {
+    saw_dialog = true;
+    auto* spreads = dialog.findChild<QComboBox*>(QStringLiteral("pdfBookPrintSpreadsCombo"));
+    auto* summary = dialog.findChild<QLabel*>(QStringLiteral("pdfBookPrintSummaryLabel"));
+    auto* back_cover = dialog.findChild<QCheckBox*>(QStringLiteral("pdfBookPrintBackCoverCheck"));
+    auto* style = dialog.findChild<QComboBox*>(QStringLiteral("pdfBookPrintStyleCombo"));
+    CHECK(spreads != nullptr && summary != nullptr && back_cover != nullptr && style != nullptr);
+    if (spreads == nullptr || summary == nullptr || back_cover == nullptr || style == nullptr) {
+      dialog.reject();
+      return;
+    }
+    style->setCurrentIndex(std::max(0, style->findData(QStringLiteral("booklet"))));
+    CHECK(spreads->currentData().toString() == QStringLiteral("none"));
+    CHECK(summary->text().contains(QStringLiteral("Two-page spreads")));
+    spreads->setCurrentIndex(spreads->findData(QStringLiteral("cover")));
+    CHECK(summary->text().startsWith(QStringLiteral("8 page(s)")) && !summary->text().contains(QStringLiteral("Two-page")));
+    CHECK(!back_cover->isEnabled() && back_cover->isChecked());
+    dialog.grab().save(QStringLiteral("test-artifacts/ui_pdf_book_spreads_dialog.png"));
+    spreads->setCurrentIndex(spreads->findData(QStringLiteral("split")));
+    CHECK(back_cover->isEnabled() && !back_cover->isChecked());
+    dialog.reject();
+  });
+  patchy::ui::run_pdf_book_print_dialog(&window, document, path, {});
+  CHECK(saw_dialog);
 }
 
 void ui_pdf_book_print_writes_sheets_pdf() {
@@ -606,6 +709,7 @@ std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
       {"ui_pdf_viewer_spreads_and_page_turns", ui_pdf_viewer_spreads_and_page_turns},
       {"ui_pdf_viewer_detail_renders_match_the_page", ui_pdf_viewer_detail_renders_match_the_page},
       {"ui_pdf_book_print_imposes_sheets", ui_pdf_book_print_imposes_sheets},
+      {"ui_pdf_book_print_splits_spreads", ui_pdf_book_print_splits_spreads},
       {"ui_pdf_book_print_writes_sheets_pdf", ui_pdf_book_print_writes_sheets_pdf},
       {"ui_pdf_book_print_dialog_follows_choices", ui_pdf_book_print_dialog_follows_choices},
   };

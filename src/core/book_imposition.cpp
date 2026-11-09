@@ -34,6 +34,46 @@ void add_nested_sheets(BookImposition& imposition, int base, int pages, int sign
 
 }  // namespace
 
+bool book_page_is_spread(const BookPageSize& size) {
+  // Two tall pages side by side are at least about 1.2 times as wide as tall (two square
+  // pages make 2); a little past square keeps a near-square single page whole.
+  return size.height > 0.0 && size.width > size.height * 1.05;
+}
+
+std::vector<BookSourcePage> book_source_pages(const std::vector<BookPageSize>& sizes, int first, int last,
+                                              BookSpreads spreads, bool right_to_left) {
+  std::vector<BookSourcePage> pages;
+  const int count = static_cast<int>(sizes.size());
+  if (count <= 0) {
+    return pages;
+  }
+  first = std::clamp(first, 0, count - 1);
+  last = last < 0 ? count - 1 : std::clamp(last, first, count - 1);
+  const BookPagePart reading_first = right_to_left ? BookPagePart::Right : BookPagePart::Left;
+  const BookPagePart reading_second = right_to_left ? BookPagePart::Left : BookPagePart::Right;
+  std::vector<BookSourcePage> back_cover;
+  for (int page = first; page <= last; ++page) {
+    const bool spread = spreads != BookSpreads::None && book_page_is_spread(sizes[static_cast<std::size_t>(page)]);
+    if (!spread) {
+      pages.push_back({page, BookPagePart::Whole});
+    } else if (page == first && spreads == BookSpreads::SplitCoverSpread) {
+      // Laid flat, the outside of a cover shows the back cover where the book's last page
+      // sits and the front cover where its first page would be read.
+      pages.push_back({page, reading_second});
+      back_cover.push_back({page, reading_first});
+    } else {
+      pages.push_back({page, reading_first});
+      pages.push_back({page, reading_second});
+    }
+  }
+  pages.insert(pages.end(), back_cover.begin(), back_cover.end());
+  return pages;
+}
+
+double book_source_page_width(BookPagePart part, double page_width) {
+  return part == BookPagePart::Whole ? page_width : page_width / 2.0;
+}
+
 int book_page_multiple(BookPrintStyle style) {
   return style == BookPrintStyle::MiniZine ? 8 : 4;
 }

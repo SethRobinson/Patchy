@@ -68,6 +68,36 @@ struct BookImposition {
 
 [[nodiscard]] BookImposition impose_book(const BookImpositionOptions& options);
 
+// Source PDFs that already hold two book pages side by side on each page (a scanned booklet
+// laid flat): the book's pages are the halves of every wide page.
+enum class BookSpreads {
+  None,  // every PDF page is one book page
+  Split,  // wide pages are a left and a right page; tall pages stay whole
+  // As Split, and the first page is the outside of the cover laid flat: front cover and back
+  // cover side by side, so its other half becomes the last page of the book.
+  SplitCoverSpread,
+};
+enum class BookPagePart { Whole, Left, Right };
+// One page of the book as it comes from the source: a whole PDF page or one half of it.
+struct BookSourcePage {
+  int page{0};  // 0-based PDF page index
+  BookPagePart part{BookPagePart::Whole};
+  friend bool operator==(const BookSourcePage&, const BookSourcePage&) = default;
+};
+struct BookPageSize {
+  double width{0.0};
+  double height{0.0};
+};
+// A page that holds two pages side by side: clearly wider than tall.
+[[nodiscard]] bool book_page_is_spread(const BookPageSize& size);
+// The book's pages in reading order from PDF pages `first` to `last` (0-based, inclusive) of
+// pages with `sizes`. Right to left reads a spread's right half first; a cover spread then
+// has its front cover on the left.
+[[nodiscard]] std::vector<BookSourcePage> book_source_pages(const std::vector<BookPageSize>& sizes, int first,
+                                                            int last, BookSpreads spreads, bool right_to_left);
+// The width of the part of a page the book uses: half of it for a half.
+[[nodiscard]] double book_source_page_width(BookPagePart part, double page_width);
+
 // Pages each style groups by: 4 for the folded and cut styles, 8 for the zine.
 [[nodiscard]] int book_page_multiple(BookPrintStyle style);
 

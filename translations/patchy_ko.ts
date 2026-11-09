@@ -15646,6 +15646,46 @@ Do you want to replace it?</source>
         <source>Page numbers:</source>
         <translation>페이지 번호:</translation>
     </message>
+    <message>
+        <source>the left half of page %1</source>
+        <translation>%1페이지의 왼쪽 절반</translation>
+    </message>
+    <message>
+        <source>the right half of page %1</source>
+        <translation>%1페이지의 오른쪽 절반</translation>
+    </message>
+    <message>
+        <source>None (one book page per PDF page)</source>
+        <translation>없음 (PDF 한 페이지가 책 한 페이지)</translation>
+    </message>
+    <message>
+        <source>Split wide pages in two</source>
+        <translation>가로로 긴 페이지를 둘로 나누기</translation>
+    </message>
+    <message>
+        <source>Split, first page is the cover spread</source>
+        <translation>나누기, 첫 페이지는 표지 펼침면</translation>
+    </message>
+    <message>
+        <source>Every page wider than tall is cut down the middle into a left and a right page. Tall pages stay whole.</source>
+        <translation>너비가 높이보다 큰 페이지는 가운데를 잘라 왼쪽과 오른쪽 페이지로 나눕니다. 세로로 긴 페이지는 그대로 둡니다.</translation>
+    </message>
+    <message>
+        <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
+        <translation>위와 같으며, 첫 페이지는 펼친 표지의 바깥면(뒤표지 옆에 앞표지)입니다. 뒤표지는 마지막 페이지가 됩니다.</translation>
+    </message>
+    <message>
+        <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
+        <translation>펼쳐서 스캔한 소책자처럼 각 페이지에 책 두 페이지가 나란히 있는 PDF용</translation>
+    </message>
+    <message>
+        <source>Two-page spreads:</source>
+        <translation>두 페이지 펼침면:</translation>
+    </message>
+    <message>
+        <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation>페이지의 너비가 높이보다 큽니다. 각 페이지에 책 두 페이지가 있다면 두 페이지 펼침면에서 나누기 항목을 선택하세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

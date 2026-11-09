@@ -29,6 +29,8 @@ struct PdfBookPrintOptions {
   QPageSize::PageSizeId paper{QPageSize::Letter};  // used landscape
   int first_page{0};  // 0-based, inclusive
   int last_page{-1};  // -1 = the last page
+  // PDF pages that already hold two pages side by side. Not stored: it describes one file.
+  BookSpreads spreads{BookSpreads::None};
   bool right_to_left{false};
   bool last_page_is_back_cover{false};
   bool fill{false};
@@ -48,16 +50,21 @@ struct PdfBookPrintOptions {
   QString quality_id{QStringLiteral("high")};
 };
 
-// The PDF page indices the options print, in order.
-[[nodiscard]] std::vector<int> book_source_pages(const PdfBookPrintOptions& options, int page_count);
-[[nodiscard]] BookImposition book_imposition_for(const PdfBookPrintOptions& options, int page_count);
+// Every page's size in points.
+[[nodiscard]] std::vector<BookPageSize> book_pdf_page_sizes(QPdfDocument& document);
+// The book's pages the options print, in reading order: whole PDF pages, or halves of them.
+[[nodiscard]] std::vector<BookSourcePage> book_source_pages(const PdfBookPrintOptions& options,
+                                                            const std::vector<BookPageSize>& page_sizes);
+[[nodiscard]] BookImposition book_imposition_for(const PdfBookPrintOptions& options,
+                                                 const std::vector<BookSourcePage>& source_pages);
 // The landscape sheet in points.
 [[nodiscard]] QSizeF book_sheet_points(const PdfBookPrintOptions& options);
 
 // One side of one sheet as an opaque RGB image of the whole sheet at `dpi`.
 [[nodiscard]] QImage render_book_sheet_side(QPdfDocument& document, const PdfBookPrintOptions& options,
                                             const BookImposition& imposition,
-                                            const std::vector<int>& source_pages, int sheet, bool back, double dpi);
+                                            const std::vector<BookSourcePage>& source_pages, int sheet, bool back,
+                                            double dpi);
 
 // The assembly steps for these options, numbers filled in: short titled steps, each with a
 // few bullet points, then notes ("Good to know").
@@ -70,7 +77,8 @@ struct BookAssemblyGuide {
   QStringList notes;
 };
 [[nodiscard]] BookAssemblyGuide book_assembly_guide(const PdfBookPrintOptions& options,
-                                                    const BookImposition& imposition, int page_count);
+                                                    const BookImposition& imposition,
+                                                    const std::vector<BookSourcePage>& source_pages);
 // The guide as rich text (numbered steps, bulleted details) for the dialog and the steps page.
 [[nodiscard]] QString book_assembly_html(const BookAssemblyGuide& guide);
 // The guide as plain text, one line per step and bullet.

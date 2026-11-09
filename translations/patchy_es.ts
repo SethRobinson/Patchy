@@ -15702,6 +15702,46 @@ Do you want to replace it?</source>
         <source>Page numbers:</source>
         <translation>Números de página:</translation>
     </message>
+    <message>
+        <source>the left half of page %1</source>
+        <translation>la mitad izquierda de la página %1</translation>
+    </message>
+    <message>
+        <source>the right half of page %1</source>
+        <translation>la mitad derecha de la página %1</translation>
+    </message>
+    <message>
+        <source>None (one book page per PDF page)</source>
+        <translation>Ninguna (una página del libro por página PDF)</translation>
+    </message>
+    <message>
+        <source>Split wide pages in two</source>
+        <translation>Dividir en dos las páginas anchas</translation>
+    </message>
+    <message>
+        <source>Split, first page is the cover spread</source>
+        <translation>Dividir, la primera página es la cubierta</translation>
+    </message>
+    <message>
+        <source>Every page wider than tall is cut down the middle into a left and a right page. Tall pages stay whole.</source>
+        <translation>Cada página más ancha que alta se corta por la mitad en una página izquierda y una derecha. Las páginas altas quedan enteras.</translation>
+    </message>
+    <message>
+        <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
+        <translation>Como arriba, y la primera página es el exterior de la cubierta extendida: la contraportada junto a la portada. La contraportada pasa a ser la última página.</translation>
+    </message>
+    <message>
+        <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
+        <translation>Para PDF con dos páginas del libro una al lado de la otra en cada página, como un folleto escaneado abierto</translation>
+    </message>
+    <message>
+        <source>Two-page spreads:</source>
+        <translation>Páginas dobles:</translation>
+    </message>
+    <message>
+        <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation>Las páginas son más anchas que altas. Si cada una contiene dos páginas del libro, elija una opción Dividir en Páginas dobles.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

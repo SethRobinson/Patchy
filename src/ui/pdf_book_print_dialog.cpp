@@ -35,6 +35,7 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QScopeGuard>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QPalette>
 #include <QTextBrowser>
@@ -204,7 +205,8 @@ void draw_page_number(QPainter& painter, const BookPagePlacement& placed, const 
   painter.drawText(label, Qt::AlignCenter, text);
 }
 
-QString page_name(const BookImposition& imposition, const std::vector<int>& source_pages, int book_page) {
+QString page_name(const BookImposition& imposition, const std::vector<BookSourcePage>& source_pages,
+                  int book_page) {
   if (book_page < 0 || book_page >= static_cast<int>(imposition.book_pages.size())) {
     return QObject::tr("a blank page");
   }
@@ -212,7 +214,16 @@ QString page_name(const BookImposition& imposition, const std::vector<int>& sour
   if (index < 0 || index >= static_cast<int>(source_pages.size())) {
     return QObject::tr("a blank page");
   }
-  return QObject::tr("page %1").arg(source_pages[static_cast<std::size_t>(index)] + 1);
+  const BookSourcePage& source = source_pages[static_cast<std::size_t>(index)];
+  switch (source.part) {
+    case BookPagePart::Left:
+      return QObject::tr("the left half of page %1").arg(source.page + 1);
+    case BookPagePart::Right:
+      return QObject::tr("the right half of page %1").arg(source.page + 1);
+    case BookPagePart::Whole:
+      break;
+  }
+  return QObject::tr("page %1").arg(source.page + 1);
 }
 
 int slot_page(const std::vector<BookSheetSlot>& side, int column) {
@@ -284,26 +295,35 @@ std::vector<SideRef> printed_sides(const BookImposition& imposition, bool fronts
 
 }  // namespace
 
-std::vector<int> book_source_pages(const PdfBookPrintOptions& options, int page_count) {
-  std::vector<int> pages;
-  if (page_count <= 0) {
-    return pages;
+std::vector<BookPageSize> book_pdf_page_sizes(QPdfDocument& document) {
+  std::vector<BookPageSize> sizes;
+  const int count = std::max(0, document.pageCount());
+  sizes.reserve(static_cast<std::size_t>(count));
+  for (int page = 0; page < count; ++page) {
+    const QSizeF points = document.pagePointSize(page);
+    sizes.push_back({points.width(), points.height()});
   }
-  const int first = std::clamp(options.first_page, 0, page_count - 1);
-  const int last = options.last_page < 0 ? page_count - 1 : std::clamp(options.last_page, first, page_count - 1);
-  for (int page = first; page <= last; ++page) {
-    pages.push_back(page);
-  }
-  return pages;
+  return sizes;
 }
 
-BookImposition book_imposition_for(const PdfBookPrintOptions& options, int page_count) {
+std::vector<BookSourcePage> book_source_pages(const PdfBookPrintOptions& options,
+                                              const std::vector<BookPageSize>& page_sizes) {
+  return book_source_pages(page_sizes, options.first_page, options.last_page, options.spreads,
+                           options.right_to_left);
+}
+
+BookImposition book_imposition_for(const PdfBookPrintOptions& options,
+                                   const std::vector<BookSourcePage>& source_pages) {
   BookImpositionOptions imposition;
   imposition.style = options.style;
-  imposition.page_count = static_cast<int>(book_source_pages(options, page_count).size());
+  imposition.page_count = static_cast<int>(source_pages.size());
   imposition.sheets_per_signature = options.sheets_per_signature;
   imposition.right_to_left = options.right_to_left;
-  imposition.last_page_is_back_cover = options.last_page_is_back_cover;
+  // A cover spread's other half is the back cover: blanks go before it.
+  const bool cover_spread = options.spreads == BookSpreads::SplitCoverSpread && !source_pages.empty() &&
+                            source_pages.back().part != BookPagePart::Whole &&
+                            source_pages.back().page == source_pages.front().page;
+  imposition.last_page_is_back_cover = options.last_page_is_back_cover || cover_spread;
   return impose_book(imposition);
 }
 
@@ -313,8 +333,8 @@ QSizeF book_sheet_points(const PdfBookPrintOptions& options) {
 }
 
 QImage render_book_sheet_side(QPdfDocument& document, const PdfBookPrintOptions& options,
-                              const BookImposition& imposition, const std::vector<int>& source_pages, int sheet,
-                              bool back, double dpi) {
+                              const BookImposition& imposition, const std::vector<BookSourcePage>& source_pages,
+                              int sheet, bool back, double dpi) {
   const QSizeF size = book_sheet_points(options);
   const double scale = dpi / 72.0;
   QImage image(QSize(std::max(1, static_cast<int>(std::lround(size.width() * scale))),
@@ -349,15 +369,23 @@ QImage render_book_sheet_side(QPdfDocument& document, const PdfBookPrintOptions&
     if (index < 0 || index >= static_cast<int>(source_pages.size())) {
       continue;  // a blank page
     }
-    const int page = source_pages[static_cast<std::size_t>(index)];
-    const QSizeF page_points = document.pagePointSize(page);
+    const BookSourcePage& source = source_pages[static_cast<std::size_t>(index)];
+    const QSizeF page_points = document.pagePointSize(source.page);
     const BookRect cell{0.0, 0.0, cell_width, cell_height};
-    const BookPagePlacement placed = place_book_page(cell, page_points.width(), page_points.height(),
-                                                     book_binding_edge(slot.book_page, options.right_to_left),
-                                                     placement);
+    const BookPagePlacement placed =
+        place_book_page(cell, book_source_page_width(source.part, page_points.width()), page_points.height(),
+                        book_binding_edge(slot.book_page, options.right_to_left), placement);
     const QSize pixels(std::max(1, static_cast<int>(std::lround(placed.page.width * scale))),
                        std::max(1, static_cast<int>(std::lround(placed.page.height * scale))));
-    const QImage rendered = document.render(page, pixels, render_options);
+    QPdfDocumentRenderOptions part_options = render_options;
+    if (source.part != BookPagePart::Whole) {
+      // Half of a spread: the whole page at twice the width, clipped to that half (the
+      // output is the clip's size; docs/pdf-viewer.md pins these semantics).
+      part_options.setScaledSize(QSize(pixels.width() * 2, pixels.height()));
+      part_options.setScaledClipRect(
+          QRect(source.part == BookPagePart::Left ? 0 : pixels.width(), 0, pixels.width(), pixels.height()));
+    }
+    const QImage rendered = document.render(source.page, pixels, part_options);
     painter.save();
     painter.translate(slot.column * cell_width, slot.row * cell_height);
     if (slot.upside_down) {
@@ -385,7 +413,7 @@ QImage render_book_sheet_side(QPdfDocument& document, const PdfBookPrintOptions&
 }
 
 BookAssemblyGuide book_assembly_guide(const PdfBookPrintOptions& options, const BookImposition& imposition,
-                                      int page_count) {
+                                      const std::vector<BookSourcePage>& source_pages) {
   BookAssemblyGuide guide;
   const int sheets = static_cast<int>(imposition.sheets.size());
   if (sheets == 0) {
@@ -394,7 +422,6 @@ BookAssemblyGuide book_assembly_guide(const PdfBookPrintOptions& options, const 
   const auto add = [&guide](QString title, QStringList details) {
     guide.steps.push_back({std::move(title), std::move(details)});
   };
-  const std::vector<int> source_pages = book_source_pages(options, page_count);
   if (imposition.two_sided) {
     if (options.manual_duplex) {
       add(QObject::tr("Print %n sheet(s), one side at a time", nullptr, sheets),
@@ -552,13 +579,12 @@ QString book_assembly_text(const BookAssemblyGuide& guide) {
 PdfBookWriteResult write_pdf_book(QPdfDocument& document, const PdfBookPrintOptions& options, const QString& path,
                                   const PdfBookProgress& progress) {
   PdfBookWriteResult result;
-  const int page_count = document.pageCount();
-  const BookImposition imposition = book_imposition_for(options, page_count);
+  const std::vector<BookSourcePage> source_pages = book_source_pages(options, book_pdf_page_sizes(document));
+  const BookImposition imposition = book_imposition_for(options, source_pages);
   if (imposition.sheets.empty()) {
     result.error = QObject::tr("The document has no pages to print.");
     return result;
   }
-  const std::vector<int> source_pages = book_source_pages(options, page_count);
   const std::vector<SideRef> sides = printed_sides(imposition, true, true);
   const int count = static_cast<int>(sides.size()) + (options.steps_page ? 1 : 0);
   PdfExportOptions encode;
@@ -587,7 +613,7 @@ PdfBookWriteResult write_pdf_book(QPdfDocument& document, const PdfBookPrintOpti
         return result;
       }
     }
-    if (options.steps_page && !add(render_steps_page(options, book_assembly_guide(options, imposition, page_count),
+    if (options.steps_page && !add(render_steps_page(options, book_assembly_guide(options, imposition, source_pages),
                                                      std::min(dpi, 300.0)))) {
       writer.abort();
       result.cancelled = true;
@@ -661,7 +687,7 @@ namespace {
 
 // Paints `sides` into one print job. False when the job could not start or was cancelled.
 bool print_sides(QWidget* parent, QPrinter& printer, QPdfDocument& document, const PdfBookPrintOptions& options,
-                 const BookImposition& imposition, const std::vector<int>& source_pages,
+                 const BookImposition& imposition, const std::vector<BookSourcePage>& source_pages,
                  const std::vector<SideRef>& sides, const BookAssemblyGuide* steps) {
   printer.setFullPage(true);
   QPainter painter(&printer);
@@ -801,6 +827,23 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
   range_row->addWidget(new QLabel(QObject::tr("of %1").arg(page_count), paper_group));
   range_row->addStretch(1);
   paper_form->addRow(QObject::tr("Pages:"), range_row);
+  // A scanned booklet laid flat has two book pages on every PDF page. Not remembered: it
+  // describes this file, and splitting another file's wide pages would be a surprise.
+  auto* spreads = new QComboBox(paper_group);
+  spreads->setObjectName(QStringLiteral("pdfBookPrintSpreadsCombo"));
+  spreads->addItem(QObject::tr("None (one book page per PDF page)"), QStringLiteral("none"));
+  spreads->addItem(QObject::tr("Split wide pages in two"), QStringLiteral("split"));
+  spreads->addItem(QObject::tr("Split, first page is the cover spread"), QStringLiteral("cover"));
+  spreads->setItemData(1, QObject::tr("Every page wider than tall is cut down the middle into a left and a right "
+                                      "page. Tall pages stay whole."),
+                       Qt::ToolTipRole);
+  spreads->setItemData(2, QObject::tr("As above, and the first page is the outside of the cover laid flat: the back "
+                                      "cover beside the front cover. The back cover becomes the last page."),
+                       Qt::ToolTipRole);
+  spreads->setToolTip(QObject::tr("For PDFs with two book pages side by side on each page, such as a scanned "
+                                  "booklet laid flat"));
+  paper_form->addRow(QObject::tr("Two-page spreads:"), spreads);
+  const std::vector<BookPageSize> page_sizes = book_pdf_page_sizes(document);
   auto* scaling = new QComboBox(paper_group);
   scaling->setObjectName(QStringLiteral("pdfBookPrintScalingCombo"));
   scaling->addItem(QObject::tr("Fit the whole page"), QStringLiteral("fit"));
@@ -938,12 +981,19 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
   preview_column->addWidget(buttons);
   root->addLayout(preview_column, 1);
 
+  // A cover spread makes its back cover the last page, so the back cover check is shown on
+  // and locked while that is chosen; the user's own choice comes back after.
+  bool back_cover_choice = options.last_page_is_back_cover;
   const auto read_options = [&] {
     PdfBookPrintOptions read = options;
     read.style = style_from_token(style->currentData().toString());
     read.sheets_per_signature = signature_sheets->value();
     read.right_to_left = direction->currentData().toString() == QStringLiteral("rtl");
-    read.last_page_is_back_cover = back_cover->isChecked();
+    read.last_page_is_back_cover = back_cover->isEnabled() ? back_cover->isChecked() : back_cover_choice;
+    const QString spreads_token = spreads->currentData().toString();
+    read.spreads = spreads_token == QStringLiteral("split")   ? BookSpreads::Split
+                   : spreads_token == QStringLiteral("cover") ? BookSpreads::SplitCoverSpread
+                                                              : BookSpreads::None;
     const QString paper_key = paper->currentData().toString();
     for (const auto id : kPapers) {
       if (QPageSize::key(id) == paper_key) {
@@ -989,8 +1039,8 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
     // The preview shows the second side the way it reads once the sheet is turned over,
     // never the upside-down print a long-edge printer needs.
     current.turn_backs = false;
-    const BookImposition imposition = book_imposition_for(current, page_count);
-    const std::vector<int> pages = book_source_pages(current, page_count);
+    const std::vector<BookSourcePage> pages = book_source_pages(current, page_sizes);
+    const BookImposition imposition = book_imposition_for(current, pages);
     const int sheet = sheet_spin->value() - 1;
     const double dpi = kPreviewWidth * front_preview->devicePixelRatioF() / (book_sheet_points(current).width() / 72.0);
     QPdfDocument* pdf = &document;
@@ -1029,8 +1079,15 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
   };
 
   const auto refresh = [&] {
+    const bool cover_spread = spreads->currentData().toString() == QStringLiteral("cover");
+    if (back_cover->isEnabled() == cover_spread) {
+      const QSignalBlocker block(back_cover);
+      back_cover->setEnabled(!cover_spread);
+      back_cover->setChecked(cover_spread || back_cover_choice);
+    }
     const PdfBookPrintOptions current = read_options();
-    const BookImposition imposition = book_imposition_for(current, page_count);
+    const std::vector<BookSourcePage> source_pages = book_source_pages(current, page_sizes);
+    const BookImposition imposition = book_imposition_for(current, source_pages);
     const bool nested = nested_style(current.style);
     signature_label->setVisible(current.style == BookPrintStyle::Signatures);
     signature_sheets->setVisible(current.style == BookPrintStyle::Signatures);
@@ -1045,7 +1102,7 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
     const int sheets = static_cast<int>(imposition.sheets.size());
     sheet_spin->setMaximum(std::max(1, sheets));
     sheet_spin->setSuffix(QObject::tr(" of %1").arg(sheets));
-    const int pages = static_cast<int>(book_source_pages(current, page_count).size());
+    const int pages = static_cast<int>(source_pages.size());
     QString text = QObject::tr("%n page(s) on %1 sheet(s)", nullptr, pages).arg(sheets);
     if (current.style == BookPrintStyle::Signatures) {
       text += QStringLiteral(", ") + QObject::tr("%n signature(s)", nullptr, imposition.signatures);
@@ -1053,12 +1110,22 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
     if (imposition.blank_pages > 0) {
       text += QStringLiteral(", ") + QObject::tr("%n blank page(s) added", nullptr, imposition.blank_pages);
     }
+    // Every page printed is wide: most likely two pages side by side, which would print four
+    // to a sheet. Point at the choice that splits them.
+    if (current.spreads == BookSpreads::None && !source_pages.empty() &&
+        std::all_of(source_pages.begin(), source_pages.end(), [&page_sizes](const BookSourcePage& source) {
+          return book_page_is_spread(page_sizes[static_cast<std::size_t>(source.page)]);
+        })) {
+      text += QStringLiteral("\n") + QObject::tr("The pages are wider than tall. If each holds two book pages, "
+                                                 "choose a Split option under Two-page spreads.");
+    }
     summary->setText(text);
-    steps_view->setHtml(book_assembly_html(book_assembly_guide(current, imposition, page_count)));
+    steps_view->setHtml(book_assembly_html(book_assembly_guide(current, imposition, source_pages)));
     refresh_preview();
   };
 
-  for (auto* combo : {style, direction, paper, scaling, page_numbers, resolution, quality}) {
+  QObject::connect(back_cover, &QCheckBox::toggled, &dialog, [&back_cover_choice](bool on) { back_cover_choice = on; });
+  for (auto* combo : {style, direction, paper, spreads, scaling, page_numbers, resolution, quality}) {
     QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, refresh);
   }
   for (auto* spin : {signature_sheets, first_page, last_page, sheet_spin}) {
@@ -1102,9 +1169,9 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
   QObject::connect(print_button, &QPushButton::clicked, &dialog, [&] {
     const PdfBookPrintOptions current = read_options();
     store_pdf_book_print_options(current);
-    const BookImposition imposition = book_imposition_for(current, page_count);
-    const std::vector<int> pages = book_source_pages(current, page_count);
-    const BookAssemblyGuide guide = book_assembly_guide(current, imposition, page_count);
+    const std::vector<BookSourcePage> pages = book_source_pages(current, page_sizes);
+    const BookImposition imposition = book_imposition_for(current, pages);
+    const BookAssemblyGuide guide = book_assembly_guide(current, imposition, pages);
     const BookAssemblyGuide* steps = current.steps_page ? &guide : nullptr;
     QPrinter printer(QPrinter::HighResolution);
     printer.setDocName(QFileInfo(path).completeBaseName());

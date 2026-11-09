@@ -50,6 +50,41 @@ void check_each_position_once(const BookImposition& imposition) {
   }
 }
 
+// Spreads split into halves in reading order; a cover spread's back half goes last.
+void book_imposition_splits_two_page_spreads() {
+  using patchy::BookPagePart;
+  using patchy::BookSourcePage;
+  using patchy::BookSpreads;
+  const patchy::BookPageSize tall{200.0, 300.0};
+  const patchy::BookPageSize wide{400.0, 300.0};
+  CHECK(patchy::book_page_is_spread(wide) && !patchy::book_page_is_spread(tall));
+  CHECK(!patchy::book_page_is_spread({300.0, 300.0}) && !patchy::book_page_is_spread({0.0, 0.0}));
+  const std::vector<patchy::BookPageSize> sizes{wide, wide, tall, wide};
+  using Pages = std::vector<BookSourcePage>;
+  // None: one book page per PDF page, the range respected.
+  CHECK(patchy::book_source_pages(sizes, 1, 2, BookSpreads::None, false) ==
+        Pages({{1, BookPagePart::Whole}, {2, BookPagePart::Whole}}));
+  // Split: wide pages left then right; the tall page stays whole.
+  CHECK(patchy::book_source_pages(sizes, 0, -1, BookSpreads::Split, false) ==
+        Pages({{0, BookPagePart::Left}, {0, BookPagePart::Right}, {1, BookPagePart::Left}, {1, BookPagePart::Right},
+               {2, BookPagePart::Whole}, {3, BookPagePart::Left}, {3, BookPagePart::Right}}));
+  // Right to left reads the right half first.
+  CHECK(patchy::book_source_pages(sizes, 3, 3, BookSpreads::Split, true) ==
+        Pages({{3, BookPagePart::Right}, {3, BookPagePart::Left}}));
+  // Cover spread: [back | front] laid flat, so the front (right) half opens the book and the
+  // back (left) half ends it; mirrored for right to left.
+  CHECK(patchy::book_source_pages(sizes, 0, 1, BookSpreads::SplitCoverSpread, false) ==
+        Pages({{0, BookPagePart::Right}, {1, BookPagePart::Left}, {1, BookPagePart::Right}, {0, BookPagePart::Left}}));
+  CHECK(patchy::book_source_pages(sizes, 0, 0, BookSpreads::SplitCoverSpread, true) ==
+        Pages({{0, BookPagePart::Left}, {0, BookPagePart::Right}}));
+  // The cover is the first page of the range; a tall first page is just a page.
+  CHECK(patchy::book_source_pages(sizes, 2, 3, BookSpreads::SplitCoverSpread, false) ==
+        Pages({{2, BookPagePart::Whole}, {3, BookPagePart::Left}, {3, BookPagePart::Right}}));
+  CHECK(patchy::book_source_pages({}, 0, -1, BookSpreads::Split, false).empty());
+  CHECK(near(patchy::book_source_page_width(BookPagePart::Left, 400.0), 200.0) &&
+        near(patchy::book_source_page_width(BookPagePart::Whole, 400.0), 400.0));
+}
+
 void book_imposition_booklet_nests_sheets() {
   BookImpositionOptions options;
   options.style = BookPrintStyle::Booklet;
@@ -245,6 +280,7 @@ void page_view_layout_centres_rows_and_fits() {
 
 std::vector<patchy::test::TestCase> book_imposition_tests() {
   return {
+      {"book_imposition_splits_two_page_spreads", book_imposition_splits_two_page_spreads},
       {"book_imposition_booklet_nests_sheets", book_imposition_booklet_nests_sheets},
       {"book_imposition_booklet_right_to_left_mirrors", book_imposition_booklet_right_to_left_mirrors},
       {"book_imposition_pads_with_blanks_and_keeps_back_cover", book_imposition_pads_with_blanks_and_keeps_back_cover},

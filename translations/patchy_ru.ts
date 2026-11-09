@@ -15758,6 +15758,46 @@ Do you want to replace it?</source>
         <source>Page numbers:</source>
         <translation>Номера страниц:</translation>
     </message>
+    <message>
+        <source>the left half of page %1</source>
+        <translation>левая половина страницы %1</translation>
+    </message>
+    <message>
+        <source>the right half of page %1</source>
+        <translation>правая половина страницы %1</translation>
+    </message>
+    <message>
+        <source>None (one book page per PDF page)</source>
+        <translation>Нет (одна страница книги на страницу PDF)</translation>
+    </message>
+    <message>
+        <source>Split wide pages in two</source>
+        <translation>Делить широкие страницы пополам</translation>
+    </message>
+    <message>
+        <source>Split, first page is the cover spread</source>
+        <translation>Делить, обложка на первой странице</translation>
+    </message>
+    <message>
+        <source>Every page wider than tall is cut down the middle into a left and a right page. Tall pages stay whole.</source>
+        <translation>Каждая страница, ширина которой больше высоты, делится посередине на левую и правую. Высокие страницы остаются целыми.</translation>
+    </message>
+    <message>
+        <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
+        <translation>То же, и первая страница содержит развёрнутую внешнюю сторону обложки: заднюю обложку рядом с передней. Задняя обложка становится последней страницей.</translation>
+    </message>
+    <message>
+        <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
+        <translation>Для PDF, где на каждой странице две страницы книги рядом, например отсканированная в развёрнутом виде брошюра</translation>
+    </message>
+    <message>
+        <source>Two-page spreads:</source>
+        <translation>Развороты:</translation>
+    </message>
+    <message>
+        <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation>Ширина страниц больше высоты. Если на каждой две страницы книги, выберите вариант «Делить» в поле «Развороты».</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
