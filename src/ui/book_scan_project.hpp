@@ -47,7 +47,7 @@ struct BookPageRef {
   BookPageSide side{BookPageSide::Left};
   int turns{0};  // extra clockwise quarter turns the user gave this page
   // This page's own output mode; nullopt follows the book's.
-  std::optional<BookOutputMode> output;
+  std::optional<BookOutputMode> output{};
 
   friend bool operator==(const BookPageRef&, const BookPageRef&) = default;
 };
