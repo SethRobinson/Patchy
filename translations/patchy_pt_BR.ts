@@ -17233,6 +17233,14 @@ Deseja substituí-lo?</translation>
         <source>Cancelling Scan</source>
         <translation>Cancelando a digitalização</translation>
     </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>Para onde aponta o topo do livro no vidro. Alterar isso gira todas as digitalizações.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>Todas as digitalizações deste livro foram giradas.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

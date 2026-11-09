@@ -17215,6 +17215,14 @@ Do you want to replace it?</source>
         <source>Cancelling Scan</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

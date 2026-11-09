@@ -17171,6 +17171,14 @@ Do you want to replace it?</source>
         <source>Cancelling Scan</source>
         <translation>스캔 취소 중</translation>
     </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>유리 위에서 책의 위쪽이 가리키는 방향입니다. 바꾸면 모든 스캔이 회전합니다.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>이 책의 모든 스캔을 회전했습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

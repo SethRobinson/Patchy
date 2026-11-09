@@ -833,7 +833,8 @@ void BookScanDialog::build_cover_page() {
   form->addRow(tr("Reading direction:"), direction_combo_);
   cover_tilt_spin_ = new QDoubleSpinBox(page);
   cover_tilt_spin_->setObjectName(QStringLiteral("bookScanCoverTiltSpin"));
-  cover_tilt_spin_->setRange(-45.0, 45.0);
+  // A quarter turn either way: a book or page laid sideways can be tilted upright.
+  cover_tilt_spin_->setRange(-90.0, 90.0);
   cover_tilt_spin_->setDecimals(1);
   cover_tilt_spin_->setSuffix(tr(" deg"));
   form->addRow(tr("Tilt:"), cover_tilt_spin_);
@@ -892,7 +893,7 @@ void BookScanDialog::build_cover_page() {
     cover_settings_changed();
   };
   connect(up_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-    if (refreshing_ || !project_.cover) {
+    if (refreshing_) {
       return;
     }
     set_up_turns((4 - index) % 4);
@@ -982,15 +983,16 @@ void BookScanDialog::build_scanning_page() {
   use_combo_->addItems({tr("Both pages"), tr("Left page only"), tr("Right page only")});
   use_combo_->setToolTip(tr("Leave out a blank inside cover or the empty side of the last spread"));
   form->addRow(tr("Use:"), use_combo_);
-  // The cover's own option, shown while the cover is selected for editing.
+  // The whole book's orientation, always shown: a book scanned without a cover first sees
+  // its pages here, and a sideways page needs a quarter turn of every scan.
   scan_up_combo_ = new QComboBox(page);
   scan_up_combo_->setObjectName(QStringLiteral("bookScanScanningUpCombo"));
   scan_up_combo_->addItems({tr("Up"), tr("Right"), tr("Down"), tr("Left")});
-  scan_up_combo_->setToolTip(tr("Which way the top of the book points in the scan"));
+  scan_up_combo_->setToolTip(tr("Which way the top of the book points on the glass. Changing it turns every scan."));
   form->addRow(tr("Top of the book points:"), scan_up_combo_);
   spread_tilt_spin_ = new QDoubleSpinBox(page);
   spread_tilt_spin_->setObjectName(QStringLiteral("bookScanSpreadTiltSpin"));
-  spread_tilt_spin_->setRange(-45.0, 45.0);
+  spread_tilt_spin_->setRange(-90.0, 90.0);
   spread_tilt_spin_->setDecimals(1);
   spread_tilt_spin_->setSuffix(tr(" deg"));
   form->addRow(tr("Tilt:"), spread_tilt_spin_);
@@ -1116,10 +1118,13 @@ void BookScanDialog::build_scanning_page() {
     refresh_scanning_page();
   });
   connect(scan_up_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-    if (refreshing_ || !project_.cover || scan_in_progress()) {
+    if (refreshing_ || scan_in_progress()) {
       return;
     }
     set_up_turns((4 - index) % 4);
+    if (!project_.scans.empty() || project_.cover) {
+      status_label_->setText(tr("Every scan of this book was turned."));
+    }
     refresh_scanning_page();
   });
   connect(spread_tilt_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
@@ -2144,11 +2149,10 @@ void BookScanDialog::refresh_cover_page() {
     cover_preview_->set_lines(project_.cover->layout.spine_left, project_.cover->layout.spine_right);
     cover_tilt_spin_->setValue(project_.cover->layout.outline.angle_degrees);
     cover_tilt_spin_->setEnabled(true);
-    up_combo_->setEnabled(true);
   } else {
+    // Without a cover scan, Top of the book stays available: it is how the pages will lie.
     cover_preview_->clear_image();
     cover_tilt_spin_->setEnabled(false);
-    up_combo_->setEnabled(false);
   }
   if (!capabilities_.direct_control) {
     mode_notice_->setText(tr("The scan dialog sets the resolution and mode for each scan."));
@@ -2191,7 +2195,10 @@ void BookScanDialog::cover_settings_changed() {
                     project_.scan_book_area ? QStringLiteral("book") : QStringLiteral("glass"));
   settings.setValue(QStringLiteral("bookScan/readingDirection"),
                     project_.direction == BookReadingDirection::RightToLeft ? QStringLiteral("rtl") : QStringLiteral("ltr"));
-  settings.setValue(QStringLiteral("bookScan/includeCovers"), covers_check_->isChecked());
+  // Without a cover the box is unchecked and disabled: that is no choice for the next book.
+  if (project_.cover) {
+    settings.setValue(QStringLiteral("bookScan/includeCovers"), covers_check_->isChecked());
+  }
   save_project_quietly();
   update_page_size_label();
 }
@@ -2216,7 +2223,8 @@ void BookScanDialog::update_book_area() {
 
 void BookScanDialog::set_up_turns(int turns) {
   turns = ((turns % 4) + 4) % 4;
-  if (turns == project_.up_turns || !project_.cover) {
+  // A book without a cover scan still needs its top set: it turns the page scans alone.
+  if (turns == project_.up_turns) {
     return;
   }
   const bool half = (turns - project_.up_turns + 4) % 4 == 2;
@@ -2229,7 +2237,9 @@ void BookScanDialog::set_up_turns(int turns) {
   QApplication::setOverrideCursor(Qt::WaitCursor);
   // Half a turn: the same outline, spine and pages, turned, so edits survive. A quarter
   // turn changes which way the spine runs: detect again on the turned scans.
-  if (half) {
+  if (!project_.cover) {
+    // Nothing to turn but the page scans below.
+  } else if (half) {
     const QSize size = upright_size(project_.cover->file, turns);
     project_.cover->layout = half_turned_cover(project_.cover->layout, size.width(), size.height());
   } else {
@@ -2807,8 +2817,8 @@ void BookScanDialog::refresh_scanning_page() {
   pages_combo_->setCurrentIndex(one_page ? 1 : 0);
   pages_combo_->setEnabled(!scan_in_progress());
   scan_form_->setRowVisible(use_combo_, !one_page && !edit_cover_);
-  scan_form_->setRowVisible(scan_up_combo_, edit_cover_);
   scan_up_combo_->setCurrentIndex((4 - project_.up_turns) % 4);
+  scan_up_combo_->setEnabled(!scan_in_progress());
   rotate_scan_button_->setVisible(!edit_cover_);
   use_combo_->setEnabled(selected >= 0);
   spread_tilt_spin_->setEnabled(edit_cover_ || selected >= 0);

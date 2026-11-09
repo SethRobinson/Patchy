@@ -2,6 +2,7 @@
 // scanner (PATCHY_FAKE_BOOK_SCANNER), the project manifest, page order, the PDF it
 // writes, and app.buildBookPdf.
 #include "core/book_scan.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/book_pdf_export.hpp"
 #include "ui/book_scan_dialog.hpp"
 #include "ui/book_scan_project.hpp"
@@ -18,6 +19,7 @@
 #include <QComboBox>
 #include <QDragEnterEvent>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
@@ -255,6 +257,94 @@ void ui_book_scan_cancel_shows_feedback() {
   dialog.start_page_scan();
   wait_for_scan(dialog);
   CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1U);
+  dialog.reject();
+}
+
+QStringList turned_inputs(const QStringList& files);
+
+// A book scanned without a cover can still say which way its top points: in the cover step
+// before any scan, and in the scanning step once the first scan shows it lying sideways.
+void ui_book_scan_skip_cover_sets_top_of_book() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_skip_cover_inputs"));
+  const QString project =
+      fresh_artifact_folder(QStringLiteral("ui_book_scan_skip_cover_project")) + QStringLiteral("/book");
+  // Two spreads and no cover scan, each lying with the top of the book to the right.
+  const QStringList files = turned_inputs(write_book_inputs(inputs, 2).mid(1));
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "2x3");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.set_title(QStringLiteral("Sideways Book"));
+  const QVariant include_covers = patchy::ui::app_settings().value(QStringLiteral("bookScan/includeCovers"));
+  dialog.skip_cover();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Cover);
+  CHECK(!dialog.project().cover.has_value());
+  auto* cover_up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUpCombo"));
+  CHECK(cover_up != nullptr && cover_up->isEnabled());
+  if (cover_up == nullptr) {
+    return;
+  }
+  // Set before the first scan, with nothing scanned yet to turn.
+  cover_up->setCurrentIndex(2);  // Down
+  CHECK(dialog.project().up_turns == 2);
+  cover_up->setCurrentIndex(0);  // Up: the user does not know yet
+  CHECK(dialog.project().up_turns == 0);
+  if (auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"))) {
+    resolution->setCurrentIndex(resolution->findData(kDpi));
+  }
+  dialog.start_page_scanning();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning);
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1U);
+  auto* up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningUpCombo"));
+  auto* status = dialog.findChild<QLabel*>(QStringLiteral("bookScanStatusLabel"));
+  CHECK(up != nullptr && status != nullptr);
+  if (up == nullptr || status == nullptr || dialog.project().scans.empty()) {
+    return;
+  }
+  // The first scan shows the book on its side: the scanning step turns it upright.
+  CHECK(!up->isHidden() && up->isEnabled());
+  patchy::test::ui::save_widget_artifact("ui_book_scan_skip_cover_sideways", dialog);
+  up->setCurrentIndex(1);  // Right
+  CHECK(dialog.project().up_turns == 3);
+  CHECK(status->text() == QStringLiteral("Every scan of this book was turned."));
+  const auto check_upright = [&dialog](std::size_t index) {
+    const auto& spread = dialog.project().scans[index].layout.spread;
+    CHECK(std::abs(spread.width - 720.0) < 20.0 && std::abs(spread.height - 480.0) < 20.0);
+    CHECK(std::abs(spread.angle_degrees) < 3.0);
+    CHECK(std::abs(dialog.project().scans[index].layout.gutter - 0.5) < 0.03);
+  };
+  check_upright(0);
+  patchy::test::ui::save_widget_artifact("ui_book_scan_skip_cover_turned", dialog);
+  // Tilt reaches a quarter turn either way, so one page laid sideways can be turned alone.
+  auto* tilt = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("bookScanSpreadTiltSpin"));
+  auto* cover_tilt = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("bookScanCoverTiltSpin"));
+  CHECK(tilt != nullptr && cover_tilt != nullptr);
+  if (tilt != nullptr && cover_tilt != nullptr) {
+    CHECK(tilt->minimum() == -90.0 && tilt->maximum() == 90.0);
+    CHECK(cover_tilt->minimum() == -90.0 && cover_tilt->maximum() == 90.0);
+    dialog.select_scan_for_editing(0);
+    const double before = dialog.project().scans[0].layout.spread.angle_degrees;
+    tilt->setValue(90.0);
+    CHECK(dialog.project().scans[0].layout.spread.angle_degrees == 90.0);
+    tilt->setValue(before);
+    CHECK(dialog.project().scans[0].layout.spread.angle_degrees == before);
+    dialog.back_to_next_pages();
+  }
+  // The next scan comes in upright, and the turn is saved with the book.
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 2U);
+  if (dialog.project().scans.size() == 2U) {
+    check_upright(1);
+  }
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved.has_value() && saved->up_turns == 3 && !saved->cover.has_value());
+  // A book without a cover leaves the next book's Include covers choice alone.
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("bookScan/includeCovers")) == include_covers);
   dialog.reject();
 }
 
@@ -836,7 +926,7 @@ void ui_book_scan_edit_and_rescan_earlier_scans() {
   click(2);
   CHECK(process_events_until([&dialog] { return !dialog.cover_selected() && dialog.selected_scan() == 0; }, 3000));
   CHECK(rescan->text() == QStringLiteral("Rescan This Scan"));
-  CHECK(!use->isHidden() && up->isHidden());
+  CHECK(!use->isHidden() && !up->isHidden());
   CHECK(instruction->text().contains(QStringLiteral("1")) && instruction->text().contains(QStringLiteral("Back to Next Pages")));
   CHECK(strip->item(1)->isSelected() && strip->item(2)->isSelected() && !strip->item(3)->isSelected());
   // Its Use choice applies to it, not to the newest scan.
@@ -1217,6 +1307,7 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
   return {
       {"ui_book_scan_menu_actions_registered", ui_book_scan_menu_actions_registered},
       {"ui_book_scan_cancel_shows_feedback", ui_book_scan_cancel_shows_feedback},
+      {"ui_book_scan_skip_cover_sets_top_of_book", ui_book_scan_skip_cover_sets_top_of_book},
       {"ui_book_scan_full_flow_exports_uniform_pages", ui_book_scan_full_flow_exports_uniform_pages},
       {"ui_book_scan_black_and_white_and_script_export", ui_book_scan_black_and_white_and_script_export},
       {"ui_book_scan_resume_and_rescan", ui_book_scan_resume_and_rescan},

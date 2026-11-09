@@ -17223,7 +17223,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
-        <translation>Annulation de la numérisation. Le scanner s'arrête dès que possible, ce qui peut prendre un moment s'il est en plein passage.</translation>
+        <translation>Annulation de la numérisation. Le scanner s&apos;arrête dès que possible, ce qui peut prendre un moment s&apos;il est en plein passage.</translation>
     </message>
     <message>
         <source>Hide</source>
@@ -17232,6 +17232,14 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Cancelling Scan</source>
         <translation>Annulation de la numérisation</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>Direction vers laquelle pointe le haut du livre sur la vitre. La modifier tourne chaque numérisation.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>Chaque numérisation de ce livre a été tournée.</translation>
     </message>
 </context>
 <context>
