@@ -1792,10 +1792,14 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
         fraction.has_value() && std::isfinite(*fraction) && *fraction > 0.01 && *fraction < 10.0) {
       run.auto_leading_fraction = *fraction;
     }
-    // Middle Eastern composer paragraph sheets carry /ParagraphDirection (0 = left to right,
-    // 1 = right to left); Latin-composer sheets omit it and stay auto.
-    if (const auto direction = engine_number_after_key(dictionaries[index], "/ParagraphDirection");
-        direction.has_value() && std::isfinite(*direction)) {
+    // An explicit TySh direction (0 = left to right, 1 = right to left): Patchy writes
+    // /ParagraphDirection, Photon Studio /Direction (GitHub issue 683). Photoshop writes
+    // neither; its direction is the Txt2 /33, which the layer records apply over this.
+    auto direction = engine_number_after_key(dictionaries[index], "/ParagraphDirection");
+    if (!direction.has_value()) {
+      direction = engine_number_after_key(dictionaries[index], "/Direction");
+    }
+    if (direction.has_value() && std::isfinite(*direction)) {
       run.direction = std::lround(*direction) == 1 ? "rtl" : "ltr";
     }
     runs.push_back(run);
@@ -2105,6 +2109,61 @@ std::string serialize_paragraph_metric(double value) {
   std::ostringstream stream;
   stream << std::setprecision(17) << value;
   return stream.str();
+}
+
+namespace {
+
+struct CodePointRange {
+  std::uint32_t first;
+  std::uint32_t last;
+};
+
+// Strong right-to-left letters (bidi classes R and AL), letters only: the Hebrew and Arabic
+// points, Arabic-Indic digits and combining marks in between are weak or neutral and skipped.
+constexpr CodePointRange kStrongRightToLeft[] = {
+    {0x05BE, 0x05BE}, {0x05C0, 0x05C0}, {0x05C3, 0x05C3}, {0x05C6, 0x05C6}, {0x05D0, 0x05FF},
+    {0x0608, 0x0608}, {0x060B, 0x060B}, {0x060D, 0x060D}, {0x061B, 0x064A}, {0x066D, 0x066F},
+    {0x0671, 0x06D5}, {0x06E5, 0x06E6}, {0x06EE, 0x06EF}, {0x06FA, 0x0710}, {0x0712, 0x072F},
+    {0x074D, 0x07A5}, {0x07B1, 0x07B1}, {0x07C0, 0x07EA}, {0x07F4, 0x07F5}, {0x07FA, 0x0815},
+    {0x0830, 0x0858}, {0x0860, 0x08C9}, {0x200F, 0x200F}, {0xFB1D, 0xFB1D}, {0xFB1F, 0xFB28},
+    {0xFB2A, 0xFD3D}, {0xFD40, 0xFDFF}, {0xFE70, 0xFEFE}, {0x10800, 0x10FFF}, {0x1E800, 0x1EFFF},
+};
+
+// Strong left-to-right letters (bidi class L) of the common scripts; anything else (digits,
+// punctuation, symbols, spaces, marks, emoji) is not strong.
+constexpr CodePointRange kStrongLeftToRight[] = {
+    {0x0041, 0x005A}, {0x0061, 0x007A}, {0x00AA, 0x00AA}, {0x00B5, 0x00B5}, {0x00BA, 0x00BA},
+    {0x00C0, 0x00D6}, {0x00D8, 0x00F6}, {0x00F8, 0x02B8}, {0x0370, 0x0373}, {0x0376, 0x037D},
+    {0x037F, 0x0383}, {0x0386, 0x0386}, {0x0388, 0x03F5}, {0x03F7, 0x0482}, {0x048A, 0x058F},
+    {0x0900, 0x0DFF}, {0x0E00, 0x0FFF}, {0x1000, 0x1FFF}, {0x200E, 0x200E}, {0x2C00, 0x2DFF},
+    {0x3041, 0x9FFF}, {0xA000, 0xD7FF}, {0xF900, 0xFB1C}, {0xFF21, 0xFF3A}, {0xFF41, 0xFF5A},
+    {0xFF66, 0xFFDC}, {0x10000, 0x107FF}, {0x11000, 0x1E7FF}, {0x20000, 0x3FFFF},
+};
+
+bool code_point_in(std::span<const CodePointRange> ranges, std::uint32_t code_point) {
+  return std::any_of(ranges.begin(), ranges.end(), [code_point](const CodePointRange& range) {
+    return code_point >= range.first && code_point <= range.last;
+  });
+}
+
+}  // namespace
+
+std::string first_strong_text_direction(std::span<const std::uint16_t> utf16) {
+  for (std::size_t index = 0; index < utf16.size(); ++index) {
+    std::uint32_t code_point = utf16[index];
+    if (code_point >= 0xD800 && code_point <= 0xDBFF && index + 1U < utf16.size() && utf16[index + 1U] >= 0xDC00 &&
+        utf16[index + 1U] <= 0xDFFF) {
+      code_point = 0x10000U + ((code_point - 0xD800U) << 10U) + (utf16[index + 1U] - 0xDC00U);
+      ++index;
+    }
+    if (code_point_in(kStrongRightToLeft, code_point)) {
+      return "rtl";
+    }
+    if (code_point_in(kStrongLeftToRight, code_point)) {
+      return "ltr";
+    }
+  }
+  return {};
 }
 
 // v1: start len alignment; v2: + indent/space metrics; v3: + auto-leading fraction;

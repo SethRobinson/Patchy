@@ -3173,6 +3173,197 @@ void psd_paragraph_direction_round_trips_as_v4_column() {
   }
 }
 
+// GitHub issue 683: Photoshop keeps a paragraph's direction only in the Txt2 /33 and has no auto
+// direction, so a paragraph nothing marks right to left is left to right there, with
+// /Justification relative to it. The reader maps that onto Patchy's model and the writer resolves
+// auto the same way.
+patchy::Document arabic_text_document_for_writer(const std::string& text, const std::string& paragraph_runs) {
+  patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  auto& layer = add_vertical_text_layer_for_writer(document, patchy::Rect{20, 20, 96, 40}, paragraph_runs);
+  layer.metadata()[patchy::kLayerMetadataText] = text;
+  return document;
+}
+
+// Overwrites the first occurrence of `from` in place with `to` padded to the same length, so the
+// file's block lengths stay valid. False when `from` is not there.
+bool replace_same_length(std::vector<std::uint8_t>& bytes, const std::string& from, std::string to) {
+  to.resize(from.size(), ' ');
+  const auto found = std::search(bytes.begin(), bytes.end(), from.begin(), from.end());
+  if (found == bytes.end()) {
+    return false;
+  }
+  std::copy(to.begin(), to.end(), found);
+  return true;
+}
+
+std::string first_paragraph_field(const patchy::Layer& layer, std::size_t field) {
+  const auto lines = split_lines(layer.metadata().at(patchy::kLayerMetadataTextParagraphRuns));
+  if (lines.size() < 2U) {
+    return {};
+  }
+  const auto fields = split_tabs(lines[1]);
+  return field < fields.size() ? fields[field] : std::string{};
+}
+
+void psd_issue_683_direction_reads_txt2_and_photoshop_default() {
+  // Photoshop's right-to-left Hebrew capture: no TySh key, the Txt2 paragraph sheet says /33 1.
+  {
+    const auto document = patchy::psd::DocumentIo::read_file(
+        patchy::test::committed_psd_fixture_path("photoshop-text-rtl-hebrew.psd"));
+    const patchy::Layer* layer = nullptr;
+    for (const auto& candidate : document.layers()) {
+      if (patchy::layer_is_text(candidate)) {
+        layer = &candidate;
+      }
+    }
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      CHECK(first_paragraph_field(*layer, 9) == "rtl");
+      CHECK(first_paragraph_field(*layer, 2) == "left");
+    }
+  }
+  // "marhaba" in Arabic (five UTF-16 units), and a Latin control.
+  const std::string arabic = "\xd9\x85\xd8\xb1\xd8\xad\xd8\xa8\xd8\xa7";
+  const std::string latin = "Hello";
+
+  // Auto Arabic is written right to left in the TySh and the Txt2, and reopens so.
+  {
+    const auto bytes =
+        patchy::psd::DocumentIo::write_layered_rgb8(arabic_text_document_for_writer(arabic, "v1\n0\t5\tright"));
+    const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+    CHECK(payload.has_value() &&
+          std::string(payload->begin(), payload->end()).find("/ParagraphDirection 1") != std::string::npos);
+    auto without_tysh_key = bytes;
+    CHECK(replace_same_length(without_tysh_key, "/ParagraphDirection 1", ""));
+    // The second read has only the Txt2 /33 1 to go on.
+    const std::array<const std::vector<std::uint8_t>*, 2> variants{&bytes, &without_tysh_key};
+    for (const auto* variant : variants) {
+      const auto read = patchy::psd::DocumentIo::read(*variant);
+      CHECK(first_paragraph_field(read.layers().back(), 9) == "rtl");
+      CHECK(first_paragraph_field(read.layers().back(), 2) == "right");
+    }
+    // Auto Latin stays auto, with no key and the old run format.
+    const auto latin_bytes =
+        patchy::psd::DocumentIo::write_layered_rgb8(arabic_text_document_for_writer(latin, "v1\n0\t5\tright"));
+    const std::string latin_text(latin_bytes.begin(), latin_bytes.end());
+    CHECK(latin_text.find("/ParagraphDirection") == std::string::npos);
+    const auto latin_read = patchy::psd::DocumentIo::read(latin_bytes);
+    CHECK(latin_read.layers().back().metadata().at(patchy::kLayerMetadataTextParagraphRuns).rfind("v1\n", 0) == 0);
+  }
+
+  // A Photoshop file with no right-to-left mark (no TySh key, Txt2 /33 0): Arabic opens left to
+  // right with its right alignment, where auto would have flipped it to the left.
+  {
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(
+        arabic_text_document_for_writer(arabic, "v4\n0\t5\tright\t0\t0\t0\t0\t0\t1.2\tltr"));
+    CHECK(replace_same_length(bytes, "/ParagraphDirection 0", ""));
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(first_paragraph_field(read.layers().back(), 9) == "ltr");
+    CHECK(first_paragraph_field(read.layers().back(), 2) == "right");
+    auto latin_bytes = patchy::psd::DocumentIo::write_layered_rgb8(
+        arabic_text_document_for_writer(latin, "v4\n0\t5\tright\t0\t0\t0\t0\t0\t1.2\tltr"));
+    CHECK(replace_same_length(latin_bytes, "/ParagraphDirection 0", ""));
+    const auto latin_read = patchy::psd::DocumentIo::read(latin_bytes);
+    CHECK(latin_read.layers().back().metadata().at(patchy::kLayerMetadataTextParagraphRuns).rfind("v1\n", 0) == 0);
+  }
+
+  // Photon Studio writes its direction as a TySh /Direction 1 and leaves /33 at 0. Photoshop
+  // reads the Txt2, so left to right wins; without a Txt2 object the TySh key is all there is.
+  {
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(
+        arabic_text_document_for_writer(arabic, "v4\n0\t5\tright\t0\t0\t0\t0\t0\t1.2\tltr"));
+    CHECK(replace_same_length(bytes, "/ParagraphDirection 0", "/Direction 1"));
+    CHECK(first_paragraph_field(patchy::psd::DocumentIo::read(bytes).layers().back(), 9) == "ltr");
+    CHECK(replace_same_length(bytes, "8BIMTxt2", "8BIMTxtX"));
+    CHECK(first_paragraph_field(patchy::psd::DocumentIo::read(bytes).layers().back(), 9) == "rtl");
+  }
+
+  // The bidi default the writer and the reader share.
+  const auto utf16 = [](std::u16string_view text) { return std::vector<std::uint16_t>(text.begin(), text.end()); };
+  CHECK(patchy::psd::first_strong_text_direction(utf16(u"123 (שלום)")) == "rtl");
+  CHECK(patchy::psd::first_strong_text_direction(utf16(u"١٢ مabc")) == "rtl");
+  CHECK(patchy::psd::first_strong_text_direction(utf16(u"(Lorem) م")) == "ltr");
+  CHECK(patchy::psd::first_strong_text_direction(utf16(u"日本")) == "ltr");
+  CHECK(patchy::psd::first_strong_text_direction(utf16(u"12 - 34!")).empty());
+}
+
+// GitHub issue 683: a Photoshop-layout layer Patchy saves carries the layout mark, so it reopens
+// in the Photoshop layout model (auto leading = 1.2 x size) instead of Qt's natural line pitch; a
+// Qt-natural layer stays unmarked.
+void psd_issue_683_photoshop_layout_mark_round_trips() {
+  for (const bool photoshop : {true, false}) {
+    patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+    auto& layer = add_vertical_text_layer_for_writer(document, patchy::Rect{20, 20, 96, 40}, "v1\n0\t5\tleft");
+    layer.metadata()[patchy::kLayerMetadataTextRuns] = "v3\n0\t5\t32\t0\t0\t#000000\tArial\tauto\t0\t1\t1";
+    if (photoshop) {
+      layer.metadata()[patchy::kLayerMetadataTextLayoutMode] = patchy::kTextLayoutModePhotoshop;
+    }
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+    CHECK(payload.has_value());
+    if (!payload.has_value()) {
+      continue;
+    }
+    const std::string payload_text(payload->begin(), payload->end());
+    CHECK((payload_text.find("/StyleRunAlignment 2") != std::string::npos) == photoshop);
+    auto read = patchy::psd::DocumentIo::read(bytes);
+    const auto layout_mode = [](const patchy::Layer& reopened) {
+      const auto found = reopened.metadata().find(patchy::kLayerMetadataTextLayoutMode);
+      return found != reopened.metadata().end() ? found->second : std::string{};
+    };
+    CHECK((layout_mode(read.layers().back()) == patchy::kTextLayoutModePhotoshop) == photoshop);
+    if (photoshop) {
+      // The mark survives the next save too.
+      read.layers().back().metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+      const auto second = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read));
+      CHECK(layout_mode(second.layers().back()) == patchy::kTextLayoutModePhotoshop);
+    }
+  }
+}
+
+// The reporter's three files (GitHub issue 683): Photoshop's (no direction set), Patchy 1.29's
+// resave with right to left set, and Photon Studio 1.70's (TySh /Direction 1, Txt2 /33 0).
+void psd_issue_683_reporter_files_read_direction_if_available() {
+  patchy::test::skip_unless_exists(patchy::test::local_psd_fixture_path("issue-683/arabic-photoshop.psd"));
+  const std::vector<std::pair<std::string, std::string>> files{{"issue-683/arabic-photoshop.psd", "ltr"},
+                                                               {"issue-683/arabic-patchy129.psd", "rtl"},
+                                                               {"issue-683/arabic-photon170.psd", "ltr"}};
+  for (const auto& [name, direction] : files) {
+    const auto path = patchy::test::local_psd_fixture_path(name);
+    CHECK(std::filesystem::exists(path));
+    if (!std::filesystem::exists(path)) {
+      continue;
+    }
+    auto document = patchy::psd::DocumentIo::read_file(path);
+    int text_layers = 0;
+    for (auto& layer : document.layers()) {
+      if (!patchy::layer_is_text(layer)) {
+        continue;
+      }
+      ++text_layers;
+      CHECK(first_paragraph_field(layer, 2) == "right");
+      CHECK(first_paragraph_field(layer, 9) == direction);
+      layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    }
+    CHECK(text_layers == 3);
+    // A Patchy save keeps the direction and the alignment, and Photoshop's layers their layout.
+    const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    for (const auto& layer : reread.layers()) {
+      if (!patchy::layer_is_text(layer)) {
+        continue;
+      }
+      CHECK(first_paragraph_field(layer, 2) == "right");
+      CHECK(first_paragraph_field(layer, 9) == direction);
+      if (name != "issue-683/arabic-patchy129.psd") {
+        const auto mode = layer.metadata().find(patchy::kLayerMetadataTextLayoutMode);
+        CHECK(mode != layer.metadata().end() && mode->second == patchy::kTextLayoutModePhotoshop);
+      }
+    }
+  }
+}
+
 const patchy::Layer* committed_fixture_text_layer(const patchy::Document& document) {
   const patchy::Layer* text_layer = nullptr;
   for (const auto& layer : document.layers()) {
@@ -3404,6 +3595,9 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_vertical_tracking_bug_file_resaves_with_integer_tracking_if_available},
       {"psd_writer_exports_vertical_type_block_and_reads_it_back", psd_writer_exports_vertical_type_block_and_reads_it_back},
       {"psd_paragraph_direction_round_trips_as_v4_column", psd_paragraph_direction_round_trips_as_v4_column},
+      {"psd_issue_683_direction_reads_txt2_and_photoshop_default", psd_issue_683_direction_reads_txt2_and_photoshop_default},
+      {"psd_issue_683_photoshop_layout_mark_round_trips", psd_issue_683_photoshop_layout_mark_round_trips},
+      {"psd_issue_683_reporter_files_read_direction_if_available", psd_issue_683_reporter_files_read_direction_if_available},
       {"psd_vertical_capture_imports_orientation", psd_vertical_capture_imports_orientation},
       {"psd_vertical_box_rotated_roman_and_hebrew_captures_import", psd_vertical_box_rotated_roman_and_hebrew_captures_import},
       {"psd_import_regenerates_large_styled_text_preview_alpha",

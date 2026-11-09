@@ -163,7 +163,9 @@ the session contract.
   is mirrored into `kTextEditorPreeditTextProperty` and `document_from_editor_in_document_units`
   inserts it at the cursor, so every render, the caret and an interrupting commit carry it.
 - **Right-to-left needs no shaping work** (Qt runs bidi and HarfBuzz in QTextLayout). Alignment
-  is logical, so the anchor helpers use `resolved_block_direction`. Spell non-ASCII test
+  is logical, so the anchor helpers use `resolved_block_direction`. Photoshop's alignment is
+  logical too, but it has no auto direction: PSD paragraphs read as left to right unless the Txt2
+  says otherwise, and a save resolves auto ([calibration](text-render-calibration-vertical-rtl.md#paragraph-direction-right-to-left), issue 683). Spell non-ASCII test
   literals as `\x` escapes.
 - Scripting: `doc.addTextLayer(text, {orientation, direction})`, `layer.textOrientation` /
   `textDirection`. Tests: `tests/ui/text_vertical_rtl_tests.cpp`.

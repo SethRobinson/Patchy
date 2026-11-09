@@ -439,6 +439,7 @@ int main(int argc, char* argv[]) {
            psd_text_import_tests,
            text_transform_commit_tests,
            text_vertical_rtl_tests,
+           text_rtl_psd_tests,
            text_area_tests,
            text_canvas_session_tests,
            text_color_targets_tests,

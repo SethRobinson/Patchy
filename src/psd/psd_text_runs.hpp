@@ -9,6 +9,7 @@
 
 #include "core/layer.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -137,10 +138,10 @@ struct PsdTextParagraphRun {
   // Auto-leading fraction (Photoshop default 1.2): auto leading = fraction x font size.
   double auto_leading_fraction{1.2};
   // Paragraph base direction: "ltr", "rtl", or empty for auto (the first strong character
-  // decides, the Unicode bidi default). Photoshop keeps its directionType outside the TySh
-  // (September 2026 captures: an RTL and an LTR save differ only in bounds), so this comes from
-  // Patchy's own paragraph runs (v4 column 9) and is written to the engine data as
-  // /ParagraphDirection for Photoshop's Middle Eastern composer.
+  // decides, the Unicode bidi default). Photoshop has no auto: every paragraph is left to right
+  // unless its Txt2 paragraph sheet says /33 1, and /Justification is relative to that
+  // direction (GitHub issue 683). The reader keeps auto only where auto lays the paragraph out
+  // the same way; the writer resolves auto through first_strong_text_direction.
   std::string direction;
   // Photoshop's paragraph composer, Txt2 paragraph key /35 (never in the TySh): 0 Latin and East
   // Asian, 1 World-Ready (Photoshop 2026's default, and what it uses for a file without a Txt2).
@@ -157,6 +158,12 @@ struct PsdTextParagraphRun {
 [[nodiscard]] inline double vertical_text_bleed_for_size(double size) {
   return std::ceil(0.25 * std::max(1.0, size));
 }
+
+// The Unicode bidi default of a stretch of UTF-16 text (rule P2): the direction of its first
+// strong character, "rtl" for Hebrew, Arabic, Syriac, Thaana, N'Ko and the other right-to-left
+// scripts (and RLM/ALM), "ltr" for any other letter, empty when it has none. A table of strong
+// ranges, not the full bidi database: digits, punctuation, symbols and marks are skipped.
+std::string first_strong_text_direction(std::span<const std::uint16_t> utf16);
 
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs);
 std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs);

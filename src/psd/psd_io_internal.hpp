@@ -266,6 +266,9 @@ struct LayerRecord {
   std::optional<int> text_anti_alias;
   std::optional<std::string> text_source_block;
   bool text_patchy_generated_type_block{false};
+  // A Patchy-signed TySh whose normal style sheet carries the Photoshop layout mark
+  // (/StyleRunAlignment, written only for kTextLayoutModePhotoshop layers; GitHub issue 683).
+  bool text_patchy_photoshop_layout{false};
   std::optional<PsdTextGeometry> text_geometry;
   // A Patchy-signed box block's baseline inset (-'bounds' top), folded back out of
   // text_geometry on read: the writer moved the transform origin down by it so Photoshop's

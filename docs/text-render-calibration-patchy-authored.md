@@ -56,6 +56,23 @@ transform re-renders included) and the Qt-free writer turns it into geometry:
   the paragraph v3 column, which the model check ignores. One fraction per layer: mixed families
   on one line can still differ by a few px from line 2 on.
 
+**The Photoshop layout mark.** A layer in the Photoshop layout model (`patchy.text.layout`
+`photoshop`, every Photoshop import) that Patchy saves gets `/StyleRunAlignment 2` in its TySh
+normal style sheet: Photoshop's own sheets carry it (its default, no effect on layout), Patchy's
+never did, so on reopen a Patchy-signed block with it keeps the Photoshop model
+(`text_patchy_photoshop_layout`). Without it a re-saved import with auto leading reopened Qt-natural
+and the next edit drew Qt's line pitch (Amiri Quran at 14 px: 35 px instead of 16.8; GitHub issue
+683, `psd_issue_683_photoshop_layout_mark_round_trips`,
+`ui_issue_683_photoshop_leading_survives_patchy_save_and_reedit`). Files saved before the mark
+reopen Qt-natural as before.
+
+**No advance calibration for Qt-natural text.** The edit session band-matches a fresh render
+against the layer's raster only in the Photoshop layout model (`calibrated_box_text_metric_scale`,
+the Photoshop-raster wrap fix). A Qt-natural raster is Patchy's own render, and when its box
+overflows it holds fewer lines than the whole story, which the search read as a too-wide font and
+squeezed the glyphs further on every re-edit (issue 683,
+`ui_issue_683_overflowing_box_text_reedit_keeps_its_glyphs`).
+
 `store_patchy_text_metadata` erases all four keys so a render path without metrics never keeps a
 stale inset. Pinned by `psd_writer_box_text_baseline_inset_moves_box_bounds`,
 `psd_writer_point_text_first_baseline_beats_ink_bottom`, `psd_writer_qt_natural_auto_leading_fraction`

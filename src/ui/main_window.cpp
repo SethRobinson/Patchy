@@ -7302,9 +7302,13 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   // that can actually draw it, so what the session renders is what the commit records.
   substitute_missing_document_font_families(
       *editor->document(), text_font_replacements_.has_value() ? &*text_font_replacements_ : nullptr);
-  if (editing_layer.has_value() && editing_layer_uses_line_aware_box_preview && !editing_layer_is_warped_text) {
+  if (editing_layer.has_value() && editing_layer_uses_line_aware_box_preview && !editing_layer_is_warped_text &&
+      photoshop_text_layout) {
     // Warped layers skip the calibration: it band-matches a fresh unwarped render against
-    // the layer raster, which holds the WARPED ink.
+    // the layer raster, which holds the WARPED ink. So does Qt-natural text: its raster is
+    // Patchy's own render at the natural advances, and a box whose lines overflow it holds
+    // fewer lines than the whole story, which the search read as a wide font and squeezed
+    // every glyph on each re-edit (GitHub issue 683).
     if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
       if (const auto scale =
               calibrated_box_text_metric_scale_for_editor(*editor, *layer, canvas_->zoom(), text_color);

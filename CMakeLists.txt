@@ -2665,6 +2665,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_transform_commit_tests_psd_commit.cpp
       tests/ui/text_transform_commit_tests_flip.cpp
       tests/ui/text_vertical_rtl_tests.cpp
+      tests/ui/text_rtl_psd_tests.cpp
       tests/ui/text_area_tests.cpp
       tests/ui/text_canvas_session_tests.cpp
       tests/ui/text_color_targets_tests.cpp
