@@ -1001,13 +1001,19 @@ FontClass text_font_class(const QString& family) {
   if (const auto found = find_font_substitutes(name); found.has_value() && found->entry != nullptr) {
     return found->entry->font_class;
   }
+  // A symbol font's name ("Wingdings 2") outranks fontconfig, which knows no symbol type and
+  // could still give it a text generic.
+  const auto named = classify_font_name_words(name);
+  if (named == FontClass::symbol) {
+    return named;
+  }
 #ifdef PATCHY_HAVE_FONTCONFIG_QUERY
   // fontconfig's own rules (45-latin.conf) first; its catch-all sans-serif says nothing.
   if (const auto answer = fontconfig_font_class(name); answer.has_value() && answer->definite) {
     return answer->font_class;
   }
 #endif
-  return classify_font_name_words(name);
+  return named;
 }
 
 // An installed family of `family`'s font type that draws `demanded`: on Linux fontconfig's order

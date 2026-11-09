@@ -15159,6 +15159,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Heads:</source>
         <translation>Groty:</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>Czcionka symboli: żadna zainstalowana czcionka nie ma tych samych symboli</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
