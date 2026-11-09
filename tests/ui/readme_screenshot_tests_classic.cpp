@@ -1333,65 +1333,16 @@ void shot_readme_warp_text() {
   CHECK(captured);
 }
 
-// A 400 x 400 game tile built from Dink Smallwood's ts02 tile sheet
-// (test-fixtures/readme/dink_tiles_ts02.png; NOTICE-THIRD-PARTY.md). The field is ONE
-// 50 px grass cell repeated, which tiles with itself; a mix of grass cells shows their
-// edges. Rocks are laid over it from whole sheet blocks, but only their rock and shadow
-// pixels (by color), so no square of another grass cell shows. Every placement wraps,
-// and the big cluster sits across the right edge, so the tiled view shows it whole only
-// where two copies meet.
+// One Dink Smallwood grass tile: a Dink tile is 50 x 50 pixels, and this is cell (7, 4) of
+// the ts02 tile sheet (test-fixtures/readme/dink_tiles_ts02.png; NOTICE-THIRD-PARTY.md),
+// the plainest grass cell, with the smallest mismatch between opposite edges. The document
+// is just that tile; tiling mode repeats it.
 QImage readme_seamless_tile() {
-  constexpr int kCell = 50;
-  constexpr int kCells = 8;
+  constexpr int kTile = 50;
   const auto path = patchy::test::committed_format_fixture_path("readme", "dink_tiles_ts02.png");
   const QImage sheet = QImage(QString::fromStdString(path.string())).convertToFormat(QImage::Format_RGB32);
   CHECK(!sheet.isNull());
-  QImage tile(kCell * kCells, kCell * kCells, QImage::Format_RGB32);
-  // Cell (7, 4): the plainest grass cell, with the smallest mismatch between opposite edges.
-  constexpr int kGrassX = 7 * kCell;
-  constexpr int kGrassY = 4 * kCell;
-  for (int y = 0; y < tile.height(); ++y) {
-    const auto* source = reinterpret_cast<const QRgb*>(sheet.constScanLine(kGrassY + y % kCell)) + kGrassX;
-    auto* target = reinterpret_cast<QRgb*>(tile.scanLine(y));
-    for (int x = 0; x < tile.width(); ++x) {
-      target[x] = source[x % kCell];
-    }
-  }
-  // How much of a sheet pixel is rock or rock shadow rather than grass: grey rock has
-  // little green over its red and blue, a shadow is grass well below grass brightness.
-  const auto rock_alpha = [](QRgb pixel) {
-    const double r = qRed(pixel);
-    const double g = qGreen(pixel);
-    const double b = qBlue(pixel);
-    const double green_lead = g - (r + b) / 2.0;  // about 34 for this grass
-    const double luma = 0.299 * r + 0.587 * g + 0.114 * b;
-    const double rock = std::clamp((24.0 - green_lead) / 14.0, 0.0, 1.0);
-    const double shadow = std::clamp((92.0 - luma) / 40.0, 0.0, 0.85);
-    return std::max(rock, shadow);
-  };
-  // Lays the rocks of a block of sheet cells at (x, y) in the tile, wrapping past its edges.
-  const auto stamp = [&](int cell_x, int cell_y, int cells_wide, int cells_high, int x, int y) {
-    for (int py = 0; py < cells_high * kCell; ++py) {
-      const auto* source = reinterpret_cast<const QRgb*>(sheet.constScanLine(cell_y * kCell + py)) + cell_x * kCell;
-      auto* target = reinterpret_cast<QRgb*>(tile.scanLine((y + py) % tile.height()));
-      for (int px = 0; px < cells_wide * kCell; ++px) {
-        const QRgb over = source[px];
-        QRgb& under = target[(x + px) % tile.width()];
-        const double alpha = rock_alpha(over);
-        const auto mix = [alpha](int top, int bottom) {
-          return static_cast<int>(std::lround(top * alpha + bottom * (1.0 - alpha)));
-        };
-        under = qRgb(mix(qRed(over), qRed(under)), mix(qGreen(over), qGreen(under)), mix(qBlue(over), qBlue(under)));
-      }
-    }
-  };
-  stamp(1, 4, 7, 4, 250, 120);  // the big cluster, across the right edge
-  stamp(8, 2, 2, 1, 40, 20);    // a long low rock
-  stamp(2, 0, 1, 1, 230, 40);
-  stamp(9, 3, 1, 1, 160, 300);
-  stamp(9, 5, 1, 1, 120, 250);
-  stamp(10, 6, 1, 1, 330, 15);
-  return tile;
+  return sheet.copy(7 * kTile, 4 * kTile, kTile, kTile);
 }
 
 // Seamless tiling mode: the Dink tile repeating across the whole canvas as live
@@ -1415,10 +1366,47 @@ void shot_readme_tile_preview() {
   QApplication::processEvents();
   CHECK(canvas->tiling_preview_enabled());
 
-  // 100%: the 400 px tile and the copies around it, so the rock cluster that crosses
-  // the tile's right edge reads whole where two copies meet.
-  canvas->set_zoom(1.0);
+  // 400%: the 50 px tile shows at 200 px, with a field of copies around it, so any seam
+  // between them would show (the pixel grid, drawn from a higher zoom, stays off).
+  canvas->set_zoom(4.0);
   canvas->center_document_in_view();
+  QApplication::processEvents();
+
+  // A red squiggle drawn across the tile's right and bottom edges. Strokes do not wrap on
+  // their own, so it is painted the way a texture artist does it: where the line leaves the
+  // tile it carries on from the opposite edge. Each run overshoots its edge by 2 px so it
+  // reaches it fully. Every copy shows the line, joined up across the seams.
+  canvas->set_brush_size(3);
+  canvas->set_brush_softness(0);
+  canvas->set_primary_color(QColor(226, 32, 44));
+  {
+    constexpr double kTile = 50.0;
+    const auto wrap = [kTile](double v) { return v - std::floor(v / kTile) * kTile; };
+    std::vector<QPointF> run;
+    QPointF previous_cell;
+    for (int i = 0; i <= 600; ++i) {
+      const double t = i / 600.0;
+      const QPointF unwrapped(8.0 + t * 64.0, 20.0 + 9.0 * std::sin(t * 3.0 * 3.14159265358979323846) + t * 34.0);
+      const QPointF cell(std::floor(unwrapped.x() / kTile), std::floor(unwrapped.y() / kTile));
+      if (!run.empty() && cell != previous_cell) {
+        // Close this run 2 px past the edge it crossed, then start the next one 2 px before
+        // the opposite edge.
+        const QPointF step(cell.x() - previous_cell.x(), cell.y() - previous_cell.y());
+        const QPointF local(wrap(unwrapped.x()), wrap(unwrapped.y()));
+        run.push_back(local + step * kTile + step * 2.0);
+        paint_readme_polyline(*canvas, run);
+        run.clear();
+        run.push_back(local - step * 2.0);
+      }
+      if (i % 6 == 0 || run.empty()) {
+        run.emplace_back(wrap(unwrapped.x()), wrap(unwrapped.y()));
+      }
+      previous_cell = cell;
+    }
+    if (run.size() >= 2) {
+      paint_readme_polyline(*canvas, run);
+    }
+  }
   QApplication::processEvents();
 
 

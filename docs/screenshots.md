@@ -141,8 +141,8 @@ Click any image to inspect it at full size. These are captures of the real edito
 </tr>
 <tr>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating a 400 pixel grass and rock game tile built from Dink Smallwood tiles; a rock cluster that crosses the tile edge joins up where the copies meet"></a>
-      <br><sub>Seamless tiling mode repeats the canvas live, so edges are checked as you work: the rock cluster crosses the tile's edge and joins up in every copy. Tiles from Dink Smallwood</sub>
+      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating one 50 by 50 pixel Dink Smallwood grass tile at 400 percent, a red squiggle painted across its edges joining up in every copy"></a>
+      <br><sub>Seamless tiling mode repeats the canvas live, so a line painted across an edge has to meet itself in every copy: here a single 50 x 50 grass tile from Dink Smallwood</sub>
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/web_export.png"><img src="images/screenshots/web_export.png" width="430" alt="Export for Web making an animated GIF of San Francisco going from afternoon to blue hour, paused on frame 4 of 8, with a split view comparing the original and the 16-color dithered result and the encoded size of every format"></a>
@@ -158,6 +158,13 @@ Click any image to inspect it at full size. These are captures of the real edito
       <a href="images/screenshots/rotate_view.png"><img src="images/screenshots/rotate_view.png" width="430" alt="The canvas turned 24 degrees with the Rotate View tool, gulls sketched on their own layer over the sunset, the options bar showing the rotation angle and Reset View"></a>
       <br><sub>Rotate View turns the canvas like a sheet of paper under your pen; painting and selections work turned, and the image never changes</sub>
     </td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/dink_theme.png"><img src="images/screenshots/dink_theme.png" width="430" alt="The bundled Dink Smallwood theme: the interface in brown and gold with its own icons and a tiled grass backdrop behind the Home Screen, Dink walking along the bottom, and Preferences open on Colors and Themes with the theme selected"></a>
+      <br><sub>Theme packages change more than colors: the bundled Dink Smallwood theme brings icons, a tiled backdrop, sounds, effects and Dink himself walking across the Home Screen</sub>
+    </td>
+<td width="50%"></td>
 </tr>
 </table>
 

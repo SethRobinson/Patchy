@@ -327,6 +327,18 @@ foreach ($name in $jsToRun) {
         $dialog = [System.Drawing.Bitmap]::FromFile("$png.dialog.png")
         try {
             if ($dialog.Width -lt 600 -or $dialog.Height -lt 400) { throw 'Captured a KPT stub, not its full interface' }
+            # A capture taken before the plug-in has drawn is all black (seen once in a full
+            # run): sample a grid and refuse it, so a blank window is never published.
+            $dark = 0; $samples = 0
+            for ($sy = 40; $sy -lt $dialog.Height; $sy += 24) {
+                for ($sx = 8; $sx -lt $dialog.Width; $sx += 24) {
+                    $c = $dialog.GetPixel($sx, $sy); $samples++
+                    if (($c.R + $c.G + $c.B) -lt 30) { $dark++ }
+                }
+            }
+            if ($samples -gt 0 -and $dark / $samples -gt 0.85) {
+                throw "The $name plug-in window was captured blank (black); rerun -Scene $name"
+            }
             $g = [System.Drawing.Graphics]::FromImage($base)
             try {
                 $scale = [Math]::Min(1.0, [Math]::Min(1040.0 / $dialog.Width, 800.0 / $dialog.Height))

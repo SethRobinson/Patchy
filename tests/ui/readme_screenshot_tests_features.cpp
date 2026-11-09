@@ -8,10 +8,14 @@
 #include "filters/filter_registry.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/openai_images.hpp"
+#include "ui/theme_effects.hpp"
+#include "ui/theme_file.hpp"
+#include "ui/theme_manager.hpp"
 #include "ui/openai_images_dialog.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -29,7 +33,10 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QScopeGuard>
+#include <QStringList>
 #include <QTimer>
+#include <QVariantMap>
 #include <QToolButton>
 #include <QFont>
 #include <QImage>
@@ -449,6 +456,91 @@ void shot_readme_openai_images() {
   CHECK(captured);
 }
 
+// The bundled Dink Smallwood theme package: the whole interface in its colors and icons,
+// its tiled grass backdrop behind the Home Screen, and Dink himself strolling along the
+// bottom (the theme's own sprite animation, frozen mid-walk). Preferences is open on
+// Colors and Themes with the theme selected, showing its description, version and author.
+void shot_readme_dink_theme() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  const QString id = patchy::ui::kBundledThemeIdPrefix + QStringLiteral("dink-smallwood");
+  auto loaded = patchy::ui::load_theme_by_id(id);
+  CHECK(loaded.theme.has_value());
+  if (!loaded.theme) {
+    return;
+  }
+  // The Home Screen lists recent files: start from an empty list (restored after), so no
+  // path from the machine running the tests is in the picture.
+  QStringList saved_recent;
+  {
+    auto history = patchy::ui::recent_history_settings();
+    saved_recent = history.value(QStringLiteral("recentFiles")).toStringList();
+    history.setValue(QStringLiteral("recentFiles"), QStringList());
+    history.sync();
+  }
+  const auto restore_recent = qScopeGuard([&saved_recent] {
+    auto history = patchy::ui::recent_history_settings();
+    history.setValue(QStringLiteral("recentFiles"), saved_recent);
+    history.sync();
+  });
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  close_untitled_start_tab(window);  // the Home Screen, where Dink walks
+  // Applied without trusting its scripts: the declarative parts (colors, icons, backdrop,
+  // panel backgrounds) are what the shot shows, and nothing plays on its own.
+  patchy::ui::ThemeManager::instance().set_custom_theme(id, *loaded.theme, /*persist=*/false);
+  process_events_for(300);
+  auto* overlay = window.theme_effects_overlay();
+  CHECK(overlay != nullptr);
+  if (overlay == nullptr) {
+    return;
+  }
+  // The walk main.js plays on the start screen, as the theme writes it.
+  const QVariantMap walk{{QStringLiteral("name"), QStringLiteral("sprite")},
+                         {QStringLiteral("image"), QStringLiteral("images/dink-walk.png")},
+                         {QStringLiteral("frames"), 8},
+                         {QStringLiteral("frameWidth"), 78},
+                         {QStringLiteral("frameHeight"), 76},
+                         {QStringLiteral("fps"), 9},
+                         {QStringLiteral("x"), -0.05},
+                         {QStringLiteral("y"), 0.84},
+                         {QStringLiteral("toX"), 1.05},
+                         {QStringLiteral("toY"), 0.84},
+                         {QStringLiteral("duration"), 9000}};
+  CHECK(overlay->play(walk, loaded.theme->assets.get()));
+
+  bool captured = false;
+  QTimer::singleShot(0, &window, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:") + id));
+    dialog->resize(dialog->minimumSizeHint().width(), 620);
+    process_events_for(200);
+    // At the right, over the panel column, so the Home Screen and Dink's path along the
+    // bottom stay in view.
+    const QPoint offset(window.width() - dialog->width() - 8, 96);
+    dialog->move(window.geometry().topLeft() + offset);
+    overlay->advance_for_testing(3000);  // about a third of the way across
+    process_events_for(200);
+    auto base = window.grab().toImage();
+    // The themed dialog paints its own title bar, so it is grabbed as it is.
+    draw_readme_overlay(base, dialog->grab().toImage(), offset);
+    save_readme_shot("shot_readme_dink_theme", base);
+    captured = true;
+    dialog->reject();
+  }));
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  overlay->clear();
+  CHECK(captured);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part4() {
@@ -458,5 +550,6 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests_part4() {
       {"shot_readme_liquify", shot_readme_liquify},
       {"shot_readme_remove_object", shot_readme_remove_object},
       {"shot_readme_openai_images", shot_readme_openai_images},
+      {"shot_readme_dink_theme", shot_readme_dink_theme},
   };
 }
