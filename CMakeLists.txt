@@ -1274,6 +1274,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_rotate_view.cpp
       src/ui/clipboard_text_paths.hpp
       src/ui/clipboard_text_paths.cpp
+      src/ui/clipboard_format_probe.hpp
+      src/ui/clipboard_format_probe.cpp
       src/ui/canvas_alt_space_filter.hpp
       src/ui/canvas_alt_space_filter.cpp
       src/ui/coalesced_pointer_input.hpp
@@ -1755,6 +1757,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/warp_text_dialog.cpp
       src/ui/window_effects.hpp
       src/ui/window_effects.cpp
+      src/ui/first_window_gpu_warmup.hpp
+      src/ui/first_window_gpu_warmup.cpp
       src/ui/status_document_info.hpp
       src/ui/status_document_info.cpp
       src/ui/zoom_status_bar.hpp

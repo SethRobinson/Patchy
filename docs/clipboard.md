@@ -119,6 +119,33 @@ permissions-policy restrictions. See the
 and [wasm.md](wasm.md) for Patchy's promise/event-loop constraints. Do not enable
 the action on the strength of `QClipboard::image()` returning a cached image.
 
+## Slow or locked clipboards
+
+Qt's Windows clipboard opens the system clipboard for every query (`QMimeData::hasImage`,
+`hasText`). While another process holds it open (a clipboard manager, a remote-desktop
+agent, a hung program), Qt sleeps and retries before it gives up: on the machine measured,
+about 0.5 s for a `hasText` and 3 s for the first `hasImage`. That machine's clipboard
+stayed locked, and its window took 6.1 s to be ready because startup asked five times
+(the Open from Clipboard state, then the no-document Paste state on four action-state
+refreshes). So the window asks the format list first:
+`system_clipboard_may_offer` (src/ui/clipboard_format_probe.cpp) calls
+`IsClipboardFormatAvailable`, which neither opens the clipboard nor calls its owner, for
+every format Qt 6.8's converters accept (image: `CF_DIB`, registered `PNG` and
+`application/x-qt-image`; text: `CF_UNICODETEXT`, `CF_TEXT`, registered `text/plain`).
+When none is listed the answer is "no" without asking Qt; otherwise Qt reads as before.
+Windows lists `CF_DIB` and `CF_UNICODETEXT` for data offered in the formats it converts
+from, so a "no" is exact. `clipboard_offers_image` and the no-document Paste state use it.
+
+The no-document Paste state (`clipboard_text_names_file_paths`) also remembers its answer
+for the clipboard's change number (`GetClipboardSequenceNumber`): every action-state
+refresh without a document asks, and each Qt read copies the whole text across processes.
+Listed text that Qt could not read is asked again next time instead of being remembered.
+
+Both apply only on Qt's native Windows platform. Elsewhere, and under the offscreen
+platform (whose clipboard is Qt's own, so the tests never see the machine's clipboard),
+the probe returns "maybe" and the change number 0, and Qt answers every query
+(`ui_clipboard_format_probe_defers_to_qt_off_native_platform`).
+
 ## Legal review (2026-10-04)
 
 Scope: this independently implemented, user-invoked raster command and shortcut,

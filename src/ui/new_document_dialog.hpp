@@ -70,7 +70,9 @@ struct NewDocumentSettings {
 
 // Whether the system clipboard offers image data: the New Document dialog's Clipboard card
 // and File > Open from Clipboard (GitHub issue 218) are enabled only then. It reads the
-// clipboard's format list, never the image, so it costs no transfer or decode.
+// clipboard's format list, never the image, so it costs no transfer or decode. On Windows
+// it first asks system_clipboard_may_offer (clipboard_format_probe.hpp), so a clipboard
+// that another process holds open costs nothing when it lists no image.
 [[nodiscard]] bool clipboard_offers_image();
 
 // The New Document size presets an artboard can take (every built-in template; not Clipboard

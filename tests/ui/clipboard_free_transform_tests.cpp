@@ -13,6 +13,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/clipboard_format_probe.hpp"
 #include "ui/clipboard_text_paths.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
@@ -717,6 +718,26 @@ void ui_paste_file_urls_adds_layers() {
   QApplication::processEvents();
   CHECK(layer_list->count() == layers_before + 2);
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == undo_before + 1);
+  QApplication::clipboard()->clear();
+}
+
+// The pre-checks that keep a locked Windows clipboard from stalling startup
+// (docs/clipboard.md, "Slow or locked clipboards") read the system clipboard only on Qt's
+// native Windows platform. Under the offscreen platform, whose clipboard is Qt's own, they
+// must defer to Qt and never let a change number be remembered, or every clipboard test
+// here would see the machine's real clipboard instead of the one it set.
+void ui_clipboard_format_probe_defers_to_qt_off_native_platform() {
+  using patchy::ui::ClipboardData;
+  CHECK(QGuiApplication::platformName() != QStringLiteral("windows"));
+  QApplication::clipboard()->setText(QStringLiteral("not an image"));
+  CHECK(patchy::ui::system_clipboard_may_offer(ClipboardData::Image));
+  CHECK(patchy::ui::system_clipboard_may_offer(ClipboardData::Text));
+  CHECK(patchy::ui::system_clipboard_change_number() == 0U);
+  CHECK(!patchy::ui::clipboard_offers_image());
+  QImage image(5, 4, QImage::Format_RGB32);
+  image.fill(Qt::red);
+  QApplication::clipboard()->setImage(image);
+  CHECK(patchy::ui::clipboard_offers_image());
   QApplication::clipboard()->clear();
 }
 
@@ -3882,6 +3903,8 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
       {"ui_paste_returns_copied_pixels_to_their_place", ui_paste_returns_copied_pixels_to_their_place},
       {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
+      {"ui_clipboard_format_probe_defers_to_qt_off_native_platform",
+       ui_clipboard_format_probe_defers_to_qt_off_native_platform},
       {"ui_clipboard_text_paths_parse_quotes_urls_and_lines", ui_clipboard_text_paths_parse_quotes_urls_and_lines},
       {"ui_paste_text_path_opens_the_file", ui_paste_text_path_opens_the_file},
       {"ui_paste_in_place_text_path_adds_a_layer", ui_paste_in_place_text_path_adds_a_layer},

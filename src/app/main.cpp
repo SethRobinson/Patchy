@@ -1,5 +1,6 @@
 #include "support/cli_flags.hpp"
 #include "support/startup_trace.hpp"
+#include "ui/first_window_gpu_warmup.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/theme_script_host.hpp"
 #include "ui/app_data_migration.hpp"
@@ -835,6 +836,10 @@ int main(int argc, char* argv[]) {
   if (!stress_mode && !export_mode && !screenshot_mode && !run_script_mode && !startup_benchmark_mode) {
     patchy::ui::prepare_theme_startup_sound();
   }
+  // Loads the GPU driver Qt queries when it places the first window, while the window is
+  // built (first_window_gpu_warmup.hpp); released once startup has settled, below.
+  patchy::ui::FirstWindowGpuWarmup first_window_gpu_warmup;
+  first_window_gpu_warmup.start();
   patchy::startup_trace::Scope window_phase("main_window.construct");
   patchy::ui::MainWindow window;
   window_phase.end();
@@ -948,6 +953,10 @@ int main(int argc, char* argv[]) {
   patchy::startup_trace::Scope show_phase("main_window.show");
   window.show();
   show_phase.end();
+  // Not at once: unloading the driver holds the loader lock, and the first event-loop
+  // turns load libraries of their own (the plug-in scan, sound, image formats).
+  QTimer::singleShot(std::chrono::seconds(2), &window,
+                     [&first_window_gpu_warmup] { first_window_gpu_warmup.release(); });
   // The theme's "startup" event (sound, effect, splash, scripts) once the window is up;
   // stress runs and other automation leave it out.
   if (!stress_mode && !window.unattended_automation()) {
@@ -960,7 +969,8 @@ int main(int argc, char* argv[]) {
   // which nothing can interrupt, and waiting for it is the issue 48 quit freeze.
   // The process then ends without destructors: settings were flushed by
   // closeEvent, and the recovery folder is dropped here by hand.
-  const auto finish_after_event_loop = [&window](int result) {
+  const auto finish_after_event_loop = [&window, &first_window_gpu_warmup](int result) {
+    first_window_gpu_warmup.release();  // its worker is one of those waited for
     if (patchy::ui::wait_for_tracked_background_workers(std::chrono::seconds(10))) {
       return result;
     }

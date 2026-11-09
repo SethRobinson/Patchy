@@ -5,6 +5,7 @@
 // main_window_document_dialogs.cpp when the dialog gained the card grid.
 
 #include "ui/new_document_dialog.hpp"
+#include "ui/clipboard_format_probe.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -928,6 +929,9 @@ QString sanitized_new_document_name(const QString& name) {
 }
 
 bool clipboard_offers_image() {
+  if (!system_clipboard_may_offer(ClipboardData::Image)) {
+    return false;
+  }
   const auto* clipboard = QApplication::clipboard();
   const auto* mime = clipboard != nullptr ? clipboard->mimeData() : nullptr;
   return mime != nullptr && mime->hasImage();

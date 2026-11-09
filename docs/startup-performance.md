@@ -43,7 +43,7 @@ Phases, in order (`mw.*` are children of `main_window.construct`):
 | `mw.initial_refresh` | empty layer list and action state |
 | `mw.geometry_layout` | title, saved geometry, panel layout restore |
 | `mw.stylesheet` | `setStyleSheet(photoshop_style())` over the whole widget tree |
-| `mw.status_bar` | status bar widgets and zoom controls |
+| `mw.status_bar` | status bar widgets and zoom controls; in a real window also the native window's creation (`ensure_native_resizable_frame` calls `winId()`), where Qt queries the GPU ("Real window" below) |
 | `single_instance.listen` | the second-launch server |
 | `main_window.show` | polish, layout, native window creation |
 | `update_check.start` | update-check setup (the request itself is asynchronous) |
@@ -82,6 +82,27 @@ $env:PATCHY_PERF_ONSCREEN=1; .\patchy_perf_tests.exe startup
 
 Windows open and close by themselves (about one per second). For a cold real-window number, run that terminal elevated and add `$env:PATCHY_PERF_STARTUP_COLD=1`. For one interactive launch with the table: `$env:PATCHY_STARTUP_TRACE=1; .\patchy.exe 2> startup-trace.txt`, wait for the window, close Patchy, read the file.
 
+On an offload host the console session paints a real window: run `patchy_perf_tests.exe startup` from a temporary scheduled task registered with `-LogonType Interactive` for the logged-on user (ssh itself is session 0), wait for its log, unregister the task. A machine someone is using (a video playing, a build) inflates window-mode numbers; measure on an idle one.
+
+## Real window
+
+A real window costs more than `--headless` for reasons the offscreen platform never meets. Two were Patchy's to fix (November 2026):
+
+- **A locked clipboard.** Startup asked Qt about the clipboard five times (the Open from Clipboard state in `mw.actions.menu_bar`, then the no-document Paste state in `update_document_action_state`, run by `mw.initial_refresh`, the GEGL scan and the plug-in scan apply). While another process holds the clipboard open, Qt's Windows clipboard sleeps and retries for 0.5 to 3 s per query. Patchy now asks the format list first and remembers the Paste answer per clipboard change ([clipboard.md](clipboard.md#slow-or-locked-clipboards)).
+- **The first window's GPU query.** Qt 6.8's Windows plugin places every new top-level window through a QTBUG-50371 workaround (`calcPosition` calls `forcedScreenForGLWindow`), which once per process creates a Direct3D 9 object and lists the adapters (`GpuDescription::detect`). That loads the GPU driver and checks its signature, 95 to 140 ms on the GUI thread inside the first `winId()` (in `mw.status_bar`), whatever the window draws with. `FirstWindowGpuWarmup` (src/ui/first_window_gpu_warmup.hpp) creates one Direct3D 9 object on a tracked worker as `main_window.construct` starts and holds it, so Qt's call finds the driver loaded (`winId` 99 -> 7 ms). main() releases it 2 s after the window shows, not at once: unloading the driver takes the loader lock while the first event-loop turns load libraries, which added up to 80 ms to some launches. Only on Qt's native Windows platform.
+
+What remains is the platform's own: `qt.application` (the windows plugin, screens: 8 ms on the desktop measured below, about 50 ms on a dev box with two large monitors), text and menus measured with DirectWrite fonts (`mw.actions.menu_bar` 12 vs 6 ms), `main_window.show` (native show and the first full paint, 27 vs 7 ms) and the first event-loop turns.
+
+Measured on an idle desktop (i7-12700KF, 20 threads, Windows 11 26H2, release preset, update check off, a clipboard another process held open), medians in ms:
+
+| | ready warm | first paint warm | first launch (fresh profile) | headless ready warm |
+|---|---|---|---|---|
+| before (A/B reference build) | 6116 | 4406 | 6181 | 202 |
+| clipboard fix only | 385 (24 launches) | 295 | 698 to 800 | |
+| clipboard fix and GPU warm-up | 287 (24 launches, three batches: 285, 350, 285) | 205 | 618 to 899 | 197 |
+
+A dev box under load (i9-12900KS, a video playing and builds running, November 6 build) measured 738 ms warm before the fix, with `winId` at 141 ms of `mw.status_bar`'s 151 ms; it had no locked clipboard, so only the warm-up applies there.
+
 ## Baseline: an offload host, October 2026
 
 i7-1360P laptop (16 threads), Windows 11 26H2, release preset (LTCG), Qt 6.8.3, headless, update check off, no Defender exclusion for the build folder. Medians in ms, measured before the library preloads, which cut ready to 161 ms warm, 258 ms cold and 301 ms on a first launch ("Preloaded libraries" below); the host's current baseline is in its `local-test-fixtures/startup-baselines/`.
@@ -109,7 +130,7 @@ Rows marked Done are implemented; the rest are proposals to pick from.
 | 7 | `mw.scripts` | 10 ms | 11 ms | The script scan reads every bundled and user script to register script hotkeys. Cache the scan by directory and file times, or scan on a worker and register when it returns. Risk: a script hotkey pressed in the first moments would be missed. |
 | 8 | everything else | 5 ms or less each | | `mw.tabs_start_panel`, `mw.input_color_settings` (ICC working space), `mw.view_recent`, `mw.docks`, `mw.actions.translations_finish`, `main_window.show`, `mw.actions.menu_bar`. |
 
-Off the startup path already: the legacy plug-in scan (14 ms, on a worker after the first paint, reported as background), the update check (asynchronous; host lookup on a detached thread), G'MIC (its library loads at the first filter run, not at startup). Not measured: a real window. Headless never enumerates installed fonts, so `fonts.ui_family` (about 1 ms here) can be much larger in a real window on a machine with many fonts; measure it with the desktop procedure above.
+Off the startup path already: the legacy plug-in scan (14 ms, on a worker after the first paint, reported as background), the update check (asynchronous; host lookup on a detached thread), G'MIC (its library loads at the first filter run, not at startup). A real window is measured separately ("Real window" above). Headless never enumerates installed fonts, so `fonts.ui_family` (about 1 ms here) can be much larger in a real window on a machine with many fonts; measure it with the desktop procedure above.
 
 ## Preloaded libraries
 

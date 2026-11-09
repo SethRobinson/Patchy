@@ -44,6 +44,7 @@
 #include "ui/object_selection_model_download.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/clipboard_text_paths.hpp"
+#include "ui/clipboard_format_probe.hpp"
 
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
@@ -2959,14 +2960,36 @@ void MainWindow::refresh_paste_without_document_state() {
   if (has_active_document()) {
     return;
   }
-  const auto* mime_data = QApplication::clipboard()->mimeData();
-  const bool offers_paths = !preview_dialog_edit_locked() && mime_data != nullptr && mime_data->hasText() &&
-                            !file_paths_from_clipboard_text(mime_data->text()).isEmpty();
+  const bool offers_paths = !preview_dialog_edit_locked() && clipboard_text_names_file_paths();
   for (const auto& id : {QStringLiteral("edit.paste"), QStringLiteral("edit.paste_in_place")}) {
     if (const auto* command = hotkey_registry_.find_command(id); command != nullptr && command->action != nullptr) {
       command->action->setEnabled(offers_paths);
     }
   }
+#endif
+}
+
+bool MainWindow::clipboard_text_names_file_paths() {
+#ifdef Q_OS_WASM
+  return false;
+#else
+  const quint32 change = system_clipboard_change_number();
+  if (change != 0 && change == clipboard_paths_change_number_) {
+    return clipboard_text_names_paths_;
+  }
+  bool names_paths = false;
+  bool answered = true;
+  if (system_clipboard_may_offer(ClipboardData::Text)) {
+    const auto* mime_data = QApplication::clipboard()->mimeData();
+    const bool has_text = mime_data != nullptr && mime_data->hasText();
+    names_paths = has_text && !file_paths_from_clipboard_text(mime_data->text()).isEmpty();
+    // Listed text that Qt could not read (another process held the clipboard open) is
+    // asked again next time rather than remembered as "no paths".
+    answered = has_text;
+  }
+  clipboard_paths_change_number_ = answered ? change : 0U;
+  clipboard_text_names_paths_ = names_paths;
+  return names_paths;
 #endif
 }
 

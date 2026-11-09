@@ -1219,6 +1219,10 @@ private:
   // With no document, Paste and Paste in Place are enabled only while the clipboard
   // text names file paths; a no-op with a document (update_document_action_state).
   void refresh_paste_without_document_state();
+  // Whether the clipboard text names file paths, remembered for the clipboard's change
+  // number (docs/clipboard.md, "Slow or locked clipboards"): every action-state refresh
+  // without a document asks, and each Qt read is a cross-process read of the whole text.
+  bool clipboard_text_names_file_paths();
   // SVG post-open pass: renders text layers the Qt-free reader marked
   // kLayerMetadataSvgPendingText through the internal text pipeline and
   // positions them from their baseline point + text-anchor. Defined in
@@ -4566,6 +4570,10 @@ private:
   QPointer<QWidget> pen_hover_tooltip_widget_;
   QPoint pen_hover_tooltip_global_pos_;
   bool native_resizable_frame_applied_{false};
+  // clipboard_text_names_file_paths's answer and the clipboard change number it holds for
+  // (0: nothing remembered).
+  quint32 clipboard_paths_change_number_{0};
+  bool clipboard_text_names_paths_{false};
   bool native_frame_geometry_resynced_{false};
   bool wayland_first_show_clamped_{false};
   // A restored maximized state on Wayland is requested after the first show (issue 132).
