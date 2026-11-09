@@ -15211,10 +15211,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Livre</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>Livret (plier et agrafer)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>Livre cousu (cahiers pliés)</translation>
     </message>
@@ -15728,7 +15724,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
-        <translation>Comme ci-dessus, et la première page est l'extérieur de la couverture à plat : la quatrième de couverture à côté de la première. La quatrième de couverture devient la dernière page.</translation>
+        <translation>Comme ci-dessus, et la première page est l&apos;extérieur de la couverture à plat : la quatrième de couverture à côté de la première. La quatrième de couverture devient la dernière page.</translation>
     </message>
     <message>
         <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
@@ -15741,6 +15737,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>Les pages sont plus larges que hautes. Si chacune contient deux pages du livre, choisissez une option Couper dans Doubles pages.</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>Livret en piqûre à cheval (plier et agrafer)</translation>
     </message>
 </context>
 <context>

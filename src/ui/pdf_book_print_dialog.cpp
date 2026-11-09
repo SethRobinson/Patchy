@@ -766,7 +766,7 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
   auto* book_form = new QFormLayout(book_group);
   auto* style = new QComboBox(book_group);
   style->setObjectName(QStringLiteral("pdfBookPrintStyleCombo"));
-  style->addItem(QObject::tr("Booklet (fold and staple)"), style_token(BookPrintStyle::Booklet));
+  style->addItem(QObject::tr("Saddle-stitched booklet (fold and staple)"), style_token(BookPrintStyle::Booklet));
   style->addItem(QObject::tr("Sewn book (folded signatures)"), style_token(BookPrintStyle::Signatures));
   style->addItem(QObject::tr("Cut and stack (glue, comb or staple binding)"),
                  style_token(BookPrintStyle::CutAndStack));

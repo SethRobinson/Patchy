@@ -15211,10 +15211,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Buch</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>Heft (falten und heften)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>Fadenheftung (gefalzte Lagen)</translation>
     </message>
@@ -15741,6 +15737,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>Die Seiten sind breiter als hoch. Wenn jede zwei Buchseiten enthält, wählen Sie unter „Doppelseiten“ eine Option zum Halbieren.</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>Rückstichgeheftetes Heft (falten und heften)</translation>
     </message>
 </context>
 <context>

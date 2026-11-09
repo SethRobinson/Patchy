@@ -15211,10 +15211,6 @@ Sostituirlo?</translation>
         <translation>Libro</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>Fascicolo (piega e pinza)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>Libro cucito (segnature piegate)</translation>
     </message>
@@ -15728,7 +15724,7 @@ Sostituirlo?</translation>
     </message>
     <message>
         <source>As above, and the first page is the outside of the cover laid flat: the back cover beside the front cover. The back cover becomes the last page.</source>
-        <translation>Come sopra, e la prima pagina è l'esterno della copertina aperta: la quarta di copertina accanto alla copertina. La quarta di copertina diventa l'ultima pagina.</translation>
+        <translation>Come sopra, e la prima pagina è l&apos;esterno della copertina aperta: la quarta di copertina accanto alla copertina. La quarta di copertina diventa l&apos;ultima pagina.</translation>
     </message>
     <message>
         <source>For PDFs with two book pages side by side on each page, such as a scanned booklet laid flat</source>
@@ -15740,7 +15736,11 @@ Sostituirlo?</translation>
     </message>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
-        <translation>Le pagine sono più larghe che alte. Se ognuna contiene due pagine del libro, scegli un'opzione Dividi in Pagine affiancate.</translation>
+        <translation>Le pagine sono più larghe che alte. Se ognuna contiene due pagine del libro, scegli un&apos;opzione Dividi in Pagine affiancate.</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>Fascicolo con cucitura a sella (piega e pinza)</translation>
     </message>
 </context>
 <context>

@@ -15163,10 +15163,6 @@ Do you want to replace it?</source>
         <translation>本</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>中とじ冊子(折ってホチキス留め)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>糸かがり製本(折丁を折る)</translation>
     </message>
@@ -15685,6 +15681,10 @@ Do you want to replace it?</source>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>ページが横長です。各ページに本の2ページが含まれている場合は、[見開きページ] で分割の項目を選んでください。</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>中とじ冊子(折ってホチキス留め)</translation>
     </message>
 </context>
 <context>

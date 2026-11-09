@@ -15193,10 +15193,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15722,6 +15718,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -15163,10 +15163,6 @@ Do you want to replace it?</source>
         <translation>書冊</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>騎馬釘小冊子（對折釘裝）</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>線裝書（摺帖縫合）</translation>
     </message>
@@ -15685,6 +15681,10 @@ Do you want to replace it?</source>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>這些頁面寬度大於高度。如果每頁包含兩頁書頁，請在「跨頁」中選擇分割選項。</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>騎馬釘小冊子（對折釘裝）</translation>
     </message>
 </context>
 <context>

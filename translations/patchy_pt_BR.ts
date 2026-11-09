@@ -15211,10 +15211,6 @@ Deseja substituí-lo?</translation>
         <translation>Livro</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>Livreto (dobrar e grampear)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>Livro costurado (cadernos dobrados)</translation>
     </message>
@@ -15741,6 +15737,10 @@ Deseja substituí-lo?</translation>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>As páginas são mais largas que altas. Se cada uma tiver duas páginas do livro, escolha uma opção Dividir em Páginas duplas.</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>Livreto grampeado a cavalo (dobrar e grampear)</translation>
     </message>
 </context>
 <context>

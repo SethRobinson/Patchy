@@ -15163,10 +15163,6 @@ Do you want to replace it?</source>
         <translation>책</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>소책자(접어서 스테이플러)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>실제본 책(접은 접지)</translation>
     </message>
@@ -15685,6 +15681,10 @@ Do you want to replace it?</source>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>페이지의 너비가 높이보다 큽니다. 각 페이지에 책 두 페이지가 있다면 두 페이지 펼침면에서 나누기 항목을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>중철 소책자(접어서 스테이플러)</translation>
     </message>
 </context>
 <context>

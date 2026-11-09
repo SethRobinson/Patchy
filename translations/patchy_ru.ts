@@ -15259,10 +15259,6 @@ Do you want to replace it?</source>
         <translation>Книга</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>Брошюра (сложить и скрепить)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>Сшитая книга (сложенные тетради)</translation>
     </message>
@@ -15797,6 +15793,10 @@ Do you want to replace it?</source>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>Ширина страниц больше высоты. Если на каждой две страницы книги, выберите вариант «Делить» в поле «Развороты».</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>Брошюра на скобе (сложить и скрепить)</translation>
     </message>
 </context>
 <context>

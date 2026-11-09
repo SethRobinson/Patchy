@@ -15259,10 +15259,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Książka</translation>
     </message>
     <message>
-        <source>Booklet (fold and staple)</source>
-        <translation>Broszura (złożyć i zszyć)</translation>
-    </message>
-    <message>
         <source>Sewn book (folded signatures)</source>
         <translation>Książka szyta (złożone składki)</translation>
     </message>
@@ -15797,6 +15793,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>The pages are wider than tall. If each holds two book pages, choose a Split option under Two-page spreads.</source>
         <translation>Strony są szersze niż wyższe. Jeśli każda zawiera dwie strony książki, wybierz opcję Dziel w polu Rozkładówki.</translation>
+    </message>
+    <message>
+        <source>Saddle-stitched booklet (fold and staple)</source>
+        <translation>Broszura szyta zeszytowo (złożyć i zszyć)</translation>
     </message>
 </context>
 <context>
