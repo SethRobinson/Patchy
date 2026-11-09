@@ -680,6 +680,27 @@ void draw_text_overflow_marker(QPainter& painter, QRectF handle_rect) {
   painter.restore();
 }
 
+// The size cursor nearest a resize handle's outward direction on screen (y down): horizontal,
+// vertical, or one of the two diagonals (issue 684).
+Qt::CursorShape text_box_resize_cursor_for_direction(QPointF direction) {
+  if (std::abs(direction.x()) < 1e-9 && std::abs(direction.y()) < 1e-9) {
+    return Qt::SizeAllCursor;
+  }
+  auto degrees = std::atan2(direction.y(), direction.x()) * 180.0 / kPi;
+  degrees = std::fmod(degrees + 360.0, 180.0);
+  // 0 horizontal, 45 top left to bottom right, 90 vertical, 135 bottom left to top right.
+  switch (static_cast<int>(std::floor((degrees + 22.5) / 45.0)) % 4) {
+    case 0:
+      return Qt::SizeHorCursor;
+    case 1:
+      return Qt::SizeFDiagCursor;
+    case 2:
+      return Qt::SizeVerCursor;
+    default:
+      return Qt::SizeBDiagCursor;
+  }
+}
+
 // A flat session's resize handle: the style sheet draws the square (WA_StyledBackground), this
 // adds the overflow plus when kTextResizeHandleOverflowProperty is set.
 class TextBoxResizeHandle final : public QWidget {
@@ -1292,7 +1313,9 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
 }
 
 class TransformedTextEditOverlay final : public QWidget {
-  enum class ResizeHandle { None, TopLeft, TopRight, BottomLeft, BottomRight };
+  // Corners first: where a side handle sits near a corner, the corner wins the hit test (side
+  // handles also hide once their edge is too short to keep clear of the corners).
+  enum class ResizeHandle { None, TopLeft, TopRight, BottomLeft, BottomRight, Top, Bottom, Left, Right };
 
   struct ResizeDragState {
     ResizeHandle handle{ResizeHandle::None};
@@ -1309,12 +1332,24 @@ class TransformedTextEditOverlay final : public QWidget {
     int height{kMinimumTextBoxDocumentSize};
   };
 
-  static constexpr std::array<ResizeHandle, 4> kResizeHandles = {
+  static constexpr std::array<ResizeHandle, 4> kCornerHandles = {
       ResizeHandle::TopLeft,
       ResizeHandle::TopRight,
       ResizeHandle::BottomLeft,
       ResizeHandle::BottomRight,
   };
+  static constexpr std::array<ResizeHandle, 4> kSideHandles = {
+      ResizeHandle::Top,
+      ResizeHandle::Bottom,
+      ResizeHandle::Left,
+      ResizeHandle::Right,
+  };
+  static constexpr std::array<ResizeHandle, 8> kResizeHandles = {
+      ResizeHandle::TopLeft, ResizeHandle::TopRight, ResizeHandle::BottomLeft, ResizeHandle::BottomRight,
+      ResizeHandle::Top,     ResizeHandle::Bottom,   ResizeHandle::Left,       ResizeHandle::Right,
+  };
+  static constexpr double kHandleSize = 6.0;
+  static constexpr double kHandleHitMargin = 5.0;
 
 public:
   explicit TransformedTextEditOverlay(CanvasWidget* canvas)
@@ -1393,13 +1428,25 @@ public:
     }
     auto mask = QRegion(mask_polygon);
     QVariantList handle_centers;
-    for (const auto handle : kResizeHandles) {
+    for (const auto handle : kCornerHandles) {
       const auto handle_rect = resize_handle_rect(handle);
       mask = mask.united(QRegion(handle_rect.toAlignedRect()));
       handle_centers.push_back(handle_rect.center() + origin);
     }
+    // Top, Bottom, Left, Right (issue 684); an invalid entry is a side hidden on a short edge.
+    QVariantList side_handle_centers;
+    for (const auto handle : kSideHandles) {
+      if (!resize_handle_shown(handle)) {
+        side_handle_centers.push_back(QVariant());
+        continue;
+      }
+      const auto handle_rect = resize_handle_rect(handle);
+      mask = mask.united(QRegion(handle_rect.toAlignedRect()));
+      side_handle_centers.push_back(handle_rect.center() + origin);
+    }
     setProperty("patchy.transformedTextEditorPolygon", editor_polygon);
     setProperty("patchy.transformedTextResizeHandleCenters", handle_centers);
+    setProperty("patchy.transformedTextSideHandleCenters", side_handle_centers);
     setMask(mask);
     show();
     raise();
@@ -1779,39 +1826,91 @@ private:
         return rect.bottomLeft();
       case ResizeHandle::BottomRight:
         return rect.bottomRight();
+      case ResizeHandle::Top:
+        return QPointF(rect.center().x(), rect.top());
+      case ResizeHandle::Bottom:
+        return QPointF(rect.center().x(), rect.bottom());
+      case ResizeHandle::Left:
+        return QPointF(rect.left(), rect.center().y());
+      case ResizeHandle::Right:
+        return QPointF(rect.right(), rect.center().y());
       case ResizeHandle::None:
         break;
     }
     return QPointF(rect.center());
   }
 
+  // The handle's outward direction in editor space (x and y of -1, 0 or 1).
+  [[nodiscard]] static QPointF handle_direction(ResizeHandle handle) {
+    switch (handle) {
+      case ResizeHandle::TopLeft:
+        return {-1.0, -1.0};
+      case ResizeHandle::TopRight:
+        return {1.0, -1.0};
+      case ResizeHandle::BottomLeft:
+        return {-1.0, 1.0};
+      case ResizeHandle::BottomRight:
+        return {1.0, 1.0};
+      case ResizeHandle::Top:
+        return {0.0, -1.0};
+      case ResizeHandle::Bottom:
+        return {0.0, 1.0};
+      case ResizeHandle::Left:
+        return {-1.0, 0.0};
+      case ResizeHandle::Right:
+        return {1.0, 0.0};
+      case ResizeHandle::None:
+        break;
+    }
+    return {};
+  }
+
+  [[nodiscard]] QPointF handle_overlay_center(ResizeHandle handle) const {
+    return map_editor_rect_to_overlay(QRectF(editor_point_for_handle(handle), QSizeF(1.0, 1.0))).at(0);
+  }
+
+  // A side handle shows only while its edge is long enough that its hit area stays clear of
+  // both corners' (issue 684), so a short edge keeps just its corners.
+  [[nodiscard]] bool resize_handle_shown(ResizeHandle handle) const {
+    const auto direction = handle_direction(handle);
+    if (direction.x() != 0.0 && direction.y() != 0.0) {
+      return true;
+    }
+    const bool horizontal_edge = direction.x() == 0.0;
+    const auto edge = handle_overlay_center(horizontal_edge ? ResizeHandle::TopRight : ResizeHandle::BottomLeft) -
+                      handle_overlay_center(ResizeHandle::TopLeft);
+    return std::hypot(edge.x(), edge.y()) >= 2.0 * (kHandleSize + 2.0 * kHandleHitMargin);
+  }
+
   [[nodiscard]] QRectF resize_handle_rect(ResizeHandle handle) const {
-    constexpr double kHandleSize = 6.0;
-    const auto center = map_editor_rect_to_overlay(QRectF(editor_point_for_handle(handle), QSizeF(1.0, 1.0))).at(0);
+    const auto center = handle_overlay_center(handle);
     return QRectF(center.x() - kHandleSize / 2.0, center.y() - kHandleSize / 2.0, kHandleSize, kHandleSize);
   }
 
   [[nodiscard]] ResizeHandle resize_handle_at(QPointF point) const {
     for (const auto handle : kResizeHandles) {
-      if (resize_handle_rect(handle).adjusted(-5.0, -5.0, 5.0, 5.0).contains(point)) {
+      if (resize_handle_shown(handle) &&
+          resize_handle_rect(handle)
+              .adjusted(-kHandleHitMargin, -kHandleHitMargin, kHandleHitMargin, kHandleHitMargin)
+              .contains(point)) {
         return handle;
       }
     }
     return ResizeHandle::None;
   }
 
+  // The size cursor nearest the handle's outward direction as drawn, so a rotated or skewed box
+  // (or a rotated view) gets the cursor that points along the drag (issue 684).
   [[nodiscard]] Qt::CursorShape cursor_for_handle(ResizeHandle handle) const {
-    switch (handle) {
-      case ResizeHandle::TopLeft:
-      case ResizeHandle::BottomRight:
-        return Qt::SizeFDiagCursor;
-      case ResizeHandle::TopRight:
-      case ResizeHandle::BottomLeft:
-        return Qt::SizeBDiagCursor;
-      case ResizeHandle::None:
-        return Qt::IBeamCursor;
+    if (handle == ResizeHandle::None) {
+      return Qt::IBeamCursor;
     }
-    return Qt::IBeamCursor;
+    const auto rect = editor_visual_rect();
+    const auto center = rect.center();
+    const auto reach = std::max(1.0, std::min(rect.width(), rect.height()) / 2.0);
+    const auto from = map_editor_point_to_canvas(center);
+    const auto to = map_editor_point_to_canvas(center + handle_direction(handle) * reach);
+    return text_box_resize_cursor_for_direction(to - from);
   }
 
   void update_hover_cursor(QPointF point, Qt::KeyboardModifiers modifiers) {
@@ -1902,7 +2001,9 @@ private:
     painter.setPen(QPen(theme().resize_handle_border, 1.0));
     painter.setBrush(theme().resize_handle_bg);
     for (const auto handle : kResizeHandles) {
-      painter.drawRect(resize_handle_rect(handle));
+      if (resize_handle_shown(handle)) {
+        painter.drawRect(resize_handle_rect(handle));
+      }
     }
     if (editor_->property(kTextEditorHiddenLinesProperty).toBool()) {
       draw_text_overflow_marker(painter, resize_handle_rect(ResizeHandle::BottomRight));
@@ -1948,6 +2049,20 @@ private:
                          static_cast<double>(resize_drag_->start_width) + delta.x());
         bottom = std::max(top + kMinimumTextBoxDocumentSize,
                           static_cast<double>(resize_drag_->start_height) + delta.y());
+        break;
+      case ResizeHandle::Top:
+        top = std::min(bottom - kMinimumTextBoxDocumentSize, delta.y());
+        break;
+      case ResizeHandle::Bottom:
+        bottom = std::max(top + kMinimumTextBoxDocumentSize,
+                          static_cast<double>(resize_drag_->start_height) + delta.y());
+        break;
+      case ResizeHandle::Left:
+        left = std::min(right - kMinimumTextBoxDocumentSize, delta.x());
+        break;
+      case ResizeHandle::Right:
+        right = std::max(left + kMinimumTextBoxDocumentSize,
+                         static_cast<double>(resize_drag_->start_width) + delta.x());
         break;
       case ResizeHandle::None:
         return std::nullopt;
@@ -11392,15 +11507,25 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
     const char* corner;
     Qt::CursorShape cursor;
   };
-  static constexpr std::array<HandleSpec, 4> kHandles = {{
+  // Corners, then the side handles (issue 684); the drag reads the edges from the corner name.
+  static constexpr std::array<HandleSpec, 8> kHandles = {{
       {"textBoxResizeHandleTopLeft", "topLeft", Qt::SizeFDiagCursor},
       {"textBoxResizeHandleTopRight", "topRight", Qt::SizeBDiagCursor},
       {"textBoxResizeHandleBottomLeft", "bottomLeft", Qt::SizeBDiagCursor},
       {"textBoxResizeHandleBottomRight", "bottomRight", Qt::SizeFDiagCursor},
+      {"textBoxResizeHandleTop", "top", Qt::SizeVerCursor},
+      {"textBoxResizeHandleBottom", "bottom", Qt::SizeVerCursor},
+      {"textBoxResizeHandleLeft", "left", Qt::SizeHorCursor},
+      {"textBoxResizeHandleRight", "right", Qt::SizeHorCursor},
   }};
 
   const auto editor_rect = editor->geometry();
   const auto handle_size = 9;
+  // A side handle shows only while its hit area (text_editor_resize_handle_at: 8 px around the
+  // handle) stays clear of both corners' on that edge.
+  const auto side_handle_minimum_edge = 2 * (handle_size + 2 * 8);
+  const auto middle = QPoint(editor_rect.left() + (editor_rect.width() + 1) / 2,
+                             editor_rect.top() + (editor_rect.height() + 1) / 2);
   for (const auto& spec : kHandles) {
     auto* handle = canvas_->findChild<QWidget*>(QString::fromLatin1(spec.name), Qt::FindDirectChildrenOnly);
     if (handle == nullptr) {
@@ -11427,8 +11552,26 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       position = editor_rect.topRight() + QPoint(1, 0);
     } else if (corner == QStringLiteral("bottomLeft")) {
       position = editor_rect.bottomLeft() + QPoint(0, 1);
-    } else {
+    } else if (corner == QStringLiteral("bottomRight")) {
       position = editor_rect.bottomRight() + QPoint(1, 1);
+    } else if (corner == QStringLiteral("top")) {
+      position = QPoint(middle.x(), editor_rect.top());
+    } else if (corner == QStringLiteral("bottom")) {
+      position = QPoint(middle.x(), editor_rect.bottom() + 1);
+    } else if (corner == QStringLiteral("left")) {
+      position = QPoint(editor_rect.left(), middle.y());
+    } else {
+      position = QPoint(editor_rect.right() + 1, middle.y());
+    }
+    const bool vertical_side = corner == QStringLiteral("left") || corner == QStringLiteral("right");
+    const bool horizontal_side = corner == QStringLiteral("top") || corner == QStringLiteral("bottom");
+    if ((horizontal_side && editor_rect.width() < side_handle_minimum_edge) ||
+        (vertical_side && editor_rect.height() < side_handle_minimum_edge)) {
+      // Not while it is the one being dragged: hiding a grabbing widget drops the drag.
+      if (editor->property("patchy.activeTextResizeHandleName").toString() != handle->objectName()) {
+        handle->hide();
+        continue;
+      }
     }
     handle->setGeometry(position.x() - handle_size / 2, position.y() - handle_size / 2, handle_size, handle_size);
     const bool overflow_marker =
@@ -11618,11 +11761,12 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       auto top = start_y;
       auto right = start_x + start_width;
       auto bottom = start_y + start_height;
+      // Corners name two edges ("topLeft"), side handles one ("left"; issue 684).
       const auto corner = handle->property("patchy.textResizeCorner").toString();
-      if (corner.contains(QStringLiteral("Left"))) {
+      if (corner.contains(QStringLiteral("left"), Qt::CaseInsensitive)) {
         left = std::min(right - kMinimumTextBoxDocumentSize, start_x + delta_x);
       }
-      if (corner.contains(QStringLiteral("Right"))) {
+      if (corner.contains(QStringLiteral("right"), Qt::CaseInsensitive)) {
         right = std::max(left + kMinimumTextBoxDocumentSize, start_x + start_width + delta_x);
       }
       if (corner.contains(QStringLiteral("top"), Qt::CaseInsensitive)) {

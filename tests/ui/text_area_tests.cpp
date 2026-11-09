@@ -1092,6 +1092,308 @@ void ui_box_text_overflow_marker_tooltip() {
   process_events_for(100);
   QToolTip::hideText();
 }
+// GitHub issue 684: a box session has a handle on each side as well as the corners. A side
+// handle moves only its own edge (the opposite edge stays put) and the text rewraps to the new
+// width; its cursor is the horizontal or vertical size cursor. A box too small on screen keeps
+// only its corners, so a press near a corner resizes from the corner.
+void ui_box_text_side_handles_move_one_edge() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, "app.newDocument(640,420);");
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(text_size != nullptr); if (!text_size) return;
+  const auto handle_named = [canvas](const char* name) {
+    return canvas->findChild<QWidget*>(QString::fromLatin1(name), Qt::FindDirectChildrenOnly);
+  };
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  text_size->setValue(12.0);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 60)),
+       canvas->widget_position_for_document_point(QPoint(340, 260)));
+  process_events_for(150);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+  editor->setPlainText(QStringLiteral("Side handles move a single edge of the text box. ").repeated(4));
+  process_events_for(150);
+
+  struct Box {
+    int x, y, width, height;
+  };
+  const auto box = [&] {
+    return Box{editor->property("patchy.documentTextX").toInt(), editor->property("patchy.documentTextY").toInt(),
+               editor->property("patchy.documentTextWidth").toInt(),
+               editor->property("patchy.documentTextHeight").toInt()};
+  };
+  const auto layout_height = [&] { return editor->document()->size().height(); };
+
+  // All eight handles show; the sides sit at the edge midpoints with straight size cursors.
+  for (const auto* name : {"textBoxResizeHandleTopLeft", "textBoxResizeHandleTopRight", "textBoxResizeHandleBottomLeft",
+                           "textBoxResizeHandleBottomRight", "textBoxResizeHandleTop", "textBoxResizeHandleBottom",
+                           "textBoxResizeHandleLeft", "textBoxResizeHandleRight"}) {
+    auto* handle = handle_named(name);
+    CHECK(handle != nullptr && handle->isVisible());
+  }
+  {
+    const auto frame = editor->geometry();
+    auto* top = handle_named("textBoxResizeHandleTop");
+    auto* bottom = handle_named("textBoxResizeHandleBottom");
+    auto* left = handle_named("textBoxResizeHandleLeft");
+    auto* right = handle_named("textBoxResizeHandleRight");
+    if (!top || !bottom || !left || !right) return;
+    CHECK(std::abs(top->geometry().center().x() - frame.center().x()) <= 1);
+    CHECK(std::abs(top->geometry().center().y() - frame.top()) <= 1);
+    CHECK(std::abs(bottom->geometry().center().y() - (frame.bottom() + 1)) <= 1);
+    CHECK(std::abs(left->geometry().center().y() - frame.center().y()) <= 1);
+    CHECK(std::abs(left->geometry().center().x() - frame.left()) <= 1);
+    CHECK(std::abs(right->geometry().center().x() - (frame.right() + 1)) <= 1);
+    CHECK(top->cursor().shape() == Qt::SizeVerCursor && bottom->cursor().shape() == Qt::SizeVerCursor);
+    CHECK(left->cursor().shape() == Qt::SizeHorCursor && right->cursor().shape() == Qt::SizeHorCursor);
+    CHECK(!bottom->property("patchy.textOverflowMarker").toBool());
+  }
+  {
+    const auto shot = canvas->grab().toImage();
+    save_image_artifact("ui_box_text_side_handles",
+                        shot.copy(editor->geometry().adjusted(-40, -30, 40, 30).intersected(shot.rect())));
+  }
+
+  const auto drag_handle = [&](const char* name, QPoint delta) {
+    auto* handle = handle_named(name);
+    CHECK(handle != nullptr && handle->isVisible()); if (!handle) return;
+    editor->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    const auto center = handle->geometry().center();
+    drag(*canvas, center, center + delta);
+    process_events_for(150);
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  };
+
+  // Right edge in: only the width changes, the left edge stays, the text wraps into more lines.
+  auto before = box();
+  auto lines_before = layout_height();
+  drag_handle("textBoxResizeHandleRight", QPoint(-120, 17));
+  auto after = box();
+  CHECK(after.x == before.x && after.y == before.y && after.height == before.height);
+  CHECK(std::abs(after.width - (before.width - 120)) <= 1);
+  CHECK(layout_height() > lines_before + 4.0);
+
+  // Left edge in: the box origin moves, the right edge stays.
+  before = box();
+  lines_before = layout_height();
+  drag_handle("textBoxResizeHandleLeft", QPoint(30, -11));
+  after = box();
+  CHECK(std::abs(after.x - (before.x + 30)) <= 1);
+  CHECK(std::abs((after.x + after.width) - (before.x + before.width)) <= 1);
+  CHECK(after.y == before.y && after.height == before.height);
+  CHECK(layout_height() > lines_before);
+
+  // Bottom edge down: only the height changes.
+  before = box();
+  drag_handle("textBoxResizeHandleBottom", QPoint(23, 40));
+  after = box();
+  CHECK(after.x == before.x && after.y == before.y && after.width == before.width);
+  CHECK(std::abs(after.height - (before.height + 40)) <= 1);
+
+  // Top edge up: the origin moves up, the bottom edge stays.
+  before = box();
+  drag_handle("textBoxResizeHandleTop", QPoint(-9, -25));
+  after = box();
+  CHECK(std::abs(after.y - (before.y - 25)) <= 1);
+  CHECK(std::abs((after.y + after.height) - (before.y + before.height)) <= 1);
+  CHECK(after.x == before.x && after.width == before.width);
+
+  // The same minimum as the corners: a side dragged past the opposite edge stops there.
+  before = box();
+  drag_handle("textBoxResizeHandleRight", QPoint(-before.width - 200, 0));
+  after = box();
+  CHECK(after.x == before.x && after.width == 16);
+
+  // A box small on screen hides its side handles; a press just inside a corner's reach, toward
+  // where the side handle would be, resizes from the corner (both edges move).
+  drag_handle("textBoxResizeHandleRight", QPoint(160, 0));
+  canvas->set_zoom(0.15);
+  process_events_for(150);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(editor->geometry().width() < 50);
+  for (const auto* name : {"textBoxResizeHandleTop", "textBoxResizeHandleBottom"}) {
+    auto* handle = handle_named(name);
+    CHECK(handle == nullptr || !handle->isVisible());
+  }
+  for (const auto* name : {"textBoxResizeHandleLeft", "textBoxResizeHandleRight"}) {
+    auto* handle = handle_named(name);
+    CHECK((handle != nullptr && handle->isVisible()) == (editor->geometry().height() >= 50));
+  }
+  auto* corner = handle_named("textBoxResizeHandleBottomRight");
+  CHECK(corner != nullptr && corner->isVisible()); if (!corner) return;
+  before = box();
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  const auto press = corner->geometry().center() + QPoint(-8, 0);
+  drag(*canvas, press, press + QPoint(10, 10));
+  process_events_for(150);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  after = box();
+  CHECK(after.x == before.x && after.y == before.y);
+  CHECK(after.width >= before.width + 30 && after.height >= before.height + 30);
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+}
+
+// GitHub issue 684 on the transformed overlay: a box turned 90 degrees by Free Transform edits
+// through the overlay, whose side handles follow the box's axes. The right side then points down
+// the screen (vertical size cursor) and the bottom side points sideways (horizontal); dragging
+// either outward grows only its own dimension and leaves the opposite side where it was. An area
+// frame (also an overlay session) gets side handles too.
+void ui_transformed_text_side_handles_follow_rotation() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, "app.newDocument(640,480);");
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 180)),
+       canvas->widget_position_for_document_point(QPoint(440, 300)));
+  process_events_for(150);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  editor->setPlainText(QStringLiteral("Turned box text with side handles"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value()); if (!state) return;
+  CHECK(canvas->set_transform_controls_state(state->reference_position, 100.0, 100.0, 90.0));
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto turned = canvas->active_layer_document_rect();
+  CHECK(turned.has_value()); if (!turned) return;
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto edit_point = canvas->widget_position_for_document_point(turned->center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, edit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, edit_point, Qt::LeftButton, Qt::NoButton);
+  process_events_for(150);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"), Qt::FindDirectChildrenOnly);
+  CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
+
+  // Top, Bottom, Left, Right; every side shows on this box.
+  const auto sides = [&] { return overlay->property("patchy.transformedTextSideHandleCenters").toList(); };
+  const auto corners = [&] { return overlay->property("patchy.transformedTextResizeHandleCenters").toList(); };
+  auto side_list = sides();
+  CHECK(side_list.size() == 4 && corners().size() == 4); if (side_list.size() != 4) return;
+  for (const auto& side : side_list) {
+    CHECK(side.isValid());
+  }
+  const auto box_center = [&] {
+    QPointF sum;
+    for (const auto& point : corners()) sum += point.toPointF();
+    return sum / 4.0;
+  };
+  const auto hover_cursor = [&](QPointF canvas_point) {
+    send_mouse(*overlay, QEvent::MouseMove, (canvas_point - QPointF(overlay->pos())).toPoint(), Qt::NoButton,
+               Qt::NoButton);
+    return overlay->cursor().shape();
+  };
+  // Turned a quarter: the right side's outward direction is vertical on screen, the bottom's
+  // horizontal, and the corners keep diagonal cursors.
+  const auto right_outward = side_list[3].toPointF() - box_center();
+  const auto bottom_outward = side_list[1].toPointF() - box_center();
+  CHECK(std::abs(right_outward.y()) > 4.0 * std::abs(right_outward.x()));
+  CHECK(std::abs(bottom_outward.x()) > 4.0 * std::abs(bottom_outward.y()));
+  CHECK(hover_cursor(side_list[3].toPointF()) == Qt::SizeVerCursor);
+  CHECK(hover_cursor(side_list[0].toPointF()) == Qt::SizeHorCursor);
+  CHECK(hover_cursor(side_list[1].toPointF()) == Qt::SizeHorCursor);
+  const auto corner_cursor = hover_cursor(corners().back().toPointF());
+  CHECK(corner_cursor == Qt::SizeFDiagCursor || corner_cursor == Qt::SizeBDiagCursor);
+  {
+    const auto shot = canvas->grab().toImage();
+    save_image_artifact("ui_transformed_text_side_handles",
+                        shot.copy(overlay->geometry().adjusted(-30, -30, 30, 30).intersected(shot.rect())));
+  }
+
+  const auto drag_side = [&](int index, double distance) {
+    const auto list = sides();
+    CHECK(list.size() == 4 && list[index].isValid()); if (list.size() != 4) return;
+    const auto from = list[index].toPointF();
+    auto outward = from - box_center();
+    outward /= std::max(1e-6, std::hypot(outward.x(), outward.y()));
+    const auto start = from.toPoint();
+    const auto end = (from + outward * distance).toPoint();
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, (from + outward * distance * 0.5).toPoint(), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+    process_events_for(120);
+    editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"), Qt::FindDirectChildrenOnly);
+  };
+
+  // Right side outward (down the screen): only the width grows; the left side does not move.
+  auto width_before = editor->property("patchy.documentTextWidth").toInt();
+  auto height_before = editor->property("patchy.documentTextHeight").toInt();
+  auto left_before = sides()[2].toPointF();
+  drag_side(3, 40.0);
+  CHECK(editor != nullptr && overlay != nullptr); if (!editor || !overlay) return;
+  CHECK(std::abs(editor->property("patchy.documentTextWidth").toInt() - (width_before + 40)) <= 2);
+  CHECK(editor->property("patchy.documentTextHeight").toInt() == height_before);
+  CHECK((sides()[2].toPointF() - left_before).manhattanLength() < 2.5);
+
+  // Top side outward (sideways): only the height grows; the bottom side does not move.
+  width_before = editor->property("patchy.documentTextWidth").toInt();
+  height_before = editor->property("patchy.documentTextHeight").toInt();
+  const auto bottom_before = sides()[1].toPointF();
+  drag_side(0, 30.0);
+  CHECK(editor != nullptr && overlay != nullptr); if (!editor || !overlay) return;
+  CHECK(std::abs(editor->property("patchy.documentTextHeight").toInt() - (height_before + 30)) <= 2);
+  CHECK(editor->property("patchy.documentTextWidth").toInt() == width_before);
+  CHECK((sides()[1].toPointF() - bottom_before).manhattanLength() < 2.5);
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+
+  // An area frame scales along one axis from a side handle.
+  run(window, R"JS(
+    var d=app.activeDocument;
+    d.addShape('Frame',{type:'polygon',cx:130,cy:240,radius:100,sides:6});
+  )JS");
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  // Clear of the turned box, which would take the click as a text edit.
+  const QPoint area_center(130, 240);
+  CHECK(canvas->text_area_at(area_center).has_value());
+  const auto click = canvas->widget_position_for_document_point(area_center);
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  process_events_for(150);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  editor->setPlainText(QStringLiteral("Area text"));
+  process_events_for(150);
+  overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"), Qt::FindDirectChildrenOnly);
+  CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
+  const auto original_area = parse_vector_path(editor->property("patchy.documentTextArea").toString().toStdString());
+  CHECK(original_area.has_value()); if (!original_area) return;
+  CHECK(sides().size() == 4 && sides()[1].isValid());
+  drag_side(1, 36.0);
+  CHECK(editor != nullptr); if (!editor) return;
+  const auto resized_area = parse_vector_path(editor->property("patchy.documentTextArea").toString().toStdString());
+  CHECK(resized_area.has_value()); if (!resized_area) return;
+  const auto first = original_area->bounds();
+  const auto last = resized_area->bounds();
+  CHECK(std::abs((last->bottom - last->top) - (first->bottom - first->top) - 36.0) < 2.0);
+  CHECK(std::abs((last->right - last->left) - (first->right - first->left)) < 1.0);
+  CHECK(std::abs(last->top - first->top) < 1.0);
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_area_tests() {
@@ -1113,5 +1415,7 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip",
            ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip},
           {"ui_box_text_overflow_marker_on_bottom_right_handle", ui_box_text_overflow_marker_on_bottom_right_handle},
-          {"ui_box_text_overflow_marker_tooltip", ui_box_text_overflow_marker_tooltip}};
+          {"ui_box_text_overflow_marker_tooltip", ui_box_text_overflow_marker_tooltip},
+          {"ui_box_text_side_handles_move_one_edge", ui_box_text_side_handles_move_one_edge},
+          {"ui_transformed_text_side_handles_follow_rotation", ui_transformed_text_side_handles_follow_rotation}};
 }
