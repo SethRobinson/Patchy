@@ -388,32 +388,48 @@ void ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries() {
                      combo->geometry().right(), rename->geometry().left());      }
       CHECK(rename != nullptr && combo->geometry().right() < rename->geometry().left());
       for (const auto* name :
-           {"hotkeyImportButton", "hotkeyExportButton", "hotkeySetRenameButton", "hotkeySetDeleteButton"}) {
+           {"hotkeyImportButton", "hotkeyExportButton", "hotkeySetRenameButton", "hotkeySetDeleteButton",
+            "hotkeyResetAllButton"}) {
         auto* button = dialog.findChild<QPushButton*>(QString::fromLatin1(name));
         CHECK(button != nullptr);
         CHECK(button->width() >= button->sizeHint().width());
       }
-      // The Show box beside the search (GitHub issue 676) shows its entry whole, and the search
-      // row ends inside the page: Reset All is never cut off.
+      // The Show box beside the search (GitHub issue 676) shows its entry whole and ends the search
+      // row inside the page. Reset All sits in the set section after Export... (676 follow-up: on
+      // the set box's line it made the German page wider than the window), and no row ends past
+      // the page, or past the 800 px test window in English, German and French (the Russian page
+      // was already a little wider than that before Reset All moved).
       auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
       auto* filter = dialog.findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
+      auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("hotkeySetDeleteButton"));
+      auto* export_button = dialog.findChild<QPushButton*>(QStringLiteral("hotkeyExportButton"));
       auto* reset_all = dialog.findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
       auto* page_stack = dialog.findChild<QWidget*>(QStringLiteral("preferencesPageStack"));
-      CHECK(search != nullptr && filter != nullptr && reset_all != nullptr && page_stack != nullptr);
-      if (search != nullptr && filter != nullptr && reset_all != nullptr && page_stack != nullptr) {
+      CHECK(search != nullptr && filter != nullptr && remove != nullptr && export_button != nullptr &&
+            reset_all != nullptr && page_stack != nullptr);
+      if (search != nullptr && filter != nullptr && remove != nullptr && export_button != nullptr &&
+          reset_all != nullptr && page_stack != nullptr) {
         CHECK(filter->width() >= filter->sizeHint().width());
         CHECK(search->geometry().right() < filter->geometry().left());
-        CHECK(filter->geometry().right() < reset_all->geometry().left());
-        CHECK(reset_all->width() >= reset_all->sizeHint().width());
-        const int reset_right = reset_all->mapTo(&dialog, QPoint(reset_all->width(), 0)).x();
-        const int page_right = page_stack->mapTo(&dialog, QPoint(page_stack->width(), 0)).x();
-        if (reset_right > page_right) {
-          std::fprintf(stderr, "%s: Reset All ends at %d, past the page (%d)\n", language, reset_right, page_right);
+        CHECK(reset_all->parentWidget() == export_button->parentWidget());
+        CHECK(reset_all->geometry().top() == export_button->geometry().top());
+        CHECK(export_button->geometry().right() < reset_all->geometry().left());
+        int page_right = page_stack->mapTo(&dialog, QPoint(page_stack->width(), 0)).x();
+        if (std::string(language) != "ru") {
+          page_right = std::min(page_right, dialog.width());
         }
-        CHECK(reset_right <= page_right);
+        for (QWidget* row_end : {static_cast<QWidget*>(filter), static_cast<QWidget*>(remove),
+                                 static_cast<QWidget*>(reset_all)}) {
+          const int right = row_end->mapTo(&dialog, QPoint(row_end->width(), 0)).x();
+          if (right > page_right) {
+            std::fprintf(stderr, "%s: %s ends at %d, past the page or window (%d; dialog minimum width %d)\n",
+                         language, qPrintable(row_end->objectName()), right, page_right, dialog.minimumWidth());
+          }
+          CHECK(right <= page_right);
+        }
       }
-      if (std::string(language) == "de") {
-        save_widget_artifact("hotkey_editor_shortcut_set_combo_de", dialog);
+      if (std::string(language) == "de" || std::string(language) == "en") {
+        save_widget_artifact(std::string("hotkey_editor_shortcut_set_combo_") + language, dialog);
       }
       drove = true;
       dialog.reject();

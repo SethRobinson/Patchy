@@ -4588,12 +4588,12 @@ void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
     CHECK(search->isVisible());
     CHECK(search_after == search_before);
     CHECK(search_after.bottom() < list_scroll->mapTo(dialog, QPoint(0, 0)).y());
-    // The rows end where the search row ends, beside the scroll bar.
-    auto* reset_all = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+    // The rows end where the search row (ended by the Show box) ends, beside the scroll bar.
+    auto* row_end = dialog->findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
     auto* list = list_scroll->widget();
-    CHECK(reset_all != nullptr && list != nullptr);
-    if (reset_all != nullptr && list != nullptr) {
-      const int reset_right = reset_all->mapTo(dialog, QPoint(reset_all->width(), 0)).x();
+    CHECK(row_end != nullptr && list != nullptr);
+    if (row_end != nullptr && list != nullptr) {
+      const int row_right = row_end->mapTo(dialog, QPoint(row_end->width(), 0)).x();
       int panel_right = 0;
       for (auto* frame : list->findChildren<QFrame*>(Qt::FindDirectChildrenOnly)) {
         if (frame->isVisible()) {
@@ -4601,7 +4601,7 @@ void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
         }
       }
       CHECK(panel_right > 0);
-      CHECK(std::abs(reset_right - panel_right) <= 1);
+      CHECK(std::abs(row_right - panel_right) <= 1);
     }
 
     // The bottom of the list is the built-in keys panel, with the 0-9 row's new text.

@@ -209,10 +209,6 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   fit_combo_popup_to_entries(*filter_combo_);
   filter_label->setBuddy(filter_combo_);
   top_layout->addWidget(filter_combo_);
-  auto* reset_all_button = new QPushButton(tr("Reset All"), top_row);
-  reset_all_button->setObjectName(QStringLiteral("hotkeyResetAllButton"));
-  reset_all_button->setToolTip(tr("Restore every hotkey to its default"));
-  top_layout->addWidget(reset_all_button);
   header_layout->addWidget(top_row);
   header_layout->addWidget(build_set_row(header_));
   transfer_status_ = new QLabel(header_);
@@ -250,10 +246,6 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   connect(filter_combo_, &QComboBox::currentIndexChanged, this, [this] {
     filter_rows();
     list_scroll_->verticalScrollBar()->setValue(0);
-  });
-  connect(reset_all_button, &QPushButton::clicked, this, [this] {
-    // Patchy's defaults as a set: the user's own sets keep their keys.
-    QTimer::singleShot(0, this, [this] { apply_shortcut_set(QString::fromLatin1(kPatchyHotkeySetId)); });
   });
   connect(set_combo_, &QComboBox::activated, this, [this](int index) {
     QTimer::singleShot(0, this, [this, index] { shortcut_set_chosen(index); });
@@ -416,7 +408,8 @@ void HotkeyEditorPanel::load_shortcut_sets() {
 }
 
 // Two lines under one label: the set box with the buttons that act on the set shown, then the
-// file buttons. One line held too few pixels for six controls in German and Russian.
+// file buttons and Reset All. One line held too few pixels for six controls in German and Russian,
+// and Reset All on the first line pushed the page past the window in German.
 QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
   auto* row = new QWidget(parent);
   auto* grid = new QGridLayout(row);
@@ -459,10 +452,19 @@ QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
   export_button->setObjectName(QStringLiteral("hotkeyExportButton"));
   export_button->setToolTip(tr("Save the shortcuts shown to a file you can keep or share"));
   file_line->addWidget(export_button);
+  // A set action, so it sits with the sets rather than the search (GitHub issue 676 follow-up).
+  auto* reset_all_button = new QPushButton(tr("Reset All"), row);
+  reset_all_button->setObjectName(QStringLiteral("hotkeyResetAllButton"));
+  reset_all_button->setToolTip(tr("Restore every hotkey to its default"));
+  file_line->addWidget(reset_all_button);
   file_line->addStretch(1);
   rebuild_set_combo();
   connect(rename_set_button_, &QPushButton::clicked, this, [this] { rename_clicked(); });
   connect(delete_set_button_, &QPushButton::clicked, this, [this] { delete_clicked(); });
+  connect(reset_all_button, &QPushButton::clicked, this, [this] {
+    // Patchy's defaults as a set: the user's own sets keep their keys.
+    QTimer::singleShot(0, this, [this] { apply_shortcut_set(QString::fromLatin1(kPatchyHotkeySetId)); });
+  });
   connect(import_button, &QPushButton::clicked, this, [this] { import_clicked(); });
   connect(export_button, &QPushButton::clicked, this, [this] { export_clicked(); });
   return row;
