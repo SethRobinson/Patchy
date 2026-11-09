@@ -88,3 +88,32 @@ between frames. The driver publishes `.webp` artifacts beside the PNGs.
   viewer opens on its pages 5 and 6 (the picture plate). Print as Book opens from the viewer's
   button as a saddle-stitched booklet on sheet 1 (the covers). Its PNG is named
   `pdf_viewer_book_print` so the driver's `shot_readme_pdf_viewer*` pattern copies it.
+
+## MCP isometric harbor
+
+- `shot_readme_mcp_isometric` replays recorded MCP tool calls through the real in-process
+  `McpSession` as an attached client named "AI agent" (captions never name a particular agent), in a visible window at exactly 100% zoom
+  (the 1080 x 720 document fits the canvas area) with Slow mode on, so every shape and stroke
+  shows and gets its own undo step, and the status bar shows the AI activity indicator (Stop,
+  Pause, Slow). Each call sends a fresh `expectedState`; `execute_script` calls after the first
+  get `args.documentId`, and a script that makes pixel layers reports them in
+  `result.layers` for the `draw_strokes` calls that follow. Frames every 90 ms, played at 0.45x
+  the session's time (Slow mode reads well live but drags in a README), WebP quality 92: at 74
+  the sky gradient and the horizon haze showed streaks (about 3 MB at 74, 5 MB at 92).
+- The calls live in `test-fixtures/readme/mcp_isometric_calls.json`, written by
+  `scripts/dev/readme-shots/make-mcp-isometric-calls.py` (seeded, so it rewrites the same
+  file). Solid forms are vector shapes with gradient fills (linear for walls and roofs, radial
+  for the lawn and tree crowns, alpha-faded for glows, haze and beams), one `execute_script`
+  per object, grouped and named in the Layers panel; brush work (`draw_strokes`) adds stars
+  (a few long strokes with scatter and size jitter), ripples, grass and the tile grid, and
+  window glow on a Screen layer; no grass blades (they looked untidy). Trees are Smart Objects:
+  the first pine and the first oak write an SVG (gradients in SVG) into `args.workDir` and place
+  it with `addSmartObject`; every later tree is `duplicate()` of that layer, moved and put on top
+  with `moveLayers`, sharing its `sourceId`. (Layer > Convert to Smart Object is a menu command,
+  which the connector refuses.) Objects go back to front by i + j. The moon is a traced
+  crescent path, not a disc covered by a sky-colored disc (which shows against a gradient sky).
+- Brush filling faces with zigzag strokes (the first version) looked like crayon: use shapes.
+  Brush `spacing` is at most 10 (times the diameter). Check the picture through a live MCP
+  session (`get_preview`) after changing the generator, then rerun the scene.
+- The log panel in the lower left is drawn onto each frame by the scene (the client's side,
+  which Patchy does not show); everything else is the real window.

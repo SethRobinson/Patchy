@@ -162,7 +162,7 @@ Click any image to inspect it at full size. These are captures of the real edito
 <tr>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/dink_theme.png"><img src="images/screenshots/dink_theme.png" width="430" alt="The bundled Dink Smallwood theme: the interface in brown and gold with its own icons and a tiled grass backdrop behind the Home Screen, Dink walking along the bottom, and Preferences open on Colors and Themes with the theme selected"></a>
-      <br><sub>Theme packages change more than colors: the bundled Dink Smallwood theme brings icons, a tiled backdrop, sounds, effects and Dink himself walking across the Home Screen</sub>
+      <br><sub>Theme packages change more than colors: the bundled Dink Smallwood theme brings icons, a tiled backdrop, sounds, effects and Dink himself walking across the Home Screen.  This theme is ugly as sin and gaudy as hell, please don't use it!</sub>
     </td>
 <td width="50%"></td>
 </tr>
@@ -232,7 +232,14 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/breakout.webp"><img src="images/screenshots/breakout.webp" width="430" alt="Animation: the Script Manager with Breakout chosen and running, and beside it the game playing on a Patchy document while the Layers panel lists the game layers and the controller window shows the score, lives and keys"></a>
-      <br><sub>Breakout, a bundled script, run from the Script Manager and played on a real document: bricks, paddle and ball are layers, and the controller window is the script's own</sub>
+      <br><sub>Patchy's scripting is powerful enough to run a game: the bundled Breakout plays on a real document, its bricks, paddle and ball are layers, and its controller is the script's own window. The same JavaScript API edits documents, layers, text, selections, pixels and filters</sub>
     </td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/mcp_isometric.webp"><img src="images/screenshots/mcp_isometric.webp" width="430" alt="Animation: an AI agent building an isometric harbor town through the MCP connector, step by step in Slow mode, with its tool calls in a log and the AI activity controls in the status bar"></a>
+      <br><sub>AI control through the bundled MCP connector: an AI agent builds an isometric harbor from gradient-filled vector shapes, Smart Object trees that share one source, and native brush strokes, in a visible window with Slow mode showing each step</sub>
+    </td>
+<td width="50%"></td>
 </tr>
 </table>

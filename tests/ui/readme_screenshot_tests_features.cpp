@@ -12,6 +12,8 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "ui/mcp_session.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/openai_images.hpp"
 #include "ui/theme_effects.hpp"
 #include "ui/theme_file.hpp"
@@ -38,7 +40,12 @@
 #include <QTimer>
 #include <QVariantMap>
 #include <QToolButton>
+#include <QDir>
+#include <QFile>
 #include <QFont>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QImage>
 #include <QPainter>
 #include <QPointF>
@@ -48,6 +55,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -541,6 +549,213 @@ void shot_readme_dink_theme() {
   CHECK(captured);
 }
 
+// --- MCP: an AI agent painting through the connector -----------------------
+
+// A minimal MCP client on Patchy's in-process session (the transport the connector uses):
+// JSON-RPC lines in, replies collected from the output callback.
+class ReadmeMcpClient {
+public:
+  ReadmeMcpClient(patchy::ui::MainWindow& window, const QString& client_name)
+      : session_(window, /*attached=*/true, [this](const QByteArray& line) {
+          const std::lock_guard lock(mutex_);
+          replies_.push_back(QJsonDocument::fromJson(line).object());
+        }) {
+    session_.connect_from_any_thread();
+    CHECK(process_events_until([this] { return session_.ready(); }, 10000));
+    const auto reply = take(send(QStringLiteral("initialize"),
+                                 {{"protocolVersion", "2025-11-25"},
+                                  {"clientInfo", QJsonObject{{"name", client_name}, {"version", "1"}}}}),
+                            10000);
+    CHECK(reply.contains(QStringLiteral("result")));
+  }
+  ~ReadmeMcpClient() {
+    session_.disconnect_from_any_thread();
+    (void)process_events_until([this] { return session_.closed(); }, 10000);
+    session_.shutdown();
+  }
+  ReadmeMcpClient(const ReadmeMcpClient&) = delete;
+  ReadmeMcpClient& operator=(const ReadmeMcpClient&) = delete;
+
+  // tools/call; returns the result object (structuredContent and isError inside).
+  QJsonObject call(const QString& name, const QJsonObject& args, int timeout_ms = 120000) {
+    const auto reply = take(send(QStringLiteral("tools/call"), {{"name", name}, {"arguments", args}}), timeout_ms);
+    const auto result = reply[QStringLiteral("result")].toObject();
+    CHECK(!result[QStringLiteral("isError")].toBool());
+    return result;
+  }
+  QString state_token() {
+    return call(QStringLiteral("get_state"), {})[QStringLiteral("structuredContent")]
+        .toObject()[QStringLiteral("stateToken")]
+        .toString();
+  }
+
+private:
+  int send(const QString& method, const QJsonObject& params) {
+    const int id = next_id_++;
+    session_.receive_line(QJsonDocument(QJsonObject{{"jsonrpc", "2.0"}, {"id", id}, {"method", method},
+                                                    {"params", params}})
+                              .toJson(QJsonDocument::Compact));
+    return id;
+  }
+  QJsonObject take(int id, int timeout_ms) {
+    QJsonObject result;
+    CHECK(process_events_until(
+        [&] {
+          const std::lock_guard lock(mutex_);
+          for (auto it = replies_.begin(); it != replies_.end(); ++it) {
+            if ((*it)[QStringLiteral("id")].toInt() == id) {
+              result = *it;
+              replies_.erase(it);
+              return true;
+            }
+          }
+          return false;
+        },
+        timeout_ms));
+    return result;
+  }
+
+  std::mutex mutex_;
+  std::vector<QJsonObject> replies_;
+  patchy::ui::McpSession session_;
+  int next_id_{1};
+};
+
+// The client's side of the session, drawn in the canvas's lower left: the assistant's
+// last few tool calls, newest at the bottom.
+void draw_mcp_client_log(QImage& frame, const QStringList& lines, QPoint bottom_left) {
+  QPainter painter(&frame);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  QFont title = QApplication::font();
+  title.setPixelSize(13);
+  title.setBold(true);
+  QFont body(QStringLiteral("Consolas"));
+  body.setStyleHint(QFont::Monospace);
+  body.setPixelSize(13);
+  const int width = 430;
+  const int height = 34 + 19 * static_cast<int>(lines.size());
+  const QRect box(bottom_left.x(), bottom_left.y() - height, width, height);
+  painter.setPen(QColor(255, 255, 255, 40));
+  painter.setBrush(QColor(14, 16, 24, 225));
+  painter.drawRoundedRect(box, 8, 8);
+  painter.setFont(title);
+  painter.setPen(QColor(235, 196, 140));
+  painter.drawText(box.adjusted(12, 8, -12, 0), Qt::AlignLeft | Qt::AlignTop,
+                   QStringLiteral("MCP client: AI agent"));
+  painter.setFont(body);
+  for (int i = 0; i < lines.size(); ++i) {
+    const bool newest = i == lines.size() - 1;
+    painter.setPen(newest ? QColor(232, 236, 242) : QColor(140, 150, 165));
+    painter.drawText(QRect(box.left() + 12, box.top() + 30 + 19 * i, width - 24, 18), Qt::AlignLeft | Qt::AlignVCenter,
+                     lines[i]);
+  }
+}
+
+// An animated WebP of an AI agent painting an isometric harbor (vector shapes with
+// gradient fills, then brush detail) at 100% zoom through
+// Patchy's MCP connector, in the user's open window with Slow mode on, so each stroke
+// lands with a short pause and its own undo step. The calls are the recorded ones in
+// test-fixtures/readme/mcp_isometric_calls.json (scripts/dev/readme-shots/
+// make-mcp-isometric-calls.py): one execute_script for the document and layers, then
+// draw_strokes batches. They go through the real session as an attached client, each
+// with a fresh state token, while the status bar shows the AI activity indicator with
+// Stop, Pause and Slow. A small log in the lower left shows the client's side.
+void shot_readme_mcp_isometric() {
+  const auto path = patchy::test::committed_format_fixture_path("readme", "mcp_isometric_calls.json");
+  QFile file(QString::fromStdString(path.string()));
+  CHECK(file.open(QIODevice::ReadOnly));
+  const auto recording = QJsonDocument::fromJson(file.readAll()).object();
+  const auto calls = recording[QStringLiteral("calls")].toArray();
+  CHECK(calls.size() > 2);
+
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  close_untitled_start_tab(window);
+  auto& host = window.script_engine_host();
+  host.set_slow_mode(true);
+  CHECK(host.slow_mode());
+
+  // A frame every 90 ms, played at about twice the session's speed: Slow mode pauses on
+  // every shape and stroke, which reads well live but drags in a README.
+  constexpr double kPlayback = 0.45;
+  ReadmeAnimationWriter writer("shot_readme_mcp_isometric", window.size(), 92);
+  QElapsedTimer clock;
+  clock.start();
+  QStringList log;
+  QTimer recorder;
+  recorder.setInterval(90);
+  QObject::connect(&recorder, &QTimer::timeout, &window, [&] {
+    QImage frame = window.grab().toImage();
+    const QPoint log_corner(60, window.height() - 52);
+    if (!log.isEmpty()) {
+      draw_mcp_client_log(frame, log.mid(std::max<qsizetype>(0, log.size() - 4)), log_corner);
+    }
+    writer.add(frame, static_cast<qint64>(clock.elapsed() * kPlayback));
+  });
+  recorder.start();
+  {
+    ensure_artifact_dir();
+    const QString work_dir = QDir::current().filePath(QStringLiteral("test-artifacts/readme_mcp_isometric"));
+    QDir().mkpath(work_dir);
+    ReadmeMcpClient client(window, QStringLiteral("AI agent"));
+    process_events_for(600);  // the empty workspace, connected
+    QString document_id;
+    QJsonObject layer_ids;
+    for (const auto& value : calls) {
+      const auto call = value.toObject();
+      const auto tool = call[QStringLiteral("tool")].toString();
+      const auto note = call[QStringLiteral("note")].toString();
+      if (tool == QStringLiteral("execute_script")) {
+        log << QStringLiteral("execute_script  %1").arg(call[QStringLiteral("name")].toString().left(34));
+        QJsonObject args{{"code", call[QStringLiteral("code")]},
+                         {"name", call[QStringLiteral("name")]},
+                         {"expectedState", client.state_token()}};
+        if (!document_id.isEmpty()) {
+          // workDir: where the agent writes the tree SVGs it places as Smart Objects.
+          args.insert(QStringLiteral("args"), QJsonObject{{"documentId", document_id}, {"workDir", work_dir}});
+        }
+        const auto result = client.call(tool, args);
+        const auto reply = result[QStringLiteral("structuredContent")].toObject()[QStringLiteral("result")].toObject();
+        // New pixel layers a script made (for the brush work that follows) come back by name.
+        const auto made = reply[QStringLiteral("layers")].toObject();
+        for (auto it = made.begin(); it != made.end(); ++it) {
+          layer_ids.insert(it.key(), it.value());
+        }
+        if (document_id.isEmpty()) {
+          document_id = reply[QStringLiteral("documentId")].toString();
+          CHECK(!document_id.isEmpty());
+          // At exactly 100% (the 1080 x 720 document fits the canvas area), so every
+          // gradient and line shows at its real pixels.
+          auto* canvas = require_canvas(window);
+          canvas->set_view_zoom_centered(1.0);
+          process_events_for(300);
+        }
+        continue;
+      }
+      const auto strokes = call[QStringLiteral("strokes")].toArray();
+      const auto layer = call[QStringLiteral("layer")].toString();
+      log << QStringLiteral("draw_strokes  %1: %2 (%3)").arg(layer, note.left(22)).arg(strokes.size());
+      (void)client.call(tool, {{"documentId", document_id},
+                               {"layerId", layer_ids[layer]},
+                               {"strokes", strokes},
+                               {"expectedState", client.state_token()}});
+    }
+    // The assistant looks at its work, as it would to check it.
+    log << QStringLiteral("get_preview  The finished harbor");
+    const auto preview = client.call(QStringLiteral("get_preview"), {{"documentId", document_id}});
+    CHECK(!preview[QStringLiteral("content")].toArray().isEmpty());
+    process_events_for(400);
+  }
+  recorder.stop();
+  // Hold the finished picture before the loop starts over.
+  QImage last = window.grab().toImage();
+  draw_mcp_client_log(last, log.mid(std::max<qsizetype>(0, log.size() - 4)), QPoint(60, window.height() - 52));
+  writer.add(last, static_cast<qint64>(clock.elapsed() * kPlayback));
+  CHECK(writer.frame_count() > 100);
+  writer.finish(3000);
+  host.set_slow_mode(false);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part4() {
@@ -551,5 +766,6 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests_part4() {
       {"shot_readme_remove_object", shot_readme_remove_object},
       {"shot_readme_openai_images", shot_readme_openai_images},
       {"shot_readme_dink_theme", shot_readme_dink_theme},
+      {"shot_readme_mcp_isometric", shot_readme_mcp_isometric},
   };
 }

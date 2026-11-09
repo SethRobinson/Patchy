@@ -1132,7 +1132,7 @@ void shot_readme_warp_text() {
     font.setPixelSize(17);
     painter.setFont(font);
     painter.setPen(QColor("#b5c2c8"));
-    painter.drawText(60, 382, QStringLiteral("WARP / LAYER EFFECTS"));
+    painter.drawText(340, 362, QStringLiteral("WARP / LAYER EFFECTS"));
     painter.drawText(60, 756, QStringLiteral("One paragraph. Mixed faces. Still editable."));
     painter.drawText(800, 756, QStringLiteral("VERTICAL TYPE / JAPANESE"));
     font.setPixelSize(16);
@@ -1143,15 +1143,17 @@ void shot_readme_warp_text() {
   }
   auto built = patchy::ui::document_from_qimage(poster, "Paper and ink");
   const char* black_font = "Arial%20Black";
-  const auto flag_id = add_readme_warp_text_layer(built, "Flag", 60, 284, "Flag",
-      readme_text_runs(4, 42, "#f3ede0", black_font), 42, "#f3ede0", 2, 4, 6);
-  const auto fisheye_id = add_readme_warp_text_layer(built, "Fisheye", 225, 284, "Fisheye",
-      readme_text_runs(7, 42, "#e6bf70", black_font), 42, "#e6bf70", 2, 4, 6);
-  const auto twist_id = add_readme_warp_text_layer(built, "Twist", 448, 284, "Twist",
-      readme_text_runs(5, 42, "#ee9b7d", black_font), 42, "#ee9b7d", 2, 4, 6);
-  const auto headline_id = add_readme_warp_text_layer(built, "PATCHY / live warp", 120, 125, "PATCHY",
-      readme_rainbow_runs({"#ed997b", "#e6ba72", "#eee2b9", "#93c6ad", "#88bacd", "#b5a8cb"}, 100, black_font),
-      100, "#eee2b9", 3, 7, 9);
+  // The Character panel floats over the canvas's upper left, so the headline block sits in
+  // the band right of it (doc x 335..650), left of the Paragraph and Warp Text windows.
+  const auto flag_id = add_readme_warp_text_layer(built, "Flag", 340, 266, "Flag",
+      readme_text_runs(4, 26, "#f3ede0", black_font), 26, "#f3ede0", 2, 4, 6);
+  const auto fisheye_id = add_readme_warp_text_layer(built, "Fisheye", 418, 266, "Fisheye",
+      readme_text_runs(7, 26, "#e6bf70", black_font), 26, "#e6bf70", 2, 4, 6);
+  const auto twist_id = add_readme_warp_text_layer(built, "Twist", 548, 266, "Twist",
+      readme_text_runs(5, 26, "#ee9b7d", black_font), 26, "#ee9b7d", 2, 4, 6);
+  const auto headline_id = add_readme_warp_text_layer(built, "PATCHY / live warp", 352, 108, "PATCHY",
+      readme_rainbow_runs({"#ed997b", "#e6ba72", "#eee2b9", "#93c6ad", "#88bacd", "#b5a8cb"}, 50, black_font),
+      50, "#eee2b9", 2, 5, 7);
 
   // Serialize real rich-text runs, so the paragraph can be edited as one object.
   std::string paragraph_text;
@@ -1238,7 +1240,7 @@ void shot_readme_warp_text() {
   tracking_run.size = 22;
   tracking_run.tracking = 220;
   tracking_run.color = {0xc0, 0xd3, 0xd5};
-  const auto tracking_id = add_readme_warp_text_layer(built, "Tracking / +220", 60, 46, tracking_text,
+  const auto tracking_id = add_readme_warp_text_layer(built, "Tracking / +220", 340, 44, tracking_text,
       patchy::psd::serialize_patchy_text_runs(std::span(&tracking_run, 1)), 22, "#c0d3d5", 0, 0, 0);
   auto* tracked = built.find_layer(tracking_id);
   CHECK(tracked != nullptr);
@@ -1300,11 +1302,11 @@ void shot_readme_warp_text() {
       const auto warp_image = readme_captioned_dialog(*dialog, icon);
       const auto character_image = readme_captioned_dialog(*character, icon);
       // Paragraph and Warp Text side by side in the empty canvas right of the headline;
-      // Character over the lower Layers rows, leaving the text layers above it in view.
+      // Character in the canvas's upper left, where nothing else covers it, with the
+      // headline block beside it.
       const QPoint paragraph_offset(690, 128);
       const QPoint warp_offset(paragraph_offset.x() + paragraph_image.width() + 12, 128);
-      const QPoint character_offset(window.width() - character_image.width() - 8,
-                                    window.height() - character_image.height() - 48);
+      const QPoint character_offset(58, 128);
       auto base = window.grab().toImage();
       draw_readme_overlay(base, paragraph_image, paragraph_offset);
       draw_readme_overlay(base, character_image, character_offset);

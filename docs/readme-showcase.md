@@ -4,8 +4,9 @@ Related documents:
 
 - [readme-showcase-scenes.md](readme-showcase-scenes.md): the animated captures and the newer scenes' composition rules
 
-The README uses a hero image and six feature cards: `layered_import`, `tile_preview`,
-`object_select`, `breakout` (animated), `plugin_kpt5` and `web_export_quad` (animated). The
+The README uses a hero image and six feature cards: `layered_import`, `object_select`,
+`breakout` (animated), `plugin_kpt5`, `web_export_quad` (animated) and `mcp_isometric`
+(animated). The
 [full gallery](screenshots.md)
 holds every capture, grouped under topic headings. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
@@ -58,6 +59,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `perspective_planes.png` | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
 | `quick_mask.png` | `shot_readme_quick_mask` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`; Magic Wand clicks select the sky, then Quick Mask |
 | `tile_preview.png` | `shot_readme_tile_preview` | One 50 x 50 grass tile, cell (7, 4) of `test-fixtures/readme/dink_tiles_ts02.png` (Dink Smallwood, zlib-style license), with a red squiggle painted across its edges |
+| `mcp_isometric.webp` (animated) | `shot_readme_mcp_isometric` | Recorded MCP calls, `test-fixtures/readme/mcp_isometric_calls.json` (from `scripts/dev/readme-shots/make-mcp-isometric-calls.py`) |
 | `dink_theme.png` | `shot_readme_dink_theme` | The bundled `themes/bundled/dink-smallwood` package, applied untrusted, its walk sprite played and frozen mid-walk |
 | `material_styles.png` | `shot_readme_material_styles` | Generated backdrop and Arial Black lettering; Riveted Steel picked in the Style Presets grid |
 | `divide_photos.png` | `shot_readme_divide_photos` | Eight prints cropped from the committed CC0 photos, composed onto a scanner bed |
@@ -88,7 +90,7 @@ The separate Levels, brush-dynamics, shape-appearance, Affinity, Script Manager 
 script-options images are retired from the gallery (Breakout's animation shows the Script
 Manager). Their existing scenes remain regression coverage; the driver (`$retiredScenes`)
 does not publish those artifacts. Brush dynamics are described with brush tips.
-Keep the README to about six cards, so Download and Features stay near the top; new
+Keep the README to six cards, so Download and Features stay near the top; new
 captures go to the gallery. The README's cards favor game art, layered files and things
 other editors lack. Cards sit in pairs at the same size, in the README and the gallery
 alike; never give one a full-width row (a gallery group with an odd count ends with an
