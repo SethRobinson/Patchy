@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QScopeGuard>
 #include <QStatusBar>
+#include <QTimer>
 
 #if defined(PATCHY_HAVE_QT_PDF)
 #include "ui/pdf_viewer_window.hpp"
@@ -55,6 +56,29 @@ bool MainWindow::open_pdf_viewer(const QString& path) {
   if (viewer == nullptr) {
     return false;
   }
+  // Files dropped on the viewer open as if dropped on the main window: a PDF in its own
+  // viewer, anything else as a document. The main window then comes forward to show it
+  // (the opens run after the native drop returns, so this check queues behind them).
+  viewer->set_file_drop_handlers([this](QDropEvent* event) { return accept_open_file_drag(event); },
+                                 [this](QDropEvent* event) {
+                                   const auto* before = active_session();
+                                   const auto before_id = before != nullptr ? before->session_id : 0;
+                                   if (!open_dropped_files(event)) {
+                                     return false;
+                                   }
+                                   QTimer::singleShot(0, this, [this, before_id] {
+                                     const auto* after = active_session();
+                                     if (shutting_down_ || after == nullptr || after->session_id == before_id) {
+                                       return;
+                                     }
+                                     if (isMinimized()) {
+                                       showNormal();
+                                     }
+                                     raise();
+                                     activateWindow();
+                                   });
+                                   return true;
+                                 });
   pdf_viewers_.emplace_back(viewer);
   viewer->show();
   viewer->raise();

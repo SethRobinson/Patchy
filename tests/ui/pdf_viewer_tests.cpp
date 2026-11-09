@@ -22,6 +22,9 @@
 #include <QComboBox>
 #include <QAbstractItemView>
 #include <QDialog>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 #include <QFontMetrics>
 #include <QFile>
 #include <QImage>
@@ -248,6 +251,52 @@ void ui_pdf_viewer_opens_pdf_files() {
   MainWindowTestAccess::open_document_path_as_user(window, other);
   CHECK(saw_import);
   CHECK(window.findChild<PdfViewerWindow*>() == nullptr);
+}
+
+// Files dropped on the viewer open as they would dropped on the main window: an image as a
+// document, a PDF in a viewer of its own. The viewer stays open.
+void ui_pdf_viewer_opens_dropped_files() {
+  SettingsValueRestorer viewer_setting(QStringLiteral("imports/pdfOpenInViewer"));
+  SettingsValueRestorer positions_setting(QStringLiteral("pdfViewer/positions"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/pdfOpenInViewer"), true);
+  const QString path = write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_drop_target.pdf"), numbered_pdf_bytes(2));
+  const QString other = write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_drop_other.pdf"), numbered_pdf_bytes(3));
+  const QString image_path = QStringLiteral("test-artifacts/ui_pdf_viewer_drop.png");
+  QImage image(24, 16, QImage::Format_ARGB32);
+  image.fill(QColor(30, 120, 200));
+  CHECK(image.save(image_path));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto sessions = MainWindowTestAccess::session_count(window);
+  MainWindowTestAccess::open_document_path_as_user(window, path);
+  auto* viewer = window.findChild<PdfViewerWindow*>();
+  CHECK(viewer != nullptr && viewer->acceptDrops());
+  if (viewer == nullptr) {
+    return;
+  }
+  const QPointer<PdfViewerWindow> guard(viewer);
+  const auto drop_on_viewer = [viewer](const QString& file) {
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(QFileInfo(file).absoluteFilePath())});
+    const QPoint position = viewer->rect().center();
+    QDragEnterEvent enter(position, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(viewer, &enter);
+    CHECK(enter.isAccepted());
+    QDropEvent drop(QPointF(position), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(viewer, &drop);
+    CHECK(drop.isAccepted());
+  };
+  drop_on_viewer(image_path);
+  CHECK(process_events_until([&window, sessions] { return MainWindowTestAccess::session_count(window) == sessions + 1; }));
+  CHECK(MainWindowTestAccess::document(window).width() == 24);
+  CHECK(!guard.isNull());
+  drop_on_viewer(other);
+  CHECK(process_events_until([&window] { return window.findChildren<PdfViewerWindow*>().size() == 2; }));
+  CHECK(MainWindowTestAccess::session_count(window) == sessions + 1);
+  for (auto* open_viewer : window.findChildren<PdfViewerWindow*>()) {
+    open_viewer->close();
+  }
+  CHECK(process_events_until([&window] { return window.findChildren<PdfViewerWindow*>().isEmpty(); }));
 }
 
 void ui_pdf_viewer_spreads_and_page_turns() {
@@ -706,6 +755,7 @@ void ui_pdf_book_print_dialog_follows_choices() {
 std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
   return {
       {"ui_pdf_viewer_opens_pdf_files", ui_pdf_viewer_opens_pdf_files},
+      {"ui_pdf_viewer_opens_dropped_files", ui_pdf_viewer_opens_dropped_files},
       {"ui_pdf_viewer_spreads_and_page_turns", ui_pdf_viewer_spreads_and_page_turns},
       {"ui_pdf_viewer_detail_renders_match_the_page", ui_pdf_viewer_detail_renders_match_the_page},
       {"ui_pdf_book_print_imposes_sheets", ui_pdf_book_print_imposes_sheets},

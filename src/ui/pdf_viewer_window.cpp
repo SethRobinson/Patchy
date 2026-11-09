@@ -12,6 +12,7 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDir>
+#include <QDropEvent>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFontMetrics>
@@ -509,6 +510,30 @@ void PdfViewerWindow::on_current_page_changed(int page) {
 void PdfViewerWindow::on_zoom_changed(double percent) {
   Q_UNUSED(percent);
   apply_zoom_text();
+}
+
+void PdfViewerWindow::set_file_drop_handlers(FileDropHandler accept, FileDropHandler drop) {
+  accept_file_drag_ = std::move(accept);
+  drop_files_ = std::move(drop);
+  setAcceptDrops(accept_file_drag_ && drop_files_);
+}
+
+void PdfViewerWindow::dragEnterEvent(QDragEnterEvent* event) {
+  if (!accept_file_drag_ || !accept_file_drag_(event)) {
+    QWidget::dragEnterEvent(event);
+  }
+}
+
+void PdfViewerWindow::dragMoveEvent(QDragMoveEvent* event) {
+  if (!accept_file_drag_ || !accept_file_drag_(event)) {
+    QWidget::dragMoveEvent(event);
+  }
+}
+
+void PdfViewerWindow::dropEvent(QDropEvent* event) {
+  if (!drop_files_ || !drop_files_(event)) {
+    QWidget::dropEvent(event);
+  }
 }
 
 QAction* PdfViewerWindow::window_key_action(const QKeyEvent& event) const {

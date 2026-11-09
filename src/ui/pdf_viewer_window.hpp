@@ -10,6 +10,9 @@
 
 class QAction;
 class QComboBox;
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
 class QKeyEvent;
 class QLabel;
 class QListWidget;
@@ -52,8 +55,16 @@ public:
   void print_as_book();
   void set_full_screen(bool full_screen);
 
+  // Files dragged onto the viewer open like a drop on the main window: `accept` answers the
+  // drag, `drop` opens the files. Each returns whether it took the event.
+  using FileDropHandler = std::function<bool(QDropEvent* event)>;
+  void set_file_drop_handlers(FileDropHandler accept, FileDropHandler drop);
+
 protected:
   void closeEvent(QCloseEvent* event) override;
+  void dragEnterEvent(QDragEnterEvent* event) override;
+  void dragMoveEvent(QDragMoveEvent* event) override;
+  void dropEvent(QDropEvent* event) override;
   void changeEvent(QEvent* event) override;
   bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -78,6 +89,8 @@ private:
   QString password_;
   std::unique_ptr<QPdfDocument> document_;
   EditHandler edit_handler_;
+  FileDropHandler accept_file_drag_;
+  FileDropHandler drop_files_;
   PdfPageView* view_{nullptr};
   QToolBar* toolbar_{nullptr};
   QSplitter* splitter_{nullptr};
