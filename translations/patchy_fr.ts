@@ -16552,20 +16552,12 @@ Voulez-vous le remplacer ?</translation>
         <translation>Actualiser</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Scanner :</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Pour les scanners que Patchy ne peut pas piloter directement. Vous choisissez alors la résolution et le mode dans la boîte de dialogue à chaque fois.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Ouvrez le livre et posez-le face vers le bas sur la vitre de sorte que la couverture arrière, le dos et la couverture avant y reposent tous, puis appuyez sur « Numériser la couverture ». Patchy mesure le livre à partir de cette numérisation. Ignorez-la pour mesurer plutôt à partir des premières pages (les couvertures ne figurent alors pas dans le PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17244,6 +17236,58 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>Revenir à la numérisation pour ajouter des pages ou en numériser de nouveau</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Préparer</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Vérifier le livre</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Numériser les pages</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Vérifier et exporter</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Affiché dans les propriétés du document PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Facultatif</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Scanner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Dos</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Numérisez d'abord la couverture</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Ouvrez le livre et posez-le face contre la vitre.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Faites tenir la quatrième de couverture, le dos et la couverture sur la vitre.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Cliquez sur Numériser la couverture. Patchy mesure le livre à partir de cette numérisation.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Pas de couverture à numériser ? Ignorer la couverture mesure le livre à partir de ses premières pages, et les couvertures ne figurent pas dans le PDF.</translation>
     </message>
 </context>
 <context>

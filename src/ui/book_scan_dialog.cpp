@@ -7,6 +7,7 @@
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -21,11 +22,13 @@
 #include <QFileInfo>
 #include <QFontMetricsF>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QImageWriter>
 #include <QLabel>
+#include <QLinearGradient>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QLocale>
@@ -632,6 +635,162 @@ private:
   int drop_row_{-1};
 };
 
+// The wizard's steps across the top of the window: done steps carry a check, the current
+// one is filled with the accent. Painted from theme roles, so it follows the color scheme.
+class BookScanStepBar final : public QWidget {
+public:
+  explicit BookScanStepBar(QWidget* parent) : QWidget(parent) {
+    setObjectName(QStringLiteral("bookScanStepBar"));
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+  }
+
+  void set_steps(QStringList names) {
+    names_ = std::move(names);
+    updateGeometry();
+    update();
+  }
+  void set_current(int index) {
+    current_ = index;
+    update();
+  }
+
+  [[nodiscard]] QSize sizeHint() const override {
+    return {480, static_cast<int>(std::ceil(2.0 * kRadius + 14.0 + QFontMetricsF(font()).height()))};
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override { return sizeHint(); }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    if (names_.isEmpty()) {
+      return;
+    }
+    const ThemePalette& colors = theme();
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const auto count = static_cast<int>(names_.size());
+    const double slot = width() / static_cast<double>(count);
+    const double cy = kRadius + 3.0;
+    for (int i = 0; i + 1 < count; ++i) {
+      painter.setPen(QPen(i < current_ ? colors.accent : colors.panel_card_border, 2.0));
+      painter.drawLine(QPointF(slot * (i + 0.5) + kRadius + 6.0, cy), QPointF(slot * (i + 1.5) - kRadius - 6.0, cy));
+    }
+    QFont number_font = font();
+    number_font.setBold(true);
+    for (int i = 0; i < count; ++i) {
+      const QPointF center(slot * (i + 0.5), cy);
+      const bool done = i < current_;
+      const bool now = i == current_;
+      painter.setPen(QPen(now || done ? colors.accent : colors.panel_card_border, 2.0));
+      painter.setBrush(now ? QBrush(colors.accent) : done ? QBrush(colors.panel_card_bg) : QBrush(Qt::NoBrush));
+      painter.drawEllipse(center, kRadius, kRadius);
+      if (done) {
+        QPainterPath check;
+        check.moveTo(center + QPointF(-5.5, 0.5));
+        check.lineTo(center + QPointF(-1.5, 4.5));
+        check.lineTo(center + QPointF(6.0, -4.5));
+        painter.setPen(QPen(colors.accent, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(check);
+      } else {
+        painter.setFont(number_font);
+        painter.setPen(now ? colors.text_on_accent : colors.hint_text);
+        painter.drawText(QRectF(center.x() - kRadius, center.y() - kRadius, 2.0 * kRadius, 2.0 * kRadius),
+                         Qt::AlignCenter, QString::number(i + 1));
+      }
+      QFont label_font = font();
+      label_font.setBold(now);
+      painter.setFont(label_font);
+      painter.setPen(now ? colors.text_bright : done ? colors.text_secondary : colors.hint_text);
+      painter.drawText(QRectF(slot * i, cy + kRadius + 5.0, slot, height() - (cy + kRadius + 5.0)),
+                       Qt::AlignHCenter | Qt::AlignTop, names_[i]);
+    }
+  }
+
+private:
+  static constexpr double kRadius = 13.0;
+  QStringList names_;
+  int current_{0};
+};
+
+namespace {
+
+// How the open book lies on the glass for the cover scan, as the scanner sees it: back
+// cover, spine and front cover side by side, with the scan light passing under them.
+class BookPlacementPicture final : public QWidget {
+public:
+  BookPlacementPicture(QString back, QString spine, QString front, QWidget* parent)
+      : QWidget(parent), back_(std::move(back)), spine_(std::move(spine)), front_(std::move(front)) {
+    setObjectName(QStringLiteral("bookScanPlacementPicture"));
+    setFixedSize(280, 196);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    const ThemePalette& colors = theme();
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const double label_height = QFontMetricsF(font()).height() + 6.0;
+    const QRectF glass = QRectF(rect()).adjusted(4.0, 4.0, -4.0, -4.0 - label_height);
+    painter.setPen(QPen(colors.panel_inset_border, 1.5));
+    painter.setBrush(colors.panel_inset_bg);
+    painter.drawRoundedRect(glass, 8.0, 8.0);
+    // The open book: two covers and the spine between them.
+    const QRectF book(glass.center().x() - glass.width() * 0.4, glass.center().y() - glass.height() * 0.36,
+                      glass.width() * 0.8, glass.height() * 0.72);
+    const double spine_width = book.width() * 0.08;
+    const double cover_width = (book.width() - spine_width) / 2.0;
+    const QRectF back(book.left(), book.top(), cover_width, book.height());
+    const QRectF spine(back.right(), book.top(), spine_width, book.height());
+    const QRectF front(spine.right(), book.top(), cover_width, book.height());
+    painter.setPen(QPen(colors.accent_bright, 1.5));
+    painter.setBrush(colors.accent);
+    painter.drawRoundedRect(back, 3.0, 3.0);
+    painter.drawRoundedRect(front, 3.0, 3.0);
+    painter.setBrush(colors.accent_bright);
+    painter.drawRect(spine);
+    // A title on the front cover, so the picture reads as a book.
+    QColor title = colors.text_on_accent;
+    title.setAlphaF(0.55F);
+    painter.setPen(QPen(title, 3.0, Qt::SolidLine, Qt::RoundCap));
+    const double inset = front.width() * 0.2;
+    painter.drawLine(QPointF(front.left() + inset, front.top() + front.height() * 0.2),
+                     QPointF(front.right() - inset, front.top() + front.height() * 0.2));
+    painter.drawLine(QPointF(front.left() + inset * 1.5, front.top() + front.height() * 0.3),
+                     QPointF(front.right() - inset * 1.5, front.top() + front.height() * 0.3));
+    // The scan light passing under the glass.
+    const double light_x = glass.left() + glass.width() * 0.16;
+    QLinearGradient gradient(light_x - 14.0, 0.0, light_x + 14.0, 0.0);
+    QColor glow = colors.accent_bright;
+    glow.setAlphaF(0.0F);
+    gradient.setColorAt(0.0, glow);
+    glow.setAlphaF(0.5F);
+    gradient.setColorAt(0.5, glow);
+    glow.setAlphaF(0.0F);
+    gradient.setColorAt(1.0, glow);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(gradient);
+    painter.drawRect(QRectF(light_x - 14.0, glass.top() + 1.0, 28.0, glass.height() - 2.0));
+    // The covers named on them, the spine named under the glass.
+    QFont label_font = font();
+    label_font.setBold(true);
+    painter.setFont(label_font);
+    painter.setPen(colors.text_on_accent);
+    painter.drawText(back.adjusted(4.0, 0.0, -4.0, 0.0), Qt::AlignCenter | Qt::TextWordWrap, back_);
+    painter.drawText(front.adjusted(4.0, front.height() * 0.3, -4.0, 0.0), Qt::AlignCenter | Qt::TextWordWrap, front_);
+    painter.setFont(font());
+    painter.setPen(QPen(colors.text_secondary, 1.0));
+    painter.drawLine(QPointF(spine.center().x(), book.bottom() + 2.0), QPointF(spine.center().x(), glass.bottom() + 3.0));
+    painter.drawText(QRectF(0.0, glass.bottom() + 4.0, width(), label_height), Qt::AlignHCenter | Qt::AlignTop, spine_);
+  }
+
+private:
+  QString back_;
+  QString spine_;
+  QString front_;
+};
+
+}  // namespace
+
 BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   setObjectName(QStringLiteral("bookScanDialog"));
   setWindowTitle(tr("Scan a Book to PDF"));
@@ -651,13 +810,10 @@ BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   session_ = create_scanner_session(this);
 
   auto* root = new QVBoxLayout(this);
-  step_title_ = new QLabel(this);
-  step_title_->setObjectName(QStringLiteral("bookScanStepTitle"));
-  QFont title_font = step_title_->font();
-  title_font.setBold(true);
-  title_font.setPointSizeF(title_font.pointSizeF() * 1.2);
-  step_title_->setFont(title_font);
-  root->addWidget(step_title_);
+  step_bar_ = new BookScanStepBar(this);
+  step_bar_->set_steps({tr("Set up"), tr("Check the book"), tr("Scan the pages"), tr("Review and export")});
+  root->addWidget(step_bar_);
+  root->addSpacing(6);
   stack_ = new QStackedWidget(this);
   root->addWidget(stack_, 1);
   build_setup_page();
@@ -695,53 +851,101 @@ void BookScanDialog::build_setup_page() {
   auto* page = new QWidget(stack_);
   page->setObjectName(QStringLiteral("bookScanSetupPage"));
   auto* layout = new QVBoxLayout(page);
-  auto* form = new QFormLayout;
-  title_edit_ = new QLineEdit(page);
+  layout->setSpacing(12);
+  // The book and the scanner side by side.
+  auto* fields = new QHBoxLayout;
+  fields->setSpacing(12);
+  auto* book_group = new QGroupBox(tr("Book"), page);
+  auto* form = new QFormLayout(book_group);
+  title_edit_ = new QLineEdit(book_group);
   title_edit_->setObjectName(QStringLiteral("bookScanTitleEdit"));
-  author_edit_ = new QLineEdit(page);
+  title_edit_->setPlaceholderText(tr("Shown in the PDF's document properties"));
+  author_edit_ = new QLineEdit(book_group);
   author_edit_->setObjectName(QStringLiteral("bookScanAuthorEdit"));
+  author_edit_->setPlaceholderText(tr("Optional"));
   form->addRow(tr("Title:"), title_edit_);
   form->addRow(tr("Author:"), author_edit_);
   auto* folder_row = new QHBoxLayout;
-  folder_edit_ = new QLineEdit(page);
+  folder_edit_ = new QLineEdit(book_group);
   folder_edit_->setObjectName(QStringLiteral("bookScanFolderEdit"));
-  auto* browse = new QPushButton(tr("Browse..."), page);
+  auto* browse = new QPushButton(tr("Browse..."), book_group);
   browse->setAutoDefault(false);
   folder_row->addWidget(folder_edit_, 1);
   folder_row->addWidget(browse);
   form->addRow(tr("Project folder:"), folder_row);
-  auto* device_row = new QHBoxLayout;
-  device_combo_ = new QComboBox(page);
-  device_combo_->setObjectName(QStringLiteral("bookScanDeviceCombo"));
-  auto* refresh = new QPushButton(tr("Refresh"), page);
-  refresh->setAutoDefault(false);
-  device_row->addWidget(device_combo_, 1);
-  device_row->addWidget(refresh);
-  form->addRow(tr("Scanner:"), device_row);
-  system_dialog_check_ = new QCheckBox(tr("Use the system scan dialog for each scan"), page);
-  system_dialog_check_->setObjectName(QStringLiteral("bookScanSystemDialogCheck"));
-  system_dialog_check_->setToolTip(
-      tr("For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time."));
-  form->addRow(QString(), system_dialog_check_);
-  layout->addLayout(form);
-  disk_label_ = new QLabel(page);
-  disk_label_->setObjectName(QStringLiteral("bookScanDiskLabel"));
-  layout->addWidget(disk_label_);
-  folder_status_label_ = new QLabel(page);
+  folder_status_label_ = new QLabel(book_group);
   folder_status_label_->setObjectName(QStringLiteral("bookScanFolderStatus"));
   folder_status_label_->setWordWrap(true);
   QFont status_font = folder_status_label_->font();
   status_font.setBold(true);
   folder_status_label_->setFont(status_font);
-  layout->addWidget(folder_status_label_);
-  auto* instructions = new QLabel(
-      tr("Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all "
-         "on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first "
-         "pages instead (the covers are then not in the PDF)."),
-      page);
-  instructions->setWordWrap(true);
-  setup_instructions_ = instructions;
-  layout->addWidget(instructions);
+  form->addRow(QString(), folder_status_label_);
+  disk_label_ = new QLabel(book_group);
+  disk_label_->setObjectName(QStringLiteral("bookScanDiskLabel"));
+  disk_label_->setWordWrap(true);
+  form->addRow(QString(), disk_label_);
+  fields->addWidget(book_group, 3);
+  auto* scanner_group = new QGroupBox(tr("Scanner"), page);
+  auto* scanner_layout = new QVBoxLayout(scanner_group);
+  auto* device_row = new QHBoxLayout;
+  device_combo_ = new QComboBox(scanner_group);
+  device_combo_->setObjectName(QStringLiteral("bookScanDeviceCombo"));
+  auto* refresh = new QPushButton(tr("Refresh"), scanner_group);
+  refresh->setAutoDefault(false);
+  device_row->addWidget(device_combo_, 1);
+  device_row->addWidget(refresh);
+  scanner_layout->addLayout(device_row);
+  system_dialog_check_ = new QCheckBox(tr("Use the system scan dialog for each scan"), scanner_group);
+  system_dialog_check_->setObjectName(QStringLiteral("bookScanSystemDialogCheck"));
+  system_dialog_check_->setToolTip(
+      tr("For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time."));
+  scanner_layout->addWidget(system_dialog_check_);
+  scanner_layout->addStretch(1);
+  fields->addWidget(scanner_group, 2);
+  layout->addLayout(fields);
+
+  // What to do next, large: a picture of the book on the glass and three numbered steps.
+  auto* guide = new QFrame(page);
+  guide->setObjectName(QStringLiteral("bookScanSetupGuide"));
+  auto* guide_layout = new QHBoxLayout(guide);
+  guide_layout->setContentsMargins(18, 18, 18, 18);
+  guide_layout->setSpacing(22);
+  guide_layout->addWidget(new BookPlacementPicture(tr("Back cover"), tr("Spine"), tr("Front cover"), guide), 0,
+                          Qt::AlignTop);
+  auto* guide_text = new QVBoxLayout;
+  guide_text->setSpacing(10);
+  // Text sizes live in the page's sheet below: the application sheet sets label fonts, which
+  // a setFont would lose to.
+  auto* heading = new QLabel(tr("Scan the cover first"), guide);
+  heading->setObjectName(QStringLiteral("bookScanGuideHeading"));
+  guide_text->addWidget(heading);
+  const QStringList steps{tr("Open the book and lay it face down on the glass."),
+                          tr("Fit the back cover, the spine and the front cover all on the glass."),
+                          tr("Press Scan Cover. Patchy measures the book from this scan.")};
+  for (qsizetype i = 0; i < steps.size(); ++i) {
+    auto* row = new QHBoxLayout;
+    row->setSpacing(10);
+    auto* badge = new QLabel(QString::number(i + 1), guide);
+    badge->setProperty("bookScanStepBadge", true);
+    badge->setAlignment(Qt::AlignCenter);
+    auto* text = new QLabel(steps[i], guide);
+    text->setProperty("bookScanStepText", true);
+    text->setWordWrap(true);
+    row->addWidget(badge, 0, Qt::AlignTop);
+    row->addWidget(text, 1);
+    guide_text->addLayout(row);
+  }
+  auto* hint = new QLabel(tr("No cover to scan? Skip Cover measures the book from its first pages instead, and the "
+                             "covers are left out of the PDF."),
+                          guide);
+  hint->setObjectName(QStringLiteral("bookScanGuideHint"));
+  hint->setWordWrap(true);
+  guide_text->addSpacing(4);
+  guide_text->addWidget(hint);
+  guide_text->addStretch(1);
+  guide_layout->addLayout(guide_text, 1);
+  setup_instructions_ = guide;
+  layout->addWidget(guide);
   layout->addStretch(1);
   auto* buttons = new QHBoxLayout;
   start_over_button_ = new QPushButton(tr("Start Over..."), page);
@@ -763,6 +967,68 @@ void BookScanDialog::build_setup_page() {
   buttons->addWidget(continue_button_);
   layout->addLayout(buttons);
   stack_->addWidget(page);
+  // The guide card, the step numbers, the folder note and a larger primary button. Only
+  // enabled buttons get the primary look: the application sheet styles disabled ones.
+  append_themed_style(*page, ThemedQss(QStringLiteral(R"(
+    QFrame#bookScanSetupGuide {
+      background: @panel_card_bg;
+      border: 1px solid @panel_card_border;
+      border-radius: 10px;
+    }
+    QFrame#bookScanSetupGuide QLabel,
+    QFrame#bookScanSetupGuide QWidget#bookScanPlacementPicture {
+      background: transparent;
+      border: none;
+    }
+    QFrame#bookScanSetupGuide QLabel#bookScanGuideHeading {
+      color: @text_bright;
+      font-size: 22px;
+      font-weight: 700;
+    }
+    QFrame#bookScanSetupGuide QLabel[bookScanStepText="true"] {
+      color: @text_bright;
+      font-size: 15px;
+    }
+    QFrame#bookScanSetupGuide QLabel[bookScanStepBadge="true"] {
+      background: @accent;
+      color: @text_on_accent;
+      border-radius: 13px;
+      font-size: 13px;
+      font-weight: 700;
+      min-width: 26px;
+      max-width: 26px;
+      min-height: 26px;
+      max-height: 26px;
+    }
+    QFrame#bookScanSetupGuide QLabel#bookScanGuideHint {
+      color: @hint_text;
+      font-size: 12px;
+    }
+    QLabel#bookScanFolderStatus {
+      background: @panel_inset_bg;
+      border: 1px solid @panel_inset_border;
+      border-left: 3px solid @accent;
+      border-radius: 4px;
+      padding: 5px 9px;
+    }
+    QPushButton#bookScanCoverButton,
+    QPushButton#bookScanContinueButton,
+    QPushButton#bookScanSkipCoverButton {
+      min-height: 28px;
+      padding: 4px 18px;
+    }
+    QPushButton#bookScanCoverButton:enabled,
+    QPushButton#bookScanContinueButton:enabled {
+      background: @primary_bg;
+      border: 1px solid @primary_border;
+      font-weight: 700;
+      padding: 4px 28px;
+    }
+    QPushButton#bookScanCoverButton:enabled:hover,
+    QPushButton#bookScanContinueButton:enabled:hover {
+      background: @primary_hover_bg;
+    }
+  )")));
 
   connect(browse, &QPushButton::clicked, this, [this] {
     const QString chosen = QFileDialog::getExistingDirectory(this, tr("Choose Project Folder"),
@@ -1556,26 +1822,27 @@ void BookScanDialog::go_to(Step step) {
   step_ = step;
   switch (step) {
     case Step::Setup:
-      step_title_->setText(tr("1. Set up and scan the cover"));
+      step_bar_->setAccessibleName(tr("1. Set up and scan the cover"));
       stack_->setCurrentIndex(0);
       break;
     case Step::Cover:
-      step_title_->setText(tr("2. Check the book"));
+      step_bar_->setAccessibleName(tr("2. Check the book"));
       stack_->setCurrentIndex(1);
       refresh_cover_page();
       break;
     case Step::Scanning:
-      step_title_->setText(tr("3. Scan the pages"));
+      step_bar_->setAccessibleName(tr("3. Scan the pages"));
       stack_->setCurrentIndex(2);
       refresh_scanning_page();
       scan_button_->setFocus();
       break;
     case Step::Review:
-      step_title_->setText(tr("4. Review and export"));
+      step_bar_->setAccessibleName(tr("4. Review and export"));
       stack_->setCurrentIndex(3);
       refresh_review_page();
       break;
   }
+  step_bar_->set_current(static_cast<int>(step));
 }
 
 void BookScanDialog::set_project_folder(const QString& folder) {

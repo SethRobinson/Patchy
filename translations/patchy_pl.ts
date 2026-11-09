@@ -16608,20 +16608,12 @@ Czy chcesz go zastąpić?</translation>
         <translation>Odśwież</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Skaner:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Używaj systemowego okna skanowania przy każdym skanie</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Dla skanerów, którymi Patchy nie może bezpośrednio sterować. Rozdzielczość i tryb wybierasz wtedy za każdym razem w oknie skanowania.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Otwórz książkę i połóż ją licem do dołu na szybie tak, aby tylna okładka, grzbiet i przednia okładka znalazły się na szybie, a następnie naciśnij Skanuj okładkę. Patchy mierzy książkę na podstawie tego skanu. Pomiń ten krok, aby zmierzyć ją na podstawie pierwszych stron (okładki nie trafią wtedy do pliku PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17306,6 +17298,58 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>Wróć do skanowania, aby dodać strony lub zeskanować niektóre ponownie</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Przygotowanie</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Sprawdź książkę</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Skanuj strony</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Przejrzyj i eksportuj</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Widoczny we właściwościach dokumentu PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Opcjonalnie</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Skaner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Grzbiet</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Najpierw zeskanuj okładkę</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Otwórz książkę i połóż ją stronami w dół na szybie.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Tylna okładka, grzbiet i przednia okładka muszą zmieścić się na szybie.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Kliknij Skanuj okładkę. Patchy zmierzy książkę na podstawie tego skanu.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Nie ma okładki do zeskanowania? Pomiń okładkę mierzy książkę na podstawie pierwszych stron, a okładki nie trafią do PDF.</translation>
     </message>
 </context>
 <context>

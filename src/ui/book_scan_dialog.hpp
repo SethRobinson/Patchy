@@ -29,6 +29,7 @@ class QStackedWidget;
 namespace patchy::ui {
 
 class BookScanPreview;
+class BookScanStepBar;
 
 // File > Import > Scan a Book to PDF (docs/book-scan.md): one non-modal wizard window.
 // Setup (project folder, title, scanner) -> Cover (outline, spine, up direction,
@@ -224,7 +225,7 @@ private:
   QImage preview_image_;
 
   QStackedWidget* stack_{nullptr};
-  QLabel* step_title_{nullptr};
+  BookScanStepBar* step_bar_{nullptr};
   // Setup.
   QLineEdit* title_edit_{nullptr};
   QLineEdit* author_edit_{nullptr};
@@ -233,7 +234,7 @@ private:
   QCheckBox* system_dialog_check_{nullptr};
   QLabel* disk_label_{nullptr};
   QLabel* folder_status_label_{nullptr};
-  QLabel* setup_instructions_{nullptr};
+  QWidget* setup_instructions_{nullptr};
   QPushButton* scan_cover_button_{nullptr};
   QPushButton* skip_cover_button_{nullptr};
   QPushButton* continue_button_{nullptr};

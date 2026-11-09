@@ -16496,20 +16496,12 @@ Do you want to replace it?</source>
         <translation>重新整理</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>掃描器:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>每次掃描都使用系統掃描對話方塊</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>用於 Patchy 無法直接控制的掃描器。這樣每次都要在對話方塊中選擇解析度和模式。</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>打開書本，將其正面朝下放在玻璃板上，讓封底、書背和封面都在玻璃板上，然後按「掃描封面」。Patchy 會根據這次掃描測量書本。略過此步驟則改為根據前幾頁測量（這樣封面不會包含在 PDF 中）。</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17182,6 +17174,58 @@ Do you want to replace it?</source>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>返回掃描，以新增頁面或重新掃描部分頁面</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>設定</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>檢查書本</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>掃描頁面</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>檢查並匯出</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>顯示在 PDF 的文件屬性中</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>選填</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>掃描器</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>書背</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>先掃描封面</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>打開書本，正面朝下放在玻璃上。</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>讓封底、書背和封面都放在玻璃上。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>按「掃描封面」。Patchy 會根據這次掃描測量書本。</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>沒有封面要掃描？「略過封面」會根據最初幾頁測量書本，PDF 中不包含封面。</translation>
     </message>
 </context>
 <context>

@@ -16552,20 +16552,12 @@ Deseja substituí-lo?</translation>
         <translation>Atualizar</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Scanner:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Usar a caixa de diálogo de digitalização do sistema em cada digitalização</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Para scanners que o Patchy não consegue controlar diretamente. Nesse caso, você escolhe a resolução e o modo na caixa de diálogo a cada vez.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Abra o livro e coloque-o com a face para baixo sobre o vidro, de modo que a contracapa, a lombada e a capa fiquem todas sobre ele, e pressione Digitalizar capa. O Patchy mede o livro a partir desta digitalização. Pule esta etapa para medir a partir das primeiras páginas (nesse caso, as capas não entram no PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17244,6 +17236,58 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>Voltar à digitalização para adicionar páginas ou digitalizar algumas novamente</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Configurar</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Verificar o livro</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Digitalizar as páginas</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Revisar e exportar</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Aparece nas propriedades do documento PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Opcional</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Scanner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Lombada</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Digitalize a capa primeiro</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Abra o livro e coloque-o virado para baixo no vidro.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Faça a contracapa, a lombada e a capa caberem no vidro.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Clique em Digitalizar capa. O Patchy mede o livro a partir desta digitalização.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Sem capa para digitalizar? Pular capa mede o livro pelas primeiras páginas, e as capas ficam fora do PDF.</translation>
     </message>
 </context>
 <context>

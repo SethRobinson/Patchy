@@ -16496,20 +16496,12 @@ Do you want to replace it?</source>
         <translation>更新</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>スキャナー:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>スキャンごとにシステムのスキャンダイアログを使う</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Patchy が直接制御できないスキャナー用です。この場合、解像度とモードは毎回ダイアログで選択します。</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>本を開いてガラス面に伏せて置き、裏表紙、背、表表紙がすべてガラス面に載るようにしてから、「表紙をスキャン」を押してください。Patchy はこのスキャンから本のサイズを測ります。スキップすると、代わりに最初のページから測ります (その場合、表紙は PDF に含まれません)。</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17182,6 +17174,58 @@ Do you want to replace it?</source>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>スキャンに戻って、ページを追加したりスキャンし直したりします</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>準備</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>本の確認</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>ページのスキャン</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>確認と書き出し</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>PDF の文書プロパティに表示されます</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>省略可</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>スキャナー</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>背</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>まず表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>本を開き、ガラス面に伏せて置きます。</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>裏表紙、背、表紙がすべてガラス面に収まるようにします。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>「表紙をスキャン」を押します。Patchy はこのスキャンから本の大きさを測ります。</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>表紙をスキャンしない場合は「表紙をスキップ」で最初のページから大きさを測ります。表紙は PDF に入りません。</translation>
     </message>
 </context>
 <context>

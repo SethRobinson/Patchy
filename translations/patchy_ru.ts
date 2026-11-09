@@ -16608,20 +16608,12 @@ Do you want to replace it?</source>
         <translation>Обновить</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Сканер:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Открывать системное окно сканирования при каждом сканировании</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Для сканеров, которыми Patchy не может управлять напрямую. Разрешение и режим тогда каждый раз выбираются в этом окне.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Откройте книгу и положите её лицом вниз на стекло так, чтобы задняя обложка, корешок и передняя обложка были на стекле, затем нажмите «Сканировать обложку». Patchy измеряет книгу по этому скану. Пропустите этот шаг, чтобы измерить её по первым страницам (тогда обложки не попадут в PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17306,6 +17298,58 @@ Do you want to replace it?</source>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>Вернуться к сканированию, чтобы добавить страницы или пересканировать некоторые</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Настройка</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Проверка книги</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Сканирование страниц</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Просмотр и экспорт</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Отображается в свойствах документа PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Необязательно</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Сканер</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Корешок</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Сначала отсканируйте обложку</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Откройте книгу и положите её лицом вниз на стекло.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Задняя обложка, корешок и передняя обложка должны поместиться на стекле.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Нажмите «Сканировать обложку». Patchy измерит книгу по этому скану.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Нет обложки для сканирования? «Пропустить обложку» измеряет книгу по первым страницам, а обложки не попадут в PDF.</translation>
     </message>
 </context>
 <context>

@@ -7,6 +7,8 @@
 #include "ui/book_scan_dialog.hpp"
 #include "ui/book_scan_project.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_qss.hpp"
 #include "scripting_test_support.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -22,6 +24,7 @@
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontInfo>
 #include <QImage>
 #include <QImageReader>
 #include <QJsonArray>
@@ -160,6 +163,10 @@ void scan_book(patchy::ui::BookScanDialog& dialog, const QString& project_folder
   }
   dialog.set_project_folder(project_folder);
   dialog.set_title(QStringLiteral("Test Book"));
+  if (!capture.empty()) {
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact(capture + "_setup", dialog);
+  }
   dialog.start_cover_scan();
   wait_for_scan(dialog);
   CHECK(dialog.last_error().isEmpty());
@@ -257,6 +264,56 @@ void ui_book_scan_cancel_shows_feedback() {
   dialog.start_page_scan();
   wait_for_scan(dialog);
   CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1U);
+  dialog.reject();
+}
+
+// The setup step: the step bar, and the guide card with its picture and numbered steps for a
+// new book (hidden when the folder already holds one), in Dark and Light.
+void ui_book_scan_setup_page_guides_the_cover_scan() {
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_setup_project")) + QStringLiteral("/book");
+  // The test scanner, listed but never asked to scan here.
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", "unused.png");
+  auto& manager = patchy::ui::ThemeManager::instance();
+  const patchy::ui::ColorSchemePreference entry_preference = manager.preference();
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.set_title(QStringLiteral("Field Notes"));
+  auto* bar = dialog.findChild<QWidget*>(QStringLiteral("bookScanStepBar"));
+  auto* guide = dialog.findChild<QWidget*>(QStringLiteral("bookScanSetupGuide"));
+  auto* picture = dialog.findChild<QWidget*>(QStringLiteral("bookScanPlacementPicture"));
+  auto* heading = dialog.findChild<QLabel*>(QStringLiteral("bookScanGuideHeading"));
+  auto* cover = dialog.findChild<QPushButton*>(QStringLiteral("bookScanCoverButton"));
+  CHECK(bar != nullptr && guide != nullptr && picture != nullptr && heading != nullptr && cover != nullptr);
+  if (bar == nullptr || guide == nullptr || picture == nullptr || heading == nullptr || cover == nullptr) {
+    return;
+  }
+  QApplication::processEvents();
+  CHECK(bar->isVisible() && guide->isVisible() && picture->isVisible());
+  CHECK(heading->text() == QStringLiteral("Scan the cover first"));
+  // Large where it is drawn: the page's sheet, not a setFont the application sheet replaces.
+  CHECK(QFontInfo(heading->font()).pixelSize() >= 20);
+  CHECK(cover->isVisible() && cover->isEnabled() && cover->isDefault());
+  CHECK(bar->accessibleName() == QStringLiteral("1. Set up and scan the cover"));
+  patchy::test::ui::save_widget_artifact("ui_book_scan_setup_dark", dialog);
+  // MainWindow re-resolves every window's themed sheets on a scheme change; here the test does.
+  manager.set_preference(patchy::ui::ColorSchemePreference::Light, /*persist=*/false);
+  patchy::ui::rebuild_themed_styles_in(dialog);
+  QApplication::processEvents();
+  patchy::test::ui::save_widget_artifact("ui_book_scan_setup_light", dialog);
+  manager.set_preference(entry_preference, /*persist=*/false);
+  patchy::ui::rebuild_themed_styles_in(dialog);
+  QApplication::processEvents();
+  // A folder that holds a book hides the guide: Continue This Book is the next step.
+  patchy::ui::BookProject book;
+  book.folder = project;
+  book.title = QStringLiteral("Field Notes");
+  QDir().mkpath(project);
+  patchy::ui::save_book_project(book);
+  dialog.set_project_folder(QString());
+  dialog.set_project_folder(project);
+  CHECK(guide->isHidden());
   dialog.reject();
 }
 
@@ -1318,6 +1375,7 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_menu_actions_registered", ui_book_scan_menu_actions_registered},
       {"ui_book_scan_cancel_shows_feedback", ui_book_scan_cancel_shows_feedback},
       {"ui_book_scan_skip_cover_sets_top_of_book", ui_book_scan_skip_cover_sets_top_of_book},
+      {"ui_book_scan_setup_page_guides_the_cover_scan", ui_book_scan_setup_page_guides_the_cover_scan},
       {"ui_book_scan_full_flow_exports_uniform_pages", ui_book_scan_full_flow_exports_uniform_pages},
       {"ui_book_scan_black_and_white_and_script_export", ui_book_scan_black_and_white_and_script_export},
       {"ui_book_scan_resume_and_rescan", ui_book_scan_resume_and_rescan},

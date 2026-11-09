@@ -16496,20 +16496,12 @@ Do you want to replace it?</source>
         <translation>새로 고침</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>스캐너:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>스캔할 때마다 시스템 스캔 대화 상자 사용</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Patchy가 직접 제어할 수 없는 스캐너용입니다. 이 경우 매번 대화 상자에서 해상도와 모드를 선택합니다.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>책을 펼쳐 뒤표지, 책등, 앞표지가 모두 유리면에 놓이도록 엎어 놓은 다음 &apos;표지 스캔&apos;을 누르세요. Patchy는 이 스캔으로 책의 크기를 측정합니다. 건너뛰면 처음 몇 페이지로 대신 측정합니다(이 경우 표지는 PDF에 포함되지 않습니다).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17182,6 +17174,58 @@ Do you want to replace it?</source>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>스캔으로 돌아가 페이지를 추가하거나 다시 스캔합니다</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>설정</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>책 확인</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>페이지 스캔</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>검토 및 내보내기</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>PDF 문서 속성에 표시됩니다</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>선택 사항</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>스캐너</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>책등</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>먼저 표지를 스캔하세요</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>책을 펼쳐 유리 위에 엎어 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>뒤표지, 책등, 앞표지가 모두 유리 위에 오도록 합니다.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>표지 스캔을 누릅니다. Patchy가 이 스캔으로 책 크기를 잽니다.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>스캔할 표지가 없나요? 표지 건너뛰기는 첫 페이지로 책 크기를 재며, 표지는 PDF에 들어가지 않습니다.</translation>
     </message>
 </context>
 <context>

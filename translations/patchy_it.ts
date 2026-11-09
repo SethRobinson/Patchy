@@ -16552,20 +16552,12 @@ Sostituirlo?</translation>
         <translation>Aggiorna</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Scanner:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Usa la finestra di scansione di sistema per ogni scansione</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Per gli scanner che Patchy non può controllare direttamente. In questo caso scegli ogni volta la risoluzione e la modalità nella finestra.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Apri il libro e appoggialo a faccia in giù sul vetro in modo che la copertina posteriore, il dorso e la copertina anteriore siano tutti sul vetro, poi premi &quot;Scansiona copertina&quot;. Patchy misura il libro da questa scansione. Saltala per misurarlo invece dalle prime pagine (in questo caso le copertine non sono nel PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -17244,6 +17236,58 @@ Sostituirlo?</translation>
     <message>
         <source>Return to scanning to add pages or scan some again</source>
         <translation>Torna alla scansione per aggiungere pagine o scansionarne di nuovo alcune</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Imposta</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Controlla il libro</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Scansiona le pagine</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Rivedi ed esporta</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Mostrato nelle proprietà del documento PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Facoltativo</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Scanner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Dorso</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Prima scansiona la copertina</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Apri il libro e appoggialo a faccia in giù sul vetro.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Fai stare sul vetro il retro, il dorso e la copertina.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Premi Scansiona copertina. Patchy misura il libro da questa scansione.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Nessuna copertina da scansionare? Salta copertina misura il libro dalle prime pagine, e le copertine restano fuori dal PDF.</translation>
     </message>
 </context>
 <context>
