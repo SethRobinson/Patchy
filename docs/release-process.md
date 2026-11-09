@@ -54,12 +54,12 @@ When bumping the release version, update the version fields:
   version and release date matching the newest "What's New" entry.
 - A new top entry under `README.md`'s "What's New" section for that version,
   dated with the release date and summarizing the user-visible changes.
-- Keep only the two newest release entries in `README.md`. After adding the new
-  entry, move the entry that has become third-newest to the top of
-  `RELEASE-HISTORY.md`, preserving its date, wording, order, and author credits.
-  Keep the `[Older releases](RELEASE-HISTORY.md)` link immediately after the two
-  README entries. `RELEASE-HISTORY.md` stays newest-first and must not duplicate
-  either release still shown in the README.
+- Keep only the newest release entry in `README.md`. After adding the new
+  entry, move the previous one to the top of
+  `RELEASE-HISTORY.md` (as a `##` heading), preserving its date, wording, order, and author credits.
+  Keep the `[Older releases](RELEASE-HISTORY.md)` link immediately after the
+  README entry. `RELEASE-HISTORY.md` stays newest-first and must not duplicate
+  the release still shown in the README.
 - The contributor credits (`src/ui/app_credits.cpp`, mirrored in the README's
   "Incredible people" line): add anyone whose pull request was accepted or whose
   issue was resolved since the last release, by GitHub handle (see "What's New

@@ -25,7 +25,12 @@ Related documents:
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, editable dash and stroke presets with offsets, path-edited vector masks, point edits (add by click, break, join, weld or merge by drag, delete segment), Merge and Split Shapes, per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, line weight and arrowheads (width, length and concavity in Shape Appearance), Shape Appearance Geometry (position and size) for every single shape, custom shapes and Pen outlines included, with a picker that swaps a custom shape in its box, a Paths panel (fill, stroke, selection), switchable fill layers (badge or double-click opens settings), in PSDs Photoshop opens
+- **Vector tools**
+  - Pen paths and shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, and editable dash and stroke presets with offsets
+  - Point edits (add by click, break, join, weld or merge by drag, delete segment), path-edited vector masks, and Merge and Split Shapes
+  - Per-shape cut, copy, paste, color, align and new layer; editable radius, sides, star inset, line weight and arrowheads (width, length and concavity in Shape Appearance)
+  - Shape Appearance Geometry (position and size) for every single shape, custom shapes and Pen outlines included, with a picker that swaps a custom shape in its box
+  - A Paths panel (fill, stroke, selection) and switchable fill layers (badge or double-click opens settings), all saved in PSDs Photoshop opens
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects
 - Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal, live preview
 - Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames that keep each run's Photoshop hyphenation and spelling language; a box or area frame being edited has corner and side handles (a side handle moves one edge); while you edit a box that hides lines, a plus on its bottom right handle says so, with a tooltip on hover
@@ -59,11 +64,27 @@ Related documents:
 
 ## Plug-ins, scripting, and AI control
 
-- Classic Photoshop filter plug-ins (.8bf, 32 and 64-bit) on Windows, 8 and 16-bit (Filter > Last Filter, Ctrl+Alt+F, repeats the last one): see [Photoshop plug-ins](../README.md#photoshop-plug-ins-8bf-windows-only)
+- Classic Photoshop filter plug-ins (.8bf, 32 and 64-bit) on Windows, 8 and 16-bit (Filter > Last Filter, Ctrl+Alt+F, repeats the last one): see [installing plug-ins](#installing-photoshop-plug-ins-windows)
 - Over a hundred GEGL filters and About GEGL (Filter > GEGL Filters): [GEGL filters](gegl-filters.md)
 - JavaScript scripting: a Script Manager (File > Scripts) with a tree of bundled and user scripts, an editor with live run status, per-script hotkeys (`@hotkey` or your own), a documented API for documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing, editable bundled examples from data merge to glitch effects and games, and --run-script with arguments for tools and AI agents (--headless for servers and CI). See the [scripting guide](../scripts/bundled/scripting-guide.md) (Help menu)
 - Local AI control through the bundled MCP connector: pressure-aware brush strokes, brush presets, editable vector shapes and paths, palette controls, image previews, and persistent document sessions. Help > Set up AI Control has setup steps and prompts ([guide](ai-control.md)). Plugins > Companions starts apps that use it ([companions.md](companions.md))
-- Plugins > Companions > OpenAI Image Tools via API Key (built-in): type a prompt, optionally add reference images (the active layer, the visible image, files dropped or chosen, or the clipboard; numbered so the prompt can say "image 2", and used by Create, Edit and Animate), and each picture OpenAI returns becomes a new layer, with a transparent background if you ask for one. Edit and Remove redraw the selected area (from a prompt, or from its surroundings) on a new layer masked to the selection, or straight into the active layer, with an Edge blend slider (0 to 100%) that sets how far past the selection the result shows and how soft its edge is, adjustable after the result arrives; with several variations you click through them on the one result; Expand grows the canvas by the pixels you type or drag for each side and fills the new area on a new layer; Animate makes a short GIF animation from a prompt (optionally starting from a layer) and opens it with one layer per frame, in OpenAI's 256-color GIF mode or in full color from one generated sheet; Describe writes a detailed text description of the visible image or the active layer. It uses your own OpenAI API key and is billed to your OpenAI account; nothing is sent until you click Create ([openai-images.md](openai-images.md))
+- **OpenAI Image Tools via API Key** (Plugins > Companions, built-in). It uses your own OpenAI API key and is billed to your OpenAI account; nothing is sent until you click one of its action buttons ([openai-images.md](openai-images.md))
+  - Create: type a prompt, optionally add reference images (the active layer, the visible image, files dropped or chosen, or the clipboard; numbered so the prompt can say "image 2", and used by Create, Edit and Animate), and each picture OpenAI returns becomes a new layer, with a transparent background if you ask for one
+  - Edit and Remove redraw the selected area (from a prompt, or from its surroundings) on a new layer masked to the selection, or straight into the active layer. An Edge blend slider (0 to 100%) sets how far past the selection the result shows and how soft its edge is, adjustable after the result arrives; with several variations you click through them on the one result
+  - Expand grows the canvas by the pixels you type or drag for each side and fills the new area on a new layer
+  - Animate makes a short GIF animation from a prompt (optionally starting from a layer) and opens it with one layer per frame, in OpenAI's 256-color GIF mode or in full color from one generated sheet
+  - Describe writes a detailed text description of the visible image or the active layer
+
+### Installing Photoshop plug-ins (Windows)
+
+Choose **Plugins > Open Plug-ins Folder**, copy your `.8bf` files and their supporting
+files into it, then choose **Plugins > Rescan Plug-in Folders**. Both 32-bit and 64-bit
+filters appear under **Plugins > Legacy Photoshop Plug-ins**.
+
+Filters run on the active pixel layer, respect the selection, and apply as one undoable
+step. A separate helper isolates plug-in crashes. Plug-ins still run with your user
+permissions, so install only ones you trust. KPT and other formerly full-screen filters
+get a bounded, movable window. [Plug-in details](plugins.md).
 
 ## Current Status
 
@@ -79,4 +100,4 @@ Photoshop features not supported yet, or only partly:
 - Layer comps, timeline/video editing, generative fill and expand inside a selection (animated GIF, WebP and PNG are supported; OpenAI Image Tools via API Key makes new layers from a prompt)
 - Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing)
 - High-fidelity PSD/PSB edge cases and byte-perfect preservation of every Photoshop-only metadata block
-- Patchy is slower than Photoshop, especially on large documents and it doesn't support any GPU acceleration. (Like, layer styles being done in pixel shaders, etc) However, being CPU only helps with porting, consistent output, and stability so kind of a trade-off that makes sense, for now. That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
+- Performance: Patchy is slower than Photoshop, especially on large documents, and has no GPU acceleration (layer styles are not rendered in pixel shaders, for example). Rendering only on the CPU helps porting, keeps output the same on every platform, and adds stability, so it is a deliberate trade-off for now. Canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx and up) into strips rendered on all CPU cores

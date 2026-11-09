@@ -336,8 +336,8 @@ $notesText += @"
 Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt).$geglSourcesSentence The browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
 "@
 if (-not $SkipAppImage) {
-  # Install lines for the AppImage; the README's AppImage section has the per-distro FUSE
-  # packages and the menu entry.
+  # Install lines for the AppImage; docs/install-linux.md's AppImage section has the
+  # per-distro FUSE packages and the menu entry.
   $notesText += @"
 
 ## Linux
@@ -351,7 +351,7 @@ chmod +x PatchyLinux.AppImage
 ./PatchyLinux.AppImage
 ``````
 
-If it cannot mount itself, install FUSE 3 (``sudo apt install fuse3``, ``sudo dnf install fuse3``, ``sudo pacman -S fuse3``) or run it with ``--appimage-extract-and-run``. Menu entry and other distros: [README, AppImage](https://github.com/$Repo#appimage).
+If it cannot mount itself, install FUSE 3 (``sudo apt install fuse3``, ``sudo dnf install fuse3``, ``sudo pacman -S fuse3``) or run it with ``--appimage-extract-and-run``. Menu entry and other distros: [Linux install guide, AppImage](https://github.com/$Repo/blob/main/docs/install-linux.md#appimage).
 
 Flatpak (updates with ``flatpak update``; the same command installs the ARM64 build on 64-bit ARM, such as a Raspberry Pi 5):
 

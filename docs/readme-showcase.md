@@ -1,7 +1,8 @@
 # Rebuilding the README showcase
 
-The README uses a hero image and ten feature captures. The [full gallery](screenshots.md)
-keeps the other examples. Every capture has a script or a `shot_readme_*` scene;
+The README uses a hero image and six feature cards: `layered_import`, `tile_preview`,
+`object_select`, `warp_text`, `plugin_kpt5` and `web_export`. The [full gallery](screenshots.md)
+holds every capture, grouped under topic headings. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
 
 From the repository root on Windows:
@@ -38,15 +39,15 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `object_select.png` | `scripts/dev/readme-shots/object-select.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped in the script; needs the High Quality model (the script downloads it when missing) |
 | `artboards.png` | `scripts/dev/readme-shots/artboards.js`, with isolated Light settings | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
 | `layered_import.png` | `scripts/dev/readme-shots/layered-import.js` | Existing local `psd/mow_master.psd` and `af-spike/corpus/tips.af`; local CC0 corpus files `kra-corpus/gdquest-dan.kra` (GDquest) and `xcf-corpus/opengameart/gas-giant-rings.xcf`; committed `test-fixtures/pdn/demo.pdn`; generated ORA, layered TIFF, and Aseprite files |
-| `smart_objects.png` (gallery only) | `shot_readme_smart_objects` | Local PSD fixtures used by the existing scene |
+| `smart_objects.png` | `shot_readme_smart_objects` | Local PSD fixtures used by the existing scene |
 | `vector_tools.png` | `shot_readme_vector_tools` | Generated vector artwork with gradient fill, rounded corners, and a dashed pattern stroke |
 | `warp_text.png` | `shot_readme_warp_text` | Generated editable type; Japanese-capable font required |
 | `tilt_shift.png` | `shot_readme_tilt_shift` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg` |
 | `gmic.png` | `shot_readme_gmic` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped around the car; needs a build with the G'MIC engine |
 | `web_export.png` | `shot_readme_web_export` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`, graded into eight frame layers in the scene |
-| `flame.png` (gallery only) | `shot_readme_flame` | Generated night backdrop and Arial Black lettering; the letters' outline is a saved path |
-| `perspective_planes.png` (gallery only) | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
-| `long_shadow.png` (gallery only) | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
+| `flame.png` | `shot_readme_flame` | Generated night backdrop and Arial Black lettering; the letters' outline is a saved path |
+| `perspective_planes.png` | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
+| `long_shadow.png` | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
 
 Offscreen recipes live in `tests/ui/readme_screenshot_tests_*.cpp`. They create
 real Patchy documents, arrange the UI, and capture the widgets. The long-shadow
@@ -65,9 +66,11 @@ and anchor editing with gradient paint, a dashed pattern stroke, and rounded cor
 The separate Levels, brush-dynamics, shape-appearance, and Affinity images are retired
 from the gallery. Their existing scenes remain regression coverage; the driver
 does not publish those artifacts. Brush dynamics are described with brush tips.
-Long Shadow and Smart Objects remain in the gallery; the README's feature cards use
-Layer Styles and Object Selection instead; Flame is gallery-only too. All ten feature cards sit in pairs
-at the same size, in the README and the gallery alike; never give one a full-width row.
+Keep the README to about six cards, so Download and Features stay near the top; new
+captures go to the gallery. The README's cards favor game art, layered files and things
+other editors lack. Cards sit in pairs at the same size, in the README and the gallery
+alike; never give one a full-width row (a gallery group with an odd count ends with an
+empty cell).
 
 The Object Selection scene crops the Havana street photo to its lower half and runs
 `doc.selection.objectSelect` with one loose box around the vintage car, on the High
