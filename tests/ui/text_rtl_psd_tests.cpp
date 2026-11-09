@@ -18,6 +18,8 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QRect>
+#include <QString>
+#include <QStringList>
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -277,9 +279,18 @@ void ui_issue_683_arabic_psd_rerenders_right_aligned_if_available() {
     if (layer == nullptr) {
       continue;
     }
+    // Left to right and right aligned, as Photoshop reads the file (paragraph runs columns 9 and 2).
+    const auto runs = QString::fromStdString(layer->metadata().at(patchy::kLayerMetadataTextParagraphRuns));
+    const auto first_run = runs.split(QLatin1Char('\n')).value(1).split(QLatin1Char('\t'));
+    CHECK(first_run.value(2) == QStringLiteral("right"));
+    CHECK(first_run.value(9) == QStringLiteral("ltr"));
     // Each paragraph ends in a short line ("...al-iliktruni."). Flush right puts it against the
     // right edge of the text, flush left (what auto direction drew) against the left. Measured on
-    // the last inked rows: Amiri's marks join its lines into one row band.
+    // the last inked rows. Amiri Quran's tall marks reach across lines into those rows, so that
+    // layer only checks its direction and alignment above.
+    if (layer->name() == "Amiri Quran") {
+      continue;
+    }
     const auto& pixels = layer->pixels();
     const auto all = alpha_pixel_bounds_in_rows(pixels, 0, pixels.height());
     int last_row = pixels.height() - 1;
