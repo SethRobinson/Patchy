@@ -16724,10 +16724,6 @@ Do you want to replace it?</source>
         <translation>插入空白頁</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>掃描更多頁面</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>測量值（中位數）</translation>
     </message>
@@ -17178,6 +17174,14 @@ Do you want to replace it?</source>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>此書的所有掃描都已旋轉。</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>返回</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>返回掃描，以新增頁面或重新掃描部分頁面</translation>
     </message>
 </context>
 <context>

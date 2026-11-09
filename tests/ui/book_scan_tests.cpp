@@ -1299,6 +1299,16 @@ void ui_book_scan_review_drag_reorders_pages() {
   dialog.move_review_pages({0}, 6);
   const auto moved = patchy::ui::book_page_order(dialog.project());
   CHECK(moved.size() == 6 && moved[5] == order[0] && moved[0] == order[1]);
+  // Back is the row's first button and returns to scanning.
+  auto* back = dialog.findChild<QPushButton*>(QStringLiteral("bookScanReviewBackButton"));
+  auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("bookScanDeletePagesButton"));
+  CHECK(back != nullptr && remove != nullptr);
+  if (back != nullptr && remove != nullptr) {
+    CHECK(back->text() == QStringLiteral("Back"));
+    CHECK(back->geometry().right() < remove->geometry().left());
+    back->click();
+    CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning);
+  }
 }
 
 }  // namespace

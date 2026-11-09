@@ -16762,10 +16762,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17221,6 +17217,14 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Every scan of this book was turned.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

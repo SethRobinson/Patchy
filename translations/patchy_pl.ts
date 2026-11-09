@@ -16836,10 +16836,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Wstaw pustą stronę</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>Skanuj więcej stron</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>Zmierzony (mediana)</translation>
     </message>
@@ -17302,6 +17298,14 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>Wszystkie skany tej książki zostały obrócone.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Wstecz</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Wróć do skanowania, aby dodać strony lub zeskanować niektóre ponownie</translation>
     </message>
 </context>
 <context>

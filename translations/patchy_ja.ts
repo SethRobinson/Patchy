@@ -16724,10 +16724,6 @@ Do you want to replace it?</source>
         <translation>空白ページを挿入</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>さらにページをスキャン</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>測定値 (中央値)</translation>
     </message>
@@ -17178,6 +17174,14 @@ Do you want to replace it?</source>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>この本のすべてのスキャンを回転しました。</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>戻る</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>スキャンに戻って、ページを追加したりスキャンし直したりします</translation>
     </message>
 </context>
 <context>

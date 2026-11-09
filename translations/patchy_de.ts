@@ -16780,10 +16780,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Leere Seite einfügen</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>Weitere Seiten scannen</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>Gemessen (Median)</translation>
     </message>
@@ -17240,6 +17236,14 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>Jeder Scan dieses Buchs wurde gedreht.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Zurück</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Zurück zum Scannen, um Seiten hinzuzufügen oder neu zu scannen</translation>
     </message>
 </context>
 <context>

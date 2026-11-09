@@ -16780,10 +16780,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Insérer une page vierge</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>Numériser d&apos;autres pages</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>Mesurée (médiane)</translation>
     </message>
@@ -17240,6 +17236,14 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>Chaque numérisation de ce livre a été tournée.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Retour</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Revenir à la numérisation pour ajouter des pages ou en numériser de nouveau</translation>
     </message>
 </context>
 <context>

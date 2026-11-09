@@ -16836,10 +16836,6 @@ Do you want to replace it?</source>
         <translation>Вставить пустую страницу</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>Сканировать ещё страницы</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>Измеренный (медиана)</translation>
     </message>
@@ -17302,6 +17298,14 @@ Do you want to replace it?</source>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>Все сканы этой книги повёрнуты.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Назад</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Вернуться к сканированию, чтобы добавить страницы или пересканировать некоторые</translation>
     </message>
 </context>
 <context>

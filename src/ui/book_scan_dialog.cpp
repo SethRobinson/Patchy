@@ -1214,14 +1214,19 @@ void BookScanDialog::build_review_page() {
   rotate->setObjectName(QStringLiteral("bookScanRotatePagesButton"));
   auto* blank = new QPushButton(tr("Insert Blank Page"), page);
   blank->setObjectName(QStringLiteral("bookScanBlankPageButton"));
-  auto* back = new QPushButton(tr("Scan More Pages"), page);
-  back->setObjectName(QStringLiteral("bookScanMorePagesButton"));
+  // Back to the scanning step, first in the row as a wizard's Back is.
+  auto* back = new QPushButton(tr("Back"), page);
+  back->setObjectName(QStringLiteral("bookScanReviewBackButton"));
+  back->setToolTip(tr("Return to scanning to add pages or scan some again"));
   edit_page_button_ = new QPushButton(tr("Edit Scan"), page);
   edit_page_button_->setObjectName(QStringLiteral("bookScanEditPageButton"));
   edit_page_button_->setToolTip(tr("Show this page's scan with its boxes, to adjust them or scan it again"));
-  for (QPushButton* button : {remove, rotate, blank, edit_page_button_, back}) {
+  for (QPushButton* button : {back, remove, rotate, blank, edit_page_button_}) {
     button->setAutoDefault(false);
     list_buttons->addWidget(button);
+    if (button == back) {
+      list_buttons->addSpacing(12);
+    }
   }
   list_buttons->addStretch(1);
   left->addLayout(list_buttons);

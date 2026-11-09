@@ -16724,10 +16724,6 @@ Do you want to replace it?</source>
         <translation>빈 페이지 삽입</translation>
     </message>
     <message>
-        <source>Scan More Pages</source>
-        <translation>페이지 더 스캔</translation>
-    </message>
-    <message>
         <source>Measured (median)</source>
         <translation>측정값(중앙값)</translation>
     </message>
@@ -17178,6 +17174,14 @@ Do you want to replace it?</source>
     <message>
         <source>Every scan of this book was turned.</source>
         <translation>이 책의 모든 스캔을 회전했습니다.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>뒤로</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>스캔으로 돌아가 페이지를 추가하거나 다시 스캔합니다</translation>
     </message>
 </context>
 <context>
