@@ -1093,6 +1093,15 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   canvas->set_show_transform_controls(false);
   QApplication::processEvents();
+  // The wait above accepts a pixel within 8 levels of the final one, so the asynchronous
+  // re-render can still be landing; the exact comparisons below need it settled first.
+  (void)process_events_until(
+      [&] {
+        const auto first = canvas_pixel(*canvas, QPoint(80, 80));
+        process_events_for(60);
+        return canvas_pixel(*canvas, QPoint(80, 80)) == first;
+      },
+      3000);
   const auto before_move_click = canvas->grab().toImage();
   const auto move_point = canvas->widget_position_for_document_point(QPoint(80, 80));
   send_mouse(*canvas, QEvent::MouseButtonPress, move_point, Qt::LeftButton, Qt::LeftButton);

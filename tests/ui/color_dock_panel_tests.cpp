@@ -609,6 +609,15 @@ void ui_color_picker_foreground_window_alt_pick_sets_background() {
   click(*grid, picker_cell(1));
   const auto second = canvas->primary_color();
   CHECK(first.rgb() != second.rgb());
+  // Earlier tests can leave the background on the first swatch's color; start it on one that
+  // is neither swatch, so the Alt-click below shows a change.
+  for (const auto candidate : {QColor(0x12, 0x34, 0x56), QColor(0x65, 0x43, 0x21)}) {
+    if (candidate.rgb() != first.rgb() && candidate.rgb() != second.rgb()) {
+      canvas->set_secondary_color(candidate);
+      break;
+    }
+  }
+  QApplication::processEvents();
   const auto background_before = canvas->secondary_color();
   CHECK(background_before.rgb() != first.rgb());
 
