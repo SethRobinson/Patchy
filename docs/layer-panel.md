@@ -7,6 +7,7 @@ Related documents:
 - [layer-panel-selection.md](layer-panel-selection.md): row click, modifier and range selection, thumbnail Ctrl-click selection loads with the thumbnail and badge menus, canvas-requested selection, the deselected state and the selected count.
 - [layer-panel-row-controls.md](layer-panel-row-controls.md): the folder disclosure arrow, row and thumbnail double-clicks with inline rename, the visibility eye and its sweep, and the Layer Styles and Smart Filters rows listed under a layer.
 - [layer-panel-filter.md](layer-panel-filter.md): the filter menu beside the name field (issue 671): criteria, how they combine, Selected Only, session state.
+- [layer-panel-row-options.md](layer-panel-row-options.md): Customize Layers Panel's Rows column (issue 680): compact rows, the row tooltip switch, the whole-row color tint, and the thumbnail combos kept in step with the menus.
 - [layer-drag-duplicate.md](layer-drag-duplicate.md): drags to another document, Duplicate Layer, and layer export (Quick Export as PNG, Export As...).
 
 ## Row styling

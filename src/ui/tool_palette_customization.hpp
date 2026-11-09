@@ -13,6 +13,8 @@
 // footer's order (GitHub issue 471) is stored only once the user changed it.
 
 #include "ui/app_settings.hpp"
+#include "ui/layer_row_options.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 
 #include <QColor>
 #include <QIcon>
@@ -141,13 +143,19 @@ struct ToolPaletteCatalog {
   QIcon screen_mode_icon;
 };
 
-// What the dialog edits: the customization, the two Preferences settings it also shows, and
-// the Layers footer's own icon size (layersPanel/footerIconSize, app_settings.hpp).
+// What the dialog edits: the customization, the two Preferences settings it also shows, the
+// Layers footer's own icon size (layersPanel/footerIconSize, app_settings.hpp), and the Layers
+// rows (GitHub issue 680): the row options and the thumbnail size and display, the same settings
+// the Layers gear's and the thumbnail menus' Thumbnail Size and Thumbnail Display set.
 struct ToolPaletteDialogChoice {
   ToolPaletteCustomization customization;
   ToolbarIconSize icon_size{ToolbarIconSize::Normal};
   ToolFlyoutOpenMode flyout_open_mode{ToolFlyoutOpenMode::Hold};
   ToolbarIconSize layer_icon_size{ToolbarIconSize::Normal};
+  LayerRowOptions layer_rows{};
+  LayerThumbnailSize layer_thumbnail_size{kDefaultLayerThumbnailSize};
+  // view/zoomLayerThumbnailsToContent: Thumbnail Display's Layer Content (true) or Whole Document.
+  bool zoom_layer_thumbnails_to_content{true};
 };
 
 // Translated names of the Preferences choices, shared by Preferences and the dialog.
@@ -162,7 +170,10 @@ enum class ToolPaletteCustomizeTab { Tools, LayerButtons };
 // an open dialog can follow a change made in Preferences. The Layers Panel tab's icon size
 // combo is layerFooterIconSizeCombo; while the dialog is open each pick there goes to
 // `preview_layer_icon_size` (when set) so the footer shows it at once, and Cancel sends the
-// size the dialog opened with.
+// size the dialog opened with. The Layers rows' combos are layerRowColorCombo,
+// layerThumbnailSizeCombo (item data: the size token) and layerThumbnailDisplayCombo (item data:
+// true for Layer Content), the boxes layerRowsCompactCheck and layerRowsTooltipsCheck; MainWindow
+// moves the two thumbnail combos when the menus change those settings while the dialog is open.
 [[nodiscard]] std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(
     QWidget* parent, const ToolPaletteCatalog& catalog, const ToolPaletteDialogChoice& current,
     ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools,

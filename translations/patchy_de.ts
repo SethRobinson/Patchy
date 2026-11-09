@@ -15112,6 +15112,49 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Heads:</source>
         <translation>Spitzen:</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>Zeilen</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>Kompakte Zeilen: ohne Zeile für Füllmethode und Deckkraft</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>Zeilen-Tooltips anzeigen</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>Der Hinweis mit Ebenenname, Deckkraft und Sperren, wenn der Zeiger auf einer Zeile ruht.</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>Wie die Farbmarkierung einer Ebene erscheint: als Streifen am linken Zeilenrand oder als Tönung der ganzen Zeile.</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>Streifen</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>Ganze Zeile</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>Zeilenfarbe:</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>Miniaturgröße:</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>Miniaturanzeige:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

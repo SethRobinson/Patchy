@@ -15065,6 +15065,49 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation>箭头:</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>行</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>紧凑行：不显示混合模式和不透明度行</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>显示行工具提示</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>指针停留在行上时显示图层名称、不透明度和锁定的提示。</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>图层颜色标签的显示方式：行左边缘的色条，或为整行着色。</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>色条</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>整行</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>行颜色：</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>缩览图大小：</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>缩览图显示：</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

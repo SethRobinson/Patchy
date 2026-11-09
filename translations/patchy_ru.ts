@@ -15159,6 +15159,49 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation>Наконечники:</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>Строки</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>Компактные строки: без строки режима наложения и непрозрачности</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>Показывать подсказки строк</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>Подсказка с именем слоя, его непрозрачностью и блокировками, когда указатель задерживается на строке.</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>Как показывается цветная метка слоя: полоса у левого края строки или оттенок всей строки.</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>Полоса</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>Вся строка</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>Цвет строки:</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>Размер миниатюр:</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>Отображение миниатюр:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

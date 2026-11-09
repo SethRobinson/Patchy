@@ -424,6 +424,7 @@ int main(int argc, char* argv[]) {
            gradient_fill_handles_tests,
            view_shortcut_keys_tests,
            tool_palette_customize_tests,
+           layer_row_options_tests,
            unit_spin_box_tests,
            clipboard_free_transform_tests,
            deep_operation_audit_tests,

@@ -632,7 +632,14 @@ QString photoshop_style_template() {
        WA_StyledBackground auto-applied by the stylesheet engine, and paint
        opaque window_bg over the row background - which is what silently hid the
        selection highlight for months. */
-    QWidget#layerMainRow, QWidget#layerSmartFiltersRow, QWidget#layerSmartFilterEntryRow {
+    QWidget#layerMainRow, QWidget#layerSmartFiltersRow, QWidget#layerSmartFilterEntryRow,
+    QWidget#layerRowColorTint {
+      background: transparent;
+    }
+    /* Row color "Whole row" (GitHub issue 680): the tint under the row shows through these too. */
+    QWidget#layerRowWidget[layerRowTinted="true"] QWidget#layerLockStrip,
+    QWidget#layerRowWidget[layerRowTinted="true"] QWidget#layerEffectsRow,
+    QWidget#layerRowWidget[layerRowTinted="true"] QWidget#layerEffectEntryRow {
       background: transparent;
     }
     QWidget#layerRowWidget {

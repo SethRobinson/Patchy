@@ -15112,6 +15112,49 @@ Deseja substituí-lo?</translation>
         <source>Heads:</source>
         <translation>Pontas:</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>Linhas</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>Linhas compactas: sem a linha de modo de mesclagem e opacidade</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>Mostrar dicas das linhas</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>A dica que mostra o nome da camada, sua opacidade e seus bloqueios quando o ponteiro para sobre uma linha.</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>Como o rótulo de cor da camada aparece: uma faixa na borda esquerda da linha ou um tom sobre a linha inteira.</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>Faixa</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>Linha inteira</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>Cor da linha:</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>Tamanho da miniatura:</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>Exibição de miniaturas:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

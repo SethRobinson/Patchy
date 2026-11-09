@@ -15112,6 +15112,49 @@ Voulez-vous le remplacer ?</translation>
         <source>Heads:</source>
         <translation>Pointes :</translation>
     </message>
+    <message>
+        <source>Rows</source>
+        <comment>Layers panel rows heading</comment>
+        <translation>Lignes</translation>
+    </message>
+    <message>
+        <source>Compact rows: no blend mode and opacity line</source>
+        <translation>Lignes compactes : sans la ligne mode de fusion et opacité</translation>
+    </message>
+    <message>
+        <source>Show row tooltips</source>
+        <translation>Afficher les info-bulles des lignes</translation>
+    </message>
+    <message>
+        <source>The tip that names the layer, its opacity and its locks when the pointer rests on a row.</source>
+        <translation>L&apos;info-bulle qui indique le nom du calque, son opacité et ses verrous quand le pointeur s&apos;arrête sur une ligne.</translation>
+    </message>
+    <message>
+        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <translation>Affichage de l&apos;étiquette de couleur d&apos;un calque : une bande sur le bord gauche de la ligne, ou une teinte sur toute la ligne.</translation>
+    </message>
+    <message>
+        <source>Strip</source>
+        <comment>layer color label shown as a strip</comment>
+        <translation>Bande</translation>
+    </message>
+    <message>
+        <source>Whole row</source>
+        <comment>layer color label tints the whole row</comment>
+        <translation>Toute la ligne</translation>
+    </message>
+    <message>
+        <source>Row color:</source>
+        <translation>Couleur de ligne :</translation>
+    </message>
+    <message>
+        <source>Thumbnail size:</source>
+        <translation>Taille des vignettes :</translation>
+    </message>
+    <message>
+        <source>Thumbnail display:</source>
+        <translation>Affichage des vignettes :</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

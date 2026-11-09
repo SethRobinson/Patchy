@@ -42,6 +42,7 @@ std::vector<patchy::test::TestCase> ruler_tool_tests();
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests();
 std::vector<patchy::test::TestCase> view_shortcut_keys_tests();
 std::vector<patchy::test::TestCase> tool_palette_customize_tests();
+std::vector<patchy::test::TestCase> layer_row_options_tests();
 std::vector<patchy::test::TestCase> unit_spin_box_tests();
 std::vector<patchy::test::TestCase> clipboard_free_transform_tests();
 std::vector<patchy::test::TestCase> deep_operation_audit_tests();
