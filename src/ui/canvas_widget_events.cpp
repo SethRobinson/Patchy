@@ -1105,10 +1105,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   // Photoshop-style stroke connect: Shift+click joins the new stroke to the
-  // previous stroke's end point with a straight brush segment.
+  // previous stroke's end point with a straight brush segment, when both paint the same way:
+  // an Alt-swapped stroke (Dodge as Burn) joins only another one (GitHub #662).
   std::optional<QPointF> connect_from;
   if (event->button() == Qt::LeftButton && (event->modifiers() & Qt::ShiftModifier) != 0 &&
-      last_stroke_end_document_.has_value() && tool_supports_shift_click_stroke_connect(effective_tool)) {
+      last_stroke_end_document_.has_value() && tool_supports_shift_click_stroke_connect(effective_tool) &&
+      press_alt_swaps(event->modifiers()) == last_stroke_end_alt_swapped_) {
     connect_from = last_stroke_end_document_;
   }
 
@@ -3250,6 +3252,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     invalidate_brush_overlay();
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
+    last_stroke_end_alt_swapped_ = stroke_end_is_alt_swapped();
     clone_source_cache_ = QImage();
     end_lazy_clone_source();
     clone_source_deep_ = PixelBuffer{};
@@ -3741,6 +3744,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
     extend_spot_heal_stroke(constrained_point);
     last_stroke_end_document_ = QPointF(constrained_point);
+    last_stroke_end_alt_swapped_ = false;
     reset_axis_constrained_stroke();
     finish_spot_heal_stroke();
     emit_info_for_widget_position(event->pos());
@@ -5274,6 +5278,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     set_retouch_source_indicator(std::nullopt);
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
+    last_stroke_end_alt_swapped_ = stroke_end_is_alt_swapped();
     refresh_stroke_connect_preview();
   }
   if (!was_painting && !drawing_shape_) {
