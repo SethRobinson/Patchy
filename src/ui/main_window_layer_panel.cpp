@@ -964,6 +964,22 @@ QString rect_summary(Rect rect) {
   return QObject::tr("%1 x %2 at %3, %4").arg(rect.width).arg(rect.height).arg(rect.x).arg(rect.y);
 }
 
+// The bounds Properties reports: an artboard's rect, a group's content extent (a group
+// holds no pixels of its own, so its bounds() is empty), otherwise the layer's own.
+Rect properties_layer_bounds(const Layer& layer) {
+  if (const auto& artboard = layer.artboard(); artboard.has_value()) {
+    return artboard->rect;
+  }
+  if (layer.kind() != LayerKind::Group) {
+    return layer.bounds();
+  }
+  Rect bounds{};
+  for (const auto& child : layer.children()) {
+    bounds = unite_rect(bounds, properties_layer_bounds(child));
+  }
+  return bounds;
+}
+
 QString layer_style_summary(const LayerStyle& style) {
   QStringList effects;
   if (!style.drop_shadows.empty()) {
@@ -6073,7 +6089,7 @@ void MainWindow::refresh_document_info() {
                                 .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
                                 .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
                                 .arg(lock_state));
-    QString geometry = tr("Geometry: Bounds: %1").arg(rect_summary(layer->bounds()));
+    QString geometry = tr("Geometry: Bounds: %1").arg(rect_summary(properties_layer_bounds(*layer)));
     if (layer->kind() == LayerKind::Pixel || layer->kind() == LayerKind::Text) {
       geometry += tr(" | Pixels: %1").arg(pixel_format_name(layer->pixels().format()));
     } else if (layer->kind() == LayerKind::Group) {

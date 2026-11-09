@@ -26,7 +26,7 @@ app.documents.forEach(function (other) {
   if (other.id !== doc.id && !other.path && !other.modified) { other.close(); }
 });
 doc.activate();
-patchy.ui.setSidePanelWidth(300);
+patchy.ui.setSidePanelWidth(360);
 
 // Story on the left; banner across the top right; post and icon below the banner.
 var story = doc.addArtboard('Story', {x: 0, y: 0, width: 1080, height: 1920}, {background: 'white'});
@@ -102,6 +102,9 @@ text(icon, 'HC', {font: HEADLINE, size: 170, color: CREAM, align: 'center',
 doc.activeLayer = postPhoto;
 doc.activeLayer = post;
 app.runCommand('tools.artboard');
+// Without the Color group, Layers and Properties get the column's height.
+patchy.ui.closePanel('color');
+patchy.ui.closePanel('palette');
 patchy.ui.expandPanel('properties');
 
 setTimeout(function () {

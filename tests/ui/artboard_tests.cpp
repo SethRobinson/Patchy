@@ -441,6 +441,10 @@ void ui_artboard_layers_panel_rows_and_properties_panel() {
   CHECK(!panel->isHidden());
   CHECK(x->value() == 10 && width->value() == 120);
   CHECK(background->currentData().toString() == QStringLiteral("black"));
+  // The geometry line reports the artboard's rect, not the empty pixel bounds of a group.
+  auto* geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+  CHECK(geometry != nullptr &&
+        geometry->text().contains(QStringLiteral("Bounds: 120 x 80 at 10, 20")));
   x->setValue(25);
   QApplication::processEvents();
   const auto& document = MainWindowTestAccess::document(window);
@@ -456,6 +460,33 @@ void ui_artboard_layers_panel_rows_and_properties_panel() {
   MainWindowTestAccess::select_layers(window, {child}, child);
   QApplication::processEvents();
   CHECK(panel->isHidden());
+}
+
+// A plain group's Properties bounds are the extent of the layers inside it (a group has
+// no pixels of its own, so its own bounds are empty).
+void ui_properties_group_bounds_cover_its_layers() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto seed = board_document(300, 200);
+  patchy::Layer group(seed.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  for (const auto rect : {patchy::Rect{20, 30, 40, 20}, patchy::Rect{100, 10, 30, 90}}) {
+    patchy::Layer child(seed.allocate_layer_id(), "Part",
+                        solid_pixels(rect.width, rect.height, patchy::PixelFormat::rgba8(), QColor(200, 40, 40)));
+    child.set_bounds(rect);
+    group.add_child(std::move(child));
+  }
+  const auto group_id = group.id();
+  seed.layers().push_back(std::move(group));
+  window.add_document_session(std::move(seed), QStringLiteral("Group Bounds"));
+  QApplication::processEvents();
+  MainWindowTestAccess::select_layers(window, {group_id}, group_id);
+  QApplication::processEvents();
+  auto* geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+  CHECK(geometry != nullptr);
+  if (geometry != nullptr) {
+    CHECK(geometry->text().contains(QStringLiteral("Bounds: 110 x 90 at 20, 10")));
+    CHECK(geometry->text().contains(QStringLiteral("Contents: 2 layers")));
+  }
 }
 
 // The Properties panel's artboard X/Y/W/H fields scrub like the options bar's (issue 46):
@@ -2695,6 +2726,7 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_move_tool_moves_artboards_and_auto_nests", ui_artboard_move_tool_moves_artboards_and_auto_nests},
       {"ui_artboard_prevent_auto_nesting_keeps_layer_in_place", ui_artboard_prevent_auto_nesting_keeps_layer_in_place},
       {"ui_artboard_layers_panel_rows_and_properties_panel", ui_artboard_layers_panel_rows_and_properties_panel},
+      {"ui_properties_group_bounds_cover_its_layers", ui_properties_group_bounds_cover_its_layers},
       {"ui_artboard_properties_fields_scrub_as_one_undo_step", ui_artboard_properties_fields_scrub_as_one_undo_step},
       {"ui_artboard_properties_scrub_previews_like_the_handle_drag",
        ui_artboard_properties_scrub_previews_like_the_handle_drag},

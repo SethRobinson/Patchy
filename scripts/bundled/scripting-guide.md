@@ -615,7 +615,7 @@ doc.exportArtboards("out", {format: "png"});
 | `patchy.ui.playSound(path)` | Plays a `.wav` file (10 MB max). Relative paths resolve like `include()`. Throws if the file is missing or not a WAV. |
 | `patchy.ui.setWindowSize(w, h)` | Resizes the main window. Meant for automation that captures the app at a known size. The window never goes below its minimum size, so a short request can come out taller. |
 | `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
-| `patchy.ui.captureWindow(path)` | Saves a PNG screenshot without raising or focusing the window. Waits up to 60 seconds for enabled Dynamic Vector Preview to settle; returns false on timeout or write failure. |
+| `patchy.ui.captureWindow(path)` | Saves a PNG screenshot without raising or focusing the window. The capture leaves out the running script's own status-bar indicator (Running script, Stop, Pause, Slow). Waits up to 60 seconds for enabled Dynamic Vector Preview to settle; returns false on timeout or write failure. |
 | `patchy.ui.setStatusMessage(text)` | Shows a message in the status bar. Handy for progress readouts in long batches. |
 | `patchy.ui.expandPanel(name)` | Opens a panel of the right column like its Window menu entry: reopens it if closed, brings its tab to the front, and expands it. Names: `"layers"`, `"channels"`, `"paths"`, `"history"`, `"properties"`, `"info"`, `"palette"`, `"color"` (exact and lowercase; anything else throws). Layers, Channels and Paths share one tab group, so they expand together. Use it before `captureWindow` to show, say, the Properties panel. |
 | `patchy.ui.collapsePanel(name)` / `patchy.ui.closePanel(name)` | Collapse the panel to its title row, or close it. Same names. |

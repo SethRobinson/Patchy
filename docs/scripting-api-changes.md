@@ -23,6 +23,9 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-09 (behavioral): `patchy.ui.captureWindow` leaves the running script's own status-bar
+indicator (Running script, Stop, Pause, Slow) out of the capture; it shows again right after. Pinned
+by `ui_script_capture_window_omits_its_run_indicator`.
 2026-11-08 (additive): `app.buildBookPdf(folder, path, options)` writes the PDF of a Scan a Book
 to PDF project folder ([book-scan.md](book-scan.md)). Its option keys (`mode` with `"color"`,
 `"gray"`, `"bw"`; `threshold`, `dpi`, `imageQuality`, `pageSize` with `"median"`, `"largest"`,

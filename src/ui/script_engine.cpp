@@ -4163,7 +4163,18 @@ bool ScriptEngineHost::capture_window_to_file(const QString& path) {
   // them first; user input stays excluded so the capture state cannot shift.
   QCoreApplication::sendPostedEvents();
   QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-  return window_.save_debug_screenshot(path);
+  // The capture shows the workspace, not the capturing script's own status-bar
+  // indicator (Running script, Stop, Pause, Slow): hide it for the grab only.
+  const bool hide_activity = script_activity_ && script_activity_->isVisible();
+  if (hide_activity) {
+    script_activity_->hide();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+  }
+  const bool saved = window_.save_debug_screenshot(path);
+  if (hide_activity) {
+    script_activity_->show();
+  }
+  return saved;
 }
 
 void ScriptEngineHost::reveal_layer_row(std::int64_t session_id, LayerId layer_id) {

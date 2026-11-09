@@ -27,7 +27,9 @@ to the release that will ship them ([packaging/linux/README.md](../packaging/lin
 The driver accepts image base names or full `shot_readme_*` names. `-Scene hero`
 regenerates `smart_filters.png`, which the README uses directly. Missing local
 fixtures are reported as skips during a full run; an explicitly selected script
-scene fails if its fixture is missing. KPT runs only with `-IncludeLegacyPlugins`
+scene fails if its fixture is missing. `PATCHY_LOCAL_FIXTURES_DIR` points the driver at another
+checkout's `local-test-fixtures` (a worktree uses the main checkout's), as it does for the tests.
+KPT runs only with `-IncludeLegacyPlugins`
 or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 
 | Image | Recipe | Input |
@@ -79,7 +81,9 @@ included and the street excluded; check the capture after a model or engine chan
 One-pixel marching ants vanish at thumbnail size, so the script inverts the selection,
 fills a gray Saturation-mode layer and a 45% black layer through it, and inverts back
 (fill layers rather than a filter on the photo, so the photo layer stays untouched; a
-Desaturate menu command run from the script did not apply). The status bar shows "Running script", as in the KPT shot.
+Desaturate menu command run from the script did not apply). `patchy.ui.captureWindow` leaves the script's own
+status-bar indicator (Running script, Stop, Pause, Slow) out of every script-driven capture; scenes set the
+status message to "Ready".
 
 The Artboards scene builds a fictional car-weekend campaign as four artboards, one per
 background type: Story (white), Banner (black), Post (custom cream) and Icon (transparent,
@@ -131,8 +135,8 @@ The G'MIC scene opens the real Filter Library (scripts cannot open it) with the 
 of the street photo selected, picks Rodilius with Lighter strokes, waits for the full-quality
 preview to land on the layer, and checks that the left half is untouched, so the canvas shows
 the original beside the result. The photo stays under the 1.5 megapixel draft threshold, so
-the first preview is the final one. The right dock is widened under the dialog so the whole
-photo stays in view beside it. Builds without the engine report a skip.
+the first preview is the final one. The window is the usual 1600 x 1000; the right dock is widened
+under the dialog so the whole photo stays in view beside it. Builds without the engine report a skip.
 
 The Export for Web scene (`tests/ui/readme_screenshot_tests_showcase.cpp`, with Perspective
 Planes) builds an eight-layer day-to-blue-hour time-lapse from the San Francisco photo (graded,

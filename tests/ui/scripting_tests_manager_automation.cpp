@@ -1064,6 +1064,63 @@ void ui_script_ui_staging_apis() {
   CHECK(!run_script(window, QStringLiteral("patchy.ui.captureWindow('');")));
 }
 
+// Records hide and show events of one widget, and whether a file existed at each.
+class VisibilityLog : public QObject {
+public:
+  VisibilityLog(QWidget& widget, QString path) : path_(std::move(path)) { widget.installEventFilter(this); }
+  QStringList events;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Hide || event->type() == QEvent::Show) {
+      events << QStringLiteral("%1:%2").arg(event->type() == QEvent::Hide ? QStringLiteral("hide")
+                                                                         : QStringLiteral("show"),
+                                            QFile::exists(path_) ? QStringLiteral("file")
+                                                                 : QStringLiteral("nofile"));
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QString path_;
+};
+
+// An unattended run in a visible window shows its Running script / Stop / Pause / Slow
+// indicator in the status bar; patchy.ui.captureWindow hides it for the grab only, so
+// README and other staged captures show the workspace, then shows it again.
+void ui_script_capture_window_omits_its_run_indicator() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.unattended = true;
+  host.run_source(QStringLiteral("console.log('warm up');"), options);  // creates the indicator
+  QApplication::processEvents();
+  auto* activity = window.findChild<QWidget*>(QStringLiteral("scriptActivity"));
+  CHECK(activity != nullptr);
+  if (activity == nullptr) {
+    return;
+  }
+  const auto capture_path = QStringLiteral("test-artifacts/ui_script_capture_omits_run_indicator.png");
+  QFile::remove(capture_path);
+  VisibilityLog log(*activity, capture_path);
+  host.run_source(QStringLiteral(
+                      "if (!patchy.ui.captureWindow('test-artifacts/ui_script_capture_omits_run_indicator.png')) {"
+                      "  throw new Error('captureWindow returned false'); }"),
+                  options);
+  QApplication::processEvents();
+  CHECK(!host.last_run_had_error());
+  CHECK(QFile::exists(capture_path));
+  // Shown when the run starts, hidden before the PNG is written, shown again once it
+  // exists, and hidden when the run ends.
+  const QStringList expected{QStringLiteral("show:nofile"), QStringLiteral("hide:nofile"),
+                             QStringLiteral("show:file"), QStringLiteral("hide:file")};
+  CHECK(log.events == expected);
+  if (log.events != expected) {
+    std::cerr << "  indicator events: " << log.events.join(QStringLiteral(", ")).toStdString() << '\n';
+  }
+}
+
 void ui_script_ui_side_panels_expand_collapse_close() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1719,6 +1776,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
       {"ui_script_preview_exposure_drives_the_32_bit_view", ui_script_preview_exposure_drives_the_32_bit_view},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
+      {"ui_script_capture_window_omits_its_run_indicator", ui_script_capture_window_omits_its_run_indicator},
       {"ui_script_ui_side_panels_expand_collapse_close", ui_script_ui_side_panels_expand_collapse_close},
       {"ui_script_ui_expand_panel_in_cli_capture", ui_script_ui_expand_panel_in_cli_capture},
       {"ui_headless_text_fonts_match_windowed_if_available", ui_headless_text_fonts_match_windowed_if_available},

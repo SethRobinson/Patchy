@@ -571,9 +571,10 @@ void shot_readme_layer_styles() {
     categories->setCurrentItem(gradient_item);
     QApplication::processEvents();
 
-    // Right of center so the stop picker fits on the left without covering
-    // the dialog (or the layer list's fx badges).
-    const QPoint dialog_offset(560, 210);
+    // Right of center so the stop picker (about 640 px wide) fits on the left
+    // without covering the dialog's effect list, and the layer list's fx badges
+    // stay visible past its right edge.
+    const QPoint dialog_offset(664, 210);
     dialog->move(window.geometry().topLeft() + dialog_offset);
     QApplication::processEvents();
 
@@ -1724,13 +1725,13 @@ void shot_readme_gmic() {
   const int seam = width / 2;
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
-  // Wider than the other scenes: this capture spans both README columns. The dock
-  // is widened under the dialog so the whole photo stays in view beside it.
-  window.resize(1920, 1080);
+  // The same 1600 x 1000 as the other scenes, so gallery rows line up. The dock is
+  // widened under the dialog so the whole photo stays in view beside it.
+  window.resize(1600, 1000);
   QApplication::processEvents();
   window.add_document_session(std::move(document), QStringLiteral("havana_street.jpg"));
   close_untitled_start_tab(window);
-  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, 880);
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, 820);
   QApplication::processEvents();
   auto* canvas = require_canvas(window);
   patchy::PixelBuffer mask(width, height, patchy::PixelFormat::gray8());
@@ -1768,7 +1769,7 @@ void shot_readme_gmic() {
       // strokes that still leave the car and the buildings readable.
       CHECK(dialog->select_filter("fx_rodilius",
                                   {"7", "8", "300", "9", "0", "0", "1", "0", "0"}));
-      dialog->resize(880, 800);
+      dialog->resize(820, 780);
       auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("gmicFilterTree"));
       CHECK(tree != nullptr && tree->currentItem() != nullptr);
       tree->scrollToItem(tree->currentItem(), QAbstractItemView::PositionAtCenter);
@@ -1778,7 +1779,7 @@ void shot_readme_gmic() {
       // One full-quality run lands at once; let the canvas drop its badge.
       process_events_for(1000);
       CHECK(pixel_at(left_probe.x(), left_probe.y()) == left_before);
-      const QPoint offset(window.width() - dialog->width() - 12, 150);
+      const QPoint offset(window.width() - dialog->width() - 12, 140);
       dialog->move(window.geometry().topLeft() + offset);
       QApplication::processEvents();
       reset_readme_status_bar(window);

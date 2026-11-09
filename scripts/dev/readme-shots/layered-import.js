@@ -53,11 +53,12 @@ var ora = saveSource(source, '.ora');
 // Layered TIFF: live vector geometry and typography in an abstract print design.
 source = newSource(640, 400, '#f3e5cb');
 source.activeLayer.name = 'Cream paper';
-source.addShape('Orange disc', {type: 'ellipse', x: 244, y: 34, width: 350, height: 350}, {fill: '#e76a32'});
-source.addShape('Teal disc', {type: 'ellipse', x: 340, y: 126, width: 250, height: 250}, {fill: '#07555e'});
-source.addShape('Paper aperture', {type: 'ellipse', x: 406, y: 192, width: 118, height: 118}, {fill: '#f3e5cb'});
-source.addTextLayer('FORM\n& COLOR', {font: 'Arial Black', size: 63, color: '#17333d',
-  x: 34, y: 70, box: {width: 425, height: 184}});
+// The lettering stays left of the teal disc: dark type over it would vanish.
+source.addShape('Orange disc', {type: 'ellipse', x: 274, y: 34, width: 350, height: 350}, {fill: '#e76a32'});
+source.addShape('Teal disc', {type: 'ellipse', x: 370, y: 126, width: 250, height: 250}, {fill: '#07555e'});
+source.addShape('Paper aperture', {type: 'ellipse', x: 436, y: 192, width: 118, height: 118}, {fill: '#f3e5cb'});
+source.addTextLayer('FORM\n& COLOR', {font: 'Arial Black', size: 54, color: '#17333d',
+  x: 34, y: 84, box: {width: 330, height: 160}});
 source.addTextLayer('STUDIO SERIES     /     03', {font: 'Segoe UI', bold: true, size: 20,
   color: '#17333d', x: 38, y: 338, box: {width: 540, height: 36}});
 var tiff = saveSource(source, '.tif', {layers: true});
@@ -235,7 +236,7 @@ setTimeout(function () {
   patchy.ui.fitOnScreen();
   setTimeout(function () {
     doc.activeLayer = boards[boards.length - 1];
-    patchy.ui.setStatusMessage('Eight formats, eight artboards');
+    patchy.ui.setStatusMessage('Ready');
     if (!patchy.ui.captureWindow(out)) { throw new Error('captureWindow failed: ' + out); }
     console.log('captured eight imported formats in a 4 x 2 artboard grid: ' + out);
   }, 400);

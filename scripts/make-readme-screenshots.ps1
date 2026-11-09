@@ -35,6 +35,9 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $outDir = Join-Path $repo 'docs\images\screenshots'
 $buildDir = Join-Path $repo 'build\opt-dev'
+# Local fixtures (not committed): PATCHY_LOCAL_FIXTURES_DIR points a worktree at the main
+# checkout's corpus, as it does for the test binaries (docs/testing.md).
+$localFixtures = if ($env:PATCHY_LOCAL_FIXTURES_DIR) { $env:PATCHY_LOCAL_FIXTURES_DIR } else { Join-Path $repo 'local-test-fixtures' }
 
 # DWM rounds every window Patchy frames itself, but it clips in the compositor
 # (src/ui/window_effects.cpp, DWMWCP_ROUND), so a grabbed window is square. The
@@ -107,16 +110,16 @@ $jsScenes = [ordered]@{
         Args = @(
             "photo=$(Join-Path $repo 'test-fixtures\readme\san_francisco_cityscape_cc0.jpg')",
             "pdn=$(Join-Path $repo 'test-fixtures\pdn\demo.pdn')",
-            "psd=$(Join-Path $repo 'local-test-fixtures\psd\mow_master.psd')",
-            "affinity=$(Join-Path $repo 'local-test-fixtures\af-spike\corpus\tips.af')",
-            "krita=$(Join-Path $repo 'local-test-fixtures\kra-corpus\gdquest-dan.kra')",
-            "gimp=$(Join-Path $repo 'local-test-fixtures\xcf-corpus\opengameart\gas-giant-rings.xcf')"
+            "psd=$(Join-Path $localFixtures 'psd\mow_master.psd')",
+            "affinity=$(Join-Path $localFixtures 'af-spike\corpus\tips.af')",
+            "krita=$(Join-Path $localFixtures 'kra-corpus\gdquest-dan.kra')",
+            "gimp=$(Join-Path $localFixtures 'xcf-corpus\opengameart\gas-giant-rings.xcf')"
         )
         Fixture = @(
-            (Join-Path $repo 'local-test-fixtures\psd\mow_master.psd'),
-            (Join-Path $repo 'local-test-fixtures\af-spike\corpus\tips.af'),
-            (Join-Path $repo 'local-test-fixtures\kra-corpus\gdquest-dan.kra'),
-            (Join-Path $repo 'local-test-fixtures\xcf-corpus\opengameart\gas-giant-rings.xcf')
+            (Join-Path $localFixtures 'psd\mow_master.psd'),
+            (Join-Path $localFixtures 'af-spike\corpus\tips.af'),
+            (Join-Path $localFixtures 'kra-corpus\gdquest-dan.kra'),
+            (Join-Path $localFixtures 'xcf-corpus\opengameart\gas-giant-rings.xcf')
         )
     }
     'plugin_dialog' = @{
@@ -125,14 +128,14 @@ $jsScenes = [ordered]@{
         Script = Join-Path $repo 'scripts\dev\readme-shots\plugin-dialog.js'
         Args = @(
             "photo=$(Join-Path $repo 'test-fixtures\readme\san_francisco_cityscape_cc0.jpg')",
-            "plugins=$(Join-Path $repo 'local-test-fixtures\photoshop-plugins\mehdi')"
+            "plugins=$(Join-Path $localFixtures 'photoshop-plugins\mehdi')"
         )
-        Fixture = Join-Path $repo 'local-test-fixtures\photoshop-plugins\mehdi'
+        Fixture = Join-Path $localFixtures 'photoshop-plugins\mehdi'
     }
     'plugin_kpt5' = @{
         Script = Join-Path $repo 'scripts\dev\readme-shots\plugin-kpt5.js'
         Args = @("photo=$(Join-Path $repo 'test-fixtures\readme\san_francisco_cityscape_cc0.jpg')")
-        Fixture = Join-Path $repo 'local-test-fixtures\photoshop-plugins\kpt5\KPT5_Files\KPT5'
+        Fixture = Join-Path $localFixtures 'photoshop-plugins\kpt5\KPT5_Files\KPT5'
         Legacy = $true
     }
 }
