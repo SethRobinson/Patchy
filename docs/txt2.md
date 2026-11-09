@@ -167,13 +167,45 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/20` | Contextual Alternates | false by default; Txt2 only |
 | `/23`, `/24` | Fractions, Ordinals | bool; Txt2 only, the TySh has no key ([text-character-styles.md](text-character-styles.md)) |
 | `/25`, `/26`, `/28` | Swash, Titling, Stylistic Alternates | bool; Txt2 only |
-| `/38` | Language | 14 |
+| `/38` | Language | 0 English USA, 14 English UK (the template's, written for a run without one); full table in [Languages](#languages) |
 | `/53`, `/54` | FillColor, StrokeColor | `<< /99 /SimplePaint /0 << /0 1 /1 [ a r g b ] >> >>` (floats 0..1, alpha first) |
 | `/55` | blender | `/SimpleBlender` (default sheets) |
 | `/87` | (unknown) | 100.0 |
 
 Everything else in the sheets was constant across captures; author it by copying a
 Photoshop 2026 default sheet.
+
+## Languages
+
+Photoshop's hyphenation and spelling language (Character panel Language; Action Manager
+`textStyle` key `textLanguage`) lives per style run in two tables. Txt2 `/38` is the full one;
+the TySh `/Language` is older and shorter, and Photoshop 2026 writes both (GitHub issue 682,
+COM captures of 48 languages on This PC, November 2026: one run per file, set through
+`textLanguage`, then both blocks read):
+
+| Language (`textLanguage`) | Txt2 `/38` | TySh `/Language` |
+|---|---|---|
+| English USA (`englishLanguage`), UK, Canada | 0, 14, 45 | 0, 14, 14 |
+| Finnish, French, Canadian French, old German (1901) | 1, 2, 3, 5 | same |
+| German (`standardGermanLanguage`), Swiss German | 42, 44 | 4, 6 |
+| Italian, Norwegian Bokmal, Nynorsk, Portuguese, Brazilian Portuguese, Spanish, Swedish | 7, 8, 9, 10, 11, 12, 13 | same |
+| Dutch, Danish, Catalan, Russian | 43, 16, 17, 18 | 15, 16, 17, 18 |
+| Bulgarian, Serbian, Czech, Polish, Romanian, Greek, Turkish, Icelandic, Hungarian | 20 to 28 | same |
+| Croatian, Hebrew, Slovenian, Lithuanian, Latvian, Slovak, Arabic, Farsi | 31, 32, 33, 36, 37, 38, 39, 41 | 29, 30, 31, 34, 35, 36, 37, 37 |
+| Chinese, Japanese, Estonian, Thai, Vietnamese, Hindi, Bengali, Indonesian, Korean | 29, 30, 40, 46, 47, 49, 51, 62, 63 | 0 (no entry) |
+
+`oldDutchLanguage` and `ukrainianLanguage` did not take (they read back as English USA). A
+Photoshop whose default is English UK writes `/38 14` on every run and `/38 0` in the default
+sheets.
+
+Patchy keeps the language as `PsdTextStyleRun::language` in the Txt2 numbering, runs v9 column 16
+token `language:<n>` ([text-character-styles.md](text-character-styles.md)). The reader takes the
+run's Txt2 `/38` (its sheet, its parent StyleSheetSet entry, the document's `/1/2`) over the TySh
+`/Language` (run, then normal sheet; mapped back through the table, 37 reads as Arabic); 14 reads
+as unset. The writer puts `run.language` or 14 into `/38` and, only for a run that has one, the
+mapped `/Language` into the TySh run (never the normal sheet), so untagged text keeps its bytes.
+The editor carries it as `kTextLanguageFormatProperty`, so typed text takes its neighbour's
+language. There is no UI for it: Patchy has no hyphenation or spell check.
 
 ## What Photoshop 2026 accepts (probe results, all opened clean, no dialog, correct readback)
 

@@ -375,6 +375,8 @@ struct PsdTextEngineDefaults {
   bool strikethrough{false};
   bool ligatures{true};
   bool discretionary_ligatures{false};
+  // The normal style sheet's /Language, TySh numbering (photoshop_txt2_language_from_tysh).
+  std::optional<int> language;
   std::optional<RgbColor> fill_color;
   double auto_leading_fraction{1.2};
 };

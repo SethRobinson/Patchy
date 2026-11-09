@@ -60,7 +60,9 @@ struct TextParagraphFontSize {
 
 // The OpenType features one style run of a text object turns on (style keys /24 Ordinals, /23
 // Fractions, /20 Contextual Alternates, /25 Swash, /26 Titling, /28 Stylistic Alternates).
-// Photoshop writes them only here, never into the TySh (GitHub issue 346).
+// Photoshop writes them only here, never into the TySh (GitHub issue 346). `language` is the
+// run's /38 (its sheet, else its parent StyleSheetSet entry, else the document's default sheet),
+// unset for kPhotoshopTextDefaultLanguage (GitHub issue 682).
 struct TextStyleRunFeatures {
   int length{0};
   bool ordinals{false};
@@ -69,6 +71,7 @@ struct TextStyleRunFeatures {
   bool swash{false};
   bool titling_alternates{false};
   bool stylistic_alternates{false};
+  std::optional<int> language;
 };
 
 // The composer (paragraph key /35) one paragraph run of a text object resolves to: its own sheet,

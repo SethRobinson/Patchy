@@ -65,6 +65,9 @@ psd::PsdTextStyleRun psd_run_with_styles(const TextCharacterStyles& styles) {
   run.swash = styles.swash;
   run.stylistic_alternates = styles.stylistic_alternates;
   run.titling_alternates = styles.titling_alternates;
+  if (styles.language >= 0) {
+    run.language = styles.language;
+  }
   return run;
 }
 
@@ -89,6 +92,10 @@ TextCharacterStyles text_character_styles_from_format(const QTextCharFormat& for
   styles.swash = format.property(kTextSwashFormatProperty).toBool();
   styles.stylistic_alternates = format.property(kTextStylisticAlternatesFormatProperty).toBool();
   styles.titling_alternates = format.property(kTextTitlingAlternatesFormatProperty).toBool();
+  if (format.hasProperty(kTextLanguageFormatProperty)) {
+    const auto language = format.property(kTextLanguageFormatProperty).toInt();
+    styles.language = psd::valid_photoshop_text_language(language) ? language : -1;
+  }
   return styles;
 }
 
@@ -108,6 +115,11 @@ void set_text_character_styles_on_format(QTextCharFormat& format, const TextChar
   format.setProperty(kTextSwashFormatProperty, styles.swash);
   format.setProperty(kTextStylisticAlternatesFormatProperty, styles.stylistic_alternates);
   format.setProperty(kTextTitlingAlternatesFormatProperty, styles.titling_alternates);
+  if (styles.language >= 0) {
+    format.setProperty(kTextLanguageFormatProperty, styles.language);
+  } else {
+    format.clearProperty(kTextLanguageFormatProperty);
+  }
 }
 
 QString serialize_text_character_styles(const TextCharacterStyles& styles) {
@@ -130,6 +142,7 @@ TextCharacterStyles parse_text_character_styles(const QString& field) {
   styles.swash = run.swash;
   styles.stylistic_alternates = run.stylistic_alternates;
   styles.titling_alternates = run.titling_alternates;
+  styles.language = run.language.value_or(-1);
   return styles;
 }
 

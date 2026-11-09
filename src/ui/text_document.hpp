@@ -98,9 +98,13 @@ struct TextCharacterStyles {
   bool swash{false};
   bool stylistic_alternates{false};
   bool titling_alternates{false};
+  // Photoshop's hyphenation and spelling language, Txt2 numbering; -1 unset (GitHub issue 682).
+  // Patchy draws nothing from it: it is kept so a Photoshop file's text keeps its tag.
+  int language{-1};
   [[nodiscard]] bool any() const noexcept {
     return caps != 0 || baseline != 0 || underline || strikethrough || ordinals || fractions || !ligatures ||
-           contextual_alternates || discretionary_ligatures || swash || stylistic_alternates || titling_alternates;
+           contextual_alternates || discretionary_ligatures || swash || stylistic_alternates || titling_alternates ||
+           language >= 0;
   }
   // Any OpenType feature request other than Photoshop's defaults (ligatures on, the rest off).
   [[nodiscard]] bool any_features() const noexcept {
