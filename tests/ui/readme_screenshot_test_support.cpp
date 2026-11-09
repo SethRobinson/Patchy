@@ -15,6 +15,10 @@
 #include <QTabWidget>
 #include <QToolButton>
 #include <algorithm>
+#include <thread>
+#include <mutex>
+#include <deque>
+#include <condition_variable>
 #include <atomic>
 #include <array>
 #include <cstdint>
@@ -82,6 +86,9 @@ void save_readme_shot(const std::string& name, const QImage& image) {
   CHECK(rounded_readme_window_image(image).save(path));
 }
 
+// Frames are encoded on a worker thread, so a live capture (Breakout) spends its time
+// grabbing, not encoding, and the game it records keeps a steady frame rate. The queue is
+// bounded by how far the encoder falls behind; each entry is one implicitly shared image.
 struct ReadmeAnimationWriter::Impl {
   std::string name;
   QSize size;
@@ -90,14 +97,68 @@ struct ReadmeAnimationWriter::Impl {
   qint64 pending_time{0};
   std::size_t frames{0};
 
+  std::mutex mutex;
+  std::condition_variable wake;
+  std::condition_variable space;
+  std::deque<std::pair<QImage, qint64>> queue;
+  bool closing{false};
+  std::exception_ptr error;
+  std::thread worker;
+
   Impl(std::string animation_name, QSize frame_size, int quality)
       : name(std::move(animation_name)), size(frame_size),
-        encoder(frame_size.width(), frame_size.height(), /*loops=*/0, quality, /*lossless=*/false) {}
+        encoder(frame_size.width(), frame_size.height(), /*loops=*/0, quality, /*lossless=*/false) {
+    worker = std::thread([this] { run(); });
+  }
 
-  void encode_pending(qint64 duration_ms) {
-    // 20 ms is the shortest delay browsers honor; shorter ones play at 100 ms.
-    encoder.add(patchy::ui::pixels_from_image_rgba(rounded_readme_window_image(pending)),
-                static_cast<std::uint32_t>(std::max<qint64>(duration_ms, 20)));
+  ~Impl() { stop(); }
+
+  void stop() {
+    {
+      const std::lock_guard lock(mutex);
+      closing = true;
+    }
+    wake.notify_all();
+    if (worker.joinable()) {
+      worker.join();
+    }
+  }
+
+  void run() {
+    for (;;) {
+      std::pair<QImage, qint64> job;
+      {
+        std::unique_lock lock(mutex);
+        wake.wait(lock, [this] { return closing || !queue.empty(); });
+        if (queue.empty()) {
+          return;
+        }
+        job = std::move(queue.front());
+        queue.pop_front();
+      }
+      space.notify_one();
+      try {
+        // 20 ms is the shortest delay browsers honor; shorter ones play at 100 ms.
+        encoder.add(patchy::ui::pixels_from_image_rgba(rounded_readme_window_image(job.first)),
+                    static_cast<std::uint32_t>(std::max<qint64>(job.second, 20)));
+      } catch (...) {
+        const std::lock_guard lock(mutex);
+        if (!error) {
+          error = std::current_exception();
+        }
+      }
+    }
+  }
+
+  void enqueue(QImage image, qint64 duration_ms) {
+    {
+      // A backlog this deep (about 600 MB of frames) waits for the encoder to catch up.
+      constexpr std::size_t kMaxQueued = 90;
+      std::unique_lock lock(mutex);
+      space.wait(lock, [this] { return queue.size() < kMaxQueued; });
+      queue.emplace_back(std::move(image), duration_ms);
+    }
+    wake.notify_one();
     ++frames;
   }
 };
@@ -110,7 +171,7 @@ ReadmeAnimationWriter::~ReadmeAnimationWriter() = default;
 void ReadmeAnimationWriter::add(const QImage& image, qint64 time_ms) {
   CHECK(image.size() == impl_->size);
   if (!impl_->pending.isNull()) {
-    impl_->encode_pending(time_ms - impl_->pending_time);
+    impl_->enqueue(std::move(impl_->pending), time_ms - impl_->pending_time);
   }
   impl_->pending = image;
   impl_->pending_time = time_ms;
@@ -126,8 +187,12 @@ void ReadmeAnimationWriter::finish(int last_frame_ms) {
   if (impl_->pending.isNull()) {
     return;
   }
-  impl_->encode_pending(last_frame_ms);
+  impl_->enqueue(std::move(impl_->pending), last_frame_ms);
   impl_->pending = QImage();
+  impl_->stop();  // drains the queue
+  if (impl_->error) {
+    std::rethrow_exception(impl_->error);
+  }
   const auto bytes = impl_->encoder.finish();
   CHECK(!bytes.empty());
   std::ofstream out(std::filesystem::path("test-artifacts") / (impl_->name + ".webp"),

@@ -49,9 +49,10 @@ struct ReadmeAnimationFrame {
 void save_readme_animation(const std::string& name, const std::vector<ReadmeAnimationFrame>& frames,
                            int quality = 90);
 
-// The streaming form of save_readme_animation, for long captures: each frame is encoded
-// when the next one arrives (a frame shows until the next frame's time), so memory holds
-// one frame, not the whole capture. finish() writes test-artifacts/<name>.webp.
+// The streaming form of save_readme_animation, for live captures: a frame shows until the
+// next frame's time, and frames are encoded on a worker thread as they arrive, so the
+// capture loop spends its time grabbing and memory holds only the encoder's backlog.
+// finish() drains it and writes test-artifacts/<name>.webp.
 class ReadmeAnimationWriter {
 public:
   ReadmeAnimationWriter(std::string name, QSize size, int quality = 90);

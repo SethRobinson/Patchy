@@ -179,8 +179,8 @@ Click any image to inspect it at full size. These are captures of the real edito
       <br><sub>Scripts ask with real options dialogs; the same script runs unattended from the command line with the same defaults</sub>
     </td>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/breakout.webp"><img src="images/screenshots/breakout.webp" width="430" alt="Animation: the bundled Breakout script being played, the ball knocking out bricks on a Patchy document while the Layers panel lists the game layers and the controller window keeps the score"></a>
-      <br><sub>Breakout, a bundled script, played on a real document: bricks, paddle and ball are layers, and the controller window is the script's own</sub>
+      <a href="images/screenshots/breakout.webp"><img src="images/screenshots/breakout.webp" width="430" alt="Animation: the Script Manager with Breakout chosen and running, and beside it the game playing on a Patchy document while the Layers panel lists the game layers and the controller window shows the score, lives and keys"></a>
+      <br><sub>Breakout, a bundled script, run from the Script Manager and played on a real document: bricks, paddle and ball are layers, and the controller window is the script's own</sub>
     </td>
 </tr>
 </table>

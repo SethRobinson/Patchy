@@ -44,9 +44,11 @@
 // (Script Manager + Breakout, script options dialogs, Affinity import).
 // The group-wide story lives in the aggregator (readme_screenshot_tests.cpp);
 // helpers shared with the other part live in readme_screenshot_test_support.
+#include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QStandardPaths>
 #include <QTreeWidget>
@@ -160,21 +162,20 @@ QDialog* start_bundled_breakout(patchy::ui::MainWindow& window, patchy::ui::Scri
   return pad;
 }
 
-// Holds Space on the controller window (isKeyDown latches until release, so the ball
-// launches now and relaunches at once after a lost life) and steers the paddle under the
-// ball so the rally survives.
+// Plays Breakout the way a steady player would. Holds Space on the controller window
+// (isKeyDown latches until release, so the ball launches now and relaunches at once after a
+// lost life) and, once the ball descends, moves the paddle once to where it will cross the
+// paddle line, folded off the side walls, aiming a little off center so the bounce angles
+// out and the rally works across the wall. It holds still while the ball climbs, so the
+// paddle glides between catches instead of chasing the ball. The numbers follow breakout.js
+// (480 wide, ball 6, paddle 64 at y 342, 7 px per 16 ms).
 class BreakoutAutopilot {
 public:
   BreakoutAutopilot(patchy::ui::MainWindow& window, QDialog& pad) : window_(window), pad_(pad) {
     send_key_press(pad_, Qt::Key_Space);
   }
   ~BreakoutAutopilot() {
-    if (left_down_) {
-      send_key_release(pad_, Qt::Key_Left);
-    }
-    if (right_down_) {
-      send_key_release(pad_, Qt::Key_Right);
-    }
+    set_direction(0);
     send_key_release(pad_, Qt::Key_Space);
   }
   BreakoutAutopilot(const BreakoutAutopilot&) = delete;
@@ -186,24 +187,113 @@ public:
     if (!ball.has_value() || !paddle.has_value()) {
       return;
     }
-    const int offset = (ball->x + 3) - (paddle->x + 32);  // ball center vs paddle center
-    const bool want_left = offset < -6;
-    const bool want_right = offset > 6;
-    if (want_left != left_down_) {
-      want_left ? send_key_press(pad_, Qt::Key_Left) : send_key_release(pad_, Qt::Key_Left);
-      left_down_ = want_left;
+    // Only a new game frame (the ball moved) can change the plan.
+    if (!last_ball_.has_value() || ball->x != last_ball_->x() || ball->y != last_ball_->y()) {
+      plan(*ball);
     }
-    if (want_right != right_down_) {
-      want_right ? send_key_press(pad_, Qt::Key_Right) : send_key_release(pad_, Qt::Key_Right);
-      right_down_ = want_right;
+    // Hysteresis: start only when clearly off target, stop once close. The gap between the
+    // two is wider than one game frame's move (7 px per 16 ms, at most 50 ms a frame), so a
+    // stop never overshoots far enough to start a move back.
+    int direction = direction_;
+    if (!target_.has_value()) {
+      direction = 0;
+    } else {
+      const double offset = *target_ - (paddle->x + kPaddleWidth / 2.0);
+      constexpr double kStart = 18.0;
+      constexpr double kStop = 5.0;
+      if (direction_ == 0) {
+        direction = offset > kStart ? 1 : offset < -kStart ? -1 : 0;
+      } else if (direction_ * offset < kStop) {
+        direction = 0;
+      }
     }
+    set_direction(direction);
+  }
+
+  // Runs the game for `milliseconds`, steering between every batch of events so the
+  // paddle answers each game frame, not only each captured one.
+  void play_for(int milliseconds) {
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < milliseconds) {
+      steer();
+      QApplication::processEvents(QEventLoop::AllEvents, 4);
+    }
+    steer();
   }
 
 private:
+  static constexpr double kWidth = 480.0;
+  static constexpr double kBall = 6.0;
+  static constexpr double kPaddleY = 342.0;
+  static constexpr double kPaddleWidth = 64.0;
+
+  // Called once per game frame. While the ball climbs the paddle holds still; once it
+  // descends, its landing point on the paddle line (folded off the side walls) becomes the
+  // target, but only after two frames in a row agree: a frame that straddles a wall or brick
+  // bounce gives a wrong heading for one frame, and acting on it made the paddle twitch.
+  void plan(const patchy::Rect& ball) {
+    if (last_ball_.has_value()) {
+      const int dx = ball.x - last_ball_->x();
+      const int dy = ball.y - last_ball_->y();
+      if (dy > 0 && heading_dy_ <= 0) {
+        aim_ = -aim_;  // a new descent: angle the next bounce the other way
+        candidate_.reset();
+      }
+      if (dy != 0) {
+        heading_dx_ = dx;
+        heading_dy_ = dy;
+      }
+    }
+    last_ball_ = QPoint(ball.x, ball.y);
+    if (heading_dy_ <= 0 || ball.y + kBall > kPaddleY) {
+      target_.reset();
+      candidate_.reset();
+      return;
+    }
+    const double x = ball.x + static_cast<double>(heading_dx_) / heading_dy_ * (kPaddleY - kBall - ball.y);
+    const double span = kWidth - kBall;
+    double folded = std::fmod(x, 2.0 * span);
+    if (folded < 0.0) {
+      folded += 2.0 * span;
+    }
+    if (folded > span) {
+      folded = 2.0 * span - folded;
+    }
+    // Where the paddle's center should be: the ball meets it `aim_` from the center.
+    const double landing = folded + kBall / 2.0 - aim_;
+    if (candidate_.has_value() && std::abs(*candidate_ - landing) < 10.0) {
+      target_ = landing;
+    }
+    candidate_ = landing;
+  }
+
+  void set_direction(int direction) {
+    if (direction == direction_) {
+      return;
+    }
+    if (direction_ < 0) {
+      send_key_release(pad_, Qt::Key_Left);
+    } else if (direction_ > 0) {
+      send_key_release(pad_, Qt::Key_Right);
+    }
+    if (direction < 0) {
+      send_key_press(pad_, Qt::Key_Left);
+    } else if (direction > 0) {
+      send_key_press(pad_, Qt::Key_Right);
+    }
+    direction_ = direction;
+  }
+
   patchy::ui::MainWindow& window_;
   QDialog& pad_;
-  bool left_down_{false};
-  bool right_down_{false};
+  std::optional<QPoint> last_ball_;
+  int heading_dx_{0};
+  int heading_dy_{0};
+  double aim_{10.0};
+  std::optional<double> candidate_;
+  std::optional<double> target_;
+  int direction_{0};
 };
 
 void stop_breakout(patchy::ui::MainWindow& window) {
@@ -255,8 +345,7 @@ void shot_readme_script_manager() {
     QElapsedTimer play_timer;
     play_timer.start();
     while (play_timer.elapsed() < 25000 && !composition_ready()) {
-      autopilot.steer();
-      process_events_for(30);
+      autopilot.play_for(30);
     }
     CHECK(breakout_bricks_opaque(window) <= full_bricks - kBreakoutBrickPixels);
     CHECK(window.script_engine_host().run_active());
@@ -278,21 +367,19 @@ void shot_readme_script_manager() {
   QApplication::processEvents();
 }
 
-// An animated WebP of the bundled Breakout being played (breakout.webp): the bricks,
-// paddle and ball are live layers on the document canvas, the Layers panel lists them, and
-// the controller window with its score floats over the panel column. The game starts from
-// the Script Manager, which then steps aside. Each frame records the real time it took, so
-// the animation plays at the game's own speed (breakout.js moves by elapsed time).
+// An animated WebP of the bundled Breakout being played (breakout.webp), framed to show how
+// it works: the Script Manager on the left with Breakout chosen in its tree, breakout.js in
+// the editor and the live run status; the playfield zoomed into the canvas space to its
+// right, where the bricks, paddle and ball are layers the Layers panel lists; and the
+// script's own controller window (score, lives and the keys) over the lower layer list.
+// Each frame records the real time it took, so the animation plays at the game's speed
+// (breakout.js moves by elapsed time).
 void shot_readme_breakout() {
   EnvironmentVariableRestorer sound_restorer("PATCHY_NO_SOUND");
   qputenv("PATCHY_NO_SOUND", "1");
   const StandardPathsTestMode test_paths;
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
-  // Smaller than the stills, so the playfield is a larger share of each frame and the file
-  // stays small; still 16:10, so it pairs with the other cards.
-  window.resize(1280, 800);
-  QApplication::processEvents();
 
   patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
   dialog.show();
@@ -301,17 +388,39 @@ void shot_readme_breakout() {
   if (pad == nullptr) {
     return;
   }
-  dialog.hide();
   // Without the Color group the layer list is tall enough for the controller to sit under
   // the four game layers.
   if (auto* column = patchy::ui::MainWindowTestAccess::panel_column(window)) {
     column->set_panel_visible(QStringLiteral("colorDock"), false);
     column->set_panel_visible(QStringLiteral("paletteDock"), false);
   }
+  // A narrower manager and panel column leave the playfield as much of the canvas as they can.
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, 300);
+  const QPoint dialog_offset(16, 104);
+  dialog.resize(540, 800);
+  dialog.move(window.geometry().topLeft() + dialog_offset);
   QApplication::processEvents();
-  require_action(window, "viewFitOnScreenAction")->trigger();
   const auto full_bricks = breakout_bricks_opaque(window);
   CHECK(full_bricks > 0);
+
+  // The playfield fills the canvas area right of the Script Manager.
+  auto* canvas = require_canvas(window);
+  const QRectF view = canvas->view_content_rect();
+  const QPointF canvas_origin = canvas->mapTo(&window, QPoint(0, 0));
+  const double free_left = dialog_offset.x() + dialog.width() + 28 - canvas_origin.x();
+  const QRectF free(QPointF(free_left, view.top() + 20), QPointF(view.right() - 20, view.bottom() - 20));
+  constexpr double kField[2] = {480.0, 360.0};
+  canvas->set_zoom(std::min(free.width() / kField[0], free.height() / kField[1]));
+  QApplication::processEvents();
+  const QPointF center_now = canvas->view_transform().map_to_widget(QPointF(kField[0] / 2, kField[1] / 2));
+  const QPoint shift = (free.center() - center_now).toPoint();
+  const QPoint grip = canvas->mapToGlobal(view.center().toPoint());
+  CHECK(canvas->begin_pan_at_global_position(grip));
+  CHECK(canvas->pan_to_global_position(grip + shift));
+  CHECK(canvas->end_pan());
+  QApplication::processEvents();
+  const QPointF center_after = canvas->view_transform().map_to_widget(QPointF(kField[0] / 2, kField[1] / 2));
+  CHECK(std::abs(center_after.x() - free.center().x()) < 3.0 && std::abs(center_after.y() - free.center().y()) < 3.0);
 
   // The controller sits over the empty lower part of the layer list.
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -325,18 +434,32 @@ void shot_readme_breakout() {
   pad->move(window.geometry().topLeft() + pad_offset);
   reset_readme_status_bar(window);
 
-  // Twelve seconds of play from the launch, at about 25 frames a second. The writer encodes
-  // each frame as the next arrives, so memory holds one frame, not the whole capture.
+  // Twelve seconds of play from the launch. The writer encodes each frame as the next
+  // arrives, so memory holds one frame, not the whole capture. The Script Manager changes
+  // only its elapsed time and spinner, so it is grabbed again every half second.
   constexpr qint64 kCaptureMs = 12000;
   ReadmeAnimationWriter writer("shot_readme_breakout", window.size(), 88);
   {
     BreakoutAutopilot autopilot(window, *pad);
     QElapsedTimer clock;
     clock.start();
+    // The manager's overlay (rounded, with its shadow) is drawn once per grab into its own
+    // transparent layer and laid over each frame in one blend.
+    QImage manager_layer;
+    qint64 manager_time = -1000;
     while (clock.elapsed() < kCaptureMs) {
-      autopilot.steer();
-      process_events_for(25);
+      autopilot.play_for(16);
+      if (clock.elapsed() - manager_time >= 500) {
+        manager_layer = QImage(window.size(), QImage::Format_ARGB32_Premultiplied);
+        manager_layer.fill(Qt::transparent);
+        draw_readme_overlay(manager_layer, dialog.grab().toImage(), dialog_offset);
+        manager_time = clock.elapsed();
+      }
       QImage base = window.grab().toImage();
+      {
+        QPainter painter(&base);
+        painter.drawImage(0, 0, manager_layer);
+      }
       draw_readme_overlay(base, pad->grab().toImage(), pad_offset);
       writer.add(base, clock.elapsed());
     }
