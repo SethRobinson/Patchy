@@ -1617,6 +1617,13 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index, 
   if (run.discretionary_ligatures) {
     style += " /DLigatures true";
   }
+  // Hyphenation and spelling language (GitHub issue 682), in the TySh's own older numbering;
+  // the Txt2 twin /38 carries the full one. Only a run that has one, so other text stays
+  // byte-identical.
+  if (run.language.has_value() && valid_photoshop_text_language(*run.language)) {
+    style += " /Language ";
+    style += std::to_string(photoshop_tysh_language_from_txt2(*run.language));
+  }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";
@@ -1797,6 +1804,7 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   normal_style.font_baseline = 0;
   normal_style.underline = false;
   normal_style.strikethrough = false;
+  normal_style.language.reset();
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
   const auto normal_justification = engine_paragraph_runs.empty() ? 0 : engine_paragraph_runs.front().justification;
   const auto resources = engine_text_resources(fonts, normal_style, normal_font_index, normal_justification);

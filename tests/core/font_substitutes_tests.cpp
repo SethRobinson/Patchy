@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -116,7 +117,8 @@ void font_substitutes_table_is_well_formed() {
       CHECK(keys.insert(alias_key).second);
     }
     CHECK(entry.font_class != FontClass::unknown);
-    CHECK(!entry.candidates.empty());
+    // Only a symbol font may list no stand-in: its entry still states its type.
+    CHECK(!entry.candidates.empty() || entry.font_class == FontClass::symbol);
     std::set<std::string> candidate_keys;
     for (const auto& candidate : entry.candidates) {
       const auto key = font_substitute_key(candidate.family);
@@ -166,6 +168,58 @@ void font_substitutes_classify_font_types_from_name_words() {
   CHECK(patchy::font_class_for_name("Myriad Pro Semibold") == FontClass::sans);
   CHECK(patchy::font_class_for_name("Some Unlisted Mono") == FontClass::mono);
   CHECK(patchy::font_class_for_name("PatchyDefinitelyMissingFont123456") == FontClass::unknown);
+}
+
+// GitHub issue 463 follow-up: Wine's symbol fonts and the Windows and URW fonts with the same
+// codes stand in for each other; a symbol font never gets a text font of any type.
+void font_substitutes_symbol_fonts_pair_only_fonts_with_the_same_codes() {
+  const auto ranked_all = [](std::string_view family) {
+    std::vector<std::pair<std::string, FontSubstituteMatch>> out;
+    const auto found = find_font_substitutes(family);
+    if (found.has_value() && found->entry != nullptr) {
+      for (const auto& suggestion : rank_font_substitutes(*found->entry, [](std::string_view) { return true; })) {
+        out.emplace_back(suggestion.family, suggestion.match);
+      }
+    }
+    return out;
+  };
+  using Pairs = std::vector<std::pair<std::string, FontSubstituteMatch>>;
+  // Wine's copy is saved under its PostScript name; Patchy shows it humanized.
+  for (const auto name : {"Wine Wingdings", "WineWingdings", "WineWingdings-Regular"}) {
+    CHECK(found_family(name) == "Wine Wingdings");
+    CHECK(ranked_all(name) == (Pairs{{"Wingdings", FontSubstituteMatch::metric}}));
+  }
+  CHECK(ranked_all("WineWebdings") == (Pairs{{"Webdings", FontSubstituteMatch::metric}}));
+  CHECK(ranked_all("WineSymbol") == (Pairs{{"Symbol", FontSubstituteMatch::lookalike},
+                                           {"Standard Symbols PS", FontSubstituteMatch::lookalike},
+                                           {"Standard Symbols L", FontSubstituteMatch::lookalike}}));
+  CHECK(ranked_all("SymbolMT") == (Pairs{{"Standard Symbols PS", FontSubstituteMatch::metric},
+                                         {"Standard Symbols L", FontSubstituteMatch::metric}}));
+  CHECK(ranked_all("ZapfDingbatsITC") ==
+        (Pairs{{"D050000L", FontSubstituteMatch::metric}, {"Dingbats", FontSubstituteMatch::metric}}));
+  // Wine installs its copies under the Windows family names, so "Wingdings" itself already finds
+  // Wine's copy and lists nothing; OpenSymbol (Unicode code points) is never offered for Symbol.
+  CHECK(found_family("Wingdings") == "Wingdings");
+  CHECK(found_family("Wingdings-Regular") == "Wingdings");
+  CHECK(ranked_all("Wingdings").empty());
+  CHECK(ranked_all("Webdings").empty());
+  for (const auto& [family, match] : ranked_all("Symbol")) {
+    CHECK(family != "OpenSymbol");
+  }
+  // "Wingdings 2" is its own font: not Wingdings, but still a symbol font by name.
+  CHECK(!find_font_substitutes("Wingdings 2").has_value());
+
+  for (const auto name : {"Wine Wingdings", "Wingdings", "Wingdings 2", "Wingdings 3", "Webdings", "Symbol",
+                          "SymbolMT", "WineSymbol", "Zapf Dingbats", "ITC Zapf Dingbats", "Marlett", "MT Extra",
+                          "Patchy Missing Dingbats"}) {
+    CHECK(patchy::font_class_for_name(name) == FontClass::symbol);
+  }
+  // "Symbol" alone is not a symbol word: these are Unicode text fonts.
+  CHECK(patchy::font_class_for_name("Segoe UI Symbol") == FontClass::unknown);
+  CHECK(patchy::font_class_for_name("Noto Sans Symbols") == FontClass::sans);
+  CHECK(patchy::font_class_for_name("Segoe UI Emoji") == FontClass::unknown);
+  // No text font is ever a symbol font's same-type default.
+  CHECK(patchy::same_class_default_families(FontClass::symbol).empty());
 }
 
 void font_substitutes_same_class_defaults_cover_each_platform() {
@@ -244,5 +298,7 @@ std::vector<patchy::test::TestCase> font_substitutes_tests() {
       {"font_substitutes_rank_metric_before_lookalike_in_table_order",
        font_substitutes_rank_metric_before_lookalike_in_table_order},
       {"font_substitutes_table_is_well_formed", font_substitutes_table_is_well_formed},
+      {"font_substitutes_symbol_fonts_pair_only_fonts_with_the_same_codes",
+       font_substitutes_symbol_fonts_pair_only_fonts_with_the_same_codes},
   };
 }

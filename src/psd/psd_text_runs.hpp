@@ -81,7 +81,26 @@ struct PsdTextStyleRun {
   bool swash{false};
   bool stylistic_alternates{false};
   bool titling_alternates{false};
+  // Photoshop's hyphenation and spelling language, as its Txt2 style key /38 numbers it (0 English
+  // USA, 14 English UK, 42 German, 39 Arabic: docs/txt2.md, "Languages"). Patchy only keeps it so
+  // a Photoshop file's text keeps its tag through an edit (GitHub issue 682). Unset writes
+  // kPhotoshopTextDefaultLanguage, as every Patchy save did before; a file's 14 reads back unset.
+  // Runs v9 column 16 token `language:<n>`.
+  std::optional<int> language;
 };
+
+// The Txt2 language Patchy writes for a run without one (English UK, the authoring template's).
+inline constexpr int kPhotoshopTextDefaultLanguage = 14;
+// Txt2 /38 languages are 0 to 63 in Photoshop 2026; anything else is not a language index.
+[[nodiscard]] constexpr bool valid_photoshop_text_language(int language) noexcept {
+  return language >= 0 && language < 256;
+}
+// The TySh /Language for a Txt2 language: an older, shorter table (German 42 is TySh 4, Arabic
+// 39 is 37); languages it lacks (Chinese, Japanese, Korean, Thai, Hindi, ...) are 0, as Photoshop
+// 2026 writes them. Pinned by COM captures (docs/txt2.md).
+[[nodiscard]] int photoshop_tysh_language_from_txt2(int language) noexcept;
+// The reverse, for a TySh read without a Txt2 object. TySh 37 (Arabic and Farsi) reads as Arabic.
+[[nodiscard]] int photoshop_txt2_language_from_tysh(int language) noexcept;
 
 // Photoshop's document-level ratios (TySh /SuperscriptSize .583, /SuperscriptPosition .333,
 // /SmallCapSize .7, the same values in every capture): a superscript or subscript run draws at

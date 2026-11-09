@@ -15112,6 +15112,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Heads:</source>
         <translation>Pointes :</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>Police de symboles : aucune police installée n’a les mêmes symboles</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

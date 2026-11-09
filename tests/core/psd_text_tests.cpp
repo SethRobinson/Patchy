@@ -2164,7 +2164,17 @@ void psd_text_character_styles_import_photoshop_sample_if_available() {
     const auto lines = split_lines(found->second);
     for (std::size_t index = 1; index < lines.size(); ++index) {
       const auto fields = split_tabs(lines[index]);
-      tokens.push_back(fields.size() >= 17U ? fields[16] : std::string("-"));
+      auto value = fields.size() >= 17U ? fields[16] : std::string("-");
+      // The sample's Photoshop wrote English USA (Txt2 /38 0) on every run; Patchy keeps it as
+      // the run's language token (GitHub issue 682), the last token of the list.
+      static constexpr std::string_view kLanguage = "language:0";
+      CHECK(value.ends_with(kLanguage));
+      if (value == kLanguage) {
+        value = "-";
+      } else if (value.ends_with(std::string(",") + std::string(kLanguage))) {
+        value.resize(value.size() - kLanguage.size() - 1U);
+      }
+      tokens.push_back(value);
     }
     return tokens;
   };

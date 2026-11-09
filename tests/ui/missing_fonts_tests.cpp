@@ -50,6 +50,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -1769,8 +1770,99 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
   };
 }
 
+namespace {
+
+// GitHub issue 463 follow-up 2: a document saved with Wine's Wingdings names "WineWingdings"
+// ("Wine Wingdings" once humanized). With the Windows Wingdings installed, Resolve Missing Fonts
+// picks it as a same-widths match; a symbol font with no installed copy is never offered a text
+// font: its row starts unticked, says why, and Resolve Fonts leaves it alone.
+void ui_missing_fonts_dialog_offers_symbol_fonts_only_a_copy() {
+  register_same_type_test_fonts();
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Wingdings);
+  const auto wine = QStringLiteral("Wine Wingdings");
+  const auto dingbats = QStringLiteral("Patchy Missing Dingbats");
+  const auto demanded = QStringLiteral("J");
+  CHECK(!patchy::ui::available_text_family_match(wine).has_value());
+  CHECK(patchy::ui::text_font_class(wine) == patchy::FontClass::symbol);
+  CHECK(patchy::ui::text_font_class(dingbats) == patchy::FontClass::symbol);
+  CHECK(patchy::ui::installed_text_font_substitutes(dingbats, demanded).empty());
+  const auto wine_substitutes = patchy::ui::installed_text_font_substitutes(wine, demanded);
+  const bool have_wingdings = !wine_substitutes.empty();
+  if (have_wingdings) {
+    CHECK(wine_substitutes.size() == 1U);
+    CHECK(wine_substitutes.front().family == QStringLiteral("Wingdings") && wine_substitutes.front().metric);
+  }
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  auto document = white_document();
+  const auto wine_id = document.add_layer(missing_font_text_layer(document, "J", wine, 20)).id();
+  const auto dingbats_id = document.add_layer(missing_font_text_layer(document, "JKL", dingbats, 70)).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Symbol Fonts"));
+  QApplication::processEvents();
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto row_widgets = [&dialog](int row) {
+          return std::tuple{
+              dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(row)),
+              dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo%1").arg(row)),
+              dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(row)),
+              dialog.findChild<QLabel*>(QStringLiteral("missingFontNoSymbolMatch%1").arg(row))};
+        };
+        const auto expect_unresolved = [&row_widgets](int row) {
+          const auto [check, picker, suggestion, note] = row_widgets(row);
+          CHECK(check != nullptr && !check->isChecked());
+          CHECK(picker != nullptr && !picker->isEnabled());
+          CHECK(suggestion == nullptr);
+          CHECK(note != nullptr && note->text() == QStringLiteral("Symbol font: no installed font has the same symbols"));
+        };
+        const auto wine_row = missing_font_row(dialog, wine);
+        const auto dingbats_row = missing_font_row(dialog, dingbats);
+        CHECK(wine_row >= 0 && dingbats_row >= 0);
+        expect_unresolved(dingbats_row);
+        auto* resolve = dialog.findChild<QPushButton*>(QStringLiteral("missingFontsResolveButton"));
+        CHECK(resolve != nullptr);
+        if (have_wingdings) {
+          const auto [check, picker, suggestion, note] = row_widgets(wine_row);
+          CHECK(check != nullptr && check->isChecked());
+          CHECK(picker != nullptr && picker->isEnabled() && picker->currentFont().family() == QStringLiteral("Wingdings"));
+          CHECK(suggestion != nullptr &&
+                suggestion->text() == QStringLiteral("Suggested: Wingdings (same character widths)"));
+          CHECK(note == nullptr);
+          CHECK(resolve != nullptr && resolve->isEnabled());
+          save_widget_artifact("ui_missing_fonts_dialog_symbol_fonts", dialog);
+          if (resolve != nullptr) {
+            resolve->click();
+          }
+        } else {
+          expect_unresolved(wine_row);
+          CHECK(resolve != nullptr && !resolve->isEnabled());
+          save_widget_artifact("ui_missing_fonts_dialog_symbol_fonts", dialog);
+          dialog.reject();
+        }
+      },
+      seen);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  action->trigger();
+  process_events_for(300);
+  CHECK(*seen == 1);
+  CHECK(layer_font(window, wine_id) == (have_wingdings ? QStringLiteral("Wingdings") : wine));
+  CHECK(layer_font(window, dingbats_id) == dingbats);
+}
+
+}  // namespace
+
 std::vector<patchy::test::TestCase> missing_font_type_tests() {
   return {
+      {"ui_missing_fonts_dialog_offers_symbol_fonts_only_a_copy", ui_missing_fonts_dialog_offers_symbol_fonts_only_a_copy},
       {"ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts",
        ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts},
       {"ui_missing_font_same_type_default_reaches_edit_and_render",

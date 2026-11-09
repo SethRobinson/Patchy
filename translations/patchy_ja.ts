@@ -15065,6 +15065,10 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation>矢じり:</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>記号フォント: 同じ記号を持つフォントがインストールされていません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

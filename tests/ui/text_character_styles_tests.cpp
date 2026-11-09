@@ -9,6 +9,8 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/text_document.hpp"
+#include "ui/text_layout.hpp"
 #include "render/compositor.hpp"
 #include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
@@ -31,6 +33,8 @@
 #include <QStatusBar>
 #include <QTextEdit>
 #include <QTextLayout>
+#include <QTextDocument>
+#include <QTextCursor>
 #include <QTimer>
 #include <algorithm>
 #include <filesystem>
@@ -1143,6 +1147,47 @@ void ui_text_character_styles_sample_rerenders_if_available() {
 
 }  // namespace
 
+// GitHub issue 682: a run's Photoshop language (runs column 16 `language:<n>`) rides on the
+// editor's characters like the other run styles. Typing inside a German run stays German, a style
+// change over every run keeps each run's language, and runs with different languages never merge.
+void ui_text_runs_keep_their_language_through_edits() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const QString columns = QStringLiteral("\t30\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t");
+  const QString runs = QStringLiteral("v9\n0\t8") + columns + QStringLiteral("-\n8\t8") + columns +
+                       QStringLiteral("language:42\n16\t6") + columns + QStringLiteral("language:39");
+  QTextDocument document;
+  document.setPlainText(QStringLiteral("English Deutsch Arabic"));
+  patchy::ui::apply_patchy_text_runs_to_document(document, runs, QFont(QStringLiteral("Arial")), Qt::black, 1.0, 3);
+  patchy::ui::TextToolSettings fallback;
+  fallback.family = QStringLiteral("Arial");
+  fallback.size = 30;
+  const auto languages = [&] {
+    QStringList out;
+    const auto serialized = patchy::ui::rich_text_runs_from_document(document, fallback, Qt::black);
+    for (const auto& line : serialized.split(QLatin1Char('\n')).mid(1)) {
+      const auto fields = line.split(QLatin1Char('\t'));
+      const auto styles = patchy::ui::parse_text_character_styles(fields.size() >= 17 ? fields[16] : QString());
+      out << QStringLiteral("%1+%2:%3").arg(fields.value(0), fields.value(1)).arg(styles.language);
+    }
+    return out.join(QLatin1Char(' '));
+  };
+  CHECK(languages() == QStringLiteral("0+8:-1 8+8:42 16+6:39"));
+  QTextCursor cursor(&document);
+  cursor.setPosition(12);
+  cursor.insertText(QStringLiteral("xx"));
+  CHECK(languages() == QStringLiteral("0+8:-1 8+10:42 18+6:39"));
+  cursor.select(QTextCursor::Document);
+  QTextCharFormat underline;
+  underline.setProperty(patchy::ui::kTextUnderlineFormatProperty, true);
+  cursor.mergeCharFormat(underline);
+  CHECK(languages() == QStringLiteral("0+8:-1 8+10:42 18+6:39"));
+  // Plain text with no runs carries no language.
+  QTextDocument plain;
+  plain.setPlainText(QStringLiteral("New layer"));
+  const auto plain_runs = patchy::ui::rich_text_runs_from_document(plain, fallback, Qt::black);
+  CHECK(!plain_runs.contains(QStringLiteral("language")));
+}
+
 std::vector<patchy::test::TestCase> text_character_styles_tests() {
   return {
       {"ui_text_underline_and_strikethrough_match_photoshop_if_available",
@@ -1157,5 +1202,6 @@ std::vector<patchy::test::TestCase> text_character_styles_tests() {
       {"ui_text_character_styles_apply_only_to_the_selection", ui_text_character_styles_apply_only_to_the_selection},
       {"ui_text_style_edits_keep_the_point_text_line_in_place", ui_text_style_edits_keep_the_point_text_line_in_place},
       {"ui_text_character_styles_sample_rerenders_if_available", ui_text_character_styles_sample_rerenders_if_available},
+      {"ui_text_runs_keep_their_language_through_edits", ui_text_runs_keep_their_language_through_edits},
   };
 }

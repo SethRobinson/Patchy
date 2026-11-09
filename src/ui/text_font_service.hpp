@@ -69,8 +69,8 @@ struct TextFontSubstitute {
 // (text_font_class). Empty when none applies.
 std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& family,
                                                                 const QString& demanded = QString());
-// A family's font type: the table's column, then (Linux) the type fontconfig's rules give it,
-// then the words of its name (classify_font_name_words).
+// A family's font type: the table's column, then a symbol font's name words, then (Linux) the
+// type fontconfig's rules give it, then the words of its name (classify_font_name_words).
 // docs/font-resolution-missing-fonts.md, "Font types".
 FontClass text_font_class(const QString& family);
 

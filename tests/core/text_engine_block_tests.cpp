@@ -40,6 +40,8 @@
 #include "psd_test_support.hpp"
 #include <algorithm>
 #include <cstring>
+#include <cstdlib>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -107,6 +109,73 @@ patchy::Layer patchy_text_layer(patchy::Document& document, std::string_view nam
     layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v2\n0\t16\tleft\t24\t12\t0\t0\t6\n16\t17\tcenter\t0\t0\t0\t0\t0";
   }
   return layer;
+}
+
+// Each style run's Txt2 /38 for the object a TySh points at.
+std::vector<long long> txt2_run_languages(const std::vector<std::uint8_t>& bytes, int layer_index) {
+  std::vector<long long> languages;
+  const auto payload = text_engine_payload(bytes);
+  const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+  const auto index = text_index_of(bytes, layer_index);
+  if (!block.has_value() || !index.has_value()) {
+    return languages;
+  }
+  const auto* runs = block->root().at_path({"1", "1", std::to_string(*index), "0", "6", "0"});
+  if (runs == nullptr || !runs->is_list()) {
+    return languages;
+  }
+  for (const auto& run : runs->list) {
+    const auto* language = run.at_path({"0", "0", "6", "38"});
+    languages.push_back(language != nullptr ? language->integer().value_or(-1) : -1);
+  }
+  return languages;
+}
+
+// Each /Language a layer's TySh EngineData names, in order.
+std::vector<int> tysh_languages(const std::vector<std::uint8_t>& bytes, int layer_index) {
+  std::vector<int> languages;
+  const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, static_cast<std::int16_t>(layer_index)), "TySh");
+  if (!payload.has_value()) {
+    return languages;
+  }
+  const std::string_view text(reinterpret_cast<const char*>(payload->data()), payload->size());
+  static constexpr std::string_view kKey = "/Language ";
+  for (auto at = text.find(kKey); at != std::string_view::npos; at = text.find(kKey, at + kKey.size())) {
+    languages.push_back(std::atoi(std::string(text.substr(at + kKey.size(), 4)).c_str()));
+  }
+  return languages;
+}
+
+// The language of every run in a layer's runs metadata (-1 unset), from column 16.
+std::vector<int> metadata_run_languages(const patchy::Layer& layer) {
+  std::vector<int> languages;
+  const auto found = layer.metadata().find(patchy::kLayerMetadataTextRuns);
+  if (found == layer.metadata().end()) {
+    return languages;
+  }
+  std::string_view rest = found->second;
+  while (!rest.empty()) {
+    const auto end = rest.find('\n');
+    const auto line = rest.substr(0, end);
+    rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end + 1U);
+    if (line.empty() || line.front() == 'v') {
+      continue;
+    }
+    std::vector<std::string_view> fields;
+    std::size_t start = 0;
+    while (start <= line.size()) {
+      const auto tab = line.find('\t', start);
+      fields.push_back(line.substr(start, tab == std::string_view::npos ? std::string_view::npos : tab - start));
+      if (tab == std::string_view::npos) break;
+      start = tab + 1U;
+    }
+    patchy::psd::PsdTextStyleRun run;
+    if (fields.size() >= 17U) {
+      patchy::psd::parse_text_run_character_styles(fields[16], run);
+    }
+    languages.push_back(run.language.value_or(-1));
+  }
+  return languages;
 }
 
 }  // namespace
@@ -721,6 +790,128 @@ void text_engine_justify_modes_round_trip() {
   }
 }
 
+// GitHub issue 682: each run's hyphenation and spelling language survives a save and a reopen,
+// in the Txt2 /38 numbering with the TySh /Language twin in its older table (German 42 is TySh 4,
+// Arabic 39 is TySh 37). A run without one writes Photoshop's default 14 to the Txt2 and nothing
+// to the TySh, exactly as before.
+void text_engine_run_languages_round_trip() {
+  patchy::Document document(600, 200, patchy::PixelFormat::rgb8());
+  auto tagged = patchy_text_layer(document, "Tagged", "English Deutsch Arabic", false);
+  const std::string columns = "\t30\t0\t0\t#202020\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t";
+  tagged.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v9\n0\t8" + columns + "-\n8\t8" + columns + "language:42\n16\t6" + columns + "underline,language:39";
+  document.add_layer(std::move(tagged));
+  document.add_layer(patchy_text_layer(document, "Plain", "Untagged text", false));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream("test-artifacts/text-engine-run-languages.psd", std::ios::binary)
+      .write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  CHECK((txt2_run_languages(bytes, 0) == std::vector<long long>{14, 42, 39}));
+  CHECK((tysh_languages(bytes, 0) == std::vector<int>{4, 37}));
+  CHECK((txt2_run_languages(bytes, 1) == std::vector<long long>{14}));
+  CHECK(tysh_languages(bytes, 1).empty());
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2U);
+  if (read.layers().size() != 2U) {
+    return;
+  }
+  CHECK((metadata_run_languages(read.layers()[0]) == std::vector<int>{-1, 42, 39}));
+  CHECK((metadata_run_languages(read.layers()[1]) == std::vector<int>{-1}));
+  CHECK(read.layers()[1].metadata().at(patchy::kLayerMetadataTextRuns).find("language") == std::string::npos);
+  // An edit regenerates both blocks from the runs: the tags stay on the same runs.
+  for (auto& layer : read.layers()) {
+    layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  }
+  const auto again = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  CHECK((txt2_run_languages(again, 0) == std::vector<long long>{14, 42, 39}));
+  CHECK((tysh_languages(again, 0) == std::vector<int>{4, 37}));
+  CHECK(tysh_languages(again, 1).empty());
+  const auto reread = patchy::psd::DocumentIo::read(again);
+  CHECK(reread.layers().size() == 2U);
+  if (reread.layers().size() == 2U) {
+    CHECK((metadata_run_languages(reread.layers()[0]) == std::vector<int>{-1, 42, 39}));
+  }
+}
+
+// The two language tables, pinned by Photoshop 2026 COM captures (docs/txt2.md, "Languages"), and
+// the runs token.
+void text_engine_language_tables_match_photoshop() {
+  using patchy::psd::photoshop_tysh_language_from_txt2;
+  using patchy::psd::photoshop_txt2_language_from_tysh;
+  const std::vector<std::pair<int, int>> txt2_to_tysh{
+      {0, 0},   {1, 1},   {2, 2},   {3, 3},   {5, 5},   {7, 7},   {8, 8},   {9, 9},   {10, 10}, {11, 11},
+      {12, 12}, {13, 13}, {14, 14}, {16, 16}, {17, 17}, {18, 18}, {20, 20}, {21, 21}, {22, 22}, {23, 23},
+      {24, 24}, {25, 25}, {26, 26}, {27, 27}, {28, 28}, {42, 4},  {44, 6},  {45, 14}, {43, 15}, {31, 29},
+      {32, 30}, {33, 31}, {36, 34}, {37, 35}, {38, 36}, {39, 37}, {41, 37}, {29, 0},  {30, 0},  {40, 0},
+      {46, 0},  {47, 0},  {49, 0},  {51, 0},  {62, 0},  {63, 0}};
+  for (const auto& [txt2, tysh] : txt2_to_tysh) {
+    if (photoshop_tysh_language_from_txt2(txt2) != tysh) {
+      std::printf("  Txt2 %d wrote TySh %d, expected %d\n", txt2, photoshop_tysh_language_from_txt2(txt2), tysh);
+    }
+    CHECK(photoshop_tysh_language_from_txt2(txt2) == tysh);
+  }
+  CHECK(photoshop_txt2_language_from_tysh(4) == 42);
+  CHECK(photoshop_txt2_language_from_tysh(37) == 39);
+  CHECK(photoshop_txt2_language_from_tysh(14) == 14);
+  CHECK(photoshop_txt2_language_from_tysh(0) == 0);
+  CHECK(photoshop_txt2_language_from_tysh(2) == 2);
+  CHECK(photoshop_txt2_language_from_tysh(29) == 31);
+
+  patchy::psd::PsdTextStyleRun run;
+  patchy::psd::parse_text_run_character_styles("underline,language:42", run);
+  CHECK(run.underline && run.language == 42);
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "underline,language:42");
+  patchy::psd::parse_text_run_character_styles("language:x,language:", run);
+  CHECK(!run.language.has_value() && !run.underline);
+  run.language = 0;
+  CHECK(patchy::psd::text_run_has_character_styles(run));
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "language:0");
+}
+
+// A Photoshop 2026 file tagged English UK, German and Arabic per run keeps its tags through an
+// edit and a Patchy save (local fixture; README.txt beside it says how it was made).
+void text_engine_photoshop_languages_survive_an_edit() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-682/photoshop-text-languages.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto original = read_all(path);
+  auto document = patchy::psd::DocumentIo::read(original);
+  patchy::Layer* layer = nullptr;
+  for (auto& candidate : document.layers()) {
+    if (candidate.metadata().contains(patchy::kLayerMetadataText)) {
+      layer = &candidate;
+    }
+  }
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK((metadata_run_languages(*layer) == std::vector<int>{-1, 42, 39}));
+  layer->metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream("test-artifacts/text-engine-photoshop-languages-edited.psd", std::ios::binary)
+      .write(reinterpret_cast<const char*>(written.data()), static_cast<std::streamsize>(written.size()));
+  int text_layer_index = -1;
+  for (int index = 0; index < static_cast<int>(document.layers().size()); ++index) {
+    if (text_index_of(written, index).has_value()) {
+      text_layer_index = index;
+    }
+  }
+  CHECK(text_layer_index >= 0);
+  CHECK((txt2_run_languages(written, text_layer_index) == std::vector<long long>{14, 42, 39}));
+  CHECK((tysh_languages(written, text_layer_index) == std::vector<int>{4, 37}));
+  const auto reread = patchy::psd::DocumentIo::read(written);
+  bool found = false;
+  for (const auto& candidate : reread.layers()) {
+    if (candidate.metadata().contains(patchy::kLayerMetadataText)) {
+      found = true;
+      CHECK((metadata_run_languages(candidate) == std::vector<int>{-1, 42, 39}));
+    }
+  }
+  CHECK(found);
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
       {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
@@ -734,6 +925,9 @@ std::vector<patchy::test::TestCase> text_engine_block_tests() {
       {"text_engine_retyped_layer_replaces_its_object_in_place", text_engine_retyped_layer_replaces_its_object_in_place},
       {"text_engine_paragraph_composer_round_trips", text_engine_paragraph_composer_round_trips},
       {"text_engine_justify_modes_round_trip", text_engine_justify_modes_round_trip},
+      {"text_engine_run_languages_round_trip", text_engine_run_languages_round_trip},
+      {"text_engine_language_tables_match_photoshop", text_engine_language_tables_match_photoshop},
+      {"text_engine_photoshop_languages_survive_an_edit", text_engine_photoshop_languages_survive_an_edit},
       {"text_engine_issue341_every_object_keeps_a_cache_key_if_available",
        text_engine_issue341_every_object_keeps_a_cache_key_if_available},
   };

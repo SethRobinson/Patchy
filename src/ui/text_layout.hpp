@@ -122,6 +122,10 @@ inline constexpr int kTextTitlingAlternatesFormatProperty = QTextFormat::UserPro
 // box or area. Qt always leaves it flush left; Photoshop also centres it, sets it right, or
 // spreads it across the frame like the other lines (TextJustifyLastLine; absent is Left).
 inline constexpr int kTextBlockJustifyLastLineProperty = QTextFormat::UserProperty + 59;
+// Photoshop's hyphenation and spelling language of a run (Txt2 /38 numbering, runs v9 column 16
+// token `language:<n>`), absent when the run has none. Typed text inherits it from the
+// character before it like any other format; nothing renders from it (GitHub issue 682).
+inline constexpr int kTextLanguageFormatProperty = QTextFormat::UserProperty + 60;
 
 enum class TextJustifyLastLine { Left = 0, Center = 1, Right = 2, All = 3 };
 

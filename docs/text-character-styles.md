@@ -16,7 +16,9 @@ Fractions. Session plumbing is in [text-tool.md](text-tool.md), panel plumbing i
 - `patchy.text.runs` v9 adds column 16, a comma-separated token list (`allcaps`, `smallcaps`,
   `superscript`, `subscript`, `underline`, `strikethrough`, `ordinals`, `fractions`,
   `noligatures`, `contextualalternates`, `discretionaryligatures`, `swash`,
-  `stylisticalternates`, `titlingalternates`, or `-`).
+  `stylisticalternates`, `titlingalternates`, or `-`), plus `language:<n>` for a run's
+  Photoshop hyphenation and spelling language (Txt2 numbering, kept from Photoshop files only,
+  no control; [txt2.md](txt2.md#languages)).
   The tokens are a file-format contract. The column (and the v9 header) is written only when a
   run carries a style, so other text keeps its bytes; a reader skips any `vN` header line.
 - The text keeps its own case and size: All Caps never rewrites the characters, and a

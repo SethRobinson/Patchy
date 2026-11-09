@@ -30,6 +30,7 @@
 #include <bit>
 #include <cmath>
 #include <cctype>
+#include <charconv>
 #include <climits>
 #include <cstdlib>
 #include <fstream>
@@ -1500,6 +1501,10 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
       defaults.strikethrough = engine_bool_after_key(sheet, "/Strikethrough");
       defaults.ligatures = engine_bool_after_key(sheet, "/Ligatures", true);
       defaults.discretionary_ligatures = engine_bool_after_key(sheet, "/DLigatures");
+      if (const auto language = engine_number_after_key(sheet, "/Language");
+          language.has_value() && *language >= 0.0 && *language < 256.0) {
+        defaults.language = static_cast<int>(std::lround(*language));
+      }
       if (const auto baseline = engine_number_after_key(sheet, "/BaselineDirection"); baseline.has_value()) {
         defaults.baseline_direction = static_cast<int>(std::lround(*baseline));
       }
@@ -1515,7 +1520,7 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
 namespace {
 
 // Lays the 'Txt2' object's OpenType feature runs (Ordinals, Fractions, Contextual Alternates,
-// Swash, Titling and Stylistic Alternates) over the TySh runs, splitting a TySh run where
+// Swash, Titling and Stylistic Alternates) and languages over the TySh runs, splitting a TySh run where
 // a feature starts or stops inside it (the two run lists normally split at the same places).
 std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextStyleRun> runs,
                                                             std::span<const TextStyleRunFeatures> features) {
@@ -1539,11 +1544,13 @@ std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextS
         piece.swash = features[f].swash;
         piece.titling_alternates = features[f].titling_alternates;
         piece.stylistic_alternates = features[f].stylistic_alternates;
+        piece.language = features[f].language;
         const auto& last = result.empty() ? piece : result.back();
         if (!result.empty() && last.start + last.length == piece.start && last.ordinals == piece.ordinals &&
             last.fractions == piece.fractions && last.contextual_alternates == piece.contextual_alternates &&
             last.swash == piece.swash && last.titling_alternates == piece.titling_alternates &&
-            last.stylistic_alternates == piece.stylistic_alternates && piece.start > run.start) {
+            last.stylistic_alternates == piece.stylistic_alternates && last.language == piece.language &&
+            piece.start > run.start) {
           result.back().length += piece.length;
         } else {
           result.push_back(std::move(piece));
@@ -1639,6 +1646,22 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     run.ligatures = engine_bool_after_key(dictionaries[index], "/Ligatures", defaults.ligatures);
     run.discretionary_ligatures =
         engine_bool_after_key(dictionaries[index], "/DLigatures", defaults.discretionary_ligatures);
+    // Hyphenation and spelling language (GitHub issue 682), kept in the Txt2 numbering. The
+    // 'Txt2' object's /38 overrides it below when the layer has one: the TySh table is older and
+    // shorter (it has no Chinese or Japanese, which Photoshop writes as 0).
+    {
+      std::optional<int> tysh_language = defaults.language;
+      if (const auto language = engine_number_after_key(dictionaries[index], "/Language");
+          language.has_value() && *language >= 0.0 && *language < 256.0) {
+        tysh_language = static_cast<int>(std::lround(*language));
+      }
+      if (tysh_language.has_value()) {
+        const auto language = photoshop_txt2_language_from_tysh(*tysh_language);
+        if (language != kPhotoshopTextDefaultLanguage) {
+          run.language = language;
+        }
+      }
+    }
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1796,7 +1819,57 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept {
   return run.font_caps != 0 || run.font_baseline != 0 || run.underline || run.strikethrough || run.ordinals ||
          run.fractions || !run.ligatures || run.contextual_alternates || run.discretionary_ligatures || run.swash ||
-         run.stylistic_alternates || run.titling_alternates;
+         run.stylistic_alternates || run.titling_alternates || run.language.has_value();
+}
+
+namespace {
+
+// Txt2 /38 -> TySh /Language where the two differ (Photoshop 2026 COM captures of 48 languages,
+// docs/txt2.md "Languages"). Every Txt2 index not listed and below 29 is the same in both.
+struct LanguagePair {
+  int txt2;
+  int tysh;
+};
+constexpr std::array<LanguagePair, 12> kRenumberedTextLanguages{{
+    {42, 4},   // German (standard, 2006 reform)
+    {44, 6},   // German (Swiss)
+    {45, 14},  // English (Canada): the TySh has no Canadian English
+    {43, 15},  // Dutch (2005 reform)
+    {31, 29},  // Croatian
+    {32, 30},  // Hebrew
+    {33, 31},  // Slovenian
+    {36, 34},  // Lithuanian
+    {37, 35},  // Latvian
+    {38, 36},  // Slovak
+    {39, 37},  // Arabic
+    {41, 37},  // Farsi
+}};
+
+}  // namespace
+
+int photoshop_tysh_language_from_txt2(int language) noexcept {
+  for (const auto& pair : kRenumberedTextLanguages) {
+    if (pair.txt2 == language) {
+      return pair.tysh;
+    }
+  }
+  // 0 to 28 share their numbers (14 is English UK in both); the rest (Chinese 29, Japanese 30,
+  // Estonian 40, Thai 46, Vietnamese 47, Hindi 49, Indonesian 62, Korean 63, ...) have no TySh
+  // entry and Photoshop writes 0 for them.
+  return language >= 0 && language <= 28 ? language : 0;
+}
+
+int photoshop_txt2_language_from_tysh(int language) noexcept {
+  // The first pair naming a TySh index wins (Arabic before Farsi; English UK stays 14).
+  if (language == 14) {
+    return 14;
+  }
+  for (const auto& pair : kRenumberedTextLanguages) {
+    if (pair.tysh == language) {
+      return pair.txt2;
+    }
+  }
+  return language;
 }
 
 std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
@@ -1821,6 +1894,7 @@ std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
   if (run.swash) add("swash");
   if (run.stylistic_alternates) add("stylisticalternates");
   if (run.titling_alternates) add("titlingalternates");
+  if (run.language.has_value()) add("language:" + std::to_string(*run.language));
   return tokens.empty() ? std::string("-") : tokens;
 }
 
@@ -1837,6 +1911,7 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
   run.swash = false;
   run.stylistic_alternates = false;
   run.titling_alternates = false;
+  run.language.reset();
   while (!field.empty()) {
     const auto comma = field.find(',');
     const auto token = field.substr(0, comma);
@@ -1869,6 +1944,13 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
       run.stylistic_alternates = true;
     } else if (token == "titlingalternates") {
       run.titling_alternates = true;
+    } else if (token.starts_with("language:")) {
+      int value = -1;
+      const auto digits = token.substr(9);
+      const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), value);
+      if (error == std::errc{} && end == digits.data() + digits.size() && valid_photoshop_text_language(value)) {
+        run.language = value;
+      }
     }
   }
 }

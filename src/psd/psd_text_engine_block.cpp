@@ -118,7 +118,8 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"35", engine_integer(1)},
       {"36", engine_number(0.0)},
       {"37", engine_integer(2)},
-      {"38", engine_integer(14)},
+      // Hyphenation and spelling language (GitHub issue 682; docs/txt2.md, "Languages").
+      {"38", engine_integer(run.language.value_or(kPhotoshopTextDefaultLanguage))},
       {"39", engine_integer(0)},
       {"52", engine_bool(false)},
       {"53", paint_node(run.color)},
@@ -341,6 +342,18 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     const auto* node = sheet != nullptr ? sheet->find(key) : nullptr;
     return node != nullptr && node->boolean().value_or(false);
   };
+  // Language /38: the run's sheet, else its parent StyleSheetSet entry (/0/0/5, the index Photoshop
+  // writes beside the sheet), else the document's default style sheet (/1/2).
+  const auto language_of = [](const EngineNode* sheet) -> std::optional<int> {
+    const auto* node = sheet != nullptr ? sheet->find("38") : nullptr;
+    const auto value = node != nullptr ? node->integer() : std::nullopt;
+    if (value && valid_photoshop_text_language(static_cast<int>(std::clamp<long long>(*value, -1, 256)))) {
+      return static_cast<int>(*value);
+    }
+    return std::nullopt;
+  };
+  const auto* style_sheets = root_.at_path({"0", "5", "0"});
+  const auto document_language = language_of(root_.at_path({"1", "2"}));
   bool any = false;
   for (const auto& run : runs->list) {
     TextStyleRunFeatures entry;
@@ -348,6 +361,16 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
     // A run's sparse style sheet is /0/0/6; a key it leaves out is off in every default sheet.
     const auto* sheet = run.at_path({"0", "0", "6"});
+    auto language = language_of(sheet);
+    if (!language && style_sheets != nullptr && style_sheets->is_list()) {
+      const auto* parent = run.at_path({"0", "0", "5"});
+      const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
+      if (parent_index && *parent_index >= 0 && static_cast<std::size_t>(*parent_index) < style_sheets->list.size()) {
+        language = language_of(style_sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "6"}));
+      }
+    }
+    if (!language) language = document_language;
+    if (language && *language != kPhotoshopTextDefaultLanguage) entry.language = language;
     entry.ordinals = flag(sheet, "24");
     entry.fractions = flag(sheet, "23");
     entry.contextual_alternates = flag(sheet, "20");
@@ -355,7 +378,7 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     entry.titling_alternates = flag(sheet, "26");
     entry.stylistic_alternates = flag(sheet, "28");
     any = any || entry.ordinals || entry.fractions || entry.contextual_alternates || entry.swash ||
-          entry.titling_alternates || entry.stylistic_alternates;
+          entry.titling_alternates || entry.stylistic_alternates || entry.language.has_value();
     result.push_back(entry);
   }
   if (!any) result.clear();

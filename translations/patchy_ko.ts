@@ -15065,6 +15065,10 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation>화살촉:</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>기호 글꼴: 같은 기호가 있는 설치된 글꼴이 없습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
