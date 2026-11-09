@@ -819,9 +819,8 @@ void BookScanDialog::build_scanning_page() {
   strip_->setFlow(QListView::LeftToRight);
   strip_->setWrapping(false);
   strip_->setIconSize(QSize(64, 90));
-  // One cell size, so a selected label is not elided and longer cover names wrap.
-  strip_->setGridSize(QSize(100, 128));
-  strip_->setWordWrap(true);
+  // Each item is as wide as its label; a selected one would otherwise lose the end of it.
+  strip_->setTextElideMode(Qt::ElideNone);
   strip_->setFixedHeight(150);
   strip_->setMovement(QListView::Static);
   strip_->setFocusPolicy(Qt::NoFocus);
