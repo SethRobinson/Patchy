@@ -9,6 +9,7 @@
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/main_window.hpp"
 #include "ui/dodge_burn_curves.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui_test_support.hpp"
@@ -732,9 +733,10 @@ void ui_sharpen_photo_keeps_color_over_passes_if_available() {
 }
 
 // GitHub issue 662 follow-up: Alt+Shift+click on Dodge, Burn, Blur or Sharpen draws the swapped
-// tool's straight line, so the Shift+click line preview shows with Alt+Shift too, and it follows
-// Alt going down and up with the pointer still. Smudge keeps Alt as its eyedropper: Alt+Shift
-// shows no line there.
+// tool's straight line, so after an Alt click the Shift+click line preview shows with Alt+Shift,
+// and it follows Alt going down and up with the pointer still. Since the third report an
+// Alt-swapped point joins only another Alt+Shift+click, so Shift alone shows no line from it.
+// Smudge keeps Alt as its eyedropper: its anchor is a plain click and Alt+Shift shows no line.
 void ui_toning_alt_shift_shows_line_preview() {
   for (const auto tool : {patchy::ui::CanvasTool::Dodge, patchy::ui::CanvasTool::BlurBrush,
                           patchy::ui::CanvasTool::Smudge}) {
@@ -768,21 +770,22 @@ void ui_toning_alt_shift_shows_line_preview() {
       }
       return brightest >= 180 && darkest <= 90;
     };
+    const bool swaps = tool != patchy::ui::CanvasTool::Smudge;
+    const auto anchor_modifiers = swaps ? Qt::AltModifier : Qt::NoModifier;
     const auto anchor = widget_point(QPoint(30, 40));
-    send_mouse(canvas, QEvent::MouseButtonPress, anchor, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-    send_mouse(canvas, QEvent::MouseButtonRelease, anchor, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    send_mouse(canvas, QEvent::MouseButtonPress, anchor, Qt::LeftButton, Qt::LeftButton, anchor_modifiers);
+    send_mouse(canvas, QEvent::MouseButtonRelease, anchor, Qt::LeftButton, Qt::NoButton, anchor_modifiers);
     const auto target = widget_point(QPoint(170, 40));
     send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
     QApplication::processEvents();
     CHECK(!shows_line_at(QPoint(100, 40)));
-    // Shift shows the line for every one of these tools.
+    // Shift alone shows the line only from a plain point (Smudge's).
     send_key_press(canvas, Qt::Key_Shift);
     QApplication::processEvents();
-    CHECK(shows_line_at(QPoint(100, 40)));
+    CHECK(shows_line_at(QPoint(100, 40)) == !swaps);
     // Alt going down with Shift held and the pointer still.
     send_key_press(canvas, Qt::Key_Alt, Qt::ShiftModifier);
     QApplication::processEvents();
-    const bool swaps = tool != patchy::ui::CanvasTool::Smudge;
     if (tool == patchy::ui::CanvasTool::Dodge) {
       save_image_artifact("issue662_alt_shift_line_preview", canvas.grab().toImage());
     }
@@ -791,10 +794,10 @@ void ui_toning_alt_shift_shows_line_preview() {
     send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier | Qt::AltModifier);
     QApplication::processEvents();
     CHECK(shows_line_at(QPoint(100, 40)) == swaps);
-    // Alt going up leaves Shift's line.
+    // Alt going up goes back to Shift alone.
     send_key_release(canvas, Qt::Key_Alt, Qt::ShiftModifier | Qt::AltModifier);
     QApplication::processEvents();
-    CHECK(shows_line_at(QPoint(100, 40)));
+    CHECK(shows_line_at(QPoint(100, 40)) == !swaps);
     send_key_release(canvas, Qt::Key_Shift, Qt::ShiftModifier);
     QApplication::processEvents();
     CHECK(!shows_line_at(QPoint(100, 40)));
@@ -965,6 +968,132 @@ void ui_toning_big_brush_burst_paints_by_spacing_and_keeps_bytes() {
   CHECK(one_by_one.reached_end);
 }
 
+// GitHub issue 662, third report: the Shift+click line starts only from a point the same tool
+// painted the same way. Picking a tool (another one, or the same one again) forgets the last
+// stroke's end, so the next Shift+click is a plain click; a held Space pan does not. On Dodge, an
+// Alt-swapped stroke (painting as Burn) joins only another Alt+Shift+click, and a plain stroke
+// only a plain Shift+click; the line preview shows only when the click would join.
+void ui_toning_shift_click_line_resets_on_tool_switch_and_alt_change() {
+  using Tool = patchy::ui::CanvasTool;
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    QApplication::processEvents();
+    const auto click = [&](QPoint document_point, Qt::KeyboardModifiers modifiers) {
+      const auto at = canvas->widget_position_for_document_point(document_point);
+      send_mouse(*canvas, QEvent::MouseMove, at, Qt::NoButton, Qt::NoButton, modifiers);
+      send_mouse(*canvas, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton, modifiers);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton, modifiers);
+      QApplication::processEvents();
+    };
+    const auto white_at = [&](QPoint document_point) {
+      return canvas_pixel(*canvas, document_point).lightness() >= 250;
+    };
+    require_action(window, "toolBrushAction")->trigger();
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_size(8);
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_softness(0);
+    // Picking the same tool again: no line between the two dots.
+    click(QPoint(40, 40), Qt::NoModifier);
+    require_action(window, "toolBrushAction")->trigger();
+    click(QPoint(160, 40), Qt::ShiftModifier);
+    CHECK(!white_at(QPoint(160, 40)));
+    CHECK(white_at(QPoint(100, 40)));
+    // A held Space pan between the clicks: the line joins.
+    click(QPoint(40, 80), Qt::NoModifier);
+    send_key_press(*canvas, Qt::Key_Space);
+    const auto pan_from = canvas->widget_position_for_document_point(QPoint(100, 120));
+    send_mouse(*canvas, QEvent::MouseButtonPress, pan_from, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, pan_from + QPoint(12, 6), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, pan_from + QPoint(12, 6), Qt::LeftButton, Qt::NoButton);
+    send_key_release(*canvas, Qt::Key_Space);
+    QApplication::processEvents();
+    click(QPoint(160, 80), Qt::ShiftModifier);
+    CHECK(!white_at(QPoint(100, 80)));
+    // The Brush's last point does not carry over to Burn.
+    click(QPoint(40, 120), Qt::NoModifier);
+    require_action(window, "toolBurnAction")->trigger();
+    canvas->set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Highlights);
+    canvas->set_local_adjustment_strength(100);
+    click(QPoint(160, 120), Qt::ShiftModifier);
+    CHECK(!white_at(QPoint(160, 120)));
+    CHECK(white_at(QPoint(100, 120)));
+    // Burn's own Shift+click joins its last point.
+    click(QPoint(160, 160), Qt::ShiftModifier);
+    CHECK(!white_at(QPoint(160, 140)));
+  }
+
+  // Dodge on gray: an Alt chain (Burn) and a plain chain (Dodge) do not join each other.
+  patchy::Document document(240, 120, patchy::PixelFormat::rgba8());
+  const auto layer_id =
+      document.add_pixel_layer("Gray", solid_pixels(240, 120, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)))
+          .id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 200);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(Tool::Dodge);
+  canvas.set_brush_size(8);
+  canvas.set_brush_softness(0);
+  canvas.set_local_adjustment_strength(100);
+  canvas.show();
+  QApplication::processEvents();
+  const auto widget_point = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point);
+  };
+  const auto click = [&](QPoint document_point, Qt::KeyboardModifiers modifiers) {
+    const auto at = widget_point(document_point);
+    send_mouse(canvas, QEvent::MouseMove, at, Qt::NoButton, Qt::NoButton, modifiers);
+    send_mouse(canvas, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  const auto level = [&](QPoint document_point) {
+    return static_cast<int>(std::as_const(*document.find_layer(layer_id)).pixels().pixel(document_point.x(),
+                                                                                          document_point.y())[0]);
+  };
+  const auto shows_line_at = [&canvas, &widget_point](QPoint document_point) {
+    const auto image = canvas.grab().toImage();
+    const auto center = widget_point(document_point);
+    int brightest = 0;
+    int darkest = 255;
+    for (int dy = -3; dy <= 3; ++dy) {
+      const auto color = image.pixelColor(center.x(), center.y() + dy);
+      brightest = std::max(brightest, std::max({color.red(), color.green(), color.blue()}));
+      darkest = std::min(darkest, std::min({color.red(), color.green(), color.blue()}));
+    }
+    return brightest >= 180 && darkest <= 90;
+  };
+  const auto hover = [&](QPoint document_point, Qt::KeyboardModifiers modifiers) {
+    send_mouse(canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  // Alt+click, then Alt+Shift+click: a Burn line.
+  click(QPoint(20, 30), Qt::AltModifier);
+  hover(QPoint(120, 30), Qt::AltModifier | Qt::ShiftModifier);
+  CHECK(shows_line_at(QPoint(70, 30)));
+  click(QPoint(120, 30), Qt::AltModifier | Qt::ShiftModifier);
+  CHECK(level(QPoint(70, 30)) < 128);
+  // Shift alone after the Burn points: no preview, and the click does not join.
+  hover(QPoint(220, 30), Qt::ShiftModifier);
+  CHECK(!shows_line_at(QPoint(170, 30)));
+  click(QPoint(220, 30), Qt::ShiftModifier);
+  CHECK(level(QPoint(170, 30)) == 128);
+  CHECK(level(QPoint(220, 30)) > 128);
+  // A plain Shift+click after that plain point joins (a Dodge line).
+  click(QPoint(220, 90), Qt::ShiftModifier);
+  CHECK(level(QPoint(220, 60)) > 128);
+  // Alt+Shift after plain Dodge points: no preview, no join.
+  hover(QPoint(120, 90), Qt::AltModifier | Qt::ShiftModifier);
+  CHECK(!shows_line_at(QPoint(170, 90)));
+  click(QPoint(120, 90), Qt::AltModifier | Qt::ShiftModifier);
+  CHECK(level(QPoint(170, 90)) == 128);
+  CHECK(level(QPoint(120, 90)) < 128);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
@@ -975,6 +1104,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
       {"ui_dodge_burn_ranges_follow_calibrated_curves", ui_dodge_burn_ranges_follow_calibrated_curves},
       {"ui_toning_alt_stroke_paints_opposite_operation", ui_toning_alt_stroke_paints_opposite_operation},
       {"ui_toning_alt_shift_shows_line_preview", ui_toning_alt_shift_shows_line_preview},
+      {"ui_toning_shift_click_line_resets_on_tool_switch_and_alt_change",
+       ui_toning_shift_click_line_resets_on_tool_switch_and_alt_change},
       {"ui_toning_big_brush_burst_paints_by_spacing_and_keeps_bytes",
        ui_toning_big_brush_burst_paints_by_spacing_and_keeps_bytes},
       {"ui_blur_sharpen_brushes_build_up_per_dab", ui_blur_sharpen_brushes_build_up_per_dab},

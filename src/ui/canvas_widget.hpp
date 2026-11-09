@@ -315,6 +315,10 @@ public:
   [[nodiscard]] bool pan_to_global_position(QPoint global_position);
   [[nodiscard]] bool end_pan();
   void set_tool(CanvasTool tool);
+  // The user picked a tool (the palette, its hotkey, or the same tool again): the next
+  // Shift+click starts a new line instead of joining the last stroke (GitHub #662). Held or
+  // temporary tools and document switches do not call this.
+  void forget_stroke_connect_point();
   [[nodiscard]] CanvasTool tool() const noexcept;
   void set_edit_locked(bool locked) noexcept;
   [[nodiscard]] bool edit_locked() const noexcept;
@@ -2404,6 +2408,10 @@ private:
   void track_stroke_connect_preview(QPoint widget_position, Qt::KeyboardModifiers modifiers);
   void set_stroke_connect_preview_modifiers(Qt::KeyboardModifiers modifiers);
   void hide_stroke_connect_preview();
+  // Whether a press with `modifiers` paints with Alt's opposite tool (Dodge, Burn, Blur,
+  // Sharpen), and whether the stroke being finished did.
+  [[nodiscard]] bool press_alt_swaps(Qt::KeyboardModifiers modifiers) const noexcept;
+  [[nodiscard]] bool stroke_end_is_alt_swapped() const noexcept;
   void draw_stroke_connect_preview(QPainter& painter) const;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
@@ -3901,6 +3909,10 @@ private:
   int brush_adjust_start_size_{12};
   int brush_adjust_start_softness_{75};
   std::optional<QPointF> last_stroke_end_document_{};
+  // The stroke that ended there painted with Alt's opposite tool (Dodge as Burn and so on): a
+  // Shift+click joins it only with Alt held again, and a plain one only a plain stroke
+  // (GitHub #662; stroke_end_is_alt_swapped).
+  bool last_stroke_end_alt_swapped_{false};
   QElapsedTimer opacity_digit_timer_{};
   int opacity_pending_digit_{-1};
   bool opacity_digit_targets_flow_{false};

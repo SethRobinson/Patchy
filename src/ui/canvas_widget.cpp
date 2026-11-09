@@ -515,6 +515,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   begin_default_crop_session();  // the Crop tool frames the incoming document
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
+  last_stroke_end_alt_swapped_ = false;
   refresh_stroke_connect_preview();
   if (brush_adjust_dragging_) {
     end_brush_adjust_drag(false);
@@ -527,6 +528,12 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   if (quick_mask_was_cleared && quick_mask_changed_callback_) {
     quick_mask_changed_callback_();
   }
+}
+
+void CanvasWidget::forget_stroke_connect_point() {
+  last_stroke_end_document_.reset();
+  last_stroke_end_alt_swapped_ = false;
+  refresh_stroke_connect_preview();
 }
 
 void CanvasWidget::set_tool(CanvasTool tool) {

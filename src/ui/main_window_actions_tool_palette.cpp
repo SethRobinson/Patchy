@@ -1908,6 +1908,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     current_tool_ = selected;
     if (canvas_ != nullptr) {
       canvas_->set_tool(selected);
+      // A tool picked, even the same one again, starts a new Shift+click line (GitHub #662).
+      canvas_->forget_stroke_connect_point();
     }
     if (tool_changed) {
       fire_theme_event(ThemeSoundEvent::ToolChanged, {{QStringLiteral("tool"), theme_tool_id(selected)}});

@@ -1651,9 +1651,13 @@ std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
   // or sets a clone source, so a click with either would not draw this line. On Dodge,
   // Burn, Blur and Sharpen Alt swaps the tool instead (GitHub issue 662), and
   // Alt+Shift+click draws the swapped tool's line, so the line shows with Alt too.
+  // The line shows only when the click would join: a plain stroke's end with Shift, an
+  // Alt-swapped stroke's end with Alt+Shift (GitHub issue 662).
   const auto held = stroke_connect_preview_modifiers_ & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
   const auto alt_swaps = alt_swapped_toning_tool(effective_tool_for_input()) != effective_tool_for_input();
-  const auto line_modifiers = held == Qt::ShiftModifier || (alt_swaps && held == (Qt::ShiftModifier | Qt::AltModifier));
+  const auto line_modifiers =
+      (held == Qt::ShiftModifier && !last_stroke_end_alt_swapped_) ||
+      (alt_swaps && held == (Qt::ShiftModifier | Qt::AltModifier) && last_stroke_end_alt_swapped_);
   if (!line_modifiers || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
       document_ == nullptr || painting_ || spacebar_panning_ || panning_ || brush_adjust_dragging_ ||
       move_drag_pending_ || moving_layer_ || !isVisible() || transient_read_callback_ ||
@@ -1708,6 +1712,15 @@ void CanvasWidget::track_stroke_connect_preview(QPoint widget_position, Qt::Keyb
 void CanvasWidget::set_stroke_connect_preview_modifiers(Qt::KeyboardModifiers modifiers) {
   stroke_connect_preview_modifiers_ = modifiers;
   refresh_stroke_connect_preview();
+}
+
+bool CanvasWidget::press_alt_swaps(Qt::KeyboardModifiers modifiers) const noexcept {
+  const auto tool = effective_tool_for_input();
+  return modifiers.testFlag(Qt::AltModifier) && alt_swapped_toning_tool(tool) != tool;
+}
+
+bool CanvasWidget::stroke_end_is_alt_swapped() const noexcept {
+  return local_adjustment_alt_swap_ && alt_swapped_toning_tool(tool_) != tool_;
 }
 
 void CanvasWidget::hide_stroke_connect_preview() {
