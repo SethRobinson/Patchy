@@ -75,7 +75,7 @@ Click an image for the full-size capture.
 </table>
 
 [See the full gallery](docs/screenshots.md) for seamless tiling with the Dink Smallwood palette, layer styles, vector tools, Warp Text and type, artboards,
-scanning (Divide Scanned Photos, Scan a Book to PDF), the G'MIC filter library, Tilt-Shift and other filters,
+scanning (Divide Scanned Photos, Scan a Book to PDF), the G'MIC and GEGL filter libraries, Tilt-Shift and other filters,
 palette mode, Camera Raw, Perspective Planes, and more.
 
 ## Features
@@ -92,7 +92,7 @@ palette mode, Camera Raw, Perspective Planes, and more.
 | **Paint and retouch** | Pressure-aware brushes, Mixer Brush, stroke smoothing, healing, cloning, Patch, Red Eye, Remove Object, Liquify, Perspective Planes, and selections, including Object Selection that picks out an object from a dragged box. |
 | **Text and vectors** | Rich and vertical text, paragraph controls, Warp Text, Pen paths, shape layers, vector masks, SVG, and image tracing. |
 | **Photos and print** | 16-bit and 32-bit (HDR) editing, Camera Raw development, HEIC/HEIF, AVIF, JPEG XL, JPEG 2000, OpenEXR and Radiance HDR, plus CMYK proofing and CMYK JPEG, TIFF, and PDF export for print. |
-| **Extend your workflow** | The G'MIC filter library (nearly 400 filters with live preview, desktop), Last Filter to repeat any filter, classic 32-bit and 64-bit Photoshop filter plug-ins on Windows, a built-in JavaScript editor, batch processing, command-line tools, local MCP control for AI assistants, and optional OpenAI Image Tools with your own API key. |
+| **Extend your workflow** | The G'MIC filter library (nearly 400 filters with live preview) and over a hundred GEGL filters (desktop), Last Filter to repeat any filter, classic 32-bit and 64-bit Photoshop filter plug-ins on Windows, a built-in JavaScript editor, batch processing, command-line tools, local MCP control for AI assistants, and optional OpenAI Image Tools with your own API key. |
 
 [Full feature list and format support](docs/features.md) · [Installing Photoshop plug-ins](docs/features.md#installing-photoshop-plug-ins-windows) · [Scripting guide](scripts/bundled/scripting-guide.md) · [AI control setup](docs/ai-control.md)
 
@@ -120,6 +120,7 @@ The desktop and browser builds share the editor, with these differences:
 | PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, Aseprite | Yes | Yes | Yes | Yes |
 | PDF import / export | Both (ARM64: export only) | Both | Both | Export only |
 | G'MIC Filter Library | Yes | Yes | Yes | No |
+| GEGL filters | Yes | Yes | Yes | No |
 | Photoshop filter plug-ins (.8bf) | 32-bit and 64-bit | No | No | No |
 | AVIF import / export | Both | Both | Both | No |
 | JPEG XR import / export | Both | No | No | No |
