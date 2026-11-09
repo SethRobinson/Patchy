@@ -1141,8 +1141,18 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     draw_rotated_document_border(painter);
   } else if (!border_rect.isEmpty() &&
              (document_ == nullptr || !document_has_artboards(std::as_const(*document_)))) {
+    painter.save();
     painter.setPen(theme().canvas_document_border);
+    if (tiling_ghosts_visible(exposed_rect)) {
+      // Seamless tiling mode: the outline sits on artwork on both sides (the document and
+      // its ghost copies), where a fixed color vanishes into the texture. It inverts what is
+      // under it instead, 2 px wide across the edge (the document's outermost pixel and the
+      // ghosts' first), so it reads on any image.
+      painter.setCompositionMode(QPainter::RasterOp_NotDestination);
+      painter.drawRect(border_rect.adjusted(-1.0, -1.0, 1.0, 1.0));
+    }
     painter.drawRect(border_rect);
+    painter.restore();
   }
   draw_selection_overlay(painter);
   upright_overlays.emplace(*this, &painter);

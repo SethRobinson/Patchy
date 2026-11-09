@@ -317,8 +317,15 @@ void CanvasWidget::draw_rotated_document_border(QPainter& painter) const {
     return;
   }
   painter.save();
-  painter.setRenderHint(QPainter::Antialiasing, true);
-  QPen pen(theme().canvas_document_border, 1.0);
+  if (tiling_preview_enabled_) {
+    // Over artwork on both sides in seamless tiling mode: invert what is under the outline
+    // (see the upright border in canvas_widget_render.cpp). A raster op takes no
+    // antialiasing.
+    painter.setCompositionMode(QPainter::RasterOp_NotDestination);
+  } else {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+  }
+  QPen pen(theme().canvas_document_border, tiling_preview_enabled_ ? 2.0 : 1.0);
   pen.setCosmetic(true);
   painter.setPen(pen);
   painter.setBrush(Qt::NoBrush);

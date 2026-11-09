@@ -141,7 +141,7 @@ Click any image to inspect it at full size. These are captures of the real edito
 </tr>
 <tr>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating one 50 by 50 pixel Dink Smallwood grass tile at 400 percent, a red squiggle painted across its edges joining up in every copy"></a>
+      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating one 50 by 50 pixel Dink Smallwood grass tile at 400 percent, a red wave painted across it that leaves the right edge at the height it enters the left, joining up in every copy"></a>
       <br><sub>Seamless tiling mode repeats the canvas live, so a line painted across an edge has to meet itself in every copy: here a single 50 x 50 grass tile from Dink Smallwood</sub>
     </td>
 <td align="center" valign="top" width="50%">

@@ -42,10 +42,12 @@ between frames. The driver publishes `.webp` artifacts beside the PNGs.
   pale tower right of the skyline is left partly clear on purpose; it is what the brush is
   for. Never go back to a drawn shape: the old feathered capsule read as fake.
 - Seamless tiling: the document is one Dink tile, which is 50 x 50 pixels (never a bigger
-  picture composed of tiles), at 400% (below the pixel grid's zoom). A red squiggle is painted
-  across its right and bottom edges: strokes do not wrap on their own, so the scene splits the
-  curve where it leaves the tile and continues it from the opposite edge, each run overshooting
-  2 px. The copies then show the line joined across every seam, which is the point of the shot.
+  picture composed of tiles), at 400% (below the pixel grid's zoom). A red wave periodic in the
+  tile, y = 25 + 13 sin(2 pi x / 50), is painted as one stroke from x = -3 to 53, so it leaves
+  the right edge at the height it entered the left and every copy continues it. A curve whose
+  ends do not meet (the first attempt) leaves loose ends in every copy: check the copies with
+  each other, not by eye. The ghost copies render exactly (identical pixels); the line around
+  the center tile is the document outline, inverted in tiling mode.
 - Dink theme: applied without trusting its scripts (nothing plays on its own); the scene plays
   main.js's start-screen walk sprite and advances it 3 s. Recent files are emptied first (and
   restored) so no local path shows; the themed Preferences paints its own title bar, so it is

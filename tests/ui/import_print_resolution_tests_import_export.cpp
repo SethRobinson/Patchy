@@ -1432,6 +1432,15 @@ void ui_canvas_tiling_mode_paints_ghost_tiles_live() {
   {
     const auto repainted = render_widget_image(*canvas);
     CHECK(color_close(repainted.pixelColor(ghost_point), QColor(40, 90, 200), 24));
+    // The document outline, over artwork on both sides in this mode, is the inverse of what
+    // is under it (it stays visible on any texture): at the left edge, mid height.
+    const auto edge = canvas->widget_position_for_document_point(QPoint(0, height / 2));
+    bool inverted_outline = false;
+    for (int x = edge.x() - 2; x <= edge.x() + 2; ++x) {
+      inverted_outline = inverted_outline ||
+                         color_close(repainted.pixelColor(QPoint(x, edge.y())), QColor(215, 165, 55), 24);
+    }
+    CHECK(inverted_outline);
   }
   save_widget_artifact("ui_canvas_tiling_mode", window);
 

@@ -1372,40 +1372,21 @@ void shot_readme_tile_preview() {
   canvas->center_document_in_view();
   QApplication::processEvents();
 
-  // A red squiggle drawn across the tile's right and bottom edges. Strokes do not wrap on
-  // their own, so it is painted the way a texture artist does it: where the line leaves the
-  // tile it carries on from the opposite edge. Each run overshoots its edge by 2 px so it
-  // reaches it fully. Every copy shows the line, joined up across the seams.
+  // A red wave across the tile, periodic in its 50 px: y = 25 + 13 sin(2 pi x / 50) leaves
+  // the right edge at the height it entered the left. One stroke from 3 px before the tile to
+  // 3 px past it (dabs outside the canvas are clipped), so every copy continues its
+  // neighbors' line without a break.
   canvas->set_brush_size(3);
   canvas->set_brush_softness(0);
   canvas->set_primary_color(QColor(226, 32, 44));
   {
-    constexpr double kTile = 50.0;
-    const auto wrap = [kTile](double v) { return v - std::floor(v / kTile) * kTile; };
-    std::vector<QPointF> run;
-    QPointF previous_cell;
-    for (int i = 0; i <= 600; ++i) {
-      const double t = i / 600.0;
-      const QPointF unwrapped(8.0 + t * 64.0, 20.0 + 9.0 * std::sin(t * 3.0 * 3.14159265358979323846) + t * 34.0);
-      const QPointF cell(std::floor(unwrapped.x() / kTile), std::floor(unwrapped.y() / kTile));
-      if (!run.empty() && cell != previous_cell) {
-        // Close this run 2 px past the edge it crossed, then start the next one 2 px before
-        // the opposite edge.
-        const QPointF step(cell.x() - previous_cell.x(), cell.y() - previous_cell.y());
-        const QPointF local(wrap(unwrapped.x()), wrap(unwrapped.y()));
-        run.push_back(local + step * kTile + step * 2.0);
-        paint_readme_polyline(*canvas, run);
-        run.clear();
-        run.push_back(local - step * 2.0);
-      }
-      if (i % 6 == 0 || run.empty()) {
-        run.emplace_back(wrap(unwrapped.x()), wrap(unwrapped.y()));
-      }
-      previous_cell = cell;
+    constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
+    std::vector<QPointF> across;
+    for (int i = -6; i <= 106; ++i) {
+      const double x = i * 0.5;  // -3 .. 53
+      across.emplace_back(x, 25.0 + 13.0 * std::sin(kTwoPi * x / 50.0));
     }
-    if (run.size() >= 2) {
-      paint_readme_polyline(*canvas, run);
-    }
+    paint_readme_polyline(*canvas, across);
   }
   QApplication::processEvents();
 
