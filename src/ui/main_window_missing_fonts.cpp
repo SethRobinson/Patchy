@@ -196,6 +196,12 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
       entry.suggestion = best.same_type != FontClass::unknown ? MissingFontSuggestion::same_type
                          : best.metric                         ? MissingFontSuggestion::metric
                                                                : MissingFontSuggestion::lookalike;
+    } else if (text_font_class(font.family) == FontClass::symbol) {
+      // A symbol font with no copy installed (issue 463 follow-up): no text font is offered, since
+      // it would turn the pictures into letters. The row starts unticked on the UI font.
+      entry.suggestion = MissingFontSuggestion::no_symbol_match;
+      entry.font_type = FontClass::symbol;
+      entry.suggested = default_text_family();
     } else {
       entry.suggested = substituted_text_family(font.family, font.first_text);
       if (entry.suggested.compare(font.family, Qt::CaseInsensitive) == 0) {

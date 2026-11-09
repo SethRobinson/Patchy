@@ -15112,6 +15112,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Heads:</source>
         <translation>Spitzen:</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>Symbolschrift: Keine installierte Schrift hat dieselben Symbole</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

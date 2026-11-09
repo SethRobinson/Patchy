@@ -19,8 +19,10 @@ namespace patchy::ui {
 
 // Where `suggested` comes from (issue 463): a pair from the built-in substitute table or an
 // installed default of the same font type (each with a "Suggested:" line under the name), or the
-// face Qt falls back to (no line).
-enum class MissingFontSuggestion { fallback, metric, lookalike, same_type };
+// face Qt falls back to (no line). no_symbol_match: a symbol font (Wingdings) with no installed
+// font of the same codes; the row starts unticked with a line saying so, since a text font would
+// turn its pictures into letters.
+enum class MissingFontSuggestion { fallback, metric, lookalike, same_type, no_symbol_match };
 
 struct MissingFontEntry {
   QString family;          // as the text layers name it

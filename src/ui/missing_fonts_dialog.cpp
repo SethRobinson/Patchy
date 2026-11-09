@@ -97,10 +97,18 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
           suggestion_text = QObject::tr("Suggested: %1 (also a monospaced font)");
         }
         break;
+      case MissingFontSuggestion::no_symbol_match:
       case MissingFontSuggestion::fallback:
         break;
     }
-    if (!suggestion_text.isEmpty() && !entry.suggested.isEmpty()) {
+    const bool no_symbol_match = entry.suggestion == MissingFontSuggestion::no_symbol_match;
+    if (no_symbol_match) {
+      auto* note = new QLabel(QObject::tr("Symbol font: no installed font has the same symbols"), rows_widget);
+      note->setObjectName(QStringLiteral("missingFontNoSymbolMatch%1").arg(index));
+      note->setProperty("patchyMissingFontSuggestion", true);
+      note->setTextFormat(Qt::PlainText);
+      name_column->addWidget(note);
+    } else if (!suggestion_text.isEmpty() && !entry.suggested.isEmpty()) {
       auto* suggestion = new QLabel(suggestion_text.arg(entry.suggested), rows_widget);
       suggestion->setObjectName(QStringLiteral("missingFontSuggestion%1").arg(index));
       suggestion->setProperty("patchyMissingFontSuggestion", true);
@@ -112,9 +120,10 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     // Ticked by default (issue 463 follow-up, Seth): Resolve Fonts replaces every listed font with
     // the picker's choice (the suggested stand-in, else the face drawing the text now). Unticking
     // a row, or Cancel, keeps the file naming the font, so a machine that has it shows the original.
+    // A symbol font with no copy installed starts unticked: the user may still pick one by hand.
     auto* replace = new QCheckBox(QObject::tr("Replace with:"), rows_widget);
     replace->setObjectName(QStringLiteral("missingFontReplaceCheck%1").arg(index));
-    replace->setChecked(true);
+    replace->setChecked(!no_symbol_match);
     grid->addWidget(replace, grid_row, 1, Qt::AlignVCenter);
     auto* picker = new FontPickerCombo(rows_widget);
     picker->setObjectName(QStringLiteral("missingFontReplacementCombo%1").arg(index));
@@ -122,6 +131,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     if (!entry.suggested.isEmpty()) {
       picker->setCurrentFont(QFont(entry.suggested));
     }
+    picker->setEnabled(replace->isChecked());
     grid->addWidget(picker, grid_row, 2, Qt::AlignVCenter);
     QObject::connect(replace, &QCheckBox::toggled, picker, &QWidget::setEnabled);
     QObject::connect(replace, &QCheckBox::toggled, &dialog, [&sync_resolve_button](bool) { sync_resolve_button(); });

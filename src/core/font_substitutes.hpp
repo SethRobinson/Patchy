@@ -17,8 +17,10 @@
 namespace patchy {
 
 // The requested font's design class (its "font type"): the table's column, or
-// classify_font_name_words for a font the table does not list.
-enum class FontClass : std::uint8_t { unknown, serif, sans, mono, script, display };
+// classify_font_name_words for a font the table does not list. symbol: a font whose codes draw
+// pictures or symbols (Wingdings, Symbol, Zapf Dingbats); only another font with the same codes
+// stands in for it, never a text font. Not persisted.
+enum class FontClass : std::uint8_t { unknown, serif, sans, mono, script, display, symbol };
 
 // metric: the substitute's own project states the same character widths, so lines break in the
 // same places. lookalike: a similar design whose widths differ, so text can reflow.
@@ -64,7 +66,9 @@ struct FontSubstituteSuggestion {
 [[nodiscard]] std::vector<FontSubstituteSuggestion> rank_font_substitutes(
     const FontSubstituteEntry& entry, const std::function<bool(std::string_view)>& usable);
 
-// The font type a family name's own words state, for a font the table does not list: "mono",
+// The font type a family name's own words state, for a font the table does not list: "wingdings",
+// "webdings", "dingbats" and "marlett" make it symbol (not "symbol" itself: "Segoe UI Symbol" and
+// "Noto Sans Symbols" are Unicode text fonts); otherwise "mono",
 // "code", "console", "typewriter", "courier" and "terminal" make it mono; otherwise "sans",
 // "gothic", "grotesk", "grotesque" and "hei" make it sans; otherwise "serif", "mincho", "ming",
 // "song", "antiqua" and "slab" make it serif. Words split at spaces, hyphens, underscores and
@@ -90,7 +94,7 @@ struct FontNameParts {
 [[nodiscard]] FontClass font_class_for_name(std::string_view family);
 
 // Widely installed families of one font type, best first, mixing the Windows, macOS and Linux
-// defaults; the caller keeps the installed ones. Empty for unknown, script and display.
+// defaults; the caller keeps the installed ones. Empty for unknown, script, display and symbol.
 [[nodiscard]] std::span<const std::string_view> same_class_default_families(FontClass font_class) noexcept;
 
 }  // namespace patchy

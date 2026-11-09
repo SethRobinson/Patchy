@@ -15094,6 +15094,10 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

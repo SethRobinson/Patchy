@@ -15112,6 +15112,10 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation>Puntas:</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>Fuente de símbolos: ninguna fuente instalada tiene los mismos símbolos</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

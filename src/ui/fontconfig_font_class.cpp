@@ -175,6 +175,7 @@ std::vector<std::string> fontconfig_families_for_class(FontClass font_class) {
     case FontClass::unknown:
     case FontClass::script:
     case FontClass::display:
+    case FontClass::symbol:
       return {};
   }
   if (!library.loaded) {
