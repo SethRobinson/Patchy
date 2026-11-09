@@ -16457,6 +16457,54 @@ Do you want to replace it?</source>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF 已寫入。是否保留掃描專案資料夾（%1），以便日後變更頁面並再次匯出？</translation>
     </message>
+    <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>按一下頁面可調整或重新掃描其掃描</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>返回下一頁</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>編輯掃描</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>顯示此頁的掃描及其框，以便調整或重新掃描</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>已重新掃描封面。</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>已重新掃描第 %1 次掃描。</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>正在編輯封面：將輪廓和兩條書背線拖到書背邊緣，或按「重新掃描封面」。</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>正在編輯第 %1 次掃描（共 %2 次）：調整其框和選項，或按「重新掃描此掃描」。</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>按「返回下一頁」可繼續掃描第 %1 頁。</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>按「返回下一頁」可繼續掃描第 %1 頁和第 %2 頁。</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>重新掃描此掃描</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>封面</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

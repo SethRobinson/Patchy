@@ -16510,6 +16510,54 @@ Do you want to replace it?</source>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>El PDF está escrito. ¿Desea conservar la carpeta del proyecto de escaneo (%1) para poder cambiar páginas y volver a exportar más adelante?</translation>
     </message>
+    <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Haga clic en una página para ajustar su escaneo o volver a escanearlo</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Volver a las páginas siguientes</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Editar escaneo</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Mostrar el escaneo de esta página con sus recuadros, para ajustarlos o volver a escanearlo</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>La cubierta se ha vuelto a escanear.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>El escaneo %1 se ha vuelto a escanear.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Editando la cubierta: arrastre su contorno y las dos líneas del lomo hasta los bordes del lomo, o pulse Volver a escanear cubierta.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Editando el escaneo %1 de %2: ajuste sus recuadros y opciones, o pulse Volver a escanear este escaneo.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Pulse Volver a las páginas siguientes para seguir con la página %1.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Pulse Volver a las páginas siguientes para seguir con las páginas %1 y %2.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Volver a escanear este escaneo</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Cubierta</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

@@ -37,7 +37,8 @@ QString move_scan_file(const QString& from, const QString& base_path) {
 // Test scanner: PATCHY_FAKE_BOOK_SCANNER lists image files (QDir::listSeparator between
 // them) handed out one per scan. Each image is taken as a whole-bed scan at the
 // requested resolution, so the requested area is cut from it the way a real driver
-// would; PATCHY_FAKE_BOOK_SCANNER_BED ("8.5x11.7", inches) sets the reported bed.
+// would; PATCHY_FAKE_BOOK_SCANNER_BED ("8.5x11.7", inches) sets the reported bed and
+// PATCHY_FAKE_BOOK_SCANNER_FORMAT=bmp writes BMP files instead of PNG.
 class FakeScannerSession final : public ScannerSession {
 public:
   explicit FakeScannerSession(QStringList files) : files_(std::move(files)) {
@@ -96,8 +97,10 @@ private:
         }
         image = image.convertToFormat(request.mode == ScanColorMode::Grayscale ? QImage::Format_Grayscale8
                                                                                : QImage::Format_RGB888);
-        const QString path = request.output_base_path + QStringLiteral(".png");
-        if (image.save(path, "PNG")) {
+        // PATCHY_FAKE_BOOK_SCANNER_FORMAT=bmp hands over BMP files, as the WIA backend does.
+        const bool bmp = qEnvironmentVariable("PATCHY_FAKE_BOOK_SCANNER_FORMAT") == QLatin1String("bmp");
+        const QString path = request.output_base_path + (bmp ? QStringLiteral(".bmp") : QStringLiteral(".png"));
+        if (image.save(path, bmp ? "BMP" : "PNG")) {
           result.status = ScannerAcquireStatus::Acquired;
           result.file_path = path;
           result.horizontal_dpi = request.dpi;

@@ -12,6 +12,7 @@ using patchy::BookOutputMode;
 using patchy::BookOutputOptions;
 using patchy::BookPageSide;
 using patchy::BookPageSize;
+using patchy::CoverLayout;
 using patchy::OrientedBox;
 using patchy::PixelBuffer;
 using patchy::PixelFormat;
@@ -296,6 +297,29 @@ void book_scan_box_edge_and_bounds() {
   CHECK(near(round_trip.height, 10.0, 1e-9));
 }
 
+// Turning the whole book half a turn keeps every edit: a page's corner lands where the
+// turned image puts that pixel, and the gutter and spine lines mirror.
+void book_scan_half_turn_keeps_layouts() {
+  const std::int32_t width = 300;
+  const std::int32_t height = 200;
+  const SpreadLayout spread{{120.0, 90.0, 160.0, 100.0, 4.0}, 0.4};
+  const SpreadLayout turned = patchy::half_turned_spread(spread, width, height);
+  CHECK(near(turned.gutter, 0.6, 1e-12));
+  CHECK(near(turned.spread.angle_degrees, 4.0, 1e-12));
+  const auto before = patchy::oriented_box_corners(spread.spread);
+  const auto after = patchy::oriented_box_corners(turned.spread);
+  // A half turn maps (x, y) to (w - x, h - y): the old top-left corner is the new bottom-right.
+  CHECK(near(after[4], width - before[0], 1e-9) && near(after[5], height - before[1], 1e-9));
+  CHECK(near(after[0], width - before[4], 1e-9) && near(after[1], height - before[5], 1e-9));
+  // Two half turns give the layout back.
+  const SpreadLayout back = patchy::half_turned_spread(turned, width, height);
+  CHECK(back.spread == spread.spread && near(back.gutter, spread.gutter, 1e-12));
+  const CoverLayout cover{{150.0, 100.0, 240.0, 160.0, 0.0}, 0.47, 0.52};
+  const CoverLayout cover_turned = patchy::half_turned_cover(cover, width, height);
+  CHECK(near(cover_turned.spine_left, 0.48, 1e-12) && near(cover_turned.spine_right, 0.53, 1e-12));
+  CHECK(cover_turned.spine_left < cover_turned.spine_right);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> book_scan_tests() {
@@ -314,5 +338,6 @@ std::vector<patchy::test::TestCase> book_scan_tests() {
       {"book_scan_spread_fits_bed", book_scan_spread_fits_bed},
       {"book_scan_unturned_rect_inverts_quarter_turns", book_scan_unturned_rect_inverts_quarter_turns},
       {"book_scan_box_edge_and_bounds", book_scan_box_edge_and_bounds},
+      {"book_scan_half_turn_keeps_layouts", book_scan_half_turn_keeps_layouts},
   };
 }

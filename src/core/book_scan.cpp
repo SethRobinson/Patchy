@@ -517,6 +517,23 @@ bool book_spread_fits_bed(double width, double height, double bed_width, double 
   return (w <= bed_width && h <= bed_height) || (h <= bed_width && w <= bed_height);
 }
 
+SpreadLayout half_turned_spread(const SpreadLayout& layout, std::int32_t image_width, std::int32_t image_height) {
+  SpreadLayout turned = layout;
+  turned.spread.center_x = image_width - layout.spread.center_x;
+  turned.spread.center_y = image_height - layout.spread.center_y;
+  turned.gutter = 1.0 - layout.gutter;
+  return turned;
+}
+
+CoverLayout half_turned_cover(const CoverLayout& cover, std::int32_t image_width, std::int32_t image_height) {
+  CoverLayout turned = cover;
+  turned.outline.center_x = image_width - cover.outline.center_x;
+  turned.outline.center_y = image_height - cover.outline.center_y;
+  turned.spine_left = 1.0 - cover.spine_right;
+  turned.spine_right = 1.0 - cover.spine_left;
+  return turned;
+}
+
 Rect unturned_rect(const Rect& turned, int clockwise_turns, std::int32_t raw_width, std::int32_t raw_height) {
   switch (((clockwise_turns % 4) + 4) % 4) {
     case 1:

@@ -316,8 +316,9 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton && drag_ != Drag::None) {
       drag_ = Drag::None;
-      // A spine line dragged across the other one: they stay ordered left to right.
-      if (line_a_ > line_b_) {
+      // A spine line dragged across the other one: they stay ordered left to right. A
+      // spread has one gutter line (line_b_ only mirrors its old place), so never swap there.
+      if (kind_ == Kind::Cover && line_a_ > line_b_) {
         std::swap(line_a_, line_b_);
       }
       if (on_edited) {
@@ -700,25 +701,7 @@ void BookScanDialog::build_cover_page() {
     if (refreshing_ || !project_.cover) {
       return;
     }
-    const int old_turns = project_.up_turns;
-    project_.up_turns = (4 - index) % 4;
-    const PixelBuffer upright = load_upright_scan(project_, project_.cover->file, project_.up_turns);
-    if ((project_.up_turns - old_turns + 4) % 4 == 2) {
-      // Half a turn: the same outline and spine, mirrored, so edits survive.
-      auto& cover = project_.cover->layout;
-      cover.outline.center_x = upright.width() - cover.outline.center_x;
-      cover.outline.center_y = upright.height() - cover.outline.center_y;
-      const double spine_left = cover.spine_left;
-      cover.spine_left = 1.0 - cover.spine_right;
-      cover.spine_right = 1.0 - spine_left;
-    } else {
-      // A quarter turn changes which way the spine runs: detect again on the turned scan.
-      const auto outline = detect_book_outline(upright, {});
-      project_.cover->layout = default_cover_layout(
-          outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0,
-                                       static_cast<double>(upright.width()), static_cast<double>(upright.height()), 0.0}));
-      project_.cover->user_edited = false;
-    }
+    set_up_turns((4 - index) % 4);
     refresh_cover_page();
     cover_settings_changed();
   });
@@ -805,6 +788,12 @@ void BookScanDialog::build_scanning_page() {
   use_combo_->addItems({tr("Both pages"), tr("Left page only"), tr("Right page only")});
   use_combo_->setToolTip(tr("Leave out a blank inside cover or the empty side of the last spread"));
   form->addRow(tr("Use:"), use_combo_);
+  // The cover's own option, shown while the cover is selected for editing.
+  scan_up_combo_ = new QComboBox(page);
+  scan_up_combo_->setObjectName(QStringLiteral("bookScanScanningUpCombo"));
+  scan_up_combo_->addItems({tr("Up"), tr("Right"), tr("Down"), tr("Left")});
+  scan_up_combo_->setToolTip(tr("Which way the top of the book points in the scan"));
+  form->addRow(tr("Top of the book points:"), scan_up_combo_);
   spread_tilt_spin_ = new QDoubleSpinBox(page);
   spread_tilt_spin_->setObjectName(QStringLiteral("bookScanSpreadTiltSpin"));
   spread_tilt_spin_->setRange(-45.0, 45.0);
@@ -815,6 +804,7 @@ void BookScanDialog::build_scanning_page() {
   auto* rotate = new QPushButton(tr("Turn This Scan 180 Degrees"), page);
   rotate->setObjectName(QStringLiteral("bookScanRotateSpreadButton"));
   rotate->setAutoDefault(false);
+  rotate_scan_button_ = rotate;
   side->addWidget(rotate);
   beep_check_ = new QCheckBox(tr("Beep when a scan finishes"), page);
   beep_check_->setObjectName(QStringLiteral("bookScanBeepCheck"));
@@ -829,9 +819,15 @@ void BookScanDialog::build_scanning_page() {
   strip_->setFlow(QListView::LeftToRight);
   strip_->setWrapping(false);
   strip_->setIconSize(QSize(64, 90));
-  strip_->setFixedHeight(130);
+  // One cell size, so a selected label is not elided and longer cover names wrap.
+  strip_->setGridSize(QSize(100, 128));
+  strip_->setWordWrap(true);
+  strip_->setFixedHeight(150);
   strip_->setMovement(QListView::Static);
   strip_->setFocusPolicy(Qt::NoFocus);
+  // The selected scan's pages are highlighted; a click picks another scan (refresh rebuilds).
+  strip_->setSelectionMode(QAbstractItemView::MultiSelection);
+  strip_->setToolTip(tr("Click a page to adjust or rescan its scan"));
   layout->addWidget(strip_);
   auto* buttons = new QHBoxLayout;
   rescan_button_ = new QPushButton(tr("Rescan Last"), page);
@@ -841,6 +837,10 @@ void BookScanDialog::build_scanning_page() {
   cancel_scan_button_->setObjectName(QStringLiteral("bookScanCancelButton"));
   cancel_scan_button_->setAutoDefault(false);
   cancel_scan_button_->setVisible(false);
+  back_to_next_button_ = new QPushButton(tr("Back to Next Pages"), page);
+  back_to_next_button_->setObjectName(QStringLiteral("bookScanBackToNextButton"));
+  back_to_next_button_->setAutoDefault(false);
+  back_to_next_button_->setVisible(false);
   finished_button_ = new QPushButton(tr("Finished"), page);
   finished_button_->setObjectName(QStringLiteral("bookScanFinishedButton"));
   finished_button_->setAutoDefault(false);
@@ -850,6 +850,7 @@ void BookScanDialog::build_scanning_page() {
   scan_button_->setMinimumWidth(140);
   buttons->addWidget(rescan_button_);
   buttons->addWidget(cancel_scan_button_);
+  buttons->addWidget(back_to_next_button_);
   buttons->addStretch(1);
   buttons->addWidget(finished_button_);
   buttons->addWidget(scan_button_);
@@ -865,10 +866,25 @@ void BookScanDialog::build_scanning_page() {
     }
   });
   spread_preview_->on_edited = [this] {
-    if (project_.scans.empty()) {
+    if (edit_cover_) {
+      if (!project_.cover) {
+        return;
+      }
+      project_.cover->layout.outline = spread_preview_->box();
+      project_.cover->layout.spine_left = spread_preview_->line_a();
+      project_.cover->layout.spine_right = spread_preview_->line_b();
+      project_.cover->user_edited = true;
+      update_book_area();
+      thumbnails_.clear();
+      save_project_quietly();
+      refresh_scanning_page();
       return;
     }
-    auto& scan = project_.scans.back();
+    const int index = selected_scan();
+    if (index < 0) {
+      return;
+    }
+    auto& scan = project_.scans[static_cast<std::size_t>(index)];
     scan.layout.spread = spread_preview_->box();
     scan.layout.gutter = spread_preview_->line_a();
     scan.user_edited = true;
@@ -882,28 +898,49 @@ void BookScanDialog::build_scanning_page() {
     }
   });
   connect(use_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-    if (refreshing_ || project_.scans.empty()) {
+    const int scan = selected_scan();
+    if (refreshing_ || edit_cover_ || scan < 0) {
       return;
     }
-    project_.scans.back().use = index == 1 ? BookPageUse::LeftOnly : index == 2 ? BookPageUse::RightOnly : BookPageUse::Both;
+    project_.scans[static_cast<std::size_t>(scan)].use =
+        index == 1 ? BookPageUse::LeftOnly : index == 2 ? BookPageUse::RightOnly : BookPageUse::Both;
     save_project_quietly();
     refresh_scanning_page();
   });
-  connect(spread_tilt_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-    if (refreshing_ || project_.scans.empty()) {
+  connect(scan_up_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (refreshing_ || !project_.cover || scan_in_progress()) {
       return;
     }
-    project_.scans.back().layout.spread.angle_degrees = value;
-    project_.scans.back().user_edited = true;
+    set_up_turns((4 - index) % 4);
+    refresh_scanning_page();
+  });
+  connect(spread_tilt_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    if (refreshing_) {
+      return;
+    }
+    if (edit_cover_) {
+      if (!project_.cover) {
+        return;
+      }
+      project_.cover->layout.outline.angle_degrees = value;
+      project_.cover->user_edited = true;
+      update_book_area();
+    } else if (const int scan = selected_scan(); scan >= 0) {
+      project_.scans[static_cast<std::size_t>(scan)].layout.spread.angle_degrees = value;
+      project_.scans[static_cast<std::size_t>(scan)].user_edited = true;
+    } else {
+      return;
+    }
     thumbnails_.clear();
     save_project_quietly();
     refresh_scanning_page();
   });
   connect(rotate, &QPushButton::clicked, this, [this] {
-    if (project_.scans.empty() || scan_in_progress()) {
+    const int index = selected_scan();
+    if (edit_cover_ || index < 0 || scan_in_progress()) {
       return;
     }
-    auto& scan = project_.scans.back();
+    auto& scan = project_.scans[static_cast<std::size_t>(index)];
     scan.extra_turns = (scan.extra_turns + 2) % 4;
     const PixelBuffer upright = load_upright_scan(project_, scan.file, project_.up_turns + scan.extra_turns);
     scan.layout = detect_scan_layout(upright, scan.dpi, std::nullopt);
@@ -922,7 +959,13 @@ void BookScanDialog::build_scanning_page() {
   connect(beep_check_, &QCheckBox::toggled, this,
           [](bool on) { app_settings().setValue(QStringLiteral("bookScan/beep"), on); });
   connect(scan_button_, &QPushButton::clicked, this, &BookScanDialog::start_page_scan);
-  connect(rescan_button_, &QPushButton::clicked, this, &BookScanDialog::rescan_last);
+  connect(rescan_button_, &QPushButton::clicked, this, &BookScanDialog::rescan_selected);
+  connect(back_to_next_button_, &QPushButton::clicked, this, &BookScanDialog::back_to_next_pages);
+  connect(strip_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+    const BookPageRef page = page_from_variant(item->data(Qt::UserRole));
+    // Later: the strip is rebuilt, which must not happen inside its own click.
+    QTimer::singleShot(0, this, [this, page] { edit_page(page); });
+  });
   connect(cancel_scan_button_, &QPushButton::clicked, this, [this] {
     if (session_ != nullptr) {
       session_->cancel();
@@ -956,7 +999,10 @@ void BookScanDialog::build_review_page() {
   blank->setObjectName(QStringLiteral("bookScanBlankPageButton"));
   auto* back = new QPushButton(tr("Scan More Pages"), page);
   back->setObjectName(QStringLiteral("bookScanMorePagesButton"));
-  for (QPushButton* button : {remove, rotate, blank, back}) {
+  edit_page_button_ = new QPushButton(tr("Edit Scan"), page);
+  edit_page_button_->setObjectName(QStringLiteral("bookScanEditPageButton"));
+  edit_page_button_->setToolTip(tr("Show this page's scan with its boxes, to adjust them or scan it again"));
+  for (QPushButton* button : {remove, rotate, blank, edit_page_button_, back}) {
     button->setAutoDefault(false);
     list_buttons->addWidget(button);
   }
@@ -1049,9 +1095,19 @@ void BookScanDialog::build_review_page() {
   connect(blank, &QPushButton::clicked, this, &BookScanDialog::insert_blank_page);
   connect(back, &QPushButton::clicked, this, [this] {
     project_.finished_scanning = false;
+    edit_cover_ = false;
+    edit_scan_.reset();
     save_project_quietly();
     go_to(Step::Scanning);
   });
+  const auto edit_current = [this] {
+    if (QListWidgetItem* item = pages_list_->currentItem()) {
+      const BookPageRef page = page_from_variant(item->data(Qt::UserRole));
+      QTimer::singleShot(0, this, [this, page] { edit_page(page); });
+    }
+  };
+  connect(edit_page_button_, &QPushButton::clicked, this, edit_current);
+  connect(pages_list_, &QListWidget::itemDoubleClicked, this, edit_current);
   connect(size_combo_, &QComboBox::currentIndexChanged, this, [this] {
     if (refreshing_) {
       return;
@@ -1305,6 +1361,8 @@ void BookScanDialog::continue_book() {
   preview_key_.clear();
   review_cache_.reset();
   grayscale_hint_shown_ = !project_.scans.empty();
+  edit_cover_ = false;
+  edit_scan_.reset();
   folder_book_.reset();
   app_settings().setValue(QStringLiteral("bookScan/lastFolder"), QDir::toNativeSeparators(project_.folder));
   save_project_quietly();
@@ -1397,6 +1455,16 @@ void BookScanDialog::start_cover_scan() {
   if (scan_in_progress() || !ensure_project_folder() || !ensure_session_open()) {
     return;
   }
+  const ScanRequest request = cover_scan_request();
+  pending_ = PendingScan::Cover;
+  scan_cover_button_->setEnabled(false);
+  status_label_->setText(tr("Scanning the cover..."));
+  progress_bar_->setRange(0, 0);
+  progress_bar_->setVisible(true);
+  session_->start_scan(request);
+}
+
+ScanRequest BookScanDialog::cover_scan_request() const {
   ScanRequest request;
   request.dpi = kCoverDpi;
   if (!capabilities_.resolutions.empty() &&
@@ -1412,12 +1480,7 @@ void BookScanDialog::start_cover_scan() {
   }
   request.mode = ScanColorMode::Color;
   request.output_base_path = QDir(project_.folder).filePath(scans_dir_name() + QStringLiteral("/cover-incoming"));
-  pending_ = PendingScan::Cover;
-  scan_cover_button_->setEnabled(false);
-  status_label_->setText(tr("Scanning the cover..."));
-  progress_bar_->setRange(0, 0);
-  progress_bar_->setVisible(true);
-  session_->start_scan(request);
+  return request;
 }
 
 void BookScanDialog::skip_cover() {
@@ -1441,12 +1504,17 @@ QString BookScanDialog::store_scan_file(const QString& file, const QString& base
       return relative;
     }
   }
-  QImageReader reader(file);
-  reader.setAutoTransform(false);
-  const QImage image = reader.read();
+  QImage image;
+  {
+    // Closed again before the driver's file is removed: Windows keeps an open file.
+    QImageReader reader(file);
+    reader.setAutoTransform(false);
+    image = reader.read();
+  }
   if (image.isNull()) {
     return {};
   }
+  QFile::remove(target);
   QImageWriter writer(target, "png");
   if (!writer.write(image)) {
     return {};
@@ -1462,8 +1530,10 @@ void BookScanDialog::scan_finished(const ScanResult& result) {
   cancel_scan_button_->setVisible(false);
   scan_cover_button_->setEnabled(true);
   scan_button_->setEnabled(true);
-  rescan_button_->setEnabled(!project_.scans.empty());
+  rescan_button_->setEnabled(!project_.scans.empty() || edit_cover_);
   finished_button_->setEnabled(true);
+  const int rescan_target = rescan_target_;
+  rescan_target_ = -1;
   if (result.status == ScannerAcquireStatus::Cancelled) {
     status_label_->setText(tr("Scan cancelled."));
     return;
@@ -1477,21 +1547,35 @@ void BookScanDialog::scan_finished(const ScanResult& result) {
     return;
   }
   const double dpi = result.horizontal_dpi > 0.0 ? result.horizontal_dpi : project_.capture_dpi;
-  if (pending == PendingScan::Cover) {
-    apply_cover_scan(result.file_path, result.horizontal_dpi > 0.0 ? result.horizontal_dpi : kCoverDpi);
-  } else if (pending == PendingScan::Page || pending == PendingScan::Rescan) {
-    apply_page_scan(result.file_path, dpi, pending == PendingScan::Rescan);
+  if (pending == PendingScan::Cover || pending == PendingScan::RescanCover) {
+    apply_cover_scan(result.file_path, result.horizontal_dpi > 0.0 ? result.horizontal_dpi : kCoverDpi,
+                     pending == PendingScan::RescanCover);
+  } else if (pending == PendingScan::Page) {
+    apply_page_scan(result.file_path, dpi, -1);
+  } else if (pending == PendingScan::Rescan) {
+    apply_page_scan(result.file_path, dpi, rescan_target);
   }
   if (beep_check_->isChecked() && !quiet_) {
     QApplication::beep();
   }
 }
 
-void BookScanDialog::apply_cover_scan(const QString& file, double dpi) {
-  const QString relative = store_scan_file(file, QStringLiteral("cover"));
+void BookScanDialog::apply_cover_scan(const QString& file, double dpi, bool keep_settings) {
+  // A new cover scan is written beside the old one first, so a failure keeps the old one.
+  const bool replace = project_.cover.has_value();
+  QString relative = store_scan_file(file, replace ? QStringLiteral("cover-new") : QStringLiteral("cover"));
   if (relative.isEmpty()) {
     show_scan_error(tr("The cover scan could not be saved in the project folder."));
     return;
+  }
+  if (replace) {
+    const QString old_file = project_.cover->file;
+    const QDir folder(project_.folder);
+    QFile::remove(folder.filePath(old_file));
+    if (QFile::rename(folder.filePath(relative), folder.filePath(old_file))) {
+      relative = old_file;
+    }
+    forget_scan(old_file);
   }
   forget_scan(relative);
   BookCover cover;
@@ -1505,6 +1589,17 @@ void BookScanDialog::apply_cover_scan(const QString& file, double dpi) {
       outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0, static_cast<double>(upright.width()),
                                    static_cast<double>(upright.height()), 0.0}));
   project_.cover = cover;
+  if (keep_settings) {
+    // Rescanned while scanning pages: the book's settings stay, its sizing follows the new outline.
+    update_book_area();
+    thumbnails_.clear();
+    save_project_quietly();
+    edit_cover_ = true;
+    edit_scan_.reset();
+    status_label_->setText(tr("The cover was scanned again."));
+    refresh_scanning_page();
+    return;
+  }
   project_.include_covers = app_settings().value(QStringLiteral("bookScan/includeCovers"), true).toBool();
   // Two pages per scan unless the user picks otherwise: a book that fills the glass may
   // still fit, so a wide outline only brings up the notice that offers one page per scan.
@@ -1577,19 +1672,8 @@ void BookScanDialog::cover_settings_changed() {
   project_.mode = mode_combo_->currentIndex() == 1 ? BookScanMode::OnePage : BookScanMode::TwoPages;
   project_.include_covers = covers_check_->isChecked() && project_.cover.has_value();
   if (project_.cover) {
-    // The book area in scanner coordinates: the outline's bounds in the unturned scan,
-    // grown by a margin, in inches.
-    const QSize raw = QImageReader(QDir(project_.folder).filePath(project_.cover->file)).size();
-    const Rect upright_bounds = oriented_box_bounds(project_.cover->layout.outline);
-    const int turns = project_.up_turns;
-    const Rect raw_bounds = unturned_rect(upright_bounds, turns, raw.width(), raw.height());
+    update_book_area();
     const double dpi = project_.cover->dpi;
-    QRectF area(raw_bounds.x / dpi - kBookAreaMarginInches, raw_bounds.y / dpi - kBookAreaMarginInches,
-                raw_bounds.width / dpi + 2.0 * kBookAreaMarginInches, raw_bounds.height / dpi + 2.0 * kBookAreaMarginInches);
-    const QRectF bed(0.0, 0.0,
-                     capabilities_.bed_width_inches > 0.0 ? capabilities_.bed_width_inches : raw.width() / dpi,
-                     capabilities_.bed_height_inches > 0.0 ? capabilities_.bed_height_inches : raw.height() / dpi);
-    project_.book_area_inches = area.intersected(bed);
     const double width_in = project_.cover->layout.outline.width / dpi;
     const double height_in = project_.cover->layout.outline.height / dpi;
     const bool fits = book_spread_fits_bed(width_in, height_in, capabilities_.bed_width_inches,
@@ -1616,6 +1700,81 @@ void BookScanDialog::cover_settings_changed() {
   update_page_size_label();
 }
 
+void BookScanDialog::update_book_area() {
+  if (!project_.cover) {
+    return;
+  }
+  // The book area in scanner coordinates: the outline's bounds in the unturned scan,
+  // grown by a margin, in inches.
+  const QSize raw = QImageReader(QDir(project_.folder).filePath(project_.cover->file)).size();
+  const Rect upright_bounds = oriented_box_bounds(project_.cover->layout.outline);
+  const Rect raw_bounds = unturned_rect(upright_bounds, project_.up_turns, raw.width(), raw.height());
+  const double dpi = project_.cover->dpi;
+  const QRectF area(raw_bounds.x / dpi - kBookAreaMarginInches, raw_bounds.y / dpi - kBookAreaMarginInches,
+                    raw_bounds.width / dpi + 2.0 * kBookAreaMarginInches,
+                    raw_bounds.height / dpi + 2.0 * kBookAreaMarginInches);
+  const QRectF bed(0.0, 0.0, capabilities_.bed_width_inches > 0.0 ? capabilities_.bed_width_inches : raw.width() / dpi,
+                   capabilities_.bed_height_inches > 0.0 ? capabilities_.bed_height_inches : raw.height() / dpi);
+  project_.book_area_inches = area.intersected(bed);
+}
+
+void BookScanDialog::set_up_turns(int turns) {
+  turns = ((turns % 4) + 4) % 4;
+  if (turns == project_.up_turns || !project_.cover) {
+    return;
+  }
+  const bool half = (turns - project_.up_turns + 4) % 4 == 2;
+  project_.up_turns = turns;
+  const QDir folder(project_.folder);
+  const auto upright_size = [&folder](const QString& file, int quarter_turns) {
+    const QSize raw = QImageReader(folder.filePath(file)).size();
+    return quarter_turns % 2 != 0 ? raw.transposed() : raw;
+  };
+  QApplication::setOverrideCursor(Qt::WaitCursor);
+  // Half a turn: the same outline, spine and pages, turned, so edits survive. A quarter
+  // turn changes which way the spine runs: detect again on the turned scans.
+  if (half) {
+    const QSize size = upright_size(project_.cover->file, turns);
+    project_.cover->layout = half_turned_cover(project_.cover->layout, size.width(), size.height());
+  } else {
+    const PixelBuffer upright = load_upright_scan(project_, project_.cover->file, turns);
+    const auto outline = detect_book_outline(upright, {});
+    project_.cover->layout = default_cover_layout(
+        outline.value_or(OrientedBox{upright.width() / 2.0, upright.height() / 2.0, static_cast<double>(upright.width()),
+                                     static_cast<double>(upright.height()), 0.0}));
+    project_.cover->user_edited = false;
+  }
+  for (auto& scan : project_.scans) {
+    if (half) {
+      const QSize size = upright_size(scan.file, turns + scan.extra_turns);
+      scan.layout = half_turned_spread(scan.layout, size.width(), size.height());
+      // The left page is now on the right.
+      scan.use = scan.use == BookPageUse::LeftOnly    ? BookPageUse::RightOnly
+                 : scan.use == BookPageUse::RightOnly ? BookPageUse::LeftOnly
+                                                      : scan.use;
+    } else {
+      const PixelBuffer upright = load_upright_scan(project_, scan.file, turns + scan.extra_turns);
+      scan.layout = detect_scan_layout(upright, scan.dpi, std::nullopt);
+      scan.user_edited = false;
+    }
+  }
+  if (half && project_.custom_order && project_.mode == BookScanMode::TwoPages) {
+    for (auto& page : *project_.custom_order) {
+      if (page.kind == BookPageRef::Kind::Scan) {
+        page.side = page.side == BookPageSide::Left ? BookPageSide::Right : BookPageSide::Left;
+      }
+    }
+  }
+  QApplication::restoreOverrideCursor();
+  update_book_area();
+  thumbnails_.clear();
+  preview_key_.clear();
+  if (review_cache_) {
+    review_cache_->clear();
+  }
+  save_project_quietly();
+}
+
 void BookScanDialog::update_cover_labels() {
   const bool rtl = project_.direction == BookReadingDirection::RightToLeft;
   // Seen from outside, a left-to-right book has its front cover on the right.
@@ -1640,6 +1799,8 @@ void BookScanDialog::start_page_scanning() {
   if (project_.cover) {
     cover_settings_changed();
   }
+  edit_cover_ = false;
+  edit_scan_.reset();
   save_project_quietly();
   go_to(Step::Scanning);
 }
@@ -1666,9 +1827,90 @@ void BookScanDialog::start_page_scan() {
 }
 
 void BookScanDialog::rescan_last() {
-  if (project_.scans.empty() || scan_in_progress() || !ensure_session_open()) {
+  if (project_.scans.empty() || scan_in_progress()) {
     return;
   }
+  edit_cover_ = false;
+  edit_scan_.reset();
+  rescan_selected();
+}
+
+int BookScanDialog::selected_scan() const {
+  if (edit_cover_ || project_.scans.empty()) {
+    return -1;
+  }
+  const int last = static_cast<int>(project_.scans.size()) - 1;
+  return edit_scan_ ? std::clamp(*edit_scan_, 0, last) : last;
+}
+
+bool BookScanDialog::editing_earlier_scan() const {
+  return !edit_cover_ && edit_scan_.has_value() && selected_scan() < static_cast<int>(project_.scans.size()) - 1;
+}
+
+void BookScanDialog::edit_page(const BookPageRef& page) {
+  if (page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover) {
+    if (!project_.cover) {
+      return;
+    }
+    edit_cover_ = true;
+    edit_scan_.reset();
+  } else if (page.kind == BookPageRef::Kind::Scan && page.scan >= 0 &&
+             page.scan < static_cast<int>(project_.scans.size())) {
+    edit_cover_ = false;
+    // The newest scan is what the step shows anyway.
+    edit_scan_ = page.scan == static_cast<int>(project_.scans.size()) - 1 ? std::nullopt : std::optional<int>(page.scan);
+  } else {
+    return;
+  }
+  if (step_ == Step::Scanning) {
+    refresh_scanning_page();
+  } else if (step_ == Step::Review) {
+    go_to(Step::Scanning);
+  }
+}
+
+void BookScanDialog::select_scan_for_editing(int index) {
+  edit_page({BookPageRef::Kind::Scan, index, BookPageSide::Left, 0});
+}
+
+void BookScanDialog::select_cover_for_editing() {
+  edit_page({BookPageRef::Kind::FrontCover, -1, BookPageSide::Left, 0});
+}
+
+void BookScanDialog::back_to_next_pages() {
+  edit_cover_ = false;
+  edit_scan_.reset();
+  if (step_ == Step::Scanning) {
+    refresh_scanning_page();
+    scan_button_->setFocus();
+  }
+}
+
+void BookScanDialog::rescan_selected() {
+  if (scan_in_progress() || !ensure_session_open()) {
+    return;
+  }
+  if (edit_cover_) {
+    if (!project_.cover) {
+      return;
+    }
+    const ScanRequest request = cover_scan_request();
+    pending_ = PendingScan::RescanCover;
+    scan_button_->setEnabled(false);
+    rescan_button_->setEnabled(false);
+    finished_button_->setEnabled(false);
+    cancel_scan_button_->setVisible(capabilities_.direct_control);
+    status_label_->setText(tr("Scanning the cover..."));
+    progress_bar_->setRange(0, 0);
+    progress_bar_->setVisible(true);
+    session_->start_scan(request);
+    return;
+  }
+  const int target = selected_scan();
+  if (target < 0) {
+    return;
+  }
+  rescan_target_ = target;
   ScanRequest request;
   request.dpi = project_.capture_dpi;
   request.mode = project_.capture_mode;
@@ -1685,12 +1927,15 @@ void BookScanDialog::rescan_last() {
   session_->start_scan(request);
 }
 
-void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool replace_last) {
-  const int number = replace_last ? static_cast<int>(project_.scans.size()) : static_cast<int>(project_.scans.size()) + 1;
-  const QString base = (project_.mode == BookScanMode::OnePage ? QStringLiteral("page-%1") : QStringLiteral("spread-%1"))
-                           .arg(number, 4, 10, QLatin1Char('0'));
+void BookScanDialog::apply_page_scan(const QString& file, double dpi, int replace_index) {
+  const bool replace = replace_index >= 0 && replace_index < static_cast<int>(project_.scans.size());
+  const QString old_file = replace ? project_.scans[static_cast<std::size_t>(replace_index)].file : QString();
+  const QString base =
+      replace ? QFileInfo(old_file).completeBaseName()
+              : (project_.mode == BookScanMode::OnePage ? QStringLiteral("page-%1") : QStringLiteral("spread-%1"))
+                    .arg(static_cast<int>(project_.scans.size()) + 1, 4, 10, QLatin1Char('0'));
   // A rescan writes beside the old scan first, so a failure keeps the old one.
-  const QString relative = store_scan_file(file, replace_last ? base + QStringLiteral("-new") : base);
+  const QString relative = store_scan_file(file, replace ? base + QStringLiteral("-new") : base);
   if (relative.isEmpty()) {
     show_scan_error(tr("The scan could not be saved in the project folder."));
     return;
@@ -1700,7 +1945,7 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool repla
   entry.dpi = dpi;
   const PixelBuffer upright = load_upright_scan(project_, relative, project_.up_turns);
   std::optional<OrientedBox> fallback;
-  const std::size_t previous_index = replace_last ? project_.scans.size() - 1 : project_.scans.size();
+  const std::size_t previous_index = replace ? static_cast<std::size_t>(replace_index) : project_.scans.size();
   if (previous_index > 0 && previous_index <= project_.scans.size()) {
     const auto& previous = project_.scans[previous_index - 1];
     if (previous.dpi == dpi) {
@@ -1708,23 +1953,25 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool repla
     }
   }
   entry.layout = detect_scan_layout(upright, dpi, fallback);
-  if (replace_last) {
-    const QString old_file = project_.scans.back().file;
-    entry.use = project_.scans.back().use;
+  if (replace) {
+    auto& target = project_.scans[static_cast<std::size_t>(replace_index)];
+    // The rescanned spread keeps its place, its Use choice and any custom page order.
+    entry.use = target.use;
     // Move the new scan onto the old name so the folder stays numbered.
-    const QString final_relative = scans_dir_name() + QLatin1Char('/') + base + QStringLiteral(".png");
     const QDir folder(project_.folder);
     QFile::remove(folder.filePath(old_file));
-    if (QFile::rename(folder.filePath(relative), folder.filePath(final_relative))) {
-      entry.file = final_relative;
+    if (QFile::rename(folder.filePath(relative), folder.filePath(old_file))) {
+      entry.file = old_file;
     }
     forget_scan(old_file);
     forget_scan(entry.file);
-    project_.scans.back() = entry;
-    if (project_.custom_order) {
-      // The rescanned spread keeps its place; its pages may have changed.
-    }
+    target = entry;
+    edit_cover_ = false;
+    edit_scan_ = replace_index == static_cast<int>(project_.scans.size()) - 1 ? std::nullopt
+                                                                              : std::optional<int>(replace_index);
   } else {
+    edit_cover_ = false;
+    edit_scan_.reset();
     project_.scans.push_back(entry);
     if (project_.custom_order) {
       const int index = static_cast<int>(project_.scans.size()) - 1;
@@ -1753,7 +2000,8 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool repla
     grayscale_hint_->setVisible(gray);
     grayscale_switch_->setVisible(gray);
   }
-  status_label_->setText(tr("Scan %1 done.").arg(project_.scans.size()));
+  status_label_->setText(replace ? tr("Scan %1 was scanned again.").arg(replace_index + 1)
+                                 : tr("Scan %1 done.").arg(project_.scans.size()));
   refresh_scanning_page();
 }
 
@@ -1899,7 +2147,24 @@ void BookScanDialog::refresh_scanning_page() {
     }
     return count;
   }();
-  if (project_.scans.empty()) {
+  if (edit_cover_ && !project_.cover) {
+    edit_cover_ = false;
+  }
+  const int selected = selected_scan();
+  const bool earlier = editing_earlier_scan();
+  if (edit_cover_ || earlier) {
+    const QString editing =
+        edit_cover_ ? tr("Editing the cover: drag its outline and the two spine lines onto the spine's edges, or press "
+                         "Rescan Cover.")
+                    : tr("Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.")
+                          .arg(selected + 1)
+                          .arg(static_cast<int>(project_.scans.size()));
+    const QString next = one_page ? tr("Press Back to Next Pages to go on with page %1.").arg(scanned_pages + 1)
+                                  : tr("Press Back to Next Pages to go on with pages %1 and %2.")
+                                        .arg(scanned_pages + 1)
+                                        .arg(scanned_pages + 2);
+    instruction_label_->setText(editing + QStringLiteral("\n\n") + next);
+  } else if (project_.scans.empty()) {
     instruction_label_->setText(
         one_page ? tr("One page per scan: lay the first page face down on the glass, then press Scan (or Space).")
                  : tr("Open the book at the first pages, lay it face down on the glass, then press Scan (or Space)."));
@@ -1913,18 +2178,34 @@ void BookScanDialog::refresh_scanning_page() {
                                     .arg(scanned_pages + 1)
                                     .arg(scanned_pages + 2));
   }
-  spread_preview_->set_kind(one_page ? BookScanPreview::Kind::Page : BookScanPreview::Kind::Spread);
-  rescan_button_->setEnabled(!project_.scans.empty() && !scan_in_progress());
+  spread_preview_->set_kind(edit_cover_ ? BookScanPreview::Kind::Cover
+                            : one_page  ? BookScanPreview::Kind::Page
+                                        : BookScanPreview::Kind::Spread);
+  rescan_button_->setText(edit_cover_ ? tr("Rescan Cover") : earlier ? tr("Rescan This Scan") : tr("Rescan Last"));
+  rescan_button_->setEnabled((edit_cover_ || !project_.scans.empty()) && !scan_in_progress());
+  back_to_next_button_->setVisible(edit_cover_ || earlier);
   pages_combo_->setCurrentIndex(one_page ? 1 : 0);
   pages_combo_->setEnabled(!scan_in_progress());
-  scan_form_->setRowVisible(use_combo_, !one_page);
-  use_combo_->setEnabled(!project_.scans.empty());
-  spread_tilt_spin_->setEnabled(!project_.scans.empty());
-  if (project_.scans.empty()) {
+  scan_form_->setRowVisible(use_combo_, !one_page && !edit_cover_);
+  scan_form_->setRowVisible(scan_up_combo_, edit_cover_);
+  scan_up_combo_->setCurrentIndex((4 - project_.up_turns) % 4);
+  rotate_scan_button_->setVisible(!edit_cover_);
+  use_combo_->setEnabled(selected >= 0);
+  spread_tilt_spin_->setEnabled(edit_cover_ || selected >= 0);
+  if (edit_cover_) {
+    const bool rtl = project_.direction == BookReadingDirection::RightToLeft;
+    spread_preview_->set_image(upright_preview(project_.cover->file, project_.up_turns));
+    spread_preview_->set_box(project_.cover->layout.outline);
+    spread_preview_->set_lines(project_.cover->layout.spine_left, project_.cover->layout.spine_right);
+    spread_preview_->set_region_labels(rtl ? tr("Front cover") : tr("Back cover"),
+                                       rtl ? tr("Back cover") : tr("Front cover"));
+    spread_tilt_spin_->setValue(project_.cover->layout.outline.angle_degrees);
+    edge_warning_->setVisible(false);
+  } else if (selected < 0) {
     spread_preview_->clear_image();
     edge_warning_->setVisible(false);
   } else {
-    const auto& scan = project_.scans.back();
+    const auto& scan = project_.scans[static_cast<std::size_t>(selected)];
     const QImage upright = upright_preview(scan.file, project_.up_turns + scan.extra_turns);
     spread_preview_->set_image(upright);
     spread_preview_->set_box(scan.layout.spread);
@@ -1934,15 +2215,49 @@ void BookScanDialog::refresh_scanning_page() {
     edge_warning_->setVisible(
         oriented_box_touches_edge(scan.layout.spread, upright.width(), upright.height(), kEdgeWarningPixels));
   }
+  // Every page so far, the covers included; a click selects its scan for editing.
   strip_->clear();
-  for (const auto& page : book_page_order(project_)) {
-    if (page.kind != BookPageRef::Kind::Scan) {
-      continue;
-    }
-    auto* item = new QListWidgetItem(strip_);
-    item->setIcon(QIcon(QPixmap::fromImage(thumbnail_for(page))));
+  std::vector<BookPageRef> strip_pages;
+  const auto order = book_page_order(project_);
+  const bool covers_listed = std::any_of(order.begin(), order.end(), [](const BookPageRef& page) {
+    return page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover;
+  });
+  if (project_.cover && !covers_listed) {
+    // A cover left out of the PDF still sets the book area and the cover page size.
+    strip_pages.push_back({BookPageRef::Kind::FrontCover, -1, BookPageSide::Left, 0});
   }
-  strip_->scrollToBottom();
+  for (const auto& page : order) {
+    if (page.kind != BookPageRef::Kind::Blank) {
+      strip_pages.push_back(page);
+    }
+  }
+  int page_number = 0;
+  QListWidgetItem* first_selected = nullptr;
+  for (const auto& page : strip_pages) {
+    const bool cover_page = page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover;
+    QString label;
+    if (!covers_listed && cover_page) {
+      label = tr("Cover");
+    } else if (page.kind == BookPageRef::Kind::FrontCover) {
+      label = tr("Front cover");
+    } else if (page.kind == BookPageRef::Kind::BackCover) {
+      label = tr("Back cover");
+    } else {
+      label = QString::number(++page_number);
+    }
+    auto* item = new QListWidgetItem(QIcon(QPixmap::fromImage(thumbnail_for(page))), label, strip_);
+    item->setData(Qt::UserRole, page_variant(page));
+    const bool selected_page = cover_page ? edit_cover_ : (!edit_cover_ && page.scan == selected);
+    item->setSelected(selected_page);
+    if (selected_page && first_selected == nullptr) {
+      first_selected = item;
+    }
+  }
+  if ((edit_cover_ || earlier) && first_selected != nullptr) {
+    strip_->scrollToItem(first_selected);
+  } else {
+    strip_->scrollToBottom();
+  }
   finished_button_->setText(tr("Finished (%n page(s))", nullptr, scanned_pages));
   refreshing_ = false;
 }

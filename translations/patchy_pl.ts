@@ -16563,6 +16563,54 @@ Czy chcesz go zastąpić?</translation>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>Plik PDF został zapisany. Zachować folder projektu skanowania (%1), aby później można było zmienić strony i ponownie wyeksportować?</translation>
     </message>
+    <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Kliknij stronę, aby dopasować jej skan lub zeskanować ją ponownie</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Wróć do następnych stron</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Edytuj skan</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Pokaż skan tej strony z ramkami, aby je dopasować lub zeskanować ją ponownie</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>Okładka została zeskanowana ponownie.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>Skan %1 został wykonany ponownie.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Edycja okładki: przeciągnij jej obrys i dwie linie grzbietu na krawędzie grzbietu albo kliknij Skanuj okładkę ponownie.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Edycja skanu %1 z %2: dopasuj jego ramki i opcje albo kliknij Ponów ten skan.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Kliknij Wróć do następnych stron, aby kontynuować od strony %1.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Kliknij Wróć do następnych stron, aby kontynuować od stron %1 i %2.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Ponów ten skan</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Okładka</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

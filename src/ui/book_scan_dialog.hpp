@@ -60,6 +60,16 @@ public:
   void start_page_scanning();
   void start_page_scan();
   void rescan_last();
+  // Scanning step: an earlier scan (its index) or the cover shown in the box editor with
+  // its options, as a click on its thumbnail does; Back to Next Pages returns to the newest.
+  void select_scan_for_editing(int index);
+  void select_cover_for_editing();
+  void back_to_next_pages();
+  // Rescans what the scanning step shows: the newest scan, an earlier one, or the cover.
+  void rescan_selected();
+  // The scan the scanning step shows (-1 with none or the cover), and whether it is the cover.
+  [[nodiscard]] int selected_scan() const;
+  [[nodiscard]] bool cover_selected() const noexcept { return edit_cover_; }
   void finish_scanning();
   // Writes the PDF; `ask_keep_folder` asks afterwards whether to keep the scan folder.
   bool export_pdf(const QString& path, bool ask_keep_folder);
@@ -82,8 +92,16 @@ private:
   void refresh_devices();
   void save_project_quietly();
   void scan_finished(const ScanResult& result);
-  void apply_cover_scan(const QString& file, double dpi);
-  void apply_page_scan(const QString& file, double dpi, bool replace_last);
+  void apply_cover_scan(const QString& file, double dpi, bool keep_settings);
+  // replace_index >= 0 rescans that scan; -1 adds a new one.
+  void apply_page_scan(const QString& file, double dpi, int replace_index);
+  [[nodiscard]] ScanRequest cover_scan_request() const;
+  // Top of the book: turns every scan; a half turn keeps the boxes, a quarter turn detects again.
+  void set_up_turns(int turns);
+  // The book area in scanner coordinates, from the cover outline.
+  void update_book_area();
+  void edit_page(const BookPageRef& page);
+  [[nodiscard]] bool editing_earlier_scan() const;
   QString store_scan_file(const QString& file, const QString& base_name);
   void refresh_cover_page();
   void cover_settings_changed();
@@ -119,8 +137,12 @@ private:
   bool session_open_{false};
   ScannerCapabilities capabilities_;
   Step step_{Step::Setup};
-  enum class PendingScan { None, Cover, Page, Rescan };
+  enum class PendingScan { None, Cover, Page, Rescan, RescanCover };
   PendingScan pending_{PendingScan::None};
+  int rescan_target_{-1};
+  // What the scanning step shows: the cover, an earlier scan, or (neither) the newest scan.
+  bool edit_cover_{false};
+  std::optional<int> edit_scan_;
   QString last_error_;
   // The book found in the setup step's folder, if any.
   std::optional<BookProject> folder_book_;
@@ -172,6 +194,9 @@ private:
   QProgressBar* progress_bar_{nullptr};
   QComboBox* pages_combo_{nullptr};
   QComboBox* use_combo_{nullptr};
+  QComboBox* scan_up_combo_{nullptr};
+  QPushButton* rotate_scan_button_{nullptr};
+  QPushButton* back_to_next_button_{nullptr};
   QFormLayout* scan_form_{nullptr};
   QDoubleSpinBox* spread_tilt_spin_{nullptr};
   QListWidget* strip_{nullptr};
@@ -182,6 +207,7 @@ private:
   QPushButton* finished_button_{nullptr};
   // Review.
   QListWidget* pages_list_{nullptr};
+  QPushButton* edit_page_button_{nullptr};
   QLabel* review_preview_{nullptr};
   QComboBox* size_combo_{nullptr};
   QDoubleSpinBox* custom_width_{nullptr};

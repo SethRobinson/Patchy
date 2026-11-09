@@ -16457,6 +16457,54 @@ Do you want to replace it?</source>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF를 썼습니다. 나중에 페이지를 바꾸고 다시 내보낼 수 있도록 스캔 프로젝트 폴더(%1)를 유지하시겠습니까?</translation>
     </message>
+    <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>페이지를 클릭하면 해당 스캔을 조정하거나 다시 스캔할 수 있습니다</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>다음 페이지로 돌아가기</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>스캔 편집</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>이 페이지의 스캔을 상자와 함께 표시하여 조정하거나 다시 스캔합니다</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>표지를 다시 스캔했습니다.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>스캔 %1을(를) 다시 스캔했습니다.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>표지 편집 중: 윤곽선과 두 책등 선을 책등 가장자리로 끌거나 표지 다시 스캔을 누르세요.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>스캔 %1/%2 편집 중: 상자와 옵션을 조정하거나 이 스캔 다시 하기를 누르세요.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>다음 페이지로 돌아가기를 누르면 %1페이지부터 계속합니다.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>다음 페이지로 돌아가기를 누르면 %1페이지와 %2페이지부터 계속합니다.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>이 스캔 다시 하기</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>표지</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>
