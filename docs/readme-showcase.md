@@ -52,6 +52,11 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `breakout.webp` (animated) | `shot_readme_breakout` | The bundled `scripts/bundled/Games/breakout.js`, started from the Script Manager |
 | `flame.png` | `shot_readme_flame` | Generated night backdrop and Arial Black lettering; the letters' outline is a saved path |
 | `perspective_planes.png` | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
+| `quick_mask.png` | `shot_readme_quick_mask` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`; Magic Wand clicks select the sky, then Quick Mask |
+| `tile_preview.png` | `shot_readme_tile_preview` | `test-fixtures/readme/dink_tiles_ts02.png` (Dink Smallwood, zlib-style license), composed into a 400 px tile |
+| `material_styles.png` | `shot_readme_material_styles` | Generated backdrop and Arial Black lettering; Riveted Steel picked in the Style Presets grid |
+| `divide_photos.png` | `shot_readme_divide_photos` | Eight prints cropped from the committed CC0 photos, composed onto a scanner bed |
+| `book_scan.png`, `book_scan_review.png` | `shot_readme_book_scan` | A sample book drawn in the scene (Georgia text, the CC0 sunset as cover art and plate), fed to the fake book scanner |
 | `long_shadow.png` | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
 
 Offscreen recipes live in `tests/ui/readme_screenshot_tests_*.cpp`. They create
@@ -68,8 +73,9 @@ An expanded Ride notes group contains two editable text layers, a rounded captio
 card, and a color wash clipped to that card. The vector scene combines pen paths
 and anchor editing with gradient paint, a dashed pattern stroke, and rounded corners.
 
-The separate Levels, brush-dynamics, shape-appearance, and Affinity images are retired
-from the gallery. Their existing scenes remain regression coverage; the driver
+The separate Levels, brush-dynamics, shape-appearance, Affinity, Script Manager and
+script-options images are retired from the gallery (Breakout's animation shows the Script
+Manager). Their existing scenes remain regression coverage; the driver (`$retiredScenes`)
 does not publish those artifacts. Brush dynamics are described with brush tips.
 Keep the README to about six cards, so Download and Features stay near the top; new
 captures go to the gallery. The README's cards favor game art, layered files and things
@@ -205,6 +211,27 @@ between frames. The driver publishes `.webp` artifacts beside the PNGs.
   checking each tile shows the same index before capturing. Frames show 450 ms, the last
   1.4 s. The animation's own lossy encoding (quality 90) is mild next to the tiles' quality
   20, so the differences stay visible.
+
+Scene notes for the newer captures:
+
+- Quick Mask: a Magic Wand selection (tolerance 34, contiguous, 5 px sample, Shift-clicks
+  from cloud to horizon) of the San Francisco sky, so the overlay follows a real edge. A
+  pale tower right of the skyline is left partly clear on purpose; it is what the brush is
+  for. Never go back to a drawn shape: the old feathered capsule read as fake.
+- Seamless tiling: an 8 x 8 field of Dink's 50 px grass cells, only cells of one brightness
+  with no rock shadow (a shadowed cell shows as a dark square in the tiled view), with whole
+  rock blocks stamped with wrap-around, the big cluster across the right edge. 100% zoom.
+- Material Styles: the Layer Style dialog opens on its Style Presets grid (the default
+  view, `layerStyle/stylesGridView`, restored after); the scene clicks Riveted Steel in the
+  grid (`layerStyleStylesGrid`, found as a QListWidget: PresetGridWidget has no Q_OBJECT)
+  and keeps the lettering in the left half, clear of the dialog.
+- Divide Scanned Photos: Image > Divide Scanned Photos on the composed scan, waiting for
+  `regionCount` 8. The scene sets `dividePhotos/folder` to a neutral path first: the default
+  is the account's Documents folder, which would put a user name in the picture.
+- Scan a Book to PDF: the sample book is a light sand cover (a dark cover on the dark lid is
+  not found whole, and the cover's outline sets the book area every page scan uses) and four
+  spreads on an 11.7 x 8.5 inch bed at 150 dpi (`PATCHY_FAKE_BOOK_SCANNER_BED`, `_DPIS`).
+  Captures the scanning step after the fourth spread and the review step.
 
 The vector and SVG scenes select actual path anchors for their editing overlays.
 A drag that starts over another shape's fill can pick and move that shape, so these

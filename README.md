@@ -62,7 +62,7 @@ Click an image for the full-size capture.
 <table>
   <tr>
     <td valign="top" width="50%"><a href="docs/images/screenshots/layered_import.png"><img src="docs/images/screenshots/layered_import.png" width="460" alt="Why settle for only .psd? An introduction above eight labeled artboards in a 4 by 2 grid: Photoshop game artwork, Affinity game tips, a Krita character painting, a GIMP planet illustration, an OpenRaster city poster, a Paint.NET landscape, a layered TIFF print design, and Aseprite pixel art, with imported layers visible in the Layers panel."></a><br><strong>Eight formats with layers, one document</strong><br>PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, and Aseprite artwork, each imported onto its own artboard with its layer stack intact. Editable SVG and PDF imports are available too. See the <a href="docs/features-files.md#layered-format-interchange">format support and limitations</a>.</td>
-    <td valign="top" width="50%"><a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="460" alt="A pixel-art grass and path tile repeating across the canvas in seamless tiling mode, with a painted black line wrapping across every tile edge."></a><br><strong>Paint game textures that tile</strong><br>Seamless tiling mode repeats the canvas so strokes wrap live across every tile edge. Palette mode, sprite sheets, and animated GIF, WebP and PNG are there for game art too.</td>
+    <td valign="top" width="50%"><a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="460" alt="Seamless tiling mode repeating a grass and rock game tile built from Dink Smallwood tiles; a rock cluster that crosses the tile edge joins up where the copies meet."></a><br><strong>Make game textures that tile</strong><br>Seamless tiling mode repeats the canvas live, so a seam shows the moment you make one. Palette mode, sprite sheets, and animated GIF, WebP and PNG are there for game art too.</td>
   </tr>
   <tr>
     <td valign="top" width="50%"><a href="docs/images/screenshots/object_select.png"><img src="docs/images/screenshots/object_select.png" width="460" alt="Object Selection tool with a vintage car selected in a busy Havana street from one loose box drag, the rest of the photo muted."></a><br><strong>Select the object, not the box</strong><br>Drag a loose box around anything and Object Selection picks out just the object. Runs on your CPU.</td>
@@ -75,7 +75,8 @@ Click an image for the full-size capture.
 </table>
 
 [See the full gallery](docs/screenshots.md) for layer styles, vector tools, Warp Text and type, artboards,
-the G'MIC filter library, Tilt-Shift and other filters, palette mode, Camera Raw, Perspective Planes, and more.
+scanning (Divide Scanned Photos, Scan a Book to PDF), the G'MIC filter library, Tilt-Shift and other filters,
+palette mode, Camera Raw, Perspective Planes, and more.
 
 ## Features
 

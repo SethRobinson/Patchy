@@ -4,7 +4,7 @@
 
 Click any image to inspect it at full size. These are captures of the real editor.
 
-[Photos and selections](#photos-and-selections) · [Filters](#filters) · [Layer styles and textures](#layer-styles-and-textures) · [Type and vectors](#type-and-vectors) · [Painting, pixel art, and games](#painting-pixel-art-and-games) · [Documents and formats](#documents-and-formats) · [Plug-ins and scripting](#plug-ins-and-scripting)
+[Photos and selections](#photos-and-selections) · [Filters](#filters) · [Layer styles and textures](#layer-styles-and-textures) · [Type and vectors](#type-and-vectors) · [Painting, pixel art, and games](#painting-pixel-art-and-games) · [Documents and formats](#documents-and-formats) · [Scanning](#scanning) · [Plug-ins and scripting](#plug-ins-and-scripting)
 
 ## Photos and selections
 
@@ -25,8 +25,8 @@ Click any image to inspect it at full size. These are captures of the real edito
       <br><sub>Object Selection: one loose box drag picks out the car from a busy street, wheels and mirrors included, on the CPU with the High Quality model</sub>
     </td>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/quick_mask.png"><img src="images/screenshots/quick_mask.png" width="430" alt="Quick Mask mode showing a clean feathered portrait-frame selection as a red overlay with the temporary Quick Mask channel visible"></a>
-      <br><sub>Quick Mask turns a selection into a brush-editable red overlay, then back into marching ants</sub>
+      <a href="images/screenshots/quick_mask.png"><img src="images/screenshots/quick_mask.png" width="430" alt="Quick Mask over the San Francisco skyline: the sky, selected with a few Magic Wand clicks, stays clear while the towers and city below sit under the red overlay, with the Quick Mask channel in the Channels panel"></a>
+      <br><sub>Quick Mask: a Magic Wand selection of the sky becomes a red overlay you can paint with any brush, then turns back into a selection</sub>
     </td>
 </tr>
 </table>
@@ -121,8 +121,8 @@ Click any image to inspect it at full size. These are captures of the real edito
 </tr>
 <tr>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Pixel-art grass and path tile repeating across the whole canvas in seamless tiling mode, with a painted black line wrapping across every tile edge"></a>
-      <br><sub>Seamless tiling mode for game textures: paint on the canvas and strokes wrap live across every tile</sub>
+      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating a 400 pixel grass and rock game tile built from Dink Smallwood tiles; a rock cluster that crosses the tile edge joins up where the copies meet"></a>
+      <br><sub>Seamless tiling mode repeats the canvas live, so edges are checked as you work: the rock cluster crosses the tile's edge and joins up in every copy. Tiles from Dink Smallwood</sub>
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/web_export.png"><img src="images/screenshots/web_export.png" width="430" alt="Export for Web making an animated GIF of San Francisco going from afternoon to blue hour, paused on frame 4 of 8, with a split view comparing the original and the 16-color dithered result and the encoded size of every format"></a>
@@ -160,6 +160,28 @@ Click any image to inspect it at full size. These are captures of the real edito
 </tr>
 </table>
 
+## Scanning
+
+<table>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/divide_photos.png"><img src="images/screenshots/divide_photos.png" width="430" alt="Divide Scanned Photos on a scan of eight prints laid down crooked: the dialog has found all eight and outlines each one, with straightening, the top-edge direction and output options beside it"></a>
+      <br><sub>Divide Scanned Photos: eight crooked prints in one scan, each found and outlined, then opened straightened as its own image or saved to a folder</sub>
+    </td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/book_scan.png"><img src="images/screenshots/book_scan.png" width="430" alt="Scan a Book to PDF scanning a novel: the open spread with its two page outlines and the gutter line, and a strip below with the front cover, pages 1 to 8 and the back cover"></a>
+      <br><sub>Scan a Book to PDF: each spread is found and split at the gutter as you scan, every page so far in the strip below</sub>
+    </td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/book_scan_review.png"><img src="images/screenshots/book_scan_review.png" width="430" alt="Scan a Book to PDF review step: the cover and pages in order as thumbnails, a large preview of the cover, and page size, output and quality settings for the PDF"></a>
+      <br><sub>The review step: reorder or turn pages, pick a page size and color, grayscale or black and white output, then export one PDF whose pages share one size</sub>
+    </td>
+<td width="50%"></td>
+</tr>
+</table>
+
 ## Plug-ins and scripting
 
 <table>
@@ -167,16 +189,6 @@ Click any image to inspect it at full size. These are captures of the real edito
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/plugin_kpt5.png"><img src="images/screenshots/plugin_kpt5.png" width="430" alt="Kai's Power Tools 5 Orb-It running in its own window over a San Francisco photo in Patchy"></a>
       <br><sub>Kai's Power Tools 5 running in its own window over Patchy. Classic 32-bit and 64-bit 8BF filters work on Windows</sub>
-    </td>
-<td align="center" valign="top" width="50%">
-      <a href="images/screenshots/script_manager.png"><img src="images/screenshots/script_manager.png" width="430" alt="Script Manager running the bundled Breakout script, with breakout.js code, live run status, and stop button beside the game playing on a real document canvas with brick, paddle, and ball layers"></a>
-      <br><sub>Script Manager running the bundled Breakout: the game plays on a real canvas, with live run status and one-click stop</sub>
-    </td>
-</tr>
-<tr>
-<td align="center" valign="top" width="50%">
-      <a href="images/screenshots/script_options.png"><img src="images/screenshots/script_options.png" width="430" alt="Duotone script options dialog with instructions, shadow and highlight color fields, and a contrast slider over a photo already remapped to navy and amber"></a>
-      <br><sub>Scripts ask with real options dialogs; the same script runs unattended from the command line with the same defaults</sub>
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/breakout.webp"><img src="images/screenshots/breakout.webp" width="430" alt="Animation: the Script Manager with Breakout chosen and running, and beside it the game playing on a Patchy document while the Layers panel lists the game layers and the controller window shows the score, lives and keys"></a>

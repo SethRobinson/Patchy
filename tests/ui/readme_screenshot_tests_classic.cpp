@@ -66,6 +66,7 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
+#include "ui/preset_grid_widget.hpp"
 #include <QTreeWidget>
 #include <QWidget>
 #include <algorithm>
@@ -1332,115 +1333,50 @@ void shot_readme_warp_text() {
   CHECK(captured);
 }
 
-// Hand-plotted, perfectly tileable pixel art: white-noise grass shades, a dirt
-// path riding sines whose periods divide the tile (so it wraps), and
-// decorations plotted through a wrapping setter — seamless by construction.
+// A 400 x 400 game tile built from Dink Smallwood's ts02 tile sheet
+// (test-fixtures/readme/dink_tiles_ts02.png; NOTICE-THIRD-PARTY.md): Dink's 50 px
+// grass tiles join each other seamlessly, so an 8 x 8 field of them tiles, and the
+// rocks are whole sheet blocks whose outer tiles are grass. The big rock cluster sits
+// across the right edge and wraps to the left, so the tiled view shows it whole only
+// where two copies meet.
 QImage readme_seamless_tile() {
-  constexpr int kSize = 128;
-  QImage tile(kSize, kSize, QImage::Format_RGB32);
-  const auto hash01 = [](int x, int y, std::uint32_t salt) {
-    auto h = static_cast<std::uint32_t>(x) * 374761393u + static_cast<std::uint32_t>(y) * 668265263u +
-             salt * 2246822519u;
-    h = (h ^ (h >> 13)) * 1274126177u;
-    return static_cast<double>((h ^ (h >> 16)) & 0xFFFFu) / 65535.0;
-  };
-  const auto path_center = [](int x) {
-    const auto t = 2.0 * 3.14159265358979323846 * x / kSize;
-    return 64.0 + 10.0 * std::sin(t) + 3.0 * std::sin(2.0 * t + 1.1);
-  };
-  const QColor grass[4] = {QColor(0x4e, 0x99, 0x3f), QColor(0x44, 0x87, 0x38), QColor(0x5b, 0xa8, 0x4a),
-                           QColor(0x69, 0xb8, 0x55)};
-  const QColor dirt[3] = {QColor(0xa8, 0x7c, 0x4f), QColor(0x97, 0x6d, 0x45), QColor(0xb8, 0x8c, 0x5c)};
-  for (int y = 0; y < kSize; ++y) {
-    for (int x = 0; x < kSize; ++x) {
-      const auto v = hash01(x, y, 1u);
-      QColor color = v < 0.60 ? grass[0] : v < 0.80 ? grass[1] : v < 0.93 ? grass[2] : grass[3];
-      const auto dist = std::abs(y - path_center(x));
-      if (dist < 10.0) {
-        const auto d = hash01(x, y, 2u);
-        color = d < 0.62 ? dirt[0] : d < 0.86 ? dirt[1] : dirt[2];
-      } else if (dist < 11.5) {
-        color = QColor(0x6f, 0x51, 0x33);
-      }
-      tile.setPixelColor(x, y, color);
-    }
-  }
-  const auto put = [&tile](int x, int y, QColor color) {
-    tile.setPixelColor(((x % kSize) + kSize) % kSize, ((y % kSize) + kSize) % kSize, color);
-  };
-  const auto block2 = [&put](int x, int y, QColor color) {
-    put(x, y, color);
-    put(x + 1, y, color);
-    put(x, y + 1, color);
-    put(x + 1, y + 1, color);
-  };
-  for (int i = 0; i < 8; ++i) {  // stepping stones along the path
-    const auto stone_x = i * 16 + 6;
-    const auto stone_y = static_cast<int>(path_center(stone_x)) + (i % 3) * 4 - 5;
-    for (int dy = 0; dy < 3; ++dy) {
-      for (int dx = 0; dx < 4; ++dx) {
-        const bool shaded = dy == 2 || dx == 3;
-        put(stone_x + dx, stone_y + dy,
-            shaded ? QColor(0x8a, 0x77, 0x58) : QColor(0xd4, 0xcd, 0xb4));
+  constexpr int kCell = 50;
+  constexpr int kCells = 8;
+  const auto path = patchy::test::committed_format_fixture_path("readme", "dink_tiles_ts02.png");
+  const QImage sheet = QImage(QString::fromStdString(path.string())).convertToFormat(QImage::Format_RGB32);
+  CHECK(!sheet.isNull());
+  QImage tile(kCell * kCells, kCell * kCells, QImage::Format_RGB32);
+  // Plain grass cells of the sheet, picked in a fixed scattered order: only cells of one
+  // brightness with no rock shadow in them (green within 2.5 levels, quadrants within 5),
+  // or the field shows a checkerboard.
+  constexpr std::array<std::array<int, 2>, 8> kGrass{
+      {{9, 0}, {7, 4}, {1, 6}, {7, 7}, {1, 0}, {7, 0}, {1, 7}, {7, 3}}};
+  for (int y = 0; y < kCells; ++y) {
+    for (int x = 0; x < kCells; ++x) {
+      const auto& cell = kGrass[static_cast<std::size_t>((x * 5 + y * 3 + x * y) % 8)];
+      for (int py = 0; py < kCell; ++py) {
+        std::memcpy(tile.scanLine(y * kCell + py) + static_cast<std::ptrdiff_t>(x) * kCell * 4,
+                    sheet.constScanLine(cell[1] * kCell + py) + static_cast<std::ptrdiff_t>(cell[0]) * kCell * 4,
+                    kCell * 4);
       }
     }
   }
-  struct Spot {
-    int x;
-    int y;
-  };
-  const auto on_grass = [&](Spot spot, double margin) {
-    return std::abs(spot.y - path_center(spot.x)) > margin;
-  };
-  const Spot flowers[] = {{14, 16}, {52, 8},   {90, 20},  {116, 30}, {30, 110},
-                          {74, 102}, {104, 116}, {8, 94},  {60, 120}, {40, 28}};
-  int flower_index = 0;
-  for (const auto& spot : flowers) {
-    if (!on_grass(spot, 17.0)) {
-      continue;
-    }
-    const auto petal = (flower_index++ % 2) == 0 ? QColor(0xe8, 0x8c, 0xc8) : QColor(0xf4, 0xf4, 0xf4);
-    block2(spot.x - 1, spot.y - 3, petal);
-    block2(spot.x - 1, spot.y + 1, petal);
-    block2(spot.x - 3, spot.y - 1, petal);
-    block2(spot.x + 1, spot.y - 1, petal);
-    block2(spot.x - 1, spot.y - 1, QColor(0xf5, 0xd4, 0x4f));
-  }
-  const Spot rocks[] = {{18, 34}, {96, 100}, {118, 58}};
-  for (const auto& spot : rocks) {
-    if (!on_grass(spot, 17.0)) {
-      continue;
-    }
-    for (int dy = 0; dy < 4; ++dy) {
-      for (int dx = 0; dx < 5; ++dx) {
-        if ((dy == 0 || dy == 3) && (dx == 0 || dx == 4)) {
-          continue;  // rounded corners
-        }
-        QColor color(0x9a, 0x9a, 0x92);
-        if (dy == 0) {
-          color = QColor(0xb5, 0xb5, 0xac);
-        } else if (dy == 3 || dx == 4) {
-          color = QColor(0x6e, 0x6e, 0x66);
-        }
-        put(spot.x + dx, spot.y + dy, color);
+  // Copies a block of sheet cells to (x, y) in the tile, wrapping past its edges.
+  const auto stamp = [&](int cell_x, int cell_y, int cells_wide, int cells_high, int x, int y) {
+    for (int py = 0; py < cells_high * kCell; ++py) {
+      const auto* source = reinterpret_cast<const QRgb*>(sheet.constScanLine(cell_y * kCell + py)) + cell_x * kCell;
+      auto* target = reinterpret_cast<QRgb*>(tile.scanLine((y + py) % tile.height()));
+      for (int px = 0; px < cells_wide * kCell; ++px) {
+        target[(x + px) % tile.width()] = source[px];
       }
     }
-  }
-  const Spot tufts[] = {{24, 22}, {68, 14}, {102, 28}, {44, 104}, {88, 94}, {12, 50}, {120, 104}, {56, 30}};
-  for (const auto& spot : tufts) {
-    if (!on_grass(spot, 15.0)) {
-      continue;
-    }
-    const QColor blade(0x2f, 0x63, 0x2a);
-    const QColor tip(0x74, 0xc4, 0x60);
-    put(spot.x, spot.y, blade);
-    put(spot.x, spot.y - 1, blade);
-    put(spot.x, spot.y - 2, tip);
-    put(spot.x - 2, spot.y, blade);
-    put(spot.x - 2, spot.y - 1, tip);
-    put(spot.x + 2, spot.y, blade);
-    put(spot.x + 2, spot.y - 1, tip);
-  }
+  };
+  stamp(1, 4, 7, 4, 250, 120);  // the big cluster, across the right edge
+  stamp(8, 2, 2, 1, 40, 20);    // a long low rock
+  stamp(2, 0, 1, 1, 230, 40);
+  stamp(9, 5, 1, 1, 120, 250);
+  stamp(10, 6, 1, 1, 330, 15);
+  stamp(8, 7, 2, 1, 120, 365);  // across the bottom edge
   return tile;
 }
 
@@ -1466,23 +1402,12 @@ void shot_readme_tile_preview() {
   QApplication::processEvents();
   CHECK(canvas->tiling_preview_enabled());
 
-  // 200% keeps the pixels crisp while leaving room for a full field of ghost
-  // copies around the center tile.
-  canvas->set_zoom(2.0);
+  // 100%: the 400 px tile and the copies around it, so the rock cluster that crosses
+  // the tile's right edge reads whole where two copies meet.
+  canvas->set_zoom(1.0);
   canvas->center_document_in_view();
   QApplication::processEvents();
 
-  // A hard black dash covering only part of the tile, painted as two strokes:
-  // one leaves the right edge and the other re-enters the left edge at the same
-  // height (the manual wrap a texture artist paints). The tiled view joins them
-  // across every seam, and the mid-tile gap makes each repeated copy read as
-  // the single painted piece it is.
-  canvas->set_brush_size(5);
-  canvas->set_brush_softness(0);
-  canvas->set_primary_color(Qt::black);
-  paint_readme_polyline(*canvas, {QPointF(78.0, 106.0), QPointF(104.0, 92.0), QPointF(128.0, 100.0)});
-  paint_readme_polyline(*canvas, {QPointF(0.0, 100.0), QPointF(24.0, 110.0), QPointF(46.0, 98.0)});
-  QApplication::processEvents();
 
   reset_readme_status_bar(window);
   save_readme_shot("shot_readme_tile_preview", window.grab().toImage());
@@ -1798,32 +1723,11 @@ void shot_readme_gmic() {
   CHECK(captured);
 }
 
-QTreeWidgetItem* readme_style_item_for_storage_id(QTreeWidget& tree,
-                                                  const QString& storage_id) {
-  const std::function<QTreeWidgetItem*(QTreeWidgetItem*)> visit =
-      [&](QTreeWidgetItem* item) -> QTreeWidgetItem* {
-    if (item->data(0, Qt::UserRole).toString() == storage_id) {
-      return item;
-    }
-    for (int child = 0; child < item->childCount(); ++child) {
-      if (auto* found = visit(item->child(child)); found != nullptr) {
-        return found;
-      }
-    }
-    return nullptr;
-  };
-  for (int row = 0; row < tree.topLevelItemCount(); ++row) {
-    if (auto* found = visit(tree.topLevelItem(row)); found != nullptr) {
-      return found;
-    }
-  }
-  return nullptr;
-}
-
 // Material styles: live application of the Riveted Steel preset to large
-// transparent type, with the expanded Materials browser beside the canvas.
+// transparent type, picked in the Style Presets thumbnail grid beside the canvas.
 void shot_readme_material_styles() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  SettingsValueRestorer grid_view_restorer(QStringLiteral("layerStyle/stylesGridView"));
   QImage background(1180, 780, QImage::Format_RGB32);
   {
     QPainter painter(&background);
@@ -1842,16 +1746,17 @@ void shot_readme_material_styles() {
   {
     QPainter painter(&lettering);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    // The left part of the canvas: the Layer Style dialog floats over the right.
     QFont font(QStringLiteral("Arial Black"));
-    font.setPixelSize(155);
+    font.setPixelSize(118);
     font.setBold(true);
     painter.setFont(font);
     painter.setPen(QColor(235, 235, 228));
-    painter.drawText(QRect(80, 165, 1020, 230), Qt::AlignCenter,
+    painter.drawText(QRect(40, 200, 600, 190), Qt::AlignCenter,
                      QStringLiteral("PATCHY"));
-    font.setPixelSize(76);
+    font.setPixelSize(62);
     painter.setFont(font);
-    painter.drawText(QRect(80, 405, 1020, 130), Qt::AlignCenter,
+    painter.drawText(QRect(40, 400, 600, 110), Qt::AlignCenter,
                      QStringLiteral("MATERIALS"));
   }
 
@@ -1881,23 +1786,33 @@ void shot_readme_material_styles() {
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(
         QStringLiteral("layerStyleCategoryList"));
-    auto* browser = dialog->findChild<patchy::ui::StyleBrowserWidget*>(
-        QStringLiteral("layerStyleStylesBrowser"));
-    CHECK(categories != nullptr && browser != nullptr);
+    // PresetGridWidget has no Q_OBJECT, so it is found as the QListWidget it is.
+    auto* grid = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleStylesGrid"));
+    auto* grid_view = dialog->findChild<QToolButton*>(
+        QStringLiteral("layerStyleStylesGridViewButton"));
+    CHECK(categories != nullptr && grid != nullptr && grid_view != nullptr);
     const auto style_rows = categories->findItems(
         QStringLiteral("Style Presets"), Qt::MatchExactly);
     CHECK(!style_rows.empty());
     categories->setCurrentItem(style_rows.front());
+    // The thumbnail grid, the dialog's default view (the setting is restored below).
+    if (!grid_view->isChecked()) {
+      grid_view->click();
+    }
     QApplication::processEvents();
-    auto* item = readme_style_item_for_storage_id(*browser, storage_id);
-    CHECK(item != nullptr && item->parent() != nullptr);
-    item->parent()->setExpanded(true);
-    browser->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+    QListWidgetItem* item = nullptr;
+    for (int row = 0; row < grid->count(); ++row) {
+      if (patchy::ui::PresetGridWidget::item_entry_id(grid->item(row)) == storage_id) {
+        item = grid->item(row);
+      }
+    }
+    CHECK(item != nullptr);
+    grid->scrollToItem(item, QAbstractItemView::PositionAtCenter);
     QApplication::processEvents();
-    const auto center = browser->visualItemRect(item).center();
-    send_mouse(*browser->viewport(), QEvent::MouseButtonPress, center,
+    const auto center = grid->visualItemRect(item).center();
+    send_mouse(*grid->viewport(), QEvent::MouseButtonPress, center,
                Qt::LeftButton, Qt::LeftButton);
-    send_mouse(*browser->viewport(), QEvent::MouseButtonRelease, center,
+    send_mouse(*grid->viewport(), QEvent::MouseButtonRelease, center,
                Qt::LeftButton, Qt::NoButton);
     process_events_for(700);
     const QPoint dialog_offset(690, 130);
@@ -2236,75 +2151,50 @@ void shot_readme_camera_raw() {
   CHECK(*finished);
 }
 
-// Quick Mask: load a clean, feathered portrait frame from a hidden layer's
-// transparency, then convert it to the live red editing overlay. The Channels
-// dock shows the temporary Quick Mask channel.
+// Quick Mask on a real selection: Magic Wand clicks take the sky above the San Francisco
+// skyline, and Quick Mask shows everything outside the selection under the red overlay,
+// so the jagged edge along the towers reads at a glance. A soft brush is ready to paint
+// the mask, and the Channels panel lists the temporary Quick Mask channel.
 void shot_readme_quick_mask() {
-  const auto path =
-      patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
-  patchy::test::skip_unless_exists(path);
+  const auto path = patchy::test::committed_format_fixture_path("readme", "san_francisco_cityscape_cc0.jpg");
   QImage photo(QString::fromStdString(path.string()));
   CHECK(!photo.isNull());
-  photo = photo.scaled(800, 1200, Qt::KeepAspectRatio,
-                       Qt::SmoothTransformation);
-  QImage selection_source(photo.size(), QImage::Format_RGBA8888);
-  selection_source.fill(Qt::transparent);
-  {
-    QPainter painter(&selection_source);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    const QRectF outer(photo.width() * 0.245, photo.height() * 0.075,
-                       photo.width() * 0.49, photo.height() * 0.82);
-    constexpr std::array<int, 7> alpha_steps = {18, 38, 72, 116, 168, 218, 255};
-    for (std::size_t step = 0; step < alpha_steps.size(); ++step) {
-      const auto inset = static_cast<qreal>(step) * 3.2;
-      const auto frame = outer.adjusted(inset, inset, -inset, -inset);
-      painter.setBrush(QColor(255, 255, 255, alpha_steps[step]));
-      painter.setPen(Qt::NoPen);
-      painter.drawRoundedRect(frame, frame.width() * 0.47,
-                              frame.width() * 0.47);
-    }
-  }
-  auto source_document = patchy::ui::document_from_qimage(photo, "Cyclist");
-  const auto photo_layer_id = *source_document.active_layer_id();
-  patchy::Layer selection_layer(
-      source_document.allocate_layer_id(), "Portrait Selection Source",
-      patchy::ui::pixels_from_image_rgba(selection_source));
-  selection_layer.set_visible(false);
-  source_document.add_layer(std::move(selection_layer));
-  source_document.set_active_layer(photo_layer_id);
+  photo = photo.scaled(1200, 800, Qt::KeepAspectRatio, Qt::SmoothTransformation);
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
-  window.add_document_session(std::move(source_document),
-                              QStringLiteral("Quick Mask Portrait"));
+  window.add_document_session(patchy::ui::document_from_qimage(photo, "Skyline"),
+                              QStringLiteral("San Francisco"));
   QApplication::processEvents();
   close_untitled_start_tab(window);
   auto* canvas = require_canvas(window);
-  const auto& document =
-      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
 
-  patchy::PixelBuffer selection(document.width(), document.height(),
-                                patchy::PixelFormat::gray8());
-  for (int y = 0; y < selection.height(); ++y) {
-    auto row = selection.row(y);
-    for (int x = 0; x < selection.width(); ++x) {
-      row[static_cast<std::size_t>(x)] =
-          static_cast<std::uint8_t>(qAlpha(selection_source.pixel(x, y)));
-    }
+  // The sky runs from grey cloud to a gold horizon, so it takes a few Shift-clicks.
+  require_action_by_text(window, QStringLiteral("Magic Wand"))->trigger();
+  canvas->set_wand_tolerance(34);
+  canvas->set_wand_contiguous(true);
+  canvas->set_wand_sample_size(5);
+  bool first = true;
+  for (const QPoint point : {QPoint(150, 40), QPoint(620, 60), QPoint(1120, 50), QPoint(360, 150),
+                             QPoint(900, 140), QPoint(220, 205), QPoint(760, 215), QPoint(1150, 205)}) {
+    const auto widget_point = canvas->widget_position_for_document_point(point);
+    const auto modifiers = first ? Qt::NoModifier : Qt::ShiftModifier;
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    first = false;
   }
-  canvas->replace_selection_from_grayscale(
-      selection, QStringLiteral("Load portrait layer transparency"));
+  CHECK(canvas->has_selection());
   require_hotkey_action(window, QStringLiteral("select.quick_mask"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->quick_mask_active());
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
-  canvas->set_brush_size(56);
-  canvas->set_brush_softness(55);
+  canvas->set_brush_size(40);
+  canvas->set_brush_softness(60);
   canvas->set_primary_color(Qt::white);
-  require_action(window, "viewFitOnScreenAction")->trigger();
-  auto* channels_dock = window.findChild<QWidget*>(QStringLiteral("channelsDock"));
   auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
-  CHECK(channels_dock != nullptr && channels != nullptr);
+  CHECK(channels != nullptr);
   patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("channelsDock"));
   process_events_for(400);
   CHECK(channels->findItems(QStringLiteral("Quick Mask"), Qt::MatchExactly).size() == 1);

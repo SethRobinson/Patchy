@@ -454,6 +454,12 @@ not part of any release package.
   import (`patchy.exe <svg> --export <png>`); the committed PNG's SHA-256 is
   `770AB5D6CAA07150F3FE075C3E5F14EC78FF95B44FAD87BDA91C7FA7C9348BD8`.
   It is used only to regenerate the README and gallery screenshots.
+- `test-fixtures/readme/dink_tiles_ts02.png`: tile sheet `tiles/ts02.bmp` from the original
+  Dink Smallwood game data (github.com/SethRobinson/RTDink, `bin/dink/tiles/`), released
+  under a zlib-style license in 2008; converted to PNG unmodified (SHA-256
+  `9FA479680DE9894DA574067007D8387C2FE8FE84FA6C5C43DAF5BD93D56B890A`). Dink Smallwood is (C) Robinson
+  Technologies Corporation; this product includes software developed by Seth A. Robinson
+  ( www.rtsoft.com ). It is used only to regenerate the gallery seamless tiling screenshot.
 - `test-fixtures/ico/cpython-py.ico`: the CPython `py.ico` application icon
   from https://github.com/python/cpython (`PC/icons/py.ico`), included under the
   Python Software Foundation License 2.0 as a real-world multi-size icon sample.

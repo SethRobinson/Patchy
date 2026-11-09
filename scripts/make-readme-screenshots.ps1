@@ -145,7 +145,7 @@ $jsScenes = [ordered]@{
 if ($Scene -eq 'hero' -or $Scene -eq 'shot_readme_hero') { $Scene = 'smart_filters' }
 # The Artboards capture now uses Light; the former duplicate name is an alias.
 if ($Scene -eq 'light_theme' -or $Scene -eq 'shot_readme_light_theme') { $Scene = 'artboards' }
-$retiredScenes = @('levels', 'brush_dynamics', 'shape_appearance', 'affinity_import')
+$retiredScenes = @('levels', 'brush_dynamics', 'shape_appearance', 'affinity_import', 'script_manager', 'script_options')
 $sceneName = $Scene -replace '^shot_readme_?', ''
 if ($retiredScenes -contains $sceneName) {
     throw "$sceneName is retired from the gallery; see docs/readme-showcase.md for the consolidated scenes"

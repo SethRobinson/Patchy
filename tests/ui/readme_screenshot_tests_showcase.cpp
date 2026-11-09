@@ -10,6 +10,7 @@
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/book_scan_dialog.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/perspective_planes_dialog.hpp"
@@ -24,6 +25,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
 #include <QFont>
 #include <QFontDatabase>
 #include <QImage>
@@ -44,6 +46,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <exception>
 #include <memory>
@@ -308,6 +311,372 @@ void shot_readme_web_export_quad() {
   QApplication::processEvents();
   if (error) std::rethrow_exception(error);
   CHECK(captured);
+}
+
+// --- Divide Scanned Photos: eight prints on one scan --------------------------
+
+// One print on the scanner bed: a crop of a committed CC0 photo, where it lands
+// (center in bed pixels), its size and how far it went down crooked.
+struct ScannedPrint {
+  const char* photo;
+  QRectF crop;  // fractions of the source photo
+  QPointF center;
+  QSize size;
+  double tilt_degrees;
+};
+
+// A sloppy flatbed scan: a 1800 x 1250 off-white bed (a lid with a faint gradient and
+// grain) and eight prints dropped on it a little crooked, landscape and portrait mixed.
+// The prints are crops of the committed CC0 photos, so the scene needs no local fixtures.
+QImage scanned_prints_bed() {
+  constexpr std::array<ScannedPrint, 8> kPrints{{
+      {"san_francisco_cityscape_cc0.jpg", {0.10, 0.12, 0.80, 0.70}, {245, 190}, {360, 240}, -4.0},
+      {"havana_vintage_car_cc0.jpg", {0.30, 0.42, 0.52, 0.50}, {680, 205}, {360, 240}, 3.0},
+      {"stylized_sunset_cc0.png", {0.05, 0.05, 0.90, 0.90}, {1115, 215}, {360, 240}, -2.0},
+      {"brick_wall_new_brunswick_cc0.jpg", {0.30, 0.00, 0.40, 0.62}, {1555, 300}, {240, 340}, 5.0},
+      {"havana_vintage_car_cc0.jpg", {0.00, 0.00, 0.34, 0.75}, {225, 760}, {240, 360}, 6.0},
+      {"san_francisco_cityscape_cc0.jpg", {0.40, 0.45, 0.36, 0.48}, {640, 690}, {360, 240}, -3.0},
+      {"brick_wall_new_brunswick_cc0.jpg", {0.58, 0.48, 0.38, 0.40}, {1070, 750}, {360, 240}, 4.0},
+      {"stylized_sunset_cc0.png", {0.30, 0.10, 0.36, 0.80}, {1535, 845}, {240, 340}, -5.0},
+  }};
+  QImage bed(1800, 1250, QImage::Format_RGB32);
+  {
+    QPainter painter(&bed);
+    QLinearGradient lid(0, 0, 1800, 1250);
+    lid.setColorAt(0.0, QColor(246, 245, 240));
+    lid.setColorAt(1.0, QColor(232, 230, 224));
+    painter.fillRect(bed.rect(), lid);
+  }
+  // Grain, from a fixed splitmix64 sequence so the scene is the same every run.
+  std::uint64_t state = 0x5ca9ed9a11ULL;
+  const auto next = [&state] {
+    std::uint64_t z = (state += 0x9e3779b97f4a7c15ULL);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31);
+  };
+  for (int y = 0; y < bed.height(); ++y) {
+    auto* row = reinterpret_cast<QRgb*>(bed.scanLine(y));
+    for (int x = 0; x < bed.width(); ++x) {
+      const int delta = static_cast<int>(next() % 7U) - 3;
+      const QColor c(row[x]);
+      row[x] = qRgb(std::clamp(c.red() + delta, 0, 255), std::clamp(c.green() + delta, 0, 255),
+                    std::clamp(c.blue() + delta, 0, 255));
+    }
+  }
+  QPainter painter(&bed);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+  for (const auto& print : kPrints) {
+    const auto path = patchy::test::committed_format_fixture_path("readme", print.photo);
+    const QImage source(QString::fromStdString(path.string()));
+    CHECK(!source.isNull());
+    const QRect crop(static_cast<int>(print.crop.x() * source.width()),
+                     static_cast<int>(print.crop.y() * source.height()),
+                     static_cast<int>(print.crop.width() * source.width()),
+                     static_cast<int>(print.crop.height() * source.height()));
+    const QImage photo =
+        source.copy(crop).scaled(print.size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    const QRectF target(-print.size.width() / 2.0, -print.size.height() / 2.0, print.size.width(),
+                        print.size.height());
+    painter.save();
+    painter.translate(print.center);
+    painter.rotate(print.tilt_degrees);
+    // The thin shadow a print's edge casts under the scanner lamp.
+    painter.fillRect(target.adjusted(-1.5, -1.5, 2.5, 2.5), QColor(150, 148, 142));
+    painter.drawImage(target, photo,
+                      QRectF((photo.width() - print.size.width()) / 2.0,
+                             (photo.height() - print.size.height()) / 2.0, print.size.width(),
+                             print.size.height()));
+    painter.restore();
+  }
+  painter.end();
+  return bed;
+}
+
+// Image > Divide Scanned Photos on a sloppy scan of eight prints: the dialog finds every
+// print on its own and draws its straightened rectangle, ready to open each as a document
+// or save them to a folder.
+void shot_readme_divide_photos() {
+  std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
+  for (const auto* key : {"sensitivity", "straighten", "fixPerspective", "output", "upDirection", "folder",
+                          "prefix", "format", "existingFiles"}) {
+    restorers.push_back(std::make_unique<SettingsValueRestorer>(QStringLiteral("dividePhotos/") + QLatin1String(key)));
+  }
+  // A neutral folder: the default is the account's Documents folder, which names the user.
+  patchy::ui::app_settings().setValue(QStringLiteral("dividePhotos/folder"), QStringLiteral("C:/Photos/Scans"));
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::ui::document_from_qimage(scanned_prints_bed(), "Scan"),
+                              QStringLiteral("photo_scan.png"));
+  close_untitled_start_tab(window);
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  bool captured = false;
+  std::exception_ptr error;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* pane = dialog->findChild<QWidget*>(QStringLiteral("dividePhotosPreviewPane"));
+      CHECK(pane != nullptr);
+      dialog->resize(1240, 760);
+      QApplication::processEvents();
+      CHECK(process_events_until([&] { return pane->property("regionCount").toInt() == 8; }, 20000));
+      process_events_for(300);
+      const QPoint offset((window.width() - dialog->width()) / 2, 84);
+      dialog->move(window.geometry().topLeft() + offset);
+      QApplication::processEvents();
+      reset_readme_status_bar(window);
+      auto base = window.grab().toImage();
+      draw_readme_overlay(base, readme_captioned_dialog(*dialog, window.windowIcon()), offset);
+      save_readme_shot("shot_readme_divide_photos", base);
+      captured = true;
+    } catch (...) {
+      error = std::current_exception();
+    }
+    if (dialog != nullptr) dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::divide_current_document_photos(window);
+  QApplication::processEvents();
+  if (error) std::rethrow_exception(error);
+  CHECK(captured);
+}
+
+// --- Scan a Book to PDF: a sample book through the wizard ----------------------
+
+// The sample book's pages are drawn at the scan resolution: 150 dpi, a 5.5 x 8 inch page.
+constexpr int kBookDpi = 150;
+constexpr int kBookPageWidth = 825;
+constexpr int kBookPageHeight = 1200;
+
+const QString& sample_book_text() {
+  static const QString text = QStringLiteral(
+      "The harbor lights came on one at a time, the way they always had, first the long pier and "
+      "then the boats that still rocked against their ropes. Nell counted them from the window of "
+      "the keeper's house, the same window her grandmother had counted them from, and wrote the "
+      "number in the book that lived on the sill. Some nights the fog took half of them before she "
+      "reached the end of the row. She wrote those nights down too, in a smaller hand, because a "
+      "light you could not see was still a light someone had lit. Down on the water a bell rang "
+      "twice and stopped. The tide was turning; she could hear it in the way the hulls knocked "
+      "together, slower now, like old friends who had run out of things to say. ");
+  return text;
+}
+
+// One page: running head, body text (or a chapter opening or a plate), page number.
+void draw_book_page(QPainter& painter, const QRect& page, int number, int kind) {
+  painter.fillRect(page, QColor(246, 241, 228));
+  const int margin = 80;
+  const QRect body = page.adjusted(margin, 110, -margin, -110);
+  QFont serif(QStringLiteral("Georgia"));
+  serif.setPixelSize(13);
+  painter.setPen(QColor(110, 100, 90));
+  serif.setLetterSpacing(QFont::AbsoluteSpacing, 2.0);
+  painter.setFont(serif);
+  painter.drawText(QRect(page.left(), page.top() + 50, page.width(), 30), Qt::AlignCenter,
+                   number % 2 == 0 ? QStringLiteral("HARBOR LIGHTS") : QStringLiteral("THE KEEPER'S HOUSE"));
+  serif.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+  serif.setPixelSize(16);
+  painter.setFont(serif);
+  painter.drawText(QRect(page.left(), page.bottom() - 80, page.width(), 30), Qt::AlignCenter,
+                   QString::number(number));
+  painter.setPen(QColor(40, 36, 32));
+  QRect text_area = body;
+  if (kind == 1) {  // chapter opening
+    QFont heading(QStringLiteral("Georgia"));
+    heading.setPixelSize(44);
+    heading.setItalic(true);
+    painter.setFont(heading);
+    painter.drawText(body.adjusted(0, 80, 0, 0), Qt::AlignHCenter | Qt::AlignTop, QStringLiteral("Chapter Two"));
+    heading.setPixelSize(22);
+    heading.setItalic(false);
+    painter.setFont(heading);
+    painter.drawText(body.adjusted(0, 150, 0, 0), Qt::AlignHCenter | Qt::AlignTop, QStringLiteral("The Counting Book"));
+    text_area = body.adjusted(0, 260, 0, 0);
+  } else if (kind == 2) {  // a plate
+    const auto path = patchy::test::committed_format_fixture_path("readme", "stylized_sunset_cc0.png");
+    const QImage plate(QString::fromStdString(path.string()));
+    const QRect frame(body.left(), body.top() + 60, body.width(), body.width() * 3 / 4);
+    painter.drawImage(frame, plate);
+    QFont caption(QStringLiteral("Georgia"));
+    caption.setPixelSize(16);
+    caption.setItalic(true);
+    painter.setFont(caption);
+    painter.drawText(QRect(body.left(), frame.bottom() + 20, body.width(), 60), Qt::AlignHCenter | Qt::TextWordWrap,
+                     QStringLiteral("The last light over the point, from the keeper's window."));
+    text_area = QRect(body.left(), frame.bottom() + 110, body.width(), body.bottom() - frame.bottom() - 110);
+  }
+  serif.setPixelSize(19);
+  painter.setFont(serif);
+  const QString& text = sample_book_text();
+  const int start = (number * 97) % 300;
+  QString words = text.mid(start) + text + text + text;
+  painter.drawText(text_area, Qt::AlignJustify | Qt::TextWordWrap, words);
+}
+
+// The open book as it lies on the glass: two pages with the fold's shadow, or the outside
+// of the covers (back cover, spine, front cover).
+QImage book_spread_image(int left_number, int left_kind, int right_kind, bool cover) {
+  QImage spread(kBookPageWidth * 2, kBookPageHeight, QImage::Format_RGB32);
+  QPainter painter(&spread);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setRenderHint(QPainter::TextAntialiasing, true);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+  if (cover) {
+    // A light cover, so its outline stands out from the open lid's dark background
+    // (the cover's outline sets the book area every page scan uses).
+    const QColor ink(24, 52, 74);
+    painter.fillRect(spread.rect(), QColor(236, 214, 178));
+    const QRect back(0, 0, kBookPageWidth - 30, kBookPageHeight);
+    const QRect spine(kBookPageWidth - 30, 0, 60, kBookPageHeight);
+    const QRect front(kBookPageWidth + 30, 0, kBookPageWidth - 30, kBookPageHeight);
+    painter.fillRect(spine, QColor(212, 184, 142));
+    const auto path = patchy::test::committed_format_fixture_path("readme", "stylized_sunset_cc0.png");
+    const QImage art(QString::fromStdString(path.string()));
+    painter.drawImage(QRect(front.left() + 60, 330, front.width() - 120, (front.width() - 120) * 5 / 8), art);
+    QFont title(QStringLiteral("Georgia"));
+    title.setPixelSize(78);
+    title.setBold(true);
+    painter.setPen(ink);
+    painter.setFont(title);
+    painter.drawText(QRect(front.left(), 110, front.width(), 100), Qt::AlignCenter, QStringLiteral("HARBOR"));
+    painter.drawText(QRect(front.left(), 200, front.width(), 100), Qt::AlignCenter, QStringLiteral("LIGHTS"));
+    QFont byline(QStringLiteral("Georgia"));
+    byline.setPixelSize(30);
+    byline.setItalic(true);
+    painter.setFont(byline);
+    painter.setPen(QColor(70, 60, 50));
+    painter.drawText(QRect(front.left(), 1000, front.width(), 60), Qt::AlignCenter, QStringLiteral("a novel"));
+    QFont blurb(QStringLiteral("Georgia"));
+    blurb.setPixelSize(22);
+    painter.setFont(blurb);
+    painter.drawText(back.adjusted(90, 220, -90, -400), Qt::AlignJustify | Qt::TextWordWrap,
+                     sample_book_text().left(420));
+    painter.save();
+    painter.translate(spine.center());
+    painter.rotate(90);
+    QFont spine_font(QStringLiteral("Georgia"));
+    spine_font.setPixelSize(24);
+    spine_font.setBold(true);
+    painter.setFont(spine_font);
+    painter.setPen(ink);
+    painter.drawText(QRect(-500, -20, 1000, 40), Qt::AlignCenter, QStringLiteral("HARBOR LIGHTS"));
+    painter.restore();
+  } else {
+    draw_book_page(painter, QRect(0, 0, kBookPageWidth, kBookPageHeight), left_number, left_kind);
+    draw_book_page(painter, QRect(kBookPageWidth, 0, kBookPageWidth, kBookPageHeight), left_number + 1, right_kind);
+    // The fold: paper curving down into the gutter darkens toward it.
+    QLinearGradient fold(kBookPageWidth - 90, 0, kBookPageWidth + 90, 0);
+    fold.setColorAt(0.0, QColor(0, 0, 0, 0));
+    fold.setColorAt(0.45, QColor(0, 0, 0, 70));
+    fold.setColorAt(0.5, QColor(0, 0, 0, 120));
+    fold.setColorAt(0.55, QColor(0, 0, 0, 70));
+    fold.setColorAt(1.0, QColor(0, 0, 0, 0));
+    painter.fillRect(QRect(kBookPageWidth - 90, 0, 180, kBookPageHeight), fold);
+  }
+  painter.end();
+  return spread;
+}
+
+// A whole-bed scan (A4 landscape, 11.7 x 8.5 inches at 150 dpi) with the open lid's dark
+// background and the book laid on it, shifted and turned a little as hands leave it.
+QString write_book_bed(const QString& folder, const QString& name, const QImage& spread, QPointF shift,
+                       double tilt_degrees) {
+  QImage bed(qRound(11.7 * kBookDpi), qRound(8.5 * kBookDpi), QImage::Format_RGB32);
+  bed.fill(QColor(20, 20, 22));
+  QPainter painter(&bed);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+  painter.translate(QPointF(bed.width() / 2.0, bed.height() / 2.0) + shift);
+  painter.rotate(tilt_degrees);
+  painter.scale(0.94, 0.94);  // the book fits the glass with room around it
+  painter.drawImage(QPointF(-spread.width() / 2.0, -spread.height() / 2.0), spread);
+  painter.end();
+  const QString path = QDir(folder).filePath(name);
+  CHECK(bed.save(path, "PNG"));
+  return path;
+}
+
+// File > Import > Scan a Book to PDF with a sample book on the test scanner: the cover,
+// then four spreads (a chapter opening and a picture page among them), scanned through the
+// real wizard. book_scan.png is the scanning step (the newest spread in the box editor with
+// its page outlines and gutter line, every page so far in the strip); book_scan_review.png
+// is the review step, the pages in order, ready for the PDF.
+void shot_readme_book_scan() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+  std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
+  for (const auto* key : {"lastFolder", "deviceId", "dpi", "colorMode", "scanArea", "readingDirection",
+                          "coverStyle", "includeCovers", "beep"}) {
+    restorers.push_back(std::make_unique<SettingsValueRestorer>(QStringLiteral("bookScan/") + QLatin1String(key)));
+  }
+  ensure_artifact_dir();
+  const QString root = QDir::current().filePath(QStringLiteral("test-artifacts/readme_book_scan"));
+  if (QDir(root).exists()) {
+    remove_test_scratch_dir(root);
+  }
+  QDir().mkpath(root + QStringLiteral("/inputs"));
+  const QString inputs = root + QStringLiteral("/inputs");
+  QStringList files;
+  files << write_book_bed(inputs, QStringLiteral("cover.png"), book_spread_image(0, 0, 0, true), {10, -6}, -1.2);
+  struct SpreadPlan {
+    int left_number;
+    int left_kind;
+    int right_kind;
+    QPointF shift;
+    double tilt;
+  };
+  for (const auto& plan : {SpreadPlan{2, 0, 1, {-14, 8}, 1.4}, SpreadPlan{4, 0, 0, {18, -4}, -0.8},
+                           SpreadPlan{6, 2, 0, {-6, 12}, 2.0}, SpreadPlan{8, 0, 0, {12, 4}, -1.6}}) {
+    files << write_book_bed(inputs, QStringLiteral("spread-%1.png").arg(plan.left_number),
+                            book_spread_image(plan.left_number, plan.left_kind, plan.right_kind, false), plan.shift,
+                            plan.tilt);
+  }
+  const QByteArray file_list = files.join(QDir::listSeparator()).toUtf8();
+  EnvironmentVariableRestorer scanner_restorer("PATCHY_FAKE_BOOK_SCANNER");
+  EnvironmentVariableRestorer bed_restorer("PATCHY_FAKE_BOOK_SCANNER_BED");
+  EnvironmentVariableRestorer dpis_restorer("PATCHY_FAKE_BOOK_SCANNER_DPIS");
+  qputenv("PATCHY_FAKE_BOOK_SCANNER", file_list);
+  qputenv("PATCHY_FAKE_BOOK_SCANNER_BED", "11.7x8.5");
+  qputenv("PATCHY_FAKE_BOOK_SCANNER_DPIS", "150");
+
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  close_untitled_start_tab(window);
+  patchy::ui::BookScanDialog dialog(&window);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(root + QStringLiteral("/Harbor Lights"));
+  dialog.set_title(QStringLiteral("Harbor Lights"));
+  const auto wait_for_scan = [&dialog] {
+    CHECK(process_events_until([&dialog] { return !dialog.scan_in_progress(); }, 20000));
+    CHECK(dialog.last_error().isEmpty());
+  };
+  dialog.start_cover_scan();
+  wait_for_scan();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Cover);
+  dialog.start_page_scanning();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning);
+  for (int spread = 0; spread < 4; ++spread) {
+    dialog.start_page_scan();
+    wait_for_scan();
+  }
+  const QPoint offset(110, 70);
+  const auto capture = [&](const std::string& name) {
+    dialog.resize(1380, 880);
+    dialog.move(window.geometry().topLeft() + offset);
+    process_events_for(300);
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, readme_captioned_dialog(dialog, window.windowIcon()), offset);
+    save_readme_shot(name, base);
+  };
+  capture("shot_readme_book_scan");
+  dialog.finish_scanning();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Review);
+  capture("shot_readme_book_scan_review");
+  dialog.close();
+  QApplication::processEvents();
 }
 
 // --- Perspective Planes: posters pasted onto a brick wall ----------------------
@@ -676,6 +1045,8 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests_part3() {
   return {
       {"shot_readme_web_export", shot_readme_web_export},
       {"shot_readme_web_export_quad", shot_readme_web_export_quad},
+      {"shot_readme_divide_photos", shot_readme_divide_photos},
+      {"shot_readme_book_scan", shot_readme_book_scan},
       {"shot_readme_perspective_planes", shot_readme_perspective_planes},
       {"shot_readme_flame", shot_readme_flame},
   };
