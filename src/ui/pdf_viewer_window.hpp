@@ -10,6 +10,7 @@
 
 class QAction;
 class QComboBox;
+class QKeyEvent;
 class QLabel;
 class QListWidget;
 class QPdfDocument;
@@ -70,6 +71,8 @@ private:
   void reset_thumbnails();
   void size_thumbnail_cells();
   void update_title();
+  // This window's own command for a key typed in it, or nullptr.
+  [[nodiscard]] QAction* window_key_action(const QKeyEvent& event) const;
 
   QString path_;
   QString password_;

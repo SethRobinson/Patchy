@@ -8,6 +8,7 @@
 
 #include <QAbstractItemView>
 #include <QAction>
+#include <QApplication>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDir>
@@ -16,6 +17,7 @@
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -324,6 +326,8 @@ void PdfViewerWindow::build_ui() {
   add_key({QKeySequence(Qt::CTRL | Qt::Key_2)}, [this] { view_->set_fit_mode(PageFitMode::Width); });
   add_key({QKeySequence(QKeySequence::Close)}, [this] { close(); });
   add_key({QKeySequence(QKeySequence::Print)}, [this] { print_as_book(); });
+  // These keys win over the main window's hotkeys while this window has focus (eventFilter).
+  qApp->installEventFilter(this);
 
   splitter_ = new QSplitter(Qt::Horizontal, this);
   splitter_->setObjectName(QStringLiteral("pdfViewerSplitter"));
@@ -507,10 +511,48 @@ void PdfViewerWindow::on_zoom_changed(double percent) {
   apply_zoom_text();
 }
 
+QAction* PdfViewerWindow::window_key_action(const QKeyEvent& event) const {
+  const auto combination = event.keyCombination();
+  const auto modifiers = combination.keyboardModifiers() & ~Qt::KeypadModifier;
+  QList<QKeySequence> candidates{QKeySequence(QKeyCombination(modifiers, combination.key()))};
+  // Shifted symbols (Ctrl++ is Ctrl+Shift+= on many layouts) also match without the Shift,
+  // as Qt's own shortcut lookup does.
+  if (modifiers.testFlag(Qt::ShiftModifier)) {
+    candidates.append(QKeySequence(QKeyCombination(modifiers & ~Qt::ShiftModifier, combination.key())));
+  }
+  for (auto* action : findChildren<QAction*>()) {
+    if (!action->isEnabled() || action->shortcutContext() != Qt::WindowShortcut) {
+      continue;
+    }
+    for (const auto& shortcut : action->shortcuts()) {
+      for (const auto& candidate : candidates) {
+        if (shortcut.matches(candidate) == QKeySequence::ExactMatch) {
+          return action;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
   if (thumbnails_ != nullptr && watched == thumbnails_->viewport() && event->type() == QEvent::Resize) {
     size_thumbnail_cells();
     request_visible_thumbnails();
+  }
+  // The main window's hotkeys are application-wide, so a key both bind (Ctrl+W, Ctrl+0,
+  // Ctrl+P, F11 ...) would be ambiguous to Qt and run neither. Keys typed in this window
+  // run this window's command: claim the shortcut override, then trigger on the press.
+  if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
+    if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this) {
+      if (auto* action = window_key_action(*static_cast<QKeyEvent*>(event)); action != nullptr) {
+        event->accept();
+        if (event->type() == QEvent::KeyPress) {
+          action->trigger();
+        }
+        return true;
+      }
+    }
   }
   return QWidget::eventFilter(watched, event);
 }

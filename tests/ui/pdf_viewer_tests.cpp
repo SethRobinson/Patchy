@@ -332,9 +332,23 @@ void ui_pdf_viewer_spreads_and_page_turns() {
   CHECK(viewer->full_screen_mode() && !viewer->findChild<QToolBar*>(QStringLiteral("pdfViewerToolbar"))->isVisible());
   QTest::keyClick(view, Qt::Key_Escape);
   CHECK(!viewer->full_screen_mode() && viewer->findChild<QToolBar*>(QStringLiteral("pdfViewerToolbar"))->isVisible());
+
+  // The viewer's keys beat the main window's application-wide hotkeys of the same keys
+  // (Ctrl+0 is Fit on Screen there, Ctrl+W closes its document): with both bound, Qt would
+  // find the key ambiguous and run neither.
+  MainWindowTestAccess::create_document(window, 64, 64);
+  const auto sessions = MainWindowTestAccess::session_count(window);
+  viewer->activateWindow();
+  CHECK(process_events_until([viewer] { return viewer->isActiveWindow(); }));
+  view->set_zoom_percent(100.0);
+  QTest::keyClick(view, Qt::Key_0, Qt::ControlModifier);
+  CHECK(view->fit_mode() == patchy::PageFitMode::WholePage);
+  QTest::keyClick(page_spin != nullptr ? static_cast<QWidget*>(page_spin) : view, Qt::Key_2, Qt::ControlModifier);
+  CHECK(view->fit_mode() == patchy::PageFitMode::Width);
   const QPointer<PdfViewerWindow> guard(viewer);
-  viewer->close();
+  QTest::keySequence(view, QKeySequence(QKeySequence::Close));
   CHECK(process_events_until([&guard] { return guard.isNull(); }));
+  CHECK(MainWindowTestAccess::session_count(window) == sessions);
   // The layout choices persist.
   CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfViewer/pages")).toString() == QStringLiteral("single"));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfViewer/continuous")).toBool());
