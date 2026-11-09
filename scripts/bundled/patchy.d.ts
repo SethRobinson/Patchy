@@ -1603,8 +1603,9 @@ interface PatchyApp {
    * order. Options override the project's saved output settings for this export only:
    * mode ("color", "gray" or "bw" for one bit per pixel), threshold (1 to 255, Black and
    * White), dpi (0 keeps the scan resolution), imageQuality, pageSize ("median",
-   * "largest", "cover", or [width, height] in inches), title and author. Returns the page
-   * count; throws on bad arguments, an unreadable project, or a write failure.
+   * "largest", "cover", or [width, height] in inches), title and author. A page given its
+   * own output in the review step keeps it; mode sets the rest. Returns the page count;
+   * throws on bad arguments, an unreadable project, or a write failure.
    */
   buildBookPdf(
     folder: string,

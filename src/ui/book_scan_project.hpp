@@ -28,6 +28,8 @@ enum class BookPageSizePolicy { Median, Largest, Cover, Custom };
 struct BookScanEntry {
   QString file;     // relative to the project folder ("scans/spread-0001.png")
   double dpi{300.0};
+  // The mode this scan was captured in (a book may scan a few pages in color).
+  ScanColorMode capture_mode{ScanColorMode::Color};
   int extra_turns{0};  // clockwise quarter turns on top of the book's up direction
   SpreadLayout layout;  // in the upright image; in one-page mode `spread` is the page
   bool user_edited{false};
@@ -40,6 +42,8 @@ struct BookPageRef {
   int scan{-1};  // index into BookProject::scans for Kind::Scan
   BookPageSide side{BookPageSide::Left};
   int turns{0};  // extra clockwise quarter turns the user gave this page
+  // This page's own output mode; nullopt follows the book's.
+  std::optional<BookOutputMode> output;
 
   friend bool operator==(const BookPageRef&, const BookPageRef&) = default;
 };
@@ -100,6 +104,9 @@ void save_book_project(const BookProject& project);
 [[nodiscard]] BookPageSize resolved_page_size(const BookProject& project);
 // Pages the scans contribute (1 per scan in one-page mode, by Use in two-page mode).
 [[nodiscard]] int pages_per_scan(const BookProject& project, const BookScanEntry& scan);
+
+// The output options one page is written with: the book's, with the page's own mode.
+[[nodiscard]] BookOutputOptions page_output_options(const BookProject& project, const BookPageRef& page);
 
 // Gray8/RGB8 PixelBuffer <-> QImage (Format_Grayscale8 / Format_RGB888).
 [[nodiscard]] PixelBuffer book_pixels_from_image(const QImage& image);

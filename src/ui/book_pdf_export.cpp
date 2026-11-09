@@ -39,7 +39,7 @@ pdf::ImagePage encode_book_page(const BookProject& project, const BookPageRef& r
   }
   const double width_points = size.width * 72.0;
   const double height_points = size.height * 72.0;
-  if (project.output.mode == BookOutputMode::BlackAndWhite) {
+  if (page_output_options(project, ref).mode == BookOutputMode::BlackAndWhite) {
     pdf::ImagePage encoded;
     encoded.width_points = width_points;
     encoded.height_points = height_points;

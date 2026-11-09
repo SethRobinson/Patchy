@@ -16556,6 +16556,62 @@ Do you want to replace it?</source>
         <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The resolution of the next scans. Earlier scans keep their own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan the next pages in color or grayscale. Earlier scans keep their own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag pages to change their order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Same as the book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Give the selected pages their own output, such as color plates in a black and white book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selected pages:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in grayscale.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in color.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rescan This Scan scans it again with the settings above.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <comment>page output</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <comment>page output</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>page label and its own output</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B/W</source>
+        <comment>page output</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

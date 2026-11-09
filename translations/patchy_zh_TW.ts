@@ -16521,6 +16521,62 @@ Do you want to replace it?</source>
         <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
         <translation>掃描器現在不支援 %1 dpi；將以 %2 dpi 掃描。</translation>
     </message>
+    <message>
+        <source>The resolution of the next scans. Earlier scans keep their own.</source>
+        <translation>後續掃描的解析度。先前的掃描保留各自的設定。</translation>
+    </message>
+    <message>
+        <source>Scan the next pages in color or grayscale. Earlier scans keep their own.</source>
+        <translation>以彩色或灰階掃描後續頁面。先前的掃描保留各自的設定。</translation>
+    </message>
+    <message>
+        <source>Drag pages to change their order</source>
+        <translation>拖曳頁面以變更順序</translation>
+    </message>
+    <message>
+        <source>Same as the book</source>
+        <translation>與書相同</translation>
+    </message>
+    <message>
+        <source>Give the selected pages their own output, such as color plates in a black and white book</source>
+        <translation>為所選頁面個別設定輸出，例如黑白書中的彩色插頁</translation>
+    </message>
+    <message>
+        <source>Selected pages:</source>
+        <translation>所選頁面:</translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in grayscale.</source>
+        <translation>已以 %1 dpi 灰階掃描。</translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in color.</source>
+        <translation>已以 %1 dpi 彩色掃描。</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan scans it again with the settings above.</source>
+        <translation>「重新掃描此掃描」會用上方的設定再次掃描。</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <comment>page output</comment>
+        <translation>灰階</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <comment>page output</comment>
+        <translation>彩色</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>page label and its own output</comment>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>B/W</source>
+        <comment>page output</comment>
+        <translation>黑白</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

@@ -16574,6 +16574,62 @@ Sostituirlo?</translation>
         <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
         <translation>Lo scanner ora non offre %1 dpi; scansione a %2 dpi.</translation>
     </message>
+    <message>
+        <source>The resolution of the next scans. Earlier scans keep their own.</source>
+        <translation>La risoluzione delle prossime scansioni. Le scansioni precedenti mantengono la propria.</translation>
+    </message>
+    <message>
+        <source>Scan the next pages in color or grayscale. Earlier scans keep their own.</source>
+        <translation>Scansiona le prossime pagine a colori o in scala di grigi. Le scansioni precedenti mantengono la propria.</translation>
+    </message>
+    <message>
+        <source>Drag pages to change their order</source>
+        <translation>Trascina le pagine per cambiarne l&apos;ordine</translation>
+    </message>
+    <message>
+        <source>Same as the book</source>
+        <translation>Come il libro</translation>
+    </message>
+    <message>
+        <source>Give the selected pages their own output, such as color plates in a black and white book</source>
+        <translation>Assegna alle pagine selezionate un&apos;uscita propria, come tavole a colori in un libro in bianco e nero</translation>
+    </message>
+    <message>
+        <source>Selected pages:</source>
+        <translation>Pagine selezionate:</translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in grayscale.</source>
+        <translation>Scansionata a %1 dpi in scala di grigi.</translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in color.</source>
+        <translation>Scansionata a %1 dpi a colori.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan scans it again with the settings above.</source>
+        <translation>Ripeti questa scansione la scansiona di nuovo con le impostazioni qui sopra.</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <comment>page output</comment>
+        <translation>Grigio</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <comment>page output</comment>
+        <translation>Colore</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>page label and its own output</comment>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>B/W</source>
+        <comment>page output</comment>
+        <translation>B/N</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

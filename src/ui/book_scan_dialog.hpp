@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <vector>
 
 class QCheckBox;
 class QComboBox;
@@ -71,6 +72,9 @@ public:
   [[nodiscard]] int selected_scan() const;
   [[nodiscard]] bool cover_selected() const noexcept { return edit_cover_; }
   void finish_scanning();
+  // Review step: moves the pages at `rows` (in the shown order) to stand before `before`,
+  // as a drag and drop in the page list does.
+  void move_review_pages(const std::vector<int>& rows, int before);
   // Writes the PDF; `ask_keep_folder` asks afterwards whether to keep the scan folder.
   bool export_pdf(const QString& path, bool ask_keep_folder);
   [[nodiscard]] bool scan_in_progress() const;
@@ -105,11 +109,18 @@ private:
   // A scan failed because the scanner went away: open it again and repeat the scan once.
   bool retry_after_device_loss();
   void fill_resolution_combo();
+  // Fills `combo` with the scanner's resolutions and selects the one nearest `dpi`.
+  void fill_resolution_items(QComboBox* combo, int dpi);
+  [[nodiscard]] int nearest_offered_dpi(int dpi) const;
+  // The scanning step's Scan at and Mode: the next scans' settings, or what Rescan This
+  // Scan uses for an earlier scan (that scan's own until changed).
+  void refresh_capture_controls();
+  void capture_controls_changed();
   void save_project_quietly();
   void scan_finished(const ScanResult& result);
   void apply_cover_scan(const QString& file, double dpi, bool keep_settings);
   // replace_index >= 0 rescans that scan; -1 adds a new one.
-  void apply_page_scan(const QString& file, double dpi, int replace_index);
+  void apply_page_scan(const QString& file, double dpi, ScanColorMode mode, int replace_index);
   [[nodiscard]] ScanRequest cover_scan_request() const;
   // Top of the book: turns every scan; a half turn keeps the boxes, a quarter turn detects again.
   void set_up_turns(int turns);
@@ -123,7 +134,11 @@ private:
   void refresh_scanning_page();
   void refresh_review_page();
   void refresh_review_preview();
-  void review_order_changed();
+  void page_output_changed();
+  void update_page_output_combo();
+  void select_review_rows(const std::vector<int>& rows);
+  [[nodiscard]] std::vector<int> selected_review_rows() const;
+  [[nodiscard]] std::vector<BookPageRef> review_order() const;
   void delete_selected_pages();
   void rotate_selected_pages();
   void insert_blank_page();
@@ -142,8 +157,28 @@ private:
   // A small copy of a scan, kept in memory and in thumbs/ so a resumed book does not
   // decode every full scan again for its thumbnails.
   [[nodiscard]] const SmallScan* small_scan(const QString& file, double dpi);
+  // A screen-sized copy of a scan (thumbs/<name>-view.jpg, the last few in memory): the
+  // box editor and the review preview show it, so a click on a page never decodes the
+  // full scan (docs/book-scan.md, "Scan copies").
+  struct ScanView {
+    PixelBuffer pixels;  // the unturned scan, longest side at most kViewLongestSide
+    QSize full_size;     // the unturned full scan's size
+    double scale{1.0};   // view / full
+  };
+  [[nodiscard]] const ScanView* scan_view(const QString& file, double dpi);
+  // Writes and keeps both copies of a scan just read in full, so neither reads it again.
+  void remember_scan_copies(const QString& file, double dpi, const QImage& full);
+  // Reads the full scan and makes both copies; false when it cannot be read.
+  bool decode_scan_copies(const QString& file, double dpi);
   void forget_scan(const QString& file);
-  [[nodiscard]] QImage upright_preview(const QString& file, int turns);
+  struct UprightView {
+    QImage image;     // the view copy, turned upright
+    QSize full_size;  // the full upright scan's size, which box coordinates use
+  };
+  [[nodiscard]] const UprightView& upright_preview(const QString& file, double dpi, int turns);
+  // A page cut from a scan's small or view copy at `dpi`, page turns applied, no output.
+  [[nodiscard]] PixelBuffer cut_page_from_copy(const BookPageRef& page, const BookPageSize& size, double dpi,
+                                               bool view_copy);
   [[nodiscard]] QString default_project_folder() const;
   [[nodiscard]] std::optional<QRectF> scan_area_for_pages() const;
 
@@ -172,9 +207,15 @@ private:
   bool grayscale_hint_shown_{false};
   QMap<QString, QImage> thumbnails_;
   std::map<QString, SmallScan> small_scans_;
+  std::map<QString, ScanView> scan_views_;
+  std::vector<QString> scan_view_order_;  // most recently used last
   QString preview_key_;
-  QImage preview_full_;
-  std::unique_ptr<BookScanCache> review_cache_;
+  UprightView preview_;
+  // What the page strip shows now, so a click that only changes the selection keeps it.
+  QStringList strip_signature_;
+  // Rescan This Scan's settings for the earlier scan being edited.
+  int rescan_dpi_{300};
+  ScanColorMode rescan_mode_{ScanColorMode::Color};
   // The upright image currently in the preview and what it shows.
   QImage preview_image_;
 
@@ -217,6 +258,9 @@ private:
   QComboBox* use_combo_{nullptr};
   QComboBox* scan_up_combo_{nullptr};
   QPushButton* rotate_scan_button_{nullptr};
+  QComboBox* scan_resolution_combo_{nullptr};
+  QComboBox* scan_color_combo_{nullptr};
+  QLabel* capture_note_{nullptr};
   QPushButton* back_to_next_button_{nullptr};
   QFormLayout* scan_form_{nullptr};
   QDoubleSpinBox* spread_tilt_spin_{nullptr};
@@ -234,6 +278,7 @@ private:
   QDoubleSpinBox* custom_width_{nullptr};
   QDoubleSpinBox* custom_height_{nullptr};
   QComboBox* output_combo_{nullptr};
+  QComboBox* page_output_combo_{nullptr};
   QSlider* threshold_slider_{nullptr};
   QComboBox* output_dpi_combo_{nullptr};
   QComboBox* quality_combo_{nullptr};
