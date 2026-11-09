@@ -28,7 +28,9 @@ Dash offset (`shapeStrokeDashOffsetSpin`, stroke widths; vstk strokeStyleLineDas
 dash lengths clamp to the raster lattice; excessive boundary counts fall
 back to a solid stroke. Saved stroke presets join the built-ins in one Dashes list (#557):
 [style-presets-strokes.md](style-presets-strokes.md#shape-appearance-stroke-presets). A gradient's and a pattern's own
-rows are a nested form in their picker row's field column (#552).
+rows are a nested form in their picker row's field column (#552). The right column lines up
+the same way (#679, `align_form_columns`): Fill's and Stroke's forms share one label width, and
+the four nested gradient and pattern forms share another; the fill-only dialog measures Fill alone.
 `pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
