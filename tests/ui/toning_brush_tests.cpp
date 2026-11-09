@@ -1013,7 +1013,15 @@ void ui_toning_shift_click_line_resets_on_tool_switch_and_alt_change() {
     QApplication::processEvents();
     click(QPoint(160, 80), Qt::ShiftModifier);
     CHECK(!white_at(QPoint(100, 80)));
-    // The Brush's last point does not carry over to Burn.
+    // The Brush's last point does not carry over to Burn. Burn needs opaque pixels to show on:
+    // a broad white band first (the new document's layer is transparent).
+    canvas->set_primary_color(Qt::white);
+    canvas->set_brush_size(90);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(10, 140)),
+         canvas->widget_position_for_document_point(QPoint(200, 140)));
+    QApplication::processEvents();
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_size(8);
     click(QPoint(40, 120), Qt::NoModifier);
     require_action(window, "toolBurnAction")->trigger();
     canvas->set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Highlights);
