@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.31" date="2026-11-10">
+      <description>
+        <ul>
+          <li>PDF viewer with spreads, zoom and page turns</li>
+          <li>Print as Book: booklets, signatures, cut-and-stack and mini zines</li>
+          <li>Scan a Book: rescan any page, single covers, per-page color and resolution</li>
+          <li>Text frame side handles; Arabic PSD text keeps its layout</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.30" date="2026-11-09">
       <description>
         <ul>
