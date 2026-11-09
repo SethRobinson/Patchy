@@ -187,6 +187,19 @@ if ($runOffscreen) {
 
     $oldPlatform = $env:QT_QPA_PLATFORM
     $oldSound = $env:PATCHY_NO_SOUND
+    $oldOpenAiKey = $env:OPENAI_API_KEY
+    # shot_readme_openai_images makes a real, billed OpenAI request. It runs only when it is
+    # named (-Scene openai_images) and a key is available: OPENAI_API_KEY, or the first sk-
+    # line of the untracked agents_secret.md beside the main checkout. The key is never printed.
+    if ($filter -eq 'shot_readme_openai_images' -and -not $env:OPENAI_API_KEY) {
+        $commonDir = (& git -C $repo rev-parse --path-format=absolute --git-common-dir)
+        $secretFile = Join-Path (Split-Path -Parent $commonDir) 'agents_secret.md'
+        if (Test-Path -LiteralPath $secretFile) {
+            $keyLine = Select-String -LiteralPath $secretFile -Pattern '^\s*(sk-[A-Za-z0-9_-]+)\s*$' | Select-Object -First 1
+            if ($keyLine) { $env:OPENAI_API_KEY = $keyLine.Matches[0].Groups[1].Value }
+        }
+    }
+    if ($filter -ne 'shot_readme_openai_images') { Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue }
     $testLog = Join-Path $buildDir "readme-shot-$filter.log"
     Push-Location $buildDir
     try {
@@ -200,6 +213,7 @@ if ($runOffscreen) {
         Pop-Location
         $env:QT_QPA_PLATFORM = $oldPlatform
         $env:PATCHY_NO_SOUND = $oldSound
+        $env:OPENAI_API_KEY = $oldOpenAiKey
     }
 
     $shots = @($artifactPatterns | ForEach-Object { Get-ChildItem (Join-Path $artifactDir $_) -ErrorAction SilentlyContinue })

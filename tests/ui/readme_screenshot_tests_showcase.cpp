@@ -11,6 +11,12 @@
 #include "test_harness.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/book_scan_dialog.hpp"
+#include "formats/pdf_image_writer.hpp"
+#include "ui/qt_paths.hpp"
+#if defined(PATCHY_HAVE_QT_PDF)
+#include "ui/pdf_viewer_window.hpp"
+#include "ui/pdf_page_view.hpp"
+#endif
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/perspective_planes_dialog.hpp"
@@ -23,6 +29,8 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
+#include <QPointer>
+#include <QBuffer>
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
@@ -679,6 +687,128 @@ void shot_readme_book_scan() {
   QApplication::processEvents();
 }
 
+#if defined(PATCHY_HAVE_QT_PDF)
+// The sample book as a PDF, the way Scan a Book to PDF would hand it over: the front cover,
+// twelve pages (a chapter opening on 3, a plate on 6 and 11) and the back cover, each a
+// 5.5 x 8 inch JPEG page, written with Patchy's own pdf::ImageWriter.
+void write_sample_book_pdf(const QString& path) {
+  const auto jpeg_page = [](const QImage& page) {
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    CHECK(page.convertToFormat(QImage::Format_RGB888).save(&buffer, "JPEG", 88));
+    patchy::pdf::ImagePage pdf_page;
+    pdf_page.width_points = 5.5 * 72.0;
+    pdf_page.height_points = 8.0 * 72.0;
+    pdf_page.image.bytes.assign(bytes.begin(), bytes.end());
+    pdf_page.image.filter = "DCTDecode";
+    pdf_page.image.color_space = "/DeviceRGB";
+    pdf_page.image.width = page.width();
+    pdf_page.image.height = page.height();
+    return pdf_page;
+  };
+  const QImage cover = book_spread_image(0, 0, 0, true);
+  patchy::pdf::ImageWriter writer(patchy::ui::to_filesystem_path(path));
+  // The covers without the spine (the cover spread is back cover, 60 px spine, front cover).
+  const auto cover_side = [&cover](int x) {
+    return cover.copy(x, 0, kBookPageWidth - 30, kBookPageHeight)
+        .scaled(kBookPageWidth, kBookPageHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  };
+  writer.add_page(jpeg_page(cover_side(kBookPageWidth + 30)));
+  for (int number = 1; number <= 12; ++number) {
+    QImage page(kBookPageWidth, kBookPageHeight, QImage::Format_RGB32);
+    QPainter painter(&page);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    draw_book_page(painter, page.rect(), number, number == 3 ? 1 : (number == 6 || number == 11) ? 2 : 0);
+    painter.end();
+    writer.add_page(jpeg_page(page));
+  }
+  writer.add_page(jpeg_page(cover_side(0)));
+  writer.set_document_info({{"Title", "Harbor Lights"}});
+  writer.finish();
+}
+
+#endif
+
+// The PDF viewer and Print as Book on the sample book as a PDF (write_sample_book_pdf):
+// pdf_viewer.png is the viewer with two pages and the cover alone, open on the spread with
+// the picture plate, the thumbnails beside it; pdf_viewer_book_print.png is Print as Book
+// over it, as a saddle-stitched booklet with its sheet-by-sheet preview and steps (named
+// after this scene so the driver's shot_readme_pdf_viewer* pattern copies it).
+void shot_readme_pdf_viewer() {
+#if defined(PATCHY_HAVE_QT_PDF)
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+  std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
+  for (const auto* key : {"pdfViewer/pages", "pdfViewer/continuous", "pdfViewer/direction", "pdfViewer/zoom",
+                          "pdfViewer/geometry", "pdfViewer/positions", "pdfViewer/sidebar", "pdfBookPrint/style"}) {
+    restorers.push_back(std::make_unique<SettingsValueRestorer>(QLatin1String(key)));
+  }
+  ensure_artifact_dir();
+  const QString path = QDir::current().filePath(QStringLiteral("test-artifacts/Harbor Lights.pdf"));
+  write_sample_book_pdf(path);
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  close_untitled_start_tab(window);
+  auto* viewer = patchy::ui::PdfViewerWindow::open(&window, path, {});
+  CHECK(viewer != nullptr);
+  if (viewer == nullptr) {
+    return;
+  }
+  viewer->resize(1600, 1000);
+  viewer->show();
+  QApplication::processEvents();
+  auto* view = viewer->page_view();
+  view->set_continuous(false);
+  view->set_spread_mode(patchy::PageSpreadMode::TwoPagesCoverAlone);
+  view->set_fit_mode(patchy::PageFitMode::WholePage);
+  view->go_to_page(5);  // the book's pages 5 and 6: text beside the picture plate
+  const auto wait_for_renders = [view] {
+    CHECK(process_events_until([view] { return !view->render_pending(); }, 20000));
+    process_events_for(400);
+  };
+  wait_for_renders();
+  save_readme_shot("shot_readme_pdf_viewer", viewer->grab().toImage());
+
+  bool captured = false;
+  when_dialog_visible(QStringLiteral("pdfBookPrintDialog"), [&](QDialog& dialog) {
+    auto* style = dialog.findChild<QComboBox*>(QStringLiteral("pdfBookPrintStyleCombo"));
+    auto* front = dialog.findChild<QLabel*>(QStringLiteral("pdfBookPrintFrontPreview"));
+    auto* sheet = dialog.findChild<QSpinBox*>(QStringLiteral("pdfBookPrintSheetSpin"));
+    CHECK(style != nullptr && front != nullptr && sheet != nullptr);
+    if (style == nullptr || front == nullptr || sheet == nullptr) {
+      dialog.reject();
+      return;
+    }
+    style->setCurrentIndex(std::max(0, style->findData(QStringLiteral("booklet"))));
+    // Sheet 1, the outside sheet: the back and front covers side by side on its first side.
+    CHECK(process_events_until([front] { return !front->pixmap().isNull(); }, 20000));
+    process_events_for(500);
+    const QPoint offset((viewer->width() - dialog.width()) / 2, std::max(40, (viewer->height() - dialog.height()) / 2));
+    dialog.move(viewer->geometry().topLeft() + offset);
+    process_events_for(200);
+    auto base = viewer->grab().toImage();
+    draw_readme_overlay(base, readme_captioned_dialog(dialog, window.windowIcon()), offset);
+    save_readme_shot("shot_readme_pdf_viewer_book_print", base);
+    captured = true;
+    dialog.reject();
+  });
+  auto* print_book = viewer->findChild<QAbstractButton*>(QStringLiteral("pdfViewerPrintBookButton"));
+  CHECK(print_book != nullptr);
+  if (print_book != nullptr) {
+    print_book->click();
+  }
+  QApplication::processEvents();
+  CHECK(captured);
+  const QPointer<patchy::ui::PdfViewerWindow> guard(viewer);
+  viewer->close();
+  CHECK(process_events_until([&guard] { return guard.isNull(); }));
+#else
+  patchy::test::skip("this build has no Qt PDF");
+#endif
+}
+
 // --- Perspective Planes: posters pasted onto a brick wall ----------------------
 
 // The brick wall photo (3072 x 2304) scaled to this document size.
@@ -1047,6 +1177,7 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests_part3() {
       {"shot_readme_web_export_quad", shot_readme_web_export_quad},
       {"shot_readme_divide_photos", shot_readme_divide_photos},
       {"shot_readme_book_scan", shot_readme_book_scan},
+      {"shot_readme_pdf_viewer", shot_readme_pdf_viewer},
       {"shot_readme_perspective_planes", shot_readme_perspective_planes},
       {"shot_readme_flame", shot_readme_flame},
   };

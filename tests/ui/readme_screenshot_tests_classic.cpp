@@ -1334,10 +1334,11 @@ void shot_readme_warp_text() {
 }
 
 // A 400 x 400 game tile built from Dink Smallwood's ts02 tile sheet
-// (test-fixtures/readme/dink_tiles_ts02.png; NOTICE-THIRD-PARTY.md): Dink's 50 px
-// grass tiles join each other seamlessly, so an 8 x 8 field of them tiles, and the
-// rocks are whole sheet blocks whose outer tiles are grass. The big rock cluster sits
-// across the right edge and wraps to the left, so the tiled view shows it whole only
+// (test-fixtures/readme/dink_tiles_ts02.png; NOTICE-THIRD-PARTY.md). The field is ONE
+// 50 px grass cell repeated, which tiles with itself; a mix of grass cells shows their
+// edges. Rocks are laid over it from whole sheet blocks, but only their rock and shadow
+// pixels (by color), so no square of another grass cell shows. Every placement wraps,
+// and the big cluster sits across the right edge, so the tiled view shows it whole only
 // where two copies meet.
 QImage readme_seamless_tile() {
   constexpr int kCell = 50;
@@ -1346,43 +1347,55 @@ QImage readme_seamless_tile() {
   const QImage sheet = QImage(QString::fromStdString(path.string())).convertToFormat(QImage::Format_RGB32);
   CHECK(!sheet.isNull());
   QImage tile(kCell * kCells, kCell * kCells, QImage::Format_RGB32);
-  // Plain grass cells of the sheet, picked in a fixed scattered order: only cells of one
-  // brightness with no rock shadow in them (green within 2.5 levels, quadrants within 5),
-  // or the field shows a checkerboard.
-  constexpr std::array<std::array<int, 2>, 8> kGrass{
-      {{9, 0}, {7, 4}, {1, 6}, {7, 7}, {1, 0}, {7, 0}, {1, 7}, {7, 3}}};
-  for (int y = 0; y < kCells; ++y) {
-    for (int x = 0; x < kCells; ++x) {
-      const auto& cell = kGrass[static_cast<std::size_t>((x * 5 + y * 3 + x * y) % 8)];
-      for (int py = 0; py < kCell; ++py) {
-        std::memcpy(tile.scanLine(y * kCell + py) + static_cast<std::ptrdiff_t>(x) * kCell * 4,
-                    sheet.constScanLine(cell[1] * kCell + py) + static_cast<std::ptrdiff_t>(cell[0]) * kCell * 4,
-                    kCell * 4);
-      }
+  // Cell (7, 4): the plainest grass cell, with the smallest mismatch between opposite edges.
+  constexpr int kGrassX = 7 * kCell;
+  constexpr int kGrassY = 4 * kCell;
+  for (int y = 0; y < tile.height(); ++y) {
+    const auto* source = reinterpret_cast<const QRgb*>(sheet.constScanLine(kGrassY + y % kCell)) + kGrassX;
+    auto* target = reinterpret_cast<QRgb*>(tile.scanLine(y));
+    for (int x = 0; x < tile.width(); ++x) {
+      target[x] = source[x % kCell];
     }
   }
-  // Copies a block of sheet cells to (x, y) in the tile, wrapping past its edges.
+  // How much of a sheet pixel is rock or rock shadow rather than grass: grey rock has
+  // little green over its red and blue, a shadow is grass well below grass brightness.
+  const auto rock_alpha = [](QRgb pixel) {
+    const double r = qRed(pixel);
+    const double g = qGreen(pixel);
+    const double b = qBlue(pixel);
+    const double green_lead = g - (r + b) / 2.0;  // about 34 for this grass
+    const double luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    const double rock = std::clamp((24.0 - green_lead) / 14.0, 0.0, 1.0);
+    const double shadow = std::clamp((92.0 - luma) / 40.0, 0.0, 0.85);
+    return std::max(rock, shadow);
+  };
+  // Lays the rocks of a block of sheet cells at (x, y) in the tile, wrapping past its edges.
   const auto stamp = [&](int cell_x, int cell_y, int cells_wide, int cells_high, int x, int y) {
     for (int py = 0; py < cells_high * kCell; ++py) {
       const auto* source = reinterpret_cast<const QRgb*>(sheet.constScanLine(cell_y * kCell + py)) + cell_x * kCell;
       auto* target = reinterpret_cast<QRgb*>(tile.scanLine((y + py) % tile.height()));
       for (int px = 0; px < cells_wide * kCell; ++px) {
-        target[(x + px) % tile.width()] = source[px];
+        const QRgb over = source[px];
+        QRgb& under = target[(x + px) % tile.width()];
+        const double alpha = rock_alpha(over);
+        const auto mix = [alpha](int top, int bottom) {
+          return static_cast<int>(std::lround(top * alpha + bottom * (1.0 - alpha)));
+        };
+        under = qRgb(mix(qRed(over), qRed(under)), mix(qGreen(over), qGreen(under)), mix(qBlue(over), qBlue(under)));
       }
     }
   };
   stamp(1, 4, 7, 4, 250, 120);  // the big cluster, across the right edge
   stamp(8, 2, 2, 1, 40, 20);    // a long low rock
   stamp(2, 0, 1, 1, 230, 40);
+  stamp(9, 3, 1, 1, 160, 300);
   stamp(9, 5, 1, 1, 120, 250);
   stamp(10, 6, 1, 1, 330, 15);
-  stamp(8, 7, 2, 1, 120, 365);  // across the bottom edge
   return tile;
 }
 
-// Seamless tiling mode: the pixel-art tile repeating across the whole canvas as
-// live ghost tiles, with a just-painted black line that wraps over the tile
-// edges, proving strokes tile seamlessly as you paint.
+// Seamless tiling mode: the Dink tile repeating across the whole canvas as live
+// ghost tiles around the document, so its edges are checked at a glance.
 void shot_readme_tile_preview() {
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);

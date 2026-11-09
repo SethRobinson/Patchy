@@ -57,6 +57,12 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `material_styles.png` | `shot_readme_material_styles` | Generated backdrop and Arial Black lettering; Riveted Steel picked in the Style Presets grid |
 | `divide_photos.png` | `shot_readme_divide_photos` | Eight prints cropped from the committed CC0 photos, composed onto a scanner bed |
 | `book_scan.png`, `book_scan_review.png` | `shot_readme_book_scan` | A sample book drawn in the scene (Georgia text, the CC0 sunset as cover art and plate), fed to the fake book scanner |
+| `rotate_view.png` | `shot_readme_rotate_view` (`tests/ui/readme_screenshot_tests_features.cpp`) | `stylized_sunset_cc0.png`, gulls painted on a Gulls layer, view turned -24 degrees |
+| `gegl.png` | `shot_readme_gegl` | `san_francisco_cityscape_cc0.jpg` beside its mirror image (squeezed to 1200 x 800), GEGL Little Planet; skips without the bundled GEGL |
+| `liquify.png` | `shot_readme_liquify` | `stylized_sunset_cc0.png`: Twirl and Bloat held on the sun, two Warp drags, Show Mesh |
+| `remove_object.png` | `shot_readme_remove_object` | `test-fixtures/readme/beach_walker_cc0.jpg` (CC0), a drawn outline around the walker and shadow |
+| `openai_images.png` | `shot_readme_openai_images` | `beach_walker_cc0.jpg` as reference image 1; a real, billed request (see below) |
+| `pdf_viewer.png`, `pdf_viewer_book_print.png` | `shot_readme_pdf_viewer` | The sample book (`write_sample_book_pdf`) as a 14-page PDF; Qt PDF builds only |
 | `long_shadow.png` | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
 
 Offscreen recipes live in `tests/ui/readme_screenshot_tests_*.cpp`. They create
@@ -232,6 +238,25 @@ Scene notes for the newer captures:
   not found whole, and the cover's outline sets the book area every page scan uses) and four
   spreads on an 11.7 x 8.5 inch bed at 150 dpi (`PATCHY_FAKE_BOOK_SCANNER_BED`, `_DPIS`).
   Captures the scanning step after the fourth spread and the review step.
+
+- Feature scenes (`readme_screenshot_tests_features.cpp`): Rotate View keeps the Rotate View
+  tool active so the options bar shows the angle. GEGL picks Stereographic Projection (Little
+  Planet), falling back to Mosaic or Cartoon; a little planet wraps the image through 360
+  degrees, so the source is the photo beside its mirror image, or a seam shows. Liquify holds
+  Twirl and Bloat (they work while held still) through `send_mouse` press, wait, release.
+  Remove Object hides the selection edges (View > Show > Selection Edges, persisted, restored
+  after) and draws a labeled Before inset grabbed from the canvas first; its fill needs no model.
+  GEGL, Liquify and Remove Object draw their dialog's caption with `readme_captioned_dialog`.
+- OpenAI Image Tools makes a real request that costs money, so it runs only when named
+  (`-Scene openai_images`): the driver reads the key from `OPENAI_API_KEY` or the first `sk-`
+  line of the untracked `agents_secret.md` beside the main checkout, sets it for that run only
+  and never prints it, and a full run clears it so the scene skips. A test key store keeps the
+  system's Credential Manager out of it, and the Config tab (the masked key field) is never
+  shown. The output varies run to run; regenerate only to change the picture.
+- PDF viewer: `write_sample_book_pdf` writes the sample book through `pdf::ImageWriter`; the
+  viewer opens on its pages 5 and 6 (the picture plate). Print as Book opens from the viewer's
+  button as a saddle-stitched booklet on sheet 1 (the covers). Its PNG is named
+  `pdf_viewer_book_print` so the driver's `shot_readme_pdf_viewer*` pattern copies it.
 
 The vector and SVG scenes select actual path anchors for their editing overlays.
 A drag that starts over another shape's fill can pick and move that shape, so these

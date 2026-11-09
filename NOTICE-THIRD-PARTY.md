@@ -454,6 +454,13 @@ not part of any release package.
   import (`patchy.exe <svg> --export <png>`); the committed PNG's SHA-256 is
   `770AB5D6CAA07150F3FE075C3E5F14EC78FF95B44FAD87BDA91C7FA7C9348BD8`.
   It is used only to regenerate the README and gallery screenshots.
+- `test-fixtures/readme/beach_walker_cc0.jpg`: "Person walking on windy beach (Unsplash),"
+  photographed by Timothy Kolczak and published under the Creative Commons CC0 1.0 Universal
+  Public Domain Dedication: the 960 px Wikimedia Commons thumbnail of
+  https://commons.wikimedia.org/wiki/File:Person_walking_on_windy_beach_(Unsplash).jpg,
+  scaled to 800 px on its longer side (SHA-256
+  `18CFF5080DDBB85F026EE1BD60AD40F9049D95E072D64C79CEEAE48556B4933B`). It is used only to
+  regenerate the gallery Remove Object screenshot.
 - `test-fixtures/readme/dink_tiles_ts02.png`: tile sheet `tiles/ts02.bmp` from the original
   Dink Smallwood game data (github.com/SethRobinson/RTDink, `bin/dink/tiles/`), released
   under a zlib-style license in 2008; converted to PNG unmodified (SHA-256

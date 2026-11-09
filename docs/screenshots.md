@@ -29,6 +29,16 @@ Click any image to inspect it at full size. These are captures of the real edito
       <br><sub>Quick Mask: a Magic Wand selection of the sky becomes a red overlay you can paint with any brush, then turns back into a selection</sub>
     </td>
 </tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/remove_object.png"><img src="images/screenshots/remove_object.png" width="430" alt="Remove Object on a misty beach photo: the lone walker and his shadow are gone, filled from the sand around them, with a Before inset and the Remove Object dialog with Reroll, tone match and edge feather"></a>
+      <br><sub>Remove Object: outline an object and it is filled from its surroundings, on your CPU with no download. Reroll for another variation, or keep the fill on its own layer</sub>
+    </td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/openai_images.png"><img src="images/screenshots/openai_images.png" width="430" alt="OpenAI Image Tools via API Key: a watercolor version of the beach photo made from a prompt with the photo as reference image 1, the result added as a new layer, two variations in the results row"></a>
+      <br><sub>OpenAI Image Tools via API Key: a prompt and a reference image become new layers (here a watercolor of the beach photo). It uses your own OpenAI key; nothing is sent until you click Create</sub>
+    </td>
+</tr>
 </table>
 
 ## Filters
@@ -52,6 +62,16 @@ Click any image to inspect it at full size. These are captures of the real edito
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/perspective_planes.png"><img src="images/screenshots/perspective_planes.png" width="430" alt="Perspective Planes workspace on a photo of a brick wall seen from below: one plane follows the brick courses, with San Francisco and Havana posters pasted onto it and a Sunset poster still floating with its handles"></a>
       <br><sub>Perspective Planes: posters pasted onto a brick wall follow its perspective, and the Sunset poster is still movable with its handles</sub>
+    </td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/gegl.png"><img src="images/screenshots/gegl.png" width="430" alt="GEGL Little Planet filter turning a mirrored San Francisco skyline into a tiny round planet, with the filter dialog, its live preview and the Filter from GEGL credit"></a>
+      <br><sub>Over a hundred GEGL filters in Patchy's filter dialog with live preview, here Little Planet on the San Francisco skyline</sub>
+    </td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/liquify.png"><img src="images/screenshots/liquify.png" width="430" alt="Liquify dialog on the stylized sunset: the sun twirled and bloated and a ridge pushed up, with Show Mesh on so the warp reads as a bent grid"></a>
+      <br><sub>Liquify: warp, twirl, pucker, bloat and freeze brushes, with the mesh shown so every push is visible</sub>
     </td>
 </tr>
 </table>
@@ -134,7 +154,10 @@ Click any image to inspect it at full size. These are captures of the real edito
       <a href="images/screenshots/web_export_quad.webp"><img src="images/screenshots/web_export_quad.webp" width="430" alt="Animation: Export for Web in its 4-up view playing an animated WebP time-lapse at quality 80, 40 and 20 beside the original, each tile tagged with its encoded size"></a>
       <br><sub>Export for Web in 4-up: an animated WebP plays at three qualities beside the original, each with its real encoded size</sub>
     </td>
-<td width="50%"></td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/rotate_view.png"><img src="images/screenshots/rotate_view.png" width="430" alt="The canvas turned 24 degrees with the Rotate View tool, gulls sketched on their own layer over the sunset, the options bar showing the rotation angle and Reset View"></a>
+      <br><sub>Rotate View turns the canvas like a sheet of paper under your pen; painting and selections work turned, and the image never changes</sub>
+    </td>
 </tr>
 </table>
 
@@ -155,6 +178,16 @@ Click any image to inspect it at full size. These are captures of the real edito
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/smart_objects.png"><img src="images/screenshots/smart_objects.png" width="430" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>
       <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab</sub>
+    </td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/pdf_viewer.png"><img src="images/screenshots/pdf_viewer.png" width="430" alt="The PDF viewer showing two pages of the sample book Harbor Lights, text beside a picture plate, with page thumbnails and the Two Pages, Cover Alone layout"></a>
+      <br><sub>The PDF viewer: one page or two, with the cover alone for books and comics, right to left reading, and thumbnails</sub>
+    </td>
+</tr>
+<tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/pdf_viewer_book_print.png"><img src="images/screenshots/pdf_viewer_book_print.png" width="430" alt="Print as Book over the PDF viewer: a saddle-stitched booklet with the cover sheet preview, both sides, and step-by-step folding and stapling instructions"></a>
+      <br><sub>Print as Book turns a PDF into a booklet, sewn signatures or a zine, with a sheet-by-sheet preview and the steps to put it together</sub>
     </td>
 <td width="50%"></td>
 </tr>

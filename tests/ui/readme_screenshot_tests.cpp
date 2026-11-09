@@ -6,12 +6,13 @@
 // Regenerate with scripts/make-readme-screenshots.ps1, which reruns the
 // "shot_readme" filter and copies the PNGs into docs/images/screenshots/.
 //
-// readme_screenshot_tests() is split across three part TUs purely for
+// readme_screenshot_tests() is split across four part TUs purely for
 // translation-unit size (readme_screenshot_tests_classic.cpp,
-// readme_screenshot_tests_scripting.cpp, readme_screenshot_tests_showcase.cpp). The registration ORDER is a
+// readme_screenshot_tests_scripting.cpp, readme_screenshot_tests_showcase.cpp,
+// readme_screenshot_tests_features.cpp). The registration ORDER is a
 // load-bearing contract: the contact sheet consumes artifacts written by
 // earlier groups and QSettings state leaks between scenes by construction,
-// so part1 + part2 + part3 concatenated below must keep the historical registration
+// so part1 + part2 + part3 + part4 concatenated below must keep the historical registration
 // vector's order, entry for entry.
 
 #include "test_harness.hpp"
@@ -21,11 +22,12 @@
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part1();
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part2();
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part3();
+std::vector<patchy::test::TestCase> readme_screenshot_tests_part4();
 
 std::vector<patchy::test::TestCase> readme_screenshot_tests() {
   std::vector<patchy::test::TestCase> tests;
   for (const auto& part : {&readme_screenshot_tests_part1, &readme_screenshot_tests_part2,
-                           &readme_screenshot_tests_part3}) {
+                           &readme_screenshot_tests_part3, &readme_screenshot_tests_part4}) {
     auto cases = (*part)();
     tests.insert(tests.end(), cases.begin(), cases.end());
   }
