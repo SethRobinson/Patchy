@@ -17,9 +17,12 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QRect>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -35,6 +38,23 @@ bool run_script_to_end(patchy::ui::MainWindow& window, const QString& source) {
   auto& host = window.script_engine_host();
   patchy::ui::ScriptEngineHost::RunOptions options;
   options.name = QStringLiteral("rtl-psd-test-script");
+  // Hosts without the fixtures' fonts (Arial on Linux) ask before editing the PSD's text; the
+  // prompt opens inside the run, so watch for it there and continue with the stand-in font.
+  QTimer missing_font_watcher;
+  missing_font_watcher.setInterval(50);
+  QObject::connect(&missing_font_watcher, &QTimer::timeout, [] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      return;
+    }
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      if (dialog->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+  });
+  missing_font_watcher.start();
   (void)host.run_source(source, std::move(options));
   QElapsedTimer timer;
   timer.start();

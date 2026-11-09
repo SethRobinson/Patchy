@@ -73,6 +73,39 @@ namespace {
 
 using namespace patchy::test::ui;
 
+// The "vN" header of a text runs list, or 0. Later versions append columns, so a test of a
+// v4 column accepts any N >= 4 (a run with a Photoshop language writes v9 since issue 682).
+int text_runs_version(const std::string& runs) {
+  if (runs.size() < 2 || runs[0] != 'v') {
+    return 0;
+  }
+  int version = 0;
+  for (std::size_t i = 1; i < runs.size() && runs[i] >= '0' && runs[i] <= '9'; ++i) {
+    version = version * 10 + (runs[i] - '0');
+  }
+  return version;
+}
+
+// Column `index` (0-based, tab-separated) of the first run in a runs list, or "".
+std::string first_text_run_column(const std::string& runs, std::size_t index) {
+  const auto line_start = runs.find('\n');
+  if (line_start == std::string::npos) {
+    return {};
+  }
+  const auto line_end = runs.find('\n', line_start + 1);
+  const auto line = runs.substr(line_start + 1, line_end == std::string::npos ? std::string::npos
+                                                                               : line_end - line_start - 1);
+  std::size_t start = 0;
+  for (std::size_t column = 0; column < index; ++column) {
+    start = line.find('\t', start);
+    if (start == std::string::npos) {
+      return {};
+    }
+    ++start;
+  }
+  return line.substr(start, line.find('\t', start) - start);
+}
+
 void ui_psd_centered_point_text_keeps_center_on_commit() {
   // Regression (reported repro): tlm-main-mockup.psd has one centered point-text layer holding the
   // five menu lines ("Continue Career" ... "Quit") in a font that is not installed.  Editing it
@@ -1743,15 +1776,10 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
             const auto runs = layer.metadata().find(patchy::kLayerMetadataTextRuns);
             CHECK(runs != layer.metadata().end());
             if (runs != layer.metadata().end()) {
-              CHECK(runs->second.rfind("v4", 0) == 0);
-              // start len size bold italic color family leading tracking hscale vscale fauxbold
-              const auto first_run = runs->second.find('\n');
-              CHECK(first_run != std::string::npos);
-              if (first_run != std::string::npos) {
-                const auto line = runs->second.substr(first_run + 1);
-                CHECK(std::count(line.begin(), line.end(), '\t') == 11);
-                CHECK(!line.empty() && line.back() == '1');
-              }
+              CHECK(text_runs_version(runs->second) >= 4);
+              // start len size bold italic color family leading tracking hscale vscale fauxbold ...
+              CHECK(std::count(runs->second.begin(), runs->second.end(), '\n') == 1);
+              CHECK(first_text_run_column(runs->second, 11) == "1");
             }
             checked_faux_bold = true;
           }
@@ -2484,8 +2512,8 @@ void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
   const auto committed_runs = committed->metadata().find(patchy::kLayerMetadataTextRuns);
   CHECK(committed_runs != committed->metadata().end());
   if (committed_runs != committed->metadata().end()) {
-    CHECK(committed_runs->second.rfind("v4", 0) == 0);
-    CHECK(committed_runs->second.back() == '1');
+    CHECK(text_runs_version(committed_runs->second) >= 4);
+    CHECK(first_text_run_column(committed_runs->second, 11) == "1");
   }
   const auto committed_bold = committed->metadata().find(patchy::kLayerMetadataTextBold);
   CHECK(committed_bold == committed->metadata().end() || committed_bold->second == "false");
