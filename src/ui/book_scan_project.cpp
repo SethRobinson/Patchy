@@ -199,6 +199,8 @@ QByteArray book_project_json(const BookProject& project) {
     QJsonObject entry;
     entry[QStringLiteral("file")] = scan.file;
     entry[QStringLiteral("dpi")] = scan.dpi;
+    entry[QStringLiteral("mode")] =
+        scan.capture_mode == ScanColorMode::Grayscale ? QStringLiteral("gray") : QStringLiteral("color");
     entry[QStringLiteral("turns")] = normalized_turns(scan.extra_turns);
     entry[QStringLiteral("spread")] = box_json(scan.layout.spread);
     entry[QStringLiteral("gutter")] = scan.layout.gutter;
@@ -217,6 +219,9 @@ QByteArray book_project_json(const BookProject& project) {
         entry[QStringLiteral("side")] = page.side == BookPageSide::Right ? QStringLiteral("right") : QStringLiteral("left");
       }
       entry[QStringLiteral("turns")] = normalized_turns(page.turns);
+      if (page.output) {
+        entry[QStringLiteral("output")] = output_token(*page.output);
+      }
       pages.append(entry);
     }
     root[QStringLiteral("pages")] = pages;
@@ -288,6 +293,11 @@ std::optional<BookProject> book_project_from_json(const QByteArray& bytes, QStri
     BookScanEntry scan;
     scan.file = object.value(QStringLiteral("file")).toString();
     scan.dpi = object.value(QStringLiteral("dpi")).toDouble(300.0);
+    // Books saved before scans kept their own mode were captured in the book's.
+    const QString scan_mode = object.value(QStringLiteral("mode")).toString();
+    scan.capture_mode = scan_mode.isEmpty()                    ? project.capture_mode
+                        : scan_mode == QLatin1String("gray") ? ScanColorMode::Grayscale
+                                                             : ScanColorMode::Color;
     scan.extra_turns = normalized_turns(object.value(QStringLiteral("turns")).toInt());
     scan.layout.spread = box_from(object.value(QStringLiteral("spread")).toObject());
     scan.layout.gutter = std::clamp(object.value(QStringLiteral("gutter")).toDouble(0.5), 0.0, 1.0);
@@ -311,6 +321,9 @@ std::optional<BookProject> book_project_from_json(const QByteArray& bytes, QStri
       page.side = object.value(QStringLiteral("side")).toString() == QLatin1String("right") ? BookPageSide::Right
                                                                                           : BookPageSide::Left;
       page.turns = normalized_turns(object.value(QStringLiteral("turns")).toInt());
+      if (object.contains(QStringLiteral("output"))) {
+        page.output = output_from(object.value(QStringLiteral("output")).toString());
+      }
       if (page.kind == BookPageRef::Kind::Scan &&
           (page.scan < 0 || page.scan >= static_cast<int>(project.scans.size()))) {
         continue;
@@ -456,6 +469,14 @@ BookPageSize resolved_page_size(const BookProject& project) {
   return size;
 }
 
+BookOutputOptions page_output_options(const BookProject& project, const BookPageRef& page) {
+  BookOutputOptions options = project.output;
+  if (page.output) {
+    options.mode = *page.output;
+  }
+  return options;
+}
+
 PixelBuffer book_pixels_from_image(const QImage& image) {
   if (image.isNull()) {
     return {};
@@ -577,7 +598,8 @@ PixelBuffer render_book_page(const BookProject& project, const BookPageRef& page
   };
   if (page.kind == BookPageRef::Kind::Blank) {
     const auto [out_width, out_height] = output_size(project.capture_dpi);
-    const bool gray = project.capture_mode == ScanColorMode::Grayscale || project.output.mode != BookOutputMode::Color;
+    const bool gray =
+        project.capture_mode == ScanColorMode::Grayscale || page_output_options(project, page).mode != BookOutputMode::Color;
     cut = PixelBuffer(out_width, out_height, gray ? PixelFormat::gray8() : PixelFormat::rgb8());
     cut.clear(255);
   } else {
@@ -598,7 +620,7 @@ PixelBuffer render_book_page(const BookProject& project, const BookPageRef& page
   if (normalized_turns(page.turns) != 0) {
     cut = rotated_quarter_turns(cut, page.turns);
   }
-  return apply_output ? apply_book_output(cut, project.output) : cut;
+  return apply_output ? apply_book_output(cut, page_output_options(project, page)) : cut;
 }
 
 }  // namespace patchy::ui

@@ -6,6 +6,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -13,6 +14,8 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QDoubleSpinBox>
+#include <QDrag>
+#include <QDragEnterEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -27,6 +30,7 @@
 #include <QListWidget>
 #include <QLocale>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -47,6 +51,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 
 namespace patchy::ui {
 
@@ -59,6 +64,11 @@ constexpr double kBedFitMarginInches = 0.1;
 constexpr int kThumbnailDpi = 24;
 constexpr int kReviewPreviewDpi = 60;
 constexpr double kSmallScanDpi = 36.0;
+// The view copy's longest side: the box editor shows at most this many pixels, and the
+// review preview (kReviewPreviewDpi) stays under the copy's resolution for any bed.
+constexpr int kViewLongestSide = 1600;
+constexpr std::size_t kViewCacheCapacity = 12;
+constexpr int kViewJpegQuality = 90;
 constexpr qint64 kLowDiskBytes = 2LL * 1024 * 1024 * 1024;
 constexpr double kEdgeWarningPixels = 3.0;
 
@@ -90,19 +100,40 @@ QString thumbnail_key(const BookPageRef& page, const BookPageSize& size) {
 }
 
 QVariant page_variant(const BookPageRef& page) {
-  return QVariantList{static_cast<int>(page.kind), page.scan, page.side == BookPageSide::Right ? 1 : 0, page.turns};
+  return QVariantList{static_cast<int>(page.kind), page.scan, page.side == BookPageSide::Right ? 1 : 0, page.turns,
+                      page.output ? static_cast<int>(*page.output) : -1};
 }
 
 BookPageRef page_from_variant(const QVariant& value) {
   const QVariantList list = value.toList();
   BookPageRef page;
-  if (list.size() == 4) {
+  if (list.size() == 5) {
     page.kind = static_cast<BookPageRef::Kind>(list[0].toInt());
     page.scan = list[1].toInt();
     page.side = list[2].toInt() == 1 ? BookPageSide::Right : BookPageSide::Left;
     page.turns = list[3].toInt();
+    if (list[4].toInt() >= 0) {
+      page.output = static_cast<BookOutputMode>(list[4].toInt());
+    }
   }
   return page;
+}
+
+// The view copy of a scan, beside its small copy in thumbs/.
+QString view_copy_file(const QString& file) {
+  return QStringLiteral("thumbs/") + QFileInfo(file).completeBaseName() + QStringLiteral("-view.jpg");
+}
+
+QImage read_scan_image(const QString& path) {
+  QImageReader reader(path);
+  reader.setAutoTransform(false);
+  return reader.read();
+}
+
+PixelBuffer upright_pixels(const QImage& image, int turns) {
+  const PixelBuffer pixels = book_pixels_from_image(image);
+  const int normalized = ((turns % 4) + 4) % 4;
+  return normalized == 0 || pixels.empty() ? pixels : rotated_quarter_turns(pixels, normalized);
 }
 
 // Removes the files a book project wrote, one by one, then its scans and thumbs folders
@@ -116,6 +147,7 @@ void delete_book_project_files(const BookProject& project, bool remove_folder) {
   const auto remove_scan = [&folder](const QString& file) {
     QFile::remove(folder.filePath(file));
     QFile::remove(folder.filePath(QStringLiteral("thumbs/") + QFileInfo(file).fileName()));
+    QFile::remove(folder.filePath(view_copy_file(file)));
   };
   if (project.cover) {
     remove_scan(project.cover->file);
@@ -161,11 +193,13 @@ public:
 
   std::function<void()> on_edited;
 
-  void set_image(const QImage& full) {
-    full_size_ = full.size();
-    const int longest = std::max(full.width(), full.height());
-    const double scale = longest > 1600 ? 1600.0 / longest : 1.0;
-    display_ = scale < 1.0 ? full.scaled(full.size() * scale, Qt::KeepAspectRatio, Qt::SmoothTransformation) : full;
+  // `display` is a copy of the scan at any scale; boxes are in `full_size` coordinates.
+  void set_image(const QImage& display, QSize full_size) {
+    full_size_ = full_size;
+    const int longest = std::max(display.width(), display.height());
+    const double scale = longest > kViewLongestSide ? static_cast<double>(kViewLongestSide) / longest : 1.0;
+    display_ = scale < 1.0 ? display.scaled(display.size() * scale, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+                           : display;
     update();
   }
   void clear_image() {
@@ -428,6 +462,173 @@ private:
   OrientedBox press_box_;
   double press_line_a_{0.5};
   double press_line_b_{0.5};
+};
+
+// The review step's page thumbnails. A drag moves the selected pages to the gap under
+// the drop, shown as a bar; the items keep their grid places (an icon view would
+// otherwise just move icons around without changing the order).
+class BookPagesList final : public QListWidget {
+public:
+  static constexpr const char* kMimeType = "application/x-patchy-book-pages";
+
+  explicit BookPagesList(QWidget* parent) : QListWidget(parent) {
+    setViewMode(QListView::IconMode);
+    // Static first: it turns dragging and the viewport's drops off; InternalMove turns
+    // dragging back on, but drops only on the list itself, not its viewport.
+    setMovement(QListView::Static);
+    setDragDropMode(QAbstractItemView::InternalMove);
+    viewport()->setAcceptDrops(true);
+    setDefaultDropAction(Qt::MoveAction);
+  }
+
+  // Rows in the order shown, and the row they go before (count() for the end).
+  std::function<void(const std::vector<int>&, int)> on_move;
+
+  // What a drag of `rows` carries; a drop is taken only from this list.
+  [[nodiscard]] QByteArray drag_payload(const std::vector<int>& rows) const {
+    QStringList parts;
+    for (const int row : rows) {
+      parts << QString::number(row);
+    }
+    return QByteArray::number(reinterpret_cast<quintptr>(this)) + ':' + parts.join(QLatin1Char(',')).toLatin1();
+  }
+
+  // The gap a drop at `pos` (viewport coordinates) falls into: before the nearest page
+  // when left of its middle, after it otherwise.
+  [[nodiscard]] int insertion_row(QPoint pos) const {
+    const int rows = count();
+    int best = -1;
+    qint64 best_score = std::numeric_limits<qint64>::max();
+    for (int row = 0; row < rows; ++row) {
+      const QRect rect = visualItemRect(item(row));
+      const int dy = pos.y() < rect.top() ? rect.top() - pos.y() : pos.y() > rect.bottom() ? pos.y() - rect.bottom() : 0;
+      const qint64 score = static_cast<qint64>(dy) * 100000 + std::abs(pos.x() - rect.center().x());
+      if (score < best_score) {
+        best_score = score;
+        best = row;
+      }
+    }
+    if (best < 0) {
+      return 0;
+    }
+    return pos.x() < visualItemRect(item(best)).center().x() ? best : best + 1;
+  }
+
+protected:
+  void startDrag(Qt::DropActions) override {
+    std::vector<int> rows;
+    for (int row = 0; row < count(); ++row) {
+      if (item(row)->isSelected()) {
+        rows.push_back(row);
+      }
+    }
+    if (rows.empty()) {
+      return;
+    }
+    auto* mime = new QMimeData;
+    mime->setData(QString::fromLatin1(kMimeType), drag_payload(rows));
+    auto* drag = new QDrag(this);
+    drag->setMimeData(mime);
+    QListWidgetItem* lead = currentItem() != nullptr && currentItem()->isSelected() ? currentItem() : item(rows.front());
+    const QPixmap pixmap = lead->icon().pixmap(iconSize());
+    if (!pixmap.isNull()) {
+      drag->setPixmap(pixmap);
+      drag->setHotSpot(QPoint(pixmap.width() / 2, pixmap.height() / 2));
+    }
+    drag->exec(Qt::MoveAction, Qt::MoveAction);
+    end_drag();
+  }
+  void dragEnterEvent(QDragEnterEvent* event) override {
+    if (!dragged_rows(event->mimeData())) {
+      event->ignore();
+      return;
+    }
+    setState(DraggingState);
+    event->setDropAction(Qt::MoveAction);
+    event->accept();
+  }
+  void dragMoveEvent(QDragMoveEvent* event) override {
+    if (!dragged_rows(event->mimeData())) {
+      event->ignore();
+      return;
+    }
+    const int row = insertion_row(event->position().toPoint());
+    if (row != drop_row_) {
+      drop_row_ = row;
+      viewport()->update();
+    }
+    startAutoScroll();
+    event->setDropAction(Qt::MoveAction);
+    event->accept();
+  }
+  void dragLeaveEvent(QDragLeaveEvent*) override { end_drag(); }
+  void dropEvent(QDropEvent* event) override {
+    const auto rows = dragged_rows(event->mimeData());
+    if (!rows) {
+      event->ignore();
+      return;
+    }
+    const int before = insertion_row(event->position().toPoint());
+    end_drag();
+    // The rows are moved here; the drag must not remove anything afterwards.
+    event->setDropAction(Qt::MoveAction);
+    event->accept();
+    if (on_move) {
+      on_move(*rows, before);
+    }
+  }
+  void paintEvent(QPaintEvent* event) override {
+    QListWidget::paintEvent(event);
+    if (drop_row_ < 0 || count() == 0) {
+      return;
+    }
+    const bool at_end = drop_row_ >= count();
+    const QRect rect = visualItemRect(item(at_end ? count() - 1 : drop_row_));
+    const int gap = std::max(2, spacing());
+    const int x = at_end ? rect.right() + gap / 2 + 1 : rect.left() - gap / 2;
+    QPainter painter(viewport());
+    painter.setRenderHint(QPainter::Antialiasing);
+    QColor halo = theme().drop_indicator_border;
+    halo.setAlpha(180);
+    painter.setPen(QPen(halo, 5, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(QPoint(x, rect.top() + 2), QPoint(x, rect.bottom() - 2));
+    painter.setPen(QPen(theme().drop_indicator_bg, 3, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(QPoint(x, rect.top() + 2), QPoint(x, rect.bottom() - 2));
+  }
+
+private:
+  [[nodiscard]] std::optional<std::vector<int>> dragged_rows(const QMimeData* mime) const {
+    if (mime == nullptr || !mime->hasFormat(QString::fromLatin1(kMimeType))) {
+      return std::nullopt;
+    }
+    const QByteArray payload = mime->data(QString::fromLatin1(kMimeType));
+    const qsizetype colon = payload.indexOf(':');
+    if (colon < 0 || payload.left(colon) != QByteArray::number(reinterpret_cast<quintptr>(this))) {
+      return std::nullopt;
+    }
+    std::vector<int> rows;
+    for (const QByteArray& part : payload.mid(colon + 1).split(',')) {
+      bool ok = false;
+      const int row = part.toInt(&ok);
+      if (ok && row >= 0 && row < count()) {
+        rows.push_back(row);
+      }
+    }
+    if (rows.empty()) {
+      return std::nullopt;
+    }
+    return rows;
+  }
+  void end_drag() {
+    stopAutoScroll();
+    setState(NoState);
+    if (drop_row_ >= 0) {
+      drop_row_ = -1;
+      viewport()->update();
+    }
+  }
+
+  int drop_row_{-1};
 };
 
 BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
@@ -792,7 +993,22 @@ void BookScanDialog::build_scanning_page() {
   spread_tilt_spin_->setDecimals(1);
   spread_tilt_spin_->setSuffix(tr(" deg"));
   form->addRow(tr("Tilt:"), spread_tilt_spin_);
+  // Capture settings can change between scans: a few pages in color, a plate at a higher
+  // resolution. With an earlier scan selected they are what Rescan This Scan uses.
+  scan_resolution_combo_ = new QComboBox(page);
+  scan_resolution_combo_->setObjectName(QStringLiteral("bookScanScanningResolutionCombo"));
+  scan_resolution_combo_->setToolTip(tr("The resolution of the next scans. Earlier scans keep their own."));
+  form->addRow(tr("Resolution:"), scan_resolution_combo_);
+  scan_color_combo_ = new QComboBox(page);
+  scan_color_combo_->setObjectName(QStringLiteral("bookScanScanningColorCombo"));
+  scan_color_combo_->addItems({tr("Color"), tr("Grayscale")});
+  scan_color_combo_->setToolTip(tr("Scan the next pages in color or grayscale. Earlier scans keep their own."));
+  form->addRow(tr("Mode:"), scan_color_combo_);
   side->addLayout(form);
+  capture_note_ = new QLabel(page);
+  capture_note_->setObjectName(QStringLiteral("bookScanCaptureNote"));
+  capture_note_->setWordWrap(true);
+  side->addWidget(capture_note_);
   auto* rotate = new QPushButton(tr("Turn This Scan 180 Degrees"), page);
   rotate->setObjectName(QStringLiteral("bookScanRotateSpreadButton"));
   rotate->setAutoDefault(false);
@@ -940,11 +1156,19 @@ void BookScanDialog::build_scanning_page() {
     save_project_quietly();
     refresh_scanning_page();
   });
+  for (QComboBox* combo : {scan_resolution_combo_, scan_color_combo_}) {
+    connect(combo, &QComboBox::currentIndexChanged, this, [this] {
+      if (!refreshing_) {
+        capture_controls_changed();
+      }
+    });
+  }
   connect(grayscale_switch_, &QPushButton::clicked, this, [this] {
     project_.capture_mode = ScanColorMode::Grayscale;
     grayscale_hint_->setVisible(false);
     grayscale_switch_->setVisible(false);
     save_project_quietly();
+    refresh_capture_controls();
     status_label_->setText(tr("The next pages are scanned in Grayscale."));
   });
   connect(beep_check_, &QCheckBox::toggled, this,
@@ -970,15 +1194,15 @@ void BookScanDialog::build_review_page() {
   page->setObjectName(QStringLiteral("bookScanReviewPage"));
   auto* layout = new QHBoxLayout(page);
   auto* left = new QVBoxLayout;
-  pages_list_ = new QListWidget(page);
+  auto* pages_list = new BookPagesList(page);
+  pages_list_ = pages_list;
   pages_list_->setObjectName(QStringLiteral("bookScanPagesList"));
-  pages_list_->setViewMode(QListView::IconMode);
   pages_list_->setIconSize(QSize(80, 112));
   pages_list_->setResizeMode(QListView::Adjust);
-  pages_list_->setMovement(QListView::Snap);
-  pages_list_->setDragDropMode(QAbstractItemView::InternalMove);
-  pages_list_->setDefaultDropAction(Qt::MoveAction);
   pages_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  pages_list_->setToolTip(tr("Drag pages to change their order"));
+  // Each item is as wide as its label, so a page's own output ("4 (Color)") shows in full.
+  pages_list_->setTextElideMode(Qt::ElideNone);
   pages_list_->setSpacing(6);
   left->addWidget(pages_list_, 1);
   auto* list_buttons = new QHBoxLayout;
@@ -1044,6 +1268,15 @@ void BookScanDialog::build_review_page() {
   output_combo_->setObjectName(QStringLiteral("bookScanOutputCombo"));
   output_combo_->addItems({tr("Color"), tr("Grayscale"), tr("Black and white")});
   form->addRow(tr("Output:"), output_combo_);
+  page_output_combo_ = new QComboBox(page);
+  page_output_combo_->setObjectName(QStringLiteral("bookScanPageOutputCombo"));
+  page_output_combo_->addItem(tr("Same as the book"), -1);
+  page_output_combo_->addItem(tr("Color"), static_cast<int>(BookOutputMode::Color));
+  page_output_combo_->addItem(tr("Grayscale"), static_cast<int>(BookOutputMode::Grayscale));
+  page_output_combo_->addItem(tr("Black and white"), static_cast<int>(BookOutputMode::BlackAndWhite));
+  page_output_combo_->setToolTip(tr("Give the selected pages their own output, such as color plates in a black and "
+                                    "white book"));
+  form->addRow(tr("Selected pages:"), page_output_combo_);
   threshold_slider_ = new QSlider(Qt::Horizontal, page);
   threshold_slider_->setObjectName(QStringLiteral("bookScanThresholdSlider"));
   threshold_slider_->setRange(1, 255);
@@ -1079,8 +1312,17 @@ void BookScanDialog::build_review_page() {
   layout->addLayout(side);
   stack_->addWidget(page);
 
-  connect(pages_list_->model(), &QAbstractItemModel::rowsMoved, this, &BookScanDialog::review_order_changed);
+  pages_list->on_move = [this](const std::vector<int>& rows, int before) {
+    // Later: the list is rebuilt, which must not happen inside its own drop.
+    QTimer::singleShot(0, this, [this, rows, before] { move_review_pages(rows, before); });
+  };
   connect(pages_list_, &QListWidget::currentRowChanged, this, &BookScanDialog::refresh_review_preview);
+  connect(pages_list_, &QListWidget::itemSelectionChanged, this, &BookScanDialog::update_page_output_combo);
+  connect(page_output_combo_, &QComboBox::currentIndexChanged, this, [this] {
+    if (!refreshing_) {
+      page_output_changed();
+    }
+  });
   connect(remove, &QPushButton::clicked, this, &BookScanDialog::delete_selected_pages);
   connect(rotate, &QPushButton::clicked, this, &BookScanDialog::rotate_selected_pages);
   connect(blank, &QPushButton::clicked, this, &BookScanDialog::insert_blank_page);
@@ -1256,6 +1498,7 @@ void BookScanDialog::apply_devices(const std::vector<ScannerDeviceInfo>& devices
     device_listed_ = listed;
     resolution_combo_->setEnabled(capabilities_.direct_control && device_listed_);
     color_combo_->setEnabled(capabilities_.direct_control && device_listed_);
+    refresh_capture_controls();
   }
 }
 
@@ -1295,7 +1538,7 @@ bool BookScanDialog::retry_after_device_loss() {
   scan_retried_ = true;
   ScanRequest request = last_request_;
   if (pending_ != PendingScan::Cover && pending_ != PendingScan::RescanCover) {
-    request.dpi = project_.capture_dpi;  // the reopened scanner may offer other resolutions
+    request.dpi = nearest_offered_dpi(request.dpi);  // the reopened scanner may offer other resolutions
   }
   status_label_->setText(tr("Reconnected to the scanner. Scanning again..."));
   session_->start_scan(request);
@@ -1447,7 +1690,9 @@ void BookScanDialog::continue_book() {
   thumbnails_.clear();
   small_scans_.clear();
   preview_key_.clear();
-  review_cache_.reset();
+  scan_views_.clear();
+  scan_view_order_.clear();
+  strip_signature_.clear();
   grayscale_hint_shown_ = !project_.scans.empty();
   edit_cover_ = false;
   edit_scan_.reset();
@@ -1479,7 +1724,9 @@ void BookScanDialog::start_over() {
   thumbnails_.clear();
   small_scans_.clear();
   preview_key_.clear();
-  review_cache_.reset();
+  scan_views_.clear();
+  scan_view_order_.clear();
+  strip_signature_.clear();
   refresh_folder_state();
 }
 
@@ -1536,7 +1783,9 @@ bool BookScanDialog::ensure_session_open(bool report) {
       project_.capture_dpi = nearest;
       status_label_->setText(tr("The scanner does not offer %1 dpi now; scanning at %2 dpi.").arg(wanted).arg(nearest));
     }
+    rescan_dpi_ = nearest_offered_dpi(rescan_dpi_);
     fill_resolution_combo();
+    refresh_capture_controls();
   }
   return true;
 }
@@ -1668,14 +1917,14 @@ void BookScanDialog::scan_finished(const ScanResult& result) {
     show_scan_error(text);
     return;
   }
-  const double dpi = result.horizontal_dpi > 0.0 ? result.horizontal_dpi : project_.capture_dpi;
+  const double dpi = result.horizontal_dpi > 0.0 ? result.horizontal_dpi : last_request_.dpi;
   if (pending == PendingScan::Cover || pending == PendingScan::RescanCover) {
     apply_cover_scan(result.file_path, result.horizontal_dpi > 0.0 ? result.horizontal_dpi : kCoverDpi,
                      pending == PendingScan::RescanCover);
   } else if (pending == PendingScan::Page) {
-    apply_page_scan(result.file_path, dpi, -1);
+    apply_page_scan(result.file_path, dpi, last_request_.mode, -1);
   } else if (pending == PendingScan::Rescan) {
-    apply_page_scan(result.file_path, dpi, rescan_target);
+    apply_page_scan(result.file_path, dpi, last_request_.mode, rescan_target);
   }
   if (beep_check_->isChecked() && !quiet_) {
     QApplication::beep();
@@ -1703,7 +1952,9 @@ void BookScanDialog::apply_cover_scan(const QString& file, double dpi, bool keep
   BookCover cover;
   cover.file = relative;
   cover.dpi = dpi;
-  const PixelBuffer upright = load_upright_scan(project_, relative, project_.up_turns);
+  const QImage full = read_scan_image(QDir(project_.folder).filePath(relative));
+  remember_scan_copies(relative, dpi, full);
+  const PixelBuffer upright = upright_pixels(full, project_.up_turns);
   BookDetectOptions options;
   options.source_ppi = dpi;
   const auto outline = detect_book_outline(upright, options);
@@ -1739,23 +1990,101 @@ std::optional<QRectF> BookScanDialog::scan_area_for_pages() const {
 }
 
 void BookScanDialog::fill_resolution_combo() {
+  fill_resolution_items(resolution_combo_, project_.capture_dpi);
+}
+
+void BookScanDialog::fill_resolution_items(QComboBox* combo, int dpi) {
   const bool was_refreshing = refreshing_;
   refreshing_ = true;
-  resolution_combo_->clear();
   std::vector<int> resolutions = capabilities_.resolutions;
   if (resolutions.empty()) {
     resolutions = {150, 200, 300, 400, 600};
   }
-  for (const int dpi : resolutions) {
-    resolution_combo_->addItem(tr("%1 dpi").arg(dpi), dpi);
+  bool same = combo->count() == static_cast<int>(resolutions.size());
+  for (int i = 0; same && i < combo->count(); ++i) {
+    same = combo->itemData(i).toInt() == resolutions[static_cast<std::size_t>(i)];
   }
-  int resolution_index = resolution_combo_->findData(project_.capture_dpi);
-  if (resolution_index < 0) {
-    resolution_index = resolution_combo_->findData(300);
+  if (!same) {
+    combo->clear();
+    for (const int offered : resolutions) {
+      combo->addItem(tr("%1 dpi").arg(offered), offered);
+    }
   }
-  resolution_combo_->setCurrentIndex(std::max(0, resolution_index));
-  resolution_combo_->setEnabled(capabilities_.direct_control && device_listed_);
+  int index = combo->findData(dpi);
+  if (index < 0) {
+    index = combo->findData(nearest_offered_dpi(dpi));
+  }
+  if (index < 0) {
+    index = combo->findData(300);
+  }
+  combo->setCurrentIndex(std::max(0, index));
+  combo->setEnabled(capabilities_.direct_control && device_listed_);
   refreshing_ = was_refreshing;
+}
+
+int BookScanDialog::nearest_offered_dpi(int dpi) const {
+  const auto& offered = capabilities_.resolutions;
+  if (offered.empty() || std::find(offered.begin(), offered.end(), dpi) != offered.end()) {
+    return dpi;
+  }
+  int nearest = offered.front();
+  for (const int candidate : offered) {
+    if (std::abs(candidate - dpi) < std::abs(nearest - dpi)) {
+      nearest = candidate;
+    }
+  }
+  return nearest;
+}
+
+void BookScanDialog::refresh_capture_controls() {
+  if (scan_resolution_combo_ == nullptr) {
+    return;
+  }
+  const bool was_refreshing = refreshing_;
+  refreshing_ = true;
+  const bool earlier = editing_earlier_scan();
+  const int dpi = earlier ? rescan_dpi_ : project_.capture_dpi;
+  const ScanColorMode mode = earlier ? rescan_mode_ : project_.capture_mode;
+  fill_resolution_items(scan_resolution_combo_, dpi);
+  scan_color_combo_->setCurrentIndex(mode == ScanColorMode::Grayscale ? 1 : 0);
+  const bool controllable = capabilities_.direct_control && device_listed_;
+  scan_resolution_combo_->setEnabled(controllable);
+  scan_color_combo_->setEnabled(controllable);
+  scan_form_->setRowVisible(scan_resolution_combo_, !edit_cover_);
+  scan_form_->setRowVisible(scan_color_combo_, !edit_cover_);
+  QString note;
+  if (!edit_cover_ && !capabilities_.direct_control && session_open_) {
+    note = tr("The scan dialog sets the resolution and mode for each scan.");
+  } else if (earlier) {
+    const auto& scan = project_.scans[static_cast<std::size_t>(selected_scan())];
+    const int scanned_dpi = static_cast<int>(std::lround(scan.dpi));
+    note = scan.capture_mode == ScanColorMode::Grayscale ? tr("Scanned at %1 dpi in grayscale.").arg(scanned_dpi)
+                                                         : tr("Scanned at %1 dpi in color.").arg(scanned_dpi);
+    if (scanned_dpi != rescan_dpi_ || scan.capture_mode != rescan_mode_) {
+      note += QLatin1Char(' ') + tr("Rescan This Scan scans it again with the settings above.");
+    }
+  }
+  capture_note_->setText(note);
+  capture_note_->setVisible(!note.isEmpty());
+  refreshing_ = was_refreshing;
+}
+
+void BookScanDialog::capture_controls_changed() {
+  const int dpi = scan_resolution_combo_->currentData().toInt() > 0 ? scan_resolution_combo_->currentData().toInt() : 300;
+  const ScanColorMode mode = scan_color_combo_->currentIndex() == 1 ? ScanColorMode::Grayscale : ScanColorMode::Color;
+  if (editing_earlier_scan()) {
+    rescan_dpi_ = dpi;
+    rescan_mode_ = mode;
+  } else {
+    project_.capture_dpi = dpi;
+    project_.capture_mode = mode;
+    if (mode == ScanColorMode::Grayscale) {
+      grayscale_hint_->setVisible(false);
+      grayscale_switch_->setVisible(false);
+    }
+    save_project_quietly();
+  }
+  refresh_capture_controls();
 }
 
 void BookScanDialog::refresh_cover_page() {
@@ -1771,8 +2100,8 @@ void BookScanDialog::refresh_cover_page() {
   covers_check_->setChecked(project_.include_covers && project_.cover.has_value());
   covers_check_->setEnabled(project_.cover.has_value());
   if (project_.cover) {
-    const PixelBuffer upright = load_upright_scan(project_, project_.cover->file, project_.up_turns);
-    cover_preview_->set_image(book_image_from_pixels(upright));
+    const UprightView& view = upright_preview(project_.cover->file, project_.cover->dpi, project_.up_turns);
+    cover_preview_->set_image(view.image, view.full_size);
     cover_preview_->set_box(project_.cover->layout.outline);
     cover_preview_->set_lines(project_.cover->layout.spine_left, project_.cover->layout.spine_right);
     cover_tilt_spin_->setValue(project_.cover->layout.outline.angle_degrees);
@@ -1898,9 +2227,6 @@ void BookScanDialog::set_up_turns(int turns) {
   update_book_area();
   thumbnails_.clear();
   preview_key_.clear();
-  if (review_cache_) {
-    review_cache_->clear();
-  }
   save_project_quietly();
 }
 
@@ -1987,7 +2313,15 @@ void BookScanDialog::edit_page(const BookPageRef& page) {
              page.scan < static_cast<int>(project_.scans.size())) {
     edit_cover_ = false;
     // The newest scan is what the step shows anyway.
-    edit_scan_ = page.scan == static_cast<int>(project_.scans.size()) - 1 ? std::nullopt : std::optional<int>(page.scan);
+    const std::optional<int> scan =
+        page.scan == static_cast<int>(project_.scans.size()) - 1 ? std::nullopt : std::optional<int>(page.scan);
+    if (scan && scan != edit_scan_) {
+      // Rescan This Scan starts from the scan's own settings.
+      const auto& entry = project_.scans[static_cast<std::size_t>(*scan)];
+      rescan_dpi_ = nearest_offered_dpi(static_cast<int>(std::lround(entry.dpi)));
+      rescan_mode_ = entry.capture_mode;
+    }
+    edit_scan_ = scan;
   } else {
     return;
   }
@@ -2041,8 +2375,11 @@ void BookScanDialog::rescan_selected() {
   }
   rescan_target_ = target;
   ScanRequest request;
-  request.dpi = project_.capture_dpi;
-  request.mode = project_.capture_mode;
+  // An earlier scan is scanned again with its own settings (or those picked for it); the
+  // newest with the next scans' settings.
+  const bool earlier = editing_earlier_scan();
+  request.dpi = earlier ? rescan_dpi_ : project_.capture_dpi;
+  request.mode = earlier ? rescan_mode_ : project_.capture_mode;
   request.area_inches = scan_area_for_pages();
   request.output_base_path = QDir(project_.folder).filePath(scans_dir_name() + QStringLiteral("/incoming-rescan"));
   pending_ = PendingScan::Rescan;
@@ -2056,7 +2393,7 @@ void BookScanDialog::rescan_selected() {
   start_session_scan(request);
 }
 
-void BookScanDialog::apply_page_scan(const QString& file, double dpi, int replace_index) {
+void BookScanDialog::apply_page_scan(const QString& file, double dpi, ScanColorMode mode, int replace_index) {
   const bool replace = replace_index >= 0 && replace_index < static_cast<int>(project_.scans.size());
   const QString old_file = replace ? project_.scans[static_cast<std::size_t>(replace_index)].file : QString();
   const QString base =
@@ -2072,13 +2409,23 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, int replac
   BookScanEntry entry;
   entry.file = relative;
   entry.dpi = dpi;
-  const PixelBuffer upright = load_upright_scan(project_, relative, project_.up_turns);
+  // Read once: detection, the thumbnail and the box editor's view all come from it.
+  const QImage full = read_scan_image(QDir(project_.folder).filePath(relative));
+  // The system scan dialog picks the mode itself; a gray file says which it was.
+  entry.capture_mode = capabilities_.direct_control ? mode
+                       : full.isGrayscale()         ? ScanColorMode::Grayscale
+                                                    : ScanColorMode::Color;
+  const PixelBuffer upright = upright_pixels(full, project_.up_turns);
   std::optional<OrientedBox> fallback;
   const std::size_t previous_index = replace ? static_cast<std::size_t>(replace_index) : project_.scans.size();
   if (previous_index > 0 && previous_index <= project_.scans.size()) {
     const auto& previous = project_.scans[previous_index - 1];
-    if (previous.dpi == dpi) {
-      fallback = previous.layout.spread;
+    if (previous.dpi > 0.0) {
+      // The same scan area at another resolution: the previous box, rescaled.
+      const double ratio = dpi / previous.dpi;
+      const OrientedBox& box = previous.layout.spread;
+      fallback = OrientedBox{box.center_x * ratio, box.center_y * ratio, box.width * ratio, box.height * ratio,
+                             box.angle_degrees};
     }
   }
   entry.layout = detect_scan_layout(upright, dpi, fallback);
@@ -2094,6 +2441,7 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, int replac
     }
     forget_scan(old_file);
     forget_scan(entry.file);
+    remember_scan_copies(entry.file, dpi, full);
     target = entry;
     edit_cover_ = false;
     edit_scan_ = replace_index == static_cast<int>(project_.scans.size()) - 1 ? std::nullopt
@@ -2101,6 +2449,7 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, int replac
   } else {
     edit_cover_ = false;
     edit_scan_.reset();
+    remember_scan_copies(entry.file, dpi, full);
     project_.scans.push_back(entry);
     if (project_.custom_order) {
       const int index = static_cast<int>(project_.scans.size()) - 1;
@@ -2169,13 +2518,51 @@ void BookScanDialog::set_scan_mode(BookScanMode mode) {
     QApplication::restoreOverrideCursor();
   }
   thumbnails_.clear();
-  if (review_cache_) {
-    review_cache_->clear();
-  }
   save_project_quietly();
   status_label_->setText(mode == BookScanMode::OnePage ? tr("Each scan now holds one page.")
                                                        : tr("Each scan now holds two pages."));
   refresh_scanning_page();
+}
+
+PixelBuffer BookScanDialog::cut_page_from_copy(const BookPageRef& page, const BookPageSize& size, double dpi,
+                                               bool view_copy) {
+  const auto out_width = std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(size.width * dpi)));
+  const auto out_height = std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(size.height * dpi)));
+  PixelBuffer cut;
+  if (page.kind == BookPageRef::Kind::Blank) {
+    cut = PixelBuffer(out_width, out_height, PixelFormat::gray8());
+    cut.clear(255);
+    return cut;
+  }
+  const auto source = book_page_source(project_, page, size);
+  if (!source) {
+    return {};
+  }
+  const PixelBuffer* pixels = nullptr;
+  double scale = 1.0;
+  if (view_copy) {
+    if (const ScanView* view = scan_view(source->file, source->dpi)) {
+      pixels = &view->pixels;
+      scale = view->scale;
+    }
+  } else if (const SmallScan* small = small_scan(source->file, source->dpi)) {
+    pixels = &small->pixels;
+    scale = small->scale;
+  }
+  if (pixels == nullptr || pixels->empty()) {
+    return {};
+  }
+  const PixelBuffer upright = source->turns == 0 ? *pixels : rotated_quarter_turns(*pixels, source->turns);
+  OrientedBox box = source->box;
+  box.center_x *= scale;
+  box.center_y *= scale;
+  box.width *= scale;
+  box.height *= scale;
+  cut = extract_book_page(upright, box, out_width, out_height);
+  if (!cut.empty() && page.turns % 4 != 0) {
+    cut = rotated_quarter_turns(cut, page.turns);
+  }
+  return cut;
 }
 
 QImage BookScanDialog::thumbnail_for(const BookPageRef& page) {
@@ -2185,30 +2572,59 @@ QImage BookScanDialog::thumbnail_for(const BookPageRef& page) {
   if (found != thumbnails_.constEnd()) {
     return found.value();
   }
-  const auto out_width = std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(size.width * kThumbnailDpi)));
-  const auto out_height = std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(size.height * kThumbnailDpi)));
-  PixelBuffer cut;
-  if (page.kind == BookPageRef::Kind::Blank) {
-    cut = PixelBuffer(out_width, out_height, PixelFormat::gray8());
-    cut.clear(255);
-  } else if (const auto source = book_page_source(project_, page, size)) {
-    if (const SmallScan* small = small_scan(source->file, source->dpi)) {
-      const PixelBuffer upright =
-          source->turns == 0 ? small->pixels : rotated_quarter_turns(small->pixels, source->turns);
-      OrientedBox box = source->box;
-      box.center_x *= small->scale;
-      box.center_y *= small->scale;
-      box.width *= small->scale;
-      box.height *= small->scale;
-      cut = extract_book_page(upright, box, out_width, out_height);
-      if (!cut.empty() && page.turns % 4 != 0) {
-        cut = rotated_quarter_turns(cut, page.turns);
-      }
-    }
-  }
-  const QImage image = book_image_from_pixels(cut);
+  const QImage image = book_image_from_pixels(cut_page_from_copy(page, size, kThumbnailDpi, false));
   thumbnails_.insert(key, image);
   return image;
+}
+
+void BookScanDialog::remember_scan_copies(const QString& file, double dpi, const QImage& full) {
+  if (full.isNull() || dpi <= 0.0 || project_.folder.isEmpty()) {
+    return;
+  }
+  const QDir folder(project_.folder);
+  QDir().mkpath(folder.filePath(QStringLiteral("thumbs")));
+  // The view copy first; the small copy is made from it, which is far cheaper than from
+  // the full scan and just as sharp at its size.
+  const int longest = std::max(full.width(), full.height());
+  const double view_factor = longest > kViewLongestSide ? static_cast<double>(kViewLongestSide) / longest : 1.0;
+  const QImage view = view_factor < 1.0
+                          ? full.scaled(std::max(1, static_cast<int>(std::lround(full.width() * view_factor))),
+                                        std::max(1, static_cast<int>(std::lround(full.height() * view_factor))),
+                                        Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                          : full;
+  QImageWriter view_writer(folder.filePath(view_copy_file(file)), "jpg");
+  view_writer.setQuality(kViewJpegQuality);
+  (void)view_writer.write(view);
+  const double small_factor = std::min(1.0, kSmallScanDpi / dpi);
+  const QImage small = view.scaled(std::max(1, static_cast<int>(std::lround(full.width() * small_factor))),
+                                   std::max(1, static_cast<int>(std::lround(full.height() * small_factor))),
+                                   Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  (void)QImageWriter(folder.filePath(QStringLiteral("thumbs/") + QFileInfo(file).fileName()), "png").write(small);
+
+  SmallScan small_entry;
+  small_entry.pixels = book_pixels_from_image(small);
+  small_entry.scale = static_cast<double>(small.width()) / full.width();
+  small_scans_.insert_or_assign(file, std::move(small_entry));
+  ScanView view_entry;
+  view_entry.pixels = book_pixels_from_image(view);
+  view_entry.full_size = full.size();
+  view_entry.scale = static_cast<double>(view.width()) / full.width();
+  scan_views_.insert_or_assign(file, std::move(view_entry));
+  std::erase(scan_view_order_, file);
+  scan_view_order_.push_back(file);
+  while (scan_view_order_.size() > kViewCacheCapacity) {
+    scan_views_.erase(scan_view_order_.front());
+    scan_view_order_.erase(scan_view_order_.begin());
+  }
+}
+
+bool BookScanDialog::decode_scan_copies(const QString& file, double dpi) {
+  const QImage full = read_scan_image(QDir(project_.folder).filePath(file));
+  if (full.isNull()) {
+    return false;
+  }
+  remember_scan_copies(file, dpi, full);
+  return true;
 }
 
 const BookScanDialog::SmallScan* BookScanDialog::small_scan(const QString& file, double dpi) {
@@ -2228,18 +2644,12 @@ const BookScanDialog::SmallScan* BookScanDialog::small_scan(const QString& file,
     small = QImageReader(thumb_path).read();
   }
   if (small.isNull()) {
-    QImageReader reader(full_path);
-    reader.setAutoTransform(false);
-    const QImage full = reader.read();
-    if (full.isNull()) {
+    // Missing or older than its scan: make both copies (the view copy is needed next).
+    if (!decode_scan_copies(file, dpi)) {
       return nullptr;
     }
-    const double factor = std::min(1.0, kSmallScanDpi / dpi);
-    small = full.scaled(std::max(1, static_cast<int>(std::lround(full.width() * factor))),
-                        std::max(1, static_cast<int>(std::lround(full.height() * factor))), Qt::IgnoreAspectRatio,
-                        Qt::SmoothTransformation);
-    QDir().mkpath(folder.filePath(QStringLiteral("thumbs")));
-    QImageWriter(thumb_path, "png").write(small);
+    const auto made = small_scans_.find(file);
+    return made != small_scans_.end() ? &made->second : nullptr;
   }
   SmallScan entry;
   entry.pixels = book_pixels_from_image(small);
@@ -2247,23 +2657,66 @@ const BookScanDialog::SmallScan* BookScanDialog::small_scan(const QString& file,
   return &small_scans_.emplace(file, std::move(entry)).first->second;
 }
 
-void BookScanDialog::forget_scan(const QString& file) {
-  small_scans_.erase(file);
-  QFile::remove(QDir(project_.folder).filePath(QStringLiteral("thumbs/") + QFileInfo(file).fileName()));
-  thumbnails_.clear();
-  preview_key_.clear();
-  if (review_cache_) {
-    review_cache_->clear();
+const BookScanDialog::ScanView* BookScanDialog::scan_view(const QString& file, double dpi) {
+  const auto found = scan_views_.find(file);
+  if (found != scan_views_.end()) {
+    std::erase(scan_view_order_, file);
+    scan_view_order_.push_back(file);
+    return &found->second;
   }
+  const QDir folder(project_.folder);
+  const QString full_path = folder.filePath(file);
+  const QSize full_size = QImageReader(full_path).size();
+  if (!full_size.isValid() || dpi <= 0.0) {
+    return nullptr;
+  }
+  const QString view_path = folder.filePath(view_copy_file(file));
+  QImage view;
+  if (QFileInfo(view_path).lastModified() >= QFileInfo(full_path).lastModified()) {
+    view = QImageReader(view_path).read();
+  }
+  if (view.isNull()) {
+    if (!decode_scan_copies(file, dpi)) {
+      return nullptr;
+    }
+    const auto made = scan_views_.find(file);
+    return made != scan_views_.end() ? &made->second : nullptr;
+  }
+  ScanView entry;
+  entry.pixels = book_pixels_from_image(view);
+  entry.full_size = full_size;
+  entry.scale = static_cast<double>(view.width()) / full_size.width();
+  scan_view_order_.push_back(file);
+  while (scan_view_order_.size() > kViewCacheCapacity) {
+    scan_views_.erase(scan_view_order_.front());
+    scan_view_order_.erase(scan_view_order_.begin());
+  }
+  return &scan_views_.insert_or_assign(file, std::move(entry)).first->second;
 }
 
-QImage BookScanDialog::upright_preview(const QString& file, int turns) {
-  const QString key = file + QLatin1Char('/') + QString::number(((turns % 4) + 4) % 4);
+void BookScanDialog::forget_scan(const QString& file) {
+  small_scans_.erase(file);
+  scan_views_.erase(file);
+  std::erase(scan_view_order_, file);
+  const QDir folder(project_.folder);
+  QFile::remove(folder.filePath(QStringLiteral("thumbs/") + QFileInfo(file).fileName()));
+  QFile::remove(folder.filePath(view_copy_file(file)));
+  thumbnails_.clear();
+  preview_key_.clear();
+}
+
+const BookScanDialog::UprightView& BookScanDialog::upright_preview(const QString& file, double dpi, int turns) {
+  const int normalized = ((turns % 4) + 4) % 4;
+  const QString key = file + QLatin1Char('/') + QString::number(normalized);
   if (key != preview_key_) {
-    preview_full_ = book_image_from_pixels(load_upright_scan(project_, file, turns));
+    preview_ = {};
+    if (const ScanView* view = scan_view(file, dpi)) {
+      preview_.image = book_image_from_pixels(normalized == 0 ? view->pixels : rotated_quarter_turns(view->pixels, normalized));
+      preview_.full_size = normalized % 2 != 0 ? view->full_size.transposed() : view->full_size;
+    }
     preview_key_ = key;
   }
-  return preview_full_;
+  return preview_;
 }
 
 void BookScanDialog::refresh_scanning_page() {
@@ -2323,7 +2776,8 @@ void BookScanDialog::refresh_scanning_page() {
   spread_tilt_spin_->setEnabled(edit_cover_ || selected >= 0);
   if (edit_cover_) {
     const bool rtl = project_.direction == BookReadingDirection::RightToLeft;
-    spread_preview_->set_image(upright_preview(project_.cover->file, project_.up_turns));
+    const UprightView& view = upright_preview(project_.cover->file, project_.cover->dpi, project_.up_turns);
+    spread_preview_->set_image(view.image, view.full_size);
     spread_preview_->set_box(project_.cover->layout.outline);
     spread_preview_->set_lines(project_.cover->layout.spine_left, project_.cover->layout.spine_right);
     spread_preview_->set_region_labels(rtl ? tr("Front cover") : tr("Back cover"),
@@ -2335,8 +2789,9 @@ void BookScanDialog::refresh_scanning_page() {
     edge_warning_->setVisible(false);
   } else {
     const auto& scan = project_.scans[static_cast<std::size_t>(selected)];
-    const QImage upright = upright_preview(scan.file, project_.up_turns + scan.extra_turns);
-    spread_preview_->set_image(upright);
+    const UprightView& view = upright_preview(scan.file, scan.dpi, project_.up_turns + scan.extra_turns);
+    const QSize upright = view.full_size;
+    spread_preview_->set_image(view.image, upright);
     spread_preview_->set_box(scan.layout.spread);
     spread_preview_->set_lines(scan.layout.gutter, scan.layout.gutter);
     use_combo_->setCurrentIndex(scan.use == BookPageUse::LeftOnly ? 1 : scan.use == BookPageUse::RightOnly ? 2 : 0);
@@ -2345,7 +2800,6 @@ void BookScanDialog::refresh_scanning_page() {
         oriented_box_touches_edge(scan.layout.spread, upright.width(), upright.height(), kEdgeWarningPixels));
   }
   // Every page so far, the covers included; a click selects its scan for editing.
-  strip_->clear();
   std::vector<BookPageRef> strip_pages;
   const auto order = book_page_order(project_);
   const bool covers_listed = std::any_of(order.begin(), order.end(), [](const BookPageRef& page) {
@@ -2361,7 +2815,9 @@ void BookScanDialog::refresh_scanning_page() {
     }
   }
   int page_number = 0;
-  QListWidgetItem* first_selected = nullptr;
+  QStringList labels;
+  std::vector<QImage> thumbnails;
+  QStringList signature;
   for (const auto& page : strip_pages) {
     const bool cover_page = page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover;
     QString label;
@@ -2374,10 +2830,30 @@ void BookScanDialog::refresh_scanning_page() {
     } else {
       label = QString::number(++page_number);
     }
-    auto* item = new QListWidgetItem(QIcon(QPixmap::fromImage(thumbnail_for(page))), label, strip_);
-    item->setData(Qt::UserRole, page_variant(page));
+    thumbnails.push_back(thumbnail_for(page));
+    signature << label + QLatin1Char('|') + thumbnail_key(page, {}) + QLatin1Char('|') +
+                     QString::number(page.output ? static_cast<int>(*page.output) : -1) + QLatin1Char('|') +
+                     QString::number(thumbnails.back().cacheKey());
+    labels << label;
+  }
+  // A click that only selects another scan keeps the items and moves the selection.
+  if (signature != strip_signature_ || strip_->count() != static_cast<int>(strip_pages.size())) {
+    strip_->clear();
+    for (std::size_t i = 0; i < strip_pages.size(); ++i) {
+      auto* item = new QListWidgetItem(QIcon(QPixmap::fromImage(thumbnails[i])), labels[static_cast<qsizetype>(i)], strip_);
+      item->setData(Qt::UserRole, page_variant(strip_pages[i]));
+    }
+    strip_signature_ = signature;
+  }
+  QListWidgetItem* first_selected = nullptr;
+  for (std::size_t i = 0; i < strip_pages.size(); ++i) {
+    const auto& page = strip_pages[i];
+    const bool cover_page = page.kind == BookPageRef::Kind::FrontCover || page.kind == BookPageRef::Kind::BackCover;
     const bool selected_page = cover_page ? edit_cover_ : (!edit_cover_ && page.scan == selected);
-    item->setSelected(selected_page);
+    QListWidgetItem* item = strip_->item(static_cast<int>(i));
+    if (item->isSelected() != selected_page) {
+      item->setSelected(selected_page);
+    }
     if (selected_page && first_selected == nullptr) {
       first_selected = item;
     }
@@ -2388,6 +2864,7 @@ void BookScanDialog::refresh_scanning_page() {
     strip_->scrollToBottom();
   }
   finished_button_->setText(tr("Finished (%n page(s))", nullptr, scanned_pages));
+  refresh_capture_controls();
   refreshing_ = false;
 }
 
@@ -2422,6 +2899,13 @@ void BookScanDialog::refresh_review_page() {
         label = QString::number(static_cast<int>(i) + 1);
         break;
     }
+    // A page with its own output says so under its thumbnail.
+    if (page.output) {
+      const QString mode = *page.output == BookOutputMode::Grayscale       ? tr("Gray", "page output")
+                           : *page.output == BookOutputMode::BlackAndWhite ? tr("B/W", "page output")
+                                                                           : tr("Color", "page output");
+      label = tr("%1 (%2)", "page label and its own output").arg(label, mode);
+    }
     auto* item = new QListWidgetItem(QIcon(QPixmap::fromImage(thumbnail_for(page))), label, pages_list_);
     item->setData(Qt::UserRole, page_variant(page));
   }
@@ -2429,6 +2913,13 @@ void BookScanDialog::refresh_review_page() {
     pages_list_->setCurrentRow(current);
   } else if (pages_list_->count() > 0) {
     pages_list_->setCurrentRow(0);
+  }
+  bool any_bw = false;
+  bool any_encoded = false;
+  for (const auto& page : pages) {
+    const bool bw = page_output_options(project_, page).mode == BookOutputMode::BlackAndWhite;
+    any_bw = any_bw || bw;
+    any_encoded = any_encoded || !bw;
   }
   QString size_token = QStringLiteral("median");
   switch (project_.size_policy) {
@@ -2465,12 +2956,13 @@ void BookScanDialog::refresh_review_page() {
                                  : project_.output.mode == BookOutputMode::BlackAndWhite ? 2
                                                                                          : 0);
   threshold_slider_->setValue(project_.output.threshold);
-  threshold_slider_->setEnabled(project_.output.mode == BookOutputMode::BlackAndWhite);
+  threshold_slider_->setEnabled(any_bw);
   output_dpi_combo_->setCurrentIndex(std::max(0, output_dpi_combo_->findData(project_.output_dpi)));
   quality_combo_->setCurrentIndex(std::max(0, quality_combo_->findData(project_.quality_id)));
-  quality_combo_->setEnabled(project_.output.mode != BookOutputMode::BlackAndWhite);
+  quality_combo_->setEnabled(any_encoded);
   review_summary_->setText(tr("%n page(s), each %1.", nullptr, static_cast<int>(pages.size())).arg(size_text(size)));
   refreshing_ = false;
+  update_page_output_combo();
   refresh_review_preview();
 }
 
@@ -2483,27 +2975,145 @@ void BookScanDialog::refresh_review_preview() {
     review_preview_->clear();
     return;
   }
-  if (!review_cache_) {
-    review_cache_ = std::make_unique<BookScanCache>(project_);
-  }
+  // Cut from the scan's view copy: a click on a page never reads the full scan.
   const BookPageRef page = page_from_variant(item->data(Qt::UserRole));
-  const QImage image = book_image_from_pixels(
-      render_book_page(project_, page, resolved_page_size(project_), kReviewPreviewDpi, *review_cache_));
+  const PixelBuffer cut = cut_page_from_copy(page, resolved_page_size(project_), kReviewPreviewDpi, true);
+  const QImage image = cut.empty() ? QImage() : book_image_from_pixels(apply_book_output(cut, page_output_options(project_, page)));
   review_preview_->setPixmap(QPixmap::fromImage(image).scaled(review_preview_->size(), Qt::KeepAspectRatio,
                                                               Qt::SmoothTransformation));
 }
 
-void BookScanDialog::review_order_changed() {
-  if (refreshing_) {
-    return;
-  }
+std::vector<BookPageRef> BookScanDialog::review_order() const {
   std::vector<BookPageRef> order;
+  order.reserve(static_cast<std::size_t>(pages_list_->count()));
   for (int row = 0; row < pages_list_->count(); ++row) {
     order.push_back(page_from_variant(pages_list_->item(row)->data(Qt::UserRole)));
   }
+  return order;
+}
+
+std::vector<int> BookScanDialog::selected_review_rows() const {
+  std::vector<int> rows;
+  for (int row = 0; row < pages_list_->count(); ++row) {
+    if (pages_list_->item(row)->isSelected()) {
+      rows.push_back(row);
+    }
+  }
+  return rows;
+}
+
+void BookScanDialog::select_review_rows(const std::vector<int>& rows) {
+  if (rows.empty()) {
+    return;
+  }
+  const bool was_refreshing = refreshing_;
+  refreshing_ = true;
+  pages_list_->clearSelection();
+  for (const int row : rows) {
+    if (QListWidgetItem* item = pages_list_->item(row)) {
+      item->setSelected(true);
+    }
+  }
+  refreshing_ = was_refreshing;
+  pages_list_->setCurrentRow(rows.front(), QItemSelectionModel::NoUpdate);
+  update_page_output_combo();
+}
+
+void BookScanDialog::move_review_pages(const std::vector<int>& rows, int before) {
+  if (step_ != Step::Review) {
+    return;
+  }
+  const std::vector<BookPageRef> order = review_order();
+  const int count = static_cast<int>(order.size());
+  std::vector<int> moving;
+  for (const int row : rows) {
+    if (row >= 0 && row < count) {
+      moving.push_back(row);
+    }
+  }
+  std::sort(moving.begin(), moving.end());
+  moving.erase(std::unique(moving.begin(), moving.end()), moving.end());
+  if (moving.empty()) {
+    return;
+  }
+  before = std::clamp(before, 0, count);
+  std::vector<BookPageRef> moved;
+  std::vector<BookPageRef> rest;
+  int insert_at = before;
+  for (int row = 0; row < count; ++row) {
+    if (std::binary_search(moving.begin(), moving.end(), row)) {
+      moved.push_back(order[static_cast<std::size_t>(row)]);
+      if (row < before) {
+        --insert_at;
+      }
+    } else {
+      rest.push_back(order[static_cast<std::size_t>(row)]);
+    }
+  }
+  std::vector<BookPageRef> reordered = rest;
+  reordered.insert(reordered.begin() + insert_at, moved.begin(), moved.end());
+  std::vector<int> landed;
+  for (int i = 0; i < static_cast<int>(moved.size()); ++i) {
+    landed.push_back(insert_at + i);
+  }
+  if (reordered == order) {
+    select_review_rows(landed);
+    return;
+  }
+  project_.custom_order = std::move(reordered);
+  save_project_quietly();
+  refresh_review_page();
+  select_review_rows(landed);
+  refresh_review_preview();
+}
+
+void BookScanDialog::update_page_output_combo() {
+  if (page_output_combo_ == nullptr || refreshing_) {
+    return;
+  }
+  QListWidgetItem* lead = pages_list_->currentItem();
+  if (lead == nullptr || !lead->isSelected()) {
+    const auto selected = pages_list_->selectedItems();
+    lead = selected.isEmpty() ? nullptr : selected.front();
+  }
+  const bool was_refreshing = refreshing_;
+  refreshing_ = true;
+  page_output_combo_->setEnabled(lead != nullptr);
+  const BookPageRef page = lead != nullptr ? page_from_variant(lead->data(Qt::UserRole)) : BookPageRef{};
+  page_output_combo_->setCurrentIndex(
+      std::max(0, page_output_combo_->findData(page.output ? static_cast<int>(*page.output) : -1)));
+  refreshing_ = was_refreshing;
+}
+
+void BookScanDialog::page_output_changed() {
+  const std::vector<int> selected = selected_review_rows();
+  if (selected.empty()) {
+    return;
+  }
+  const int value = page_output_combo_->currentData().toInt();
+  const std::optional<BookOutputMode> output =
+      value < 0 ? std::nullopt : std::optional<BookOutputMode>(static_cast<BookOutputMode>(value));
+  std::vector<BookPageRef> order = review_order();
+  bool changed = false;
+  for (const int row : selected) {
+    auto& page = order[static_cast<std::size_t>(row)];
+    if (page.output != output) {
+      page.output = output;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return;
+  }
+  const int current = pages_list_->currentRow();
   project_.custom_order = std::move(order);
   save_project_quietly();
-  QTimer::singleShot(0, this, [this] { refresh_review_page(); });
+  refresh_review_page();
+  select_review_rows(selected);
+  if (current >= 0) {
+    pages_list_->setCurrentRow(current, QItemSelectionModel::NoUpdate);
+  }
+  refresh_review_preview();
 }
 
 void BookScanDialog::delete_selected_pages() {
@@ -2535,9 +3145,11 @@ void BookScanDialog::rotate_selected_pages() {
   if (!changed) {
     return;
   }
+  const std::vector<int> selected = selected_review_rows();
   project_.custom_order = std::move(order);
   save_project_quietly();
   refresh_review_page();
+  select_review_rows(selected);
 }
 
 void BookScanDialog::insert_blank_page() {

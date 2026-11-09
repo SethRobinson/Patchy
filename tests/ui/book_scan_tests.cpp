@@ -16,6 +16,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDragEnterEvent>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -27,6 +28,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMimeData>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
@@ -959,6 +961,205 @@ void ui_book_scan_follows_scanner_power() {
   CHECK(dialog.project().scans.size() == 2);
 }
 
+// Capture settings per scan: a spread scanned in color at 600 dpi among grayscale 300 dpi
+// ones, an earlier scan rescanned at other settings, a page with its own output in a
+// black and white PDF, and the screen-sized scan copies the editor and preview show.
+void ui_book_scan_per_scan_settings_and_page_output() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_settings_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_settings_project")) + QStringLiteral("/book");
+  QStringList files = write_book_inputs(inputs, 3);
+  // The second spread and the rescan of the first are whole-bed images at 600 dpi.
+  files[2] = write_bed(inputs, QStringLiteral("spread-2-600.png"), 1800, 1200, {900.0, 600.0, 1440.0, 960.0, 0.0}, true, 80);
+  files << write_bed(inputs, QStringLiteral("spread-1-600.png"), 1800, 1200, {880.0, 610.0, 1440.0, 960.0, 0.0}, true, 60);
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  dialog.start_page_scanning();
+  auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningResolutionCombo"));
+  auto* color = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningColorCombo"));
+  auto* note = dialog.findChild<QLabel*>(QStringLiteral("bookScanCaptureNote"));
+  CHECK(resolution != nullptr && color != nullptr && note != nullptr);
+  if (resolution == nullptr || color == nullptr || note == nullptr) {
+    return;
+  }
+  CHECK(!resolution->isHidden() && resolution->isEnabled() && color->isEnabled());
+  const auto set_capture = [&](int dpi, int mode) {
+    resolution->setCurrentIndex(resolution->findData(dpi));
+    color->setCurrentIndex(mode);
+  };
+  set_capture(kDpi, 1);  // Grayscale
+  CHECK(dialog.project().capture_mode == patchy::ui::ScanColorMode::Grayscale);
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  set_capture(600, 0);  // Color
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  set_capture(kDpi, 1);
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  const auto& book = dialog.project();
+  CHECK(book.scans.size() == 3);
+  if (book.scans.size() != 3) {
+    return;
+  }
+  CHECK(book.scans[0].dpi == kDpi && book.scans[0].capture_mode == patchy::ui::ScanColorMode::Grayscale);
+  CHECK(book.scans[1].dpi == 600 && book.scans[1].capture_mode == patchy::ui::ScanColorMode::Color);
+  CHECK(book.scans[2].dpi == kDpi && book.scans[2].capture_mode == patchy::ui::ScanColorMode::Grayscale);
+  CHECK(QImageReader(QDir(project).filePath(book.scans[0].file)).imageFormat() == QImage::Format_Grayscale8);
+  // Pages are measured in inches, so the 600 dpi spread has the same page size.
+  const auto size = patchy::ui::resolved_page_size(book);
+  CHECK(std::abs(size.width - 1.2) < 0.05 && std::abs(size.height - 1.6) < 0.05);
+  // Every scan has its view copy beside its thumbnail.
+  for (const auto& scan : book.scans) {
+    CHECK(QFile::exists(QDir(project).filePath(QStringLiteral("thumbs/") + QFileInfo(scan.file).completeBaseName() +
+                                               QStringLiteral("-view.jpg"))));
+  }
+
+  // An earlier scan shows its own settings; changing them is for its rescan only.
+  dialog.select_scan_for_editing(0);
+  CHECK(resolution->currentData().toInt() == kDpi && color->currentIndex() == 1);
+  CHECK(!note->isHidden() && note->text().contains(QStringLiteral("300")));
+  set_capture(600, 0);
+  CHECK(dialog.project().capture_dpi == kDpi && dialog.project().capture_mode == patchy::ui::ScanColorMode::Grayscale);
+  CHECK(note->text().contains(QStringLiteral("Rescan This Scan")));
+  const QString first_file = book.scans[0].file;
+  dialog.rescan_selected();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(book.scans[0].file == first_file && book.scans[0].dpi == 600 &&
+        book.scans[0].capture_mode == patchy::ui::ScanColorMode::Color);
+  CHECK(std::abs(book.scans[0].layout.spread.width / 600.0 - 2.4) < 0.05);
+  CHECK(dialog.project().capture_dpi == kDpi);
+  // Back to the next pages: the book's settings again.
+  dialog.back_to_next_pages();
+  CHECK(resolution->currentData().toInt() == kDpi && color->currentIndex() == 1 && note->isHidden());
+
+  // Review: a black and white book with the color spread's pages in color.
+  dialog.finish_scanning();
+  auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
+  auto* output = dialog.findChild<QComboBox*>(QStringLiteral("bookScanOutputCombo"));
+  auto* page_output = dialog.findChild<QComboBox*>(QStringLiteral("bookScanPageOutputCombo"));
+  auto* preview = dialog.findChild<QLabel*>(QStringLiteral("bookScanReviewPreview"));
+  CHECK(pages != nullptr && output != nullptr && page_output != nullptr && preview != nullptr);
+  if (pages == nullptr || output == nullptr || page_output == nullptr || preview == nullptr) {
+    return;
+  }
+  output->setCurrentIndex(2);  // Black and white
+  CHECK(pages->count() == 8);  // front cover, six pages, back cover
+  pages->clearSelection();
+  pages->item(3)->setSelected(true);  // the second scan's two pages
+  pages->item(4)->setSelected(true);
+  page_output->setCurrentIndex(page_output->findData(static_cast<int>(patchy::BookOutputMode::Color)));
+  CHECK(dialog.project().custom_order.has_value());
+  const auto order = patchy::ui::book_page_order(dialog.project());
+  CHECK(order.size() == 8 && order[3].scan == 1 && order[4].scan == 1);
+  CHECK(order[3].output == patchy::BookOutputMode::Color && order[4].output == patchy::BookOutputMode::Color);
+  CHECK(!order[2].output.has_value() && !order[5].output.has_value());
+  CHECK(pages->item(3)->text().contains(QStringLiteral("Color")) && !pages->item(2)->text().contains(QStringLiteral("(")));
+  CHECK(pages->item(3)->isSelected() && pages->item(4)->isSelected() && !pages->item(2)->isSelected());
+  CHECK(patchy::ui::page_output_options(dialog.project(), order[3]).mode == patchy::BookOutputMode::Color);
+  CHECK(patchy::ui::page_output_options(dialog.project(), order[2]).mode == patchy::BookOutputMode::BlackAndWhite);
+  patchy::test::ui::save_widget_artifact("ui_book_scan_page_output", dialog);
+  const QString pdf_path = QDir(inputs).filePath(QStringLiteral("mixed.pdf"));
+  CHECK(dialog.export_pdf(pdf_path, false));
+  const QByteArray pdf = read_file(pdf_path);
+  CHECK(pdf.contains("/BitsPerComponent 1"));
+  CHECK(pdf.contains("/DCTDecode"));
+  CHECK(media_boxes(pdf).size() == 8);
+  // Saved: each scan's mode and each page's own output.
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved.has_value() && saved->scans.size() == 3 && saved->custom_order && *saved->custom_order == order);
+  if (saved && saved->scans.size() == 3) {
+    CHECK(saved->scans[0].capture_mode == patchy::ui::ScanColorMode::Color);
+    CHECK(saved->scans[2].capture_mode == patchy::ui::ScanColorMode::Grayscale);
+  }
+
+  // The review preview comes from the view copy: it shows a page whose full scan is gone.
+  const QString full = QDir(project).filePath(book.scans[2].file);
+  const QString aside = full + QStringLiteral(".aside");
+  CHECK(QFile::rename(full, aside));
+  pages->setCurrentRow(5);  // the third scan's left page
+  CHECK(!preview->pixmap().isNull());
+  CHECK(QFile::rename(aside, full));
+}
+
+// The review list reorders by drag and drop: the selected pages move to the gap under
+// the drop, and the order is saved.
+void ui_book_scan_review_drag_reorders_pages() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_drag_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_drag_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 2).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  scan_book(dialog, project, 2);
+  dialog.show();
+  auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
+  CHECK(pages != nullptr);
+  if (pages == nullptr) {
+    return;
+  }
+  QApplication::processEvents();
+  const auto before = patchy::ui::book_page_order(dialog.project());
+  CHECK(before.size() == 6 && pages->count() == 6);
+  if (before.size() != 6 || pages->count() != 6) {
+    return;
+  }
+  // Drag page 1 (row 1) to the gap after the last page.
+  const auto drop = [pages](const std::vector<int>& rows, QPoint at) {
+    QStringList parts;
+    for (const int row : rows) {
+      parts << QString::number(row);
+    }
+    QMimeData mime;
+    mime.setData(QStringLiteral("application/x-patchy-book-pages"),
+                 QByteArray::number(reinterpret_cast<quintptr>(pages)) + ':' + parts.join(QLatin1Char(',')).toLatin1());
+    QDragEnterEvent enter(at, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(pages->viewport(), &enter);
+    CHECK(enter.isAccepted());
+    QDragMoveEvent move(at, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(pages->viewport(), &move);
+    CHECK(move.isAccepted());
+    QDropEvent event(QPointF(at), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(pages->viewport(), &event);
+    CHECK(event.isAccepted());
+    QApplication::processEvents();
+  };
+  const QRect last = pages->visualItemRect(pages->item(5));
+  drop({1}, QPoint(last.right() - 2, last.center().y()));
+  auto order = patchy::ui::book_page_order(dialog.project());
+  CHECK(dialog.project().custom_order.has_value());
+  CHECK(order.size() == 6);
+  if (order.size() != 6) {
+    return;
+  }
+  CHECK(order[5] == before[1] && order[0] == before[0] && order[1] == before[2]);
+  CHECK(pages->item(5)->isSelected());
+  // Two pages dropped on the left half of the first page go to the front, in order.
+  pages->clearSelection();
+  const QRect first = pages->visualItemRect(pages->item(0));
+  drop({3, 4}, QPoint(first.left() + 2, first.center().y()));
+  order = patchy::ui::book_page_order(dialog.project());
+  CHECK(order.size() == 6 && order[0] == before[4] && order[1] == before[5] && order[2] == before[0]);
+  // A drop from somewhere else is refused.
+  QMimeData foreign;
+  foreign.setData(QStringLiteral("application/x-patchy-book-pages"), QByteArrayLiteral("1:0"));
+  QDragEnterEvent enter(first.center(), Qt::MoveAction, &foreign, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(pages->viewport(), &enter);
+  CHECK(!enter.isAccepted());
+  // The order is saved, and the same move by the test surface agrees.
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved.has_value() && saved->custom_order && *saved->custom_order == order);
+  dialog.move_review_pages({0}, 6);
+  const auto moved = patchy::ui::book_page_order(dialog.project());
+  CHECK(moved.size() == 6 && moved[5] == order[0] && moved[0] == order[1]);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
@@ -975,6 +1176,8 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_gutter_drag_sticks", ui_book_scan_gutter_drag_sticks},
       {"ui_book_scan_edit_and_rescan_earlier_scans", ui_book_scan_edit_and_rescan_earlier_scans},
       {"ui_book_scan_follows_scanner_power", ui_book_scan_follows_scanner_power},
+      {"ui_book_scan_per_scan_settings_and_page_output", ui_book_scan_per_scan_settings_and_page_output},
+      {"ui_book_scan_review_drag_reorders_pages", ui_book_scan_review_drag_reorders_pages},
       {"ui_unicode_book_scan_project_folder", ui_unicode_book_scan_project_folder},
   };
 }

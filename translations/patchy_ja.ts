@@ -17055,6 +17055,62 @@ Do you want to replace it?</source>
         <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
         <translation>スキャナーは現在 %1 dpi に対応していません。%2 dpi でスキャンします。</translation>
     </message>
+    <message>
+        <source>The resolution of the next scans. Earlier scans keep their own.</source>
+        <translation>次のスキャンの解像度。以前のスキャンはそれぞれの設定のままです。</translation>
+    </message>
+    <message>
+        <source>Scan the next pages in color or grayscale. Earlier scans keep their own.</source>
+        <translation>次のページをカラーまたはグレースケールでスキャンします。以前のスキャンはそれぞれの設定のままです。</translation>
+    </message>
+    <message>
+        <source>Drag pages to change their order</source>
+        <translation>ページをドラッグして順序を変更します</translation>
+    </message>
+    <message>
+        <source>Same as the book</source>
+        <translation>本と同じ</translation>
+    </message>
+    <message>
+        <source>Give the selected pages their own output, such as color plates in a black and white book</source>
+        <translation>選択したページに個別の出力を設定します (白黒の本の中のカラー図版など)</translation>
+    </message>
+    <message>
+        <source>Selected pages:</source>
+        <translation>選択したページ:</translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in grayscale.</source>
+        <translation>%1 dpi、グレースケールでスキャン済み。</translation>
+    </message>
+    <message>
+        <source>Scanned at %1 dpi in color.</source>
+        <translation>%1 dpi、カラーでスキャン済み。</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan scans it again with the settings above.</source>
+        <translation>[このスキャンを再スキャン] で上の設定を使って再スキャンします。</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <comment>page output</comment>
+        <translation>グレー</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <comment>page output</comment>
+        <translation>カラー</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>page label and its own output</comment>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>B/W</source>
+        <comment>page output</comment>
+        <translation>白黒</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

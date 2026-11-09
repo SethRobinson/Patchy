@@ -793,8 +793,30 @@ void MainWindow::showEvent(QShowEvent* event) {
 
 bool MainWindow::title_bar_drag_area_contains(QPoint menu_bar_position) const {
   const auto* bar = menuBar();
-  if (bar == nullptr || bar->actionAt(menu_bar_position) != nullptr) {
+  if (bar == nullptr) {
     return false;
+  }
+  // The overflow button of a narrow window (QMenuBar's own; the controls' reserve keeps
+  // it clear of the window controls).
+  const auto* extension =
+      bar->findChild<QWidget*>(QStringLiteral("qt_menubar_ext_button"), Qt::FindDirectChildrenOnly);
+  const bool overflowing = extension != nullptr && extension->isVisible();
+  if (overflowing && extension->geometry().contains(menu_bar_position)) {
+    return false;
+  }
+  if (QAction* action = bar->actionAt(menu_bar_position); action != nullptr) {
+    // QMenuBar keeps the layout rects of the titles it moved into the overflow menu and
+    // actionAt still finds them, so only a title on the shown side of the button counts
+    // (GitHub issue 685); the blank bar where hidden titles would sit is drag area.
+    if (!overflowing) {
+      return false;
+    }
+    const QRect title = bar->actionGeometry(action);
+    const bool shown = bar->isRightToLeft() ? title.left() > extension->geometry().right()
+                                            : title.right() < extension->geometry().left();
+    if (shown) {
+      return false;
+    }
   }
   if (window_chrome_controls_ != nullptr) {
     const QRect controls_rect(window_chrome_controls_->pos(), window_chrome_controls_->size());
@@ -804,13 +826,6 @@ bool MainWindow::title_bar_drag_area_contains(QPoint menu_bar_position) const {
   }
   if (command_search_button_ != nullptr && command_search_button_->isVisible() &&
       command_search_button_->geometry().contains(menu_bar_position)) {
-    return false;
-  }
-  // The overflow button of a narrow window (QMenuBar's own; the controls' reserve keeps
-  // it clear of the window controls).
-  if (const auto* extension =
-          bar->findChild<QWidget*>(QStringLiteral("qt_menubar_ext_button"), Qt::FindDirectChildrenOnly);
-      extension != nullptr && extension->isVisible() && extension->geometry().contains(menu_bar_position)) {
     return false;
   }
   return true;
