@@ -820,8 +820,10 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   // measuring where the centered text sits.
   process_events_for(120);
   save_widget_artifact("ui_text_alignment_center_editing", *canvas);
-  const auto text_band = QRect(box_top_left + QPoint(0, 14),
-                               QSize(box_bottom_right.x() - box_top_left.x(), 34));
+  // The band stays 10 px inside the box's sides, clear of the left and right side handles
+  // (issue 684) that sit on them at this height.
+  const auto text_band = QRect(box_top_left + QPoint(10, 14),
+                               QSize(box_bottom_right.x() - box_top_left.x() - 20, 34));
   const auto active_bounds = dark_document_bounds(*canvas, text_band);
   CHECK(active_bounds.has_value());
   CHECK(active_bounds->left() > box_top_left.x() + 90);
@@ -861,8 +863,8 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   QApplication::processEvents();
   process_events_for(120);  // the live baked preview is debounced; let it land
   save_widget_artifact("ui_text_alignment_right_editing", *canvas);
-  const auto right_text_band = QRect(right_box_top_left + QPoint(0, 14),
-                                     QSize(right_box_bottom_right.x() - right_box_top_left.x(), 34));
+  const auto right_text_band = QRect(right_box_top_left + QPoint(10, 14),
+                                     QSize(right_box_bottom_right.x() - right_box_top_left.x() - 20, 34));
   const auto active_right_bounds = dark_document_bounds(*canvas, right_text_band);
   CHECK(active_right_bounds.has_value());
   CHECK(active_right_bounds->left() > right_box_bottom_right.x() - 90);

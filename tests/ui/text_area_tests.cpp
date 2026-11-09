@@ -1219,13 +1219,12 @@ void ui_box_text_side_handles_move_one_edge() {
   editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr); if (!editor) return;
   CHECK(editor->geometry().width() < 50);
-  for (const auto* name : {"textBoxResizeHandleTop", "textBoxResizeHandleBottom"}) {
+  // A box too narrow for top and bottom handles also drops left and right: their hit areas
+  // would cover the text between them.
+  for (const auto* name : {"textBoxResizeHandleTop", "textBoxResizeHandleBottom", "textBoxResizeHandleLeft",
+                           "textBoxResizeHandleRight"}) {
     auto* handle = handle_named(name);
     CHECK(handle == nullptr || !handle->isVisible());
-  }
-  for (const auto* name : {"textBoxResizeHandleLeft", "textBoxResizeHandleRight"}) {
-    auto* handle = handle_named(name);
-    CHECK((handle != nullptr && handle->isVisible()) == (editor->geometry().height() >= 50));
   }
   auto* corner = handle_named("textBoxResizeHandleBottomRight");
   CHECK(corner != nullptr && corner->isVisible()); if (!corner) return;

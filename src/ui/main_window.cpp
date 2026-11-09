@@ -1869,17 +1869,22 @@ private:
     return map_editor_rect_to_overlay(QRectF(editor_point_for_handle(handle), QSizeF(1.0, 1.0))).at(0);
   }
 
-  // A side handle shows only while its edge is long enough that its hit area stays clear of
-  // both corners' (issue 684), so a short edge keeps just its corners.
+  // Side handles show only while both edges are long enough (issue 684): along its edge a
+  // side handle's hit area stays clear of the corners', and across the box the opposite
+  // handles' hit areas stay clear of the text between them, so a click in the middle of a
+  // one-line frame places the caret instead of grabbing the top or bottom handle. A short
+  // or thin box keeps just its corners.
   [[nodiscard]] bool resize_handle_shown(ResizeHandle handle) const {
     const auto direction = handle_direction(handle);
     if (direction.x() != 0.0 && direction.y() != 0.0) {
       return true;
     }
-    const bool horizontal_edge = direction.x() == 0.0;
-    const auto edge = handle_overlay_center(horizontal_edge ? ResizeHandle::TopRight : ResizeHandle::BottomLeft) -
-                      handle_overlay_center(ResizeHandle::TopLeft);
-    return std::hypot(edge.x(), edge.y()) >= 2.0 * (kHandleSize + 2.0 * kHandleHitMargin);
+    const auto top_edge = handle_overlay_center(ResizeHandle::TopRight) - handle_overlay_center(ResizeHandle::TopLeft);
+    const auto left_edge =
+        handle_overlay_center(ResizeHandle::BottomLeft) - handle_overlay_center(ResizeHandle::TopLeft);
+    const auto minimum_edge = 2.0 * (kHandleSize + 2.0 * kHandleHitMargin);
+    return std::hypot(top_edge.x(), top_edge.y()) >= minimum_edge &&
+           std::hypot(left_edge.x(), left_edge.y()) >= minimum_edge;
   }
 
   [[nodiscard]] QRectF resize_handle_rect(ResizeHandle handle) const {
@@ -11525,9 +11530,12 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
 
   const auto editor_rect = editor->geometry();
   const auto handle_size = 9;
-  // A side handle shows only while its hit area (text_editor_resize_handle_at: 8 px around the
-  // handle) stays clear of both corners' on that edge.
+  // Side handles show only while both edges are long enough that their hit areas
+  // (text_editor_resize_handle_at: 8 px around the handle) stay clear of the corners' along
+  // the edge and of the opposite handle's across the box, where the text is.
   const auto side_handle_minimum_edge = 2 * (handle_size + 2 * 8);
+  const bool box_too_small_for_side_handles =
+      editor_rect.width() < side_handle_minimum_edge || editor_rect.height() < side_handle_minimum_edge;
   const auto middle = QPoint(editor_rect.left() + (editor_rect.width() + 1) / 2,
                              editor_rect.top() + (editor_rect.height() + 1) / 2);
   for (const auto& spec : kHandles) {
@@ -11569,8 +11577,7 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
     }
     const bool vertical_side = corner == QStringLiteral("left") || corner == QStringLiteral("right");
     const bool horizontal_side = corner == QStringLiteral("top") || corner == QStringLiteral("bottom");
-    if ((horizontal_side && editor_rect.width() < side_handle_minimum_edge) ||
-        (vertical_side && editor_rect.height() < side_handle_minimum_edge)) {
+    if ((horizontal_side || vertical_side) && box_too_small_for_side_handles) {
       // Not while it is the one being dragged: hiding a grabbing widget drops the drag.
       if (editor->property("patchy.activeTextResizeHandleName").toString() != handle->objectName()) {
         handle->hide();
