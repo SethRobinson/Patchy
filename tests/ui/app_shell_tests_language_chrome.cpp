@@ -2174,6 +2174,90 @@ void ui_narrow_menu_bar_overflows_before_window_controls() {
   std::cout << "  560 px: " << shown << " titles shown, " << overflowed << " in the overflow menu" << std::endl;
 }
 
+// GitHub issue 685: in a narrow window the blank title bar beside the overflow button
+// drags the window. QMenuBar keeps the rects of the titles it moved into the overflow
+// menu, so the hit test must not count those as menu titles; the titles still shown and
+// the overflow button itself stay click targets.
+void ui_narrow_menu_bar_blank_beside_overflow_drags_window() {
+  if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
+    patchy::test::skip("native window frame owns the title bar on this platform");
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* bar = window.menuBar();
+  auto* controls = window.findChild<QWidget*>(QStringLiteral("windowChromeControls"));
+  CHECK(bar != nullptr && controls != nullptr);
+  if (bar == nullptr || controls == nullptr) {
+    return;
+  }
+  window.resize(560, window.height());
+  QApplication::processEvents();
+  QApplication::processEvents();
+  auto* extension = bar->findChild<QToolButton*>(QStringLiteral("qt_menubar_ext_button"));
+  CHECK(extension != nullptr && extension->isVisible());
+  if (extension == nullptr || !extension->isVisible()) {
+    return;
+  }
+  const int mid_y = extension->geometry().center().y();
+  QAction* last_shown = nullptr;
+  for (auto* action : bar->actions()) {
+    if (!action->isVisible() || action->menu() == nullptr) {
+      continue;
+    }
+    const QRect title = bar->actionGeometry(action);
+    if (title.isValid() && title.right() < extension->x()) {
+      last_shown = action;
+      // A title the bar shows is a click target.
+      CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(
+          window, QPoint(title.center().x(), mid_y)));
+    }
+  }
+  CHECK(last_shown != nullptr);
+  if (last_shown == nullptr) {
+    return;
+  }
+  CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, extension->geometry().center()));
+
+  // Between the last shown title and the overflow button: every point drags, including
+  // those inside a hidden title's leftover rect (the report).
+  const int gap_left = bar->actionGeometry(last_shown).right() + 1;
+  int gap_points = 0;
+  int hidden_title_points = 0;
+  for (int x = gap_left; x < extension->x(); ++x) {
+    const QPoint point(x, mid_y);
+    ++gap_points;
+    if (bar->actionAt(point) != nullptr) {
+      ++hidden_title_points;
+    }
+    if (!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, point)) {
+      std::cout << "  not draggable at x=" << x << " (gap " << gap_left << ".." << extension->x() - 1 << ")"
+                << std::endl;
+      CHECK(false);
+      break;
+    }
+  }
+  // Between the overflow button and the window controls (the command search button, when
+  // it sits there, stays a click target).
+  const auto* search = window.findChild<QWidget*>(QStringLiteral("menuBarCommandSearchButton"));
+  int strip_points = 0;
+  for (int x = extension->geometry().right() + 1; x < controls->x(); ++x) {
+    const QPoint point(x, mid_y);
+    if (search != nullptr && search->isVisible() && search->geometry().contains(point)) {
+      continue;
+    }
+    ++strip_points;
+    if (!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, point)) {
+      std::cout << "  not draggable at x=" << x << " (strip after the overflow button)" << std::endl;
+      CHECK(false);
+      break;
+    }
+  }
+  std::cout << "  560 px: gap " << gap_points << " px (" << hidden_title_points << " over hidden titles), strip "
+            << strip_points << " px" << std::endl;
+  CHECK(gap_points + strip_points > 0);
+}
+
 // The Qt-level title-bar drag of a restored window (Linux without a system move, the
 // offscreen platform): a click or a sub-threshold wiggle leaves the window where it is,
 // and a drag past the threshold moves it by the full pointer travel, the threshold
@@ -2835,6 +2919,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_window_chrome_controls_drive_window_state", ui_window_chrome_controls_drive_window_state},
       {"ui_frameless_window_keeps_caption_and_themed_border", ui_frameless_window_keeps_caption_and_themed_border},
       {"ui_narrow_menu_bar_overflows_before_window_controls", ui_narrow_menu_bar_overflows_before_window_controls},
+      {"ui_narrow_menu_bar_blank_beside_overflow_drags_window", ui_narrow_menu_bar_blank_beside_overflow_drags_window},
       {"ui_title_bar_drag_moves_window_only_past_threshold", ui_title_bar_drag_moves_window_only_past_threshold},
       {"ui_menu_bar_reserves_badge_space_only_with_custom_chrome",
        ui_menu_bar_reserves_badge_space_only_with_custom_chrome},
