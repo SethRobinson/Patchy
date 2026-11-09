@@ -54,6 +54,7 @@ public:
 protected:
   void closeEvent(QCloseEvent* event) override;
   void changeEvent(QEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
   PdfViewerWindow(QWidget* owner, QString path, std::unique_ptr<QPdfDocument> document, QString password,
@@ -67,6 +68,7 @@ private:
   void apply_zoom_text();
   void request_visible_thumbnails();
   void reset_thumbnails();
+  void size_thumbnail_cells();
   void update_title();
 
   QString path_;

@@ -15124,113 +15124,9 @@ Do you want to replace it?</source>
         <source>Putting the book together</source>
         <translation>製本の手順</translation>
     </message>
-    <message numerus="yes">
-        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
-        <translation>
-            <numerusform>印刷: Patchyは%n枚すべての表面を先に印刷し、続いて印刷済みの束を用紙トレイに戻して裏面を印刷するよう案内します。まず1枚で試してください。白紙の上端に印を付けて印刷し、どちら向きで出てくるかを確かめれば、束の戻し方が分かります。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
-        <translation>
-            <numerusform>%n枚の両面に印刷します。Patchyはプリンターに短辺とじで反転するよう指示します。印刷ダイアログに両面印刷の設定がある場合は、短辺とじ(「上めくり」と呼ばれることもあります)を選んでください。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
-        <translation>1枚目を確認します。片面に%1と%2が並び、もう片面に%3と%4が並んでいるはずです。裏面が上下逆に出た場合は、「裏面を上下逆に印刷」をオンにして、もう一度印刷してください。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on one side only.</source>
-        <translation>
-            <numerusform>%n枚の片面に印刷します。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>right</source>
-        <translation>右</translation>
-    </message>
-    <message>
-        <source>left</source>
-        <translation>左</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
-        <translation>印刷された順番のまま重ねます。1枚目を一番下にし、すべて同じ向きにそろえて、表表紙の面を下に向けます。端をそろえてください。</translation>
-    </message>
-    <message>
-        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
-        <translation>束全体を真ん中で一度に二つ折りにします。片方の半分を持ち上げてもう一方に重ね、表表紙が外側になるようにします。定規やスプーンの背でしっかり折り目を付けてください。</translation>
-    </message>
-    <message>
-        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
-        <translation>折り目をホチキスで留めます。上下から4分の1の位置に2か所(背の高い本は3か所)。中とじ用の長いホチキスならそのまま留められます。普通のホチキスの場合は、冊子を表向きに厚い段ボールの上に開き、折り目に沿って段ボールまで針を通してから外し、針の足を内側で平らに押さえます。折り目の3か所の穴に針と糸で綴じる方法でも構いません。</translation>
-    </message>
-    <message>
-        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
-        <translation>内側の紙が開き側の端から少しはみ出します。必要なら、定規とカッターでその端をまっすぐ切りそろえてください。</translation>
-    </message>
-    <message>
-        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
-        <translation>普通紙なら、中とじ冊子は約12枚(48ページ)までがきれいに折れます。それより厚い本には、代わりに「糸かがり製本」を選んでください。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
-        <translation>
-            <numerusform>束を印刷された順に、1折丁あたり%1枚ずつ、%n個の折丁に分けます(最後の折丁は枚数が少なくなることがあります)。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
-        <translation>各折丁を中とじ冊子のようにそれぞれ折ります。最初の1枚を一番下にし、その最初のページの面を下に向けて、束を半分に折って折り目を付けます。</translation>
-    </message>
-    <message>
-        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
-        <translation>折った折丁を順番に重ね、折り目をそろえます。本の表表紙を上にしたとき、1番目の折丁が一番上になります。</translation>
-    </message>
-    <message>
-        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
-        <translation>背を確認します。2番目の折丁以降は、それぞれの折り目に黒い印が付いており、前の折丁より一段ずつ下がっています。印の位置がずれていたら、折丁の順番が違っています。</translation>
-    </message>
-    <message>
-        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
-        <translation>綴じ方: 各折丁を折り目で隣の折丁と糸で縫い合わせるか、折り目を少し出した状態で束を2枚の板で挟み、背に白い木工用接着剤(PVA)を塗り、乾いたらカバー用紙を巻いて貼ります。</translation>
-    </message>
     <message>
         <source>Trim the open edge straight with a ruler and craft knife.</source>
         <translation>開き側の端を、定規とカッターでまっすぐ切りそろえます。</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
-        <translation>印刷された順番のまま重ねます。1枚目を一番上にし、表表紙の面を上に向けて、すべて同じ向きにそろえます。</translation>
-    </message>
-    <message>
-        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
-        <translation>紙裁断機、または定規とカッターで、束全体を真ん中で半分に切ります(上下の端のマークが切る位置を示します)。</translation>
-    </message>
-    <message>
-        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
-        <translation>右側の山を左側の山の下に重ねます。これでページが順番どおりになります。</translation>
-    </message>
-    <message>
-        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
-        <translation>%1側を綴じます。束を固定して、その端に白い木工用接着剤(PVA)を2回塗るか、コームまたはコイルで綴じるか、端の近くを2〜3か所ホチキスで留めます。コーム綴じやホチキスの場合は、背の余白を10 mm以上にしてください。</translation>
-    </message>
-    <message>
-        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
-        <translation>紙を上端から下端に向けて半分に折り、折り目を付けて開きます。次に左右で半分に折り、折り目を付けて開きます。さらに両側を中央の折り目に合わせて折り、折り目を付けて開きます。折り目で8つの面に分かれます。</translation>
-    </message>
-    <message>
-        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
-        <translation>もう一度左右で半分に折り、折り目の側から中央の折り目に沿って、真ん中の2つの面だけを切ります(印刷された線が切る位置です)。</translation>
-    </message>
-    <message>
-        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
-        <translation>開いてから、印刷面を外側にして上端から下端に向けて半分に折ります。両端を互いに向かって押すと、切り込みがひし形に開き、さらに十字になります。</translation>
-    </message>
-    <message>
-        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
-        <translation>4つの羽根を重ね合わせて冊子の形に折り、表表紙を外側にして、背に折り目を付けます。</translation>
     </message>
     <message>
         <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
@@ -15481,6 +15377,274 @@ Do you want to replace it?</source>
     <message>
         <source>Print Second Sides</source>
         <translation>裏面を印刷</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s), one side at a time</source>
+        <translation>
+            <numerusform>%n枚の片面を1面ずつ印刷する</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy prints the first side of every sheet, then asks you to put the stack back in the paper tray.</source>
+        <translation>Patchyはまず全シートの1面目を印刷し、続いて束を用紙トレイに戻すよう案内します。</translation>
+    </message>
+    <message>
+        <source>Try one sheet first: mark the top edge of a blank sheet, print, and see which way it comes out, so you know how to reload the stack.</source>
+        <translation>まず1枚で試してください。白紙の上端に印を付けて印刷し、どちら向きで出てくるかを確かめれば、束の戻し方が分かります。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides</source>
+        <translation>
+            <numerusform>%n枚の両面に印刷する</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy asks the printer to flip on the short edge.</source>
+        <translation>Patchyはプリンターに短辺で反転するよう指示します。</translation>
+    </message>
+    <message>
+        <source>If the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>印刷ダイアログに両面印刷の設定がある場合は、短辺とじ(「上めくり」と呼ばれることもあります)を選んでください。</translation>
+    </message>
+    <message>
+        <source>Check sheet 1</source>
+        <translation>1枚目を確認する</translation>
+    </message>
+    <message>
+        <source>One side shows %1 and %2 side by side.</source>
+        <translation>片面に%1と%2が並んでいます。</translation>
+    </message>
+    <message>
+        <source>The other side shows %1 and %2.</source>
+        <translation>もう片面には%1と%2があります。</translation>
+    </message>
+    <message>
+        <source>Second side upside down? Turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>裏面が上下逆ですか。「裏面を上下逆に印刷」をオンにして、もう一度印刷してください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only</source>
+        <translation>
+            <numerusform>%n枚の片面だけに印刷する</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Stack the sheets</source>
+        <translation>シートを重ねる</translation>
+    </message>
+    <message>
+        <source>Sheet 1, the one with the front cover, on top, then sheet 2, and so on.</source>
+        <translation>表表紙のある1枚目を一番上にし、その下に2枚目、以降も順に重ねます。</translation>
+    </message>
+    <message>
+        <source>Every sheet the same way round, front cover side facing up.</source>
+        <translation>すべて同じ向きにそろえ、表表紙の面を上に向けます。</translation>
+    </message>
+    <message>
+        <source>Tap the edges square.</source>
+        <translation>端をトントンとそろえます。</translation>
+    </message>
+    <message>
+        <source>Use a long-reach stapler and staple from the top: two staples, a quarter of the way in from the top and bottom edges (three for a tall book).</source>
+        <translation>中とじ用の長いホチキスで、上から留めます。上下の端から4分の1の位置に2か所(背の高い本は3か所)です。</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the centre line.</source>
+        <translation>上下の端の印が中心線を示しています。</translation>
+    </message>
+    <message>
+        <source>No long-reach stapler? Fold first, then open the booklet face down on thick cardboard, staple through the fold into the cardboard, pull it free and press the staple legs flat. Needle and thread through three holes in the fold work too.</source>
+        <translation>中とじ用の長いホチキスがない場合は、先に折ってから、冊子を裏向きにして厚い段ボールの上に開き、折り目に沿って段ボールまで針を通し、外して針の足を平らに押さえます。折り目の3か所の穴に針と糸で綴じる方法でも構いません。</translation>
+    </message>
+    <message>
+        <source>Staple along the centre line</source>
+        <translation>中心線に沿ってホチキスで留める</translation>
+    </message>
+    <message>
+        <source>Fold it in half</source>
+        <translation>半分に折る</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack at once along the staples, front cover outside.</source>
+        <translation>束全体を、ホチキスの線に沿って一度に折ります。表表紙が外側です。</translation>
+    </message>
+    <message>
+        <source>Crease firmly with a ruler or the back of a spoon.</source>
+        <translation>定規やスプーンの背でしっかり折り目を付けます。</translation>
+    </message>
+    <message>
+        <source>Trim (optional)</source>
+        <translation>端を切りそろえる(省略可)</translation>
+    </message>
+    <message>
+        <source>The inner pages stick out a little at the open edge. Trim it straight with a ruler and craft knife.</source>
+        <translation>内側の紙が開き側の端から少しはみ出します。定規とカッターでまっすぐ切りそろえます。</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book.</source>
+        <translation>中とじ冊子は、普通紙で約12枚(48ページ)までがきれいに折れます。それより厚い本には「糸かがり製本」を選んでください。</translation>
+    </message>
+    <message>
+        <source>Split the stack into signatures</source>
+        <translation>束を折丁に分ける</translation>
+    </message>
+    <message numerus="yes">
+        <source>Make %n signature(s) of %1 sheet(s) each, in the order they printed.</source>
+        <translation>
+            <numerusform>印刷された順に、1折丁あたり%1枚ずつ、%n個の折丁に分けます。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The last one may have fewer sheets.</source>
+        <translation>最後の折丁は枚数が少なくなることがあります。</translation>
+    </message>
+    <message>
+        <source>Fold each signature</source>
+        <translation>各折丁を折る</translation>
+    </message>
+    <message>
+        <source>Its first sheet on top, the side with its first page facing up.</source>
+        <translation>1枚目を一番上にし、その最初のページの面を上に向けます。</translation>
+    </message>
+    <message>
+        <source>Fold it in half with its first page outside, and crease it.</source>
+        <translation>最初のページが外側になるように半分に折り、折り目を付けます。</translation>
+    </message>
+    <message>
+        <source>In order, folds together.</source>
+        <translation>折り目をそろえて順番どおりに重ねます。</translation>
+    </message>
+    <message>
+        <source>Signature 1 on top when the book lies front cover up.</source>
+        <translation>本の表表紙を上にしたとき、1番目の折丁が一番上になります。</translation>
+    </message>
+    <message>
+        <source>From the second signature on, each fold has a black mark one step lower than the last. A mark out of line means a signature is out of order.</source>
+        <translation>2番目の折丁以降は、折り目に前の折丁より一段ずつ下がった黒い印が付いています。印の位置がずれていたら、折丁の順番が違っています。</translation>
+    </message>
+    <message>
+        <source>Stack the signatures</source>
+        <translation>折丁を重ねる</translation>
+    </message>
+    <message>
+        <source>Bind</source>
+        <translation>綴じる</translation>
+    </message>
+    <message>
+        <source>Sew: stitch each signature through its fold to its neighbours.</source>
+        <translation>縫う: 各折丁を折り目で隣の折丁と糸で縫い合わせます。</translation>
+    </message>
+    <message>
+        <source>Or glue: clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover around it once it is dry.</source>
+        <translation>または接着: 折り目を少し出した状態で束を2枚の板で挟み、背に白い木工用接着剤(PVA)を塗り、乾いたらカバーを巻いて貼ります。</translation>
+    </message>
+    <message>
+        <source>Down the middle, with a paper trimmer or a ruler and craft knife.</source>
+        <translation>真ん中で、ペーパーカッターか、定規とカッターで切ります。</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the line.</source>
+        <translation>上下の端の印が切る線を示しています。</translation>
+    </message>
+    <message>
+        <source>Cut the stack in half</source>
+        <translation>束を半分に切る</translation>
+    </message>
+    <message>
+        <source>Put the piles together</source>
+        <translation>山を重ねる</translation>
+    </message>
+    <message>
+        <source>Right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>右側の山を左側の山の下に入れます。これでページが順番どおりに並びます。</translation>
+    </message>
+    <message>
+        <source>Bind along the right edge</source>
+        <translation>右側を綴じる</translation>
+    </message>
+    <message>
+        <source>Bind along the left edge</source>
+        <translation>左側を綴じる</translation>
+    </message>
+    <message>
+        <source>Glue: clamp the stack and brush two coats of white glue (PVA) on that edge.</source>
+        <translation>接着: 束を固定して、その端に白い木工用接着剤(PVA)を2回塗ります。</translation>
+    </message>
+    <message>
+        <source>Or use comb or coil binding, or two or three staples close to the edge.</source>
+        <translation>または、コームまたはコイルで綴じるか、端の近くを2〜3か所ホチキスで留めます。</translation>
+    </message>
+    <message>
+        <source>For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>コーム綴じやホチキスの場合は、背の余白を10 mm以上にしてください。</translation>
+    </message>
+    <message>
+        <source>Crease eight panels</source>
+        <translation>8つの面に折り目を付ける</translation>
+    </message>
+    <message>
+        <source>Fold in half from top edge to bottom edge, crease, and unfold.</source>
+        <translation>上端から下端に向けて半分に折り、折り目を付けて開きます。</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side, crease, and unfold.</source>
+        <translation>左右で半分に折り、折り目を付けて開きます。</translation>
+    </message>
+    <message>
+        <source>Fold each side in to the middle crease, crease, and unfold.</source>
+        <translation>両側を中央の折り目に合わせて折り、折り目を付けて開きます。</translation>
+    </message>
+    <message>
+        <source>Cut the middle</source>
+        <translation>真ん中を切る</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side again.</source>
+        <translation>もう一度左右で半分に折ります。</translation>
+    </message>
+    <message>
+        <source>From the folded edge, cut along the middle crease through the two middle panels only (the printed line shows the cut).</source>
+        <translation>折り目の側から中央の折り目に沿って、真ん中の2つの面だけを切ります(印刷された線が切る位置です)。</translation>
+    </message>
+    <message>
+        <source>Open it into a cross</source>
+        <translation>十字に開く</translation>
+    </message>
+    <message>
+        <source>Unfold, then fold in half from top edge to bottom edge, printing outside.</source>
+        <translation>開いてから、印刷面を外側にして上端から下端に向けて半分に折ります。</translation>
+    </message>
+    <message>
+        <source>Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>両端を互いに向かって押すと、切り込みがひし形に開き、さらに十字になります。</translation>
+    </message>
+    <message>
+        <source>Fold the book</source>
+        <translation>冊子に折る</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together, front cover outside, and crease the spine.</source>
+        <translation>4つの羽根を重ね合わせ、表表紙を外側にして、背に折り目を付けます。</translation>
+    </message>
+    <message>
+        <source>Good to know</source>
+        <translation>知っておくと便利なこと</translation>
+    </message>
+    <message>
+        <source>Every page but the covers</source>
+        <translation>表紙以外のすべてのページ</translation>
+    </message>
+    <message>
+        <source>Every page</source>
+        <translation>すべてのページ</translation>
+    </message>
+    <message>
+        <source>Prints each page&apos;s number in the book under it. Blank pages added to fill the last sheet get no number.</source>
+        <translation>各ページの下に、本の中でのページ番号を印刷します。最後の1枚を埋めるために追加した白紙ページには番号を付けません。</translation>
+    </message>
+    <message>
+        <source>Page numbers:</source>
+        <translation>ページ番号:</translation>
     </message>
 </context>
 <context>

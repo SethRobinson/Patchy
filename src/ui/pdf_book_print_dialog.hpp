@@ -19,6 +19,10 @@ namespace patchy::ui {
 // landscape sheets by core/book_imposition, previewed sheet by sheet with assembly steps,
 // then printed or saved as a PDF of sheets. Built only with Qt PDF (PATCHY_HAVE_QT_PDF).
 
+// Page numbers printed under the pages: their place in the book, counting the front cover
+// as 1; added blank pages get none.
+enum class BookPageNumbers { None, All, SkipCovers };
+
 struct PdfBookPrintOptions {
   BookPrintStyle style{BookPrintStyle::Booklet};
   int sheets_per_signature{4};
@@ -40,6 +44,7 @@ struct PdfBookPrintOptions {
   bool reverse_backs{false};
   int dpi{300};
   bool steps_page{false};
+  BookPageNumbers page_numbers{BookPageNumbers::None};
   QString quality_id{QStringLiteral("high")};
 };
 
@@ -54,9 +59,22 @@ struct PdfBookPrintOptions {
                                             const BookImposition& imposition,
                                             const std::vector<int>& source_pages, int sheet, bool back, double dpi);
 
-// The assembly steps for these options, one paragraph each, numbers filled in.
-[[nodiscard]] QStringList book_assembly_steps(const PdfBookPrintOptions& options, const BookImposition& imposition,
-                                              int page_count);
+// The assembly steps for these options, numbers filled in: short titled steps, each with a
+// few bullet points, then notes ("Good to know").
+struct BookAssemblyStep {
+  QString title;
+  QStringList details;
+};
+struct BookAssemblyGuide {
+  std::vector<BookAssemblyStep> steps;
+  QStringList notes;
+};
+[[nodiscard]] BookAssemblyGuide book_assembly_guide(const PdfBookPrintOptions& options,
+                                                    const BookImposition& imposition, int page_count);
+// The guide as rich text (numbered steps, bulleted details) for the dialog and the steps page.
+[[nodiscard]] QString book_assembly_html(const BookAssemblyGuide& guide);
+// The guide as plain text, one line per step and bullet.
+[[nodiscard]] QString book_assembly_text(const BookAssemblyGuide& guide);
 
 // Called after each page of the file is written; false cancels.
 using PdfBookProgress = std::function<bool(int done, int count)>;

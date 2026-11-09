@@ -15124,113 +15124,9 @@ Do you want to replace it?</source>
         <source>Putting the book together</source>
         <translation>책 만들기</translation>
     </message>
-    <message numerus="yes">
-        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
-        <translation>
-            <numerusform>인쇄: Patchy는 %n장 모두의 첫 번째 면을 먼저 인쇄한 다음, 인쇄된 묶음을 용지함에 다시 넣어 뒷면을 인쇄하도록 안내합니다. 먼저 한 장으로 시험해 보세요. 빈 용지의 윗부분에 표시하고 인쇄한 뒤 어느 방향으로 나오는지 확인하면 묶음을 어떻게 다시 넣어야 하는지 알 수 있습니다.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
-        <translation>
-            <numerusform>%n장을 양면에 인쇄합니다. Patchy는 프린터에 짧은 변 기준으로 뒤집도록 요청합니다. 인쇄 대화상자에 양면 인쇄 설정이 있으면 짧은 변 제본(&quot;위로 넘김&quot;이라고도 함)을 선택하세요.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
-        <translation>1번 용지를 확인하세요. 한 면에는 %1과(와) %2이(가) 나란히, 다른 면에는 %3과(와) %4이(가) 나란히 있어야 합니다. 뒷면이 거꾸로 나왔다면 &quot;뒷면을 거꾸로 인쇄&quot;를 켜고 다시 인쇄하세요.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on one side only.</source>
-        <translation>
-            <numerusform>%n장을 한 면에만 인쇄합니다.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>right</source>
-        <translation>오른쪽</translation>
-    </message>
-    <message>
-        <source>left</source>
-        <translation>왼쪽</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
-        <translation>인쇄된 순서대로 용지를 쌓습니다. 1번 용지를 맨 아래에 두고, 모든 용지의 방향을 같게 하여 앞표지가 있는 면이 아래를 향하게 합니다. 가장자리를 맞춥니다.</translation>
-    </message>
-    <message>
-        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
-        <translation>묶음 전체를 한 번에 가운데에서 반으로 접습니다. 한쪽 절반을 들어 다른 쪽 위로 덮어 앞표지가 바깥쪽에 오게 합니다. 자나 숟가락 뒷면으로 접힌 곳을 단단히 눌러 줍니다.</translation>
-    </message>
-    <message>
-        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
-        <translation>접힌 곳에 스테이플러를 박습니다. 위아래에서 4분의 1 지점에 두 군데(키가 큰 책은 세 군데). 긴 스테이플러가 있으면 바로 박을 수 있고, 일반 스테이플러라면 소책자를 펼쳐 앞면이 아래로 가게 두꺼운 골판지 위에 놓고 접힌 곳을 따라 골판지까지 박은 뒤, 빼내어 안쪽에서 철침 다리를 평평하게 누르세요. 접힌 곳의 구멍 세 개에 바늘과 실로 꿰매도 됩니다.</translation>
-    </message>
-    <message>
-        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
-        <translation>안쪽 용지가 열린 가장자리에서 조금 튀어나옵니다. 원하면 자와 커터칼로 그 가장자리를 반듯하게 자르세요.</translation>
-    </message>
-    <message>
-        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
-        <translation>일반 용지로는 소책자를 약 12장(48페이지)까지 잘 접을 수 있습니다. 더 두꺼운 책은 대신 &quot;실제본 책&quot;을 선택하세요.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
-        <translation>
-            <numerusform>묶음을 인쇄된 순서대로 한 접지당 %1장씩 %n개의 접지로 나눕니다(마지막 접지는 장수가 적을 수 있습니다).</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
-        <translation>각 접지를 소책자처럼 따로 접습니다. 첫 번째 용지를 맨 아래에 두고, 첫 페이지가 있는 면이 아래를 향하게 한 뒤 묶음을 반으로 접어 눌러 줍니다.</translation>
-    </message>
-    <message>
-        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
-        <translation>접힌 접지를 순서대로 쌓고, 접힌 곳을 한쪽으로 맞춥니다. 책의 앞표지를 위로 놓았을 때 1번 접지가 맨 위에 옵니다.</translation>
-    </message>
-    <message>
-        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
-        <translation>책등을 확인하세요. 두 번째 접지부터는 각각의 접힌 곳에 검은 표시가 있고, 앞 접지보다 한 칸씩 아래에 있습니다. 표시가 어긋나 있으면 접지 순서가 잘못된 것입니다.</translation>
-    </message>
-    <message>
-        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
-        <translation>제본: 각 접지를 접힌 곳에서 이웃한 접지와 실로 꿰매거나, 접힌 곳이 조금 나오게 하여 묶음을 두 판자 사이에 끼우고 책등에 흰색 목공풀(PVA)을 바른 뒤, 마르면 표지 용지를 둘러 붙입니다.</translation>
-    </message>
     <message>
         <source>Trim the open edge straight with a ruler and craft knife.</source>
         <translation>열린 가장자리를 자와 커터칼로 반듯하게 자릅니다.</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
-        <translation>인쇄된 순서대로 용지를 쌓습니다. 1번 용지를 맨 위에 두고, 앞표지가 있는 면이 위를 향하게 하며, 모든 용지의 방향을 같게 합니다.</translation>
-    </message>
-    <message>
-        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
-        <translation>종이 재단기 또는 자와 커터칼로 묶음 전체를 가운데에서 반으로 자릅니다(위아래 가장자리의 표시가 자를 선을 나타냅니다).</translation>
-    </message>
-    <message>
-        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
-        <translation>오른쪽 더미를 왼쪽 더미 아래에 놓습니다. 이제 페이지가 순서대로 읽힙니다.</translation>
-    </message>
-    <message>
-        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
-        <translation>%1 가장자리를 제본합니다. 묶음을 고정하고 그 가장자리에 흰색 목공풀(PVA)을 두 번 바르거나, 링 제본 또는 코일 제본을 하거나, 가장자리 가까이에 스테이플러를 두세 번 박습니다. 링 제본이나 스테이플러를 쓰려면 책등 여백을 10 mm 이상으로 설정하세요.</translation>
-    </message>
-    <message>
-        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
-        <translation>용지를 위쪽 가장자리에서 아래쪽 가장자리로 반으로 접어 눌렀다가 펼칩니다. 이어서 좌우로 반으로 접어 눌렀다가 펼칩니다. 양쪽을 각각 가운데 접힌 선까지 접어 눌렀다가 펼칩니다. 접힌 선이 여덟 칸을 나눕니다.</translation>
-    </message>
-    <message>
-        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
-        <translation>다시 좌우로 반으로 접고, 접힌 가장자리에서 가운데 접힌 선을 따라 가운데 두 칸만 자릅니다(인쇄된 선이 자를 위치를 보여 줍니다).</translation>
-    </message>
-    <message>
-        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
-        <translation>펼친 다음, 인쇄된 면이 바깥쪽에 오게 위쪽 가장자리에서 아래쪽 가장자리로 반으로 접습니다. 양쪽 끝을 서로 향해 밀면 자른 곳이 마름모로, 이어서 십자 모양으로 열립니다.</translation>
-    </message>
-    <message>
-        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
-        <translation>네 장의 날개를 모아 앞표지가 바깥쪽에 오도록 소책자 모양으로 접고, 책등을 눌러 줍니다.</translation>
     </message>
     <message>
         <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
@@ -15481,6 +15377,274 @@ Do you want to replace it?</source>
     <message>
         <source>Print Second Sides</source>
         <translation>뒷면 인쇄</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s), one side at a time</source>
+        <translation>
+            <numerusform>%n장을 한 면씩 인쇄하기</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy prints the first side of every sheet, then asks you to put the stack back in the paper tray.</source>
+        <translation>Patchy가 모든 용지의 첫 번째 면을 먼저 인쇄한 다음, 묶음을 용지함에 다시 넣도록 안내합니다.</translation>
+    </message>
+    <message>
+        <source>Try one sheet first: mark the top edge of a blank sheet, print, and see which way it comes out, so you know how to reload the stack.</source>
+        <translation>먼저 한 장으로 시험해 보세요. 빈 용지의 윗부분에 표시하고 인쇄한 뒤 어느 방향으로 나오는지 확인하면 묶음을 어떻게 다시 넣어야 하는지 알 수 있습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides</source>
+        <translation>
+            <numerusform>%n장을 양면에 인쇄하기</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy asks the printer to flip on the short edge.</source>
+        <translation>Patchy가 프린터에 짧은 변 기준으로 뒤집도록 요청합니다.</translation>
+    </message>
+    <message>
+        <source>If the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>인쇄 대화상자에 양면 인쇄 설정이 있으면 짧은 변 제본(&quot;위로 넘김&quot;이라고도 함)을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Check sheet 1</source>
+        <translation>1번 용지 확인하기</translation>
+    </message>
+    <message>
+        <source>One side shows %1 and %2 side by side.</source>
+        <translation>한 면에 %1과(와) %2이(가) 나란히 있습니다.</translation>
+    </message>
+    <message>
+        <source>The other side shows %1 and %2.</source>
+        <translation>다른 면에는 %1과(와) %2이(가) 있습니다.</translation>
+    </message>
+    <message>
+        <source>Second side upside down? Turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>뒷면이 거꾸로 나왔나요? &quot;뒷면을 거꾸로 인쇄&quot;를 켜고 다시 인쇄하세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only</source>
+        <translation>
+            <numerusform>%n장을 한 면에만 인쇄하기</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Stack the sheets</source>
+        <translation>용지 쌓기</translation>
+    </message>
+    <message>
+        <source>Sheet 1, the one with the front cover, on top, then sheet 2, and so on.</source>
+        <translation>앞표지가 있는 1번 용지를 맨 위에 두고, 그 아래에 2번 용지, 이어서 순서대로 쌓습니다.</translation>
+    </message>
+    <message>
+        <source>Every sheet the same way round, front cover side facing up.</source>
+        <translation>모든 용지의 방향을 같게 하여 앞표지 쪽이 위를 향하게 합니다.</translation>
+    </message>
+    <message>
+        <source>Tap the edges square.</source>
+        <translation>가장자리를 톡톡 쳐서 맞춥니다.</translation>
+    </message>
+    <message>
+        <source>Use a long-reach stapler and staple from the top: two staples, a quarter of the way in from the top and bottom edges (three for a tall book).</source>
+        <translation>긴 스테이플러로 위에서 박습니다. 위쪽과 아래쪽 가장자리에서 4분의 1 지점에 두 군데(키가 큰 책은 세 군데)입니다.</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the centre line.</source>
+        <translation>위쪽과 아래쪽 가장자리의 표시가 중심선을 나타냅니다.</translation>
+    </message>
+    <message>
+        <source>No long-reach stapler? Fold first, then open the booklet face down on thick cardboard, staple through the fold into the cardboard, pull it free and press the staple legs flat. Needle and thread through three holes in the fold work too.</source>
+        <translation>긴 스테이플러가 없으면 먼저 접은 다음, 소책자를 앞면이 아래로 가게 두꺼운 골판지 위에 펼치고 접힌 곳을 따라 골판지까지 박은 뒤, 빼내어 철침 다리를 평평하게 누르세요. 접힌 곳의 구멍 세 개에 바늘과 실로 꿰매도 됩니다.</translation>
+    </message>
+    <message>
+        <source>Staple along the centre line</source>
+        <translation>중심선을 따라 스테이플러 박기</translation>
+    </message>
+    <message>
+        <source>Fold it in half</source>
+        <translation>반으로 접기</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack at once along the staples, front cover outside.</source>
+        <translation>묶음 전체를 스테이플러 선을 따라 한 번에 접습니다. 앞표지가 바깥쪽에 옵니다.</translation>
+    </message>
+    <message>
+        <source>Crease firmly with a ruler or the back of a spoon.</source>
+        <translation>자나 숟가락 뒷면으로 접힌 곳을 단단히 눌러 줍니다.</translation>
+    </message>
+    <message>
+        <source>Trim (optional)</source>
+        <translation>자르기(선택 사항)</translation>
+    </message>
+    <message>
+        <source>The inner pages stick out a little at the open edge. Trim it straight with a ruler and craft knife.</source>
+        <translation>안쪽 용지가 열린 가장자리에서 조금 튀어나옵니다. 자와 커터칼로 반듯하게 자르세요.</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book.</source>
+        <translation>일반 용지로는 소책자를 약 12장(48페이지)까지 잘 접을 수 있습니다. 더 두꺼운 책은 &quot;실제본 책&quot;을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Split the stack into signatures</source>
+        <translation>묶음을 접지로 나누기</translation>
+    </message>
+    <message numerus="yes">
+        <source>Make %n signature(s) of %1 sheet(s) each, in the order they printed.</source>
+        <translation>
+            <numerusform>인쇄된 순서대로 한 접지당 %1장씩 %n개의 접지로 나눕니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The last one may have fewer sheets.</source>
+        <translation>마지막 접지는 장수가 적을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Fold each signature</source>
+        <translation>각 접지 접기</translation>
+    </message>
+    <message>
+        <source>Its first sheet on top, the side with its first page facing up.</source>
+        <translation>첫 번째 용지를 맨 위에 두고, 첫 페이지가 있는 면이 위를 향하게 합니다.</translation>
+    </message>
+    <message>
+        <source>Fold it in half with its first page outside, and crease it.</source>
+        <translation>첫 페이지가 바깥쪽에 오게 반으로 접고 눌러 줍니다.</translation>
+    </message>
+    <message>
+        <source>In order, folds together.</source>
+        <translation>순서대로 접힌 곳을 맞춰 쌓습니다.</translation>
+    </message>
+    <message>
+        <source>Signature 1 on top when the book lies front cover up.</source>
+        <translation>책의 앞표지를 위로 놓았을 때 1번 접지가 맨 위에 옵니다.</translation>
+    </message>
+    <message>
+        <source>From the second signature on, each fold has a black mark one step lower than the last. A mark out of line means a signature is out of order.</source>
+        <translation>두 번째 접지부터는 접힌 곳에 앞 접지보다 한 칸씩 아래에 검은 표시가 있습니다. 표시가 어긋나 있으면 접지 순서가 잘못된 것입니다.</translation>
+    </message>
+    <message>
+        <source>Stack the signatures</source>
+        <translation>접지 쌓기</translation>
+    </message>
+    <message>
+        <source>Bind</source>
+        <translation>제본하기</translation>
+    </message>
+    <message>
+        <source>Sew: stitch each signature through its fold to its neighbours.</source>
+        <translation>꿰매기: 각 접지를 접힌 곳에서 이웃한 접지와 실로 꿰맵니다.</translation>
+    </message>
+    <message>
+        <source>Or glue: clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover around it once it is dry.</source>
+        <translation>또는 풀 붙이기: 접힌 곳이 조금 나오게 하여 묶음을 두 판자 사이에 끼우고 책등에 흰색 목공풀(PVA)을 바른 뒤, 마르면 표지를 둘러 붙입니다.</translation>
+    </message>
+    <message>
+        <source>Down the middle, with a paper trimmer or a ruler and craft knife.</source>
+        <translation>가운데를 따라 종이 재단기나 자와 커터칼로 자릅니다.</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the line.</source>
+        <translation>위쪽과 아래쪽 가장자리의 표시가 자를 선을 나타냅니다.</translation>
+    </message>
+    <message>
+        <source>Cut the stack in half</source>
+        <translation>묶음을 반으로 자르기</translation>
+    </message>
+    <message>
+        <source>Put the piles together</source>
+        <translation>더미 합치기</translation>
+    </message>
+    <message>
+        <source>Right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>오른쪽 더미를 왼쪽 더미 아래에 넣습니다. 이제 페이지가 순서대로 이어집니다.</translation>
+    </message>
+    <message>
+        <source>Bind along the right edge</source>
+        <translation>오른쪽 가장자리 제본하기</translation>
+    </message>
+    <message>
+        <source>Bind along the left edge</source>
+        <translation>왼쪽 가장자리 제본하기</translation>
+    </message>
+    <message>
+        <source>Glue: clamp the stack and brush two coats of white glue (PVA) on that edge.</source>
+        <translation>풀 붙이기: 묶음을 고정하고 그 가장자리에 흰색 목공풀(PVA)을 두 번 바릅니다.</translation>
+    </message>
+    <message>
+        <source>Or use comb or coil binding, or two or three staples close to the edge.</source>
+        <translation>또는 링 제본이나 코일 제본을 하거나, 가장자리 가까이에 스테이플러를 두세 번 박습니다.</translation>
+    </message>
+    <message>
+        <source>For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>링 제본이나 스테이플러를 쓰려면 책등 여백을 10 mm 이상으로 설정하세요.</translation>
+    </message>
+    <message>
+        <source>Crease eight panels</source>
+        <translation>여덟 칸 접기</translation>
+    </message>
+    <message>
+        <source>Fold in half from top edge to bottom edge, crease, and unfold.</source>
+        <translation>위쪽 가장자리에서 아래쪽 가장자리로 반으로 접어 눌렀다가 펼칩니다.</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side, crease, and unfold.</source>
+        <translation>좌우로 반으로 접어 눌렀다가 펼칩니다.</translation>
+    </message>
+    <message>
+        <source>Fold each side in to the middle crease, crease, and unfold.</source>
+        <translation>양쪽을 각각 가운데 접힌 선까지 접어 눌렀다가 펼칩니다.</translation>
+    </message>
+    <message>
+        <source>Cut the middle</source>
+        <translation>가운데 자르기</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side again.</source>
+        <translation>다시 좌우로 반으로 접습니다.</translation>
+    </message>
+    <message>
+        <source>From the folded edge, cut along the middle crease through the two middle panels only (the printed line shows the cut).</source>
+        <translation>접힌 가장자리에서 가운데 접힌 선을 따라 가운데 두 칸만 자릅니다(인쇄된 선이 자를 위치를 보여 줍니다).</translation>
+    </message>
+    <message>
+        <source>Open it into a cross</source>
+        <translation>십자 모양으로 열기</translation>
+    </message>
+    <message>
+        <source>Unfold, then fold in half from top edge to bottom edge, printing outside.</source>
+        <translation>펼친 다음, 인쇄된 면이 바깥쪽에 오게 위쪽 가장자리에서 아래쪽 가장자리로 반으로 접습니다.</translation>
+    </message>
+    <message>
+        <source>Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>양쪽 끝을 서로 향해 밀면 자른 곳이 마름모로, 이어서 십자 모양으로 열립니다.</translation>
+    </message>
+    <message>
+        <source>Fold the book</source>
+        <translation>책 접기</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together, front cover outside, and crease the spine.</source>
+        <translation>네 장의 날개를 모아 앞표지가 바깥쪽에 오도록 접고, 책등을 눌러 줍니다.</translation>
+    </message>
+    <message>
+        <source>Good to know</source>
+        <translation>알아 두기</translation>
+    </message>
+    <message>
+        <source>Every page but the covers</source>
+        <translation>표지를 제외한 모든 페이지</translation>
+    </message>
+    <message>
+        <source>Every page</source>
+        <translation>모든 페이지</translation>
+    </message>
+    <message>
+        <source>Prints each page&apos;s number in the book under it. Blank pages added to fill the last sheet get no number.</source>
+        <translation>각 페이지 아래에 책에서의 페이지 번호를 인쇄합니다. 마지막 용지를 채우려고 추가한 빈 페이지에는 번호가 붙지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Page numbers:</source>
+        <translation>페이지 번호:</translation>
     </message>
 </context>
 <context>

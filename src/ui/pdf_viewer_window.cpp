@@ -278,7 +278,7 @@ void PdfViewerWindow::build_ui() {
       view_->set_reading_direction(on ? PageReadingDirection::RightToLeft : PageReadingDirection::LeftToRight);
     }
   });
-  auto* rotate = toolbar_->addAction(themed_svg_icon(QStringLiteral("rotate")), tr("Rotate Clockwise"));
+  auto* rotate = toolbar_->addAction(themed_svg_icon(QStringLiteral("rotate-clockwise")), tr("Rotate Clockwise"));
   rotate->setObjectName(QStringLiteral("pdfViewerRotateAction"));
   connect(rotate, &QAction::triggered, view_, &PdfPageView::rotate_clockwise);
   toolbar_->addSeparator();
@@ -346,6 +346,8 @@ void PdfViewerWindow::build_ui() {
   });
   connect(thumbnails_->verticalScrollBar(), &QScrollBar::valueChanged, this,
           [this] { request_visible_thumbnails(); });
+  // Cells as wide as the list, so each page sits centred in it.
+  thumbnails_->viewport()->installEventFilter(this);
   splitter_->addWidget(sidebar_);
   splitter_->addWidget(view_);
   splitter_->setStretchFactor(0, 0);
@@ -488,6 +490,25 @@ void PdfViewerWindow::on_zoom_changed(double percent) {
   apply_zoom_text();
 }
 
+bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (thumbnails_ != nullptr && watched == thumbnails_->viewport() && event->type() == QEvent::Resize) {
+    size_thumbnail_cells();
+    request_visible_thumbnails();
+  }
+  return QWidget::eventFilter(watched, event);
+}
+
+void PdfViewerWindow::size_thumbnail_cells() {
+  const QSize cell(std::max(kThumbnailBox + 8, thumbnails_->viewport()->width()), kThumbnailBox + 28);
+  if (thumbnails_->gridSize() == cell) {
+    return;
+  }
+  thumbnails_->setGridSize(cell);
+  for (int row = 0; row < thumbnails_->count(); ++row) {
+    thumbnails_->item(row)->setSizeHint(cell);
+  }
+}
+
 void PdfViewerWindow::reset_thumbnails() {
   const int current = view_->current_page();
   thumbnails_->clear();
@@ -510,6 +531,8 @@ void PdfViewerWindow::reset_thumbnails() {
     item->setData(kThumbnailPendingRole, true);
     item->setTextAlignment(Qt::AlignHCenter);
   }
+  thumbnails_->setGridSize(QSize());
+  size_thumbnail_cells();
   if (auto* item = thumbnails_->item(current); item != nullptr) {
     thumbnails_->setCurrentItem(item);
   }

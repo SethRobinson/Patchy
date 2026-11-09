@@ -15218,121 +15218,9 @@ Czy chcesz go zastąpić?</translation>
         <source>Putting the book together</source>
         <translation>Składanie książki</translation>
     </message>
-    <message numerus="yes">
-        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
-        <translation>
-            <numerusform>Druk: Patchy drukuje pierwszą stronę wszystkich arkuszy (łącznie %n), po czym prosi o włożenie wydrukowanego stosu z powrotem do podajnika papieru, aby wydrukować drugą stronę. Najpierw spróbuj z jednym arkuszem: zaznacz górną krawędź pustej kartki, wydrukuj i zobacz, w którą stronę wychodzi, aby wiedzieć, jak ponownie włożyć stos.</numerusform>
-            <numerusform>Druk: Patchy drukuje pierwszą stronę wszystkich arkuszy (łącznie %n), po czym prosi o włożenie wydrukowanego stosu z powrotem do podajnika papieru, aby wydrukować drugą stronę. Najpierw spróbuj z jednym arkuszem: zaznacz górną krawędź pustej kartki, wydrukuj i zobacz, w którą stronę wychodzi, aby wiedzieć, jak ponownie włożyć stos.</numerusform>
-            <numerusform>Druk: Patchy drukuje pierwszą stronę wszystkich arkuszy (łącznie %n), po czym prosi o włożenie wydrukowanego stosu z powrotem do podajnika papieru, aby wydrukować drugą stronę. Najpierw spróbuj z jednym arkuszem: zaznacz górną krawędź pustej kartki, wydrukuj i zobacz, w którą stronę wychodzi, aby wiedzieć, jak ponownie włożyć stos.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
-        <translation>
-            <numerusform>Wydrukuj %n arkusz dwustronnie. Patchy prosi drukarkę o obracanie względem krótszej krawędzi; jeśli okno drukowania ma ustawienie druku dwustronnego, wybierz łączenie wzdłuż krótszej krawędzi (czasem nazywane &quot;obrót do góry&quot;).</numerusform>
-            <numerusform>Wydrukuj %n arkusze dwustronnie. Patchy prosi drukarkę o obracanie względem krótszej krawędzi; jeśli okno drukowania ma ustawienie druku dwustronnego, wybierz łączenie wzdłuż krótszej krawędzi (czasem nazywane &quot;obrót do góry&quot;).</numerusform>
-            <numerusform>Wydrukuj %n arkuszy dwustronnie. Patchy prosi drukarkę o obracanie względem krótszej krawędzi; jeśli okno drukowania ma ustawienie druku dwustronnego, wybierz łączenie wzdłuż krótszej krawędzi (czasem nazywane &quot;obrót do góry&quot;).</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
-        <translation>Sprawdź arkusz 1: jedna strona pokazuje %1 i %2 obok siebie, druga strona %3 i %4. Jeśli druga strona wyszła do góry nogami, włącz &quot;Rewersy drukują się do góry nogami&quot; i wydrukuj ponownie.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on one side only.</source>
-        <translation>
-            <numerusform>Wydrukuj %n arkusz tylko jednostronnie.</numerusform>
-            <numerusform>Wydrukuj %n arkusze tylko jednostronnie.</numerusform>
-            <numerusform>Wydrukuj %n arkuszy tylko jednostronnie.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>right</source>
-        <translation>prawej</translation>
-    </message>
-    <message>
-        <source>left</source>
-        <translation>lewej</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
-        <translation>Zachowaj arkusze w kolejności wydruku. Ułóż je tak, aby arkusz 1 leżał na spodzie, a wszystkie były skierowane w tę samą stronę, stroną z przednią okładką do dołu. Wyrównaj krawędzie.</translation>
-    </message>
-    <message>
-        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
-        <translation>Złóż cały stos na pół wzdłuż środka za jednym razem, unosząc jedną połowę i przekładając ją na drugą, tak aby przednia okładka znalazła się na zewnątrz. Mocno dociśnij zgięcie linijką lub grzbietem łyżki.</translation>
-    </message>
-    <message>
-        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
-        <translation>Zszyj przez zgięcie: dwie zszywki w jednej czwartej długości od góry i od dołu (trzy dla wysokiej książki). Zszywacz z długim ramieniem robi to bezpośrednio; zwykłym zszywaczem otwórz broszurę stroną do dołu na grubej tekturze, zszyj przez zgięcie w tekturę, następnie zdejmij i spłaszcz nóżki zszywek od wewnątrz. Igła i nić przez trzy otwory w zgięciu też się sprawdzą.</translation>
-    </message>
-    <message>
-        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
-        <translation>Wewnętrzne arkusze lekko wystają przy otwartej krawędzi. Jeśli chcesz, równo przytnij tę krawędź linijką i nożykiem.</translation>
-    </message>
-    <message>
-        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
-        <translation>Broszura dobrze się składa do około 12 arkuszy (48 stron) zwykłego papieru. Dla grubszej książki wybierz opcję Książka szyta.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
-        <translation>
-            <numerusform>Podziel stos, w kolejności wydruku, na %n składkę (arkuszy w każdej: %1; w ostatniej może być mniej).</numerusform>
-            <numerusform>Podziel stos, w kolejności wydruku, na %n składki (arkuszy w każdej: %1; w ostatniej może być mniej).</numerusform>
-            <numerusform>Podziel stos, w kolejności wydruku, na %n składek (arkuszy w każdej: %1; w ostatniej może być mniej).</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
-        <translation>Złóż każdą składkę osobno, jak broszurę: jej pierwszy arkusz na spodzie, stroną z pierwszą stroną do dołu, potem złóż stos na pół i dociśnij zgięcie.</translation>
-    </message>
-    <message>
-        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
-        <translation>Ułóż złożone składki po kolei, zgięciami razem, składką 1 na wierzchu, gdy książka leży przednią okładką do góry.</translation>
-    </message>
-    <message>
-        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
-        <translation>Sprawdź grzbiet: od drugiej składki każda ma czarny znacznik na zgięciu, o stopień niżej niż poprzednia. Znacznik poza linią oznacza, że składka jest w złej kolejności.</translation>
-    </message>
-    <message>
-        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
-        <translation>Zwiąż: zszyj każdą składkę przez zgięcie z sąsiednimi albo zaciśnij stos między dwiema deskami z lekko wystającymi zgięciami, posmaruj grzbiet białym klejem (PVA) i po wyschnięciu oklej go arkuszem okładki.</translation>
-    </message>
     <message>
         <source>Trim the open edge straight with a ruler and craft knife.</source>
         <translation>Równo przytnij otwartą krawędź linijką i nożykiem.</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
-        <translation>Zachowaj arkusze w kolejności wydruku, arkusz 1 na wierzchu, stroną z przednią okładką do góry, wszystkie skierowane w tę samą stronę.</translation>
-    </message>
-    <message>
-        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
-        <translation>Przetnij cały stos na pół wzdłuż środka gilotyną do papieru albo linijką i nożykiem (znaczniki przy górnej i dolnej krawędzi pokazują linię).</translation>
-    </message>
-    <message>
-        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
-        <translation>Połóż prawy stos pod lewym. Strony są teraz w prawidłowej kolejności.</translation>
-    </message>
-    <message>
-        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
-        <translation>Zwiąż wzdłuż %1 krawędzi: zaciśnij stos i posmaruj tę krawędź dwiema warstwami białego kleju (PVA), albo użyj oprawy grzebieniowej lub spiralnej, albo dwóch lub trzech zszywek blisko krawędzi. Dla oprawy grzebieniowej lub zszywek ustaw margines grzbietu co najmniej 10 mm.</translation>
-    </message>
-    <message>
-        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
-        <translation>Złóż arkusz na pół od górnej krawędzi do dolnej, dociśnij i rozłóż. Złóż go na pół z boku na bok, dociśnij i rozłóż. Złóż każdy bok do środkowego zgięcia, dociśnij i rozłóż: zgięcia wyznaczają osiem paneli.</translation>
-    </message>
-    <message>
-        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
-        <translation>Złóż go ponownie na pół z boku na bok i przetnij od złożonej krawędzi wzdłuż środkowego zgięcia, tylko przez dwa środkowe panele (drukowana linia pokazuje cięcie).</translation>
-    </message>
-    <message>
-        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
-        <translation>Rozłóż i złóż na pół od górnej krawędzi do dolnej, drukiem na zewnątrz. Popchnij oba końce ku sobie: nacięcie otworzy się w romb, a potem w krzyż.</translation>
-    </message>
-    <message>
-        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
-        <translation>Złóż cztery skrzydełka razem w broszurę z przednią okładką na zewnątrz i dociśnij grzbiet.</translation>
     </message>
     <message>
         <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
@@ -15593,6 +15481,282 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Print Second Sides</source>
         <translation>Drukuj drugie strony</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s), one side at a time</source>
+        <translation>
+            <numerusform>Wydrukuj %n arkusz, jedna strona naraz</numerusform>
+            <numerusform>Wydrukuj %n arkusze, jedna strona naraz</numerusform>
+            <numerusform>Wydrukuj %n arkuszy, jedna strona naraz</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy prints the first side of every sheet, then asks you to put the stack back in the paper tray.</source>
+        <translation>Patchy drukuje pierwszą stronę każdego arkusza, a potem prosi o włożenie stosu z powrotem do podajnika papieru.</translation>
+    </message>
+    <message>
+        <source>Try one sheet first: mark the top edge of a blank sheet, print, and see which way it comes out, so you know how to reload the stack.</source>
+        <translation>Najpierw spróbuj z jednym arkuszem: zaznacz górną krawędź pustej kartki, wydrukuj i zobacz, w którą stronę wychodzi, aby wiedzieć, jak ponownie włożyć stos.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides</source>
+        <translation>
+            <numerusform>Wydrukuj %n arkusz dwustronnie</numerusform>
+            <numerusform>Wydrukuj %n arkusze dwustronnie</numerusform>
+            <numerusform>Wydrukuj %n arkuszy dwustronnie</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy asks the printer to flip on the short edge.</source>
+        <translation>Patchy prosi drukarkę o obracanie względem krótszej krawędzi.</translation>
+    </message>
+    <message>
+        <source>If the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>Jeśli okno drukowania ma ustawienie druku dwustronnego, wybierz łączenie wzdłuż krótszej krawędzi (czasem nazywane &quot;obrót do góry&quot;).</translation>
+    </message>
+    <message>
+        <source>Check sheet 1</source>
+        <translation>Sprawdź arkusz 1</translation>
+    </message>
+    <message>
+        <source>One side shows %1 and %2 side by side.</source>
+        <translation>Jedna strona pokazuje %1 i %2 obok siebie.</translation>
+    </message>
+    <message>
+        <source>The other side shows %1 and %2.</source>
+        <translation>Druga strona pokazuje %1 i %2.</translation>
+    </message>
+    <message>
+        <source>Second side upside down? Turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>Druga strona do góry nogami? Włącz &quot;Rewersy drukują się do góry nogami&quot; i wydrukuj ponownie.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only</source>
+        <translation>
+            <numerusform>Wydrukuj %n arkusz tylko jednostronnie</numerusform>
+            <numerusform>Wydrukuj %n arkusze tylko jednostronnie</numerusform>
+            <numerusform>Wydrukuj %n arkuszy tylko jednostronnie</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Stack the sheets</source>
+        <translation>Ułóż arkusze w stos</translation>
+    </message>
+    <message>
+        <source>Sheet 1, the one with the front cover, on top, then sheet 2, and so on.</source>
+        <translation>Arkusz 1, ten z przednią okładką, na wierzchu, potem arkusz 2 i tak dalej.</translation>
+    </message>
+    <message>
+        <source>Every sheet the same way round, front cover side facing up.</source>
+        <translation>Każdy arkusz tak samo, stroną z przednią okładką do góry.</translation>
+    </message>
+    <message>
+        <source>Tap the edges square.</source>
+        <translation>Wyrównaj krawędzie, stukając stosem.</translation>
+    </message>
+    <message>
+        <source>Use a long-reach stapler and staple from the top: two staples, a quarter of the way in from the top and bottom edges (three for a tall book).</source>
+        <translation>Użyj zszywacza z długim ramieniem i zszyj od góry: dwie zszywki, w jednej czwartej od górnej i dolnej krawędzi (trzy dla wysokiej książki).</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the centre line.</source>
+        <translation>Znaczniki na górnej i dolnej krawędzi pokazują linię środkową.</translation>
+    </message>
+    <message>
+        <source>No long-reach stapler? Fold first, then open the booklet face down on thick cardboard, staple through the fold into the cardboard, pull it free and press the staple legs flat. Needle and thread through three holes in the fold work too.</source>
+        <translation>Brak zszywacza z długim ramieniem? Najpierw złóż, potem otwórz broszurę stroną do dołu na grubej tekturze, zszyj przez zgięcie do tektury, wyciągnij i dociśnij końce zszywek. Igła i nitka przez trzy otwory w zgięciu też się sprawdzą.</translation>
+    </message>
+    <message>
+        <source>Staple along the centre line</source>
+        <translation>Zszyj wzdłuż linii środkowej</translation>
+    </message>
+    <message>
+        <source>Fold it in half</source>
+        <translation>Złóż na pół</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack at once along the staples, front cover outside.</source>
+        <translation>Złóż cały stos naraz wzdłuż zszywek, przednią okładką na zewnątrz.</translation>
+    </message>
+    <message>
+        <source>Crease firmly with a ruler or the back of a spoon.</source>
+        <translation>Mocno dociśnij zgięcie linijką lub grzbietem łyżki.</translation>
+    </message>
+    <message>
+        <source>Trim (optional)</source>
+        <translation>Przytnij (opcjonalnie)</translation>
+    </message>
+    <message>
+        <source>The inner pages stick out a little at the open edge. Trim it straight with a ruler and craft knife.</source>
+        <translation>Wewnętrzne strony lekko wystają przy otwartej krawędzi. Równo przytnij ją linijką i nożykiem.</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book.</source>
+        <translation>Broszura dobrze się składa do około 12 arkuszy (48 stron) zwykłego papieru. Dla grubszej książki wybierz opcję Książka szyta.</translation>
+    </message>
+    <message>
+        <source>Split the stack into signatures</source>
+        <translation>Podziel stos na składki</translation>
+    </message>
+    <message numerus="yes">
+        <source>Make %n signature(s) of %1 sheet(s) each, in the order they printed.</source>
+        <translation>
+            <numerusform>Zrób %n składkę po %1 arkuszy, w kolejności wydruku.</numerusform>
+            <numerusform>Zrób %n składki po %1 arkuszy, w kolejności wydruku.</numerusform>
+            <numerusform>Zrób %n składek po %1 arkuszy, w kolejności wydruku.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The last one may have fewer sheets.</source>
+        <translation>W ostatniej może być mniej arkuszy.</translation>
+    </message>
+    <message>
+        <source>Fold each signature</source>
+        <translation>Złóż każdą składkę</translation>
+    </message>
+    <message>
+        <source>Its first sheet on top, the side with its first page facing up.</source>
+        <translation>Jej pierwszy arkusz na wierzchu, stroną z pierwszą stroną do góry.</translation>
+    </message>
+    <message>
+        <source>Fold it in half with its first page outside, and crease it.</source>
+        <translation>Złóż na pół, pierwszą stroną na zewnątrz, i dociśnij zgięcie.</translation>
+    </message>
+    <message>
+        <source>In order, folds together.</source>
+        <translation>Po kolei, zgięciami razem.</translation>
+    </message>
+    <message>
+        <source>Signature 1 on top when the book lies front cover up.</source>
+        <translation>Składka 1 na wierzchu, gdy książka leży przednią okładką do góry.</translation>
+    </message>
+    <message>
+        <source>From the second signature on, each fold has a black mark one step lower than the last. A mark out of line means a signature is out of order.</source>
+        <translation>Od drugiej składki każde zgięcie ma czarny znacznik o stopień niżej niż poprzednie. Znacznik poza linią oznacza składkę w złej kolejności.</translation>
+    </message>
+    <message>
+        <source>Stack the signatures</source>
+        <translation>Ułóż składki w stos</translation>
+    </message>
+    <message>
+        <source>Bind</source>
+        <translation>Zwiąż</translation>
+    </message>
+    <message>
+        <source>Sew: stitch each signature through its fold to its neighbours.</source>
+        <translation>Zszyj: przeszyj każdą składkę przez zgięcie z sąsiednimi.</translation>
+    </message>
+    <message>
+        <source>Or glue: clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover around it once it is dry.</source>
+        <translation>Albo sklej: zaciśnij stos między dwiema deskami z lekko wystającymi zgięciami, posmaruj grzbiet białym klejem (PVA) i po wyschnięciu oklej go okładką.</translation>
+    </message>
+    <message>
+        <source>Down the middle, with a paper trimmer or a ruler and craft knife.</source>
+        <translation>Dokładnie po środku, gilotyną do papieru albo linijką i nożykiem.</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the line.</source>
+        <translation>Znaczniki na górnej i dolnej krawędzi pokazują linię.</translation>
+    </message>
+    <message>
+        <source>Cut the stack in half</source>
+        <translation>Przetnij stos na pół</translation>
+    </message>
+    <message>
+        <source>Put the piles together</source>
+        <translation>Złóż stosy razem</translation>
+    </message>
+    <message>
+        <source>Right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>Prawy stos pod lewym stosem. Strony czytają się teraz po kolei.</translation>
+    </message>
+    <message>
+        <source>Bind along the right edge</source>
+        <translation>Zwiąż wzdłuż prawej krawędzi</translation>
+    </message>
+    <message>
+        <source>Bind along the left edge</source>
+        <translation>Zwiąż wzdłuż lewej krawędzi</translation>
+    </message>
+    <message>
+        <source>Glue: clamp the stack and brush two coats of white glue (PVA) on that edge.</source>
+        <translation>Klej: zaciśnij stos i posmaruj tę krawędź dwiema warstwami białego kleju (PVA).</translation>
+    </message>
+    <message>
+        <source>Or use comb or coil binding, or two or three staples close to the edge.</source>
+        <translation>Albo użyj oprawy grzebieniowej lub spiralnej, albo dwóch lub trzech zszywek blisko krawędzi.</translation>
+    </message>
+    <message>
+        <source>For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>Dla oprawy grzebieniowej lub zszywek ustaw margines grzbietu co najmniej 10 mm.</translation>
+    </message>
+    <message>
+        <source>Crease eight panels</source>
+        <translation>Zagnij osiem paneli</translation>
+    </message>
+    <message>
+        <source>Fold in half from top edge to bottom edge, crease, and unfold.</source>
+        <translation>Złóż na pół od górnej krawędzi do dolnej, dociśnij i rozłóż.</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side, crease, and unfold.</source>
+        <translation>Złóż na pół z boku na bok, dociśnij i rozłóż.</translation>
+    </message>
+    <message>
+        <source>Fold each side in to the middle crease, crease, and unfold.</source>
+        <translation>Złóż każdą stronę do środkowego zgięcia, dociśnij i rozłóż.</translation>
+    </message>
+    <message>
+        <source>Cut the middle</source>
+        <translation>Przetnij środek</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side again.</source>
+        <translation>Złóż ponownie na pół z boku na bok.</translation>
+    </message>
+    <message>
+        <source>From the folded edge, cut along the middle crease through the two middle panels only (the printed line shows the cut).</source>
+        <translation>Od złożonej krawędzi przetnij wzdłuż środkowego zgięcia tylko przez dwa środkowe panele (drukowana linia pokazuje cięcie).</translation>
+    </message>
+    <message>
+        <source>Open it into a cross</source>
+        <translation>Otwórz w krzyż</translation>
+    </message>
+    <message>
+        <source>Unfold, then fold in half from top edge to bottom edge, printing outside.</source>
+        <translation>Rozłóż, potem złóż na pół od górnej krawędzi do dolnej, drukiem na zewnątrz.</translation>
+    </message>
+    <message>
+        <source>Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>Dociśnij oba końce ku sobie: cięcie otworzy się w romb, a potem w krzyż.</translation>
+    </message>
+    <message>
+        <source>Fold the book</source>
+        <translation>Złóż książkę</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together, front cover outside, and crease the spine.</source>
+        <translation>Złóż razem cztery skrzydełka, przednią okładką na zewnątrz, i dociśnij grzbiet.</translation>
+    </message>
+    <message>
+        <source>Good to know</source>
+        <translation>Warto wiedzieć</translation>
+    </message>
+    <message>
+        <source>Every page but the covers</source>
+        <translation>Każda strona oprócz okładek</translation>
+    </message>
+    <message>
+        <source>Every page</source>
+        <translation>Każda strona</translation>
+    </message>
+    <message>
+        <source>Prints each page&apos;s number in the book under it. Blank pages added to fill the last sheet get no number.</source>
+        <translation>Drukuje pod każdą stroną jej numer w książce. Puste strony dodane, by wypełnić ostatni arkusz, nie dostają numeru.</translation>
+    </message>
+    <message>
+        <source>Page numbers:</source>
+        <translation>Numery stron:</translation>
     </message>
 </context>
 <context>

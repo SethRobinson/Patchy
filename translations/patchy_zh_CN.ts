@@ -15124,113 +15124,9 @@ Do you want to replace it?</source>
         <source>Putting the book together</source>
         <translation>装订成书</translation>
     </message>
-    <message numerus="yes">
-        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
-        <translation>
-            <numerusform>打印：Patchy 会先打印全部 %n 张纸的第一面，然后提示您把打印好的纸叠放回纸盒，再打印第二面。建议先用一张纸试一下：在空白纸的上边做个记号，打印后看它从哪个方向出来，就知道该怎样放回纸叠。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
-        <translation>
-            <numerusform>在 %n 张纸的两面打印。Patchy 会请打印机按短边翻转；如果打印对话框中有双面设置，请选择短边装订（有时称为“上翻”）。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
-        <translation>检查第 1 张：一面应并排显示 %1 和 %2，另一面显示 %3 和 %4。如果第二面是倒的，请开启“背面倒置打印”，然后重新打印。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Print %n sheet(s) on one side only.</source>
-        <translation>
-            <numerusform>仅在 %n 张纸的一面打印。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>right</source>
-        <translation>右</translation>
-    </message>
-    <message>
-        <source>left</source>
-        <translation>左</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
-        <translation>按打印顺序保持纸张次序。把第 1 张放在最下面，所有纸张朝向一致，有封面的一面朝下。把边缘对齐。</translation>
-    </message>
-    <message>
-        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
-        <translation>把整叠纸沿中线一次对折，将一半向上翻过去盖住另一半，使封面在外侧。用尺子或勺子背面把折痕压实。</translation>
-    </message>
-    <message>
-        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
-        <translation>在折缝处装订：在距上下端四分之一处各订一枚订书钉（高开本订三枚）。用长臂订书机可直接订；用普通订书机时，把小册子正面朝下摊开在厚纸板上，沿折缝订穿到纸板里，再取下来，把钉脚在内侧压平。也可以用针线穿过折缝上的三个孔缝合。</translation>
-    </message>
-    <message>
-        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
-        <translation>内层纸张会在开口边稍微凸出。如果愿意，可以用尺子和美工刀把这一边切齐。</translation>
-    </message>
-    <message>
-        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
-        <translation>普通纸的骑马钉小册子最多可折约 12 张（48 页）。更厚的书请改选“线装书”。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
-        <translation>
-            <numerusform>按打印顺序把纸叠分成 %n 个折帖，每帖 %1 张（最后一帖可能较少）。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
-        <translation>每个折帖像小册子一样单独对折：第一张在最下面，其第一页所在的一面朝下，然后把纸叠对折并压出折痕。</translation>
-    </message>
-    <message>
-        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
-        <translation>把折好的折帖按顺序叠放，折缝对齐，书的封面朝上放置时第 1 帖在最上面。</translation>
-    </message>
-    <message>
-        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
-        <translation>检查书脊：从第 2 帖起，每帖的折缝上都有一个黑色标记，比前一帖低一格。标记没有对齐，说明有折帖顺序错了。</translation>
-    </message>
-    <message>
-        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
-        <translation>装订：把每个折帖沿折缝与相邻折帖缝在一起；或者把纸叠夹在两块板之间，折缝稍微露出，在书脊上刷白乳胶（PVA），干后再用封面纸包裹粘贴。</translation>
-    </message>
     <message>
         <source>Trim the open edge straight with a ruler and craft knife.</source>
         <translation>用尺子和美工刀把开口边切齐。</translation>
-    </message>
-    <message>
-        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
-        <translation>按打印顺序保持纸张次序，第 1 张在最上面，有封面的一面朝上，所有纸张朝向一致。</translation>
-    </message>
-    <message>
-        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
-        <translation>用切纸刀，或尺子和美工刀，把整叠纸沿中线切成两半（上下边缘的标记指示切割线）。</translation>
-    </message>
-    <message>
-        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
-        <translation>把右边那一叠放到左边那一叠下面。现在页面就按顺序排好了。</translation>
-    </message>
-    <message>
-        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
-        <translation>沿 %1 边装订：夹紧纸叠，在该边刷两遍白乳胶（PVA），或使用梳式或线圈装订，或在靠近边缘处订两到三枚订书钉。使用梳式装订或订书钉时，请把书脊页边距设为至少 10 mm。</translation>
-    </message>
-    <message>
-        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
-        <translation>把纸从上边向下边对折，压出折痕后展开。再从左右对折，压出折痕后展开。再把两侧分别向中间折痕折入，压出折痕后展开：折痕把纸分成八个面。</translation>
-    </message>
-    <message>
-        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
-        <translation>再次左右对折，从折边沿中间折痕剪开，只剪穿中间的两个面（印出的线表示剪切位置）。</translation>
-    </message>
-    <message>
-        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
-        <translation>展开后，让印刷面朝外，从上边向下边对折。把两端向中间推：切口会张开成菱形，然后成十字形。</translation>
-    </message>
-    <message>
-        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
-        <translation>把四片翼折合成小册子，封面在外，并压出书脊折痕。</translation>
     </message>
     <message>
         <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
@@ -15481,6 +15377,274 @@ Do you want to replace it?</source>
     <message>
         <source>Print Second Sides</source>
         <translation>打印第二面</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s), one side at a time</source>
+        <translation>
+            <numerusform>逐面打印 %n 张纸</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy prints the first side of every sheet, then asks you to put the stack back in the paper tray.</source>
+        <translation>Patchy 会先打印每张纸的第一面，然后提示您把纸叠放回纸盒。</translation>
+    </message>
+    <message>
+        <source>Try one sheet first: mark the top edge of a blank sheet, print, and see which way it comes out, so you know how to reload the stack.</source>
+        <translation>建议先用一张纸试一下：在空白纸的上边做个记号，打印后看它从哪个方向出来，就知道该怎样放回纸叠。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides</source>
+        <translation>
+            <numerusform>在 %n 张纸的两面打印</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy asks the printer to flip on the short edge.</source>
+        <translation>Patchy 会请打印机按短边翻转。</translation>
+    </message>
+    <message>
+        <source>If the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>如果打印对话框中有双面设置，请选择短边装订（有时称为“上翻”）。</translation>
+    </message>
+    <message>
+        <source>Check sheet 1</source>
+        <translation>检查第 1 张</translation>
+    </message>
+    <message>
+        <source>One side shows %1 and %2 side by side.</source>
+        <translation>一面并排显示 %1 和 %2。</translation>
+    </message>
+    <message>
+        <source>The other side shows %1 and %2.</source>
+        <translation>另一面显示 %1 和 %2。</translation>
+    </message>
+    <message>
+        <source>Second side upside down? Turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>第二面是倒的？请开启“背面倒置打印”，然后重新打印。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only</source>
+        <translation>
+            <numerusform>仅在 %n 张纸的一面打印</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Stack the sheets</source>
+        <translation>叠放纸张</translation>
+    </message>
+    <message>
+        <source>Sheet 1, the one with the front cover, on top, then sheet 2, and so on.</source>
+        <translation>带封面的第 1 张放在最上面，然后是第 2 张，依此类推。</translation>
+    </message>
+    <message>
+        <source>Every sheet the same way round, front cover side facing up.</source>
+        <translation>所有纸张朝向一致，封面所在的一面朝上。</translation>
+    </message>
+    <message>
+        <source>Tap the edges square.</source>
+        <translation>把边缘敲齐。</translation>
+    </message>
+    <message>
+        <source>Use a long-reach stapler and staple from the top: two staples, a quarter of the way in from the top and bottom edges (three for a tall book).</source>
+        <translation>用长臂订书机从上面订：在距上下边缘四分之一处各订两枚订书钉（高开本订三枚）。</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the centre line.</source>
+        <translation>上下边缘的标记表示中线。</translation>
+    </message>
+    <message>
+        <source>No long-reach stapler? Fold first, then open the booklet face down on thick cardboard, staple through the fold into the cardboard, pull it free and press the staple legs flat. Needle and thread through three holes in the fold work too.</source>
+        <translation>没有长臂订书机？先对折，再把小册子正面朝下摊开在厚纸板上，沿折缝订穿到纸板里，取下后把钉脚压平。也可以用针线穿过折缝上的三个孔缝合。</translation>
+    </message>
+    <message>
+        <source>Staple along the centre line</source>
+        <translation>沿中线装订</translation>
+    </message>
+    <message>
+        <source>Fold it in half</source>
+        <translation>对折</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack at once along the staples, front cover outside.</source>
+        <translation>把整叠纸沿订书钉一次对折，封面在外。</translation>
+    </message>
+    <message>
+        <source>Crease firmly with a ruler or the back of a spoon.</source>
+        <translation>用尺子或勺子背面把折痕压实。</translation>
+    </message>
+    <message>
+        <source>Trim (optional)</source>
+        <translation>裁边（可选）</translation>
+    </message>
+    <message>
+        <source>The inner pages stick out a little at the open edge. Trim it straight with a ruler and craft knife.</source>
+        <translation>内层纸张会在开口边稍微凸出。用尺子和美工刀把这一边切齐。</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book.</source>
+        <translation>普通纸的骑马钉小册子最多可折约 12 张（48 页）。更厚的书请选择“线装书”。</translation>
+    </message>
+    <message>
+        <source>Split the stack into signatures</source>
+        <translation>把纸叠分成折帖</translation>
+    </message>
+    <message numerus="yes">
+        <source>Make %n signature(s) of %1 sheet(s) each, in the order they printed.</source>
+        <translation>
+            <numerusform>按打印顺序做成 %n 个折帖，每帖 %1 张。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The last one may have fewer sheets.</source>
+        <translation>最后一帖可能较少。</translation>
+    </message>
+    <message>
+        <source>Fold each signature</source>
+        <translation>折每个折帖</translation>
+    </message>
+    <message>
+        <source>Its first sheet on top, the side with its first page facing up.</source>
+        <translation>第一张在最上面，其第一页所在的一面朝上。</translation>
+    </message>
+    <message>
+        <source>Fold it in half with its first page outside, and crease it.</source>
+        <translation>对折并让第一页在外，压出折痕。</translation>
+    </message>
+    <message>
+        <source>In order, folds together.</source>
+        <translation>按顺序叠放，折缝对齐。</translation>
+    </message>
+    <message>
+        <source>Signature 1 on top when the book lies front cover up.</source>
+        <translation>书的封面朝上放置时，第 1 帖在最上面。</translation>
+    </message>
+    <message>
+        <source>From the second signature on, each fold has a black mark one step lower than the last. A mark out of line means a signature is out of order.</source>
+        <translation>从第 2 帖起，每帖的折缝上都有一个黑色标记，比前一帖低一格。标记没有对齐，说明有折帖顺序错了。</translation>
+    </message>
+    <message>
+        <source>Stack the signatures</source>
+        <translation>叠放折帖</translation>
+    </message>
+    <message>
+        <source>Bind</source>
+        <translation>装订</translation>
+    </message>
+    <message>
+        <source>Sew: stitch each signature through its fold to its neighbours.</source>
+        <translation>缝合：把每个折帖沿折缝与相邻折帖缝在一起。</translation>
+    </message>
+    <message>
+        <source>Or glue: clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover around it once it is dry.</source>
+        <translation>或胶粘：把纸叠夹在两块板之间，折缝稍微露出，在书脊上刷白乳胶（PVA），干后再用封面纸包裹粘贴。</translation>
+    </message>
+    <message>
+        <source>Down the middle, with a paper trimmer or a ruler and craft knife.</source>
+        <translation>沿中间，用切纸刀或尺子和美工刀切开。</translation>
+    </message>
+    <message>
+        <source>The marks at the top and bottom edges show the line.</source>
+        <translation>上下边缘的标记表示切割线。</translation>
+    </message>
+    <message>
+        <source>Cut the stack in half</source>
+        <translation>把纸叠切成两半</translation>
+    </message>
+    <message>
+        <source>Put the piles together</source>
+        <translation>把两叠合在一起</translation>
+    </message>
+    <message>
+        <source>Right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>右边一叠放在左边一叠下面。现在页面按顺序排列。</translation>
+    </message>
+    <message>
+        <source>Bind along the right edge</source>
+        <translation>沿右边装订</translation>
+    </message>
+    <message>
+        <source>Bind along the left edge</source>
+        <translation>沿左边装订</translation>
+    </message>
+    <message>
+        <source>Glue: clamp the stack and brush two coats of white glue (PVA) on that edge.</source>
+        <translation>胶粘：夹紧纸叠，在该边刷两遍白乳胶（PVA）。</translation>
+    </message>
+    <message>
+        <source>Or use comb or coil binding, or two or three staples close to the edge.</source>
+        <translation>或使用梳式或线圈装订，或在靠近边缘处订两到三枚订书钉。</translation>
+    </message>
+    <message>
+        <source>For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>使用梳式装订或订书钉时，请把书脊页边距设为至少 10 mm。</translation>
+    </message>
+    <message>
+        <source>Crease eight panels</source>
+        <translation>压出八个面的折痕</translation>
+    </message>
+    <message>
+        <source>Fold in half from top edge to bottom edge, crease, and unfold.</source>
+        <translation>从上边向下边对折，压出折痕后展开。</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side, crease, and unfold.</source>
+        <translation>从左右对折，压出折痕后展开。</translation>
+    </message>
+    <message>
+        <source>Fold each side in to the middle crease, crease, and unfold.</source>
+        <translation>把两侧分别向中间折痕折入，压出折痕后展开。</translation>
+    </message>
+    <message>
+        <source>Cut the middle</source>
+        <translation>剪开中间</translation>
+    </message>
+    <message>
+        <source>Fold in half from side to side again.</source>
+        <translation>再次左右对折。</translation>
+    </message>
+    <message>
+        <source>From the folded edge, cut along the middle crease through the two middle panels only (the printed line shows the cut).</source>
+        <translation>从折边沿中间折痕剪开，只剪穿中间的两个面（印出的线表示剪切位置）。</translation>
+    </message>
+    <message>
+        <source>Open it into a cross</source>
+        <translation>打开成十字形</translation>
+    </message>
+    <message>
+        <source>Unfold, then fold in half from top edge to bottom edge, printing outside.</source>
+        <translation>展开后，让印刷面朝外，从上边向下边对折。</translation>
+    </message>
+    <message>
+        <source>Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>把两端向中间推：切口会张开成菱形，然后成十字形。</translation>
+    </message>
+    <message>
+        <source>Fold the book</source>
+        <translation>折成小书</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together, front cover outside, and crease the spine.</source>
+        <translation>把四片翼折合在一起，封面在外，并压出书脊折痕。</translation>
+    </message>
+    <message>
+        <source>Good to know</source>
+        <translation>小提示</translation>
+    </message>
+    <message>
+        <source>Every page but the covers</source>
+        <translation>除封面外的每一页</translation>
+    </message>
+    <message>
+        <source>Every page</source>
+        <translation>每一页</translation>
+    </message>
+    <message>
+        <source>Prints each page&apos;s number in the book under it. Blank pages added to fill the last sheet get no number.</source>
+        <translation>在每页下方打印它在书中的页码。为凑满最后一张纸而添加的空白页不编号。</translation>
+    </message>
+    <message>
+        <source>Page numbers:</source>
+        <translation>页码：</translation>
     </message>
 </context>
 <context>

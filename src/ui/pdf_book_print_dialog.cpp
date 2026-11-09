@@ -16,7 +16,9 @@
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
+#include <QAbstractTextDocumentLayout>
 #include <QFont>
+#include <QFontMetricsF>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -34,7 +36,9 @@
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QSpinBox>
+#include <QPalette>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QTimer>
 #include <QTransform>
 #include <QVBoxLayout>
@@ -88,6 +92,28 @@ BookPrintStyle style_from_token(const QString& token) {
     return BookPrintStyle::MiniZine;
   }
   return BookPrintStyle::Booklet;
+}
+
+QString page_numbers_token(BookPageNumbers numbers) {
+  switch (numbers) {
+    case BookPageNumbers::All:
+      return QStringLiteral("all");
+    case BookPageNumbers::SkipCovers:
+      return QStringLiteral("inside");
+    case BookPageNumbers::None:
+      break;
+  }
+  return QStringLiteral("none");
+}
+
+BookPageNumbers page_numbers_from_token(const QString& token) {
+  if (token == QStringLiteral("all")) {
+    return BookPageNumbers::All;
+  }
+  if (token == QStringLiteral("inside")) {
+    return BookPageNumbers::SkipCovers;
+  }
+  return BookPageNumbers::None;
 }
 
 bool nested_style(BookPrintStyle style) {
@@ -155,6 +181,29 @@ void draw_marks(QPainter& painter, const PdfBookPrintOptions& options, const Boo
   }
 }
 
+// The page's number in the book, centred under the page in the space below it, or, when the
+// page reaches the bottom of its cell, over the page's foot on a small white label.
+void draw_page_number(QPainter& painter, const BookPagePlacement& placed, const BookRect& cell, int number) {
+  QFont font = QApplication::font();
+  font.setPointSizeF(8.0);
+  painter.setFont(font);
+  const QString text = QString::number(number);
+  const double text_height = QFontMetricsF(font).height();
+  const double page_bottom = std::min(placed.page.y + placed.page.height, placed.clip.y + placed.clip.height);
+  const double below = cell.y + cell.height - page_bottom;
+  const double x = placed.clip.x;
+  const double width = placed.clip.width;
+  painter.setPen(QColor(0, 0, 0));  // color-literal-ok: printed page number
+  if (below >= text_height + 2.0) {
+    painter.drawText(QRectF(x, page_bottom, width, std::min(below, 2.0 * text_height)), Qt::AlignCenter, text);
+    return;
+  }
+  const double label_width = QFontMetricsF(font).horizontalAdvance(text) + 6.0;
+  const QRectF label(x + (width - label_width) / 2.0, page_bottom - text_height - 3.0, label_width, text_height);
+  painter.fillRect(label, QColor(255, 255, 255));  // color-literal-ok: paper behind a printed page number
+  painter.drawText(label, Qt::AlignCenter, text);
+}
+
 QString page_name(const BookImposition& imposition, const std::vector<int>& source_pages, int book_page) {
   if (book_page < 0 || book_page >= static_cast<int>(imposition.book_pages.size())) {
     return QObject::tr("a blank page");
@@ -175,37 +224,33 @@ int slot_page(const std::vector<BookSheetSlot>& side, int column) {
   return -1;
 }
 
-// The steps as a page of their own: plain text at the sheet's size.
-QImage render_steps_page(const PdfBookPrintOptions& options, const QStringList& steps, double dpi) {
+// The steps as a page of their own, laid out the way the dialog shows them. The image's
+// resolution is set to `dpi`, so point sizes come out at their real size on paper.
+QImage render_steps_page(const PdfBookPrintOptions& options, const BookAssemblyGuide& guide, double dpi) {
   const QSizeF sheet = book_sheet_points(options);
   QImage image(QSize(std::max(1, static_cast<int>(std::lround(sheet.width() / 72.0 * dpi))),
                      std::max(1, static_cast<int>(std::lround(sheet.height() / 72.0 * dpi)))),
                QImage::Format_RGB32);
+  const int dots_per_meter = static_cast<int>(std::lround(dpi / 0.0254));
+  image.setDotsPerMeterX(dots_per_meter);
+  image.setDotsPerMeterY(dots_per_meter);
   image.fill(Qt::white);  // color-literal-ok: the paper
   QPainter painter(&image);
   painter.setRenderHint(QPainter::TextAntialiasing, true);
-  painter.scale(dpi / 72.0, dpi / 72.0);
-  painter.setPen(QColor(0, 0, 0));  // color-literal-ok: printed text
+  const double margin = 0.5 * dpi;
+  QTextDocument text;
+  text.documentLayout()->setPaintDevice(&image);
   QFont font = QApplication::font();
   font.setPointSizeF(10.0);
-  painter.setFont(font);
-  const double margin = 0.5 * kPointsPerInch;
-  QRectF area(margin, margin, sheet.width() - 2.0 * margin, sheet.height() - 2.0 * margin);
-  QFont heading = font;
-  heading.setBold(true);
-  heading.setPointSizeF(13.0);
-  painter.setFont(heading);
-  QRectF used;
-  painter.drawText(area, Qt::TextWordWrap, QObject::tr("Putting the book together"), &used);
-  area.setTop(used.bottom() + 8.0);
-  painter.setFont(font);
-  for (int index = 0; index < steps.size(); ++index) {
-    painter.drawText(area, Qt::TextWordWrap, QStringLiteral("%1. %2").arg(index + 1).arg(steps[index]), &used);
-    area.setTop(used.bottom() + 6.0);
-    if (area.height() <= 0.0) {
-      break;
-    }
-  }
+  text.setDefaultFont(font);
+  text.setHtml(QStringLiteral("<h3>") + QObject::tr("Putting the book together").toHtmlEscaped() +
+               QStringLiteral("</h3>") + book_assembly_html(guide));
+  text.setTextWidth(image.width() - 2.0 * margin);
+  painter.translate(margin, margin);
+  QAbstractTextDocumentLayout::PaintContext context;
+  context.palette.setColor(QPalette::Text, QColor(0, 0, 0));  // color-literal-ok: printed text
+  context.clip = QRectF(0.0, 0.0, image.width() - 2.0 * margin, image.height() - 2.0 * margin);
+  text.documentLayout()->draw(&painter, context);
   painter.end();
   return image;
 }
@@ -323,6 +368,12 @@ QImage render_book_sheet_side(QPdfDocument& document, const PdfBookPrintOptions&
     if (!rendered.isNull()) {
       painter.drawImage(QRectF(placed.page.x, placed.page.y, placed.page.width, placed.page.height), rendered);
     }
+    const bool cover = slot.book_page == 0 || slot.book_page == static_cast<int>(imposition.book_pages.size()) - 1;
+    if (options.page_numbers == BookPageNumbers::All ||
+        (options.page_numbers == BookPageNumbers::SkipCovers && !cover)) {
+      painter.setClipping(false);
+      draw_page_number(painter, placed, cell, slot.book_page + 1);
+    }
     painter.restore();
   }
   draw_marks(painter, options, imposition, printed, size, back);
@@ -333,105 +384,169 @@ QImage render_book_sheet_side(QPdfDocument& document, const PdfBookPrintOptions&
   return image;
 }
 
-QStringList book_assembly_steps(const PdfBookPrintOptions& options, const BookImposition& imposition,
-                                int page_count) {
-  QStringList steps;
+BookAssemblyGuide book_assembly_guide(const PdfBookPrintOptions& options, const BookImposition& imposition,
+                                      int page_count) {
+  BookAssemblyGuide guide;
   const int sheets = static_cast<int>(imposition.sheets.size());
   if (sheets == 0) {
-    return steps;
+    return guide;
   }
+  const auto add = [&guide](QString title, QStringList details) {
+    guide.steps.push_back({std::move(title), std::move(details)});
+  };
   const std::vector<int> source_pages = book_source_pages(options, page_count);
   if (imposition.two_sided) {
     if (options.manual_duplex) {
-      steps << QObject::tr("Print: Patchy prints the first side of all %n sheet(s), then asks you to put the "
-                           "printed stack back in the paper tray for the second side. Try it with one sheet "
-                           "first: mark the top edge of a blank sheet, print, and note which way it comes out, "
-                           "so you know how to reload the stack.",
-                           nullptr, sheets);
+      add(QObject::tr("Print %n sheet(s), one side at a time", nullptr, sheets),
+          {QObject::tr("Patchy prints the first side of every sheet, then asks you to put the stack back in the "
+                       "paper tray."),
+           QObject::tr("Try one sheet first: mark the top edge of a blank sheet, print, and see which way it comes "
+                       "out, so you know how to reload the stack.")});
     } else {
-      steps << QObject::tr("Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; "
-                           "if the print dialog has a two-sided setting, choose short-edge binding (sometimes "
-                           "called \"flip up\").",
-                           nullptr, sheets);
+      add(QObject::tr("Print %n sheet(s) on both sides", nullptr, sheets),
+          {QObject::tr("Patchy asks the printer to flip on the short edge."),
+           QObject::tr("If the print dialog has a two-sided setting, choose short-edge binding (sometimes called "
+                       "\"flip up\").")});
     }
     const auto& first = imposition.sheets.front();
-    steps << QObject::tr("Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the "
-                         "second side came out upside down, turn on \"Backs print upside down\" and print again.")
-                 .arg(page_name(imposition, source_pages, slot_page(first.front, 0)),
-                      page_name(imposition, source_pages, slot_page(first.front, 1)),
-                      page_name(imposition, source_pages, slot_page(first.back, 0)),
-                      page_name(imposition, source_pages, slot_page(first.back, 1)));
+    add(QObject::tr("Check sheet 1"),
+        {QObject::tr("One side shows %1 and %2 side by side.")
+             .arg(page_name(imposition, source_pages, slot_page(first.front, 0)),
+                  page_name(imposition, source_pages, slot_page(first.front, 1))),
+         QObject::tr("The other side shows %1 and %2.")
+             .arg(page_name(imposition, source_pages, slot_page(first.back, 0)),
+                  page_name(imposition, source_pages, slot_page(first.back, 1))),
+         QObject::tr("Second side upside down? Turn on \"Backs print upside down\" and print again.")});
   } else {
-    steps << QObject::tr("Print %n sheet(s) on one side only.", nullptr, sheets);
+    add(QObject::tr("Print %n sheet(s) on one side only", nullptr, sheets), {});
   }
-  const QString binding_edge = options.right_to_left ? QObject::tr("right") : QObject::tr("left");
   switch (options.style) {
-    case BookPrintStyle::Booklet:
-      steps << QObject::tr("Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and "
-                           "every sheet the same way round, the side with the front cover facing down. Square "
-                           "the edges.");
-      steps << QObject::tr("Fold the whole stack in half along the middle in one go, lifting one half up and over "
-                           "the other, so the front cover ends up outside. Crease the fold firmly with a ruler or "
-                           "the back of a spoon.");
-      steps << QObject::tr("Staple through the fold: two staples a quarter of the way from the top and bottom "
-                           "(three for a tall book). A long-reach stapler does it directly; with an ordinary "
-                           "stapler, open the booklet face down on thick cardboard, staple through the fold into "
-                           "the cardboard, then pull it free and press the staple legs flat inside. Needle and "
-                           "thread through three holes in the fold works too.");
-      steps << QObject::tr("The inner sheets stick out a little at the open edge. Trim that edge straight with a "
-                           "ruler and craft knife if you like.");
-      steps << QObject::tr("A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a "
-                           "thicker book, choose Sewn book instead.");
-      break;
-    case BookPrintStyle::Signatures:
-      steps << QObject::tr("Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each "
-                           "(the last may have fewer).",
-                           nullptr, imposition.signatures)
-                   .arg(std::clamp(options.sheets_per_signature, 1, 16));
-      steps << QObject::tr("Fold each signature on its own, like a booklet: its first sheet at the bottom, the "
-                           "side with its first page facing down, then fold the stack in half and crease it.");
-      steps << QObject::tr("Stack the folded signatures in order, folds together, signature 1 on top when the book "
-                           "lies front cover up.");
-      if (options.marks && imposition.signatures > 1) {
-        steps << QObject::tr("Check the spine: from the second signature on, each has a black mark on its fold, one "
-                             "step lower than the one before. A mark out of line means a signature is out of "
-                             "order.");
+    case BookPrintStyle::Booklet: {
+      add(QObject::tr("Stack the sheets"),
+          {QObject::tr("Sheet 1, the one with the front cover, on top, then sheet 2, and so on."),
+           QObject::tr("Every sheet the same way round, front cover side facing up."),
+           QObject::tr("Tap the edges square.")});
+      QStringList staple{QObject::tr("Use a long-reach stapler and staple from the top: two staples, a quarter of "
+                                     "the way in from the top and bottom edges (three for a tall book).")};
+      if (options.marks) {
+        staple << QObject::tr("The marks at the top and bottom edges show the centre line.");
       }
-      steps << QObject::tr("Bind: sew each signature through its fold to its neighbours, or clamp the stack "
-                           "between two boards with the folds sticking out a little, brush white glue (PVA) on "
-                           "the spine, and glue a cover sheet around it once it is dry.");
-      steps << QObject::tr("Trim the open edge straight with a ruler and craft knife.");
+      staple << QObject::tr("No long-reach stapler? Fold first, then open the booklet face down on thick "
+                            "cardboard, staple through the fold into the cardboard, pull it free and press the "
+                            "staple legs flat. Needle and thread through three holes in the fold work too.");
+      add(QObject::tr("Staple along the centre line"), staple);
+      add(QObject::tr("Fold it in half"),
+          {QObject::tr("Fold the whole stack at once along the staples, front cover outside."),
+           QObject::tr("Crease firmly with a ruler or the back of a spoon.")});
+      add(QObject::tr("Trim (optional)"),
+          {QObject::tr("The inner pages stick out a little at the open edge. Trim it straight with a ruler and "
+                       "craft knife.")});
+      guide.notes << QObject::tr("A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a "
+                                 "thicker book, choose Sewn book.");
       break;
-    case BookPrintStyle::CutAndStack:
-      steps << QObject::tr("Keep the sheets in the order they printed, sheet 1 on top with the side showing the "
-                           "front cover facing up, every sheet the same way round.");
-      steps << QObject::tr("Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft "
-                           "knife (the marks at the top and bottom edges show the line).");
-      steps << QObject::tr("Put the right-hand pile under the left-hand pile. The pages now read in order.");
-      steps << QObject::tr("Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on "
-                           "that edge, or use comb or coil binding, or two or three staples close to the edge. "
-                           "For comb binding or staples, set a spine margin of at least 10 mm.")
-                   .arg(binding_edge);
+    }
+    case BookPrintStyle::Signatures: {
+      add(QObject::tr("Split the stack into signatures"),
+          {QObject::tr("Make %n signature(s) of %1 sheet(s) each, in the order they printed.", nullptr,
+                       imposition.signatures)
+               .arg(std::clamp(options.sheets_per_signature, 1, 16)),
+           QObject::tr("The last one may have fewer sheets.")});
+      add(QObject::tr("Fold each signature"),
+          {QObject::tr("Its first sheet on top, the side with its first page facing up."),
+           QObject::tr("Fold it in half with its first page outside, and crease it.")});
+      QStringList stack{QObject::tr("In order, folds together."),
+                        QObject::tr("Signature 1 on top when the book lies front cover up.")};
+      if (options.marks && imposition.signatures > 1) {
+        stack << QObject::tr("From the second signature on, each fold has a black mark one step lower than the "
+                             "last. A mark out of line means a signature is out of order.");
+      }
+      add(QObject::tr("Stack the signatures"), stack);
+      add(QObject::tr("Bind"),
+          {QObject::tr("Sew: stitch each signature through its fold to its neighbours."),
+           QObject::tr("Or glue: clamp the stack between two boards with the folds sticking out a little, brush "
+                       "white glue (PVA) on the spine, and glue a cover around it once it is dry.")});
+      add(QObject::tr("Trim"), {QObject::tr("Trim the open edge straight with a ruler and craft knife.")});
       break;
+    }
+    case BookPrintStyle::CutAndStack: {
+      add(QObject::tr("Stack the sheets"),
+          {QObject::tr("Sheet 1, the one with the front cover, on top, then sheet 2, and so on."),
+           QObject::tr("Every sheet the same way round, front cover side facing up.")});
+      QStringList cut{QObject::tr("Down the middle, with a paper trimmer or a ruler and craft knife.")};
+      if (options.marks) {
+        cut << QObject::tr("The marks at the top and bottom edges show the line.");
+      }
+      add(QObject::tr("Cut the stack in half"), cut);
+      add(QObject::tr("Put the piles together"),
+          {QObject::tr("Right-hand pile under the left-hand pile. The pages now read in order.")});
+      add(options.right_to_left ? QObject::tr("Bind along the right edge") : QObject::tr("Bind along the left edge"),
+          {QObject::tr("Glue: clamp the stack and brush two coats of white glue (PVA) on that edge."),
+           QObject::tr("Or use comb or coil binding, or two or three staples close to the edge."),
+           QObject::tr("For comb binding or staples, set a spine margin of at least 10 mm.")});
+      break;
+    }
     case BookPrintStyle::MiniZine:
-      steps << QObject::tr("Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in "
-                           "half from side to side, crease, and unfold. Fold each side in to the middle crease, "
-                           "crease, and unfold: the creases mark eight panels.");
-      steps << QObject::tr("Fold it in half from side to side again and cut from the folded edge along the middle "
-                           "crease, only through the two middle panels (the printed line shows the cut).");
-      steps << QObject::tr("Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the "
-                           "two ends toward each other: the cut opens into a diamond, then a cross.");
-      steps << QObject::tr("Fold the four flaps together into a booklet with the front cover outside, and crease "
-                           "the spine.");
+      add(QObject::tr("Crease eight panels"),
+          {QObject::tr("Fold in half from top edge to bottom edge, crease, and unfold."),
+           QObject::tr("Fold in half from side to side, crease, and unfold."),
+           QObject::tr("Fold each side in to the middle crease, crease, and unfold.")});
+      add(QObject::tr("Cut the middle"),
+          {QObject::tr("Fold in half from side to side again."),
+           QObject::tr("From the folded edge, cut along the middle crease through the two middle panels only (the "
+                       "printed line shows the cut).")});
+      add(QObject::tr("Open it into a cross"),
+          {QObject::tr("Unfold, then fold in half from top edge to bottom edge, printing outside."),
+           QObject::tr("Push the two ends toward each other: the cut opens into a diamond, then a cross.")});
+      add(QObject::tr("Fold the book"),
+          {QObject::tr("Fold the four flaps together, front cover outside, and crease the spine.")});
       if (sheets > 1) {
-        steps << QObject::tr("Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.");
+        guide.notes << QObject::tr("Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.");
       }
       break;
   }
   if (imposition.blank_pages > 0) {
-    steps << QObject::tr("%n blank page(s) were added to fill the last sheet.", nullptr, imposition.blank_pages);
+    guide.notes << QObject::tr("%n blank page(s) were added to fill the last sheet.", nullptr, imposition.blank_pages);
   }
-  return steps;
+  return guide;
+}
+
+QString book_assembly_html(const BookAssemblyGuide& guide) {
+  QString html = QStringLiteral("<ol>");
+  for (const BookAssemblyStep& step : guide.steps) {
+    html += QStringLiteral("<li style=\"margin-bottom:6px\"><b>") + step.title.toHtmlEscaped() +
+            QStringLiteral("</b>");
+    if (!step.details.isEmpty()) {
+      html += QStringLiteral("<ul>");
+      for (const QString& detail : step.details) {
+        html += QStringLiteral("<li>") + detail.toHtmlEscaped() + QStringLiteral("</li>");
+      }
+      html += QStringLiteral("</ul>");
+    }
+    html += QStringLiteral("</li>");
+  }
+  html += QStringLiteral("</ol>");
+  if (!guide.notes.isEmpty()) {
+    html += QStringLiteral("<p><b>") + QObject::tr("Good to know").toHtmlEscaped() + QStringLiteral("</b></p><ul>");
+    for (const QString& note : guide.notes) {
+      html += QStringLiteral("<li>") + note.toHtmlEscaped() + QStringLiteral("</li>");
+    }
+    html += QStringLiteral("</ul>");
+  }
+  return html;
+}
+
+QString book_assembly_text(const BookAssemblyGuide& guide) {
+  QStringList lines;
+  for (std::size_t index = 0; index < guide.steps.size(); ++index) {
+    lines << QStringLiteral("%1. %2").arg(index + 1).arg(guide.steps[index].title);
+    for (const QString& detail : guide.steps[index].details) {
+      lines << QStringLiteral("   - ") + detail;
+    }
+  }
+  for (const QString& note : guide.notes) {
+    lines << QStringLiteral("- ") + note;
+  }
+  return lines.join(QLatin1Char('\n'));
 }
 
 PdfBookWriteResult write_pdf_book(QPdfDocument& document, const PdfBookPrintOptions& options, const QString& path,
@@ -472,7 +587,7 @@ PdfBookWriteResult write_pdf_book(QPdfDocument& document, const PdfBookPrintOpti
         return result;
       }
     }
-    if (options.steps_page && !add(render_steps_page(options, book_assembly_steps(options, imposition, page_count),
+    if (options.steps_page && !add(render_steps_page(options, book_assembly_guide(options, imposition, page_count),
                                                      std::min(dpi, 300.0)))) {
       writer.abort();
       result.cancelled = true;
@@ -515,6 +630,7 @@ PdfBookPrintOptions load_pdf_book_print_options() {
   const int dpi = settings.value(settings_key("dpi"), 300).toInt();
   options.dpi = std::find(kResolutions.begin(), kResolutions.end(), dpi) != kResolutions.end() ? dpi : 300;
   options.steps_page = settings.value(settings_key("stepsPage"), false).toBool();
+  options.page_numbers = page_numbers_from_token(settings.value(settings_key("pageNumbers")).toString());
   options.quality_id =
       settings.value(settings_key("quality"), QString::fromLatin1(kDefaultPdfImageQualityId)).toString();
   return options;
@@ -537,6 +653,7 @@ void store_pdf_book_print_options(const PdfBookPrintOptions& options) {
   settings.setValue(settings_key("reverseBacks"), options.reverse_backs);
   settings.setValue(settings_key("dpi"), options.dpi);
   settings.setValue(settings_key("stepsPage"), options.steps_page);
+  settings.setValue(settings_key("pageNumbers"), page_numbers_token(options.page_numbers));
   settings.setValue(settings_key("quality"), options.quality_id);
 }
 
@@ -545,14 +662,14 @@ namespace {
 // Paints `sides` into one print job. False when the job could not start or was cancelled.
 bool print_sides(QWidget* parent, QPrinter& printer, QPdfDocument& document, const PdfBookPrintOptions& options,
                  const BookImposition& imposition, const std::vector<int>& source_pages,
-                 const std::vector<SideRef>& sides, const QStringList& steps) {
+                 const std::vector<SideRef>& sides, const BookAssemblyGuide* steps) {
   printer.setFullPage(true);
   QPainter painter(&printer);
   if (!painter.isActive()) {
     return false;
   }
   QProgressDialog progress(QObject::tr("Preparing sheets..."), QObject::tr("Cancel"), 0,
-                           static_cast<int>(sides.size()) + (steps.isEmpty() ? 0 : 1), parent);
+                           static_cast<int>(sides.size()) + (steps == nullptr ? 0 : 1), parent);
   progress.setObjectName(QStringLiteral("pdfBookPrintProgressDialog"));
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(300);
@@ -582,8 +699,8 @@ bool print_sides(QWidget* parent, QPrinter& printer, QPdfDocument& document, con
     }
     progress.setValue(++done);
   }
-  if (!steps.isEmpty()) {
-    if (!paint(render_steps_page(options, steps, std::min(dpi, 300.0)))) {
+  if (steps != nullptr) {
+    if (!paint(render_steps_page(options, *steps, std::min(dpi, 300.0)))) {
       return false;
     }
     progress.setValue(++done);
@@ -690,6 +807,15 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
   scaling->addItem(QObject::tr("Fill the space (crops the edges)"), QStringLiteral("fill"));
   scaling->setCurrentIndex(options.fill ? 1 : 0);
   paper_form->addRow(QObject::tr("Scaling:"), scaling);
+  auto* page_numbers = new QComboBox(paper_group);
+  page_numbers->setObjectName(QStringLiteral("pdfBookPrintPageNumbersCombo"));
+  page_numbers->addItem(QObject::tr("None"), page_numbers_token(BookPageNumbers::None));
+  page_numbers->addItem(QObject::tr("Every page but the covers"), page_numbers_token(BookPageNumbers::SkipCovers));
+  page_numbers->addItem(QObject::tr("Every page"), page_numbers_token(BookPageNumbers::All));
+  page_numbers->setToolTip(QObject::tr("Prints each page's number in the book under it. Blank pages added to fill "
+                                       "the last sheet get no number."));
+  page_numbers->setCurrentIndex(std::max(0, page_numbers->findData(page_numbers_token(options.page_numbers))));
+  paper_form->addRow(QObject::tr("Page numbers:"), page_numbers);
   const auto make_mm_spin = [&paper_group](const char* name, double value, double maximum, double step,
                                            int decimals) {
     auto* spin = new QDoubleSpinBox(paper_group);
@@ -827,6 +953,7 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
     read.first_page = first_page->value() - 1;
     read.last_page = std::max(first_page->value(), last_page->value()) - 1;
     read.fill = scaling->currentData().toString() == QStringLiteral("fill");
+    read.page_numbers = page_numbers_from_token(page_numbers->currentData().toString());
     read.outer_margin_mm = outer_margin->value();
     read.spine_margin_mm = spine_margin->value();
     read.creep = creep->isChecked();
@@ -927,16 +1054,11 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
       text += QStringLiteral(", ") + QObject::tr("%n blank page(s) added", nullptr, imposition.blank_pages);
     }
     summary->setText(text);
-    QString html = QStringLiteral("<ol>");
-    for (const QString& step : book_assembly_steps(current, imposition, page_count)) {
-      html += QStringLiteral("<li>") + step.toHtmlEscaped() + QStringLiteral("</li>");
-    }
-    html += QStringLiteral("</ol>");
-    steps_view->setHtml(html);
+    steps_view->setHtml(book_assembly_html(book_assembly_guide(current, imposition, page_count)));
     refresh_preview();
   };
 
-  for (auto* combo : {style, direction, paper, scaling, resolution, quality}) {
+  for (auto* combo : {style, direction, paper, scaling, page_numbers, resolution, quality}) {
     QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, refresh);
   }
   for (auto* spin : {signature_sheets, first_page, last_page, sheet_spin}) {
@@ -982,8 +1104,8 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
     store_pdf_book_print_options(current);
     const BookImposition imposition = book_imposition_for(current, page_count);
     const std::vector<int> pages = book_source_pages(current, page_count);
-    const QStringList steps =
-        current.steps_page ? book_assembly_steps(current, imposition, page_count) : QStringList();
+    const BookAssemblyGuide guide = book_assembly_guide(current, imposition, page_count);
+    const BookAssemblyGuide* steps = current.steps_page ? &guide : nullptr;
     QPrinter printer(QPrinter::HighResolution);
     printer.setDocName(QFileInfo(path).completeBaseName());
     printer.setCreator(QStringLiteral("Patchy"));
@@ -1007,7 +1129,7 @@ void run_pdf_book_print_dialog(QWidget* parent, QPdfDocument& document, const QS
       return;
     }
     if (!print_sides(&dialog, printer, document, current, imposition, pages, printed_sides(imposition, true, false),
-                     {})) {
+                     nullptr)) {
       return;
     }
     QMessageBox reload(QMessageBox::Information, QObject::tr("Print the Second Sides"),

@@ -276,6 +276,13 @@ void ui_pdf_viewer_spreads_and_page_turns() {
   wait_for_renders(*view);
   CHECK(view->cached_width_for_testing(5) > 0 && view->cached_width_for_testing(6) > 0);
   viewer->grab().save(QStringLiteral("test-artifacts/ui_pdf_viewer_spreads.png"));
+  // Thumbnail cells span the list, so each page is centred in it.
+  auto* thumbnails = viewer->findChild<QListWidget*>(QStringLiteral("pdfViewerThumbnails"));
+  CHECK(thumbnails != nullptr && thumbnails->count() == 7);
+  if (thumbnails != nullptr && thumbnails->count() > 0) {
+    const QRect cell = thumbnails->visualItemRect(thumbnails->item(0));
+    CHECK(std::abs(cell.center().x() - thumbnails->viewport()->rect().center().x()) <= 2);
+  }
 
   // Continuous: the wheel scrolls through the pages instead.
   view->set_continuous(true);
@@ -428,9 +435,35 @@ void ui_pdf_book_print_imposes_sheets() {
   // The steps name what the first sheet shows.
   options.style = patchy::BookPrintStyle::Booklet;
   const auto imposition = patchy::ui::book_imposition_for(options, document.pageCount());
-  const QStringList steps = patchy::ui::book_assembly_steps(options, imposition, document.pageCount());
-  CHECK(steps.size() >= 5);
-  CHECK(steps.join(QLatin1Char('\n')).contains(QStringLiteral("a blank page and page 1")));
+  const auto guide = patchy::ui::book_assembly_guide(options, imposition, document.pageCount());
+  CHECK(guide.steps.size() == 6U && guide.notes.size() == 2);
+  CHECK(guide.steps[1].title == QStringLiteral("Check sheet 1"));
+  const QString text = patchy::ui::book_assembly_text(guide);
+  CHECK(text.contains(QStringLiteral("One side shows a blank page and page 1 side by side.")));
+  // Staple the flat stack first, then fold it all at once.
+  CHECK(text.indexOf(QStringLiteral("Staple along the centre line")) < text.indexOf(QStringLiteral("Fold it in half")));
+  const QString html = patchy::ui::book_assembly_html(guide);
+  CHECK(html.contains(QStringLiteral("<ol>")) && html.contains(QStringLiteral("<ul>")));
+
+  // Page numbers: the book's own numbering under each page, none on the covers when asked.
+  options.marks = false;
+  options.page_numbers = patchy::ui::BookPageNumbers::SkipCovers;
+  constexpr double kNumberDpi = 150.0;
+  const auto number_ink = [&](int sheet, bool back, int x0, int x1) {
+    const auto numbered = patchy::ui::book_imposition_for(options, document.pageCount());
+    const auto pages = patchy::ui::book_source_pages(options, document.pageCount());
+    const QImage sheet_image =
+        patchy::ui::render_book_sheet_side(document, options, numbered, pages, sheet, back, kNumberDpi);
+    // The strip below the pages: a Letter half is 396 points across, a 200 x 300 page fits it by
+    // height (the outer margin of 5 mm) and leaves the margin under it.
+    const int top = static_cast<int>(std::lround((612.0 - 14.17) / 72.0 * kNumberDpi));
+    return dark_pixels(sheet_image, QRect(x0, top, x1 - x0, sheet_image.height() - top - 1));
+  };
+  const int half = static_cast<int>(std::lround(396.0 / 72.0 * kNumberDpi));
+  CHECK(number_ink(0, false, half, 2 * half - 1) == 0);  // the front cover
+  CHECK(number_ink(0, true, 0, half - 1) > 0);           // page 2
+  options.page_numbers = patchy::ui::BookPageNumbers::All;
+  CHECK(number_ink(0, false, half, 2 * half - 1) > 0);
 }
 
 void ui_pdf_book_print_writes_sheets_pdf() {
@@ -509,13 +542,14 @@ void ui_pdf_book_print_dialog_follows_choices() {
     style->setCurrentIndex(std::max(0, style->findData(QStringLiteral("booklet"))));
     CHECK(sheet->maximum() == 2);
     CHECK(process_events_until([front] { return !front->pixmap().isNull(); }, 10000));
-    CHECK(steps->toPlainText().contains(QStringLiteral("Staple")));
+    CHECK(steps->toPlainText().contains(QStringLiteral("Staple along the centre line")));
     dialog.grab().save(QStringLiteral("test-artifacts/ui_pdf_book_print_dialog.png"));
     // The zine is one-sided: no second side to preview.
     style->setCurrentIndex(std::max(0, style->findData(QStringLiteral("zine"))));
     CHECK(sheet->maximum() == 1 && !back->isVisible());
     CHECK(summary->text().contains(QStringLiteral("2 blank page")));
-    CHECK(steps->toPlainText().contains(QStringLiteral("cut")));
+    CHECK(steps->toPlainText().contains(QStringLiteral("Cut the middle")));
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("pdfBookPrintPageNumbersCombo")) != nullptr);
     dialog.reject();
   });
   patchy::ui::PdfBookPrintStart start;
