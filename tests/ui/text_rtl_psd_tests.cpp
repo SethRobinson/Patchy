@@ -272,7 +272,6 @@ void ui_issue_683_arabic_psd_rerenders_right_aligned_if_available() {
     }
   )JS")));
   const auto& live = patchy::ui::MainWindowTestAccess::document(window);
-  int measured_layers = 0;
   save_image_artifact("issue_683_arabic_patchy", image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)));
   for (const auto id : ids) {
     const auto* layer = std::as_const(live).find_layer(id);
@@ -285,32 +284,35 @@ void ui_issue_683_arabic_psd_rerenders_right_aligned_if_available() {
     const auto first_run = runs.split(QLatin1Char('\n')).value(1).split(QLatin1Char('\t'));
     CHECK(first_run.value(2) == QStringLiteral("right"));
     CHECK(first_run.value(9) == QStringLiteral("ltr"));
-    // Flush right: every line ends at the same right edge and the left edges are ragged (auto
-    // direction drew them flush left: the reverse). Line breaks depend on the fonts the host has,
-    // so only the edges are compared, on the Noto Sans Arabic layer: Amiri Quran's tall marks
-    // (and Adobe Arabic's substitute's) join lines into one row band, so those two are left to the
-    // metadata checks above.
-    if (layer->name() != "Noto Sans Arabic") {
+    // Flush right: many pixel rows end at the text's right edge and few start at its left edge
+    // (auto direction drew them flush left: the reverse, about 60 rows against 25 on the Noto
+    // layer). Counted per row, not per line: Arabic marks join lines into one row band, and the
+    // line breaks depend on the fonts the host has.
+    const auto& pixels = layer->pixels();
+    std::vector<QRect> rows;
+    for (int y = 0; y < pixels.height(); ++y) {
+      if (const auto row = alpha_pixel_bounds_in_rows(pixels, y, y + 1); row.has_value() && row->width() >= 3) {
+        rows.push_back(*row);
+      }
+    }
+    CHECK(rows.size() >= 20U);
+    if (rows.empty()) {
       continue;
     }
-    const auto lines = ink_lines(layer->pixels());
-    print_lines(layer->name().c_str(), lines);
-    CHECK(lines.size() >= 3U);
-    ++measured_layers;
-    int right_min = lines.front().right;
-    int right_max = lines.front().right;
-    int left_min = lines.front().left;
-    int left_max = lines.front().left;
-    for (const auto& line : lines) {
-      right_min = std::min(right_min, line.right);
-      right_max = std::max(right_max, line.right);
-      left_min = std::min(left_min, line.left);
-      left_max = std::max(left_max, line.left);
+    int left_edge = rows.front().left();
+    int right_edge = rows.front().right();
+    for (const auto& row : rows) {
+      left_edge = std::min(left_edge, row.left());
+      right_edge = std::max(right_edge, row.right());
     }
-    CHECK(right_max - right_min <= 6);
-    CHECK(left_max - left_min > right_max - right_min);
+    const auto near_left = std::count_if(rows.begin(), rows.end(), [&](const QRect& row) { return row.left() <= left_edge + 4; });
+    const auto near_right =
+        std::count_if(rows.begin(), rows.end(), [&](const QRect& row) { return row.right() >= right_edge - 4; });
+    std::printf("  %s: %d rows, %d at the left edge, %d at the right edge\n", layer->name().c_str(),
+                static_cast<int>(rows.size()), static_cast<int>(near_left), static_cast<int>(near_right));
+    std::fflush(stdout);
+    CHECK(near_right >= 2 * near_left);
   }
-  CHECK(measured_layers == 1);
   // Saved by Patchy with an auto Arabic paragraph of its own, which the save writes right to
   // left: the Photoshop open check reads that file.
   CHECK(run_script_to_end(window, QStringLiteral(R"JS(
