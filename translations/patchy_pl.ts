@@ -17275,6 +17275,26 @@ Czy chcesz go zastąpić?</translation>
         <comment>page output</comment>
         <translation>Cz/B</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Anulowanie...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Anulowanie skanowania...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Anulowanie skanowania. Skaner zatrzyma się najszybciej, jak to możliwe. W trakcie przebiegu może to chwilę potrwać.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ukryj</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Anulowanie skanowania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

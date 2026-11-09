@@ -17213,6 +17213,26 @@ Deseja substituí-lo?</translation>
         <comment>page output</comment>
         <translation>P/B</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Cancelando...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Cancelando a digitalização...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Cancelando a digitalização. O scanner para assim que puder, o que pode levar um momento se ele estiver no meio de uma passada.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ocultar</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Cancelando a digitalização</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

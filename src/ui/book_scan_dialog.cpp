@@ -52,6 +52,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -1181,11 +1182,7 @@ void BookScanDialog::build_scanning_page() {
     // Later: the strip is rebuilt, which must not happen inside its own click.
     QTimer::singleShot(0, this, [this, page] { edit_page(page); });
   });
-  connect(cancel_scan_button_, &QPushButton::clicked, this, [this] {
-    if (session_ != nullptr) {
-      session_->cancel();
-    }
-  });
+  connect(cancel_scan_button_, &QPushButton::clicked, this, &BookScanDialog::cancel_scan);
   connect(finished_button_, &QPushButton::clicked, this, &BookScanDialog::finish_scanning);
 }
 
@@ -1887,8 +1884,49 @@ QString BookScanDialog::store_scan_file(const QString& file, const QString& base
   return relative;
 }
 
+void BookScanDialog::cancel_scan() {
+  if (session_ == nullptr || !scan_in_progress() || !cancel_scan_button_->isEnabled()) {
+    return;
+  }
+  session_->cancel();
+  cancel_requested_ = true;
+  // A scanner stops at its next chance, often only after the pass it is making: say at once
+  // that the click took, and keep saying so until the scanner reports back.
+  cancel_scan_button_->setEnabled(false);
+  cancel_scan_button_->setText(tr("Cancelling..."));
+  status_label_->setText(tr("Cancelling the scan..."));
+  auto* notice = new QProgressDialog(
+      tr("Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the "
+         "middle of a pass."),
+      tr("Hide"), 0, 0, this);
+  notice->setObjectName(QStringLiteral("bookScanCancellingDialog"));
+  notice->setWindowTitle(tr("Cancelling Scan"));
+  notice->setWindowModality(Qt::WindowModal);
+  notice->setAutoClose(false);
+  notice->setAutoReset(false);
+  notice->setMinimumDuration(0);
+  notice->setAttribute(Qt::WA_DeleteOnClose);
+  // Hide only closes the notice: the scan is already being cancelled.
+  connect(notice, &QProgressDialog::canceled, notice, &QWidget::close);
+  cancel_notice_ = notice;
+  notice->show();
+}
+
+void BookScanDialog::close_cancel_notice() {
+  if (cancel_notice_ != nullptr) {
+    cancel_notice_->close();
+    cancel_notice_ = nullptr;
+  }
+  cancel_scan_button_->setText(tr("Cancel Scan"));
+  cancel_scan_button_->setEnabled(true);
+}
+
 void BookScanDialog::scan_finished(const ScanResult& result) {
-  if (result.device_lost && pending_ != PendingScan::None && !scan_retried_ && retry_after_device_loss()) {
+  close_cancel_notice();
+  // A cancelled scan that ends with the scanner gone is not tried again.
+  const bool cancel_requested = std::exchange(cancel_requested_, false);
+  if (result.device_lost && pending_ != PendingScan::None && !scan_retried_ && !cancel_requested &&
+      retry_after_device_loss()) {
     return;
   }
   if (drop_after_scan_ || result.device_lost) {

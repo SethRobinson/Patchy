@@ -21,6 +21,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QProgressBar;
+class QProgressDialog;
 class QPushButton;
 class QSlider;
 class QStackedWidget;
@@ -118,6 +119,9 @@ private:
   void capture_controls_changed();
   void save_project_quietly();
   void scan_finished(const ScanResult& result);
+  // Cancel Scan: asks the scanner to stop and shows at once that it will.
+  void cancel_scan();
+  void close_cancel_notice();
   void apply_cover_scan(const QString& file, double dpi, bool keep_settings);
   // replace_index >= 0 rescans that scan; -1 adds a new one.
   void apply_page_scan(const QString& file, double dpi, ScanColorMode mode, int replace_index);
@@ -269,6 +273,9 @@ private:
   QPushButton* scan_button_{nullptr};
   QPushButton* rescan_button_{nullptr};
   QPushButton* cancel_scan_button_{nullptr};
+  // "Cancelling Scan": shown from the Cancel Scan click until the scanner reports back.
+  QPointer<QProgressDialog> cancel_notice_;
+  bool cancel_requested_{false};
   QPushButton* finished_button_{nullptr};
   // Review.
   QListWidget* pages_list_{nullptr};

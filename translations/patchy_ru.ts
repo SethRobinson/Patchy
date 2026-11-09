@@ -17275,6 +17275,26 @@ Do you want to replace it?</source>
         <comment>page output</comment>
         <translation>Ч/Б</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Отмена...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Отмена сканирования...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Отмена сканирования. Сканер остановится, как только сможет; если он в середине прохода, это может занять немного времени.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Скрыть</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Отмена сканирования</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

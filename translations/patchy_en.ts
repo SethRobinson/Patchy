@@ -17195,6 +17195,26 @@ Do you want to replace it?</source>
         <comment>page output</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

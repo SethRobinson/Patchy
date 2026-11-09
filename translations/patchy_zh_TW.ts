@@ -17151,6 +17151,26 @@ Do you want to replace it?</source>
         <comment>page output</comment>
         <translation>黑白</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>正在取消...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>正在取消掃描...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>正在取消掃描。掃描器會盡快停止，如果正在掃描途中，可能需要片刻。</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>隱藏</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>正在取消掃描</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

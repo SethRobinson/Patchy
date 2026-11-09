@@ -29,6 +29,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMimeData>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
@@ -205,6 +206,56 @@ QString utf16_hex(const QString& text) {
 QByteArray read_file(const QString& path) {
   QFile file(path);
   return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
+// Cancel Scan answers at once (the button greys out as "Cancelling...", the status says so, and
+// a "Cancelling Scan" notice opens), and all of it goes away when the scanner reports back.
+void ui_book_scan_cancel_shows_feedback() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_cancel_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_cancel_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.set_title(QStringLiteral("Cancel Book"));
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  dialog.start_page_scanning();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning);
+  auto* cancel = dialog.findChild<QPushButton*>(QStringLiteral("bookScanCancelButton"));
+  auto* status = dialog.findChild<QLabel*>(QStringLiteral("bookScanStatusLabel"));
+  CHECK(cancel != nullptr && status != nullptr);
+  if (cancel == nullptr || status == nullptr) {
+    return;
+  }
+  const auto notice = [&dialog] {
+    return dialog.findChild<QProgressDialog*>(QStringLiteral("bookScanCancellingDialog"));
+  };
+  {
+    const EnvGuard slow("PATCHY_FAKE_BOOK_SCANNER_DELAY_MS", "400");
+    dialog.start_page_scan();
+    CHECK(dialog.scan_in_progress() && cancel->isVisible() && cancel->isEnabled());
+    cancel->click();
+    CHECK(dialog.scan_in_progress());
+    CHECK(!cancel->isEnabled() && cancel->text() == QStringLiteral("Cancelling..."));
+    CHECK(status->text() == QStringLiteral("Cancelling the scan..."));
+    CHECK(notice() != nullptr && notice()->isVisible());
+    if (notice() != nullptr) {
+      patchy::test::ui::save_widget_artifact("ui_book_scan_cancelling_notice", *notice());
+    }
+    wait_for_scan(dialog);
+  }
+  CHECK(process_events_until([&notice] { return notice() == nullptr; }));
+  CHECK(status->text() == QStringLiteral("Scan cancelled."));
+  CHECK(!cancel->isVisible() && cancel->isEnabled() && cancel->text() == QStringLiteral("Cancel Scan"));
+  CHECK(dialog.project().scans.empty());
+  // The next scan runs as usual and gets the image the cancelled one did not use.
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1U);
+  dialog.reject();
 }
 
 void ui_book_scan_menu_actions_registered() {
@@ -1165,6 +1216,7 @@ void ui_book_scan_review_drag_reorders_pages() {
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
   return {
       {"ui_book_scan_menu_actions_registered", ui_book_scan_menu_actions_registered},
+      {"ui_book_scan_cancel_shows_feedback", ui_book_scan_cancel_shows_feedback},
       {"ui_book_scan_full_flow_exports_uniform_pages", ui_book_scan_full_flow_exports_uniform_pages},
       {"ui_book_scan_black_and_white_and_script_export", ui_book_scan_black_and_white_and_script_export},
       {"ui_book_scan_resume_and_rescan", ui_book_scan_resume_and_rescan},

@@ -17213,6 +17213,26 @@ Möchten Sie die Datei ersetzen?</translation>
         <comment>page output</comment>
         <translation>S/W</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Wird abgebrochen...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Der Scan wird abgebrochen...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Der Scan wird abgebrochen. Der Scanner hält an, sobald er kann. Mitten in einem Durchgang kann das einen Moment dauern.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ausblenden</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Scan wird abgebrochen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

@@ -17151,6 +17151,26 @@ Do you want to replace it?</source>
         <comment>page output</comment>
         <translation>흑백</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>취소하는 중...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>스캔을 취소하는 중...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>스캔을 취소하는 중입니다. 스캐너는 가능한 한 빨리 멈추지만, 읽는 도중이면 잠시 걸릴 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>숨기기</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>스캔 취소 중</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

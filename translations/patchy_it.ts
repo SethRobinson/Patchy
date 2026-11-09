@@ -17213,6 +17213,26 @@ Sostituirlo?</translation>
         <comment>page output</comment>
         <translation>B/N</translation>
     </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Annullamento...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Annullamento della scansione...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Annullamento della scansione. Lo scanner si ferma appena possibile, e se è a metà di una passata può volerci un momento.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Nascondi</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Annullamento della scansione</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>
