@@ -32,7 +32,7 @@ std::optional<PdfImportResult> load_pdf_document(const QString&, const PdfImport
   return std::nullopt;
 }
 
-std::optional<PdfImportResult> run_pdf_import_dialog(QWidget*, const QString&) {
+std::optional<PdfImportResult> run_pdf_import_dialog(QWidget*, const QString&, const PdfImportDialogStart&) {
   return std::nullopt;
 }
 

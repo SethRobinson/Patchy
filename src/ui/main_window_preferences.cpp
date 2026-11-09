@@ -26,6 +26,7 @@
 #include "support/atomic_file_write.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/pdf_import.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/modifier_names.hpp"
@@ -849,6 +850,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "(as-shot white balance, no adjustments)."));
   raw_develop_check->setChecked(settings.value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool());
   application_form->addRow(raw_develop_check);
+  // docs/pdf-viewer.md: a PDF opens in the viewer, whose Edit... reaches the Import PDF dialog.
+  auto* pdf_viewer_check = new WrappingCheckBox(tr("Open PDF files in the PDF viewer"), application_group);
+  pdf_viewer_check->setObjectName(QStringLiteral("preferencesOpenPdfInViewerCheck"));
+  pdf_viewer_check->setToolTip(
+      tr("When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away."));
+  pdf_viewer_check->setChecked(settings.value(QStringLiteral("imports/pdfOpenInViewer"), true).toBool());
+  pdf_viewer_check->setVisible(pdf_import_is_available());
+  application_form->addRow(pdf_viewer_check);
   // docs/rgb-profiles.md: Patchy shows every RGB document as sRGB, so other RGB profiles
   // convert on open unless this is off.
   auto* convert_rgb_profiles_check =
@@ -2419,6 +2428,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     set_stored_show_file_info_privacy_notice(privacy_notice_check->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
+    settings.setValue(QStringLiteral("imports/pdfOpenInViewer"), pdf_viewer_check->isChecked());
     settings.setValue(QStringLiteral("imports/convertRgbProfilesToSrgb"), convert_rgb_profiles_check->isChecked());
     settings.setValue(QStringLiteral("imports/flatAlphaAsLayerMask"), flat_alpha_mask_check->isChecked());
     settings.setValue(QStringLiteral("newDocument/addEmptyLayer"), new_document_layer_check->isChecked());

@@ -1077,7 +1077,7 @@ std::int64_t ScriptEngineHost::open_document_file(const QString& path) {
     before.insert(id);
   }
   // app.open returns a new document even when the file is already open (docs/scripting.md).
-  window_.open_document_path(path, MainWindow::OpenExisting::LoadCopy);
+  window_.open_document_path(path, MainWindow::OpenExisting::LoadCopy, MainWindow::PdfOpen::Import);
   for (const auto id : session_ids()) {
     if (before.count(id) == 0) {
       return id;

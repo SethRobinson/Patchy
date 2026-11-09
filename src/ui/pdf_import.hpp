@@ -14,6 +14,7 @@
 #include <string_view>
 #include <vector>
 
+class QPdfDocument;
 class QWidget;
 
 namespace patchy::ui {
@@ -122,9 +123,27 @@ inline constexpr std::string_view kPdfDesktopOnlyMarker = "[pdf-desktop-only]";
 [[nodiscard]] std::optional<PdfImportResult> load_pdf_document(const QString& path, const PdfImportOptions& options,
                                                                const QString& password, QString* error);
 
+// How the PDF viewer's Edit... starts the Import PDF dialog (docs/pdf-viewer.md): the pages
+// to select (the viewer's page or spread; empty selects page 1) and the password that opened
+// the file, so it is not asked for twice.
+struct PdfImportDialogStart {
+  std::vector<int> pages;
+  QString password;
+};
+
 // The Import PDF dialog: page thumbnails with multi-select, target resolution, annotation
 // and anti-alias toggles, bounding-box trim, and a password prompt for encrypted files.
 // nullopt means the user cancelled or the file could not be opened (the dialog reports).
-[[nodiscard]] std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QString& path);
+[[nodiscard]] std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QString& path,
+                                                                   const PdfImportDialogStart& start = {});
+
+#if defined(PATCHY_HAVE_QT_PDF)
+// The PDF viewer's open (Qt PDF builds only): loads `path` into `document`, asking for a
+// password (up to three tries) when it needs one. On failure shows the same "Open PDF"
+// warning as the import dialog and returns false. The password that worked lands in
+// *accepted_password.
+[[nodiscard]] bool load_pdf_for_viewing(QWidget* parent, QPdfDocument& document, const QString& path,
+                                        QString* accepted_password);
+#endif
 
 }  // namespace patchy::ui

@@ -15112,6 +15112,376 @@ Do you want to replace it?</source>
         <source>Thumbnail display:</source>
         <translation>축소판 표시:</translation>
     </message>
+    <message>
+        <source>a blank page</source>
+        <translation>빈 페이지</translation>
+    </message>
+    <message>
+        <source>page %1</source>
+        <translation>%1페이지</translation>
+    </message>
+    <message>
+        <source>Putting the book together</source>
+        <translation>책 만들기</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
+        <translation>
+            <numerusform>인쇄: Patchy는 %n장 모두의 첫 번째 면을 먼저 인쇄한 다음, 인쇄된 묶음을 용지함에 다시 넣어 뒷면을 인쇄하도록 안내합니다. 먼저 한 장으로 시험해 보세요. 빈 용지의 윗부분에 표시하고 인쇄한 뒤 어느 방향으로 나오는지 확인하면 묶음을 어떻게 다시 넣어야 하는지 알 수 있습니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>
+            <numerusform>%n장을 양면에 인쇄합니다. Patchy는 프린터에 짧은 변 기준으로 뒤집도록 요청합니다. 인쇄 대화상자에 양면 인쇄 설정이 있으면 짧은 변 제본(&quot;위로 넘김&quot;이라고도 함)을 선택하세요.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>1번 용지를 확인하세요. 한 면에는 %1과(와) %2이(가) 나란히, 다른 면에는 %3과(와) %4이(가) 나란히 있어야 합니다. 뒷면이 거꾸로 나왔다면 &quot;뒷면을 거꾸로 인쇄&quot;를 켜고 다시 인쇄하세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only.</source>
+        <translation>
+            <numerusform>%n장을 한 면에만 인쇄합니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>right</source>
+        <translation>오른쪽</translation>
+    </message>
+    <message>
+        <source>left</source>
+        <translation>왼쪽</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
+        <translation>인쇄된 순서대로 용지를 쌓습니다. 1번 용지를 맨 아래에 두고, 모든 용지의 방향을 같게 하여 앞표지가 있는 면이 아래를 향하게 합니다. 가장자리를 맞춥니다.</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
+        <translation>묶음 전체를 한 번에 가운데에서 반으로 접습니다. 한쪽 절반을 들어 다른 쪽 위로 덮어 앞표지가 바깥쪽에 오게 합니다. 자나 숟가락 뒷면으로 접힌 곳을 단단히 눌러 줍니다.</translation>
+    </message>
+    <message>
+        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
+        <translation>접힌 곳에 스테이플러를 박습니다. 위아래에서 4분의 1 지점에 두 군데(키가 큰 책은 세 군데). 긴 스테이플러가 있으면 바로 박을 수 있고, 일반 스테이플러라면 소책자를 펼쳐 앞면이 아래로 가게 두꺼운 골판지 위에 놓고 접힌 곳을 따라 골판지까지 박은 뒤, 빼내어 안쪽에서 철침 다리를 평평하게 누르세요. 접힌 곳의 구멍 세 개에 바늘과 실로 꿰매도 됩니다.</translation>
+    </message>
+    <message>
+        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
+        <translation>안쪽 용지가 열린 가장자리에서 조금 튀어나옵니다. 원하면 자와 커터칼로 그 가장자리를 반듯하게 자르세요.</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
+        <translation>일반 용지로는 소책자를 약 12장(48페이지)까지 잘 접을 수 있습니다. 더 두꺼운 책은 대신 &quot;실제본 책&quot;을 선택하세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
+        <translation>
+            <numerusform>묶음을 인쇄된 순서대로 한 접지당 %1장씩 %n개의 접지로 나눕니다(마지막 접지는 장수가 적을 수 있습니다).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
+        <translation>각 접지를 소책자처럼 따로 접습니다. 첫 번째 용지를 맨 아래에 두고, 첫 페이지가 있는 면이 아래를 향하게 한 뒤 묶음을 반으로 접어 눌러 줍니다.</translation>
+    </message>
+    <message>
+        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
+        <translation>접힌 접지를 순서대로 쌓고, 접힌 곳을 한쪽으로 맞춥니다. 책의 앞표지를 위로 놓았을 때 1번 접지가 맨 위에 옵니다.</translation>
+    </message>
+    <message>
+        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
+        <translation>책등을 확인하세요. 두 번째 접지부터는 각각의 접힌 곳에 검은 표시가 있고, 앞 접지보다 한 칸씩 아래에 있습니다. 표시가 어긋나 있으면 접지 순서가 잘못된 것입니다.</translation>
+    </message>
+    <message>
+        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
+        <translation>제본: 각 접지를 접힌 곳에서 이웃한 접지와 실로 꿰매거나, 접힌 곳이 조금 나오게 하여 묶음을 두 판자 사이에 끼우고 책등에 흰색 목공풀(PVA)을 바른 뒤, 마르면 표지 용지를 둘러 붙입니다.</translation>
+    </message>
+    <message>
+        <source>Trim the open edge straight with a ruler and craft knife.</source>
+        <translation>열린 가장자리를 자와 커터칼로 반듯하게 자릅니다.</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
+        <translation>인쇄된 순서대로 용지를 쌓습니다. 1번 용지를 맨 위에 두고, 앞표지가 있는 면이 위를 향하게 하며, 모든 용지의 방향을 같게 합니다.</translation>
+    </message>
+    <message>
+        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
+        <translation>종이 재단기 또는 자와 커터칼로 묶음 전체를 가운데에서 반으로 자릅니다(위아래 가장자리의 표시가 자를 선을 나타냅니다).</translation>
+    </message>
+    <message>
+        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>오른쪽 더미를 왼쪽 더미 아래에 놓습니다. 이제 페이지가 순서대로 읽힙니다.</translation>
+    </message>
+    <message>
+        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>%1 가장자리를 제본합니다. 묶음을 고정하고 그 가장자리에 흰색 목공풀(PVA)을 두 번 바르거나, 링 제본 또는 코일 제본을 하거나, 가장자리 가까이에 스테이플러를 두세 번 박습니다. 링 제본이나 스테이플러를 쓰려면 책등 여백을 10 mm 이상으로 설정하세요.</translation>
+    </message>
+    <message>
+        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
+        <translation>용지를 위쪽 가장자리에서 아래쪽 가장자리로 반으로 접어 눌렀다가 펼칩니다. 이어서 좌우로 반으로 접어 눌렀다가 펼칩니다. 양쪽을 각각 가운데 접힌 선까지 접어 눌렀다가 펼칩니다. 접힌 선이 여덟 칸을 나눕니다.</translation>
+    </message>
+    <message>
+        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
+        <translation>다시 좌우로 반으로 접고, 접힌 가장자리에서 가운데 접힌 선을 따라 가운데 두 칸만 자릅니다(인쇄된 선이 자를 위치를 보여 줍니다).</translation>
+    </message>
+    <message>
+        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>펼친 다음, 인쇄된 면이 바깥쪽에 오게 위쪽 가장자리에서 아래쪽 가장자리로 반으로 접습니다. 양쪽 끝을 서로 향해 밀면 자른 곳이 마름모로, 이어서 십자 모양으로 열립니다.</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
+        <translation>네 장의 날개를 모아 앞표지가 바깥쪽에 오도록 소책자 모양으로 접고, 책등을 눌러 줍니다.</translation>
+    </message>
+    <message>
+        <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
+        <translation>각 용지가 8페이지짜리 미니 진 하나가 됩니다. 1~8페이지, 9~16페이지, 이런 식입니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) were added to fill the last sheet.</source>
+        <translation>
+            <numerusform>마지막 용지를 채우기 위해 빈 페이지 %n개를 추가했습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The document has no pages to print.</source>
+        <translation>인쇄할 페이지가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Preparing sheets...</source>
+        <translation>용지를 준비하는 중...</translation>
+    </message>
+    <message>
+        <source>Preparing side %1 of %2...</source>
+        <translation>%2면 중 %1번째 면을 준비하는 중...</translation>
+    </message>
+    <message>
+        <source>%1 (book).pdf</source>
+        <translation>%1 (책).pdf</translation>
+    </message>
+    <message>
+        <source>Print as Book - %1</source>
+        <translation>책으로 인쇄 - %1</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>책</translation>
+    </message>
+    <message>
+        <source>Booklet (fold and staple)</source>
+        <translation>소책자(접어서 스테이플러)</translation>
+    </message>
+    <message>
+        <source>Sewn book (folded signatures)</source>
+        <translation>실제본 책(접은 접지)</translation>
+    </message>
+    <message>
+        <source>Cut and stack (glue, comb or staple binding)</source>
+        <translation>잘라서 쌓기(접착, 링 또는 스테이플러 제본)</translation>
+    </message>
+    <message>
+        <source>Mini zine (8 pages from one sheet)</source>
+        <translation>미니 진(한 장으로 8페이지)</translation>
+    </message>
+    <message>
+        <source>Every sheet nested and folded once. Best up to about 48 pages.</source>
+        <translation>모든 용지를 겹쳐 한 번 접습니다. 약 48페이지까지 적합합니다.</translation>
+    </message>
+    <message>
+        <source>Groups of nested sheets, each folded on its own, then sewn or glued. For longer books.</source>
+        <translation>겹친 용지 묶음을 각각 접은 뒤 꿰매거나 풀로 붙입니다. 페이지가 많은 책에 적합합니다.</translation>
+    </message>
+    <message>
+        <source>Two pages per side, cut down the middle and stacked into single leaves.</source>
+        <translation>한 면에 두 페이지를 배치해 가운데를 자르고 쌓아서 낱장으로 만듭니다.</translation>
+    </message>
+    <message>
+        <source>One side of one sheet folds into an eight-page booklet with a single cut.</source>
+        <translation>한 장의 한 면을 한 번만 잘라 8페이지 소책자로 접습니다.</translation>
+    </message>
+    <message>
+        <source>Sheets per signature:</source>
+        <translation>접지당 용지 수:</translation>
+    </message>
+    <message>
+        <source>Left to right (binding on the left)</source>
+        <translation>왼쪽에서 오른쪽(왼쪽 제본)</translation>
+    </message>
+    <message>
+        <source>Right to left (binding on the right)</source>
+        <translation>오른쪽에서 왼쪽(오른쪽 제본)</translation>
+    </message>
+    <message>
+        <source>Reading:</source>
+        <translation>읽는 방향:</translation>
+    </message>
+    <message>
+        <source>Keep the last page as the back cover</source>
+        <translation>마지막 페이지를 뒤표지로 유지</translation>
+    </message>
+    <message>
+        <source>Blank pages needed to fill the last sheet go before the last page</source>
+        <translation>마지막 용지를 채우는 데 필요한 빈 페이지는 마지막 페이지 앞에 넣기</translation>
+    </message>
+    <message>
+        <source>Paper and pages</source>
+        <translation>용지와 페이지</translation>
+    </message>
+    <message>
+        <source>Sheet:</source>
+        <translation>용지:</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation> / %1</translation>
+    </message>
+    <message>
+        <source>Fit the whole page</source>
+        <translation>페이지 전체 맞추기</translation>
+    </message>
+    <message>
+        <source>Fill the space (crops the edges)</source>
+        <translation>공간 채우기(가장자리가 잘림)</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source>Space at the top, bottom and outer edge of every page</source>
+        <translation>모든 페이지의 위, 아래, 바깥쪽 가장자리 여백</translation>
+    </message>
+    <message>
+        <source>Outer margin:</source>
+        <translation>바깥쪽 여백:</translation>
+    </message>
+    <message>
+        <source>Space at the fold or binding edge. Zero lets a picture across two pages meet at the fold.</source>
+        <translation>접힌 곳 또는 제본 쪽 가장자리의 여백입니다. 0이면 두 페이지에 걸친 그림이 접힌 곳에서 이어집니다.</translation>
+    </message>
+    <message>
+        <source>Spine margin:</source>
+        <translation>책등 여백:</translation>
+    </message>
+    <message>
+        <source>Shift inner sheets for paper thickness</source>
+        <translation>용지 두께만큼 안쪽 용지 이동</translation>
+    </message>
+    <message>
+        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet&apos;s pages move toward the fold by one paper thickness.</source>
+        <translation>겹친 용지를 접으면 안쪽 페이지가 바깥쪽으로 밀려납니다(크리프). 안쪽 용지마다 페이지를 용지 두께 하나만큼 접힌 곳 쪽으로 옮깁니다.</translation>
+    </message>
+    <message>
+        <source>Ordinary 80 g/m2 (20 lb) office paper is about 0.1 mm thick</source>
+        <translation>일반 80 g/m2(20 lb) 사무용지의 두께는 약 0.1 mm입니다</translation>
+    </message>
+    <message>
+        <source>Printing</source>
+        <translation>인쇄</translation>
+    </message>
+    <message>
+        <source>Print fold and cut marks</source>
+        <translation>접는 선과 자르는 선 표시 인쇄</translation>
+    </message>
+    <message>
+        <source>Backs print upside down</source>
+        <translation>뒷면을 거꾸로 인쇄</translation>
+    </message>
+    <message>
+        <source>Turn on when your printer flips on the long edge and the second side comes out upside down</source>
+        <translation>프린터가 긴 변 기준으로 뒤집어 뒷면이 거꾸로 나올 때 켭니다</translation>
+    </message>
+    <message>
+        <source>Print the second side by hand</source>
+        <translation>뒷면을 수동으로 인쇄</translation>
+    </message>
+    <message>
+        <source>For printers that cannot print both sides: all first sides, then you reload the stack for the second sides</source>
+        <translation>양면 인쇄가 안 되는 프린터용: 모든 첫 번째 면을 먼저 인쇄한 뒤, 묶음을 다시 넣어 뒷면을 인쇄합니다</translation>
+    </message>
+    <message>
+        <source>Print the second sides last sheet first</source>
+        <translation>뒷면을 마지막 용지부터 인쇄</translation>
+    </message>
+    <message>
+        <source>Turn on when the reloaded stack has the last sheet on top</source>
+        <translation>다시 넣은 묶음의 맨 위에 마지막 용지가 있을 때 켭니다</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Saved PDF quality:</source>
+        <translation>저장할 PDF 품질:</translation>
+    </message>
+    <message>
+        <source>Add a page with the assembly steps</source>
+        <translation>제본 순서 안내 페이지 추가</translation>
+    </message>
+    <message>
+        <source>First side</source>
+        <translation>첫 번째 면</translation>
+    </message>
+    <message>
+        <source>Second side (turned over side to side)</source>
+        <translation>두 번째 면(좌우로 뒤집음)</translation>
+    </message>
+    <message>
+        <source>Print...</source>
+        <translation>인쇄...</translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n page(s))</source>
+        <translation>
+            <numerusform> (%n 페이지)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source> of %1</source>
+        <translation> / %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s) on %1 sheet(s)</source>
+        <translation>
+            <numerusform>%n 페이지, %1장</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n signature(s)</source>
+        <translation>
+            <numerusform>접지 %n개</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) added</source>
+        <translation>
+            <numerusform>빈 페이지 %n개 추가됨</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save Book PDF</source>
+        <translation>책 PDF 저장</translation>
+    </message>
+    <message>
+        <source>Writing the book...</source>
+        <translation>책을 쓰는 중...</translation>
+    </message>
+    <message>
+        <source>The book could not be saved: %1</source>
+        <translation>책을 저장할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Print the Second Sides</source>
+        <translation>뒷면 인쇄</translation>
+    </message>
+    <message>
+        <source>When the first sides have printed, put the whole stack back in the paper tray to print on the blank side, then click Print Second Sides.</source>
+        <translation>첫 번째 면 인쇄가 끝나면 묶음 전체를 용지함에 다시 넣어 빈 면에 인쇄한 다음 뒷면 인쇄를 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Print Second Sides</source>
+        <translation>뒷면 인쇄</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -34733,6 +35103,18 @@ Locked: %1</source>
         <source>Brush Tool: Airbrush Preset</source>
         <translation>브러시 도구: 에어브러시 사전 설정</translation>
     </message>
+    <message>
+        <source>%1 opened in the PDF viewer</source>
+        <translation>%1을(를) PDF 뷰어에서 열었습니다</translation>
+    </message>
+    <message>
+        <source>Open PDF files in the PDF viewer</source>
+        <translation>PDF 파일을 PDF 뷰어에서 열기</translation>
+    </message>
+    <message>
+        <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
+        <translation>끄면 PDF를 열 때 PDF 가져오기 대화상자가 나타나 바로 페이지를 편집할 수 있습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35994,6 +36376,129 @@ Locked: %1</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 사본</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PdfViewerWindow</name>
+    <message>
+        <source>Pages</source>
+        <translation>페이지</translation>
+    </message>
+    <message>
+        <source>Show or hide the sidebar</source>
+        <translation>사이드바 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Previous Page</source>
+        <translation>이전 페이지</translation>
+    </message>
+    <message>
+        <source>Go to page</source>
+        <translation>페이지로 이동</translation>
+    </message>
+    <message>
+        <source>Next Page</source>
+        <translation>다음 페이지</translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation>축소</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>줌</translation>
+    </message>
+    <message>
+        <source>Fit Page</source>
+        <translation>페이지에 맞춤</translation>
+    </message>
+    <message>
+        <source>Fit Width</source>
+        <translation>너비에 맞춤</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation>실제 크기</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation>확대</translation>
+    </message>
+    <message>
+        <source>How pages sit side by side</source>
+        <translation>페이지를 나란히 배치하는 방식</translation>
+    </message>
+    <message>
+        <source>One Page</source>
+        <translation>한 페이지</translation>
+    </message>
+    <message>
+        <source>Two Pages</source>
+        <translation>두 페이지</translation>
+    </message>
+    <message>
+        <source>Two Pages, Cover Alone</source>
+        <translation>두 페이지, 표지 단독</translation>
+    </message>
+    <message>
+        <source>A book or comic opened flat: the cover alone, then 2 and 3 side by side</source>
+        <translation>펼친 책이나 만화: 표지만 단독으로 보이고, 그다음 2, 3페이지가 나란히 보입니다</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>연속</translation>
+    </message>
+    <message>
+        <source>Scroll through every page. Off shows one page or spread at a time, and the wheel turns the page.</source>
+        <translation>모든 페이지를 스크롤합니다. 끄면 한 번에 한 페이지 또는 한 펼침면만 보이고 휠로 페이지를 넘깁니다.</translation>
+    </message>
+    <message>
+        <source>Right to Left</source>
+        <translation>오른쪽에서 왼쪽</translation>
+    </message>
+    <message>
+        <source>Put the earlier page of a spread on the right, for manga and right-to-left books</source>
+        <translation>펼침면의 앞 페이지를 오른쪽에 둡니다. 만화나 오른쪽에서 왼쪽으로 읽는 책용입니다</translation>
+    </message>
+    <message>
+        <source>Rotate Clockwise</source>
+        <translation>시계 방향으로 회전</translation>
+    </message>
+    <message>
+        <source>Full Screen</source>
+        <translation>전체 화면</translation>
+    </message>
+    <message>
+        <source>Full Screen (F11). Esc or a double-click returns.</source>
+        <translation>전체 화면(F11). Esc 또는 더블클릭하면 돌아갑니다.</translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation>편집...</translation>
+    </message>
+    <message>
+        <source>Open pages in Patchy to edit them, with the Import PDF options</source>
+        <translation>PDF 가져오기 옵션과 함께 페이지를 Patchy에서 열어 편집합니다</translation>
+    </message>
+    <message>
+        <source>Print as Book...</source>
+        <translation>책으로 인쇄...</translation>
+    </message>
+    <message>
+        <source>Print the pages so they fold, cut or stack into a book, with assembly steps</source>
+        <translation>페이지를 접거나 자르거나 쌓아서 책이 되도록 인쇄합니다(조립 순서 안내 포함)</translation>
+    </message>
+    <message>
+        <source>%1 - PDF Viewer</source>
+        <translation>%1 - PDF 뷰어</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>

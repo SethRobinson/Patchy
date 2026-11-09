@@ -15206,6 +15206,394 @@ Do you want to replace it?</source>
         <source>Thumbnail display:</source>
         <translation>Отображение миниатюр:</translation>
     </message>
+    <message>
+        <source>a blank page</source>
+        <translation>пустая страница</translation>
+    </message>
+    <message>
+        <source>page %1</source>
+        <translation>страница %1</translation>
+    </message>
+    <message>
+        <source>Putting the book together</source>
+        <translation>Сборка книги</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
+        <translation>
+            <numerusform>Печать: Patchy печатает первую сторону всех листов (всего %n), затем просит вернуть напечатанную стопку в лоток для бумаги, чтобы напечатать вторую сторону. Сначала попробуйте с одним листом: отметьте верхний край чистого листа, напечатайте и посмотрите, как он выходит, чтобы знать, как класть стопку обратно.</numerusform>
+            <numerusform>Печать: Patchy печатает первую сторону всех листов (всего %n), затем просит вернуть напечатанную стопку в лоток для бумаги, чтобы напечатать вторую сторону. Сначала попробуйте с одним листом: отметьте верхний край чистого листа, напечатайте и посмотрите, как он выходит, чтобы знать, как класть стопку обратно.</numerusform>
+            <numerusform>Печать: Patchy печатает первую сторону всех листов (всего %n), затем просит вернуть напечатанную стопку в лоток для бумаги, чтобы напечатать вторую сторону. Сначала попробуйте с одним листом: отметьте верхний край чистого листа, напечатайте и посмотрите, как он выходит, чтобы знать, как класть стопку обратно.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>
+            <numerusform>Напечатайте %n лист с двух сторон. Patchy просит принтер переворачивать лист по короткому краю; если в окне печати есть настройка двусторонней печати, выберите переплёт по короткому краю (иногда он называется &quot;переворот вверх&quot;).</numerusform>
+            <numerusform>Напечатайте %n листа с двух сторон. Patchy просит принтер переворачивать лист по короткому краю; если в окне печати есть настройка двусторонней печати, выберите переплёт по короткому краю (иногда он называется &quot;переворот вверх&quot;).</numerusform>
+            <numerusform>Напечатайте %n листов с двух сторон. Patchy просит принтер переворачивать лист по короткому краю; если в окне печати есть настройка двусторонней печати, выберите переплёт по короткому краю (иногда он называется &quot;переворот вверх&quot;).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>Проверьте лист 1: на одной стороне %1 и %2 рядом, на другой %3 и %4. Если вторая сторона вышла вверх ногами, включите &quot;Обратные стороны печатаются вверх ногами&quot; и напечатайте снова.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only.</source>
+        <translation>
+            <numerusform>Напечатайте %n лист только с одной стороны.</numerusform>
+            <numerusform>Напечатайте %n листа только с одной стороны.</numerusform>
+            <numerusform>Напечатайте %n листов только с одной стороны.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>right</source>
+        <translation>правого</translation>
+    </message>
+    <message>
+        <source>left</source>
+        <translation>левого</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
+        <translation>Сохраняйте листы в порядке печати. Сложите их так, чтобы лист 1 был внизу, а все листы лежали одинаково, стороной с передней обложкой вниз. Выровняйте края.</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
+        <translation>Сложите всю стопку пополам по середине за один раз, приподняв одну половину и перегнув её через другую, так чтобы передняя обложка оказалась снаружи. Хорошо прогладьте сгиб линейкой или тыльной стороной ложки.</translation>
+    </message>
+    <message>
+        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
+        <translation>Скрепите по сгибу: две скобы на расстоянии четверти длины от верха и от низа (три для высокой книги). Степлер с длинным вылетом делает это сразу; обычным степлером раскройте брошюру лицевой стороной вниз на толстом картоне, скрепите по сгибу сквозь брошюру в картон, затем снимите её и прижмите концы скоб внутри. Подойдёт и игла с ниткой через три отверстия в сгибе.</translation>
+    </message>
+    <message>
+        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
+        <translation>Внутренние листы немного выступают у открытого края. При желании ровно обрежьте этот край линейкой и канцелярским ножом.</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
+        <translation>Брошюра хорошо складывается примерно до 12 листов (48 страниц) обычной бумаги. Для более толстой книги выберите вместо этого вариант Сшитая книга.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
+        <translation>
+            <numerusform>Разделите стопку в порядке печати на тетради: %n тетрадь (листов в каждой: %1, в последней может быть меньше).</numerusform>
+            <numerusform>Разделите стопку в порядке печати на тетради: %n тетради (листов в каждой: %1, в последней может быть меньше).</numerusform>
+            <numerusform>Разделите стопку в порядке печати на тетради: %n тетрадей (листов в каждой: %1, в последней может быть меньше).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
+        <translation>Сложите каждую тетрадь отдельно, как брошюру: её первый лист внизу, стороной с первой страницей вниз, затем сложите стопку пополам и прогладьте сгиб.</translation>
+    </message>
+    <message>
+        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
+        <translation>Сложите сложенные тетради по порядку, сгибами вместе, тетрадью 1 сверху, когда книга лежит передней обложкой вверх.</translation>
+    </message>
+    <message>
+        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
+        <translation>Проверьте корешок: начиная со второй тетради, на сгибе каждой есть чёрная метка, на ступеньку ниже предыдущей. Метка, выбившаяся из ряда, означает, что тетрадь лежит не на своём месте.</translation>
+    </message>
+    <message>
+        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
+        <translation>Переплетите: сшейте каждую тетрадь по сгибу с соседними или зажмите стопку между двумя досками так, чтобы сгибы немного выступали, нанесите на корешок белый клей (ПВА) и после высыхания приклейте вокруг лист обложки.</translation>
+    </message>
+    <message>
+        <source>Trim the open edge straight with a ruler and craft knife.</source>
+        <translation>Ровно обрежьте открытый край линейкой и канцелярским ножом.</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
+        <translation>Сохраняйте листы в порядке печати, лист 1 сверху, стороной с передней обложкой вверх, все листы лежат одинаково.</translation>
+    </message>
+    <message>
+        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
+        <translation>Разрежьте всю стопку пополам по середине резаком для бумаги или линейкой и канцелярским ножом (метки у верхнего и нижнего краёв показывают линию).</translation>
+    </message>
+    <message>
+        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>Положите правую стопку под левую. Теперь страницы идут по порядку.</translation>
+    </message>
+    <message>
+        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>Переплетите вдоль %1 края: зажмите стопку и нанесите на этот край два слоя белого клея (ПВА), либо используйте переплёт на пластиковую или пружину, либо две-три скобы у края. Для переплёта на пружину или скобами задайте поле корешка не менее 10 mm.</translation>
+    </message>
+    <message>
+        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
+        <translation>Сложите лист пополам от верхнего края к нижнему, прогладьте и разверните. Сложите пополам из стороны в сторону, прогладьте и разверните. Сложите каждую сторону к средней складке, прогладьте и разверните: складки отмечают восемь панелей.</translation>
+    </message>
+    <message>
+        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
+        <translation>Снова сложите пополам из стороны в сторону и сделайте разрез от сложенного края по средней складке, только через две средние панели (печатная линия показывает разрез).</translation>
+    </message>
+    <message>
+        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>Разверните и сложите пополам от верхнего края к нижнему, печатью наружу. Сдвиньте два конца навстречу друг другу: разрез раскроется ромбом, а затем крестом.</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
+        <translation>Сложите четыре лепестка вместе в брошюру передней обложкой наружу и прогладьте корешок.</translation>
+    </message>
+    <message>
+        <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
+        <translation>Каждый лист даёт свой восьмистраничный зин: страницы с 1 по 8, с 9 по 16 и так далее.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) were added to fill the last sheet.</source>
+        <translation>
+            <numerusform>Добавлена %n пустая страница, чтобы заполнить последний лист.</numerusform>
+            <numerusform>Добавлено %n пустые страницы, чтобы заполнить последний лист.</numerusform>
+            <numerusform>Добавлено %n пустых страниц, чтобы заполнить последний лист.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The document has no pages to print.</source>
+        <translation>В документе нет страниц для печати.</translation>
+    </message>
+    <message>
+        <source>Preparing sheets...</source>
+        <translation>Подготовка листов...</translation>
+    </message>
+    <message>
+        <source>Preparing side %1 of %2...</source>
+        <translation>Подготовка стороны %1 из %2...</translation>
+    </message>
+    <message>
+        <source>%1 (book).pdf</source>
+        <translation>%1 (книга).pdf</translation>
+    </message>
+    <message>
+        <source>Print as Book - %1</source>
+        <translation>Печать в виде книги - %1</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Книга</translation>
+    </message>
+    <message>
+        <source>Booklet (fold and staple)</source>
+        <translation>Брошюра (сложить и скрепить)</translation>
+    </message>
+    <message>
+        <source>Sewn book (folded signatures)</source>
+        <translation>Сшитая книга (сложенные тетради)</translation>
+    </message>
+    <message>
+        <source>Cut and stack (glue, comb or staple binding)</source>
+        <translation>Разрезать и сложить стопкой (переплёт на клей, пружину или скобы)</translation>
+    </message>
+    <message>
+        <source>Mini zine (8 pages from one sheet)</source>
+        <translation>Мини-зин (8 страниц из одного листа)</translation>
+    </message>
+    <message>
+        <source>Every sheet nested and folded once. Best up to about 48 pages.</source>
+        <translation>Все листы вложены друг в друга и сложены один раз. Лучше всего до 48 страниц.</translation>
+    </message>
+    <message>
+        <source>Groups of nested sheets, each folded on its own, then sewn or glued. For longer books.</source>
+        <translation>Группы вложенных листов, каждая сложена отдельно, затем сшита или склеена. Для более длинных книг.</translation>
+    </message>
+    <message>
+        <source>Two pages per side, cut down the middle and stacked into single leaves.</source>
+        <translation>Две страницы на стороне, разрезаются посередине и складываются в отдельные листы.</translation>
+    </message>
+    <message>
+        <source>One side of one sheet folds into an eight-page booklet with a single cut.</source>
+        <translation>Одна сторона одного листа складывается в восьмистраничную брошюру с одним разрезом.</translation>
+    </message>
+    <message>
+        <source>Sheets per signature:</source>
+        <translation>Листов в тетради:</translation>
+    </message>
+    <message>
+        <source>Left to right (binding on the left)</source>
+        <translation>Слева направо (переплёт слева)</translation>
+    </message>
+    <message>
+        <source>Right to left (binding on the right)</source>
+        <translation>Справа налево (переплёт справа)</translation>
+    </message>
+    <message>
+        <source>Reading:</source>
+        <translation>Чтение:</translation>
+    </message>
+    <message>
+        <source>Keep the last page as the back cover</source>
+        <translation>Оставить последнюю страницу задней обложкой</translation>
+    </message>
+    <message>
+        <source>Blank pages needed to fill the last sheet go before the last page</source>
+        <translation>Пустые страницы для заполнения последнего листа ставятся перед последней страницей</translation>
+    </message>
+    <message>
+        <source>Paper and pages</source>
+        <translation>Бумага и страницы</translation>
+    </message>
+    <message>
+        <source>Sheet:</source>
+        <translation>Лист:</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation>из %1</translation>
+    </message>
+    <message>
+        <source>Fit the whole page</source>
+        <translation>Вписать страницу целиком</translation>
+    </message>
+    <message>
+        <source>Fill the space (crops the edges)</source>
+        <translation>Заполнить пространство (края обрезаются)</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source>Space at the top, bottom and outer edge of every page</source>
+        <translation>Отступ сверху, снизу и у внешнего края каждой страницы</translation>
+    </message>
+    <message>
+        <source>Outer margin:</source>
+        <translation>Внешнее поле:</translation>
+    </message>
+    <message>
+        <source>Space at the fold or binding edge. Zero lets a picture across two pages meet at the fold.</source>
+        <translation>Отступ у сгиба или края переплёта. При нуле изображение на двух страницах сходится у сгиба.</translation>
+    </message>
+    <message>
+        <source>Spine margin:</source>
+        <translation>Поле корешка:</translation>
+    </message>
+    <message>
+        <source>Shift inner sheets for paper thickness</source>
+        <translation>Сдвигать внутренние листы на толщину бумаги</translation>
+    </message>
+    <message>
+        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet&apos;s pages move toward the fold by one paper thickness.</source>
+        <translation>Вложенные листы при сгибании выталкивают внутренние страницы наружу (смещение). Страницы каждого внутреннего листа сдвигаются к сгибу на одну толщину бумаги.</translation>
+    </message>
+    <message>
+        <source>Ordinary 80 g/m2 (20 lb) office paper is about 0.1 mm thick</source>
+        <translation>Обычная офисная бумага 80 g/m2 (20 lb) имеет толщину около 0,1 mm</translation>
+    </message>
+    <message>
+        <source>Printing</source>
+        <translation>Печать</translation>
+    </message>
+    <message>
+        <source>Print fold and cut marks</source>
+        <translation>Печатать метки сгиба и разреза</translation>
+    </message>
+    <message>
+        <source>Backs print upside down</source>
+        <translation>Обратные стороны печатаются вверх ногами</translation>
+    </message>
+    <message>
+        <source>Turn on when your printer flips on the long edge and the second side comes out upside down</source>
+        <translation>Включите, если принтер переворачивает лист по длинному краю и вторая сторона выходит вверх ногами</translation>
+    </message>
+    <message>
+        <source>Print the second side by hand</source>
+        <translation>Печатать вторую сторону вручную</translation>
+    </message>
+    <message>
+        <source>For printers that cannot print both sides: all first sides, then you reload the stack for the second sides</source>
+        <translation>Для принтеров без двусторонней печати: сначала все первые стороны, затем вы кладёте стопку обратно для вторых сторон</translation>
+    </message>
+    <message>
+        <source>Print the second sides last sheet first</source>
+        <translation>Печатать вторые стороны начиная с последнего листа</translation>
+    </message>
+    <message>
+        <source>Turn on when the reloaded stack has the last sheet on top</source>
+        <translation>Включите, если в возвращённой стопке сверху лежит последний лист</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Saved PDF quality:</source>
+        <translation>Качество сохраняемого PDF:</translation>
+    </message>
+    <message>
+        <source>Add a page with the assembly steps</source>
+        <translation>Добавить страницу с шагами сборки</translation>
+    </message>
+    <message>
+        <source>First side</source>
+        <translation>Первая сторона</translation>
+    </message>
+    <message>
+        <source>Second side (turned over side to side)</source>
+        <translation>Вторая сторона (переворот из стороны в сторону)</translation>
+    </message>
+    <message>
+        <source>Print...</source>
+        <translation>Печать...</translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n page(s))</source>
+        <translation>
+            <numerusform> (%n страница)</numerusform>
+            <numerusform> (%n страницы)</numerusform>
+            <numerusform> (%n страниц)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source> of %1</source>
+        <translation> из %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s) on %1 sheet(s)</source>
+        <translation>
+            <numerusform>%n страница (листов: %1)</numerusform>
+            <numerusform>%n страницы (листов: %1)</numerusform>
+            <numerusform>%n страниц (листов: %1)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n signature(s)</source>
+        <translation>
+            <numerusform>%n тетрадь</numerusform>
+            <numerusform>%n тетради</numerusform>
+            <numerusform>%n тетрадей</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) added</source>
+        <translation>
+            <numerusform>Добавлена %n пустая страница</numerusform>
+            <numerusform>Добавлено %n пустые страницы</numerusform>
+            <numerusform>Добавлено %n пустых страниц</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save Book PDF</source>
+        <translation>Сохранить PDF книги</translation>
+    </message>
+    <message>
+        <source>Writing the book...</source>
+        <translation>Запись книги...</translation>
+    </message>
+    <message>
+        <source>The book could not be saved: %1</source>
+        <translation>Не удалось сохранить книгу: %1</translation>
+    </message>
+    <message>
+        <source>Print the Second Sides</source>
+        <translation>Напечатайте вторые стороны</translation>
+    </message>
+    <message>
+        <source>When the first sides have printed, put the whole stack back in the paper tray to print on the blank side, then click Print Second Sides.</source>
+        <translation>Когда первые стороны напечатаны, верните всю стопку в лоток для бумаги, чтобы печатать на чистой стороне, затем нажмите Печать вторых сторон.</translation>
+    </message>
+    <message>
+        <source>Print Second Sides</source>
+        <translation>Печать вторых сторон</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -34921,6 +35309,18 @@ Locked: %1</source>
         <source>Brush Tool: Airbrush Preset</source>
         <translation>Инструмент «Кисть»: предустановка «Аэрограф»</translation>
     </message>
+    <message>
+        <source>%1 opened in the PDF viewer</source>
+        <translation>%1 открыт в просмотре PDF</translation>
+    </message>
+    <message>
+        <source>Open PDF files in the PDF viewer</source>
+        <translation>Открывать файлы PDF в просмотре PDF</translation>
+    </message>
+    <message>
+        <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
+        <translation>Если отключено, при открытии PDF сразу показывается диалог импорта PDF для редактирования страниц.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36190,6 +36590,129 @@ Locked: %1</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 Копия</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PdfViewerWindow</name>
+    <message>
+        <source>Pages</source>
+        <translation>Страницы</translation>
+    </message>
+    <message>
+        <source>Show or hide the sidebar</source>
+        <translation>Показать или скрыть боковую панель</translation>
+    </message>
+    <message>
+        <source>Previous Page</source>
+        <translation>Предыдущая страница</translation>
+    </message>
+    <message>
+        <source>Go to page</source>
+        <translation>Перейти к странице</translation>
+    </message>
+    <message>
+        <source>Next Page</source>
+        <translation>Следующая страница</translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation>Уменьшить масштаб</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>Масштаб</translation>
+    </message>
+    <message>
+        <source>Fit Page</source>
+        <translation>По размеру страницы</translation>
+    </message>
+    <message>
+        <source>Fit Width</source>
+        <translation>По ширине</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation>Реальный размер</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation>Увеличить масштаб</translation>
+    </message>
+    <message>
+        <source>How pages sit side by side</source>
+        <translation>Как страницы располагаются рядом</translation>
+    </message>
+    <message>
+        <source>One Page</source>
+        <translation>Одна страница</translation>
+    </message>
+    <message>
+        <source>Two Pages</source>
+        <translation>Две страницы</translation>
+    </message>
+    <message>
+        <source>Two Pages, Cover Alone</source>
+        <translation>Две страницы, обложка отдельно</translation>
+    </message>
+    <message>
+        <source>A book or comic opened flat: the cover alone, then 2 and 3 side by side</source>
+        <translation>Книга или комикс, раскрытые плашмя: обложка отдельно, затем 2 и 3 рядом</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>Непрерывно</translation>
+    </message>
+    <message>
+        <source>Scroll through every page. Off shows one page or spread at a time, and the wheel turns the page.</source>
+        <translation>Прокручивать все страницы. Если выключено, показывается одна страница или разворот, а колесо мыши листает страницы.</translation>
+    </message>
+    <message>
+        <source>Right to Left</source>
+        <translation>Справа налево</translation>
+    </message>
+    <message>
+        <source>Put the earlier page of a spread on the right, for manga and right-to-left books</source>
+        <translation>Ставить более раннюю страницу разворота справа, для манги и книг, читаемых справа налево</translation>
+    </message>
+    <message>
+        <source>Rotate Clockwise</source>
+        <translation>Повернуть по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Full Screen</source>
+        <translation>Полноэкранный режим</translation>
+    </message>
+    <message>
+        <source>Full Screen (F11). Esc or a double-click returns.</source>
+        <translation>Полноэкранный режим (F11). Esc или двойной щелчок возвращает обратно.</translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation>Редактировать...</translation>
+    </message>
+    <message>
+        <source>Open pages in Patchy to edit them, with the Import PDF options</source>
+        <translation>Открыть страницы в Patchy для редактирования с параметрами импорта PDF</translation>
+    </message>
+    <message>
+        <source>Print as Book...</source>
+        <translation>Печать в виде книги...</translation>
+    </message>
+    <message>
+        <source>Print the pages so they fold, cut or stack into a book, with assembly steps</source>
+        <translation>Напечатать страницы так, чтобы их можно было сложить, разрезать или собрать стопкой в книгу, с шагами сборки</translation>
+    </message>
+    <message>
+        <source>%1 - PDF Viewer</source>
+        <translation>%1 - Просмотр PDF</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation>из %1</translation>
     </message>
 </context>
 <context>

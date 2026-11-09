@@ -2442,7 +2442,8 @@ QString path_with_default_extension(QString path, const QString& selected_filter
 // behind a modal progress dialog so big documents keep the UI responsive.
 // Load failures propagate as exceptions.
 std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent, const QString& path,
-                                                               bool interactive, bool allow_raw_dialog) {
+                                                               bool interactive, bool allow_raw_dialog,
+                                                               const PdfImportDialogStart* pdf_start = nullptr) {
   const QFileInfo info(path);
   const auto extension = info.suffix().toLower();
   if (interactive && allow_raw_dialog && raw::is_camera_raw_extension(extension.toStdString()) &&
@@ -2463,7 +2464,7 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
   // is rendered. There is no preference to skip it, because there is no sane default page
   // set for a multi-page file.
   if (interactive && is_pdf_extension(extension) && pdf_import_is_available()) {
-    auto outcome = run_pdf_import_dialog(parent, path);
+    auto outcome = run_pdf_import_dialog(parent, path, pdf_start != nullptr ? *pdf_start : PdfImportDialogStart{});
     if (!outcome.has_value()) {
       return std::nullopt;
     }
@@ -2604,8 +2605,9 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
 // network server that is not allowed, one question: Allow Server stores the servers and
 // reloads, so the layers load (docs/kra.md, "File layers"). Not Now keeps the empty layers.
 std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path,
-                                                          bool interactive, bool allow_raw_dialog) {
-  auto loaded = load_document_interactive_once(parent, path, interactive, allow_raw_dialog);
+                                                          bool interactive, bool allow_raw_dialog,
+                                                          const PdfImportDialogStart* pdf_start = nullptr) {
+  auto loaded = load_document_interactive_once(parent, path, interactive, allow_raw_dialog, pdf_start);
   if (!interactive || !loaded.has_value() || loaded->blocked_link_servers.isEmpty()) {
     return loaded;
   }
@@ -2634,7 +2636,7 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
   for (const auto& server : std::as_const(loaded->blocked_link_servers)) {
     allow_network_link_server(server);
   }
-  return load_document_interactive_once(parent, path, interactive, allow_raw_dialog);
+  return load_document_interactive_once(parent, path, interactive, allow_raw_dialog, pdf_start);
 }
 
 // The status-message tail for a layer-keeping writer's notices: the first note verbatim,
@@ -3592,9 +3594,21 @@ void MainWindow::run_held_open_prompts(std::vector<std::pair<std::int64_t, std::
   }
 }
 
-void MainWindow::open_document_path(QString path, OpenExisting existing) {
+void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen pdf) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
+    return;
+  }
+  // A PDF opens in the viewer (docs/pdf-viewer.md): reading needs no import choices, and
+  // the viewer's Edit... comes back here with PdfOpen::Import. A running script, an
+  // unattended run and the Preferences switch keep the Import PDF dialog.
+  if (pdf == PdfOpen::Viewer && pdf_import_start_ == nullptr && is_pdf_extension(QFileInfo(path).suffix()) &&
+      pdf_import_is_available() && !unattended_automation() &&
+      (!script_engine_host_ || !script_engine_host_->run_active() || script_engine_host_->manual_edit_pause()) &&
+      app_settings().value(QStringLiteral("imports/pdfOpenInViewer"), true).toBool()) {
+    if (open_pdf_viewer(path)) {
+      add_recent_file(path);
+    }
     return;
   }
 #ifdef Q_OS_WASM
@@ -3624,7 +3638,9 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
   try {
     const bool allow_raw_dialog = !script_engine_host_ || !script_engine_host_->run_active() ||
                                   script_engine_host_->manual_edit_pause();
-    auto loaded = load_document_interactive(this, path, !unattended_automation(), allow_raw_dialog);
+    QWidget* dialog_parent = pdf_import_dialog_parent_ != nullptr ? pdf_import_dialog_parent_.data() : this;
+    auto loaded = load_document_interactive(dialog_parent, path, !unattended_automation(), allow_raw_dialog,
+                                            pdf_import_start_);
     if (!loaded.has_value()) {
 #ifdef Q_OS_WASM
       wasm_files::publish_open_probe(QStringLiteral("cancelled"), path);

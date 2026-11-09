@@ -357,7 +357,7 @@ void MainWindow::open_smart_object_contents() {
     }
     const auto parent_title = parent_session.title.isEmpty() ? tr("Untitled") : parent_session.title;
     // A fresh copy: a document already showing the file may be linked to another parent.
-    open_document_path(*resolved, OpenExisting::LoadCopy);
+    open_document_path(*resolved, OpenExisting::LoadCopy, PdfOpen::Import);
     auto& child_session = session();
     if (QFileInfo(child_session.path) != QFileInfo(*resolved)) {
       return;  // the open failed or landed elsewhere; nothing to link

@@ -556,11 +556,25 @@ std::optional<PdfImportResult> load_pdf_document(const QString& path, const PdfI
   return render_pages(pdf, options, file_name, error, reader.get());
 }
 
-std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QString& path) {
+bool load_pdf_for_viewing(QWidget* parent, QPdfDocument& document, const QString& path,
+                          QString* accepted_password) {
+  if (const auto status = open_pdf(document, path, QString(), parent, accepted_password);
+      status != QPdfDocument::Error::None) {
+    QMessageBox box(QMessageBox::Warning, QObject::tr("Open PDF"), error_message(status, QFileInfo(path).fileName()),
+                    QMessageBox::Ok, parent);
+    box.setObjectName(QStringLiteral("pdfOpenFailedMessageBox"));
+    exec_dialog(box);
+    return false;
+  }
+  return true;
+}
+
+std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QString& path,
+                                                     const PdfImportDialogStart& start) {
   const auto file_name = QFileInfo(path).fileName();
   QPdfDocument pdf;
   QString accepted_password;
-  if (const auto status = open_pdf(pdf, path, QString(), parent, &accepted_password);
+  if (const auto status = open_pdf(pdf, path, start.password, parent, &accepted_password);
       status != QPdfDocument::Error::None) {
     QMessageBox box(QMessageBox::Warning, QObject::tr("Open PDF"), error_message(status, file_name), QMessageBox::Ok,
                     parent);
@@ -654,8 +668,23 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   QObject::connect(&dialog, &QDialog::finished, thumbnail_timer, &QTimer::stop);
   thumbnail_timer->start();
   if (pages_list->count() > 0) {
-    pages_list->item(0)->setSelected(true);
-    pages_list->setCurrentRow(0);
+    // The viewer's Edit... starts on the page or spread it showed.
+    bool selected = false;
+    for (const int page : start.pages) {
+      if (auto* item = pages_list->item(page); item != nullptr) {
+        if (!selected) {
+          pages_list->setCurrentRow(page);
+        }
+        item->setSelected(true);
+        selected = true;
+      }
+    }
+    if (!selected) {
+      pages_list->item(0)->setSelected(true);
+      pages_list->setCurrentRow(0);
+    } else {
+      pages_list->scrollToItem(pages_list->currentItem());
+    }
   }
   body->addWidget(pages_list, 1);
 

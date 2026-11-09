@@ -217,6 +217,8 @@ add_library(patchy_core
   src/core/photo_develop.cpp
   src/core/photo_divide.cpp
   src/core/book_scan.cpp
+  src/core/book_imposition.cpp
+  src/core/page_view_layout.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_depth.cpp
   src/core/hdr_color.cpp
@@ -1455,6 +1457,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_smart_filter_adjustments.cpp
       src/ui/main_window_document_dialogs.cpp
       src/ui/main_window_files.cpp
+      src/ui/main_window_pdf_viewer.cpp
       src/ui/tiff_jpeg_reader.cpp
       src/ui/apng_reader.cpp
       src/ui/network_mounts.cpp
@@ -1807,7 +1810,16 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     # the stub (which reports PDF opening as unavailable) everywhere else. PDF EXPORT is
     # not gated at all; pdf_export.cpp sits in the unconditional source list above.
     if(TARGET Qt6::Pdf)
-      target_sources(patchy_ui PRIVATE src/ui/pdf_import.cpp)
+      # The PDF viewer and its Print as Book need Qt PDF (and Qt Print Support, which every
+      # Qt PDF kit has: neither exists on wasm). docs/pdf-viewer.md, docs/pdf-book-print.md.
+      target_sources(patchy_ui PRIVATE
+        src/ui/pdf_import.cpp
+        src/ui/pdf_page_view.hpp
+        src/ui/pdf_page_view.cpp
+        src/ui/pdf_viewer_window.hpp
+        src/ui/pdf_viewer_window.cpp
+        src/ui/pdf_book_print_dialog.hpp
+        src/ui/pdf_book_print_dialog.cpp)
       target_link_libraries(patchy_ui PRIVATE Qt6::Pdf)
       target_compile_definitions(patchy_ui PUBLIC PATCHY_HAVE_QT_PDF=1)
     else()
@@ -2497,6 +2509,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
     tests/core/book_scan_tests.cpp
+    tests/core/book_imposition_tests.cpp
     tests/core/pixel_depth_tests.cpp
     tests/core/hdr_color_tests.cpp
     tests/core/pixel_tools_tests.cpp
@@ -2692,6 +2705,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/import_print_resolution_tests_geometry_rendering.cpp
       tests/ui/divide_photos_tests.cpp
       tests/ui/book_scan_tests.cpp
+      tests/ui/pdf_viewer_tests.cpp
       tests/ui/folder_open_export_tests.cpp
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp

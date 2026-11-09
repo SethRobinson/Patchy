@@ -15159,6 +15159,385 @@ Do you want to replace it?</source>
         <source>Thumbnail display:</source>
         <translation>Visualización de miniaturas:</translation>
     </message>
+    <message>
+        <source>a blank page</source>
+        <translation>una página en blanco</translation>
+    </message>
+    <message>
+        <source>page %1</source>
+        <translation>página %1</translation>
+    </message>
+    <message>
+        <source>Putting the book together</source>
+        <translation>Montar el libro</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
+        <translation>
+            <numerusform>Imprimir: Patchy imprime la primera cara de %n hoja y luego te pide que vuelvas a colocar la pila impresa en la bandeja de papel para la segunda cara. Prueba primero con una hoja: marca el borde superior de una hoja en blanco, imprime y fíjate en cómo sale, para saber cómo volver a cargar la pila.</numerusform>
+            <numerusform>Imprimir: Patchy imprime la primera cara de todas las %n hojas y luego te pide que vuelvas a colocar la pila impresa en la bandeja de papel para la segunda cara. Prueba primero con una hoja: marca el borde superior de una hoja en blanco, imprime y fíjate en cómo sale, para saber cómo volver a cargar la pila.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>
+            <numerusform>Imprime %n hoja por las dos caras. Patchy pide a la impresora que voltee por el borde corto; si el diálogo de impresión tiene un ajuste a doble cara, elige encuadernación por el borde corto (a veces llamada &quot;voltear hacia arriba&quot;).</numerusform>
+            <numerusform>Imprime %n hojas por las dos caras. Patchy pide a la impresora que voltee por el borde corto; si el diálogo de impresión tiene un ajuste a doble cara, elige encuadernación por el borde corto (a veces llamada &quot;voltear hacia arriba&quot;).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>Revisa la hoja 1: una cara muestra %1 y %2 una junto a otra, la otra cara %3 y %4. Si la segunda cara salió boca abajo, activa &quot;Imprimir los reversos al revés&quot; y vuelve a imprimir.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only.</source>
+        <translation>
+            <numerusform>Imprime %n hoja por una sola cara.</numerusform>
+            <numerusform>Imprime %n hojas por una sola cara.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>right</source>
+        <translation>derecho</translation>
+    </message>
+    <message>
+        <source>left</source>
+        <translation>izquierdo</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
+        <translation>Conserva las hojas en el orden en que se imprimieron. Apílalas con la hoja 1 abajo y todas las hojas en el mismo sentido, con la cara de la portada hacia abajo. Iguala los bordes.</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
+        <translation>Dobla toda la pila por la mitad de una sola vez, levantando una mitad y llevándola sobre la otra, de modo que la portada quede por fuera. Marca bien el pliegue con una regla o con el reverso de una cuchara.</translation>
+    </message>
+    <message>
+        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
+        <translation>Grapa a través del pliegue: dos grapas a un cuarto de distancia desde arriba y desde abajo (tres para un libro alto). Una grapadora de brazo largo lo hace directamente; con una grapadora normal, abre el cuadernillo boca abajo sobre cartón grueso, grapa a través del pliegue hacia el cartón, sácalo y aplasta las patas de las grapas por dentro. También sirve coser con aguja e hilo por tres agujeros del pliegue.</translation>
+    </message>
+    <message>
+        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
+        <translation>Las hojas interiores sobresalen un poco por el borde abierto. Si quieres, recorta ese borde recto con una regla y un cúter.</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
+        <translation>Un cuadernillo se dobla bien hasta unas 12 hojas (48 páginas) de papel normal. Para un libro más grueso, elige Libro cosido.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
+        <translation>
+            <numerusform>Divide la pila, en el orden en que se imprimió, en %n pliego de %1 hoja(s) cada uno (el último puede tener menos).</numerusform>
+            <numerusform>Divide la pila, en el orden en que se imprimió, en %n pliegos de %1 hoja(s) cada uno (el último puede tener menos).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
+        <translation>Dobla cada pliego por separado, como un cuadernillo: su primera hoja abajo, con la cara de su primera página hacia abajo; luego dobla la pila por la mitad y marca el pliegue.</translation>
+    </message>
+    <message>
+        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
+        <translation>Apila los pliegos doblados en orden, con los pliegues juntos y el pliego 1 arriba cuando el libro está con la portada hacia arriba.</translation>
+    </message>
+    <message>
+        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
+        <translation>Revisa el lomo: a partir del segundo pliego, cada uno tiene una marca negra en su pliegue, un escalón más abajo que la anterior. Una marca fuera de línea indica que un pliego está desordenado.</translation>
+    </message>
+    <message>
+        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
+        <translation>Encuaderna: cose cada pliego a sus vecinos a través de su pliegue, o sujeta la pila entre dos tablas con los pliegues sobresaliendo un poco, extiende cola blanca (PVA) en el lomo y, una vez seca, pega una hoja de cubierta alrededor.</translation>
+    </message>
+    <message>
+        <source>Trim the open edge straight with a ruler and craft knife.</source>
+        <translation>Recorta el borde abierto recto con una regla y un cúter.</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
+        <translation>Conserva las hojas en el orden en que se imprimieron, con la hoja 1 arriba, la cara que muestra la portada hacia arriba y todas las hojas en el mismo sentido.</translation>
+    </message>
+    <message>
+        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
+        <translation>Corta toda la pila por la mitad, con una guillotina de papel o con una regla y un cúter (las marcas de los bordes superior e inferior indican la línea).</translation>
+    </message>
+    <message>
+        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>Coloca el montón derecho debajo del montón izquierdo. Ahora las páginas se leen en orden.</translation>
+    </message>
+    <message>
+        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>Encuaderna por el borde %1: sujeta la pila y extiende dos capas de cola blanca (PVA) en ese borde, o usa encuadernación de peine o espiral, o dos o tres grapas cerca del borde. Para peine o grapas, ajusta un margen del lomo de al menos 10 mm.</translation>
+    </message>
+    <message>
+        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
+        <translation>Dobla la hoja por la mitad del borde superior al inferior, marca el pliegue y desdobla. Dóblala por la mitad de lado a lado, marca el pliegue y desdobla. Dobla cada lado hacia el pliegue central, marca el pliegue y desdobla: los pliegues marcan ocho paneles.</translation>
+    </message>
+    <message>
+        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
+        <translation>Dóblala otra vez por la mitad de lado a lado y corta desde el borde doblado a lo largo del pliegue central, solo a través de los dos paneles del medio (la línea impresa muestra el corte).</translation>
+    </message>
+    <message>
+        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>Desdóblala y dóblala por la mitad del borde superior al inferior, con lo impreso por fuera. Empuja los dos extremos el uno hacia el otro: el corte se abre en un rombo y luego en una cruz.</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
+        <translation>Dobla las cuatro solapas juntas hasta formar un cuadernillo con la portada por fuera y marca el lomo.</translation>
+    </message>
+    <message>
+        <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
+        <translation>Cada hoja forma su propio zine de ocho páginas: páginas 1 a 8, 9 a 16, y así sucesivamente.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) were added to fill the last sheet.</source>
+        <translation>
+            <numerusform>Se añadió %n página en blanco para completar la última hoja.</numerusform>
+            <numerusform>Se añadieron %n páginas en blanco para completar la última hoja.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The document has no pages to print.</source>
+        <translation>El documento no tiene páginas para imprimir.</translation>
+    </message>
+    <message>
+        <source>Preparing sheets...</source>
+        <translation>Preparando las hojas...</translation>
+    </message>
+    <message>
+        <source>Preparing side %1 of %2...</source>
+        <translation>Preparando la cara %1 de %2...</translation>
+    </message>
+    <message>
+        <source>%1 (book).pdf</source>
+        <translation>%1 (libro).pdf</translation>
+    </message>
+    <message>
+        <source>Print as Book - %1</source>
+        <translation>Imprimir como libro - %1</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Libro</translation>
+    </message>
+    <message>
+        <source>Booklet (fold and staple)</source>
+        <translation>Cuadernillo (doblar y grapar)</translation>
+    </message>
+    <message>
+        <source>Sewn book (folded signatures)</source>
+        <translation>Libro cosido (pliegos doblados)</translation>
+    </message>
+    <message>
+        <source>Cut and stack (glue, comb or staple binding)</source>
+        <translation>Cortar y apilar (encuadernación con cola, peine o grapas)</translation>
+    </message>
+    <message>
+        <source>Mini zine (8 pages from one sheet)</source>
+        <translation>Mini zine (8 páginas en una hoja)</translation>
+    </message>
+    <message>
+        <source>Every sheet nested and folded once. Best up to about 48 pages.</source>
+        <translation>Cada hoja anidada y doblada una vez. Ideal hasta unas 48 páginas.</translation>
+    </message>
+    <message>
+        <source>Groups of nested sheets, each folded on its own, then sewn or glued. For longer books.</source>
+        <translation>Grupos de hojas anidadas, cada uno doblado por separado y luego cosido o pegado. Para libros más largos.</translation>
+    </message>
+    <message>
+        <source>Two pages per side, cut down the middle and stacked into single leaves.</source>
+        <translation>Dos páginas por cara, cortadas por la mitad y apiladas en hojas sueltas.</translation>
+    </message>
+    <message>
+        <source>One side of one sheet folds into an eight-page booklet with a single cut.</source>
+        <translation>Una cara de una hoja se dobla en un cuadernillo de ocho páginas con un solo corte.</translation>
+    </message>
+    <message>
+        <source>Sheets per signature:</source>
+        <translation>Hojas por pliego:</translation>
+    </message>
+    <message>
+        <source>Left to right (binding on the left)</source>
+        <translation>De izquierda a derecha (encuadernación a la izquierda)</translation>
+    </message>
+    <message>
+        <source>Right to left (binding on the right)</source>
+        <translation>De derecha a izquierda (encuadernación a la derecha)</translation>
+    </message>
+    <message>
+        <source>Reading:</source>
+        <translation>Lectura:</translation>
+    </message>
+    <message>
+        <source>Keep the last page as the back cover</source>
+        <translation>Mantener la última página como contraportada</translation>
+    </message>
+    <message>
+        <source>Blank pages needed to fill the last sheet go before the last page</source>
+        <translation>Las páginas en blanco necesarias para completar la última hoja van antes de la última página</translation>
+    </message>
+    <message>
+        <source>Paper and pages</source>
+        <translation>Papel y páginas</translation>
+    </message>
+    <message>
+        <source>Sheet:</source>
+        <translation>Hoja:</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation>de %1</translation>
+    </message>
+    <message>
+        <source>Fit the whole page</source>
+        <translation>Ajustar la página completa</translation>
+    </message>
+    <message>
+        <source>Fill the space (crops the edges)</source>
+        <translation>Llenar el espacio (recorta los bordes)</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source>Space at the top, bottom and outer edge of every page</source>
+        <translation>Espacio en la parte superior, inferior y en el borde exterior de cada página</translation>
+    </message>
+    <message>
+        <source>Outer margin:</source>
+        <translation>Margen exterior:</translation>
+    </message>
+    <message>
+        <source>Space at the fold or binding edge. Zero lets a picture across two pages meet at the fold.</source>
+        <translation>Espacio en el pliegue o borde de encuadernación. Con cero, una imagen que ocupa dos páginas se une en el pliegue.</translation>
+    </message>
+    <message>
+        <source>Spine margin:</source>
+        <translation>Margen del lomo:</translation>
+    </message>
+    <message>
+        <source>Shift inner sheets for paper thickness</source>
+        <translation>Desplazar las hojas interiores según el grosor del papel</translation>
+    </message>
+    <message>
+        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet&apos;s pages move toward the fold by one paper thickness.</source>
+        <translation>Las hojas anidadas empujan las páginas interiores hacia fuera al doblarse (creep). Las páginas de cada hoja interior se acercan al pliegue un grosor de papel.</translation>
+    </message>
+    <message>
+        <source>Ordinary 80 g/m2 (20 lb) office paper is about 0.1 mm thick</source>
+        <translation>El papel de oficina normal de 80 g/m2 (20 lb) tiene unos 0,1 mm de grosor</translation>
+    </message>
+    <message>
+        <source>Printing</source>
+        <translation>Impresión</translation>
+    </message>
+    <message>
+        <source>Print fold and cut marks</source>
+        <translation>Imprimir marcas de pliegue y corte</translation>
+    </message>
+    <message>
+        <source>Backs print upside down</source>
+        <translation>Imprimir los reversos al revés</translation>
+    </message>
+    <message>
+        <source>Turn on when your printer flips on the long edge and the second side comes out upside down</source>
+        <translation>Actívalo cuando tu impresora voltea por el borde largo y la segunda cara sale boca abajo</translation>
+    </message>
+    <message>
+        <source>Print the second side by hand</source>
+        <translation>Imprimir la segunda cara a mano</translation>
+    </message>
+    <message>
+        <source>For printers that cannot print both sides: all first sides, then you reload the stack for the second sides</source>
+        <translation>Para impresoras que no pueden imprimir a doble cara: primero todas las primeras caras y luego vuelves a cargar la pila para las segundas caras</translation>
+    </message>
+    <message>
+        <source>Print the second sides last sheet first</source>
+        <translation>Imprimir las segundas caras empezando por la última hoja</translation>
+    </message>
+    <message>
+        <source>Turn on when the reloaded stack has the last sheet on top</source>
+        <translation>Actívalo cuando la pila vuelta a cargar tiene la última hoja arriba</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 ppp</translation>
+    </message>
+    <message>
+        <source>Saved PDF quality:</source>
+        <translation>Calidad del PDF guardado:</translation>
+    </message>
+    <message>
+        <source>Add a page with the assembly steps</source>
+        <translation>Añadir una página con los pasos de montaje</translation>
+    </message>
+    <message>
+        <source>First side</source>
+        <translation>Primera cara</translation>
+    </message>
+    <message>
+        <source>Second side (turned over side to side)</source>
+        <translation>Segunda cara (volteada de lado a lado)</translation>
+    </message>
+    <message>
+        <source>Print...</source>
+        <translation>Imprimir...</translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n page(s))</source>
+        <translation>
+            <numerusform> (%n página)</numerusform>
+            <numerusform> (%n páginas)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source> of %1</source>
+        <translation> de %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s) on %1 sheet(s)</source>
+        <translation>
+            <numerusform>%n página en %1 hoja(s)</numerusform>
+            <numerusform>%n páginas en %1 hoja(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n signature(s)</source>
+        <translation>
+            <numerusform>%n pliego</numerusform>
+            <numerusform>%n pliegos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) added</source>
+        <translation>
+            <numerusform>%n página en blanco añadida</numerusform>
+            <numerusform>%n páginas en blanco añadidas</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save Book PDF</source>
+        <translation>Guardar PDF del libro</translation>
+    </message>
+    <message>
+        <source>Writing the book...</source>
+        <translation>Escribiendo el libro...</translation>
+    </message>
+    <message>
+        <source>The book could not be saved: %1</source>
+        <translation>No se pudo guardar el libro: %1</translation>
+    </message>
+    <message>
+        <source>Print the Second Sides</source>
+        <translation>Imprimir las segundas caras</translation>
+    </message>
+    <message>
+        <source>When the first sides have printed, put the whole stack back in the paper tray to print on the blank side, then click Print Second Sides.</source>
+        <translation>Cuando las primeras caras estén impresas, vuelve a colocar toda la pila en la bandeja de papel para imprimir en la cara en blanco y luego haz clic en Imprimir las segundas caras.</translation>
+    </message>
+    <message>
+        <source>Print Second Sides</source>
+        <translation>Imprimir las segundas caras</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -34827,6 +35206,18 @@ Bloqueada: %1</translation>
         <source>Brush Tool: Airbrush Preset</source>
         <translation>Herramienta Pincel: ajuste Aerógrafo</translation>
     </message>
+    <message>
+        <source>%1 opened in the PDF viewer</source>
+        <translation>%1 abierto en el visor de PDF</translation>
+    </message>
+    <message>
+        <source>Open PDF files in the PDF viewer</source>
+        <translation>Abrir archivos PDF en el visor de PDF</translation>
+    </message>
+    <message>
+        <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
+        <translation>Si está desactivado, al abrir un PDF se muestra enseguida el diálogo Importar PDF para editar sus páginas.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36092,6 +36483,129 @@ Bloqueada: %1</translation>
     <message>
         <source>%1 Copy</source>
         <translation>%1 copia</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PdfViewerWindow</name>
+    <message>
+        <source>Pages</source>
+        <translation>Páginas</translation>
+    </message>
+    <message>
+        <source>Show or hide the sidebar</source>
+        <translation>Mostrar u ocultar la barra lateral</translation>
+    </message>
+    <message>
+        <source>Previous Page</source>
+        <translation>Página anterior</translation>
+    </message>
+    <message>
+        <source>Go to page</source>
+        <translation>Ir a la página</translation>
+    </message>
+    <message>
+        <source>Next Page</source>
+        <translation>Página siguiente</translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation>Reducir</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>Zoom</translation>
+    </message>
+    <message>
+        <source>Fit Page</source>
+        <translation>Ajustar página</translation>
+    </message>
+    <message>
+        <source>Fit Width</source>
+        <translation>Ajustar al ancho</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation>Tamaño real</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation>Aumentar</translation>
+    </message>
+    <message>
+        <source>How pages sit side by side</source>
+        <translation>Cómo se colocan las páginas una junto a otra</translation>
+    </message>
+    <message>
+        <source>One Page</source>
+        <translation>Una página</translation>
+    </message>
+    <message>
+        <source>Two Pages</source>
+        <translation>Dos páginas</translation>
+    </message>
+    <message>
+        <source>Two Pages, Cover Alone</source>
+        <translation>Dos páginas, portada sola</translation>
+    </message>
+    <message>
+        <source>A book or comic opened flat: the cover alone, then 2 and 3 side by side</source>
+        <translation>Un libro o cómic abierto plano: la portada sola, luego la 2 y la 3 una junto a otra</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>Continuo</translation>
+    </message>
+    <message>
+        <source>Scroll through every page. Off shows one page or spread at a time, and the wheel turns the page.</source>
+        <translation>Desplazarse por todas las páginas. Desactivado, muestra una página o un par a la vez y la rueda pasa la página.</translation>
+    </message>
+    <message>
+        <source>Right to Left</source>
+        <translation>De derecha a izquierda</translation>
+    </message>
+    <message>
+        <source>Put the earlier page of a spread on the right, for manga and right-to-left books</source>
+        <translation>Coloca la página anterior de un par a la derecha, para manga y libros de derecha a izquierda</translation>
+    </message>
+    <message>
+        <source>Rotate Clockwise</source>
+        <translation>Girar en sentido horario</translation>
+    </message>
+    <message>
+        <source>Full Screen</source>
+        <translation>Pantalla completa</translation>
+    </message>
+    <message>
+        <source>Full Screen (F11). Esc or a double-click returns.</source>
+        <translation>Pantalla completa (F11). Esc o un doble clic vuelve.</translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation>Editar...</translation>
+    </message>
+    <message>
+        <source>Open pages in Patchy to edit them, with the Import PDF options</source>
+        <translation>Abrir las páginas en Patchy para editarlas, con las opciones de Importar PDF</translation>
+    </message>
+    <message>
+        <source>Print as Book...</source>
+        <translation>Imprimir como libro...</translation>
+    </message>
+    <message>
+        <source>Print the pages so they fold, cut or stack into a book, with assembly steps</source>
+        <translation>Imprimir las páginas para que se doblen, corten o apilen en un libro, con pasos de montaje</translation>
+    </message>
+    <message>
+        <source>%1 - PDF Viewer</source>
+        <translation>%1 - Visor de PDF</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation>de %1</translation>
     </message>
 </context>
 <context>

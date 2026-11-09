@@ -101,6 +101,7 @@ struct GifFrame;  // openai_images.hpp: a decoded animation frame and its delay
 }  // namespace patchy::ui::openai
 
 namespace patchy::ui {
+struct PdfImportDialogStart;  // pdf_import.hpp
 
 class SaveProgress;
 class DocumentPathLabel;
@@ -1130,7 +1131,19 @@ private:
   // switch to that document (File > Open, Open Recent, drops, a second launch), or load
   // another copy (app.open in scripts, which returns a new document, and Edit Contents).
   enum class OpenExisting { Activate, LoadCopy };
-  void open_document_path(QString path, OpenExisting existing = OpenExisting::Activate);
+  // A PDF opened interactively shows in the PDF viewer (docs/pdf-viewer.md) unless `pdf`
+  // is Import (Open Folder, tests that drive the Import PDF dialog, the viewer's Edit...)
+  // or Preferences turned the viewer off (imports/pdfOpenInViewer).
+  enum class PdfOpen { Viewer, Import };
+  void open_document_path(QString path, OpenExisting existing = OpenExisting::Activate,
+                          PdfOpen pdf = PdfOpen::Viewer);
+  // Opens the viewer for `path`, or raises the one already showing it. False when the file
+  // could not be opened there (the user was told) or this build has no viewer.
+  bool open_pdf_viewer(const QString& path);
+  // The viewer's Edit...: the Import PDF dialog over `viewer`, starting on `pages`, without
+  // asking for the password again. True when pages opened for editing.
+  bool import_pdf_pages_from_viewer(QWidget* viewer, const QString& path, const std::vector<int>& pages,
+                                    const QString& password);
   // File > Open Folder: every supported image directly inside the picked folder
   // (natural name order, PDFs excluded) opens as its own document, the first one
   // active and the rest as background tabs. Also the target of a dropped or
@@ -4090,6 +4103,11 @@ private:
   PreviewSelectionSession* preview_selection_session_{nullptr};
   bool scanner_import_active_{false};
   QPointer<QDialog> tile_preview_window_;
+  // Open PDF viewers (PdfViewerWindow, top-level children of this window).
+  std::vector<QPointer<QWidget>> pdf_viewers_;
+  // Set only while import_pdf_pages_from_viewer runs open_document_path.
+  const PdfImportDialogStart* pdf_import_start_{nullptr};
+  QPointer<QWidget> pdf_import_dialog_parent_;
   QPointer<AnimationPreviewWindow> animation_preview_window_;
   // Canvas that owns the open preview dialog; activation of any other canvas is
   // refused while the lock is held (canvas identity, not tab index: the locked

@@ -15141,6 +15141,385 @@ Do you want to replace it?</source>
         <source>Thumbnail display:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>a blank page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>page %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Putting the book together</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trim the open edge straight with a ruler and craft knife.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) were added to fill the last sheet.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The document has no pages to print.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preparing sheets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preparing side %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (book).pdf</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print as Book - %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Booklet (fold and staple)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sewn book (folded signatures)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut and stack (glue, comb or staple binding)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mini zine (8 pages from one sheet)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Every sheet nested and folded once. Best up to about 48 pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Groups of nested sheets, each folded on its own, then sewn or glued. For longer books.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two pages per side, cut down the middle and stacked into single leaves.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One side of one sheet folds into an eight-page booklet with a single cut.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sheets per signature:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left to right (binding on the left)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to left (binding on the right)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the last page as the back cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blank pages needed to fill the last sheet go before the last page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paper and pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sheet:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit the whole page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill the space (crops the edges)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space at the top, bottom and outer edge of every page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Outer margin:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space at the fold or binding edge. Zero lets a picture across two pages meet at the fold.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spine margin:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift inner sheets for paper thickness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet&apos;s pages move toward the fold by one paper thickness.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ordinary 80 g/m2 (20 lb) office paper is about 0.1 mm thick</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Printing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print fold and cut marks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Backs print upside down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn on when your printer flips on the long edge and the second side comes out upside down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print the second side by hand</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>For printers that cannot print both sides: all first sides, then you reload the stack for the second sides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print the second sides last sheet first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn on when the reloaded stack has the last sheet on top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved PDF quality:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a page with the assembly steps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>First side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Second side (turned over side to side)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n page(s))</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source> of %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s) on %1 sheet(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n signature(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) added</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save Book PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Writing the book...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The book could not be saved: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print the Second Sides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When the first sides have printed, put the whole stack back in the paper tray to print on the blank side, then click Print Second Sides.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print Second Sides</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -34745,6 +35124,18 @@ Locked: %1</source>
         <source>Brush Tool: Airbrush Preset</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 opened in the PDF viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open PDF files in the PDF viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -36009,6 +36400,129 @@ Locked: %1</source>
     </message>
     <message>
         <source>%1 Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PdfViewerWindow</name>
+    <message>
+        <source>Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide the sidebar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How pages sit side by side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two Pages, Cover Alone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A book or comic opened flat: the cover alone, then 2 and 3 side by side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll through every page. Off shows one page or spread at a time, and the wheel turns the page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the earlier page of a spread on the right, for manga and right-to-left books</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate Clockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full Screen (F11). Esc or a double-click returns.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pages in Patchy to edit them, with the Import PDF options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print as Book...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print the pages so they fold, cut or stack into a book, with assembly steps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 - PDF Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>of %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

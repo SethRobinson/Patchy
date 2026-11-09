@@ -15112,6 +15112,376 @@ Do you want to replace it?</source>
         <source>Thumbnail display:</source>
         <translation>サムネイルの表示:</translation>
     </message>
+    <message>
+        <source>a blank page</source>
+        <translation>白紙ページ</translation>
+    </message>
+    <message>
+        <source>page %1</source>
+        <translation>%1ページ</translation>
+    </message>
+    <message>
+        <source>Putting the book together</source>
+        <translation>製本の手順</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print: Patchy prints the first side of all %n sheet(s), then asks you to put the printed stack back in the paper tray for the second side. Try it with one sheet first: mark the top edge of a blank sheet, print, and note which way it comes out, so you know how to reload the stack.</source>
+        <translation>
+            <numerusform>印刷: Patchyは%n枚すべての表面を先に印刷し、続いて印刷済みの束を用紙トレイに戻して裏面を印刷するよう案内します。まず1枚で試してください。白紙の上端に印を付けて印刷し、どちら向きで出てくるかを確かめれば、束の戻し方が分かります。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on both sides. Patchy asks the printer to flip on the short edge; if the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <translation>
+            <numerusform>%n枚の両面に印刷します。Patchyはプリンターに短辺とじで反転するよう指示します。印刷ダイアログに両面印刷の設定がある場合は、短辺とじ(「上めくり」と呼ばれることもあります)を選んでください。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Check sheet 1: one side shows %1 and %2 side by side, the other side %3 and %4. If the second side came out upside down, turn on &quot;Backs print upside down&quot; and print again.</source>
+        <translation>1枚目を確認します。片面に%1と%2が並び、もう片面に%3と%4が並んでいるはずです。裏面が上下逆に出た場合は、「裏面を上下逆に印刷」をオンにして、もう一度印刷してください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Print %n sheet(s) on one side only.</source>
+        <translation>
+            <numerusform>%n枚の片面に印刷します。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed. Stack them with sheet 1 at the bottom and every sheet the same way round, the side with the front cover facing down. Square the edges.</source>
+        <translation>印刷された順番のまま重ねます。1枚目を一番下にし、すべて同じ向きにそろえて、表表紙の面を下に向けます。端をそろえてください。</translation>
+    </message>
+    <message>
+        <source>Fold the whole stack in half along the middle in one go, lifting one half up and over the other, so the front cover ends up outside. Crease the fold firmly with a ruler or the back of a spoon.</source>
+        <translation>束全体を真ん中で一度に二つ折りにします。片方の半分を持ち上げてもう一方に重ね、表表紙が外側になるようにします。定規やスプーンの背でしっかり折り目を付けてください。</translation>
+    </message>
+    <message>
+        <source>Staple through the fold: two staples a quarter of the way from the top and bottom (three for a tall book). A long-reach stapler does it directly; with an ordinary stapler, open the booklet face down on thick cardboard, staple through the fold into the cardboard, then pull it free and press the staple legs flat inside. Needle and thread through three holes in the fold works too.</source>
+        <translation>折り目をホチキスで留めます。上下から4分の1の位置に2か所(背の高い本は3か所)。中とじ用の長いホチキスならそのまま留められます。普通のホチキスの場合は、冊子を表向きに厚い段ボールの上に開き、折り目に沿って段ボールまで針を通してから外し、針の足を内側で平らに押さえます。折り目の3か所の穴に針と糸で綴じる方法でも構いません。</translation>
+    </message>
+    <message>
+        <source>The inner sheets stick out a little at the open edge. Trim that edge straight with a ruler and craft knife if you like.</source>
+        <translation>内側の紙が開き側の端から少しはみ出します。必要なら、定規とカッターでその端をまっすぐ切りそろえてください。</translation>
+    </message>
+    <message>
+        <source>A booklet folds well up to about 12 sheets (48 pages) of ordinary paper. For a thicker book, choose Sewn book instead.</source>
+        <translation>普通紙なら、中とじ冊子は約12枚(48ページ)までがきれいに折れます。それより厚い本には、代わりに「糸かがり製本」を選んでください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Split the stack, in the order it printed, into %n signature(s) of %1 sheet(s) each (the last may have fewer).</source>
+        <translation>
+            <numerusform>束を印刷された順に、1折丁あたり%1枚ずつ、%n個の折丁に分けます(最後の折丁は枚数が少なくなることがあります)。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Fold each signature on its own, like a booklet: its first sheet at the bottom, the side with its first page facing down, then fold the stack in half and crease it.</source>
+        <translation>各折丁を中とじ冊子のようにそれぞれ折ります。最初の1枚を一番下にし、その最初のページの面を下に向けて、束を半分に折って折り目を付けます。</translation>
+    </message>
+    <message>
+        <source>Stack the folded signatures in order, folds together, signature 1 on top when the book lies front cover up.</source>
+        <translation>折った折丁を順番に重ね、折り目をそろえます。本の表表紙を上にしたとき、1番目の折丁が一番上になります。</translation>
+    </message>
+    <message>
+        <source>Check the spine: from the second signature on, each has a black mark on its fold, one step lower than the one before. A mark out of line means a signature is out of order.</source>
+        <translation>背を確認します。2番目の折丁以降は、それぞれの折り目に黒い印が付いており、前の折丁より一段ずつ下がっています。印の位置がずれていたら、折丁の順番が違っています。</translation>
+    </message>
+    <message>
+        <source>Bind: sew each signature through its fold to its neighbours, or clamp the stack between two boards with the folds sticking out a little, brush white glue (PVA) on the spine, and glue a cover sheet around it once it is dry.</source>
+        <translation>綴じ方: 各折丁を折り目で隣の折丁と糸で縫い合わせるか、折り目を少し出した状態で束を2枚の板で挟み、背に白い木工用接着剤(PVA)を塗り、乾いたらカバー用紙を巻いて貼ります。</translation>
+    </message>
+    <message>
+        <source>Trim the open edge straight with a ruler and craft knife.</source>
+        <translation>開き側の端を、定規とカッターでまっすぐ切りそろえます。</translation>
+    </message>
+    <message>
+        <source>Keep the sheets in the order they printed, sheet 1 on top with the side showing the front cover facing up, every sheet the same way round.</source>
+        <translation>印刷された順番のまま重ねます。1枚目を一番上にし、表表紙の面を上に向けて、すべて同じ向きにそろえます。</translation>
+    </message>
+    <message>
+        <source>Cut the whole stack in half along the middle, with a paper trimmer or a ruler and craft knife (the marks at the top and bottom edges show the line).</source>
+        <translation>紙裁断機、または定規とカッターで、束全体を真ん中で半分に切ります(上下の端のマークが切る位置を示します)。</translation>
+    </message>
+    <message>
+        <source>Put the right-hand pile under the left-hand pile. The pages now read in order.</source>
+        <translation>右側の山を左側の山の下に重ねます。これでページが順番どおりになります。</translation>
+    </message>
+    <message>
+        <source>Bind along the %1 edge: clamp the stack and brush two coats of white glue (PVA) on that edge, or use comb or coil binding, or two or three staples close to the edge. For comb binding or staples, set a spine margin of at least 10 mm.</source>
+        <translation>%1側を綴じます。束を固定して、その端に白い木工用接着剤(PVA)を2回塗るか、コームまたはコイルで綴じるか、端の近くを2〜3か所ホチキスで留めます。コーム綴じやホチキスの場合は、背の余白を10 mm以上にしてください。</translation>
+    </message>
+    <message>
+        <source>Fold the sheet in half from top edge to bottom edge, crease, and unfold. Fold it in half from side to side, crease, and unfold. Fold each side in to the middle crease, crease, and unfold: the creases mark eight panels.</source>
+        <translation>紙を上端から下端に向けて半分に折り、折り目を付けて開きます。次に左右で半分に折り、折り目を付けて開きます。さらに両側を中央の折り目に合わせて折り、折り目を付けて開きます。折り目で8つの面に分かれます。</translation>
+    </message>
+    <message>
+        <source>Fold it in half from side to side again and cut from the folded edge along the middle crease, only through the two middle panels (the printed line shows the cut).</source>
+        <translation>もう一度左右で半分に折り、折り目の側から中央の折り目に沿って、真ん中の2つの面だけを切ります(印刷された線が切る位置です)。</translation>
+    </message>
+    <message>
+        <source>Unfold it and fold it in half from top edge to bottom edge, printing outside. Push the two ends toward each other: the cut opens into a diamond, then a cross.</source>
+        <translation>開いてから、印刷面を外側にして上端から下端に向けて半分に折ります。両端を互いに向かって押すと、切り込みがひし形に開き、さらに十字になります。</translation>
+    </message>
+    <message>
+        <source>Fold the four flaps together into a booklet with the front cover outside, and crease the spine.</source>
+        <translation>4つの羽根を重ね合わせて冊子の形に折り、表表紙を外側にして、背に折り目を付けます。</translation>
+    </message>
+    <message>
+        <source>Each sheet makes its own eight-page zine: pages 1 to 8, 9 to 16, and so on.</source>
+        <translation>1枚で8ページのミニジンが1冊できます。1~8ページ、9~16ページ、というように続きます。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) were added to fill the last sheet.</source>
+        <translation>
+            <numerusform>最後の1枚を埋めるために白紙ページを%n枚追加しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The document has no pages to print.</source>
+        <translation>印刷するページがありません。</translation>
+    </message>
+    <message>
+        <source>Preparing sheets...</source>
+        <translation>シートを準備しています...</translation>
+    </message>
+    <message>
+        <source>Preparing side %1 of %2...</source>
+        <translation>%2枚中%1面目を準備しています...</translation>
+    </message>
+    <message>
+        <source>%1 (book).pdf</source>
+        <translation>%1(製本).pdf</translation>
+    </message>
+    <message>
+        <source>Print as Book - %1</source>
+        <translation>本として印刷 - %1</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>本</translation>
+    </message>
+    <message>
+        <source>Booklet (fold and staple)</source>
+        <translation>中とじ冊子(折ってホチキス留め)</translation>
+    </message>
+    <message>
+        <source>Sewn book (folded signatures)</source>
+        <translation>糸かがり製本(折丁を折る)</translation>
+    </message>
+    <message>
+        <source>Cut and stack (glue, comb or staple binding)</source>
+        <translation>裁断して積む(接着、コーム、ホチキス綴じ)</translation>
+    </message>
+    <message>
+        <source>Mini zine (8 pages from one sheet)</source>
+        <translation>ミニジン(1枚で8ページ)</translation>
+    </message>
+    <message>
+        <source>Every sheet nested and folded once. Best up to about 48 pages.</source>
+        <translation>すべての紙を重ねて一度だけ折ります。約48ページまでに最適です。</translation>
+    </message>
+    <message>
+        <source>Groups of nested sheets, each folded on its own, then sewn or glued. For longer books.</source>
+        <translation>重ねた紙の束をそれぞれ折り、縫うか接着します。ページ数の多い本向けです。</translation>
+    </message>
+    <message>
+        <source>Two pages per side, cut down the middle and stacked into single leaves.</source>
+        <translation>1面に2ページを配置し、真ん中で切って積み重ね、1枚ずつの紙にします。</translation>
+    </message>
+    <message>
+        <source>One side of one sheet folds into an eight-page booklet with a single cut.</source>
+        <translation>1枚の紙の片面を、1回切るだけで8ページの冊子に折ります。</translation>
+    </message>
+    <message>
+        <source>Sheets per signature:</source>
+        <translation>折丁あたりの枚数:</translation>
+    </message>
+    <message>
+        <source>Left to right (binding on the left)</source>
+        <translation>左から右(左とじ)</translation>
+    </message>
+    <message>
+        <source>Right to left (binding on the right)</source>
+        <translation>右から左(右とじ)</translation>
+    </message>
+    <message>
+        <source>Reading:</source>
+        <translation>読み方向:</translation>
+    </message>
+    <message>
+        <source>Keep the last page as the back cover</source>
+        <translation>最後のページを裏表紙にする</translation>
+    </message>
+    <message>
+        <source>Blank pages needed to fill the last sheet go before the last page</source>
+        <translation>最後の枚を埋めるために必要な白紙ページは、最後のページの前に入れる</translation>
+    </message>
+    <message>
+        <source>Paper and pages</source>
+        <translation>用紙とページ</translation>
+    </message>
+    <message>
+        <source>Sheet:</source>
+        <translation>シート:</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation>/ %1</translation>
+    </message>
+    <message>
+        <source>Fit the whole page</source>
+        <translation>ページ全体を収める</translation>
+    </message>
+    <message>
+        <source>Fill the space (crops the edges)</source>
+        <translation>余白を埋める(端が切れます)</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source>Space at the top, bottom and outer edge of every page</source>
+        <translation>すべてのページの上、下、外側の余白</translation>
+    </message>
+    <message>
+        <source>Outer margin:</source>
+        <translation>外側の余白:</translation>
+    </message>
+    <message>
+        <source>Space at the fold or binding edge. Zero lets a picture across two pages meet at the fold.</source>
+        <translation>折り目または綴じ側の余白です。0にすると、2ページにまたがる絵が折り目でつながります。</translation>
+    </message>
+    <message>
+        <source>Spine margin:</source>
+        <translation>背の余白:</translation>
+    </message>
+    <message>
+        <source>Shift inner sheets for paper thickness</source>
+        <translation>用紙の厚みに合わせて内側の紙をずらす</translation>
+    </message>
+    <message>
+        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet&apos;s pages move toward the fold by one paper thickness.</source>
+        <translation>紙を重ねて折ると、内側のページが外側へ押し出されます(クリープ)。内側の紙ごとに、ページを紙の厚み1枚分だけ折り目側へずらします。</translation>
+    </message>
+    <message>
+        <source>Ordinary 80 g/m2 (20 lb) office paper is about 0.1 mm thick</source>
+        <translation>80 g/m2(20 lb)の一般的なコピー用紙の厚さは約0.1 mmです</translation>
+    </message>
+    <message>
+        <source>Printing</source>
+        <translation>印刷</translation>
+    </message>
+    <message>
+        <source>Print fold and cut marks</source>
+        <translation>折りと裁断のマークを印刷する</translation>
+    </message>
+    <message>
+        <source>Backs print upside down</source>
+        <translation>裏面を上下逆に印刷</translation>
+    </message>
+    <message>
+        <source>Turn on when your printer flips on the long edge and the second side comes out upside down</source>
+        <translation>プリンターが長辺で反転し、裏面が上下逆に出る場合にオンにします</translation>
+    </message>
+    <message>
+        <source>Print the second side by hand</source>
+        <translation>裏面を手動で印刷する</translation>
+    </message>
+    <message>
+        <source>For printers that cannot print both sides: all first sides, then you reload the stack for the second sides</source>
+        <translation>両面印刷ができないプリンター向け: 先にすべての表面を印刷し、その後で束を入れ直して裏面を印刷します</translation>
+    </message>
+    <message>
+        <source>Print the second sides last sheet first</source>
+        <translation>裏面を最後の枚から順に印刷する</translation>
+    </message>
+    <message>
+        <source>Turn on when the reloaded stack has the last sheet on top</source>
+        <translation>入れ直した束の一番上が最後の枚になる場合にオンにします</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Saved PDF quality:</source>
+        <translation>保存するPDFの品質:</translation>
+    </message>
+    <message>
+        <source>Add a page with the assembly steps</source>
+        <translation>製本手順のページを追加する</translation>
+    </message>
+    <message>
+        <source>First side</source>
+        <translation>表面</translation>
+    </message>
+    <message>
+        <source>Second side (turned over side to side)</source>
+        <translation>裏面(左右に裏返す)</translation>
+    </message>
+    <message>
+        <source>Print...</source>
+        <translation>印刷...</translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n page(s))</source>
+        <translation>
+            <numerusform> (%n ページ)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source> of %1</source>
+        <translation> / %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n page(s) on %1 sheet(s)</source>
+        <translation>
+            <numerusform>%nページ、%1枚</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n signature(s)</source>
+        <translation>
+            <numerusform>%n折丁</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n blank page(s) added</source>
+        <translation>
+            <numerusform>白紙%nページを追加</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save Book PDF</source>
+        <translation>製本PDFを保存</translation>
+    </message>
+    <message>
+        <source>Writing the book...</source>
+        <translation>製本データを書き込んでいます...</translation>
+    </message>
+    <message>
+        <source>The book could not be saved: %1</source>
+        <translation>製本PDFを保存できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Print the Second Sides</source>
+        <translation>裏面を印刷</translation>
+    </message>
+    <message>
+        <source>When the first sides have printed, put the whole stack back in the paper tray to print on the blank side, then click Print Second Sides.</source>
+        <translation>表面の印刷が終わったら、束全体を用紙トレイに戻して白い面に印刷し、「裏面を印刷」をクリックしてください。</translation>
+    </message>
+    <message>
+        <source>Print Second Sides</source>
+        <translation>裏面を印刷</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -34733,6 +35103,18 @@ Locked: %1</source>
         <source>Brush Tool: Airbrush Preset</source>
         <translation>ブラシツール: エアブラシプリセット</translation>
     </message>
+    <message>
+        <source>%1 opened in the PDF viewer</source>
+        <translation>%1 をPDFビューアーで開きました</translation>
+    </message>
+    <message>
+        <source>Open PDF files in the PDF viewer</source>
+        <translation>PDFファイルをPDFビューアーで開く</translation>
+    </message>
+    <message>
+        <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
+        <translation>オフにすると、PDFを開いたときにPDFの読み込みダイアログが表示され、すぐにページを編集できます。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35994,6 +36376,129 @@ Locked: %1</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 のコピー</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PdfViewerWindow</name>
+    <message>
+        <source>Pages</source>
+        <translation>ページ</translation>
+    </message>
+    <message>
+        <source>Show or hide the sidebar</source>
+        <translation>サイドバーの表示/非表示</translation>
+    </message>
+    <message>
+        <source>Previous Page</source>
+        <translation>前のページ</translation>
+    </message>
+    <message>
+        <source>Go to page</source>
+        <translation>ページへ移動</translation>
+    </message>
+    <message>
+        <source>Next Page</source>
+        <translation>次のページ</translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation>ズームアウト</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>ズーム</translation>
+    </message>
+    <message>
+        <source>Fit Page</source>
+        <translation>ページに合わせる</translation>
+    </message>
+    <message>
+        <source>Fit Width</source>
+        <translation>幅に合わせる</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation>実際のサイズ</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation>ズームイン</translation>
+    </message>
+    <message>
+        <source>How pages sit side by side</source>
+        <translation>ページを横に並べる方法</translation>
+    </message>
+    <message>
+        <source>One Page</source>
+        <translation>1ページ</translation>
+    </message>
+    <message>
+        <source>Two Pages</source>
+        <translation>2ページ</translation>
+    </message>
+    <message>
+        <source>Two Pages, Cover Alone</source>
+        <translation>2ページ(表紙のみ単独)</translation>
+    </message>
+    <message>
+        <source>A book or comic opened flat: the cover alone, then 2 and 3 side by side</source>
+        <translation>本やコミックを開いた状態: 表紙だけを表示し、次に2ページと3ページを見開きで表示します</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>連続</translation>
+    </message>
+    <message>
+        <source>Scroll through every page. Off shows one page or spread at a time, and the wheel turns the page.</source>
+        <translation>すべてのページをスクロールします。オフにすると1ページまたは1見開きずつ表示され、ホイールでページをめくります。</translation>
+    </message>
+    <message>
+        <source>Right to Left</source>
+        <translation>右から左</translation>
+    </message>
+    <message>
+        <source>Put the earlier page of a spread on the right, for manga and right-to-left books</source>
+        <translation>見開きの前のページを右側に置きます。マンガや右開きの本向けです</translation>
+    </message>
+    <message>
+        <source>Rotate Clockwise</source>
+        <translation>時計回りに回転</translation>
+    </message>
+    <message>
+        <source>Full Screen</source>
+        <translation>フルスクリーン</translation>
+    </message>
+    <message>
+        <source>Full Screen (F11). Esc or a double-click returns.</source>
+        <translation>フルスクリーン(F11)。Escまたはダブルクリックで戻ります。</translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation>編集...</translation>
+    </message>
+    <message>
+        <source>Open pages in Patchy to edit them, with the Import PDF options</source>
+        <translation>ページをPatchyで開いて編集します(PDFの読み込みオプション付き)</translation>
+    </message>
+    <message>
+        <source>Print as Book...</source>
+        <translation>本として印刷...</translation>
+    </message>
+    <message>
+        <source>Print the pages so they fold, cut or stack into a book, with assembly steps</source>
+        <translation>ページを折る、切る、積むことで本になるように印刷します(組み立て手順付き)</translation>
+    </message>
+    <message>
+        <source>%1 - PDF Viewer</source>
+        <translation>%1 - PDFビューアー</translation>
+    </message>
+    <message>
+        <source>of %1</source>
+        <translation>/ %1</translation>
     </message>
 </context>
 <context>

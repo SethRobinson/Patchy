@@ -97,7 +97,9 @@ CanvasWidget* MainWindowTestAccess::canvas(MainWindow& window) {
 }
 
 void MainWindowTestAccess::open_document_path(MainWindow& window, QString path) {
-  window.open_document_path(std::move(path), MainWindow::OpenExisting::LoadCopy);
+  // The Import PDF dialog, which these tests drive; open_document_path_as_user reaches the
+  // PDF viewer.
+  window.open_document_path(std::move(path), MainWindow::OpenExisting::LoadCopy, MainWindow::PdfOpen::Import);
 }
 
 void MainWindowTestAccess::open_document_path_as_user(MainWindow& window, QString path) {

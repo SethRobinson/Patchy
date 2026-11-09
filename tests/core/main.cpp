@@ -192,6 +192,7 @@ int main(int argc, char** argv) {
            photo_develop_tests,
            photo_divide_tests,
            book_scan_tests,
+           book_imposition_tests,
            psd_vector_fixtures_tests,
            svg_tests,
            pdf_tests,
