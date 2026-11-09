@@ -19,7 +19,9 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QAbstractItemView>
 #include <QDialog>
+#include <QFontMetrics>
 #include <QFile>
 #include <QImage>
 #include <QLabel>
@@ -276,6 +278,30 @@ void ui_pdf_viewer_spreads_and_page_turns() {
   wait_for_renders(*view);
   CHECK(view->cached_width_for_testing(5) > 0 && view->cached_width_for_testing(6) > 0);
   viewer->grab().save(QStringLiteral("test-artifacts/ui_pdf_viewer_spreads.png"));
+  // The zoom and layout lists never elide an entry and show them all without scrolling.
+  for (const auto* name : {"pdfViewerZoomCombo", "pdfViewerLayoutCombo"}) {
+    auto* combo = viewer->findChild<QComboBox*>(QLatin1String(name));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      continue;
+    }
+    const QFontMetrics metrics(combo->view()->font());
+    for (int index = 0; index < combo->count(); ++index) {
+      CHECK(combo->view()->minimumWidth() >= metrics.horizontalAdvance(combo->itemText(index)) + 24);
+    }
+    CHECK(combo->view()->textElideMode() == Qt::ElideNone && combo->maxVisibleItems() >= combo->count());
+    // Open, the list really is that wide.
+    combo->showPopup();
+    QApplication::processEvents();
+    int widest = 0;
+    for (int index = 0; index < combo->count(); ++index) {
+      widest = std::max(widest, metrics.horizontalAdvance(combo->itemText(index)));
+    }
+    CHECK(combo->view()->viewport()->width() >= widest + 8);
+    combo->view()->window()->grab().save(QStringLiteral("test-artifacts/") + QLatin1String(name) +
+                                          QStringLiteral(".png"));
+    combo->hidePopup();
+  }
   // Thumbnail cells span the list, so each page is centred in it.
   auto* thumbnails = viewer->findChild<QListWidget*>(QStringLiteral("pdfViewerThumbnails"));
   CHECK(thumbnails != nullptr && thumbnails->count() == 7);

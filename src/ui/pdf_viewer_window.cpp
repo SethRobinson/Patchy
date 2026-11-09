@@ -6,12 +6,14 @@
 #include "ui/pdf_import.hpp"
 #include "ui/pdf_page_view.hpp"
 
+#include <QAbstractItemView>
 #include <QAction>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -67,6 +69,19 @@ PageSpreadMode spread_from_token(const QString& token) {
     return PageSpreadMode::TwoPagesCoverAlone;
   }
   return PageSpreadMode::Single;
+}
+
+// A toolbar combo stays compact; its list is as wide as its longest entry (translations
+// included), never elided, and short enough lists show every entry without scrolling.
+void fit_combo_popup_to_items(QComboBox* combo) {
+  const QFontMetrics metrics(combo->view()->font());
+  int width = 0;
+  for (int index = 0; index < combo->count(); ++index) {
+    width = std::max(width, metrics.horizontalAdvance(combo->itemText(index)));
+  }
+  combo->view()->setTextElideMode(Qt::ElideNone);
+  combo->view()->setMinimumWidth(width + 36);
+  combo->setMaxVisibleItems(std::max(combo->maxVisibleItems(), combo->count()));
 }
 
 // A zoom token: a percentage written with a dot (settings, combo data). 0 when it is not one.
@@ -214,6 +229,7 @@ void PdfViewerWindow::build_ui() {
   for (const int percent : {25, 50, 75, 100, 125, 150, 200, 300, 400, 800}) {
     zoom_combo_->addItem(tr("%1%").arg(percent), QString::number(percent));
   }
+  fit_combo_popup_to_items(zoom_combo_);
   toolbar_->addWidget(zoom_combo_);
   const auto apply_zoom_token = [this](const QString& token) {
     if (token == QStringLiteral("page")) {
@@ -253,6 +269,7 @@ void PdfViewerWindow::build_ui() {
   layout_combo_->addItem(tr("Two Pages, Cover Alone"), spread_token(PageSpreadMode::TwoPagesCoverAlone));
   layout_combo_->setItemData(2, tr("A book or comic opened flat: the cover alone, then 2 and 3 side by side"),
                              Qt::ToolTipRole);
+  fit_combo_popup_to_items(layout_combo_);
   toolbar_->addWidget(layout_combo_);
   connect(layout_combo_, &QComboBox::activated, this, [this](int index) {
     view_->set_spread_mode(spread_from_token(layout_combo_->itemData(index).toString()));
