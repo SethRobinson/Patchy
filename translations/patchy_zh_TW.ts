@@ -16457,6 +16457,22 @@ Do you want to replace it?</source>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF 已寫入。是否保留掃描專案資料夾（%1），以便日後變更頁面並再次匯出？</translation>
     </message>
+    <message>
+        <source>Switch on or connect a scanner. This list updates when one appears.</source>
+        <translation>請開啟或連接掃描器。出現掃描器時此清單會自動更新。</translation>
+    </message>
+    <message>
+        <source>The scanner is switched off or disconnected. Switch it on to keep scanning.</source>
+        <translation>掃描器已關閉或已中斷連線。請開啟掃描器以繼續掃描。</translation>
+    </message>
+    <message>
+        <source>Reconnected to the scanner. Scanning again...</source>
+        <translation>已重新連線到掃描器。正在重新掃描...</translation>
+    </message>
+    <message>
+        <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
+        <translation>掃描器現在不支援 %1 dpi；將以 %2 dpi 掃描。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

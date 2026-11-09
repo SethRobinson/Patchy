@@ -2,17 +2,23 @@
 // and scans its flatbed with fixed settings, no system dialog. Every WIA call runs on one
 // worker thread in the multithreaded apartment that owns the device for the session's
 // lifetime, so the window stays responsive and Cancel reaches the transfer callback.
-// Compiled on Windows only (see CMakeLists).
+// While a session exists it listens for scanners turning on or off: WIA's device
+// connected/disconnected events, plus WM_DEVICECHANGE as a second trigger. Either one
+// starts a short debounce, then the list is read again on the worker thread
+// (docs/book-scan.md, "Scanners turning on and off"). Compiled on Windows only (see CMakeLists).
 
 #include "ui/scanner_session.hpp"
 
+#include <QAbstractNativeEventFilter>
 #include <QCoreApplication>
 #include <QDir>
 #include <QMetaObject>
 #include <QPointer>
+#include <QTimer>
 
 #include <windows.h>
 
+#include <dbt.h>
 #include <shlwapi.h>
 #include <sti.h>
 #include <wia_lh.h>
@@ -35,7 +41,31 @@ QString hresult_text(HRESULT hr) {
   return QStringLiteral("0x%1").arg(static_cast<qulonglong>(static_cast<ULONG>(hr)), 8, 16, QLatin1Char('0'));
 }
 
+// Errors that mean the device is gone or its handle is dead (switched off, unplugged,
+// power-cycled, or the WIA service restarted): the session must open it again.
+bool device_lost_error(HRESULT hr) {
+  switch (hr) {
+    case WIA_ERROR_OFFLINE:
+    case WIA_ERROR_DEVICE_COMMUNICATION:
+    case WIA_S_NO_DEVICE_AVAILABLE:
+    case HRESULT_FROM_WIN32(ERROR_DEVICE_NOT_CONNECTED):
+    case HRESULT_FROM_WIN32(ERROR_NOT_READY):
+    case HRESULT_FROM_WIN32(RPC_S_SERVER_UNAVAILABLE):
+    case RPC_E_DISCONNECTED:
+    case RPC_E_SERVER_DIED:
+    case RPC_E_SERVER_DIED_DNE:
+    case CO_E_OBJNOTCONNECTED:
+      return true;
+    default:
+      return false;
+  }
+}
+
 QString wia_failure_text(HRESULT hr) {
+  if (device_lost_error(hr)) {
+    return QCoreApplication::translate("ScannerSession",
+                                       "The scanner stopped responding. Check that it is switched on and connected.");
+  }
   switch (hr) {
     case WIA_ERROR_BUSY:
       return QCoreApplication::translate("ScannerSession", "The scanner is busy with another job or program.");
@@ -262,6 +292,97 @@ private:
   int streams_{0};
 };
 
+// Relays WIA device events. Called on an RPC thread; `notify` must be thread-safe.
+class WiaEventSink final : public IWiaEventCallback {
+public:
+  explicit WiaEventSink(std::function<void()> notify) : notify_(std::move(notify)) {}
+
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override {
+    if (object == nullptr) {
+      return E_POINTER;
+    }
+    if (riid == IID_IUnknown || riid == IID_IWiaEventCallback) {
+      *object = static_cast<IWiaEventCallback*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *object = nullptr;
+    return E_NOINTERFACE;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
+  ULONG STDMETHODCALLTYPE Release() override {
+    const ULONG remaining = --refs_;
+    if (remaining == 0) {
+      delete this;
+    }
+    return remaining;
+  }
+  HRESULT STDMETHODCALLTYPE ImageEventCallback(const GUID*, BSTR, BSTR, BSTR, DWORD, BSTR, ULONG*, ULONG) override {
+    notify_();
+    return S_OK;
+  }
+
+private:
+  ~WiaEventSink() = default;
+  std::atomic<ULONG> refs_{1};
+  std::function<void()> notify_;
+};
+
+// The scanners WIA lists as present. WIA_DEVINFO_ENUM_LOCAL leaves out installed
+// scanners that are switched off or unplugged (WIA_DEVINFO_ENUM_ALL would list them).
+// Runs on the worker thread.
+std::vector<ScannerDeviceInfo> enumerate_wia_scanners() {
+  std::vector<ScannerDeviceInfo> found;
+  IWiaDevMgr2* manager = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_WiaDevMgr2, nullptr, CLSCTX_LOCAL_SERVER, IID_IWiaDevMgr2,
+                              reinterpret_cast<void**>(&manager))) ||
+      manager == nullptr) {
+    return found;
+  }
+  IEnumWIA_DEV_INFO* devices = nullptr;
+  if (SUCCEEDED(manager->EnumDeviceInfo(WIA_DEVINFO_ENUM_LOCAL, &devices)) && devices != nullptr) {
+    IWiaPropertyStorage* info = nullptr;
+    ULONG fetched = 0;
+    while (devices->Next(1, &info, &fetched) == S_OK && fetched == 1) {
+      PropertyStorage storage(info);
+      LONG type = 0;
+      storage.read_long(WIA_DIP_DEV_TYPE, &type);
+      if (GET_STIDEVICE_TYPE(type) == StiDeviceTypeScanner) {
+        found.push_back({storage.read_string(WIA_DIP_DEV_ID), storage.read_string(WIA_DIP_DEV_NAME)});
+      }
+      info->Release();
+    }
+    devices->Release();
+  }
+  manager->Release();
+  return found;
+}
+
+bool same_devices(const std::vector<ScannerDeviceInfo>& a, const std::vector<ScannerDeviceInfo>& b) {
+  return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](const ScannerDeviceInfo& x, const ScannerDeviceInfo& y) {
+    return x.id == y.id && x.name == y.name;
+  });
+}
+
+// WM_DEVICECHANGE (DBT_DEVNODES_CHANGED) reaches every top-level window when any device
+// node changes; installed only while a WIA session exists.
+class DeviceChangeFilter final : public QAbstractNativeEventFilter {
+public:
+  explicit DeviceChangeFilter(std::function<void()> changed) : changed_(std::move(changed)) {}
+  bool nativeEventFilter(const QByteArray& type, void* message, qintptr*) override {
+    if (type == "windows_generic_MSG" && message != nullptr) {
+      const auto* msg = static_cast<const MSG*>(message);
+      if (msg->message == WM_DEVICECHANGE && msg->wParam == DBT_DEVNODES_CHANGED) {
+        changed_();
+      }
+    }
+    return false;
+  }
+
+private:
+  std::function<void()> changed_;
+};
+
 // One thread in the multithreaded apartment that runs every WIA call in order.
 class ComWorker {
 public:
@@ -323,11 +444,36 @@ private:
 
 class WiaScannerSession final : public ScannerSession {
 public:
-  WiaScannerSession() = default;
+  WiaScannerSession() {
+    rescan_timer_.setSingleShot(true);
+    connect(&rescan_timer_, &QTimer::timeout, this, &WiaScannerSession::rescan);
+    QPointer<WiaScannerSession> self(this);
+    // WIA calls the sink on an RPC thread: hop to the GUI thread before touching the timer.
+    auto on_wia_event = [self]() {
+      QMetaObject::invokeMethod(
+          qApp,
+          [self]() {
+            if (self) {
+              self->wia_event_seen_ = true;
+              self->schedule_rescan(kWiaEventDebounceMs);
+            }
+          },
+          Qt::QueuedConnection);
+    };
+    worker_.post([this, on_wia_event]() { register_events_on_worker(on_wia_event); });
+    if (QCoreApplication::instance() != nullptr) {
+      device_filter_ = std::make_unique<DeviceChangeFilter>([this]() { schedule_rescan(kDeviceNodeDebounceMs); });
+      QCoreApplication::instance()->installNativeEventFilter(device_filter_.get());
+    }
+  }
   ~WiaScannerSession() override {
+    if (device_filter_ != nullptr && QCoreApplication::instance() != nullptr) {
+      QCoreApplication::instance()->removeNativeEventFilter(device_filter_.get());
+    }
     cancel_ = true;
     worker_.call<int>([this]() {
       release_device();
+      unregister_events_on_worker();
       return 0;
     });
   }
@@ -337,32 +483,8 @@ public:
   }
 
   std::vector<ScannerDeviceInfo> devices() override {
-    return worker_.call<std::vector<ScannerDeviceInfo>>([]() {
-      std::vector<ScannerDeviceInfo> found;
-      IWiaDevMgr2* manager = nullptr;
-      if (FAILED(CoCreateInstance(CLSID_WiaDevMgr2, nullptr, CLSCTX_LOCAL_SERVER, IID_IWiaDevMgr2,
-                                  reinterpret_cast<void**>(&manager))) ||
-          manager == nullptr) {
-        return found;
-      }
-      IEnumWIA_DEV_INFO* devices = nullptr;
-      if (SUCCEEDED(manager->EnumDeviceInfo(WIA_DEVINFO_ENUM_LOCAL, &devices)) && devices != nullptr) {
-        IWiaPropertyStorage* info = nullptr;
-        ULONG fetched = 0;
-        while (devices->Next(1, &info, &fetched) == S_OK && fetched == 1) {
-          PropertyStorage storage(info);
-          LONG type = 0;
-          storage.read_long(WIA_DIP_DEV_TYPE, &type);
-          if (GET_STIDEVICE_TYPE(type) == StiDeviceTypeScanner) {
-            found.push_back({storage.read_string(WIA_DIP_DEV_ID), storage.read_string(WIA_DIP_DEV_NAME)});
-          }
-          info->Release();
-        }
-        devices->Release();
-      }
-      manager->Release();
-      return found;
-    });
+    last_devices_ = worker_.call<std::vector<ScannerDeviceInfo>>([]() { return enumerate_wia_scanners(); });
+    return last_devices_;
   }
 
   bool open(const QString& device_id, QString* error) override {
@@ -396,10 +518,76 @@ public:
     });
   }
 
+  void close() override {
+    worker_.post([this]() { release_device(); });
+  }
+
   void cancel() override { cancel_ = true; }
   bool busy() const override { return busy_; }
 
 private:
+  // WIA reports a device a little after it appears; a power switch can bounce.
+  static constexpr int kWiaEventDebounceMs = 400;
+  // Device nodes change before WIA has caught up, and for every other device too.
+  static constexpr int kDeviceNodeDebounceMs = 1500;
+
+  void schedule_rescan(int delay_ms) {
+    // A pending shorter wait is kept; a longer one is cut to this one.
+    if (!rescan_timer_.isActive() || rescan_timer_.remainingTime() > delay_ms) {
+      rescan_timer_.start(delay_ms);
+    }
+  }
+
+  // Reads the list on the worker thread, then tells the dialog if anything changed. A WIA
+  // event always counts: a scanner switched off and on within the debounce lists the same,
+  // but its old handle is dead.
+  void rescan() {
+    const bool event_seen = wia_event_seen_;
+    wia_event_seen_ = false;
+    QPointer<WiaScannerSession> self(this);
+    worker_.post([self, event_seen]() {
+      std::vector<ScannerDeviceInfo> found = enumerate_wia_scanners();
+      QMetaObject::invokeMethod(
+          qApp,
+          [self, event_seen, found = std::move(found)]() {
+            if (!self) {
+              return;
+            }
+            if (!event_seen && same_devices(found, self->last_devices_)) {
+              return;
+            }
+            self->last_devices_ = found;
+            emit self->devices_changed(found);
+          },
+          Qt::QueuedConnection);
+    });
+  }
+
+  void register_events_on_worker(const std::function<void()>& notify) {
+    IWiaDevMgr2* manager = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_WiaDevMgr2, nullptr, CLSCTX_LOCAL_SERVER, IID_IWiaDevMgr2,
+                                reinterpret_cast<void**>(&manager))) ||
+        manager == nullptr) {
+      return;
+    }
+    auto* sink = new WiaEventSink(notify);
+    // Fails quietly: WM_DEVICECHANGE and the Refresh button still update the list.
+    manager->RegisterEventCallbackInterface(0, nullptr, &WIA_EVENT_DEVICE_CONNECTED, sink, &connected_event_);
+    manager->RegisterEventCallbackInterface(0, nullptr, &WIA_EVENT_DEVICE_DISCONNECTED, sink, &disconnected_event_);
+    sink->Release();
+    manager->Release();
+  }
+
+  void unregister_events_on_worker() {
+    // Releasing the event objects unregisters the callbacks.
+    for (IUnknown** event : {&connected_event_, &disconnected_event_}) {
+      if (*event != nullptr) {
+        (*event)->Release();
+        *event = nullptr;
+      }
+    }
+  }
+
   void release_device() {
     if (flatbed_ != nullptr) {
       flatbed_->Release();
@@ -495,6 +683,11 @@ private:
     if (SUCCEEDED(hr)) {
       hr = item.write_long(WIA_IPS_YRES, request.dpi);
     }
+    if (device_lost_error(hr)) {
+      result.device_lost = true;
+      result.error = wia_failure_text(hr);
+      return result;
+    }
     if (FAILED(hr)) {
       result.error = QCoreApplication::translate("ScannerSession", "The scanner does not accept %1 dpi.").arg(request.dpi);
       return result;
@@ -521,7 +714,9 @@ private:
     item.write_guid(WIA_IPA_FORMAT, WiaImgFmt_BMP);
 
     IWiaTransfer* transfer = nullptr;
-    if (FAILED(flatbed_->QueryInterface(IID_IWiaTransfer, reinterpret_cast<void**>(&transfer))) || transfer == nullptr) {
+    hr = flatbed_->QueryInterface(IID_IWiaTransfer, reinterpret_cast<void**>(&transfer));
+    if (FAILED(hr) || transfer == nullptr) {
+      result.device_lost = device_lost_error(hr);
       result.error = QCoreApplication::translate("ScannerSession", "The scanner does not support direct transfers.");
       return result;
     }
@@ -576,16 +771,25 @@ private:
       return result;
     }
     result.status = ScannerAcquireStatus::Failed;
-    result.error = wia_failure_text(FAILED(callback_error) ? callback_error : hr);
+    const HRESULT failure = FAILED(callback_error) ? callback_error : hr;
+    result.device_lost = device_lost_error(failure);
+    result.error = wia_failure_text(failure);
     return result;
   }
 
   ComWorker worker_;
   std::atomic<bool> cancel_{false};
   bool busy_{false};
+  // GUI thread.
+  QTimer rescan_timer_;
+  bool wia_event_seen_{false};
+  std::vector<ScannerDeviceInfo> last_devices_;
+  std::unique_ptr<DeviceChangeFilter> device_filter_;
   // Owned by the worker thread.
   IWiaItem2* root_{nullptr};
   IWiaItem2* flatbed_{nullptr};
+  IUnknown* connected_event_{nullptr};
+  IUnknown* disconnected_event_{nullptr};
   ScannerCapabilities capabilities_;
 };
 

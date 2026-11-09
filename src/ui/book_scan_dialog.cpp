@@ -34,6 +34,7 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QShortcut>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStandardItemModel>
@@ -469,15 +470,7 @@ BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   close_row->addWidget(close_button);
   root->addLayout(close_row);
 
-  if (session_ != nullptr) {
-    connect(session_.get(), &ScannerSession::finished, this, &BookScanDialog::scan_finished);
-    connect(session_.get(), &ScannerSession::progress, this, [this](int percent) {
-      progress_bar_->setRange(0, 100);
-      progress_bar_->setValue(percent);
-    });
-    connect(session_.get(), &ScannerSession::status_message, this,
-            [this](const QString& text) { status_label_->setText(text); });
-  }
+  connect_session();
   refresh_devices();
   go_to(Step::Setup);
   // The last book's folder: the setup step then offers to continue that book.
@@ -597,16 +590,15 @@ void BookScanDialog::build_setup_page() {
   connect(system_dialog_check_, &QCheckBox::toggled, this, [this](bool on) {
     session_ = on ? create_dialog_scanner_session(this) : create_scanner_session(this);
     session_open_ = false;
-    if (session_ != nullptr) {
-      connect(session_.get(), &ScannerSession::finished, this, &BookScanDialog::scan_finished);
-      connect(session_.get(), &ScannerSession::progress, this, [this](int percent) {
-        progress_bar_->setRange(0, 100);
-        progress_bar_->setValue(percent);
-      });
-      connect(session_.get(), &ScannerSession::status_message, this,
-              [this](const QString& text) { status_label_->setText(text); });
-    }
+    drop_after_scan_ = false;
+    connect_session();
     refresh_devices();
+  });
+  // Another scanner picked after one was opened: open the new one on the next scan.
+  connect(device_combo_, &QComboBox::currentIndexChanged, this, [this] {
+    if (session_open_ && !scan_in_progress() && device_combo_->currentData().toString() != project_.device_id) {
+      drop_session();
+    }
   });
   connect(scan_cover_button_, &QPushButton::clicked, this, &BookScanDialog::start_cover_scan);
   connect(skip_cover_button_, &QPushButton::clicked, this, &BookScanDialog::skip_cover);
@@ -1135,28 +1127,124 @@ void BookScanDialog::build_review_page() {
   });
 }
 
+void BookScanDialog::connect_session() {
+  if (session_ == nullptr) {
+    return;
+  }
+  connect(session_.get(), &ScannerSession::finished, this, &BookScanDialog::scan_finished);
+  connect(session_.get(), &ScannerSession::progress, this, [this](int percent) {
+    progress_bar_->setRange(0, 100);
+    progress_bar_->setValue(percent);
+  });
+  connect(session_.get(), &ScannerSession::status_message, this,
+          [this](const QString& text) { status_label_->setText(text); });
+  connect(session_.get(), &ScannerSession::devices_changed, this, &BookScanDialog::devices_changed);
+}
+
 void BookScanDialog::refresh_devices() {
   if (device_combo_ == nullptr) {
     return;
   }
-  device_combo_->clear();
   if (session_ == nullptr) {
+    device_combo_->clear();
     device_combo_->addItem(tr("Scanning is not available here"));
     scan_cover_button_->setEnabled(false);
     return;
   }
-  const auto devices = session_->devices();
-  for (const auto& device : devices) {
-    device_combo_->addItem(device.name, device.id);
+  // Refresh also lets go of the open scanner: one switched off and on since then has a
+  // dead handle.
+  if (!scan_in_progress()) {
+    drop_session();
   }
-  if (devices.empty()) {
-    device_combo_->addItem(tr("No scanner found"));
+  apply_devices(session_->devices());
+}
+
+void BookScanDialog::apply_devices(const std::vector<ScannerDeviceInfo>& devices) {
+  // A book under way keeps its scanner selected; the setup step keeps the user's pick.
+  const QString preferred = step_ != Step::Setup && !project_.device_id.isEmpty()
+                                ? project_.device_id
+                                : device_combo_->currentData().toString();
+  {
+    const QSignalBlocker blocker(device_combo_);
+    device_combo_->clear();
+    for (const auto& device : devices) {
+      device_combo_->addItem(device.name, device.id);
+    }
+    if (devices.empty()) {
+      device_combo_->addItem(tr("No scanner found"));
+    }
+    int index = preferred.isEmpty() ? -1 : device_combo_->findData(preferred);
+    if (index < 0 && !project_.device_id.isEmpty()) {
+      index = device_combo_->findData(project_.device_id);
+    }
+    if (index >= 0) {
+      device_combo_->setCurrentIndex(index);
+    }
   }
-  const int remembered = device_combo_->findData(project_.device_id);
-  if (remembered >= 0) {
-    device_combo_->setCurrentIndex(remembered);
+  const bool found = !devices.empty();
+  scan_cover_button_->setEnabled(found && !scan_in_progress());
+  skip_cover_button_->setEnabled(found);
+  const QString hint = found ? QString() : tr("Switch on or connect a scanner. This list updates when one appears.");
+  scan_cover_button_->setToolTip(hint);
+  device_combo_->setToolTip(hint);
+  // Past the setup step: is the book's scanner still there?
+  const bool listed = step_ == Step::Setup || project_.device_id.isEmpty() ||
+                      std::any_of(devices.begin(), devices.end(),
+                                  [this](const ScannerDeviceInfo& device) { return device.id == project_.device_id; });
+  const QString off_text = tr("The scanner is switched off or disconnected. Switch it on to keep scanning.");
+  if (!listed) {
+    status_label_->setText(off_text);
+  } else if (status_label_->text() == off_text) {
+    status_label_->clear();
   }
-  scan_cover_button_->setEnabled(!devices.empty());
+  if (listed != device_listed_) {
+    device_listed_ = listed;
+    resolution_combo_->setEnabled(capabilities_.direct_control && device_listed_);
+    color_combo_->setEnabled(capabilities_.direct_control && device_listed_);
+  }
+}
+
+void BookScanDialog::devices_changed(const std::vector<ScannerDeviceInfo>& devices) {
+  apply_devices(devices);
+  // The open scanner's handle may be dead now (switched off and on): open it again on
+  // the next scan, which also reads its resolutions and bed size again.
+  if (scan_in_progress()) {
+    drop_after_scan_ = session_open_;
+  } else {
+    drop_session();
+  }
+}
+
+void BookScanDialog::drop_session() {
+  if (!session_open_) {
+    return;
+  }
+  session_open_ = false;
+  if (session_ != nullptr) {
+    session_->close();
+  }
+}
+
+void BookScanDialog::start_session_scan(const ScanRequest& request) {
+  last_request_ = request;
+  scan_retried_ = false;
+  session_->start_scan(last_request_);
+}
+
+bool BookScanDialog::retry_after_device_loss() {
+  drop_after_scan_ = false;
+  drop_session();
+  if (!ensure_session_open(false)) {
+    return false;
+  }
+  scan_retried_ = true;
+  ScanRequest request = last_request_;
+  if (pending_ != PendingScan::Cover) {
+    request.dpi = project_.capture_dpi;  // the reopened scanner may offer other resolutions
+  }
+  status_label_->setText(tr("Reconnected to the scanner. Scanning again..."));
+  session_->start_scan(request);
+  return true;
 }
 
 void BookScanDialog::go_to(Step step) {
@@ -1293,7 +1381,8 @@ void BookScanDialog::continue_book() {
   }
   const QString device = device_combo_->currentData().toString();
   project_ = std::move(*loaded);
-  if (session_open_ && !device.isEmpty()) {
+  // The scanner picked in the setup step (the book's own when it is listed).
+  if (!device.isEmpty()) {
     project_.device_id = device;
   }
   if (!title_edit_->text().trimmed().isEmpty()) {
@@ -1344,27 +1433,54 @@ void BookScanDialog::open_book_folder() {
   }
 }
 
-bool BookScanDialog::ensure_session_open() {
+bool BookScanDialog::ensure_session_open(bool report) {
   if (session_ == nullptr) {
-    show_scan_error(tr("Scanning is not available here."));
+    if (report) {
+      show_scan_error(tr("Scanning is not available here."));
+    }
     return false;
   }
   if (session_open_) {
     return true;
   }
-  const QString device = device_combo_->currentData().toString();
+  // Once the book is under way it keeps its scanner, even while another one is listed.
+  QString device = device_combo_->currentData().toString();
+  if (step_ != Step::Setup && !project_.device_id.isEmpty()) {
+    device = project_.device_id;
+  }
   QString error;
   if (!session_->open(device, &error)) {
-    show_scan_error(error.isEmpty() ? tr("The scanner could not be opened.") : error);
-    if (!system_dialog_check_->isChecked()) {
-      status_label_->setText(tr("Try \"Use the system scan dialog for each scan\" in step 1."));
+    if (report) {
+      show_scan_error(error.isEmpty() ? tr("The scanner could not be opened.") : error);
+      if (!system_dialog_check_->isChecked()) {
+        status_label_->setText(tr("Try \"Use the system scan dialog for each scan\" in step 1."));
+      }
     }
     return false;
   }
   session_open_ = true;
+  const std::vector<int> old_resolutions = capabilities_.resolutions;
   capabilities_ = session_->capabilities();
   project_.device_id = device;
   app_settings().setValue(QStringLiteral("bookScan/deviceId"), device);
+  device_listed_ = true;
+  // Opened again past the setup step (after the scanner turned off and on, say): keep the
+  // capture settings to what it offers now.
+  if (step_ != Step::Setup && capabilities_.resolutions != old_resolutions) {
+    const int wanted = project_.capture_dpi;
+    const auto& offered = capabilities_.resolutions;
+    if (!offered.empty() && std::find(offered.begin(), offered.end(), wanted) == offered.end()) {
+      int nearest = offered.front();
+      for (const int dpi : offered) {
+        if (std::abs(dpi - wanted) < std::abs(nearest - wanted)) {
+          nearest = dpi;
+        }
+      }
+      project_.capture_dpi = nearest;
+      status_label_->setText(tr("The scanner does not offer %1 dpi now; scanning at %2 dpi.").arg(wanted).arg(nearest));
+    }
+    fill_resolution_combo();
+  }
   return true;
 }
 
@@ -1417,7 +1533,7 @@ void BookScanDialog::start_cover_scan() {
   status_label_->setText(tr("Scanning the cover..."));
   progress_bar_->setRange(0, 0);
   progress_bar_->setVisible(true);
-  session_->start_scan(request);
+  start_session_scan(request);
 }
 
 void BookScanDialog::skip_cover() {
@@ -1456,6 +1572,13 @@ QString BookScanDialog::store_scan_file(const QString& file, const QString& base
 }
 
 void BookScanDialog::scan_finished(const ScanResult& result) {
+  if (result.device_lost && pending_ != PendingScan::None && !scan_retried_ && retry_after_device_loss()) {
+    return;
+  }
+  if (drop_after_scan_ || result.device_lost) {
+    drop_after_scan_ = false;
+    drop_session();
+  }
   const PendingScan pending = pending_;
   pending_ = PendingScan::None;
   progress_bar_->setVisible(false);
@@ -1521,10 +1644,9 @@ std::optional<QRectF> BookScanDialog::scan_area_for_pages() const {
   return project_.book_area_inches;
 }
 
-void BookScanDialog::refresh_cover_page() {
+void BookScanDialog::fill_resolution_combo() {
+  const bool was_refreshing = refreshing_;
   refreshing_ = true;
-  up_combo_->setCurrentIndex((4 - project_.up_turns) % 4);
-  direction_combo_->setCurrentIndex(project_.direction == BookReadingDirection::RightToLeft ? 1 : 0);
   resolution_combo_->clear();
   std::vector<int> resolutions = capabilities_.resolutions;
   if (resolutions.empty()) {
@@ -1538,9 +1660,17 @@ void BookScanDialog::refresh_cover_page() {
     resolution_index = resolution_combo_->findData(300);
   }
   resolution_combo_->setCurrentIndex(std::max(0, resolution_index));
-  resolution_combo_->setEnabled(capabilities_.direct_control);
+  resolution_combo_->setEnabled(capabilities_.direct_control && device_listed_);
+  refreshing_ = was_refreshing;
+}
+
+void BookScanDialog::refresh_cover_page() {
+  refreshing_ = true;
+  up_combo_->setCurrentIndex((4 - project_.up_turns) % 4);
+  direction_combo_->setCurrentIndex(project_.direction == BookReadingDirection::RightToLeft ? 1 : 0);
+  fill_resolution_combo();
   color_combo_->setCurrentIndex(project_.capture_mode == ScanColorMode::Grayscale ? 1 : 0);
-  color_combo_->setEnabled(capabilities_.direct_control);
+  color_combo_->setEnabled(capabilities_.direct_control && device_listed_);
   area_combo_->setCurrentIndex(project_.scan_book_area ? 0 : 1);
   area_combo_->setEnabled(capabilities_.scan_area && project_.cover.has_value());
   mode_combo_->setCurrentIndex(project_.mode == BookScanMode::OnePage ? 1 : 0);
@@ -1662,7 +1792,7 @@ void BookScanDialog::start_page_scan() {
   status_label_->setText(tr("Scanning..."));
   progress_bar_->setRange(0, 0);
   progress_bar_->setVisible(true);
-  session_->start_scan(request);
+  start_session_scan(request);
 }
 
 void BookScanDialog::rescan_last() {
@@ -1682,7 +1812,7 @@ void BookScanDialog::rescan_last() {
   status_label_->setText(tr("Scanning again..."));
   progress_bar_->setRange(0, 0);
   progress_bar_->setVisible(true);
-  session_->start_scan(request);
+  start_session_scan(request);
 }
 
 void BookScanDialog::apply_page_scan(const QString& file, double dpi, bool replace_last) {

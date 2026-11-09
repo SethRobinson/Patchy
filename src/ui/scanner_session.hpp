@@ -22,7 +22,9 @@ namespace patchy::ui {
 //   - Every desktop platform: the system scan dialog once per scan (the fallback, and
 //     macOS/Linux until their direct backends land), where settings are the user's.
 //   - Tests: PATCHY_FAKE_BOOK_SCANNER, a queue of image files (scanner_session.cpp).
-// Scans complete asynchronously through finished(); progress() reports percent.
+// Scans complete asynchronously through finished(); progress() reports percent. A backend
+// that hears about scanners turning on or off (WIA) emits devices_changed() while the
+// session exists; nothing listens before a session is created or after it is destroyed.
 
 struct ScannerDeviceInfo {
   QString id;
@@ -59,6 +61,9 @@ struct ScanResult {
   // True when the image covers only the requested area. False means the whole bed came
   // back (system dialog, or a driver that ignored the area) and the caller crops.
   bool area_applied{false};
+  // The scan failed because the open device went away (switched off, unplugged, or
+  // power-cycled so its handle is dead): open() again before the next scan.
+  bool device_lost{false};
 };
 
 class ScannerSession : public QObject {
@@ -74,6 +79,8 @@ public:
   [[nodiscard]] virtual std::vector<ScannerDeviceInfo> devices() = 0;
   // Opens one device for the session's following scans; false fills `error`.
   virtual bool open(const QString& device_id, QString* error) = 0;
+  // Lets go of the open device without waiting; the next open() starts fresh.
+  virtual void close() {}
   [[nodiscard]] virtual ScannerCapabilities capabilities() const = 0;
   // Starts a scan; exactly one finished() follows. Ignored while busy().
   virtual void start_scan(const ScanRequest& request) = 0;
@@ -84,6 +91,9 @@ signals:
   void progress(int percent);
   void status_message(const QString& text);
   void finished(const patchy::ui::ScanResult& result);
+  // A scanner was switched on or off, plugged in or unplugged: `devices` is the list
+  // now, read off the GUI thread. An open device may be dead after this (open again).
+  void devices_changed(const std::vector<patchy::ui::ScannerDeviceInfo>& devices);
 };
 
 // The session for this platform: the fake scanner when PATCHY_FAKE_BOOK_SCANNER is set,
@@ -94,6 +104,9 @@ signals:
 [[nodiscard]] std::unique_ptr<ScannerSession> create_dialog_scanner_session(QWidget* dialog_parent);
 // True when this build can scan at all (false on WebAssembly).
 [[nodiscard]] bool scanner_sessions_available();
+// Tests: every test scanner session re-reads PATCHY_FAKE_BOOK_SCANNER_DEVICES and emits
+// devices_changed(), as a real backend does when a scanner turns on or off.
+void notify_test_scanner_devices_changed();
 
 #if defined(Q_OS_WIN)
 [[nodiscard]] std::unique_ptr<ScannerSession> create_wia_scanner_session();

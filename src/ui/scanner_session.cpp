@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QWidget>
 
+#include <algorithm>
 #include <cmath>
 
 namespace patchy::ui {
@@ -38,6 +39,15 @@ QString move_scan_file(const QString& from, const QString& base_path) {
 // them) handed out one per scan. Each image is taken as a whole-bed scan at the
 // requested resolution, so the requested area is cut from it the way a real driver
 // would; PATCHY_FAKE_BOOK_SCANNER_BED ("8.5x11.7", inches) sets the reported bed.
+// PATCHY_FAKE_BOOK_SCANNER_DEVICES ("id=Name;id2=Name2", or "none") sets the scanner list
+// and PATCHY_FAKE_BOOK_SCANNER_DPIS ("150,300") the resolutions open() reports; changing
+// them and calling notify_test_scanner_devices_changed() plays a scanner turning on or off.
+class FakeScannerSession;
+std::vector<FakeScannerSession*>& live_fake_sessions() {
+  static std::vector<FakeScannerSession*> sessions;
+  return sessions;
+}
+
 class FakeScannerSession final : public ScannerSession {
 public:
   explicit FakeScannerSession(QStringList files) : files_(std::move(files)) {
@@ -47,17 +57,55 @@ public:
       bed_width_ = parts[0].toDouble();
       bed_height_ = parts[1].toDouble();
     }
+    live_fake_sessions().push_back(this);
   }
+  ~FakeScannerSession() override { std::erase(live_fake_sessions(), this); }
 
   QString backend_name() const override { return QStringLiteral("Test scanner"); }
   std::vector<ScannerDeviceInfo> devices() override {
-    return {{QStringLiteral("fake"), QStringLiteral("Test scanner")}};
+    if (!qEnvironmentVariableIsSet("PATCHY_FAKE_BOOK_SCANNER_DEVICES")) {
+      return {{QStringLiteral("fake"), QStringLiteral("Test scanner")}};
+    }
+    std::vector<ScannerDeviceInfo> found;
+    const QString list = qEnvironmentVariable("PATCHY_FAKE_BOOK_SCANNER_DEVICES");
+    for (const QString& entry : list.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
+      const qsizetype equals = entry.indexOf(QLatin1Char('='));
+      if (equals > 0) {
+        found.push_back({entry.left(equals), entry.mid(equals + 1)});
+      }
+    }
+    return found;
   }
-  bool open(const QString&, QString*) override { return true; }
+  bool open(const QString& device_id, QString* error) override {
+    const auto listed = devices();
+    if (std::none_of(listed.begin(), listed.end(), [&](const ScannerDeviceInfo& d) { return d.id == device_id; })) {
+      if (error != nullptr) {
+        *error = QStringLiteral("The test scanner is switched off.");
+      }
+      return false;
+    }
+    resolutions_ = {150, 200, 300, 600};
+    if (qEnvironmentVariableIsSet("PATCHY_FAKE_BOOK_SCANNER_DPIS")) {
+      resolutions_.clear();
+      for (const QString& dpi : qEnvironmentVariable("PATCHY_FAKE_BOOK_SCANNER_DPIS").split(QLatin1Char(','))) {
+        if (dpi.toInt() > 0) {
+          resolutions_.push_back(dpi.toInt());
+        }
+      }
+    }
+    open_device_ = device_id;
+    return true;
+  }
+  void close() override { open_device_.clear(); }
+  void notify_devices_changed() {
+    // A real backend's handle dies when its scanner turns off or on.
+    open_device_.clear();
+    emit devices_changed(devices());
+  }
   ScannerCapabilities capabilities() const override {
     ScannerCapabilities caps;
     caps.direct_control = true;
-    caps.resolutions = {150, 200, 300, 600};
+    caps.resolutions = resolutions_;
     caps.bed_width_inches = bed_width_;
     caps.bed_height_inches = bed_height_;
     caps.scan_area = true;
@@ -78,7 +126,11 @@ public:
 private:
   void finish(const ScanRequest& request) {
     ScanResult result;
-    if (next_ >= files_.size()) {
+    if (open_device_.isEmpty()) {
+      result.status = ScannerAcquireStatus::Failed;
+      result.device_lost = true;
+      result.error = QStringLiteral("The test scanner is not open.");
+    } else if (next_ >= files_.size()) {
       result.status = ScannerAcquireStatus::Failed;
       result.error = QStringLiteral("The test scanner has no more images.");
     } else {
@@ -114,6 +166,8 @@ private:
   }
 
   QStringList files_;
+  QString open_device_;
+  std::vector<int> resolutions_{150, 200, 300, 600};
   qsizetype next_{0};
   double bed_width_{8.5};
   double bed_height_{11.7};
@@ -196,6 +250,13 @@ bool scanner_sessions_available() {
 #else
   return qEnvironmentVariableIsSet("PATCHY_FAKE_BOOK_SCANNER");
 #endif
+}
+
+void notify_test_scanner_devices_changed() {
+  const std::vector<FakeScannerSession*> sessions = live_fake_sessions();
+  for (FakeScannerSession* session : sessions) {
+    session->notify_devices_changed();
+  }
 }
 
 std::unique_ptr<ScannerSession> create_dialog_scanner_session(QWidget* dialog_parent) {

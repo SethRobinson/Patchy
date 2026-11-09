@@ -16510,6 +16510,22 @@ Do you want to replace it?</source>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>El PDF está escrito. ¿Desea conservar la carpeta del proyecto de escaneo (%1) para poder cambiar páginas y volver a exportar más adelante?</translation>
     </message>
+    <message>
+        <source>Switch on or connect a scanner. This list updates when one appears.</source>
+        <translation>Encienda o conecte un escáner. Esta lista se actualiza cuando aparece uno.</translation>
+    </message>
+    <message>
+        <source>The scanner is switched off or disconnected. Switch it on to keep scanning.</source>
+        <translation>El escáner está apagado o desconectado. Enciéndalo para seguir escaneando.</translation>
+    </message>
+    <message>
+        <source>Reconnected to the scanner. Scanning again...</source>
+        <translation>Conectado de nuevo al escáner. Escaneando de nuevo...</translation>
+    </message>
+    <message>
+        <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
+        <translation>El escáner ya no ofrece %1 ppp; se escanea a %2 ppp.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

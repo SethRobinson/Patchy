@@ -16457,6 +16457,22 @@ Do you want to replace it?</source>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF를 썼습니다. 나중에 페이지를 바꾸고 다시 내보낼 수 있도록 스캔 프로젝트 폴더(%1)를 유지하시겠습니까?</translation>
     </message>
+    <message>
+        <source>Switch on or connect a scanner. This list updates when one appears.</source>
+        <translation>스캐너를 켜거나 연결하세요. 스캐너가 나타나면 이 목록이 자동으로 업데이트됩니다.</translation>
+    </message>
+    <message>
+        <source>The scanner is switched off or disconnected. Switch it on to keep scanning.</source>
+        <translation>스캐너가 꺼져 있거나 연결되어 있지 않습니다. 계속 스캔하려면 스캐너를 켜세요.</translation>
+    </message>
+    <message>
+        <source>Reconnected to the scanner. Scanning again...</source>
+        <translation>스캐너에 다시 연결했습니다. 다시 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>The scanner does not offer %1 dpi now; scanning at %2 dpi.</source>
+        <translation>스캐너가 이제 %1 dpi를 지원하지 않습니다. %2 dpi로 스캔합니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

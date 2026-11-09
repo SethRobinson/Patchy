@@ -64,6 +64,9 @@ public:
   // Writes the PDF; `ask_keep_folder` asks afterwards whether to keep the scan folder.
   bool export_pdf(const QString& path, bool ask_keep_folder);
   [[nodiscard]] bool scan_in_progress() const;
+  // True while a scanner is open for the following scans; a scanner turning on or off
+  // closes it, and the next scan opens it again.
+  [[nodiscard]] bool scanner_open() const noexcept { return session_open_; }
   [[nodiscard]] QString last_error() const { return last_error_; }
   // Tests: no message boxes, no beep.
   void set_quiet(bool quiet) { quiet_ = quiet; }
@@ -78,8 +81,20 @@ private:
   void build_review_page();
   void go_to(Step step);
   bool ensure_project_folder();
-  bool ensure_session_open();
+  // `report` false: no message box when the scanner cannot be opened.
+  bool ensure_session_open(bool report = true);
+  void connect_session();
   void refresh_devices();
+  // Fills the scanner list, keeping the selection when it is still there.
+  void apply_devices(const std::vector<ScannerDeviceInfo>& devices);
+  // A scanner turned on or off (docs/book-scan.md, "Scanners turning on and off").
+  void devices_changed(const std::vector<ScannerDeviceInfo>& devices);
+  // Lets go of the open scanner; the next scan opens it again.
+  void drop_session();
+  void start_session_scan(const ScanRequest& request);
+  // A scan failed because the scanner went away: open it again and repeat the scan once.
+  bool retry_after_device_loss();
+  void fill_resolution_combo();
   void save_project_quietly();
   void scan_finished(const ScanResult& result);
   void apply_cover_scan(const QString& file, double dpi);
@@ -118,6 +133,12 @@ private:
   std::unique_ptr<ScannerSession> session_;
   bool session_open_{false};
   ScannerCapabilities capabilities_;
+  // The scanner the book uses is in the current list (false while it is switched off).
+  bool device_listed_{true};
+  // A device change arrived during a scan: close the scanner once the scan ends.
+  bool drop_after_scan_{false};
+  bool scan_retried_{false};
+  ScanRequest last_request_;
   Step step_{Step::Setup};
   enum class PendingScan { None, Cover, Page, Rescan };
   PendingScan pending_{PendingScan::None};

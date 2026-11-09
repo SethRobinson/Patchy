@@ -581,6 +581,90 @@ void ui_unicode_book_scan_project_folder() {
   CHECK(media_boxes(read_file(pdf_path)).size() == 4);
 }
 
+// A scanner switched on and off while the window is open (docs/book-scan.md, "Scanners
+// turning on and off"): the scanner list, Scan Cover and the resolution list follow
+// without Refresh, the open scanner is closed and opened again, a scan the scanner drops
+// out of is repeated once, and a scanner that stays off is reported.
+void ui_book_scan_follows_scanner_power() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_power_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_power_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 3).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  const EnvGuard devices("PATCHY_FAKE_BOOK_SCANNER_DEVICES", "none");
+  const EnvGuard dpis("PATCHY_FAKE_BOOK_SCANNER_DPIS", "150,300");
+  const auto set_devices = [](const char* list) {
+    qputenv("PATCHY_FAKE_BOOK_SCANNER_DEVICES", list);
+    patchy::ui::notify_test_scanner_devices_changed();
+  };
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.set_project_folder(project);
+  dialog.set_title(QStringLiteral("Power Book"));
+  auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("bookScanDeviceCombo"));
+  auto* cover = dialog.findChild<QPushButton*>(QStringLiteral("bookScanCoverButton"));
+  auto* skip = dialog.findChild<QPushButton*>(QStringLiteral("bookScanSkipCoverButton"));
+  auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"));
+  auto* status = dialog.findChild<QLabel*>(QStringLiteral("bookScanStatusLabel"));
+  CHECK(combo != nullptr && cover != nullptr && skip != nullptr && resolution != nullptr && status != nullptr);
+  // Switched off when the window opens.
+  CHECK(combo->count() == 1 && combo->currentData().toString().isEmpty());
+  CHECK(!cover->isEnabled() && !skip->isEnabled());
+  CHECK(!cover->toolTip().isEmpty());
+  dialog.show();
+  patchy::test::ui::save_widget_artifact("ui_book_scan_power_off", dialog);
+  // Switched on: the list fills by itself.
+  set_devices("fake=Test scanner");
+  CHECK(combo->count() == 1 && combo->currentData().toString() == QStringLiteral("fake"));
+  CHECK(cover->isEnabled() && skip->isEnabled() && cover->toolTip().isEmpty());
+  patchy::test::ui::save_widget_artifact("ui_book_scan_power_on", dialog);
+  // A second scanner appears: the pick stays.
+  set_devices("other=Other scanner;fake=Test scanner");
+  CHECK(combo->count() == 2 && combo->currentData().toString() == QStringLiteral("fake"));
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Cover);
+  CHECK(dialog.scanner_open());
+  CHECK(resolution->count() == 2 && resolution->isEnabled());
+  resolution->setCurrentIndex(resolution->findData(kDpi));
+  // Switched off: the scanner is closed and its capture settings are unavailable.
+  set_devices("other=Other scanner");
+  CHECK(!dialog.scanner_open());
+  CHECK(!resolution->isEnabled());
+  // Switched on again, now offering other resolutions: the next scan opens it again
+  // (the book's scanner, not the other one) and the resolution list follows.
+  qputenv("PATCHY_FAKE_BOOK_SCANNER_DPIS", "300,1200");
+  set_devices("other=Other scanner;fake=Test scanner");
+  CHECK(resolution->isEnabled());
+  dialog.start_page_scanning();
+  CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning);
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.scanner_open());
+  CHECK(dialog.project().device_id == QStringLiteral("fake"));
+  CHECK(dialog.project().scans.size() == 1);
+  CHECK(resolution->count() == 2 && resolution->findData(1200) >= 0 && resolution->currentData().toInt() == kDpi);
+  // Switched off and on during a scan: the scan fails, is repeated once, and succeeds.
+  dialog.start_page_scan();
+  set_devices("other=Other scanner;fake=Test scanner");
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.project().scans.size() == 2);
+  CHECK(dialog.scanner_open());
+  // Switched off: the window says so until it is back.
+  set_devices("other=Other scanner");
+  CHECK(!status->text().isEmpty());
+  set_devices("other=Other scanner;fake=Test scanner");
+  CHECK(status->text().isEmpty());
+  // Off for good: the next scan reports it instead of using the other scanner.
+  set_devices("other=Other scanner");
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(!dialog.last_error().isEmpty());
+  CHECK(dialog.project().scans.size() == 2);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
@@ -594,6 +678,7 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_spine_lines_drag_past_each_other", ui_book_scan_spine_lines_drag_past_each_other},
       {"ui_book_scan_start_over_keeps_folder", ui_book_scan_start_over_keeps_folder},
       {"ui_book_scan_rtl_orders_pages", ui_book_scan_rtl_orders_pages},
+      {"ui_book_scan_follows_scanner_power", ui_book_scan_follows_scanner_power},
       {"ui_unicode_book_scan_project_folder", ui_unicode_book_scan_project_folder},
   };
 }
