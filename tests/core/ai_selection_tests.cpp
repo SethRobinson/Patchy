@@ -11,6 +11,7 @@
 #include "test_harness.hpp"
 #include "unicode_path_names.hpp"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -484,26 +485,47 @@ void ai_cancel_stops_inference_without_a_result() {
 
   // A request mid-run terminates the run well before it ends: the subject model's multi-second
   // run when the build includes it, otherwise the encoder (200 ms or more; a request that lands
-  // before ONNX Runtime attaches still terminates at once).
+  // before ONNX Runtime attaches still terminates at once). On a loaded machine the canceller
+  // can wake only after the run has finished (or in its last moments, after its last
+  // terminate check), which tests nothing, so such an attempt is retried; a request that
+  // landed at least 50 ms before the run ended must have stopped it.
   const bool subject = patchy::ai::subject_selection_available();
-  patchy::ai::InferenceCancel midway;
-  std::thread canceller([&midway, subject] {
-    std::this_thread::sleep_for(std::chrono::milliseconds(subject ? 1500 : 50));
-    midway.request();
-  });
-  cancelled = false;
-  const auto start = std::chrono::steady_clock::now();
-  try {
-    if (subject) {
-      (void)patchy::ai::subject_matte(scene, &midway);
-    } else {
-      (void)patchy::ai::sam_encode(scene, &midway);
+  bool tested = false;
+  for (int attempt = 0; attempt < 5 && !tested; ++attempt) {
+    patchy::ai::InferenceCancel midway;
+    std::atomic<std::chrono::steady_clock::rep> requested_at{0};
+    std::thread canceller([&midway, &requested_at, subject] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(subject ? 1500 : 50));
+      requested_at.store(std::chrono::steady_clock::now().time_since_epoch().count());
+      midway.request();
+    });
+    cancelled = false;
+    const auto start = std::chrono::steady_clock::now();
+    try {
+      if (subject) {
+        (void)patchy::ai::subject_matte(scene, &midway);
+      } else {
+        (void)patchy::ai::sam_encode(scene, &midway);
+      }
+    } catch (const patchy::ai::InferenceCancelled&) {
+      cancelled = true;
     }
-  } catch (const patchy::ai::InferenceCancelled&) {
-    cancelled = true;
+    const auto finished = std::chrono::steady_clock::now().time_since_epoch().count();
+    const double elapsed = milliseconds_since(start);
+    canceller.join();
+    if (cancelled) {
+      std::printf("  cancelled after %.0f ms\n", elapsed);
+      tested = true;
+    } else if (const auto margin = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                   std::chrono::milliseconds(50)).count();
+               requested_at.load() + margin < finished) {
+      std::printf("  a request during the run did not stop it (run took %.0f ms)\n", elapsed);
+      tested = true;
+    } else {
+      std::printf("  the request landed after the %.0f ms run ended; retrying\n", elapsed);
+    }
   }
-  canceller.join();
-  std::printf("  cancelled after %.0f ms\n", milliseconds_since(start));
+  CHECK(tested);
   CHECK(cancelled);
 }
 
