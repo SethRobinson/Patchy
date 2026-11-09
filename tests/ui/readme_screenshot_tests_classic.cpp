@@ -1346,7 +1346,8 @@ QImage readme_seamless_tile() {
 }
 
 // Seamless tiling mode: the Dink tile repeating across the whole canvas as live
-// ghost tiles around the document, so its edges are checked at a glance.
+// ghost tiles around the document, so its edges are checked at a glance, with the
+// Dink Smallwood palette in the Palette panel.
 void shot_readme_tile_preview() {
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
@@ -1376,9 +1377,10 @@ void shot_readme_tile_preview() {
   // the right edge at the height it entered the left. One stroke from 3 px before the tile to
   // 3 px past it (dabs outside the canvas are clipped), so every copy continues its
   // neighbors' line without a break.
+  // Pure red, index 19 of Dink's palette, so the edited tile is still all palette colors.
   canvas->set_brush_size(3);
   canvas->set_brush_softness(0);
-  canvas->set_primary_color(QColor(226, 32, 44));
+  canvas->set_primary_color(QColor(255, 0, 0));
   {
     constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
     std::vector<QPointF> across;
@@ -1391,7 +1393,27 @@ void shot_readme_tile_preview() {
   QApplication::processEvents();
 
 
-  reset_readme_status_bar(window);
+  // The tile is 256-color Dink art: the Palette panel shows the Dink Smallwood game palette,
+  // chosen from its presets the way a user does (it sets the document's palette, one undo
+  // step), and the status bar says so.
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("paletteDock"));
+  // The one-layer document needs no Layers panel: collapsed, it leaves the column's height
+  // to the palette, so all 256 swatches show, the tile's greens among them.
+  if (auto* column = patchy::ui::MainWindowTestAccess::panel_column(window)) {
+    column->set_panel_expanded(QStringLiteral("layersDock"), false);
+  }
+  QApplication::processEvents();
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("palettePresetCombo"));
+  CHECK(presets != nullptr);
+  if (presets != nullptr) {
+    const int dink = presets->findData(QStringLiteral("dink"));
+    CHECK(dink > 0);
+    emit presets->activated(dink);
+  }
+  process_events_for(300);
+  auto* count = window.findChild<QLabel*>(QStringLiteral("paletteCountLabel"));
+  // The panel selects index 0, which is white in Dink's palette (engine index order).
+  CHECK(count != nullptr && count->text().contains(QStringLiteral("#ffffff")));
   save_readme_shot("shot_readme_tile_preview", window.grab().toImage());
   tiling_action->trigger();
   QApplication::processEvents();

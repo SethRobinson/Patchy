@@ -48,6 +48,10 @@ between frames. The driver publishes `.webp` artifacts beside the PNGs.
   ends do not meet (the first attempt) leaves loose ends in every copy: check the copies with
   each other, not by eye. The ghost copies render exactly (identical pixels); the line around
   the center tile is the document outline, inverted in tiling mode.
+  The wave is pure red, index 19 of Dink's palette, so the tile stays all palette colors (its
+  44 colors are all in the ts02 BMP's palette). The Palette panel shows the Dink Smallwood preset,
+  chosen through `palettePresetCombo` (it sets the document palette, one undo step); the Layers
+  panel is collapsed so all 256 swatches fit.
 - Dink theme: applied without trusting its scripts (nothing plays on its own); the scene plays
   main.js's start-screen walk sprite and advances it 3 s. Recent files are emptied first (and
   restored) so no local path shows; the themed Preferences paints its own title bar, so it is

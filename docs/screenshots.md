@@ -141,8 +141,8 @@ Click any image to inspect it at full size. These are captures of the real edito
 </tr>
 <tr>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating one 50 by 50 pixel Dink Smallwood grass tile at 400 percent, a red wave painted across it that leaves the right edge at the height it enters the left, joining up in every copy"></a>
-      <br><sub>Seamless tiling mode repeats the canvas live, so a line painted across an edge has to meet itself in every copy: here a single 50 x 50 grass tile from Dink Smallwood</sub>
+      <a href="images/screenshots/tile_preview.png"><img src="images/screenshots/tile_preview.png" width="430" alt="Seamless tiling mode repeating one 50 by 50 pixel Dink Smallwood grass tile at 400 percent, a red wave painted across it that leaves the right edge at the height it enters the left, joining up in every copy, and the Palette panel showing the 256-color Dink Smallwood palette the tile is drawn in"></a>
+      <br><sub>Seamless tiling mode repeats the canvas live, so a line painted across an edge has to meet itself in every copy: here a single 50 x 50 grass tile from Dink Smallwood, with its 256-color game palette in the Palette panel</sub>
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/web_export.png"><img src="images/screenshots/web_export.png" width="430" alt="Export for Web making an animated GIF of San Francisco going from afternoon to blue hour, paused on frame 4 of 8, with a split view comparing the original and the 16-color dithered result and the encoded size of every format"></a>
