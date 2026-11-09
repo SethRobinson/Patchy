@@ -272,6 +272,7 @@ void ui_issue_683_arabic_psd_rerenders_right_aligned_if_available() {
     }
   )JS")));
   const auto& live = patchy::ui::MainWindowTestAccess::document(window);
+  int measured_layers = 0;
   save_image_artifact("issue_683_arabic_patchy", image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)));
   for (const auto id : ids) {
     const auto* layer = std::as_const(live).find_layer(id);
@@ -284,30 +285,32 @@ void ui_issue_683_arabic_psd_rerenders_right_aligned_if_available() {
     const auto first_run = runs.split(QLatin1Char('\n')).value(1).split(QLatin1Char('\t'));
     CHECK(first_run.value(2) == QStringLiteral("right"));
     CHECK(first_run.value(9) == QStringLiteral("ltr"));
-    // Each paragraph ends in a short line ("...al-iliktruni."). Flush right puts it against the
-    // right edge of the text, flush left (what auto direction drew) against the left. Measured on
-    // the last inked rows. Amiri Quran's tall marks reach across lines into those rows, so that
-    // layer only checks its direction and alignment above.
-    if (layer->name() == "Amiri Quran") {
+    // Flush right: every line ends at the same right edge and the left edges are ragged (auto
+    // direction drew them flush left: the reverse). Line breaks depend on the fonts the host has,
+    // so only the edges are compared, on the Noto Sans Arabic layer: Amiri Quran's tall marks
+    // (and Adobe Arabic's substitute's) join lines into one row band, so those two are left to the
+    // metadata checks above.
+    if (layer->name() != "Noto Sans Arabic") {
       continue;
     }
-    const auto& pixels = layer->pixels();
-    const auto all = alpha_pixel_bounds_in_rows(pixels, 0, pixels.height());
-    int last_row = pixels.height() - 1;
-    while (last_row > 0 && !alpha_pixel_bounds_in_rows(pixels, last_row, last_row + 1).has_value()) {
-      --last_row;
+    const auto lines = ink_lines(layer->pixels());
+    print_lines(layer->name().c_str(), lines);
+    CHECK(lines.size() >= 3U);
+    ++measured_layers;
+    int right_min = lines.front().right;
+    int right_max = lines.front().right;
+    int left_min = lines.front().left;
+    int left_max = lines.front().left;
+    for (const auto& line : lines) {
+      right_min = std::min(right_min, line.right);
+      right_max = std::max(right_max, line.right);
+      left_min = std::min(left_min, line.left);
+      left_max = std::max(left_max, line.left);
     }
-    const auto last = alpha_pixel_bounds_in_rows(pixels, std::max(0, last_row - 6), last_row + 1);
-    CHECK(all.has_value() && last.has_value());
-    if (!all.has_value() || !last.has_value()) {
-      continue;
-    }
-    std::printf("  %s ink %d-%d, last line %d-%d\n", layer->name().c_str(), all->left(), all->right(), last->left(),
-                last->right());
-    std::fflush(stdout);
-    CHECK(all->right() - last->right() <= 8);
-    CHECK(last->left() - all->left() >= all->width() / 4);
+    CHECK(right_max - right_min <= 6);
+    CHECK(left_max - left_min > right_max - right_min);
   }
+  CHECK(measured_layers == 1);
   // Saved by Patchy with an auto Arabic paragraph of its own, which the save writes right to
   // left: the Photoshop open check reads that file.
   CHECK(run_script_to_end(window, QStringLiteral(R"JS(
