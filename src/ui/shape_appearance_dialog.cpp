@@ -425,27 +425,46 @@ QToolButton* add_grid_link_button(GridSection& section, const char* name, const 
   return button;
 }
 
-// One label column width for every left-column section: the widest label of them all.
-void align_section_columns(const std::vector<QFormLayout*>& forms, const std::vector<QGridLayout*>& grids) {
-  std::vector<QLabel*> labels;
+// Left-aligns the forms' labels and adds them to `labels`.
+void collect_form_labels(const std::vector<QFormLayout*>& forms, std::vector<QLabel*>& labels) {
   for (auto* form : forms) {
-    form->setHorizontalSpacing(kSectionFormFieldGap);
     form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     for (int row = 0; row < form->rowCount(); ++row)
       if (auto* item = form->itemAt(row, QFormLayout::LabelRole); item != nullptr)
         if (auto* label = qobject_cast<QLabel*>(item->widget()); label != nullptr) labels.push_back(label);
   }
-  for (auto* grid : grids)
-    for (int row = 0; row < grid->rowCount(); ++row)
-      if (auto* item = grid->itemAtPosition(row, 0); item != nullptr)
-        if (auto* label = qobject_cast<QLabel*>(item->widget()); label != nullptr) labels.push_back(label);
+}
+
+// Widens every label to the widest of them and returns that width.
+int share_label_width(const std::vector<QLabel*>& labels) {
   int width = 0;
   for (auto* label : labels) {
     label->ensurePolished();  // the sheet's font, not the default one
     width = std::max(width, label->sizeHint().width());
   }
   for (auto* label : labels) label->setMinimumWidth(width);
+  return width;
+}
+
+// One label column width for every left-column section: the widest label of them all.
+void align_section_columns(const std::vector<QFormLayout*>& forms, const std::vector<QGridLayout*>& grids) {
+  std::vector<QLabel*> labels;
+  for (auto* form : forms) form->setHorizontalSpacing(kSectionFormFieldGap);
+  collect_form_labels(forms, labels);
+  for (auto* grid : grids)
+    for (int row = 0; row < grid->rowCount(); ++row)
+      if (auto* item = grid->itemAtPosition(row, 0); item != nullptr)
+        if (auto* label = qobject_cast<QLabel*>(item->widget()); label != nullptr) labels.push_back(label);
+  const int width = share_label_width(labels);
   for (auto* grid : grids) grid->setColumnMinimumWidth(0, width);
+}
+
+// One label column for a set of forms that keep their own label-to-field gap
+// (the right column's Fill and Stroke, GitHub #679).
+void align_form_columns(const std::vector<QFormLayout*>& forms) {
+  std::vector<QLabel*> labels;
+  collect_form_labels(forms, labels);
+  share_label_width(labels);
 }
 
 }  // namespace
@@ -1644,6 +1663,16 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   field_rows[stroke_dash_offset_spin] = stroke_dash_offset_row;
 
   right_column->addWidget(stroke_group);
+  // Fill's and Stroke's fields start in one column, and so do the fields of their
+  // nested gradient and pattern blocks (GitHub #679). The fill-only dialog hides
+  // Stroke, so its labels do not widen Fill's column there.
+  if (fill_layer_only) {
+    align_form_columns({fill_form});
+    align_form_columns({fill_gradient_form, fill_pattern_form});
+  } else {
+    align_form_columns({fill_form, stroke_form});
+    align_form_columns({fill_gradient_form, fill_pattern_form, stroke_gradient_form, stroke_pattern_form});
+  }
   if (fill_layer_only) {
     for (QWidget* group : std::initializer_list<QWidget*>{layer_group, edge_group, stroke_group}) {
       group->setVisible(false);

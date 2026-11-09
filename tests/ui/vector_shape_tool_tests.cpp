@@ -3456,6 +3456,18 @@ void ui_shape_appearance_gradient_rows_indent() {
                 "shapeGradientScaleSpin", "shapeGradientReverseCheck");
     check_block(stroke_block, align, "shapeStrokeGradientCombo", "shapeStrokeGradientTypeCombo",
                 "shapeStrokeGradientAngleSpin", "shapeStrokeGradientScaleSpin", "shapeStrokeGradientReverseCheck");
+    // GitHub #679: Fill's and Stroke's fields start in one column, and so do the
+    // fields of their gradient blocks.
+    const auto x_of = [&](const char* name) {
+      auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+      CHECK(widget != nullptr);
+      return widget != nullptr ? left(widget) : -1;
+    };
+    CHECK(left(fill_kind) == left(width->parentWidget()));
+    CHECK(left(fill_kind) == left(stroke_paint));
+    CHECK(x_of("shapeFillColorButton") == left(fill_kind));
+    CHECK(x_of("shapeFillGradientCombo") == x_of("shapeStrokeGradientCombo"));
+    CHECK(x_of("shapeGradientTypeCombo") == x_of("shapeStrokeGradientTypeCombo"));
     // GitHub issue 618: each angle field has its round dial after the - / +
     // pair, and the dial drives the field.
     for (const auto* name : {"shapeGradientAngleDial", "shapeStrokeGradientAngleDial", "shapePatternAngleDial",
@@ -3588,6 +3600,21 @@ void ui_shape_appearance_pattern_rows_indent() {
                 {"shapeStrokePatternScaleSpin", "shapeStrokePatternAngleSpin", "shapeStrokePatternOffsetXSpin",
                  "shapeStrokePatternOffsetYSpin"},
                 "shapeStrokePatternAlignCheck");
+    // GitHub #679: the Pattern rows and their blocks line up across Fill and Stroke.
+    const auto x_of = [&](const char* name) {
+      auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+      CHECK(widget != nullptr);
+      return widget != nullptr ? left(widget) : -1;
+    };
+    CHECK(left(fill_kind) == left(width->parentWidget()));
+    CHECK(x_of("shapeFillPatternCombo") == x_of("shapeStrokePatternCombo"));
+    CHECK(x_of("shapePatternAlignCheck") == x_of("shapeStrokePatternAlignCheck"));
+    auto* fill_scale = dialog->findChild<QAbstractSpinBox*>(QStringLiteral("shapePatternScaleSpin"));
+    auto* stroke_scale = dialog->findChild<QAbstractSpinBox*>(QStringLiteral("shapeStrokePatternScaleSpin"));
+    CHECK(fill_scale != nullptr && stroke_scale != nullptr);
+    if (fill_scale != nullptr && stroke_scale != nullptr) {
+      CHECK(left(fill_scale->parentWidget()) == left(stroke_scale->parentWidget()));
+    }
     patchy::test::ui::save_widget_artifact("issue552_shape_appearance_pattern_block", *dialog);
     // The Fill group down to the stroke's pattern block, for the issue reply.
     auto* fill_group = fill_kind->parentWidget();
