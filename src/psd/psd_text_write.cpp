@@ -1645,7 +1645,7 @@ std::string engine_font_set(std::span<const std::string> fonts) {
 }
 
 std::string engine_text_resources(std::span<const std::string> fonts, const PsdTextStyleRun& normal_style,
-                                  int normal_font_index, int normal_justification) {
+                                  int normal_font_index, int normal_justification, bool photoshop_layout) {
   std::string resources = "<< /KinsokuSet [ ] /MojiKumiSet [ ] /TheNormalStyleSheet 0 /TheNormalParagraphSheet 0 ";
   resources += "/ParagraphSheetSet [ << /Name ";
   resources += engine_escaped_utf16_string("Normal RGB");
@@ -1656,7 +1656,15 @@ std::string engine_text_resources(std::span<const std::string> fonts, const PsdT
   resources += " >> ] /StyleSheetSet [ << /Name ";
   resources += engine_escaped_utf16_string("Normal RGB");
   resources += " /StyleSheetData ";
-  resources += engine_style_sheet_data(normal_style, normal_font_index);
+  auto normal_sheet = engine_style_sheet_data(normal_style, normal_font_index);
+  if (photoshop_layout && normal_sheet.size() > 3U && normal_sheet.ends_with(" >>")) {
+    // The Photoshop layout mark (GitHub issue 683): Photoshop's own normal sheets carry
+    // /StyleRunAlignment 2 (its default, no effect on layout); Patchy writes it only for a layer
+    // in the Photoshop layout model, so a reopen of the Patchy-signed block keeps that model
+    // (kLayerMetadataTextLayoutMode) instead of falling back to Qt's natural line pitch.
+    normal_sheet.insert(normal_sheet.size() - 3U, " /StyleRunAlignment 2");
+  }
+  resources += normal_sheet;
   resources += " >> ] /FontSet ";
   resources += engine_font_set(fonts);
   resources +=
@@ -1710,7 +1718,8 @@ std::string engine_rendered_shape(bool boxed_text, const PsdTextBoundsD& box_bou
 
 std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<const PsdTextStyleRun> runs,
                                                std::span<const PsdTextParagraphRun> paragraph_runs, bool boxed_text,
-                                               const PsdTextBoundsD& box_bounds, int anti_alias, bool vertical) {
+                                               const PsdTextBoundsD& box_bounds, int anti_alias, bool vertical,
+                                               bool photoshop_layout) {
   const auto engine_text = photoshop_engine_text(text);
   const auto engine_units = static_cast<int>(utf8_to_utf16(engine_text).size());
   std::vector<std::string> fonts{"AdobeInvisFont"};
@@ -1807,7 +1816,8 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   normal_style.language.reset();
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
   const auto normal_justification = engine_paragraph_runs.empty() ? 0 : engine_paragraph_runs.front().justification;
-  const auto resources = engine_text_resources(fonts, normal_style, normal_font_index, normal_justification);
+  const auto resources =
+      engine_text_resources(fonts, normal_style, normal_font_index, normal_justification, photoshop_layout);
   engine += "/ResourceDict ";
   engine += resources;
   engine += "\n/DocumentResources ";
@@ -2031,6 +2041,23 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
     return std::nullopt;
   }
   auto paragraph_runs = paragraph_runs_for_layer(layer, *text);
+  // Photoshop has no auto direction and reads /Justification relative to the paragraph's own
+  // (GitHub issue 683): an auto paragraph whose first strong character lays it out right to left
+  // is written right to left, in the TySh and the Txt2 /33 alike, so Photoshop orders its lines
+  // and places its alignment the way Patchy drew them, and a reopen keeps both.
+  {
+    const auto utf16 = utf8_to_utf16(*text);
+    for (auto& run : paragraph_runs) {
+      if (!run.direction.empty() || run.start < 0 || static_cast<std::size_t>(run.start) >= utf16.size()) {
+        continue;
+      }
+      const auto length = std::min(static_cast<std::size_t>(std::max(0, run.length)),
+                                   utf16.size() - static_cast<std::size_t>(run.start));
+      if (first_strong_text_direction(std::span<const std::uint16_t>(utf16.data() + run.start, length)) == "rtl") {
+        run.direction = "rtl";
+      }
+    }
+  }
   // Qt-natural layers advance lines by Qt's line height, not Photoshop's 1.2 x size; the
   // renderer records that pitch as a fraction (kLayerMetadataTextAutoLeading) and it rides the
   // paragraph /AutoLeading so a re-layout keeps every line where Qt drew it. Photoshop-layout
@@ -2118,8 +2145,10 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   }
   const auto anti_alias_metadata = layer_metadata_value(layer, kLayerMetadataTextAntiAlias);
   const auto anti_alias = anti_alias_metadata.has_value() ? parse_int_or(*anti_alias_metadata, 3) : 3;
+  const bool photoshop_layout =
+      layer_metadata_value(layer, kLayerMetadataTextLayoutMode).value_or(std::string_view{}) == kTextLayoutModePhotoshop;
   const auto engine_data = engine_data_for_text(*text, runs, paragraph_runs, boxed_text, geometry.box_bounds,
-                                                anti_alias, geometry.vertical);
+                                                anti_alias, geometry.vertical, photoshop_layout);
   const auto descriptor_text = photoshop_engine_text(*text);
 
   const auto build_payload = [&](std::span<const std::uint8_t> engine_bytes) {

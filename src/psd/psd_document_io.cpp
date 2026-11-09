@@ -1464,10 +1464,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                                                                       : "psd_raster_preview";
         // Photoshop-authored type layers re-render with the Photoshop leading model; Patchy's
         // own exported type blocks keep native layout (see kLayerMetadataTextLayoutMode) --
-        // EXCEPT converted-then-saved layers, whose regenerated (Patchy-signed) engine data
-        // still carries fixed leading/tracking that only a Photoshop import can produce.
+        // EXCEPT a Photoshop-layout layer Patchy saved: its block carries the layout mark
+        // (GitHub issue 683), and older saves still have the fixed leading/tracking only a
+        // Photoshop import can produce.
         if (record.text_runs.has_value() &&
-            (!record.text_patchy_generated_type_block ||
+            (!record.text_patchy_generated_type_block || record.text_patchy_photoshop_layout ||
              serialized_runs_have_photoshop_leading_signals(*record.text_runs))) {
           layer.metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
         }

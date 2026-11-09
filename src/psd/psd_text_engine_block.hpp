@@ -74,11 +74,13 @@ struct TextStyleRunFeatures {
   std::optional<int> language;
 };
 
-// The composer (paragraph key /35) one paragraph run of a text object resolves to: its own sheet,
-// else its parent ParagraphSheetSet entry, else the document's default paragraph sheet (/1/3).
+// The composer (paragraph key /35) and direction (/33: 0 left to right, 1 right to left) one
+// paragraph run of a text object resolves to: its own sheet, else its parent ParagraphSheetSet
+// entry, else the document's default paragraph sheet (/1/3).
 struct TextParagraphComposer {
   int length{0};
   std::optional<int> composer;
+  std::optional<int> direction;
 };
 
 struct TextFrameGeometry {
@@ -89,7 +91,7 @@ struct TextFrameGeometry {
   std::vector<TextParagraphFontSize> paragraph_font_sizes{};
   // One entry per style run of the object; empty when no run turns a feature on.
   std::vector<TextStyleRunFeatures> style_features{};
-  // One entry per paragraph run of the object; empty when no sheet names a composer.
+  // One entry per paragraph run of the object; empty when no sheet names a composer or direction.
   std::vector<TextParagraphComposer> paragraph_composers{};
 };
 

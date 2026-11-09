@@ -391,29 +391,36 @@ std::vector<TextParagraphComposer> TextEngineBlock::object_paragraph_composers(s
   const auto* runs = list != nullptr && index < list->list.size() ? list->list[index].at_path({"0", "5", "0"}) : nullptr;
   if (runs == nullptr || !runs->is_list()) return result;
   const auto* sheets = root_.at_path({"0", "6", "0"});
-  const auto composer = [](const EngineNode* paragraph_sheet) -> std::optional<int> {
-    const auto* node = paragraph_sheet != nullptr ? paragraph_sheet->find("35") : nullptr;
+  const auto key_value = [](const EngineNode* paragraph_sheet, const char* key, int last) -> std::optional<int> {
+    const auto* node = paragraph_sheet != nullptr ? paragraph_sheet->find(key) : nullptr;
     const auto value = node != nullptr ? node->integer() : std::nullopt;
-    if (value && *value >= 0 && *value <= 2) return static_cast<int>(*value);
+    if (value && *value >= 0 && *value <= last) return static_cast<int>(*value);
     return std::nullopt;
   };
-  const auto document_default = composer(root_.at_path({"1", "3"}));
+  const auto* document_sheet = root_.at_path({"1", "3"});
   bool any = false;
   for (const auto& run : runs->list) {
     TextParagraphComposer entry;
     const auto* length = run.at_path({"1"});
     entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
     const auto* sheet = run.at_path({"0", "0"});
-    entry.composer = composer(sheet != nullptr ? sheet->at_path({"5"}) : nullptr);
-    if (!entry.composer && sheet != nullptr && sheets != nullptr && sheets->is_list()) {
+    const EngineNode* parent_sheet = nullptr;
+    if (sheet != nullptr && sheets != nullptr && sheets->is_list()) {
       const auto* parent = sheet->at_path({"6"});
       const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
       if (parent_index && *parent_index >= 0 && static_cast<std::size_t>(*parent_index) < sheets->list.size()) {
-        entry.composer = composer(sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "5"}));
+        parent_sheet = sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "5"});
       }
     }
-    if (!entry.composer) entry.composer = document_default;
-    any = any || entry.composer.has_value();
+    const auto resolve = [&](const char* key, int last) {
+      auto value = key_value(sheet != nullptr ? sheet->at_path({"5"}) : nullptr, key, last);
+      if (!value) value = key_value(parent_sheet, key, last);
+      if (!value) value = key_value(document_sheet, key, last);
+      return value;
+    };
+    entry.composer = resolve("35", 2);
+    entry.direction = resolve("33", 1);
+    any = any || entry.composer.has_value() || entry.direction.has_value();
     result.push_back(entry);
   }
   if (!any) result.clear();

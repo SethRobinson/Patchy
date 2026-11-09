@@ -56,10 +56,33 @@ without MS Gothic) and `psd_vertical_*captures*` in tests/core.
 
 `patchy.text.paragraph_runs` v4 appends column 9 (`auto`/`ltr`/`rtl`), written only when a
 paragraph carries an explicit direction. Photoshop keeps its `directionType` OUTSIDE the TySh
-(captures `rtl_hebrew_dir_rtl.psd` and `_ltr.psd` differ only in bounds; the DOM reads it back
-from the document-level Txt2 resource). Patchy writes it in both places: the authored Txt2
-paragraph sheet's `/33` (1 = RTL, else 0; [txt2.md](txt2.md)) and, only for an explicit
-direction, the Middle Eastern composer's `/ParagraphDirection` TySh paragraph key (1 = RTL,
-0 = LTR), which the reader maps back into the v4 column. Whether Photoshop honours either on a
-Patchy-authored file is unverified. Photoshop's default engine already reorders Hebrew and shapes
-Arabic (captures `rtl_mixed.png`, `rtl_arabic_left.png`), as Qt does.
+(captures `rtl_hebrew_dir_rtl.psd` and `_ltr.psd` differ only in bounds): the Txt2 paragraph
+sheet's `/33` (0 left to right, 1 right to left; [txt2.md](txt2.md)). Photoshop's default engine
+already reorders Hebrew and shapes Arabic (captures `rtl_mixed.png`, `rtl_arabic_left.png`), as
+Qt does.
+
+**Photoshop has no auto direction, and its alignment follows the direction** (GitHub issue 683,
+PS 2026 COM grid on This PC, November 2026: Hebrew and Arabic, point and 300 px box text, each
+direction with left, center and right). A paragraph is left to right unless `/33` says 1, even
+when it is all Arabic, and `/Justification` is relative to that direction: in a right-to-left
+paragraph 0 ("left") sets the text against the box's RIGHT edge and 1 ("right") against the left,
+and point text extends left of its anchor. That is Patchy's own model (alignment is logical, Qt
+mirrors it in a right-to-left block) EXCEPT for auto, which resolves by the first strong
+character: an Arabic paragraph Photoshop lays out left to right and right aligned came out right
+to left, so its right alignment landed on the left and its runs reordered. So:
+
+- **The reader** (`apply_paragraph_composers`, psd_layer_records.cpp) takes the direction of the
+  Txt2 paragraph run (own sheet, parent sheet, `/1/3`); `/33 1` reads `rtl`. A TySh key is used
+  only when the layer has no Txt2 object: Patchy's `/ParagraphDirection`, or Photon Studio's
+  `/Direction` (Photoshop ignores both; a Photon Studio 1.70 file with `/Direction 1` beside
+  `/33 0` opens left to right in Photoshop, so it does in Patchy). A paragraph left without a
+  direction stays `auto` when its first strong character is left to right (auto lays it out the
+  same, and Latin files keep their metadata) and becomes `ltr` when it is right to left.
+- **The writer** (`text_engine_inputs_for_layer`) resolves an auto paragraph whose first strong
+  character is right to left to `rtl`, in the TySh key and `/33` alike, so Photoshop draws it the
+  way Patchy did and a reopen keeps it. `first_strong_text_direction` (psd_text_runs.hpp) is the
+  shared bidi default: a table of strong letters, not the full Unicode database.
+- Tests: `psd_issue_683_direction_reads_txt2_and_photoshop_default`,
+  `psd_issue_683_reporter_files_read_direction_if_available` (`local-test-fixtures/psd/issue-683/`:
+  the reporter's Photoshop file, his Patchy 1.29 resave with right to left set, his Photon Studio
+  1.70 file), `ui_issue_683_arabic_psd_rerenders_right_aligned_if_available`.

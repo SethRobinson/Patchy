@@ -654,28 +654,55 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       if (key == "TySh") {
         record.text_source_block = key;
         const auto& text_payload = record.additional_blocks.back().payload;
-        record.text_patchy_generated_type_block =
-            record.text_patchy_generated_type_block || payload_has_patchy_generated_text_signature(text_payload);
+        const bool patchy_signed = payload_has_patchy_generated_text_signature(text_payload);
+        record.text_patchy_generated_type_block = record.text_patchy_generated_type_block || patchy_signed;
+        record.text_patchy_photoshop_layout =
+            record.text_patchy_photoshop_layout ||
+            (patchy_signed && payload_contains_ascii(text_payload, "/StyleRunAlignment"));
         // The layer's 'Txt2' object (TextIndex), when the document has one.
         const auto type_geometry = extract_type_tool_geometry(text_payload);
         const auto* text_object = type_geometry && type_geometry->text_index >= 0 &&
                                           static_cast<std::size_t>(type_geometry->text_index) < text_frames.size()
                                       ? &text_frames[static_cast<std::size_t>(type_geometry->text_index)]
                                       : nullptr;
-        // Each paragraph takes the composer of the Txt2 paragraph run its first character sits
-        // in; a paragraph no sheet names keeps World-Ready, as Photoshop 2026 lays it out.
-        const auto apply_paragraph_composers = [text_object](std::vector<PsdTextParagraphRun>& paragraphs) {
-          if (text_object == nullptr) {
-            return;
-          }
-          for (auto& paragraph : paragraphs) {
-            int start = 0;
-            for (const auto& entry : text_object->paragraph_composers) {
-              if (paragraph.start < start + entry.length) {
-                paragraph.composer = entry.composer.value_or(paragraph.composer);
-                break;
+        // Each paragraph takes the composer and direction of the Txt2 paragraph run its first
+        // character sits in; a paragraph no sheet names keeps World-Ready, as Photoshop 2026
+        // lays it out. Photoshop reads the direction only there (/33), so it wins over a TySh
+        // key another editor wrote (Photon Studio's /Direction 1 beside /33 0 opens left to
+        // right in Photoshop, GitHub issue 683). Photoshop has no auto direction: a paragraph
+        // nothing marks right to left is left to right, so one whose first strong character
+        // would make auto lay it out right to left (Arabic, Hebrew) is stored as "ltr", which
+        // keeps Photoshop's line order and its /Justification on the side Photoshop draws it.
+        const auto apply_paragraph_composers = [text_object](std::vector<PsdTextParagraphRun>& paragraphs,
+                                                             std::string_view text) {
+          if (text_object != nullptr) {
+            for (auto& paragraph : paragraphs) {
+              int start = 0;
+              for (const auto& entry : text_object->paragraph_composers) {
+                if (paragraph.start < start + entry.length) {
+                  paragraph.composer = entry.composer.value_or(paragraph.composer);
+                  if (entry.direction == 1) {
+                    paragraph.direction = "rtl";
+                  } else if (entry.direction == 0 && paragraph.direction == "rtl") {
+                    paragraph.direction.clear();
+                  }
+                  break;
+                }
+                start += entry.length;
               }
-              start += entry.length;
+            }
+          }
+          const auto utf16 = utf8_to_utf16(text);
+          for (auto& paragraph : paragraphs) {
+            if (!paragraph.direction.empty() || paragraph.start < 0 ||
+                static_cast<std::size_t>(paragraph.start) >= utf16.size()) {
+              continue;
+            }
+            const auto length = std::min(static_cast<std::size_t>(std::max(0, paragraph.length)),
+                                         utf16.size() - static_cast<std::size_t>(paragraph.start));
+            const std::span<const std::uint16_t> range(utf16.data() + paragraph.start, length);
+            if (first_strong_text_direction(range) == "rtl") {
+              paragraph.direction = "ltr";
             }
           }
         };
@@ -723,7 +750,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
             record.text_runs = serialize_patchy_text_runs(*runs);
             if (auto paragraph_runs = extract_engine_paragraph_runs(text_payload, *record.text);
                 paragraph_runs.has_value()) {
-              apply_paragraph_composers(*paragraph_runs);
+              apply_paragraph_composers(*paragraph_runs, *record.text);
               record.text_paragraph_runs = serialize_patchy_paragraph_runs(*paragraph_runs);
               record.text_html = html_from_text_runs(*record.text, *runs, *paragraph_runs);
             } else {
@@ -734,7 +761,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         if (record.text.has_value() && !record.text_paragraph_runs.has_value()) {
           if (auto paragraph_runs = extract_engine_paragraph_runs(text_payload, *record.text);
               paragraph_runs.has_value()) {
-            apply_paragraph_composers(*paragraph_runs);
+            apply_paragraph_composers(*paragraph_runs, *record.text);
             record.text_paragraph_runs = serialize_patchy_paragraph_runs(*paragraph_runs);
           }
         }
