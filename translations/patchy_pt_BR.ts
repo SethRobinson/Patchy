@@ -16552,20 +16552,12 @@ Deseja substituí-lo?</translation>
         <translation>Atualizar</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Scanner:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Usar a caixa de diálogo de digitalização do sistema em cada digitalização</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Para scanners que o Patchy não consegue controlar diretamente. Nesse caso, você escolhe a resolução e o modo na caixa de diálogo a cada vez.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Abra o livro e coloque-o com a face para baixo sobre o vidro, de modo que a contracapa, a lombada e a capa fiquem todas sobre ele, e pressione Digitalizar capa. O Patchy mede o livro a partir desta digitalização. Pule esta etapa para medir a partir das primeiras páginas (nesse caso, as capas não entram no PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16778,10 +16770,6 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Insert Blank Page</source>
         <translation>Inserir página em branco</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>Digitalizar mais páginas</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17212,6 +17200,166 @@ Deseja substituí-lo?</translation>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>P/B</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Cancelando...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Cancelando a digitalização...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Cancelando a digitalização. O scanner para assim que puder, o que pode levar um momento se ele estiver no meio de uma passada.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ocultar</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Cancelando a digitalização</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>Para onde aponta o topo do livro no vidro. Alterar isso gira todas as digitalizações.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>Todas as digitalizações deste livro foram giradas.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Voltar</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Voltar à digitalização para adicionar páginas ou digitalizar algumas novamente</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Configurar</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Verificar o livro</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Digitalizar as páginas</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Revisar e exportar</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Aparece nas propriedades do documento PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Opcional</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Scanner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Lombada</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Digitalize a capa primeiro</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Abra o livro e coloque-o virado para baixo no vidro.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Faça a contracapa, a lombada e a capa caberem no vidro.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Clique em Digitalizar capa. O Patchy mede o livro a partir desta digitalização.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Sem capa para digitalizar? Pular capa mede o livro pelas primeiras páginas, e as capas ficam fora do PDF.</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Capas:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>As duas capas em uma digitalização</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Uma capa de cada vez</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Uma capa de cada vez serve para um livro grande demais para ficar aberto no vidro.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Mostrar:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Digitalizar contracapa</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Digitalizando a capa...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Digitalizando a contracapa...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Digitalize as capas primeiro</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Feche o livro e coloque-o no vidro com a capa virada para baixo.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Clique em Digitalizar capa para digitalizar a capa.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>Na próxima etapa, vire o livro e digitalize a contracapa.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>A contracapa foi digitalizada novamente.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>A contracapa foi digitalizada.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Confira o contorno da capa. Depois vire o livro, coloque a contracapa virada para baixo no vidro e clique em Digitalizar contracapa.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Confira o contorno de cada capa: arraste as bordas ou a caixa inteira. Mostrar escolhe a capa.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Editando a contracapa: arraste o contorno ou clique em Digitalizar capa novamente.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Editando a capa: arraste o contorno ou clique em Digitalizar capa novamente.</translation>
     </message>
 </context>
 <context>

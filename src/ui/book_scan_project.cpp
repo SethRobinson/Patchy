@@ -194,6 +194,16 @@ QByteArray book_project_json(const BookProject& project) {
     cover[QStringLiteral("edited")] = project.cover->user_edited;
     root[QStringLiteral("cover")] = cover;
   }
+  root[QStringLiteral("coverStyle")] =
+      project.cover_style == BookCoverStyle::Separate ? QStringLiteral("separate") : QStringLiteral("spread");
+  if (project.back_cover) {
+    QJsonObject back;
+    back[QStringLiteral("file")] = project.back_cover->file;
+    back[QStringLiteral("dpi")] = project.back_cover->dpi;
+    back[QStringLiteral("outline")] = box_json(project.back_cover->layout.outline);
+    back[QStringLiteral("edited")] = project.back_cover->user_edited;
+    root[QStringLiteral("backCover")] = back;
+  }
   QJsonArray scans;
   for (const auto& scan : project.scans) {
     QJsonObject entry;
@@ -286,6 +296,21 @@ std::optional<BookProject> book_project_from_json(const QByteArray& bytes, QStri
     entry.user_edited = cover.value(QStringLiteral("edited")).toBool();
     if (safe_relative_file(entry.file) && entry.dpi > 0.0) {
       project.cover = entry;
+    }
+  }
+  // Missing in books saved before covers could be scanned one at a time: one scan.
+  project.cover_style = root.value(QStringLiteral("coverStyle")).toString() == QLatin1String("separate")
+                            ? BookCoverStyle::Separate
+                            : BookCoverStyle::Spread;
+  if (project.cover_style == BookCoverStyle::Separate && root.contains(QStringLiteral("backCover"))) {
+    const QJsonObject back = root.value(QStringLiteral("backCover")).toObject();
+    BookCover entry;
+    entry.file = back.value(QStringLiteral("file")).toString();
+    entry.dpi = back.value(QStringLiteral("dpi")).toDouble(300.0);
+    entry.layout.outline = box_from(back.value(QStringLiteral("outline")).toObject());
+    entry.user_edited = back.value(QStringLiteral("edited")).toBool();
+    if (safe_relative_file(entry.file) && entry.dpi > 0.0) {
+      project.back_cover = entry;
     }
   }
   for (const auto& value : root.value(QStringLiteral("scans")).toArray()) {
@@ -386,8 +411,9 @@ int pages_per_scan(const BookProject& project, const BookScanEntry& scan) {
 
 std::vector<BookPageRef> generated_page_order(const BookProject& project) {
   std::vector<BookPageRef> pages;
-  const bool covers = project.include_covers && project.cover.has_value();
-  if (covers) {
+  const bool front_cover = project.include_covers && book_cover_part(project, true).has_value();
+  const bool back_cover = project.include_covers && book_cover_part(project, false).has_value();
+  if (front_cover) {
     pages.push_back({BookPageRef::Kind::FrontCover, -1, BookPageSide::Left, 0});
   }
   const bool rtl = project.direction == BookReadingDirection::RightToLeft;
@@ -408,10 +434,38 @@ std::vector<BookPageRef> generated_page_order(const BookProject& project) {
       }
     }
   }
-  if (covers) {
+  if (back_cover) {
     pages.push_back({BookPageRef::Kind::BackCover, -1, BookPageSide::Left, 0});
   }
   return pages;
+}
+
+std::optional<BookCoverPart> book_cover_part(const BookProject& project, bool front) {
+  if (project.cover_style == BookCoverStyle::Separate) {
+    const std::optional<BookCover>& cover = front ? project.cover : project.back_cover;
+    if (!cover) {
+      return std::nullopt;
+    }
+    return BookCoverPart{&*cover, cover->layout.outline};
+  }
+  if (!project.cover) {
+    return std::nullopt;
+  }
+  // Seen from outside, a left-to-right book has its front cover on the right.
+  const bool rtl = project.direction == BookReadingDirection::RightToLeft;
+  const BookPageSide half = (front != rtl) ? BookPageSide::Right : BookPageSide::Left;
+  return BookCoverPart{&*project.cover, cover_half_box(project.cover->layout, half)};
+}
+
+std::optional<BookPageSize> book_cover_page_size(const BookProject& project) {
+  if (!project.cover || project.cover->dpi <= 0.0) {
+    return std::nullopt;
+  }
+  if (project.cover_style == BookCoverStyle::Separate) {
+    const OrientedBox& outline = project.cover->layout.outline;
+    return BookPageSize{outline.width / project.cover->dpi, outline.height / project.cover->dpi};
+  }
+  return cover_page_size(project.cover->layout, project.cover->dpi);
 }
 
 std::vector<BookPageRef> book_page_order(const BookProject& project) {
@@ -452,16 +506,14 @@ BookPageSize resolved_page_size(const BookProject& project) {
       size = largest_page_size(measured);
       break;
     case BookPageSizePolicy::Cover:
-      if (project.cover) {
-        size = cover_page_size(project.cover->layout, project.cover->dpi);
-      }
+      size = book_cover_page_size(project).value_or(BookPageSize{});
       break;
     case BookPageSizePolicy::Custom:
       size = project.custom_size;
       break;
   }
-  if ((size.width <= 0.0 || size.height <= 0.0) && project.cover) {
-    size = cover_page_size(project.cover->layout, project.cover->dpi);
+  if (size.width <= 0.0 || size.height <= 0.0) {
+    size = book_cover_page_size(project).value_or(BookPageSize{});
   }
   if (size.width <= 0.0 || size.height <= 0.0) {
     size = {kLetterWidth, kLetterHeight};
@@ -566,19 +618,15 @@ std::optional<BookPageSource> book_page_source(const BookProject& project, const
     }
     case BookPageRef::Kind::FrontCover:
     case BookPageRef::Kind::BackCover: {
-      if (!project.cover) {
+      const auto part = book_cover_part(project, page.kind == BookPageRef::Kind::FrontCover);
+      if (!part) {
         return std::nullopt;
       }
-      // Seen from outside, a left-to-right book has its front cover on the right.
-      const bool front = page.kind == BookPageRef::Kind::FrontCover;
-      const bool rtl = project.direction == BookReadingDirection::RightToLeft;
-      const BookPageSide half = (front != rtl) ? BookPageSide::Right : BookPageSide::Left;
       BookPageSource source;
-      source.file = project.cover->file;
-      source.dpi = project.cover->dpi;
+      source.file = part->cover->file;
+      source.dpi = part->cover->dpi;
       source.turns = normalized_turns(project.up_turns);
-      source.box = centered_page_box(cover_half_box(project.cover->layout, half), size.width * source.dpi,
-                                     size.height * source.dpi);
+      source.box = centered_page_box(part->box, size.width * source.dpi, size.height * source.dpi);
       return source;
     }
     case BookPageRef::Kind::Blank:

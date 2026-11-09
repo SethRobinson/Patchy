@@ -21,6 +21,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QProgressBar;
+class QProgressDialog;
 class QPushButton;
 class QSlider;
 class QStackedWidget;
@@ -28,6 +29,8 @@ class QStackedWidget;
 namespace patchy::ui {
 
 class BookScanPreview;
+class BookScanStepBar;
+class BookPlacementPicture;
 
 // File > Import > Scan a Book to PDF (docs/book-scan.md): one non-modal wizard window.
 // Setup (project folder, title, scanner) -> Cover (outline, spine, up direction,
@@ -57,6 +60,13 @@ public:
   void start_over();
   void set_scan_mode(BookScanMode mode);
   void start_cover_scan();
+  // Covers one at a time (BookCoverStyle::Separate): the cover step's Scan Back Cover.
+  void start_back_cover_scan();
+  // The setup step's choice of how the covers are scanned.
+  void set_cover_style(BookCoverStyle style);
+  // Separate covers: which one the cover step and the scanning step's cover editor show.
+  void show_back_cover(bool back);
+  [[nodiscard]] bool back_cover_shown() const noexcept { return back_cover_shown_; }
   void skip_cover();
   void start_page_scanning();
   void start_page_scan();
@@ -118,7 +128,20 @@ private:
   void capture_controls_changed();
   void save_project_quietly();
   void scan_finished(const ScanResult& result);
-  void apply_cover_scan(const QString& file, double dpi, bool keep_settings);
+  // Cancel Scan: asks the scanner to stop and shows at once that it will.
+  void cancel_scan();
+  void close_cancel_notice();
+  // `back`: the back cover of a book scanned one cover at a time.
+  void apply_cover_scan(const QString& file, double dpi, bool keep_settings, bool back);
+  // The cover the editors show: the open book's outside, or the front or back cover.
+  [[nodiscard]] BookCover* shown_cover();
+  [[nodiscard]] bool separate_covers() const noexcept {
+    return project_.cover_style == BookCoverStyle::Separate;
+  }
+  // The setup step's guide card: picture and steps for the chosen cover style.
+  void update_setup_guide();
+  // The cover step's controls that differ between one scan and one cover at a time.
+  void update_cover_style_controls();
   // replace_index >= 0 rescans that scan; -1 adds a new one.
   void apply_page_scan(const QString& file, double dpi, ScanColorMode mode, int replace_index);
   [[nodiscard]] ScanRequest cover_scan_request() const;
@@ -196,8 +219,12 @@ private:
   enum class PendingScan { None, Cover, Page, Rescan, RescanCover };
   PendingScan pending_{PendingScan::None};
   int rescan_target_{-1};
+  // The cover scan running is the back cover's (covers one at a time).
+  bool scanning_back_cover_{false};
   // What the scanning step shows: the cover, an earlier scan, or (neither) the newest scan.
   bool edit_cover_{false};
+  // Covers one at a time: the back cover is the one shown for editing.
+  bool back_cover_shown_{false};
   std::optional<int> edit_scan_;
   QString last_error_;
   // The book found in the setup step's folder, if any.
@@ -220,7 +247,7 @@ private:
   QImage preview_image_;
 
   QStackedWidget* stack_{nullptr};
-  QLabel* step_title_{nullptr};
+  BookScanStepBar* step_bar_{nullptr};
   // Setup.
   QLineEdit* title_edit_{nullptr};
   QLineEdit* author_edit_{nullptr};
@@ -229,13 +256,22 @@ private:
   QCheckBox* system_dialog_check_{nullptr};
   QLabel* disk_label_{nullptr};
   QLabel* folder_status_label_{nullptr};
-  QLabel* setup_instructions_{nullptr};
+  QWidget* setup_instructions_{nullptr};
+  QComboBox* cover_style_combo_{nullptr};
+  BookPlacementPicture* placement_picture_{nullptr};
+  QLabel* guide_heading_{nullptr};
+  std::vector<QLabel*> guide_steps_;
+  QLabel* guide_hint_{nullptr};
   QPushButton* scan_cover_button_{nullptr};
   QPushButton* skip_cover_button_{nullptr};
   QPushButton* continue_button_{nullptr};
   QPushButton* start_over_button_{nullptr};
   // Cover.
   BookScanPreview* cover_preview_{nullptr};
+  QLabel* cover_hint_{nullptr};
+  QFormLayout* cover_form_{nullptr};
+  QComboBox* cover_side_combo_{nullptr};
+  QPushButton* back_cover_button_{nullptr};
   QComboBox* up_combo_{nullptr};
   QComboBox* direction_combo_{nullptr};
   QDoubleSpinBox* cover_tilt_spin_{nullptr};
@@ -269,6 +305,9 @@ private:
   QPushButton* scan_button_{nullptr};
   QPushButton* rescan_button_{nullptr};
   QPushButton* cancel_scan_button_{nullptr};
+  // "Cancelling Scan": shown from the Cancel Scan click until the scanner reports back.
+  QPointer<QProgressDialog> cancel_notice_;
+  bool cancel_requested_{false};
   QPushButton* finished_button_{nullptr};
   // Review.
   QListWidget* pages_list_{nullptr};

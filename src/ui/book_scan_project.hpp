@@ -23,6 +23,10 @@ enum class BookReadingDirection { LeftToRight, RightToLeft };
 enum class BookScanMode { TwoPages, OnePage };
 enum class BookPageUse { Both, LeftOnly, RightOnly };
 enum class BookPageSizePolicy { Median, Largest, Cover, Custom };
+// How the covers are scanned: the open book's outside in one scan (back cover, spine and
+// front cover side by side), or each cover on its own, for a book too large to lie open
+// on the glass.
+enum class BookCoverStyle { Spread, Separate };
 
 // One scan of the book's pages: a spread, or one page in one-page mode.
 struct BookScanEntry {
@@ -51,7 +55,8 @@ struct BookPageRef {
 struct BookCover {
   QString file;
   double dpi{300.0};
-  CoverLayout layout;  // in the upright image
+  // In the upright image. A cover scanned on its own uses only the outline.
+  CoverLayout layout;
   bool user_edited{false};
 };
 
@@ -70,7 +75,11 @@ struct BookProject {
   BookScanMode mode{BookScanMode::TwoPages};
   bool include_covers{true};
   bool finished_scanning{false};
+  BookCoverStyle cover_style{BookCoverStyle::Spread};
+  // Spread: the open book's outside. Separate: the front cover.
   std::optional<BookCover> cover;
+  // Separate only: the back cover, once scanned.
+  std::optional<BookCover> back_cover;
   std::vector<BookScanEntry> scans;
   // Set once the user reorders, deletes, inserts or turns pages in the review step.
   std::optional<std::vector<BookPageRef>> custom_order;
@@ -102,6 +111,16 @@ void save_book_project(const BookProject& project);
 // The one size every PDF page gets, by the project's policy; falls back to the cover
 // estimate, then to US Letter, when nothing is measured.
 [[nodiscard]] BookPageSize resolved_page_size(const BookProject& project);
+// The page size the cover scan measures (one cover's width and height, in inches), or
+// nullopt without a cover scan.
+[[nodiscard]] std::optional<BookPageSize> book_cover_page_size(const BookProject& project);
+// The scan and box of the front or back cover, by the cover style and reading direction.
+// nullopt when that cover was not scanned.
+struct BookCoverPart {
+  const BookCover* cover{nullptr};
+  OrientedBox box;
+};
+[[nodiscard]] std::optional<BookCoverPart> book_cover_part(const BookProject& project, bool front);
 // Pages the scans contribute (1 per scan in one-page mode, by Use in two-page mode).
 [[nodiscard]] int pages_per_scan(const BookProject& project, const BookScanEntry& scan);
 

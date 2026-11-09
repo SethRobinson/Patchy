@@ -16496,20 +16496,12 @@ Do you want to replace it?</source>
         <translation>刷新</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>扫描仪:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>每次扫描都使用系统扫描对话框</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>用于 Patchy 无法直接控制的扫描仪。这样每次都要在对话框中选择分辨率和模式。</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>打开书本，将其正面朝下放在玻璃板上，使封底、书脊和封面都在玻璃板上，然后按“扫描封面”。Patchy 会根据这次扫描测量书本。跳过此步骤则改为根据前几页测量（这样封面不会包含在 PDF 中）。</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16722,10 +16714,6 @@ Do you want to replace it?</source>
     <message>
         <source>Insert Blank Page</source>
         <translation>插入空白页</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>扫描更多页面</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17150,6 +17138,166 @@ Do you want to replace it?</source>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>黑白</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>正在取消...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>正在取消扫描...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>正在取消扫描。扫描仪会尽快停止，如果正在扫描途中，可能需要片刻。</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>隐藏</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>正在取消扫描</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>书的顶部在玻璃上朝向哪个方向。更改后会旋转每次扫描。</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>此书的所有扫描都已旋转。</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>返回</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>返回扫描，以添加页面或重新扫描部分页面</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>设置</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>检查书本</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>扫描页面</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>检查并导出</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>显示在 PDF 的文档属性中</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>可选</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>扫描仪</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>书脊</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>先扫描封面</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>打开书本，正面朝下放在玻璃上。</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>让封底、书脊和封面都放在玻璃上。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>按“扫描封面”。Patchy 会根据这次扫描测量书本。</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>没有封面要扫描？“跳过封面”会根据最初几页测量书本，PDF 中不包含封面。</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>封面：</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>一次扫描两面封面</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>一次扫描一面</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>一次扫描一面适合打开后放不下玻璃的大书。</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>显示：</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>扫描封底</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>正在扫描封面...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>正在扫描封底...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>先扫描封面和封底</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>合上书本，封面朝下放在玻璃上。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>按“扫描封面”扫描封面。</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>下一步中，把书翻过来扫描封底。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>已重新扫描封底。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>已扫描封底。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>检查封面的轮廓。然后把书翻过来，封底朝下放在玻璃上，按“扫描封底”。</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>检查每面封面的轮廓：拖动边缘或整个框。用“显示”选择要看的一面。</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>正在编辑封底：拖动轮廓，或按“重新扫描封面”。</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>正在编辑封面：拖动轮廓，或按“重新扫描封面”。</translation>
     </message>
 </context>
 <context>

@@ -16552,20 +16552,12 @@ Voulez-vous le remplacer ?</translation>
         <translation>Actualiser</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Scanner :</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Pour les scanners que Patchy ne peut pas piloter directement. Vous choisissez alors la résolution et le mode dans la boîte de dialogue à chaque fois.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Ouvrez le livre et posez-le face vers le bas sur la vitre de sorte que la couverture arrière, le dos et la couverture avant y reposent tous, puis appuyez sur « Numériser la couverture ». Patchy mesure le livre à partir de cette numérisation. Ignorez-la pour mesurer plutôt à partir des premières pages (les couvertures ne figurent alors pas dans le PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16778,10 +16770,6 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Insert Blank Page</source>
         <translation>Insérer une page vierge</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>Numériser d&apos;autres pages</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17212,6 +17200,166 @@ Voulez-vous le remplacer ?</translation>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>N/B</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Annulation...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Annulation de la numérisation...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Annulation de la numérisation. Le scanner s&apos;arrête dès que possible, ce qui peut prendre un moment s&apos;il est en plein passage.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Masquer</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Annulation de la numérisation</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>Direction vers laquelle pointe le haut du livre sur la vitre. La modifier tourne chaque numérisation.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>Chaque numérisation de ce livre a été tournée.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Retour</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Revenir à la numérisation pour ajouter des pages ou en numériser de nouveau</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Préparer</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Vérifier le livre</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Numériser les pages</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Vérifier et exporter</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Affiché dans les propriétés du document PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Facultatif</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Scanner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Dos</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Numérisez d&apos;abord la couverture</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Ouvrez le livre et posez-le face contre la vitre.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Faites tenir la quatrième de couverture, le dos et la couverture sur la vitre.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Cliquez sur Numériser la couverture. Patchy mesure le livre à partir de cette numérisation.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Pas de couverture à numériser ? Ignorer la couverture mesure le livre à partir de ses premières pages, et les couvertures ne figurent pas dans le PDF.</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Couvertures :</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Les deux couvertures en une numérisation</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Une couverture à la fois</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Une couverture à la fois convient à un livre trop grand pour tenir ouvert sur la vitre.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Afficher :</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Numériser la couverture arrière</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Numérisation de la couverture avant...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Numérisation de la couverture arrière...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Numérisez d'abord les couvertures</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Fermez le livre et posez-le sur la vitre, couverture avant vers le bas.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Cliquez sur Numériser la couverture pour numériser la couverture avant.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>À l'étape suivante, retournez le livre et numérisez la couverture arrière.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>La couverture arrière a été numérisée à nouveau.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>La couverture arrière a été numérisée.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Vérifiez le contour de la couverture avant. Retournez ensuite le livre, posez la couverture arrière vers le bas sur la vitre et cliquez sur Numériser la couverture arrière.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Vérifiez le contour de chaque couverture : faites glisser ses bords ou tout le cadre. Afficher choisit la couverture.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Modification de la couverture arrière : faites glisser son contour, ou cliquez sur Numériser à nouveau la couverture.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Modification de la couverture avant : faites glisser son contour, ou cliquez sur Numériser à nouveau la couverture.</translation>
     </message>
 </context>
 <context>

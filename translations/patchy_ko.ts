@@ -16496,20 +16496,12 @@ Do you want to replace it?</source>
         <translation>새로 고침</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>스캐너:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>스캔할 때마다 시스템 스캔 대화 상자 사용</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Patchy가 직접 제어할 수 없는 스캐너용입니다. 이 경우 매번 대화 상자에서 해상도와 모드를 선택합니다.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>책을 펼쳐 뒤표지, 책등, 앞표지가 모두 유리면에 놓이도록 엎어 놓은 다음 &apos;표지 스캔&apos;을 누르세요. Patchy는 이 스캔으로 책의 크기를 측정합니다. 건너뛰면 처음 몇 페이지로 대신 측정합니다(이 경우 표지는 PDF에 포함되지 않습니다).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16722,10 +16714,6 @@ Do you want to replace it?</source>
     <message>
         <source>Insert Blank Page</source>
         <translation>빈 페이지 삽입</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>페이지 더 스캔</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17150,6 +17138,166 @@ Do you want to replace it?</source>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>흑백</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>취소하는 중...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>스캔을 취소하는 중...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>스캔을 취소하는 중입니다. 스캐너는 가능한 한 빨리 멈추지만, 읽는 도중이면 잠시 걸릴 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>숨기기</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>스캔 취소 중</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>유리 위에서 책의 위쪽이 가리키는 방향입니다. 바꾸면 모든 스캔이 회전합니다.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>이 책의 모든 스캔을 회전했습니다.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>뒤로</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>스캔으로 돌아가 페이지를 추가하거나 다시 스캔합니다</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>설정</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>책 확인</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>페이지 스캔</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>검토 및 내보내기</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>PDF 문서 속성에 표시됩니다</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>선택 사항</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>스캐너</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>책등</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>먼저 표지를 스캔하세요</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>책을 펼쳐 유리 위에 엎어 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>뒤표지, 책등, 앞표지가 모두 유리 위에 오도록 합니다.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>표지 스캔을 누릅니다. Patchy가 이 스캔으로 책 크기를 잽니다.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>스캔할 표지가 없나요? 표지 건너뛰기는 첫 페이지로 책 크기를 재며, 표지는 PDF에 들어가지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>표지:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>앞뒤 표지를 한 번에 스캔</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>표지를 한 장씩</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>표지를 한 장씩 스캔하면 펼쳐서 유리에 올릴 수 없는 큰 책에 좋습니다.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>표시:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>뒤표지 스캔</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>앞표지를 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>뒤표지를 스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>먼저 표지를 스캔하세요</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>책을 덮고 앞표지가 아래로 가게 유리 위에 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>표지 스캔을 눌러 앞표지를 스캔합니다.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>다음 단계에서 책을 뒤집어 뒤표지를 스캔합니다.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>뒤표지를 다시 스캔했습니다.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>뒤표지를 스캔했습니다.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>앞표지의 윤곽을 확인합니다. 그런 다음 책을 뒤집어 뒤표지가 아래로 가게 유리 위에 놓고 뒤표지 스캔을 누릅니다.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>각 표지의 윤곽을 확인합니다. 가장자리나 상자 전체를 끕니다. 표시에서 표지를 고릅니다.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>뒤표지 편집 중: 윤곽을 끌거나 표지 다시 스캔을 누릅니다.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>앞표지 편집 중: 윤곽을 끌거나 표지 다시 스캔을 누릅니다.</translation>
     </message>
 </context>
 <context>

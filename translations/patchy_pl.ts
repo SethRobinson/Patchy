@@ -16608,20 +16608,12 @@ Czy chcesz go zastąpić?</translation>
         <translation>Odśwież</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Skaner:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Używaj systemowego okna skanowania przy każdym skanie</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Dla skanerów, którymi Patchy nie może bezpośrednio sterować. Rozdzielczość i tryb wybierasz wtedy za każdym razem w oknie skanowania.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Otwórz książkę i połóż ją licem do dołu na szybie tak, aby tylna okładka, grzbiet i przednia okładka znalazły się na szybie, a następnie naciśnij Skanuj okładkę. Patchy mierzy książkę na podstawie tego skanu. Pomiń ten krok, aby zmierzyć ją na podstawie pierwszych stron (okładki nie trafią wtedy do pliku PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16834,10 +16826,6 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Insert Blank Page</source>
         <translation>Wstaw pustą stronę</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>Skanuj więcej stron</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17274,6 +17262,166 @@ Czy chcesz go zastąpić?</translation>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>Cz/B</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Anulowanie...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Anulowanie skanowania...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Anulowanie skanowania. Skaner zatrzyma się najszybciej, jak to możliwe. W trakcie przebiegu może to chwilę potrwać.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ukryj</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Anulowanie skanowania</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>W którą stronę wskazuje góra książki na szybie. Zmiana obraca każdy skan.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>Wszystkie skany tej książki zostały obrócone.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Wstecz</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Wróć do skanowania, aby dodać strony lub zeskanować niektóre ponownie</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Przygotowanie</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Sprawdź książkę</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Skanuj strony</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Przejrzyj i eksportuj</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Widoczny we właściwościach dokumentu PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Opcjonalnie</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Skaner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Grzbiet</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Najpierw zeskanuj okładkę</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Otwórz książkę i połóż ją stronami w dół na szybie.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Tylna okładka, grzbiet i przednia okładka muszą zmieścić się na szybie.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Kliknij Skanuj okładkę. Patchy zmierzy książkę na podstawie tego skanu.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Nie ma okładki do zeskanowania? Pomiń okładkę mierzy książkę na podstawie pierwszych stron, a okładki nie trafią do PDF.</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Okładki:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Obie okładki w jednym skanie</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Jedna okładka naraz</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Jedna okładka naraz pasuje do książki zbyt dużej, by leżała otwarta na szybie.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Pokaż:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Skanuj tylną okładkę</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Skanowanie przedniej okładki...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Skanowanie tylnej okładki...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Najpierw zeskanuj okładki</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Zamknij książkę i połóż ją na szybie przednią okładką w dół.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Kliknij Skanuj okładkę, aby zeskanować przednią okładkę.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>W następnym kroku odwróć książkę i zeskanuj tylną okładkę.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>Tylna okładka została zeskanowana ponownie.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>Tylna okładka została zeskanowana.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Sprawdź obrys przedniej okładki. Następnie odwróć książkę, połóż ją tylną okładką w dół na szybie i kliknij Skanuj tylną okładkę.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Sprawdź obrys każdej okładki: przeciągnij jej krawędzie lub całą ramkę. Pokaż wybiera okładkę.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Edycja tylnej okładki: przeciągnij obrys lub kliknij Skanuj okładkę ponownie.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Edycja przedniej okładki: przeciągnij obrys lub kliknij Skanuj okładkę ponownie.</translation>
     </message>
 </context>
 <context>

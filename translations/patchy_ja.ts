@@ -16496,20 +16496,12 @@ Do you want to replace it?</source>
         <translation>更新</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>スキャナー:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>スキャンごとにシステムのスキャンダイアログを使う</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Patchy が直接制御できないスキャナー用です。この場合、解像度とモードは毎回ダイアログで選択します。</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>本を開いてガラス面に伏せて置き、裏表紙、背、表表紙がすべてガラス面に載るようにしてから、「表紙をスキャン」を押してください。Patchy はこのスキャンから本のサイズを測ります。スキップすると、代わりに最初のページから測ります (その場合、表紙は PDF に含まれません)。</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16722,10 +16714,6 @@ Do you want to replace it?</source>
     <message>
         <source>Insert Blank Page</source>
         <translation>空白ページを挿入</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>さらにページをスキャン</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17150,6 +17138,166 @@ Do you want to replace it?</source>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>白黒</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>キャンセル中...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>スキャンをキャンセルしています...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>スキャンをキャンセルしています。スキャナーはできるだけ早く停止しますが、読み取りの途中だと少し時間がかかることがあります。</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>隠す</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>スキャンのキャンセル中</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>ガラス上で本の上端が向いている方向です。変更するとすべてのスキャンが回転します。</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>この本のすべてのスキャンを回転しました。</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>戻る</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>スキャンに戻って、ページを追加したりスキャンし直したりします</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>準備</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>本の確認</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>ページのスキャン</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>確認と書き出し</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>PDF の文書プロパティに表示されます</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>省略可</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>スキャナー</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>背</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>まず表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>本を開き、ガラス面に伏せて置きます。</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>裏表紙、背、表紙がすべてガラス面に収まるようにします。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>「表紙をスキャン」を押します。Patchy はこのスキャンから本の大きさを測ります。</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>表紙をスキャンしない場合は「表紙をスキップ」で最初のページから大きさを測ります。表紙は PDF に入りません。</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>表紙:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>表裏を 1 回でスキャン</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>表裏を 1 枚ずつ</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>1 枚ずつは、開くとガラス面に収まらない大きな本に向いています。</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>表示:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>裏表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>表表紙をスキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>裏表紙をスキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>まず表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>本を閉じ、表表紙を下にしてガラス面に置きます。</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>「表紙をスキャン」を押して表表紙をスキャンします。</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>次の手順で本を裏返し、裏表紙をスキャンします。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>裏表紙を再スキャンしました。</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>裏表紙をスキャンしました。</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>表表紙の輪郭を確認します。次に本を裏返し、裏表紙を下にしてガラス面に置き、「裏表紙をスキャン」を押します。</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>各表紙の輪郭を確認します。辺または枠全体をドラッグします。「表示」で表紙を選びます。</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>裏表紙を編集中: 輪郭をドラッグするか、「表紙を再スキャン」を押します。</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>表表紙を編集中: 輪郭をドラッグするか、「表紙を再スキャン」を押します。</translation>
     </message>
 </context>
 <context>

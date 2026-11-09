@@ -16552,20 +16552,12 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Aktualisieren</translation>
     </message>
     <message>
-        <source>Scanner:</source>
-        <translation>Scanner:</translation>
-    </message>
-    <message>
         <source>Use the system scan dialog for each scan</source>
         <translation>Für jeden Scan den Scandialog des Systems verwenden</translation>
     </message>
     <message>
         <source>For scanners Patchy cannot control directly. You then choose the resolution and mode in the dialog each time.</source>
         <translation>Für Scanner, die Patchy nicht direkt steuern kann. Sie wählen Auflösung und Modus dann jedes Mal im Dialog.</translation>
-    </message>
-    <message>
-        <source>Open the book and lay it face down on the glass so the back cover, the spine and the front cover are all on it, then press Scan Cover. Patchy measures the book from this scan. Skip it to measure from the first pages instead (the covers are then not in the PDF).</source>
-        <translation>Schlagen Sie das Buch auf und legen Sie es mit dem Einband nach unten so auf das Vorlagenglas, dass hinterer Einband, Buchrücken und vorderer Einband darauf liegen. Drücken Sie dann „Einband scannen“. Patchy vermisst das Buch anhand dieses Scans. Überspringen Sie ihn, um stattdessen anhand der ersten Seiten zu messen (die Einbände sind dann nicht im PDF).</translation>
     </message>
     <message>
         <source>Start Over...</source>
@@ -16778,10 +16770,6 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Insert Blank Page</source>
         <translation>Leere Seite einfügen</translation>
-    </message>
-    <message>
-        <source>Scan More Pages</source>
-        <translation>Weitere Seiten scannen</translation>
     </message>
     <message>
         <source>Measured (median)</source>
@@ -17212,6 +17200,166 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>B/W</source>
         <comment>page output</comment>
         <translation>S/W</translation>
+    </message>
+    <message>
+        <source>Cancelling...</source>
+        <translation>Wird abgebrochen...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan...</source>
+        <translation>Der Scan wird abgebrochen...</translation>
+    </message>
+    <message>
+        <source>Cancelling the scan. The scanner stops as soon as it can, which can take a moment if it is in the middle of a pass.</source>
+        <translation>Der Scan wird abgebrochen. Der Scanner hält an, sobald er kann. Mitten in einem Durchgang kann das einen Moment dauern.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ausblenden</translation>
+    </message>
+    <message>
+        <source>Cancelling Scan</source>
+        <translation>Scan wird abgebrochen</translation>
+    </message>
+    <message>
+        <source>Which way the top of the book points on the glass. Changing it turns every scan.</source>
+        <translation>In welche Richtung der obere Rand des Buchs auf dem Glas zeigt. Eine Änderung dreht jeden Scan.</translation>
+    </message>
+    <message>
+        <source>Every scan of this book was turned.</source>
+        <translation>Jeder Scan dieses Buchs wurde gedreht.</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Zurück</translation>
+    </message>
+    <message>
+        <source>Return to scanning to add pages or scan some again</source>
+        <translation>Zurück zum Scannen, um Seiten hinzuzufügen oder neu zu scannen</translation>
+    </message>
+    <message>
+        <source>Set up</source>
+        <translation>Einrichten</translation>
+    </message>
+    <message>
+        <source>Check the book</source>
+        <translation>Buch prüfen</translation>
+    </message>
+    <message>
+        <source>Scan the pages</source>
+        <translation>Seiten scannen</translation>
+    </message>
+    <message>
+        <source>Review and export</source>
+        <translation>Prüfen und exportieren</translation>
+    </message>
+    <message>
+        <source>Shown in the PDF&apos;s document properties</source>
+        <translation>Erscheint in den Dokumenteigenschaften der PDF</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Optional</translation>
+    </message>
+    <message>
+        <source>Scanner</source>
+        <translation>Scanner</translation>
+    </message>
+    <message>
+        <source>Spine</source>
+        <translation>Buchrücken</translation>
+    </message>
+    <message>
+        <source>Scan the cover first</source>
+        <translation>Zuerst den Einband scannen</translation>
+    </message>
+    <message>
+        <source>Open the book and lay it face down on the glass.</source>
+        <translation>Das Buch aufschlagen und mit der Vorderseite nach unten auf das Glas legen.</translation>
+    </message>
+    <message>
+        <source>Fit the back cover, the spine and the front cover all on the glass.</source>
+        <translation>Rückseite, Buchrücken und Vorderseite müssen alle auf dem Glas liegen.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover. Patchy measures the book from this scan.</source>
+        <translation>Auf „Einband scannen“ klicken. Patchy misst das Buch anhand dieses Scans.</translation>
+    </message>
+    <message>
+        <source>No cover to scan? Skip Cover measures the book from its first pages instead, and the covers are left out of the PDF.</source>
+        <translation>Kein Einband zum Scannen? „Einband überspringen“ misst das Buch stattdessen an den ersten Seiten, und der Einband fehlt in der PDF.</translation>
+    </message>
+    <message>
+        <source>Covers:</source>
+        <translation>Einband:</translation>
+    </message>
+    <message>
+        <source>Both covers in one scan</source>
+        <translation>Beide Seiten in einem Scan</translation>
+    </message>
+    <message>
+        <source>One cover at a time</source>
+        <translation>Eine Seite nach der anderen</translation>
+    </message>
+    <message>
+        <source>One cover at a time suits a book too large to lie open on the glass.</source>
+        <translation>Eine Seite nach der anderen eignet sich für ein Buch, das aufgeschlagen nicht auf das Glas passt.</translation>
+    </message>
+    <message>
+        <source>Show:</source>
+        <translation>Anzeigen:</translation>
+    </message>
+    <message>
+        <source>Scan Back Cover</source>
+        <translation>Hinteren Einband scannen</translation>
+    </message>
+    <message>
+        <source>Scanning the front cover...</source>
+        <translation>Vorderer Einband wird gescannt...</translation>
+    </message>
+    <message>
+        <source>Scanning the back cover...</source>
+        <translation>Hinterer Einband wird gescannt...</translation>
+    </message>
+    <message>
+        <source>Scan the covers first</source>
+        <translation>Zuerst den Einband scannen</translation>
+    </message>
+    <message>
+        <source>Close the book and lay it on the glass with the front cover face down.</source>
+        <translation>Das Buch schließen und mit dem vorderen Einband nach unten auf das Glas legen.</translation>
+    </message>
+    <message>
+        <source>Press Scan Cover to scan the front cover.</source>
+        <translation>Auf „Einband scannen“ klicken, um den vorderen Einband zu scannen.</translation>
+    </message>
+    <message>
+        <source>In the next step, turn the book over and scan the back cover.</source>
+        <translation>Im nächsten Schritt das Buch umdrehen und den hinteren Einband scannen.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned again.</source>
+        <translation>Der hintere Einband wurde erneut gescannt.</translation>
+    </message>
+    <message>
+        <source>The back cover was scanned.</source>
+        <translation>Der hintere Einband wurde gescannt.</translation>
+    </message>
+    <message>
+        <source>Check the outline of the front cover. Then turn the book over, lay the back cover face down on the glass and press Scan Back Cover.</source>
+        <translation>Den Umriss des vorderen Einbands prüfen. Dann das Buch umdrehen, den hinteren Einband nach unten auf das Glas legen und auf „Hinteren Einband scannen“ klicken.</translation>
+    </message>
+    <message>
+        <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
+        <translation>Den Umriss jeder Seite prüfen: Kanten oder den ganzen Rahmen ziehen. „Anzeigen“ wählt die Seite.</translation>
+    </message>
+    <message>
+        <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Hinterer Einband: Umriss ziehen oder auf „Einband erneut scannen“ klicken.</translation>
+    </message>
+    <message>
+        <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation>Vorderer Einband: Umriss ziehen oder auf „Einband erneut scannen“ klicken.</translation>
     </message>
 </context>
 <context>

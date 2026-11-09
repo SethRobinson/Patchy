@@ -43,6 +43,8 @@ QString move_scan_file(const QString& from, const QString& base_path) {
 // PATCHY_FAKE_BOOK_SCANNER_DEVICES ("id=Name;id2=Name2", or "none") sets the scanner list
 // and PATCHY_FAKE_BOOK_SCANNER_DPIS ("150,300") the resolutions open() reports; changing
 // them and calling notify_test_scanner_devices_changed() plays a scanner turning on or off.
+// PATCHY_FAKE_BOOK_SCANNER_DELAY_MS makes each scan take that long; cancel() then ends it
+// as Cancelled without using up an image.
 class FakeScannerSession;
 std::vector<FakeScannerSession*>& live_fake_sessions() {
   static std::vector<FakeScannerSession*> sessions;
@@ -114,20 +116,26 @@ public:
   }
   void start_scan(const ScanRequest& request) override {
     busy_ = true;
+    cancel_ = false;
     QPointer<FakeScannerSession> self(this);
-    QTimer::singleShot(0, this, [self, request]() {
+    // PATCHY_FAKE_BOOK_SCANNER_DELAY_MS keeps a scan running that long, so a test can cancel it.
+    const int delay = std::max(0, qEnvironmentVariableIntValue("PATCHY_FAKE_BOOK_SCANNER_DELAY_MS"));
+    QTimer::singleShot(delay, this, [self, request]() {
       if (self) {
         self->finish(request);
       }
     });
   }
-  void cancel() override {}
+  // Like a real driver, the scan stops at its next chance (when it would have finished).
+  void cancel() override { cancel_ = busy_; }
   bool busy() const override { return busy_; }
 
 private:
   void finish(const ScanRequest& request) {
     ScanResult result;
-    if (open_device_.isEmpty()) {
+    if (cancel_) {
+      result.status = ScannerAcquireStatus::Cancelled;
+    } else if (open_device_.isEmpty()) {
       result.status = ScannerAcquireStatus::Failed;
       result.device_lost = true;
       result.error = QStringLiteral("The test scanner is not open.");
@@ -164,10 +172,12 @@ private:
       }
     }
     busy_ = false;
+    cancel_ = false;
     emit progress(100);
     emit finished(result);
   }
 
+  bool cancel_{false};
   QStringList files_;
   QString open_device_;
   std::vector<int> resolutions_{150, 200, 300, 600};
