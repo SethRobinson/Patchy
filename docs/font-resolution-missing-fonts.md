@@ -90,8 +90,8 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
 fonts that stand in for them: each candidate is `metric` (the substitute's own project states the
 same character widths: Arial to Liberation Sans or Arimo, Calibri to Carlito, Cambria to Caladea)
 or `lookalike` (similar design, text can reflow: Myriad Pro to Source Sans 3, which is NOT
-metric-compatible), plus a font-type column (serif, sans, mono, script, display; "Font types"
-below). Names and project links only: no font data, and every pair comes
+metric-compatible), plus a font-type column (serif, sans, mono, script, display, symbol; "Font
+types" below). Names and project links only: no font data, and every pair comes
 from the substitute's own documentation, never another program's substitution list
 ([fonts.md](fonts.md), licensing rules).
 
@@ -99,6 +99,17 @@ from the substitute's own documentation, never another program's substitution li
   `photoshop_font_names_match` rule). An entry matches by family or alias (PostScript stems such as
   `ArialMT`, `TimesNewRomanPSMT`). A miss is retried with trailing face words dropped
   ("Myriad Pro Semibold", "Arial-BoldMT"); the dropped words come back as the lookup's style.
+- **Symbol fonts** (issue 463 follow-up 2) pair only with a font that maps the same codes to the
+  same pictures. Wine installs its Wingdings, Webdings and Symbol under the Windows family names
+  with PostScript names `WineWingdings`, `WineWebdings`, `WineSymbol`; a document saved with one
+  names that (shown "Wine Wingdings"). Wine Wingdings and Wine Webdings to the Windows fonts are
+  metric (measured from the fonts' cmap and hmtx: same width at every code Wine draws); Wine Symbol
+  to Symbol, Standard Symbols PS and Standard Symbols L is a look-alike (two widths differ); Symbol
+  (`SymbolMT`) to URW's Standard Symbols PS / Standard Symbols L and ITC Zapf Dingbats to D050000L /
+  Dingbats are metric (URW's own statement; the Windows Symbol measures the same). Wingdings,
+  Webdings, Marlett and MT Extra are listed with no candidates, only for their type: Wine's copies
+  already answer to "Wingdings". Never OpenSymbol (Unicode code points, not Symbol's codes). An
+  entry with no candidates is allowed only for the symbol type.
 - **Ranking** (`rank_font_substitutes`): metric before look-alike, table order within each, never
   the requested font itself. `installed_text_font_substitutes` (text_font_service) keeps the
   installed candidates that draw the text, then appends one installed default of the same font
@@ -117,7 +128,9 @@ from the substitute's own documentation, never another program's substitution li
   while `QFont::family()` and the stored run still name the original.
 - The wasm alias table (`kWasmFamilyAliases`, [fonts.md](fonts.md)) stays separate: its targets
   are the bundled fonts.
-- Tests: `font_substitutes_` (core), `ui_missing_fonts_dialog_offers_the_installed_substitute_first`,
+- Tests: `font_substitutes_` (core; symbol pairs:
+  `font_substitutes_symbol_fonts_pair_only_fonts_with_the_same_codes`),
+  `ui_missing_fonts_dialog_offers_the_installed_substitute_first`,
   `ui_missing_font_edit_session_uses_the_table_substitute`,
   `ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name` (skip where Helvetica is installed or
   none of its substitutes is registered).
@@ -128,13 +141,22 @@ A missing font the table does not list still gets a stand-in of its own type ins
 fallback (Tahoma on Windows): Resolve Missing Fonts says "Suggested: X (also a serif font)" (or
 sans-serif, monospaced), and the edit and render paths use it like a table pair.
 
-- **The type** (`text_font_class`): the table's column; then, on Linux, the generic family the
+- **The type** (`text_font_class`): the table's column; then a symbol font's name words (before
+  fontconfig, which has no symbol generic); then, on Linux, the generic family the
   user's fontconfig rules give the name (45-latin.conf and its kind; `fontconfig_font_class`, read
   from the pattern after `FcConfigSubstitute`); then the name's own words
   (`classify_font_name_words`: mono words before sans words before serif words, so "Microsoft Sans
   Serif" is sans and "Noto Sans Mono" mono; whole words only, split at spaces, hyphens, underscores
   and lower-to-upper changes). fontconfig's sans-serif alone is NOT a type: 49-sansserif.conf
   appends it to every family no rule names. Script and display types get no default.
+- **Symbol type**: the table's symbol entries, or the name words "wingdings", "webdings",
+  "dingbats" and "marlett" (checked before the text words). Not "symbol": "Segoe UI Symbol" and
+  "Noto Sans Symbols" are Unicode text fonts. A symbol font gets no same-type default, so with no
+  installed copy Resolve Missing Fonts shows "Symbol font: no installed font has the same
+  symbols" (`missingFontNoSymbolMatch<N>`, `MissingFontSuggestion::no_symbol_match`), the row
+  starts unticked with its picker disabled on the UI font, and Resolve Fonts leaves it alone
+  unless the user ticks it and picks a font. Editing and rendering keep Qt's own fallback, as for
+  any missing font the table cannot answer.
 - **The default** (`same_type_text_font_substitute`): on Linux fontconfig's own order of installed
   families for the generic (`FcFontSort`, cached per type for the process), then the built-in list
   (`same_class_default_families`, one list per type mixing Windows, macOS and Linux families); the
@@ -148,6 +170,8 @@ sans-serif, monospaced), and the edit and render paths use it like a table pair.
   group, registered LAST in tests/ui/main.cpp because it registers Georgia and Courier New, which
   earlier text tests must not see (a missing serif font would draw in them):
   `ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts`,
+  `ui_missing_fonts_dialog_offers_symbol_fonts_only_a_copy` (registers Wingdings; without it the
+  Wine Wingdings row is checked unresolved),
   `ui_missing_font_same_type_default_reaches_edit_and_render`,
   `ui_missing_font_type_psds_suggest_a_same_type_font`, and
   `ui_fontconfig_font_types_follow_the_system_rules` (Linux; skips elsewhere).

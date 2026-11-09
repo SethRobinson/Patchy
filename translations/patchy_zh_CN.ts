@@ -15065,6 +15065,10 @@ Do you want to replace it?</source>
         <source>Heads:</source>
         <translation>箭头:</translation>
     </message>
+    <message>
+        <source>Symbol font: no installed font has the same symbols</source>
+        <translation>符号字体：没有已安装的字体包含相同的符号</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

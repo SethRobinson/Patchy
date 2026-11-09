@@ -111,6 +111,8 @@ FontStyleCategory resolve_font_style_category(FontStyleCategory os2_category, bo
       return FontStyleCategory::script;
     case FontClass::display:
       return FontStyleCategory::decorative;
+    case FontClass::symbol:
+      return FontStyleCategory::symbol;
     case FontClass::mono:
     case FontClass::unknown:
       break;

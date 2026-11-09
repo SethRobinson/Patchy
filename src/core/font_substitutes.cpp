@@ -45,6 +45,18 @@ constexpr std::string_view kCommercial = "";
 // Palatino Linotype and Century Gothic were drawn to the widths of Helvetica, Times, Courier,
 // Palatino and ITC Avant Garde. Every other pair is a look-alike. Written for Patchy; not taken
 // from another program's substitution list.
+//
+// Symbol fonts (GitHub issue 463 follow-up): a substitute must map the same codes to the same
+// pictures, so only fonts made as copies of one another are paired. Wine's own Wingdings, Webdings
+// and Symbol name their family like the Windows fonts but their PostScript names WineWingdings,
+// WineWebdings and WineSymbol, which is what a document saved with them names. Measured from the
+// fonts' own cmap and hmtx tables (November 2026): every code Wine's Wingdings (49) and Webdings
+// (7) draw is drawn by the Windows font at the same advance width, so those pairs are metric;
+// Wine's Symbol has two widths of its own, a look-alike. URW's base 35 (Standard Symbols PS,
+// D050000L) are metric clones of the PostScript Symbol and ITC Zapf Dingbats at the same codes
+// ("Standard Symbols L" and "Dingbats" are their earlier releases); the Windows Symbol has the same
+// widths at all 188 shared codes. OpenSymbol is NOT paired: it uses Unicode code points, not
+// Symbol's codes.
 
 constexpr std::string_view kArialAliases[] = {"ArialMT"};
 constexpr FontSubstituteCandidate kArial[] = {
@@ -187,7 +199,26 @@ constexpr FontSubstituteCandidate kMsGothic[] = {{"Noto Sans JP", M::lookalike, 
 constexpr std::string_view kMsMinchoAliases[] = {"MS PMincho", "Yu Mincho"};
 constexpr FontSubstituteCandidate kMsMincho[] = {{"Noto Serif JP", M::lookalike, kNotoSerifJp}};
 
+constexpr FontSubstituteCandidate kWineWingdings[] = {{"Wingdings", M::metric, kCommercial}};
+constexpr FontSubstituteCandidate kWineWebdings[] = {{"Webdings", M::metric, kCommercial}};
+constexpr std::string_view kSymbolAliases[] = {"SymbolMT"};
+constexpr FontSubstituteCandidate kSymbol[] = {
+    {"Standard Symbols PS", M::metric, kUrwBase35},
+    {"Standard Symbols L", M::metric, kUrwBase35},
+};
+constexpr FontSubstituteCandidate kWineSymbol[] = {
+    {"Symbol", M::lookalike, kCommercial},
+    {"Standard Symbols PS", M::lookalike, kUrwBase35},
+    {"Standard Symbols L", M::lookalike, kUrwBase35},
+};
+constexpr std::string_view kZapfDingbatsAliases[] = {"Zapf Dingbats", "ZapfDingbatsITC", "ITC Zapf Dingbats Std"};
+constexpr FontSubstituteCandidate kZapfDingbats[] = {
+    {"D050000L", M::metric, kUrwBase35},
+    {"Dingbats", M::metric, kUrwBase35},
+};
+
 constexpr std::span<const std::string_view> kNoAliases{};
+constexpr std::span<const FontSubstituteCandidate> kNoCandidates{};
 
 constexpr FontSubstituteEntry kTable[] = {
     {"Arial", kArialAliases, FontClass::sans, kArial},
@@ -224,6 +255,17 @@ constexpr FontSubstituteEntry kTable[] = {
     {"Kozuka Mincho Pr6N", kKozukaMinchoAliases, FontClass::serif, kKozukaMincho},
     {"MS Gothic", kMsGothicAliases, FontClass::sans, kMsGothic},
     {"MS Mincho", kMsMinchoAliases, FontClass::serif, kMsMincho},
+    // Symbol fonts: their type keeps a text font from standing in when no copy is installed.
+    // Wine's copies are installed under the Windows family names, so "Wingdings" needs no pair.
+    {"Wine Wingdings", kNoAliases, FontClass::symbol, kWineWingdings},
+    {"Wingdings", kNoAliases, FontClass::symbol, kNoCandidates},
+    {"Wine Webdings", kNoAliases, FontClass::symbol, kWineWebdings},
+    {"Webdings", kNoAliases, FontClass::symbol, kNoCandidates},
+    {"Symbol", kSymbolAliases, FontClass::symbol, kSymbol},
+    {"Wine Symbol", kNoAliases, FontClass::symbol, kWineSymbol},
+    {"ITC Zapf Dingbats", kZapfDingbatsAliases, FontClass::symbol, kZapfDingbats},
+    {"Marlett", kNoAliases, FontClass::symbol, kNoCandidates},
+    {"MT Extra", kNoAliases, FontClass::symbol, kNoCandidates},
 };
 
 // Trailing words a face-baked family name carries ("Myriad Pro Semibold", "Arial-BoldMT"),
@@ -436,6 +478,7 @@ std::vector<std::string> family_name_words(std::string_view family) {
   return words;
 }
 
+constexpr std::string_view kSymbolWords[] = {"wingdings", "webdings", "dingbats", "marlett"};
 constexpr std::string_view kMonoWords[] = {"mono", "monospace", "monospaced", "code", "console", "typewriter",
                                            "courier", "terminal"};
 constexpr std::string_view kSansWords[] = {"sans", "gothic", "grotesk", "grotesque", "hei"};
@@ -458,6 +501,9 @@ constexpr std::string_view kMonoDefaults[] = {"Consolas", "Courier New", "Menlo"
 
 FontClass classify_font_name_words(std::string_view family) {
   const auto words = family_name_words(family);
+  if (has_any_word(words, kSymbolWords)) {
+    return FontClass::symbol;
+  }
   if (has_any_word(words, kMonoWords)) {
     return FontClass::mono;
   }
@@ -488,6 +534,7 @@ std::span<const std::string_view> same_class_default_families(FontClass font_cla
     case FontClass::unknown:
     case FontClass::script:
     case FontClass::display:
+    case FontClass::symbol:
       break;
   }
   return {};
