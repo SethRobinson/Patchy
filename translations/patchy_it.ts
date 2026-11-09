@@ -16511,6 +16511,54 @@ Sostituirlo?</translation>
         <translation>Il PDF è stato scritto. Vuoi conservare la cartella del progetto di scansione (%1) per poter modificare le pagine ed esportare di nuovo in seguito?</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Fai clic su una pagina per regolarne la scansione o ripeterla</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Torna alle pagine successive</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Modifica scansione</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Mostra la scansione di questa pagina con i suoi riquadri, per regolarli o ripetere la scansione</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>La scansione della copertina è stata ripetuta.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>La scansione %1 è stata ripetuta.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Modifica della copertina: trascina il contorno e le due linee del dorso sui bordi del dorso, oppure premi Ripeti scansione copertina.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Modifica della scansione %1 di %2: regola i riquadri e le opzioni, oppure premi Ripeti questa scansione.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Premi Torna alle pagine successive per continuare con la pagina %1.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Premi Torna alle pagine successive per continuare con le pagine %1 e %2.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Ripeti questa scansione</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Copertina</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>Accendi o collega uno scanner. Questo elenco si aggiorna quando ne compare uno.</translation>
     </message>

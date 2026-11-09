@@ -154,6 +154,15 @@ struct BookOutputOptions {
 [[nodiscard]] bool book_spread_fits_bed(double width, double height, double bed_width,
                                         double bed_height, double margin);
 
+// A spread laid out in an upright image of image_width x image_height, after that image
+// is turned half a turn: the same pages, so edits survive. The box turns about the image
+// center (its angle is unchanged) and the gutter fraction mirrors.
+[[nodiscard]] SpreadLayout half_turned_spread(const SpreadLayout& layout, std::int32_t image_width,
+                                              std::int32_t image_height);
+// The same for a cover: the outline turns and the spine lines mirror (and stay ordered).
+[[nodiscard]] CoverLayout half_turned_cover(const CoverLayout& cover, std::int32_t image_width,
+                                            std::int32_t image_height);
+
 // Maps an axis-aligned rect in an image turned `clockwise_turns` quarter turns (by
 // rotated_quarter_turns) back to the unturned image of raw_width x raw_height.
 [[nodiscard]] Rect unturned_rect(const Rect& turned, int clockwise_turns, std::int32_t raw_width,

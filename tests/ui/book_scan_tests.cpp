@@ -18,16 +18,20 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
 #include <QTest>
+#include <QTransform>
 #include <QtGlobal>
 
 #include <cmath>
@@ -562,6 +566,296 @@ void ui_book_scan_rtl_orders_pages() {
   }
 }
 
+// Each input image turned a quarter turn clockwise: the top of the book points right.
+QStringList turned_inputs(const QStringList& files) {
+  QStringList turned;
+  for (const QString& file : files) {
+    const QString path = QFileInfo(file).dir().filePath(QStringLiteral("right-") + QFileInfo(file).fileName());
+    QImage(file).transformed(QTransform().rotate(90.0)).save(path, "PNG");
+    turned << path;
+  }
+  return turned;
+}
+
+// Where a fraction across a box's width lands at its middle height, in the preview
+// widget that shows an upright image of `image_size` fitted.
+QPoint preview_point(const QWidget& preview, const QSize& image_size, const patchy::OrientedBox& box, double fraction) {
+  const double scale = std::min(preview.width() / static_cast<double>(image_size.width()),
+                                preview.height() / static_cast<double>(image_size.height()));
+  const QPointF origin((preview.width() - image_size.width() * scale) / 2.0,
+                       (preview.height() - image_size.height() * scale) / 2.0);
+  const double radians = box.angle_degrees * kPi / 180.0;
+  const double local_x = (fraction - 0.5) * box.width;
+  const QPointF at(box.center_x + local_x * std::cos(radians), box.center_y + local_x * std::sin(radians));
+  return (origin + at * scale).toPoint();
+}
+
+QSize upright_scan_size(const patchy::ui::BookProject& book, const QString& file, int turns) {
+  const QSize raw = QImageReader(QDir(book.folder).filePath(file)).size();
+  return turns % 2 != 0 ? raw.transposed() : raw;
+}
+
+// Drags the gutter line of the scan the scanning step shows to `to`.
+void drag_gutter(patchy::ui::BookScanDialog& dialog, int scan_index, double to) {
+  auto* preview = dialog.findChild<QWidget*>(QStringLiteral("bookScanSpreadPreview"));
+  CHECK(preview != nullptr);
+  if (preview == nullptr) {
+    return;
+  }
+  const auto& book = dialog.project();
+  const auto& scan = book.scans[static_cast<std::size_t>(scan_index)];
+  const QSize size = upright_scan_size(book, scan.file, book.up_turns + scan.extra_turns);
+  const auto box = scan.layout.spread;
+  const double from = scan.layout.gutter;
+  QTest::mousePress(preview, Qt::LeftButton, Qt::NoModifier, preview_point(*preview, size, box, from));
+  QTest::mouseMove(preview, preview_point(*preview, size, box, (from + to) / 2.0));
+  QTest::mouseMove(preview, preview_point(*preview, size, box, to));
+  QTest::mouseRelease(preview, Qt::LeftButton, Qt::NoModifier, preview_point(*preview, size, box, to));
+  QApplication::processEvents();
+}
+
+// The gutter dragged in the box editor stays where it was dropped (it jumped back when
+// dragged to the right), through the next scan and a reopen of book.json, upright and
+// with the top of the book pointing right (a quarter turn).
+void check_gutter_drag_sticks(bool quarter_turn) {
+  const QString tag = quarter_turn ? QStringLiteral("_turned") : QString();
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_gutter_inputs") + tag);
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_gutter_project") + tag) + QStringLiteral("/book");
+  QStringList files = write_book_inputs(inputs, 3);
+  if (quarter_turn) {
+    files = turned_inputs(files);
+  }
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", quarter_turn ? "2x3" : "3x2");
+  double dropped = 0.0;
+  {
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(project);
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    if (quarter_turn) {
+      auto* up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUpCombo"));
+      CHECK(up != nullptr);
+      if (up != nullptr) {
+        up->setCurrentIndex(1);  // Right
+      }
+      CHECK(dialog.project().up_turns == 3);
+    }
+    dialog.start_page_scanning();
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.project().scans.size() == 1);
+    if (dialog.project().scans.empty()) {
+      return;
+    }
+    QApplication::processEvents();
+    const double found = dialog.project().scans[0].layout.gutter;
+    CHECK(std::abs(found - 0.5) < 0.03);
+    // To the right first: on release the line used to jump back to where it was found.
+    dropped = found + 0.08;
+    drag_gutter(dialog, 0, dropped);
+    CHECK(std::abs(dialog.project().scans[0].layout.gutter - dropped) < 0.01);
+    CHECK(dialog.project().scans[0].user_edited);
+    patchy::test::ui::save_widget_artifact("ui_book_scan_gutter_dragged" + tag.toStdString(), dialog);
+    // And to the left.
+    dropped = found - 0.06;
+    drag_gutter(dialog, 0, dropped);
+    CHECK(std::abs(dialog.project().scans[0].layout.gutter - dropped) < 0.01);
+    // The next scan leaves the edited one alone.
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.project().scans.size() == 2);
+    CHECK(std::abs(dialog.project().scans[0].layout.gutter - dropped) < 0.01);
+    // An earlier scan picked from the strip takes a drag too, and only it changes.
+    const double second = dialog.project().scans[1].layout.gutter;
+    dialog.select_scan_for_editing(0);
+    CHECK(dialog.selected_scan() == 0);
+    dropped = found + 0.05;
+    drag_gutter(dialog, 0, dropped);
+    CHECK(std::abs(dialog.project().scans[0].layout.gutter - dropped) < 0.01);
+    CHECK(std::abs(dialog.project().scans[1].layout.gutter - second) < 1e-9);
+  }
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved.has_value() && saved->scans.size() == 2);
+  if (saved && !saved->scans.empty()) {
+    CHECK(std::abs(saved->scans[0].layout.gutter - dropped) < 0.01);
+    CHECK(saved->scans[0].user_edited);
+  }
+  // Continue This Book shows the gutter where it was left.
+  patchy::ui::BookScanDialog resumed(nullptr);
+  resumed.set_quiet(true);
+  resumed.set_project_folder(project);
+  resumed.continue_book();
+  CHECK(resumed.step() == patchy::ui::BookScanDialog::Step::Scanning);
+  CHECK(resumed.project().scans.size() == 2);
+  if (resumed.project().scans.size() == 2) {
+    CHECK(std::abs(resumed.project().scans[0].layout.gutter - dropped) < 0.01);
+  }
+}
+
+void ui_book_scan_gutter_drag_sticks() {
+  check_gutter_drag_sticks(false);
+  check_gutter_drag_sticks(true);
+}
+
+// The strip shows the covers and every page; a click on one shows its scan with its
+// options, Rescan replaces only that scan (or the cover), and Back to Next Pages returns.
+void ui_book_scan_edit_and_rescan_earlier_scans() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_edit_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_edit_project")) + QStringLiteral("/book");
+  QStringList files = write_book_inputs(inputs, 3);
+  // Then: the cover again, the first spread again, the cover once more.
+  files << files[0] << files[1] << files[0];
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  // BMP files, as the WIA driver hands over: they must not stay behind in scans/.
+  const EnvGuard format("PATCHY_FAKE_BOOK_SCANNER_FORMAT", "bmp");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  dialog.start_page_scanning();
+  for (int i = 0; i < 3; ++i) {
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+  }
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.project().scans.size() == 3);
+  if (dialog.project().scans.size() != 3 || !dialog.project().cover) {
+    return;
+  }
+  CHECK(QDir(project).entryList({QStringLiteral("*.bmp")}, QDir::Files).isEmpty());
+  CHECK(QDir(project + QStringLiteral("/scans")).entryList({QStringLiteral("*.bmp")}, QDir::Files).isEmpty());
+  QApplication::processEvents();
+
+  // Front cover, six pages, back cover.
+  auto* strip = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPageStrip"));
+  auto* instruction = dialog.findChild<QLabel*>(QStringLiteral("bookScanInstructionLabel"));
+  auto* back = dialog.findChild<QPushButton*>(QStringLiteral("bookScanBackToNextButton"));
+  auto* rescan = dialog.findChild<QPushButton*>(QStringLiteral("bookScanRescanButton"));
+  auto* use = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUseCombo"));
+  auto* up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningUpCombo"));
+  CHECK(strip != nullptr && instruction != nullptr && back != nullptr && rescan != nullptr && use != nullptr &&
+        up != nullptr);
+  if (strip == nullptr || instruction == nullptr || back == nullptr || rescan == nullptr || use == nullptr ||
+      up == nullptr) {
+    return;
+  }
+  CHECK(strip->count() == 8);
+  CHECK(strip->item(0)->text() == QStringLiteral("Front cover"));
+  CHECK(strip->item(1)->text() == QStringLiteral("1"));
+  CHECK(strip->item(7)->text() == QStringLiteral("Back cover"));
+  CHECK(!strip->item(0)->icon().isNull());
+  CHECK(back->isHidden());
+  CHECK(instruction->text().contains(QStringLiteral("7")));
+
+  // A click on the front cover shows the cover with its own options.
+  const auto click = [strip](int row) {
+    strip->scrollToItem(strip->item(row));
+    QTest::mouseClick(strip->viewport(), Qt::LeftButton, Qt::NoModifier, strip->visualItemRect(strip->item(row)).center());
+  };
+  click(0);
+  CHECK(process_events_until([&dialog] { return dialog.cover_selected(); }, 3000));
+  CHECK(!back->isHidden());
+  CHECK(!up->isHidden() && use->isHidden());
+  CHECK(rescan->text() == QStringLiteral("Rescan Cover"));
+  CHECK(instruction->text().contains(QStringLiteral("Back to Next Pages")));
+  CHECK(strip->item(0)->isSelected() && strip->item(7)->isSelected() && !strip->item(1)->isSelected());
+  patchy::test::ui::save_widget_artifact("ui_book_scan_cover_selected", dialog);
+
+  // Rescanning the cover keeps the book's settings and pages, and the file's name.
+  const QString cover_file = dialog.project().cover->file;
+  const auto mode = dialog.project().mode;
+  dialog.rescan_selected();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.cover_selected());
+  CHECK(dialog.project().cover && dialog.project().cover->file == cover_file);
+  CHECK(dialog.project().mode == mode && dialog.project().include_covers);
+  CHECK(dialog.project().scans.size() == 3);
+  CHECK(QDir(project + QStringLiteral("/scans")).entryList({QStringLiteral("cover-new*")}, QDir::Files).isEmpty());
+
+  // A click on page 2 (the first spread's right page) picks the first scan.
+  click(2);
+  CHECK(process_events_until([&dialog] { return !dialog.cover_selected() && dialog.selected_scan() == 0; }, 3000));
+  CHECK(rescan->text() == QStringLiteral("Rescan This Scan"));
+  CHECK(!use->isHidden() && up->isHidden());
+  CHECK(instruction->text().contains(QStringLiteral("1")) && instruction->text().contains(QStringLiteral("Back to Next Pages")));
+  CHECK(strip->item(1)->isSelected() && strip->item(2)->isSelected() && !strip->item(3)->isSelected());
+  // Its Use choice applies to it, not to the newest scan.
+  use->setCurrentIndex(1);  // Left page only
+  CHECK(dialog.project().scans[0].use == patchy::ui::BookPageUse::LeftOnly);
+  CHECK(dialog.project().scans[2].use == patchy::ui::BookPageUse::Both);
+  CHECK(strip->count() == 7);
+
+  // Rescan This Scan replaces the first scan in place.
+  const QString first_file = dialog.project().scans[0].file;
+  const QString last_file = dialog.project().scans[2].file;
+  dialog.rescan_selected();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.project().scans.size() == 3);
+  CHECK(dialog.project().scans[0].file == first_file && dialog.project().scans[2].file == last_file);
+  CHECK(dialog.project().scans[0].use == patchy::ui::BookPageUse::LeftOnly);
+  CHECK(dialog.selected_scan() == 0);
+  CHECK(QDir(project + QStringLiteral("/scans")).entryList({QStringLiteral("*-new*"), QStringLiteral("*.bmp")}, QDir::Files).isEmpty());
+
+  // Top of the book turned half a turn and back again keeps every box.
+  const auto before = dialog.project().scans[1].layout;
+  dialog.select_cover_for_editing();
+  up->setCurrentIndex(2);  // Down
+  CHECK(dialog.project().up_turns == 2);
+  CHECK(std::abs(dialog.project().scans[1].layout.gutter - (1.0 - before.gutter)) < 1e-9);
+  CHECK(dialog.project().scans[0].use == patchy::ui::BookPageUse::RightOnly);
+  up->setCurrentIndex(0);  // Up
+  CHECK(dialog.project().up_turns == 0);
+  CHECK(std::abs(dialog.project().scans[1].layout.spread.center_x - before.spread.center_x) < 1e-6);
+  CHECK(std::abs(dialog.project().scans[1].layout.spread.center_y - before.spread.center_y) < 1e-6);
+  CHECK(std::abs(dialog.project().scans[1].layout.gutter - before.gutter) < 1e-9);
+  CHECK(dialog.project().scans[0].use == patchy::ui::BookPageUse::LeftOnly);
+
+  // Back to Next Pages shows the newest scan and the next pages again.
+  back->click();
+  CHECK(!dialog.cover_selected() && dialog.selected_scan() == 2);
+  CHECK(back->isHidden());
+  CHECK(rescan->text() == QStringLiteral("Rescan Last"));
+  CHECK(instruction->text().contains(QStringLiteral("Turn to pages 6 and 7")));
+
+  // From the review step, Edit Scan opens a page's scan; a custom page order stays.
+  dialog.finish_scanning();
+  auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
+  auto* turn = dialog.findChild<QPushButton*>(QStringLiteral("bookScanRotatePagesButton"));
+  auto* edit = dialog.findChild<QPushButton*>(QStringLiteral("bookScanEditPageButton"));
+  CHECK(pages != nullptr && turn != nullptr && edit != nullptr);
+  if (pages == nullptr || turn == nullptr || edit == nullptr) {
+    return;
+  }
+  pages->setCurrentRow(3);  // the second scan's left page
+  pages->item(3)->setSelected(true);
+  turn->click();
+  CHECK(dialog.project().custom_order.has_value());
+  const auto order = dialog.project().custom_order.value_or(std::vector<patchy::ui::BookPageRef>{});
+  pages->setCurrentRow(3);
+  edit->click();
+  CHECK(process_events_until([&dialog] { return dialog.step() == patchy::ui::BookScanDialog::Step::Scanning; }, 3000));
+  CHECK(dialog.selected_scan() == 1);
+  dialog.select_cover_for_editing();
+  dialog.rescan_selected();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty());
+  CHECK(dialog.project().custom_order && *dialog.project().custom_order == order);
+  // Everything above is in book.json.
+  const auto saved = patchy::ui::load_book_project(project, nullptr);
+  CHECK(saved.has_value() && saved->scans.size() == 3 && saved->custom_order && *saved->custom_order == order);
+  if (saved && saved->scans.size() == 3) {
+    CHECK(saved->scans[0].use == patchy::ui::BookPageUse::LeftOnly);
+  }
+}
+
 void ui_unicode_book_scan_project_folder() {
   const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_unicode_inputs"));
   const QString base = fresh_artifact_folder(QStringLiteral("ui_book_scan_unicode_project"));
@@ -678,6 +972,8 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_spine_lines_drag_past_each_other", ui_book_scan_spine_lines_drag_past_each_other},
       {"ui_book_scan_start_over_keeps_folder", ui_book_scan_start_over_keeps_folder},
       {"ui_book_scan_rtl_orders_pages", ui_book_scan_rtl_orders_pages},
+      {"ui_book_scan_gutter_drag_sticks", ui_book_scan_gutter_drag_sticks},
+      {"ui_book_scan_edit_and_rescan_earlier_scans", ui_book_scan_edit_and_rescan_earlier_scans},
       {"ui_book_scan_follows_scanner_power", ui_book_scan_follows_scanner_power},
       {"ui_unicode_book_scan_project_folder", ui_unicode_book_scan_project_folder},
   };

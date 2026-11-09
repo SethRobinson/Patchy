@@ -16458,6 +16458,54 @@ Do you want to replace it?</source>
         <translation>PDF 已写入。是否保留扫描项目文件夹（%1），以便以后更改页面并再次导出？</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>单击页面可调整或重新扫描其扫描</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>返回下一页</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>编辑扫描</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>显示此页的扫描及其框，以便调整或重新扫描</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>已重新扫描封面。</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>已重新扫描第 %1 次扫描。</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>正在编辑封面：将轮廓和两条书脊线拖到书脊边缘，或按“重新扫描封面”。</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>正在编辑第 %1 次扫描（共 %2 次）：调整其框和选项，或按“重新扫描此扫描”。</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>按“返回下一页”可继续扫描第 %1 页。</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>按“返回下一页”可继续扫描第 %1 页和第 %2 页。</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>重新扫描此扫描</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>封面</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>请打开或连接扫描仪。出现扫描仪时此列表会自动更新。</translation>
     </message>

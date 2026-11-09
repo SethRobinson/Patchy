@@ -16564,6 +16564,54 @@ Do you want to replace it?</source>
         <translation>PDF записан. Сохранить папку проекта сканирования (%1), чтобы позже можно было изменить страницы и экспортировать снова?</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Щёлкните страницу, чтобы поправить её скан или пересканировать его</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Назад к следующим страницам</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Изменить скан</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Показать скан этой страницы с рамками, чтобы поправить их или пересканировать</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>Обложка отсканирована заново.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>Скан %1 сделан заново.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Изменение обложки: перетащите контур и две линии корешка на края корешка или нажмите «Пересканировать обложку».</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Изменение скана %1 из %2: поправьте его рамки и параметры или нажмите «Повторить этот скан».</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Нажмите «Назад к следующим страницам», чтобы продолжить со страницы %1.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Нажмите «Назад к следующим страницам», чтобы продолжить со страниц %1 и %2.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Повторить этот скан</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Обложка</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>Включите или подключите сканер. Список обновится, когда он появится.</translation>
     </message>

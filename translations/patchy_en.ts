@@ -16493,6 +16493,54 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation type="unfinished"></translation>
     </message>

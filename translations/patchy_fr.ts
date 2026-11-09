@@ -16511,6 +16511,54 @@ Voulez-vous le remplacer ?</translation>
         <translation>Le PDF est écrit. Conserver le dossier du projet de numérisation (%1) pour pouvoir modifier des pages et exporter à nouveau plus tard ?</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Cliquez sur une page pour ajuster ou numériser à nouveau sa numérisation</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Retour aux pages suivantes</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Modifier la numérisation</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Afficher la numérisation de cette page avec ses cadres, pour les ajuster ou la numériser à nouveau</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>La couverture a été numérisée à nouveau.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>La numérisation %1 a été refaite.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Modification de la couverture : faites glisser son contour et les deux lignes du dos sur les bords du dos, ou cliquez sur Numériser à nouveau la couverture.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Modification de la numérisation %1 sur %2 : ajustez ses cadres et ses options, ou cliquez sur Numériser à nouveau celle-ci.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Cliquez sur Retour aux pages suivantes pour continuer avec la page %1.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Cliquez sur Retour aux pages suivantes pour continuer avec les pages %1 et %2.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Numériser à nouveau celle-ci</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Couverture</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>Allumez ou connectez un scanner. Cette liste se met à jour dès qu&apos;il apparaît.</translation>
     </message>

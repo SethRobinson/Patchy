@@ -16511,6 +16511,54 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Das PDF ist geschrieben. Den Scan-Projektordner (%1) behalten, damit Sie später Seiten ändern und erneut exportieren können?</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Klicken Sie auf eine Seite, um ihren Scan anzupassen oder erneut zu scannen</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Zurück zu den nächsten Seiten</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Scan bearbeiten</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Den Scan dieser Seite mit seinen Rahmen zeigen, um sie anzupassen oder erneut zu scannen</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>Der Einband wurde erneut gescannt.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>Scan %1 wurde erneut gescannt.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Einband bearbeiten: Ziehen Sie den Umriss und die beiden Rückenlinien auf die Kanten des Buchrückens, oder klicken Sie auf Einband erneut scannen.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Scan %1 von %2 bearbeiten: Passen Sie seine Rahmen und Optionen an, oder klicken Sie auf Diesen Scan erneut scannen.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Klicken Sie auf Zurück zu den nächsten Seiten, um mit Seite %1 weiterzumachen.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Klicken Sie auf Zurück zu den nächsten Seiten, um mit den Seiten %1 und %2 weiterzumachen.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Diesen Scan erneut scannen</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Einband</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>Schalten Sie einen Scanner ein oder schließen Sie ihn an. Diese Liste aktualisiert sich, sobald einer erscheint.</translation>
     </message>

@@ -16458,6 +16458,54 @@ Do you want to replace it?</source>
         <translation>PDF を書き出しました。後でページを変更して再度書き出せるように、スキャンのプロジェクトフォルダー (%1) を残しますか?</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>ページをクリックすると、そのスキャンを調整または再スキャンできます</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>次のページに戻る</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>スキャンを編集</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>このページのスキャンを枠付きで表示し、枠を調整したり再スキャンしたりします</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>表紙を再スキャンしました。</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>スキャン %1 を再スキャンしました。</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>表紙を編集中: 輪郭と 2 本の背表紙の線を背表紙の端までドラッグするか、[表紙を再スキャン] を押してください。</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>スキャン %1 / %2 を編集中: 枠とオプションを調整するか、[このスキャンを再スキャン] を押してください。</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>[次のページに戻る] を押すと、%1 ページから続けます。</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>[次のページに戻る] を押すと、%1 ページと %2 ページから続けます。</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>このスキャンを再スキャン</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>表紙</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>スキャナーの電源を入れるか接続してください。スキャナーが見つかるとこの一覧は自動で更新されます。</translation>
     </message>

@@ -16511,6 +16511,54 @@ Deseja substituí-lo?</translation>
         <translation>O PDF foi gravado. Manter a pasta do projeto de digitalização (%1) para poder alterar páginas e exportar novamente depois?</translation>
     </message>
     <message>
+        <source>Click a page to adjust or rescan its scan</source>
+        <translation>Clique em uma página para ajustar ou digitalizar novamente a sua digitalização</translation>
+    </message>
+    <message>
+        <source>Back to Next Pages</source>
+        <translation>Voltar às próximas páginas</translation>
+    </message>
+    <message>
+        <source>Edit Scan</source>
+        <translation>Editar digitalização</translation>
+    </message>
+    <message>
+        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <translation>Mostrar a digitalização desta página com seus quadros, para ajustá-los ou digitalizá-la novamente</translation>
+    </message>
+    <message>
+        <source>The cover was scanned again.</source>
+        <translation>A capa foi digitalizada novamente.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again.</source>
+        <translation>A digitalização %1 foi feita novamente.</translation>
+    </message>
+    <message>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <translation>Editando a capa: arraste o contorno e as duas linhas da lombada até as bordas da lombada, ou clique em Digitalizar capa novamente.</translation>
+    </message>
+    <message>
+        <source>Editing scan %1 of %2: adjust its boxes and options, or press Rescan This Scan.</source>
+        <translation>Editando a digitalização %1 de %2: ajuste seus quadros e opções, ou clique em Digitalizar esta novamente.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with page %1.</source>
+        <translation>Clique em Voltar às próximas páginas para continuar com a página %1.</translation>
+    </message>
+    <message>
+        <source>Press Back to Next Pages to go on with pages %1 and %2.</source>
+        <translation>Clique em Voltar às próximas páginas para continuar com as páginas %1 e %2.</translation>
+    </message>
+    <message>
+        <source>Rescan This Scan</source>
+        <translation>Digitalizar esta novamente</translation>
+    </message>
+    <message>
+        <source>Cover</source>
+        <translation>Capa</translation>
+    </message>
+    <message>
         <source>Switch on or connect a scanner. This list updates when one appears.</source>
         <translation>Ligue ou conecte um scanner. Esta lista é atualizada quando um aparece.</translation>
     </message>
