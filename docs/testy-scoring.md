@@ -290,7 +290,8 @@ So for files with type layers three editors get a second save (`_text_save_leg`,
   cached). `state` is then "not measured" with `reason`.
 - **A save Photoshop refuses** has `state: "rejected"`, and dialogs Photoshop shows while
   opening the save are in `textSave.dialogs`, as `resaveRejected` and `resaveDialogs` are
-  for the as-opened save.
+  for the as-opened save. A dialog Photoshop raised for the original too (old text
+  layers that "might need to be updated") is left out: it is no news about the save.
 - Nothing is folded into `nativeScore`, `roundtripRender` or an existing history key.
   The run summary and `history.jsonl` gain `textSave` `{same, measured, files, rejected}`
   per editor that has the leg. Cells of the three editors carry `-textsave1` on text

@@ -2414,6 +2414,7 @@ class Runner:
             # A dialog here is Photoshop complaining about what this editor wrote.
             if probe.get("dialogs"):
                 leg["dialogs"] = probe["dialogs"]
+            self._drop_original_dialogs(leg, truth)
             if not probe.get("ok"):
                 leg.update({"state": "rejected",
                             "error": f"Photoshop could not open the save: {probe.get('error')}"})
@@ -2445,6 +2446,24 @@ class Runner:
                     f"the same after {editor_key}'s text update")
         except Exception as error:
             void(f"harness error: {str(error)[:200]}")
+
+    @staticmethod
+    def _drop_original_dialogs(leg: dict | None, truth: dict | None) -> bool:
+        """A dialog Photoshop also raised for the original file (old text layers that
+        "might need to be updated", say) is no news about the editor's save: only the
+        dialogs the save adds stay in textSave.dialogs. Returns True when it changed
+        `leg` (also applied to cached cells)."""
+        if not leg or not leg.get("dialogs"):
+            return False
+        original = set((truth or {}).get("dialogs") or [])
+        kept = [dialog for dialog in leg["dialogs"] if dialog not in original]
+        if len(kept) == len(leg["dialogs"]):
+            return False
+        if kept:
+            leg["dialogs"] = kept
+        else:
+            del leg["dialogs"]
+        return True
 
     @staticmethod
     def _apply_text_render_rule(cell: dict) -> bool:
@@ -2547,6 +2566,8 @@ class Runner:
         if manifest_mod.apply_text_save_rule(cell.get("native")):
             changed = True
         if self._apply_text_render_rule(cell):
+            changed = True
+        if self._drop_original_dialogs(cell.get("textSave"), truth):
             changed = True
         if staged.trap is None and (
             "trapSentinelFraction" in cell or "trapError" in cell

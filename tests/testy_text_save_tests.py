@@ -305,6 +305,20 @@ class TextSaveLeg(unittest.TestCase):
         self.assertNotIn('resaveRejected', cell)  # the as-opened save's verdict is its own
         self.assertNotIn('uncacheable', cell)
 
+    def test_a_dialog_the_original_raises_too_is_not_the_saves(self):
+        old_text = 'Adobe Photoshop: "Some text layers might need to be updated"'
+        photoshop = FakePhotoshop({'ok': True, 'layers': original_layers(),
+                                   'dialogs': [old_text, 'Adobe Photoshop: "This document is damaged"']})
+        cell = self.leg(photoshop, truth=dict(self.truth, dialogs=[old_text]))
+        self.assertEqual(cell['textSave']['dialogs'], ['Adobe Photoshop: "This document is damaged"'])
+        cell = self.leg(FakePhotoshop({'ok': True, 'layers': original_layers(), 'dialogs': [old_text]}),
+                        truth=dict(self.truth, dialogs=[old_text]))
+        self.assertNotIn('dialogs', cell['textSave'])
+        cached = {'dialogs': [old_text], 'state': 'done'}
+        self.assertTrue(testy.Runner._drop_original_dialogs(cached, {'dialogs': [old_text]}))
+        self.assertNotIn('dialogs', cached)
+        self.assertFalse(testy.Runner._drop_original_dialogs(cached, {'dialogs': [old_text]}))
+
     def test_a_photoshop_that_never_started_is_no_verdict(self):
         photoshop = FakePhotoshop({'ok': False, 'launchFailure': True, 'error': 'Server execution failed'})
         cell = self.leg(photoshop)
