@@ -74,6 +74,14 @@ Latin PostScript name. Code: `src/ui/font_display_names.{hpp,cpp}`.
   closed control, and the next popup lists the new names. No restart.
 - Tests inject names with `ScopedFontDisplayNameLookup`, because the offscreen font database
   lists every family in English.
+- Checked once against a real database (November 2026, Windows, `PATCHY_UI_TEST_PLATFORM=
+  windows:fontengine=gdi`): a session font (`AddFontResourceEx` before the suite starts) whose
+  Windows name records are Chinese only and whose English name is a Macintosh record is listed
+  under the Chinese name; with the option on, the row, the preview and the closed control show the
+  English name, and `currentFont()` keeps the Chinese one. Qt 6.8's default Windows database is the
+  DirectWrite one (154 families on a host where the GDI database lists 247): it does not list
+  session fonts, and on an English Windows it lists no family in another script, so that path was
+  not seen live.
 
 ## Recent section (issue 569)
 
