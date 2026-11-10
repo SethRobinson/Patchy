@@ -315,7 +315,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       } else if (key_event->key() == Qt::Key_Control && shape_tool_active()) {
         // Ctrl is a shape tool's temporary Path Select (GitHub issue 312): the arrow and the
         // path overlay show with a stationary pointer; a drag in progress keeps its mode.
-        if (!drawing_shape_ && !shape_temp_path_select_) {
+        if (!drawing_shape_ && !shape_temp_path_select_ && !shape_resize_drag_.has_value()) {
           set_shape_ctrl_path_select((modifiers & Qt::ControlModifier) != 0);
         }
       } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Text) {
@@ -413,7 +413,8 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
     const auto* key_event = static_cast<QKeyEvent*>(event);
-    if ((move_layer_selection_gesture_ || gradient_handle_drag_.has_value()) && key_event->key() == Qt::Key_Escape) {
+    if ((move_layer_selection_gesture_ || gradient_handle_drag_.has_value() || shape_resize_drag_.has_value()) &&
+        key_event->key() == Qt::Key_Escape) {
       event->accept();
       return true;
     }
@@ -959,6 +960,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
     } else {
       set_shape_ctrl_path_select(false);
+      // A press on a resize handle of the active shape's box resizes it (GitHub issue 690);
+      // anywhere else draws a new shape, below. A guide under the handle is not in the way:
+      // only Ctrl drags a guide with these tools.
+      if (press_shape_resize_handle(event)) {
+        event->accept();
+        return;
+      }
     }
   }
 
@@ -2247,7 +2255,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (shape_temp_path_select_ && (event->buttons() & Qt::LeftButton) == 0) {
     shape_temp_path_select_ = false;  // the release went elsewhere
   }
-  if (shape_tool_active() && !drawing_shape_) {
+  // A resize-handle drag in progress keeps its mode, whatever Ctrl does (GitHub issue 690).
+  if (shape_tool_active() && !drawing_shape_ && !shape_resize_drag_.has_value()) {
     if (!shape_temp_path_select_) {
       set_shape_ctrl_path_select((event->modifiers() & Qt::ControlModifier) != 0);
     }
@@ -2260,6 +2269,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
+  }
+  // A shape tool's resize-handle drag, or the resize cursor over a handle (GitHub issue 690).
+  if ((shape_resize_drag_.has_value() || shape_tool_active()) && !drawing_shape_ &&
+      move_shape_resize_handle(event)) {
+    clear_move_hover_outline();
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
   }
 
   if (move_vector_mask_drag_) {
@@ -3164,6 +3181,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
 
   if (gradient_handle_drag_.has_value() && release_gradient_fill_handle(event)) {
+    event->accept();
+    return;
+  }
+
+  if (shape_resize_drag_.has_value() && release_shape_resize_handle(event)) {
     event->accept();
     return;
   }
@@ -4423,6 +4445,17 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // The same for a shape tool's resize-handle drag (GitHub issue 690): Shift holds the
+  // proportions, Alt resizes about the center. The event reports the modifier state before
+  // this key, so fold the pressed key in.
+  if (shape_resize_drag_.has_value() && (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) &&
+      !event->isAutoRepeat()) {
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+    update_shape_resize_drag(shape_resize_drag_->pointer_widget, event->modifiers() | bit);
+    event->accept();
+    return;
+  }
+
   // Shift/Alt toggled mid-shape-drag arrives as a key event, not a mouse move; update
   // the square/from-center constraints so a stationary cursor still snaps.
   if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
@@ -4588,6 +4621,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  if (shape_resize_drag_.has_value() && event->key() == Qt::Key_Escape) {
+    // Esc mid-drag puts the shape back as it was before the press.
+    cancel_shape_resize_drag();
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->key() == Qt::Key_Escape) {
     // Esc mid-drag puts the line back as it was before the press.
     cancel_ruler_drag();
@@ -4706,6 +4746,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       spacebar_repositioning_drag_rect_ = true;
       spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
       setCursor(Qt::SizeAllCursor);
+    } else if (shape_resize_drag_.has_value()) {
+      // A shape tool's resize-handle drag keeps its cursor: Space neither pans nor slides it.
     } else {
       spacebar_panning_ = true;
       apply_hand_cursor(event->modifiers());
@@ -4939,6 +4981,13 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
       crop_from_center_ = false;
     }
     update();
+    event->accept();
+    return;
+  }
+  if (shape_resize_drag_.has_value() && (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) &&
+      !event->isAutoRepeat()) {
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+    update_shape_resize_drag(shape_resize_drag_->pointer_widget, event->modifiers() & ~bit);
     event->accept();
     return;
   }
@@ -5180,6 +5229,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   cancel_spot_heal_stroke();
   cancel_patch_tool_drag();
   cancel_red_eye_gesture();
+  cancel_shape_resize_drag();
   drawing_shape_ = dragging_text_rect_ = dragging_text_entry_selection_ = false;
   shape_press_adds_to_shape_ = shape_temp_path_select_ = false;
   move_drag_pending_ = moving_layer_ = false;

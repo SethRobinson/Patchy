@@ -2219,6 +2219,24 @@ std::optional<LiveShapeParams> MainWindow::path_component_live_shape(const PathC
 
 bool MainWindow::apply_path_component_geometry(const PathComponentTarget& target, double scale_x, double scale_y,
                                                double translate_x, double translate_y) {
+  if (canvas_ == nullptr || scale_x <= 0.0 || scale_y <= 0.0 ||
+      (!target.shape_layer.has_value() && !target.mask_layer.has_value() && !target.document_path.has_value())) {
+    return false;
+  }
+  push_undo_snapshot(tr("Shape size"));
+  if (!transform_path_component_target(target, scale_x, scale_y, translate_x, translate_y)) {
+    return false;
+  }
+  if (!target.document_path.has_value()) {
+    refresh_layer_thumbnails();
+  }
+  refresh_paths_panel();
+  sync_vector_shape_size_spins();
+  return true;
+}
+
+bool MainWindow::transform_path_component_target(const PathComponentTarget& target, double scale_x, double scale_y,
+                                                 double translate_x, double translate_y, QRect also_changed) {
   if (canvas_ == nullptr || scale_x <= 0.0 || scale_y <= 0.0) {
     return false;
   }
@@ -2254,33 +2272,66 @@ bool MainWindow::apply_path_component_geometry(const PathComponentTarget& target
     }
     return entries;
   };
+  // An uneven scale stretches a rounded rectangle's corners into a curve its parameters
+  // (the radii follow the mean factor) no longer generate, which would end the live shape.
+  // Such a rectangle is rebuilt from its scaled parameters instead: the corners stay round
+  // and it stays live (GitHub issue 690). `entries` is the list after the scale.
+  const auto keep_rectangles_round = [&](VectorPath& path, std::vector<LiveShapeParams>& entries,
+                                         const VectorPath& before,
+                                         const std::vector<LiveShapeParams>& entries_before) {
+    bool rebuilt = false;
+    for (auto& entry : entries) {
+      if ((entry.kind != LiveShapeKind::Rectangle && entry.kind != LiveShapeKind::RoundedRectangle) ||
+          !in_groups(entry.index) || resolve_live_shape_group(path, {entry}, entry.index).has_value()) {
+        continue;
+      }
+      auto scaled = resolve_live_shape_group(before, entries_before, entry.index);
+      if (!scaled.has_value()) {
+        continue;  // it was no live rectangle before the scale either
+      }
+      scale_live_shape_params(*scaled, scale_x, scale_y, translate_x, translate_y);
+      populate_live_shape_box_corners(*scaled);
+      if (replace_live_shape_group(path, *scaled)) {
+        entry = std::move(*scaled);
+        rebuilt = true;
+      }
+    }
+    return rebuilt;
+  };
   if (target.shape_layer.has_value()) {
-    push_undo_snapshot(tr("Shape size"));
     auto* layer = doc.find_layer(*target.shape_layer);
     if (layer == nullptr || layer->vector_shape() == nullptr) {
       return false;
     }
     const auto old_effect_rect =
-        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds())).united(also_changed);
+    const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
     if (target.groups.empty()) {
+      const auto before = std::as_const(*layer).vector_shape()->path;
+      const auto origination_before = std::as_const(*layer).vector_shape()->origination;
       // Top-left anchored axis-aligned scale: transform_layer_vector_data keeps
       // live-shape annotations for exactly this matrix family.
-      transform_layer_vector_data(doc, *layer, matrix, Rect::from_size(doc.width(), doc.height()));
+      transform_layer_vector_data(doc, *layer, matrix, canvas_rect);
+      auto content = *std::as_const(*layer).vector_shape();
+      if (keep_rectangles_round(content.path, content.origination, before, origination_before)) {
+        layer->set_vector_shape(std::move(content));
+        update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
+      }
     } else {
       auto content = *std::as_const(*layer).vector_shape();
       const auto before = content.path;
+      const auto origination_before = content.origination;
       transform_components(content.path);
       content.origination = transform_live(content.origination, before);
+      keep_rectangles_round(content.path, content.origination, before, origination_before);
       layer->set_vector_shape(std::move(content));
       layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
       mark_layer_vector_block_dirty(*layer);
-      update_vector_shape_raster(*layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+      update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
     }
     canvas_->document_changed_effect_bounds(old_effect_rect.united(
         to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
-    refresh_layer_thumbnails();
   } else if (target.mask_layer.has_value()) {
-    push_undo_snapshot(tr("Shape size"));
     auto* layer = doc.find_layer(*target.mask_layer);
     if (layer == nullptr || layer->vector_mask() == nullptr) {
       return false;
@@ -2291,9 +2342,7 @@ bool MainWindow::apply_path_component_geometry(const PathComponentTarget& target
     mark_layer_vector_block_dirty(*layer);
     update_vector_mask_raster(*layer, Rect::from_size(doc.width(), doc.height()));
     canvas_->document_changed();
-    refresh_layer_thumbnails();
   } else if (target.document_path.has_value()) {
-    push_undo_snapshot(tr("Shape size"));
     auto* document_path = doc.find_path(*target.document_path);
     if (document_path == nullptr) {
       return false;
@@ -2301,15 +2350,97 @@ bool MainWindow::apply_path_component_geometry(const PathComponentTarget& target
     auto path = document_path->path();
     const auto before = path;
     transform_components(path);
+    auto live_shapes = transform_live(document_path->live_shapes(), before);
+    keep_rectangles_round(path, live_shapes, before, document_path->live_shapes());
     document_path->set_path(std::move(path));
-    document_path->set_live_shapes(transform_live(document_path->live_shapes(), before));
+    document_path->set_live_shapes(std::move(live_shapes));
     canvas_->update();
   } else {
     return false;
   }
-  refresh_paths_panel();
-  sync_vector_shape_size_spins();
   return true;
+}
+
+void MainWindow::handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to,
+                                          ShapeResizePhase phase, std::uint64_t serial) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    shape_resize_preview_.reset();
+    return;
+  }
+  auto& doc = document();
+  const auto session_id = session().session_id;
+  const bool previewing = shape_resize_preview_.has_value() && shape_resize_preview_->session_id == session_id &&
+                          shape_resize_preview_->layer_id == layer_id && shape_resize_preview_->serial == serial;
+  const auto effect_rect = [](const Layer& layer) {
+    return to_qrect(layer_bounds_with_effects(layer, layer.bounds()));
+  };
+  // Puts the layer back as it was before this drag's first preview; returns what the
+  // preview had covered, for the repaint.
+  const auto restore = [&]() -> std::optional<QRect> {
+    if (!previewing) {
+      return std::nullopt;
+    }
+    std::optional<QRect> covered;
+    if (auto* layer = doc.find_layer(layer_id); layer != nullptr) {
+      covered = effect_rect(std::as_const(*layer));
+      *layer = shape_resize_preview_->original;
+      covered = covered->united(effect_rect(std::as_const(*layer)));
+    }
+    shape_resize_preview_.reset();
+    return covered;
+  };
+  const auto restore_and_repaint = [&] {
+    if (const auto covered = restore(); covered.has_value()) {
+      canvas_->document_changed_effect_bounds(*covered);
+      sync_vector_shape_size_spins();
+    }
+  };
+  if (phase == ShapeResizePhase::Cancel) {
+    restore_and_repaint();
+    return;
+  }
+  // The handles size what the W / H fields size: this layer, whole or the components Path
+  // Select picked, through the same scale (apply_path_component_geometry).
+  const auto target = path_component_target();
+  if (!target.has_value() || target->shape_layer != layer_id || preview_dialog_edit_locked() ||
+      from.width() <= 0.0 || from.height() <= 0.0 || to.width() <= 0.0 || to.height() <= 0.0) {
+    restore_and_repaint();
+    return;
+  }
+  const double scale_x = to.width() / from.width();
+  const double scale_y = to.height() / from.height();
+  const double translate_x = to.left() - from.left() * scale_x;
+  const double translate_y = to.top() - from.top() * scale_y;
+  if (phase == ShapeResizePhase::Preview) {
+    QRect covered;
+    if (previewing) {
+      // Every preview scales the layer as it was at the press, so nothing accumulates.
+      if (auto* layer = doc.find_layer(layer_id); layer != nullptr) {
+        covered = effect_rect(std::as_const(*layer));
+        *layer = shape_resize_preview_->original;
+      }
+    } else {
+      const auto* layer = std::as_const(doc).find_layer(layer_id);
+      if (layer == nullptr) {
+        return;
+      }
+      // A W / H edit still waiting on its debounce would land on the preview: the drag
+      // replaces it.
+      if (vector_shape_size_apply_timer_ != nullptr) {
+        vector_shape_size_apply_timer_->stop();
+      }
+      shape_resize_preview_ = ShapeResizePreview{session_id, layer_id, serial, *layer};
+    }
+    transform_path_component_target(*target, scale_x, scale_y, translate_x, translate_y, covered);
+    sync_vector_shape_size_spins();
+    return;
+  }
+  // Commit: the history snapshot must hold the layer as it was before the drag.
+  const auto covered = restore();
+  apply_path_component_geometry(*target, scale_x, scale_y, translate_x, translate_y);
+  if (covered.has_value()) {
+    canvas_->document_changed_effect_bounds(*covered);
+  }
 }
 
 bool MainWindow::apply_live_shape_component_edit(const std::function<void(LiveShapeParams&)>& edit) {

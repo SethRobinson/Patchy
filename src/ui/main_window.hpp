@@ -2229,6 +2229,15 @@ private:
   // Scales (about the origin, then translates) the target's components; one undo step.
   bool apply_path_component_geometry(const PathComponentTarget& target, double scale_x, double scale_y,
                                      double translate_x, double translate_y);
+  // The same scale without history or panel refreshes (a live preview); `also_changed` joins
+  // a shape layer's repaint (what an earlier preview covered).
+  bool transform_path_component_target(const PathComponentTarget& target, double scale_x, double scale_y,
+                                       double translate_x, double translate_y, QRect also_changed = {});
+  // A shape tool's resize-handle drag (GitHub issue 690): the box of the active shape
+  // layer went from `from` to `to`. Preview scales the shape without history, Commit lands
+  // it as one "Shape size" step (the scale the W / H fields apply), Cancel restores it.
+  void handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to, ShapeResizePhase phase,
+                                std::uint64_t serial);
   // Rewrites the target's live parameters and regenerates its component; one undo step.
   bool apply_live_shape_component_edit(const std::function<void(patchy::LiveShapeParams&)>& edit);
   void refresh_properties_live_shape_panel();
@@ -4474,6 +4483,15 @@ private:
     Rect gradient_bounds;
   };
   std::optional<GradientFillHandlePreview> gradient_fill_handle_preview_;
+  // The layer as it was before a live resize-handle drag (GitHub issue 690), for the
+  // drag's serial in its session; every preview, Commit and Cancel start from it.
+  struct ShapeResizePreview {
+    std::int64_t session_id{0};
+    LayerId layer_id{0};
+    std::uint64_t serial{0};
+    Layer original;
+  };
+  std::optional<ShapeResizePreview> shape_resize_preview_;
   std::uint64_t gradient_fill_stop_color_serial_{0};
   std::string pending_shape_appearance_property_;
   UnitSpinBox* vector_shape_width_spin_{nullptr};

@@ -1290,6 +1290,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   src/ui/canvas_widget_perspective_crop.cpp
   src/ui/canvas_widget_ruler.cpp
   src/ui/canvas_widget_gradient_handles.cpp
+  src/ui/canvas_widget_shape_resize.cpp
       src/ui/ruler_tool.hpp
       src/ui/ruler_tool.cpp
       src/ui/canvas_widget_cursors.cpp
@@ -2653,6 +2654,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_effect_rows_tests.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/move_transform_zones_tests.cpp
+      tests/ui/shape_resize_handles_tests.cpp
       tests/ui/free_transform_distort_tests.cpp
       tests/ui/free_transform_selection_tests.cpp
       tests/ui/move_selected_pixels_tests.cpp

@@ -4512,10 +4512,14 @@ void ui_shape_geometry_edits_live_shape() {
   CHECK(std::abs(content->origination[0].bottom - 300.0) < 1e-6);
   CHECK(std::abs(content->origination[0].corner_radii[0] - 30.0) < 1e-6);
   // The raster followed: inside is the black fill, the rounded top-left
-  // corner is cut, and the old area outside the new bounds stays white.
+  // corner is cut, and the old area outside the new bounds stays white. The
+  // Rectangle tool's resize handle sits on that corner (GitHub issue 690), so
+  // the overlays are hidden for the read.
+  canvas->set_extras_visible(false);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 200)), Qt::black, 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 103)), Qt::white, 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(95, 95)), Qt::white, 8));
+  canvas->set_extras_visible(true);
 
   // Undo restores the original drag geometry in one step.
   require_action_by_text(window, QStringLiteral("Undo"))->trigger();
@@ -4596,7 +4600,9 @@ void ui_shape_mode_drag_previews_stroke_inside_the_shape() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(to),
              Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
-  // The committed shape agrees with the preview at the same points.
+  // The committed shape agrees with the preview at the same points. Its resize handle
+  // now sits on the corner (GitHub issue 690), so the overlays are hidden for the read.
+  canvas->set_extras_visible(false);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(305, 350)), stroke_color, 30));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(295, 350)), Qt::white, 30));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(303, 253)), stroke_color, 30));
@@ -5519,12 +5525,13 @@ void ui_shape_stroke_width_zero_means_no_stroke() {
   stroke = patchy::VectorFill{};
   stroke.color = patchy::RgbColor{220, 30, 30};
 
-  // 10 px: an inside stroke along the left edge.
+  // 10 px: an inside stroke along the left edge (read off the edge's midpoint, where the
+  // Rectangle tool's resize handle sits, GitHub issue 690).
   stroke_width->setValue(10.0);
   shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
   const auto stroked_id = document.active_layer_id();
   CHECK(stroked_id.has_value());
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 160)), QColor(220, 30, 30), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 140)), QColor(220, 30, 30), 12));
 
   // 0: no stroke; the fill reaches the edge, the model keeps the 10 px width. The Background is
   // made active first, or the bar would live-edit the stroked shape (Photoshop's rule).
@@ -5540,7 +5547,7 @@ void ui_shape_stroke_width_zero_means_no_stroke() {
   shape_drag(*canvas, QPoint(400, 100), QPoint(600, 220));
   const auto plain_id = document.active_layer_id();
   CHECK(plain_id.has_value() && plain_id != stroked_id);
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(403, 160)), QColor(255, 255, 255), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(403, 140)), QColor(255, 255, 255), 12));
   if (!stroked_id || !plain_id) {
     return;
   }
@@ -6676,6 +6683,37 @@ bool accent_overlay_near(patchy::ui::CanvasWidget& canvas, QPoint document_point
   return false;
 }
 
+// Whether accent ink runs unbroken along a vertical or horizontal document segment: every
+// widget pixel of it has some within 3 px to the side.
+bool accent_line_solid(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint document_to) {
+  const auto image = canvas.grab().toImage();
+  const auto from = canvas.widget_position_for_document_point(document_from);
+  const auto to = canvas.widget_position_for_document_point(document_to);
+  const bool vertical = from.x() == to.x();
+  const auto is_accent = [&image](QPoint probe) {
+    if (!image.rect().contains(probe)) {
+      return false;
+    }
+    const auto color = image.pixelColor(probe);
+    return color.blue() >= 200 && color.blue() - color.red() >= 60 && color.green() > color.red();
+  };
+  const int first = vertical ? std::min(from.y(), to.y()) : std::min(from.x(), to.x());
+  const int last = vertical ? std::max(from.y(), to.y()) : std::max(from.x(), to.x());
+  if (last - first < 8) {
+    return false;  // too short to tell a dash from a line
+  }
+  for (int along = first; along <= last; ++along) {
+    bool found = false;
+    for (int aside = -3; aside <= 3 && !found; ++aside) {
+      found = is_accent(vertical ? QPoint(from.x() + aside, along) : QPoint(along, from.y() + aside));
+    }
+    if (!found) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void ui_paths_panel_target_shows_overlay_with_any_tool() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -6760,7 +6798,8 @@ void ui_shape_layer_auto_targets_path_row_until_dismissed() {
   CHECK(!paths_list->selectedItems().isEmpty());
   CHECK(canvas->panel_path_targeted());
   QApplication::processEvents();
-  CHECK(accent_overlay_near(*canvas, QPoint(120, 200)));  // shape left edge
+  // The shape's left edge, off its midpoint: the Rectangle tool's resize handle sits there.
+  CHECK(accent_overlay_near(*canvas, QPoint(120, 170)));
 
   // Dismissing hides it, and a panel refresh must NOT resurrect it while the
   // same layer stays active.
@@ -8348,8 +8387,12 @@ void ui_shape_layer_outline_shows_only_under_path_and_shape_tools() {
   const auto outline_shown = [&](patchy::ui::CanvasTool tool) {
     canvas->set_tool(tool);
     QApplication::processEvents();
-    // Left and top edge midpoints, away from the corner anchors.
-    return accent_overlay_near(*canvas, QPoint(100, 160)) && accent_overlay_near(*canvas, QPoint(200, 100));
+    // A stretch of the left and of the top edge, away from the corner anchors and from the
+    // midpoints, where the shape tools draw their resize handles (GitHub issue 690). The
+    // outline is a solid line; the Move tool's transform box runs along the same edges but
+    // is dashed, so it never reads as the outline.
+    return accent_line_solid(*canvas, QPoint(100, 120), QPoint(100, 140)) &&
+           accent_line_solid(*canvas, QPoint(140, 100), QPoint(160, 100));
   };
   using patchy::ui::CanvasTool;
   for (const auto tool : {CanvasTool::Brush, CanvasTool::Move, CanvasTool::Eraser, CanvasTool::Marquee,
@@ -8403,7 +8446,8 @@ void ui_path_overlay_follows_free_transform() {
   send_key(*canvas, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
-  CHECK(accent_overlay_near(*canvas, QPoint(300, 160)));
+  // Off the edge's midpoint, where the shape tool's resize handle is back.
+  CHECK(accent_overlay_near(*canvas, QPoint(300, 130)));
 }
 
 void ui_layer_dialogs_refuse_during_transform() {

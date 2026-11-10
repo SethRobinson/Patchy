@@ -490,6 +490,15 @@ public:
   using GradientFillEditCallback = std::function<void(LayerId, const LayerStyleGradient&, GradientFillEditPhase,
                                                       std::uint64_t serial, const QString& undo_label)>;
   void set_gradient_fill_edit_callback(GradientFillEditCallback callback);
+  // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
+  // issue 690). The box is the document rect of what the options-bar W / H fields size:
+  // the active shape layer's path, or its components Path Select picked. Empty when no
+  // handles show. The callback gets the box before the drag and the box now; MainWindow
+  // scales the shape from one to the other (docs/vector-tools.md).
+  [[nodiscard]] std::optional<QRectF> shape_resize_box_rect() const;
+  using ShapeResizeCallback = std::function<void(LayerId, const QRectF& from, const QRectF& to, ShapeResizePhase,
+                                                 std::uint64_t serial)>;
+  void set_shape_resize_callback(ShapeResizeCallback callback);
   // A double-click on a color stop: MainWindow opens the color picker for that stop.
   void set_gradient_fill_stop_color_requested_callback(std::function<void(LayerId, int)> callback);
   // The gradient the handles show (document space), when they are shown: the layer's own, or
@@ -1848,7 +1857,8 @@ protected:
   // (GitHub #597), Smudge and the toning brushes (GitHub #660), which keep every recorded
   // position (pending_stroke_positions_).
   [[nodiscard]] bool coalescing_drag_active() const noexcept {
-    return moving_layer_ || dragging_transform_ || color_picking_ || coalescing_retouch_stroke();
+    return moving_layer_ || dragging_transform_ || color_picking_ || shape_resize_drag_.has_value() ||
+           coalescing_retouch_stroke();
   }
   // Smudge and the toning brushes (Dodge, Burn, Sponge, Blur, Sharpen) coalesce the same
   // way (GitHub #660), and so do Brush and Eraser strokes, whose queued moves then paint their
@@ -1893,8 +1903,9 @@ private:
   // HandlesOnly: the eight handle squares, the Rotate stem handle, and the inside
   // (Move). EdgesAndCorners adds a band along each edge (that side's resize handle),
   // a band just outside each corner (Rotate), and a Move core that a small box keeps
-  // ahead of its handles.
-  enum class TransformHitZones { HandlesOnly, EdgesAndCorners };
+  // ahead of its handles. ResizeHandles is the eight handle squares alone, the nearest
+  // one where they overlap: no Rotate, no Move (the shape tools' box, GitHub issue 690).
+  enum class TransformHitZones { HandlesOnly, EdgesAndCorners, ResizeHandles };
   // What a Free Transform handle drag does (transform_drag_kind_for, chosen at press;
   // retarget_transform_drag switches it when the modifiers change mid-drag).
   enum class TransformDragKind { Scale, DistortCorner, SkewCorner, PerspectiveCorner, MoveEdge, SlideEdge };
@@ -2190,6 +2201,10 @@ private:
   void draw_selection_overlay(QPainter& painter) const;
   void draw_free_transform(QPainter& painter) const;
   void draw_transform_controls(QPainter& painter, QRectF document_rect, double angle_degrees) const;
+  // The dashed box alone, with the rotate stem when `include_rotate`: the part of the
+  // transform controls under the handle squares.
+  void draw_transform_frame(QPainter& painter, QRectF document_rect, double angle_degrees,
+                            bool include_rotate) const;
   // The filled handle squares alone (no box, no rotate stem); shared by the
   // transform controls and the marquee resize handles.
   void draw_transform_handle_squares(QPainter& painter, QRectF document_rect, double angle_degrees,
@@ -3037,6 +3052,26 @@ private:
   bool show_gradient_stop_context_menu(QPoint widget_point, QPoint global_position);
   void send_gradient_fill_preview();
   void draw_gradient_fill_handles(QPainter& painter) const;
+  // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
+  // issue 690): the Move tool's transform-controls box without its rotate stem, on the
+  // active shape layer. A press on a handle square resizes; any other press draws.
+  [[nodiscard]] const Layer* shape_resize_layer() const;
+  [[nodiscard]] TransformHandle shape_resize_handle_at(QPoint widget_point) const;
+  bool press_shape_resize_handle(QMouseEvent* event);
+  bool move_shape_resize_handle(QMouseEvent* event);
+  bool release_shape_resize_handle(QMouseEvent* event);
+  void update_shape_resize_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers);
+  void cancel_shape_resize_drag();
+  void abandon_shape_resize_drag();
+  bool apply_shape_resize_cursor(QPoint widget_point);
+  // The box is painted in two passes around the path overlay: the dashed frame under the
+  // shape's outline (they coincide on a rectangle, and the outline must stay readable),
+  // the handle squares over it.
+  void draw_shape_resize_frame(QPainter& painter) const;
+  void draw_shape_resize_handles(QPainter& painter) const;
+  // Repaints where the box was last drawn and where it is now, when they differ: the
+  // handle squares reach past the layer bounds a bounded document change repaints.
+  void refresh_shape_resize_box();
   // Ruler gestures (canvas_widget_ruler.cpp).
   enum class RulerPart { None, Start, End, Second, Body };
   [[nodiscard]] RulerPart ruler_part_at(QPoint widget_point) const;
@@ -4173,6 +4208,24 @@ private:
   std::optional<GradientOpacityEdit> gradient_opacity_edit_;
   GradientFillEditCallback gradient_fill_edit_callback_;
   std::function<void(LayerId, int)> gradient_fill_stop_color_requested_callback_;
+  // A shape tool's resize-handle drag (GitHub issue 690), from the press to the release.
+  struct ShapeResizeDrag {
+    LayerId layer_id{0};
+    TransformHandle handle{TransformHandle::None};
+    QRectF start_rect;    // the box at the press
+    QRectF current_rect;  // the box now
+    QPointF press_widget;
+    QPointF pointer_widget;
+    QPointF grab_offset;  // document offset from the press to the grabbed side
+    bool moved{false};
+    bool previewed{false};
+    std::uint64_t serial{0};
+  };
+  std::optional<ShapeResizeDrag> shape_resize_drag_;
+  std::uint64_t shape_resize_drag_serial_{0};
+  // The box draw_shape_resize_frame last painted (refresh_shape_resize_box).
+  mutable std::optional<QRectF> shape_resize_painted_rect_;
+  ShapeResizeCallback shape_resize_callback_;
   // gradient_fill_alignment_bounds rasterizes the path: kept per layer and revision.
   struct GradientHandleBoundsCache {
     LayerId layer_id{0};

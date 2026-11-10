@@ -32,6 +32,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests();
 std::vector<patchy::test::TestCase> layer_effect_rows_tests();
 std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests();
 std::vector<patchy::test::TestCase> move_transform_zones_tests();
+std::vector<patchy::test::TestCase> shape_resize_handles_tests();
 std::vector<patchy::test::TestCase> free_transform_distort_tests();
 std::vector<patchy::test::TestCase> free_transform_selection_tests();
 std::vector<patchy::test::TestCase> move_selected_pixels_tests();

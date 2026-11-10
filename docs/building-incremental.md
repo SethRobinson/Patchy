@@ -67,6 +67,11 @@ patchy_ui_visual_tests` (the first opt-dev build in a host's work tree compiles 
 suite, about 8 minutes). The default preset stays `release`, so pass `-Preset opt-dev` for
 development runs; LTCG-only warnings and failures are a release-day concern.
 
+On a Windows host the filter travels on a `cmd.exe` command line (8,191 characters): a
+`-TestFilter` or `-CoreTestFilter` much past 7,000 characters ends the test step with "The
+command line is too long" after a good build. Split a long list of test names over several
+runs (about 3,000 characters each). The macOS host took a 10,000 character list as it was.
+
 Every remote run reconfigures (`cmake --preset`), so a file the configure step generates
 must only be rewritten when its content changes: `file(WRITE)` always touches it, and the
 vendored aom, dav1d and OpenJPEG config headers once made each remote run recompile about
