@@ -46,9 +46,9 @@ struct MissingFontEntry {
   // `suggested` is the font chosen for this missing font the last time, so the row says "Chosen
   // before" in place of its "Suggested" line and starts ticked even for a symbol font.
   bool chosen_before{false};
-  QString recommended;                 // the built-in recommendation: `suggested` with nothing remembered
-  QStringList chosen_before_families;  // every remembered family still installed, most often chosen first
-  std::vector<MissingFontCandidate> candidates;  // every installed built-in candidate, best first
+  QString recommended{};                 // the built-in recommendation: `suggested` with nothing remembered
+  QStringList chosen_before_families{};  // every remembered family still installed, most often chosen first
+  std::vector<MissingFontCandidate> candidates{};  // every installed built-in candidate, best first
 };
 
 struct MissingFontsDialogResult {

@@ -303,7 +303,7 @@ struct FontListRow {
   QString text;  // the family, or the header's or note's text
   bool recent{false};
   int extra_section{-1};  // a family row of FontPickerCombo::extra_sections()[n]
-  QString note;           // that row's dim note beside the name
+  QString note{};         // that row's dim note beside the name
 };
 
 // Where a family row sits, so a rebuild can put the selection back in the same place: the full

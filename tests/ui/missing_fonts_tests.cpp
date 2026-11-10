@@ -136,9 +136,12 @@ void answer_missing_font_prompt(bool accept, std::shared_ptr<int> answered) {
   answer_message_box(QStringLiteral("missingPsdTextFontMessageBox"), accept, std::move(answered));
 }
 
-// Polls for the Missing Fonts dialog and hands it to `act` (which must close it).
+// Polls for the Missing Fonts dialog and hands it to `act` (which must close it). Guarded: a
+// failed check in `act` is recorded and the dialog rejected, never thrown through Qt's event
+// dispatch (macOS aborts there). A dialog that never shows is not a failure here: some callers
+// arm it to prove none opens.
 void handle_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
-  QTimer::singleShot(20, [act = std::move(act), seen, attempts]() mutable {
+  QTimer::singleShot(20, guarded([act = std::move(act), seen, attempts]() mutable {
     auto* dialog = find_top_level_dialog(QStringLiteral("missingFontsDialog"));
     if (dialog == nullptr || !dialog->isVisible()) {
       if (attempts > 0) {
@@ -148,7 +151,7 @@ void handle_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_
     }
     ++*seen;
     act(*dialog);
-  });
+  }));
 }
 
 // The dialog row whose name label reads `family`: its index, or -1.
@@ -174,21 +177,33 @@ struct ReplacementMemoryReset {
   SettingsValueRestorer restorer{QString::fromLatin1(patchy::ui::kMissingFontReplacementsKey)};
 };
 
-// Installed families that draw Latin text, as the font database lists them. The suite registers
-// three on Windows (Arial, Segoe UI, Calibri) and two on Linux.
+// Installed families that draw Latin text and that the font picker lists, under the names the
+// font database gives them. The faces the suite registers come first (three on Windows: Arial,
+// Segoe UI, Calibri), then whatever else the host lists; never a private family (macOS lists
+// ".AppleSystemUIFont" and its kind, which the picker leaves out).
 QStringList latin_text_families() {
   QStringList out;
-  for (const auto& family : patchy::ui::font_families_without_foundries(QFontDatabase::families())) {
+  const auto consider = [&out](const QString& family) {
     const auto listed = patchy::ui::available_text_family_match(family);
-    if (!listed.has_value() || *listed != family || out.contains(family) ||
+    if (!listed.has_value() || *listed != family || out.contains(family) || QFontDatabase::isPrivateFamily(family) ||
         !QFontDatabase::writingSystems(family).contains(QFontDatabase::Latin)) {
-      continue;
+      return;
     }
     QStringList cannot_draw;
     patchy::ui::append_missing_text_family(cannot_draw, family, QStringLiteral("Headline"));
     if (cannot_draw.isEmpty()) {
       out.append(family);
     }
+  };
+  for (const auto& family :
+       {patchy::test::visual_test_font().family(), QStringLiteral("Arial"), QStringLiteral("Segoe UI"),
+        QStringLiteral("Calibri"), QStringLiteral("Liberation Sans"), QStringLiteral("DejaVu Sans"),
+        QStringLiteral("Verdana"), QStringLiteral("Courier New"), QStringLiteral("Times New Roman"),
+        QStringLiteral("Georgia")}) {
+    consider(family);
+  }
+  for (const auto& family : patchy::ui::font_families_without_foundries(QFontDatabase::families())) {
+    consider(family);
   }
   return out;
 }
@@ -2224,6 +2239,8 @@ void ui_missing_fonts_dialog_remembers_the_replacement_chosen() {
     row.picker->setCurrentFont(QFont(pick));
     row.resolve->click();
   });
+  std::fprintf(stderr, "  recommended '%s', picked '%s', layer became '%s'\n", qPrintable(recommended),
+               qPrintable(pick), qPrintable(layer_font(window, first_id)));
   CHECK(!pick.isEmpty() && layer_font(window, first_id) == pick);
   CHECK(remembered().size() == 1U);
   if (remembered().size() == 1U) {
@@ -2385,6 +2402,8 @@ void ui_missing_fonts_picker_orders_chosen_before_by_count() {
   }
   const auto often = others.at(0);
   const auto once = others.at(1);
+  std::fprintf(stderr, "  chosen often '%s', once '%s'; candidates: %s\n", qPrintable(often), qPrintable(once),
+               qPrintable(candidates.join(QStringLiteral(", "))));
   patchy::ui::record_font_replacement(missing, once);
   patchy::ui::record_font_replacement(missing, often);
   patchy::ui::record_font_replacement(missing, often);
@@ -2417,6 +2436,10 @@ void ui_missing_fonts_picker_orders_chosen_before_by_count() {
             save_widget_artifact("ui_missing_fonts_dialog_chosen_before", dialog);
           }
           const auto sections = picker_extra_sections(*row.picker, capture ? "ui_missing_fonts_picker_sections" : nullptr);
+          for (const auto& section : sections) {
+            std::fprintf(stderr, "  section '%s': %s\n", qPrintable(section.title),
+                         qPrintable(section.families.join(QStringLiteral(", "))));
+          }
           CHECK(sections.size() == (candidates.isEmpty() ? 1U : 2U));
           if (!sections.empty()) {
             CHECK(sections.front().title == QStringLiteral("Chosen before"));
