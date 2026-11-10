@@ -1097,7 +1097,9 @@ void ui_polygon_tool_creates_polygons_and_stars() {
   CHECK(hexagon.anchors.size() == 6);
   CHECK(std::abs(hexagon.anchors[0].anchor_x - 300.0) < 1.0);
   CHECK(std::abs(hexagon.anchors[0].anchor_y - 200.0) < 1.0);
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 300)), Qt::black, 8));
+  // Inside the hexagon, clear of the two drag points the Polygon tool draws on it (its
+  // center and first vertex, GitHub #690).
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 340)), Qt::black, 8));
 
   // Star inset doubles the point count.
   inset->setValue(50);
