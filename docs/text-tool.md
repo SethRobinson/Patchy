@@ -134,9 +134,11 @@ entries and the script API's `justify`, `justifyCenter`, `justifyRight`, `justif
   slack between letters before its spaces, or all of it in the one space after a Latin word, so
   Justify All pulled an Arabic last line apart letter by letter. For a justified block that is
   right to left or holds a cursive script, every justified line (the last one too under Justify
-  All) gets `slack / gaps` as `fontWordSpacing` on the last space of each run of spaces, in
-  whole 1/64 px rounded down and less the last glyph's overhang, so the relayout breaks the same
-  lines; a block whose lines move anyway goes back to Qt's justification. Qt then finds nothing
+  All) gets `slack / gaps` as `fontWordSpacing` over the line (one format range per line: a
+  format on each space alone split the line into a run per word and made a re-render of a long
+  paragraph take seconds), in whole 1/64 px rounded down and less the
+  last glyph's overhang, so the relayout breaks the same lines; a block whose lines move anyway
+  goes back to Qt's justification. Qt then finds nothing
   left to spread. `apply_justify_all_to_document` never forces a cursive block. Photoshop
   justifies both by word spaces (and kashidas, which Patchy does not insert). Area text is not
   covered: it places its own lines, so a cursive Justify All last line there stays unspread.

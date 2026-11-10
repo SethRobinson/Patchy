@@ -224,9 +224,12 @@ bool is_word_space(QChar ch) {
          ch != QChar::ParagraphSeparator;
 }
 
+// One justified line (from its first word to its end, trailing spaces included) and the extra
+// advance each of its word gaps takes.
 struct WordSpaceEdit {
-  int position{0};      // document position of the space that takes the extra advance
-  double spacing{0.0};  // the extra advance, a whole number of Qt's 1/64 px
+  int position{0};      // document position of the line's first word
+  int length{0};        // up to the end of the line
+  double spacing{0.0};  // the extra advance per gap, a whole number of Qt's 1/64 px
 };
 
 std::vector<int> block_line_starts(const QTextBlock& block) {
@@ -270,15 +273,15 @@ std::vector<WordSpaceEdit> word_space_justification_edits(const QTextBlock& bloc
     while (content_start < content_end && text.at(content_start).isSpace()) {
       ++content_start;
     }
-    // One gap per run of spaces between words; the run's last space takes the advance (Qt adds
-    // word spacing once per run of equally formatted spaces).
-    std::vector<int> gaps;
+    // One gap per run of spaces between words: Qt adds a font's word spacing once per run of
+    // spaces it shapes together.
+    int gaps = 0;
     for (int position = content_start; position < content_end; ++position) {
       if (is_word_space(text.at(position)) && !is_word_space(text.at(position + 1))) {
-        gaps.push_back(position);
+        ++gaps;
       }
     }
-    if (gaps.empty()) {
+    if (gaps == 0) {
       continue;
     }
     // Qt keeps a word on the line only while the text plus the overhang of its last glyph (a
@@ -294,27 +297,27 @@ std::vector<WordSpaceEdit> word_space_justification_edits(const QTextBlock& bloc
       continue;
     }
     // Whole 1/64 px, rounded down: Qt's fixed point truncates, and the sum must not pass the slack.
-    const auto spacing = std::floor(slack * 64.0 / static_cast<double>(gaps.size())) / 64.0;
+    const auto spacing = std::floor(slack * 64.0 / static_cast<double>(gaps)) / 64.0;
     if (spacing <= 0.0) {
       continue;
     }
-    for (const auto gap : gaps) {
-      edits.push_back(WordSpaceEdit{block.position() + gap, spacing});
-    }
+    edits.push_back(WordSpaceEdit{block.position() + content_start, end - content_start, spacing});
   }
   return edits;
 }
 
-void add_word_spacing(QTextDocument& document, const std::vector<WordSpaceEdit>& edits, double sign) {
+// Sets the word spacing over each line as one format range: the line stays one run per style (a
+// format on every space alone split it into a run per word, and a re-render of a long paragraph
+// took seconds). The line's trailing spaces widen with the rest; they hang outside the line
+// either way. Nothing else in Patchy sets a font's word spacing, so clearing is setting 0.
+void set_word_spacing(QTextDocument& document, const std::vector<WordSpaceEdit>& edits, bool clear) {
   QTextCursor cursor(&document);
-  // One edit block: outside one, every cursor move and format merge lays the document out again
-  // (a re-render of a long paragraph took seconds).
-  cursor.beginEditBlock();
+  cursor.beginEditBlock();  // one relayout for the lot
   for (const auto& edit : edits) {
     cursor.setPosition(edit.position);
-    cursor.setPosition(edit.position + 1, QTextCursor::KeepAnchor);
+    cursor.setPosition(edit.position + edit.length, QTextCursor::KeepAnchor);
     QTextCharFormat format;
-    format.setFontWordSpacing(cursor.charFormat().fontWordSpacing() + sign * edit.spacing);
+    format.setFontWordSpacing(clear ? 0.0 : edit.spacing);
     cursor.mergeCharFormat(format);
   }
   cursor.endEditBlock();
@@ -352,7 +355,7 @@ void apply_word_space_justification_to_document(QTextDocument& document) {
     return;
   }
   for (const auto& entry : blocks) {
-    add_word_spacing(document, entry.edits, 1.0);
+    set_word_spacing(document, entry.edits, false);
   }
   (void)document_layout->documentSize();
   // The wider spaces must not move a line break: every stretched line still fits by
@@ -361,7 +364,7 @@ void apply_word_space_justification_to_document(QTextDocument& document) {
   bool reverted = false;
   for (const auto& entry : blocks) {
     if (block_line_starts(document.findBlock(entry.block_position)) != entry.line_starts) {
-      add_word_spacing(document, entry.edits, -1.0);
+      set_word_spacing(document, entry.edits, true);
       reverted = true;
     }
   }
