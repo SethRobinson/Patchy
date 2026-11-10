@@ -8,8 +8,10 @@
 // Drawn incrementally: the bricks render once into their own layer and a
 // destroyed brick is just cleared with a transparent fillRect, while the ball
 // and paddle live on their own tiny layers that move via layer.x/y each frame.
-// No full-canvas upload ever happens, so the compositor only recomposites the
-// few pixels that changed. Undo is disabled for speed with app.undoEnabled.
+// A broken brick throws chips onto the Debris layer: each frame they are drawn
+// into one small buffer covering where they were and where they are, uploaded
+// with a single setPixels. No full-canvas upload ever happens, so the
+// compositor only recomposites the few pixels that changed. Undo is disabled for speed with app.undoEnabled.
 // The playfield backdrop comes from the bundled Fancy Background script - one
 // script calling another via include().
 
@@ -65,6 +67,62 @@ for (var by = 0; by < ROWS; by++) {
   }
 }
 var bricksLeft = bricks.length;
+
+// Debris: chips of a broken brick fly out, fall and shrink on their own layer.
+var CHIPS_PER_BRICK = 10;
+var MAX_CHIPS = 200;
+var debrisLayer = doc.addLayer("Debris");
+debrisLayer.setPixels({ x: 0, y: 0, width: W, height: H,
+                        data: new Uint8Array(W * H * 4).buffer });
+var chips = [];
+var debrisBox = null;  // what the last upload covered, cleared by the next one
+
+function breakIntoChips(b) {
+  var rgb = parseInt(rowColors[b.row].slice(1), 16);
+  for (var k = 0; k < CHIPS_PER_BRICK && chips.length < MAX_CHIPS; k++) {
+    chips.push({ x: b.x + Math.random() * (BRICK_W - 4), y: b.y + Math.random() * (BRICK_H - 4),
+                 vx: (Math.random() - 0.5) * 5, vy: -0.5 - Math.random() * 3,
+                 life: 28 + Math.random() * 22, r: rgb >> 16, g: (rgb >> 8) & 255, b: rgb & 255 });
+  }
+}
+
+function updateChips(step) {
+  if (chips.length === 0 && !debrisBox) { return; }
+  var live = [], x0 = W, y0 = H, x1 = 0, y1 = 0;
+  for (var j = 0; j < chips.length; j++) {
+    var c = chips[j];
+    c.vy += 0.22 * step;
+    c.x += c.vx * step;
+    c.y += c.vy * step;
+    c.life -= step;
+    if (c.life <= 0 || c.y >= H || c.x < 0 || c.x >= W - 4) { continue; }
+    c.px = Math.round(c.x); c.py = Math.round(c.y);
+    c.s = c.life > 18 ? 4 : (c.life > 8 ? 3 : 2);
+    x0 = Math.min(x0, c.px); y0 = Math.min(y0, c.py);
+    x1 = Math.max(x1, c.px + c.s); y1 = Math.max(y1, Math.min(H, c.py + c.s));
+    live.push(c);
+  }
+  chips = live;
+  // Repaint the union of last frame's box and this frame's chips.
+  if (debrisBox) {
+    x0 = Math.min(x0, debrisBox.x); y0 = Math.min(y0, debrisBox.y);
+    x1 = Math.max(x1, debrisBox.x + debrisBox.w); y1 = Math.max(y1, debrisBox.y + debrisBox.h);
+  }
+  var bw = x1 - x0, bh = y1 - y0;
+  if (bw <= 0 || bh <= 0) { debrisBox = null; return; }
+  var px = new Uint8Array(bw * bh * 4);
+  for (var i = 0; i < chips.length; i++) {
+    var d = chips[i];
+    for (var yy = d.py; yy < Math.min(d.py + d.s, H); yy++) {
+      for (var xx = d.px; xx < d.px + d.s; xx++) {
+        var o = ((yy - y0) * bw + (xx - x0)) * 4;
+        px[o] = d.r; px[o + 1] = d.g; px[o + 2] = d.b; px[o + 3] = 255;
+      }
+    }
+  }
+  debrisLayer.setPixels({ x: x0, y: y0, width: bw, height: bh, data: px.buffer });
+  debrisBox = chips.length ? { x: x0, y: y0, w: bw, h: bh } : null;
+}
 
 // Paddle and ball: one tiny layer each, animated by moving the layer.
 var PADDLE_W = 64;
@@ -137,6 +195,7 @@ pad.onFrame = function (dt) {
           bricksLeft--;
           score += 10;
           bricksLayer.fillRect(b.x, b.y, BRICK_W, BRICK_H, "#00000000");
+          breakIntoChips(b);
           // Higher rows ring higher, like the arcade original.
           sfx(460 + (ROWS - 1 - b.row) * 70, 60, 0.4);
           var overlapX = Math.min(ball.x + BALL - b.x, b.x + BRICK_W - ball.x);
@@ -164,7 +223,9 @@ pad.onFrame = function (dt) {
       }
     }
 
-    // Present: two layer moves, nothing else.
+    updateChips(step);
+
+    // Present: two layer moves and the debris box, nothing else.
     paddleLayer.moveTo(Math.round(paddleX), PADDLE_Y);
     if (state !== "lost") {
       ballLayer.moveTo(Math.round(ball.x), Math.round(ball.y));
