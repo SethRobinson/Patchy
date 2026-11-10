@@ -17,6 +17,8 @@
 #include <future>
 #include <map>
 #include <mutex>
+#include <numeric>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -58,13 +60,35 @@ std::int64_t divide_rounded(std::int64_t numerator, std::int64_t denominator) no
   return -((n + d / 2) / d);
 }
 
+// The fixed-point area whose pixels a flattening must reproduce exactly. A
+// (sub)cubic whose control box lies wholly to one side of it is emitted as
+// its chord instead of being subdivided further: the curve and its chord stay
+// inside that box and share their endpoints, so nothing changes inside the
+// area (vector-preview.md, "Clipped flattening"). Without it a zoomed shape
+// flattened all of its off-screen curves for every 256 px preview tile.
+struct FixedCullBox {
+  std::int64_t left{0};
+  std::int64_t top{0};
+  std::int64_t right{0};
+  std::int64_t bottom{0};
+};
+
+bool cubic_outside(const FixedCullBox& box, FixedPoint p0, FixedPoint p1, FixedPoint p2,
+                   FixedPoint p3) noexcept {
+  const auto [min_x, max_x] = std::minmax({p0.x, p1.x, p2.x, p3.x});
+  const auto [min_y, max_y] = std::minmax({p0.y, p1.y, p2.y, p3.y});
+  return max_x < box.left || min_x > box.right || max_y < box.top || min_y > box.bottom;
+}
+
 // Appends the flattened segments of one cubic (from -> to with control points
 // c1/c2, all fixed). Subdivision is integer-only de Casteljau halving (no
 // floating point anywhere), so output is bit-identical across toolchains
-// regardless of FMA contraction differences.
+// regardless of FMA contraction differences. Every midpoint stays inside the
+// control box of its parent (floor averages of in-range integers).
 void flatten_cubic_recursive(FixedPoint p0, FixedPoint p1, FixedPoint p2, FixedPoint p3,
-                             std::int32_t depth, std::vector<Edge>& edges) {
-  if (depth <= 0) {
+                             std::int32_t depth, std::vector<Edge>& edges,
+                             const FixedCullBox* cull = nullptr) {
+  if (depth <= 0 || (cull != nullptr && cubic_outside(*cull, p0, p1, p2, p3))) {
     if (p0.y != p3.y || p0.x != p3.x) {
       edges.push_back(Edge{p0, p3});
     }
@@ -81,12 +105,12 @@ void flatten_cubic_recursive(FixedPoint p0, FixedPoint p1, FixedPoint p2, FixedP
   const FixedPoint m012{mid(m01.x, m12.x), mid(m01.y, m12.y)};
   const FixedPoint m123{mid(m12.x, m23.x), mid(m12.y, m23.y)};
   const FixedPoint m{mid(m012.x, m123.x), mid(m012.y, m123.y)};
-  flatten_cubic_recursive(p0, m01, m012, m, depth - 1, edges);
-  flatten_cubic_recursive(m, m123, m23, p3, depth - 1, edges);
+  flatten_cubic_recursive(p0, m01, m012, m, depth - 1, edges, cull);
+  flatten_cubic_recursive(m, m123, m23, p3, depth - 1, edges, cull);
 }
 
 void flatten_cubic(FixedPoint from, FixedPoint c1, FixedPoint c2, FixedPoint to,
-                   std::vector<Edge>& edges) {
+                   std::vector<Edge>& edges, const FixedCullBox* cull = nullptr) {
   const auto deviation = std::max(
       std::max(std::abs(static_cast<std::int64_t>(from.x) - 2 * c1.x + c2.x),
                std::abs(static_cast<std::int64_t>(from.y) - 2 * c1.y + c2.y)),
@@ -107,13 +131,18 @@ void flatten_cubic(FixedPoint from, FixedPoint c1, FixedPoint c2, FixedPoint to,
     error /= 4;
     ++depth;
   }
-  flatten_cubic_recursive(from, c1, c2, to, depth, edges);
+  flatten_cubic_recursive(from, c1, c2, to, depth, edges, cull);
 }
 
 // Flattens every subpath of one shape group into edges relative to
-// `origin` (document pixels), closing open subpaths with their chord.
+// `origin` (document pixels), closing open subpaths with their chord. `cull`
+// is the buffer the edges rasterize into (same relative coordinates):
+// rasterize_edges gives an edge wholly left of its buffer the full cover of
+// the rows it spans and drops edges above, below or right of it, so curves
+// there only need their endpoints.
 void flatten_group(const VectorPath& path, std::size_t first_subpath, std::size_t subpath_end,
-                   std::int32_t origin_x, std::int32_t origin_y, std::vector<Edge>& edges) {
+                   std::int32_t origin_x, std::int32_t origin_y, std::vector<Edge>& edges,
+                   const FixedCullBox* cull = nullptr) {
   const std::int32_t shift_x = origin_x * kSub;
   const std::int32_t shift_y = origin_y * kSub;
   for (std::size_t s = first_subpath; s < subpath_end; ++s) {
@@ -144,7 +173,7 @@ void flatten_group(const VectorPath& path, std::size_t first_subpath, std::size_
           edges.push_back(Edge{from, to});
         }
       } else {
-        flatten_cubic(from, c1, c2, to, edges);
+        flatten_cubic(from, c1, c2, to, edges, cull);
       }
     }
   }
@@ -449,7 +478,9 @@ struct DPoint {
 // Flattens one subpath into a document-space polyline. Curves go through the
 // same integer flattener as fills (converted back to doubles exactly), so
 // stroke and fill geometry always agree.
-std::vector<DPoint> subpath_polyline(const PathSubpath& subpath) {
+// `cull` (absolute fixed) is the stroke clip grown by the outline's reach: a
+// curve outside it becomes its chord, whose outline pieces stay outside too.
+std::vector<DPoint> subpath_polyline(const PathSubpath& subpath, const FixedCullBox* cull = nullptr) {
   std::vector<DPoint> points;
   const auto count = subpath.anchors.size();
   if (count == 0) {
@@ -484,7 +515,7 @@ std::vector<DPoint> subpath_polyline(const PathSubpath& subpath) {
       continue;
     }
     std::vector<Edge> segment_edges;
-    flatten_cubic(from, c1, c2, to, segment_edges);
+    flatten_cubic(from, c1, c2, to, segment_edges, cull);
     for (const auto& edge : segment_edges) {
       push(static_cast<double>(edge.to.x) / kSub, static_cast<double>(edge.to.y) / kSub);
     }
@@ -507,34 +538,79 @@ struct StrokeRun {
   DPoint dot_direction{};
 };
 
-std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original);
+std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original,
+                                              bool exhaustive = false);
 
 // A shape's stroke follows the Boolean result, not the hidden contours of its
 // operands. Split the flattened segments at crossings, retain only edges with
 // different final fill on their two sides, then walk the directed boundaries.
 // Source paths stay intact for editing and native PSD preservation.
-std::vector<StrokeRun> combined_stroke_contours(const VectorPath& path) {
+// `cull` applies to single-group paths only (the Boolean walk needs every
+// crossing), and to open subpaths only with `cull_open` (an off-center open
+// contour is offset sideways before outlining).
+std::vector<StrokeRun> combined_stroke_contours(const VectorPath& path, const FixedCullBox* cull = nullptr,
+                                                bool cull_open = true, bool exhaustive = false) {
   std::vector<StrokeRun> original;
   bool multiple_groups = false;
   bool all_closed = true;
   for (const auto& subpath : path.subpaths) {
-    original.push_back({subpath_polyline(subpath), subpath.closed});
     all_closed &= subpath.closed;
     multiple_groups |= subpath.shape_group != path.subpaths.front().shape_group;
+  }
+  if (multiple_groups) {
+    cull = nullptr;
+  }
+  for (const auto& subpath : path.subpaths) {
+    original.push_back({subpath_polyline(subpath, subpath.closed || cull_open ? cull : nullptr), subpath.closed});
   }
   // Photoshop fills a leading Intersect contour, but its stroke starts from an
   // empty operand. A lone closed Intersect group consequently has no outline.
   if (!multiple_groups && all_closed && !path.subpaths.empty() &&
       path.subpaths.front().op == PathCombineOp::Intersect) return {};
   if (!multiple_groups || !all_closed) return original;
-  return fill_boundary_contours(path, original);
+  if (exhaustive) return fill_boundary_contours(path, original, true);
+  // The Boolean outline does not depend on the clip, and a zoomed Dynamic Vector Preview
+  // strokes the same path for every 256 px tile it reaches, so recent outlines stay cached
+  // per thread. Tiles visit every shape in turn: the cache holds a view's worth of paths
+  // (bounded by their outline points, about 32 MB) rather than a few, which that cycle
+  // would evict.
+  struct CachedBoundary {
+    VectorPath path;
+    std::vector<StrokeRun> contours;
+    std::size_t points{0};
+  };
+  thread_local std::vector<CachedBoundary> cache;
+  thread_local std::size_t cached_points = 0;
+  for (std::size_t i = 0; i < cache.size(); ++i) {
+    if (cache[i].path == path) {
+      std::rotate(cache.begin(), cache.begin() + static_cast<std::ptrdiff_t>(i),
+                  cache.begin() + static_cast<std::ptrdiff_t>(i) + 1);
+      return cache.front().contours;
+    }
+  }
+  auto contours = fill_boundary_contours(path, original, false);
+  std::size_t points = 0;
+  for (const auto& contour : contours) points += contour.points.size();
+  constexpr std::size_t kCachedPoints = 2'000'000;
+  if (points <= kCachedPoints) {
+    while (!cache.empty() && cached_points + points > kCachedPoints) {
+      cached_points -= cache.back().points;
+      cache.pop_back();
+    }
+    cached_points += points;
+    cache.insert(cache.begin(), CachedBoundary{path, contours, points});
+  }
+  return contours;
 }
 
 // The directed boundary of the path's combined fill (inside on the left): the flattened
 // segments of every contour split at crossings, kept where the fill differs on the two sides,
 // then walked into closed loops on the 1/256 lattice. `original` holds the flattened contours of
 // path.subpaths in order (open ones close with their chord, as the fill does).
-std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original) {
+// `exhaustive` tests every segment pair and every edge per parity query: the reference
+// the faster search must match (VectorRasterOptions::reference_geometry).
+std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original,
+                                              bool exhaustive) {
   struct Segment { DPoint a, b; std::vector<double> cuts{0.0, 1.0}; };
   std::vector<Segment> segments;
   for (const auto& contour : original) {
@@ -548,43 +624,121 @@ std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std:
   const auto add_cut = [](Segment& segment, double t) {
     if (t >= 0.0 && t <= 1.0) segment.cuts.push_back(t);
   };
-  for (std::size_t i = 0; i < segments.size(); ++i) {
-    auto& a = segments[i];
+  // Cuts one pair of segments (document order: a before b) whose boxes overlap.
+  const auto cut_pair = [&](Segment& a, Segment& b) {
+    if (std::max(a.a.x, a.b.x) < std::min(b.a.x, b.b.x) ||
+        std::max(b.a.x, b.b.x) < std::min(a.a.x, a.b.x) ||
+        std::max(a.a.y, a.b.y) < std::min(b.a.y, b.b.y) ||
+        std::max(b.a.y, b.b.y) < std::min(a.a.y, a.b.y)) return;
     const auto r = delta(a.b, a.a);
-    for (std::size_t j = i + 1; j < segments.size(); ++j) {
-      auto& b = segments[j];
-      if (std::max(a.a.x, a.b.x) < std::min(b.a.x, b.b.x) ||
-          std::max(b.a.x, b.b.x) < std::min(a.a.x, a.b.x) ||
-          std::max(a.a.y, a.b.y) < std::min(b.a.y, b.b.y) ||
-          std::max(b.a.y, b.b.y) < std::min(a.a.y, a.b.y)) continue;
-      const auto s = delta(b.b, b.a), q = delta(b.a, a.a);
-      const auto divisor = cross(r, s);
-      if (divisor != 0.0) {
-        const auto t = cross(q, s) / divisor, u = cross(q, r) / divisor;
-        if (t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0) {
-          add_cut(a, t); add_cut(b, u);
-        }
-      } else if (cross(q, r) == 0.0) {
-        const auto parameter = [](DPoint p, const Segment& edge) {
-          return std::abs(edge.b.x - edge.a.x) >= std::abs(edge.b.y - edge.a.y)
-              ? (p.x - edge.a.x) / (edge.b.x - edge.a.x)
-              : (p.y - edge.a.y) / (edge.b.y - edge.a.y);
-        };
-        add_cut(a, parameter(b.a, a)); add_cut(a, parameter(b.b, a));
-        add_cut(b, parameter(a.a, b)); add_cut(b, parameter(a.b, b));
+    const auto s = delta(b.b, b.a), q = delta(b.a, a.a);
+    const auto divisor = cross(r, s);
+    if (divisor != 0.0) {
+      const auto t = cross(q, s) / divisor, u = cross(q, r) / divisor;
+      if (t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0) {
+        add_cut(a, t); add_cut(b, u);
+      }
+    } else if (cross(q, r) == 0.0) {
+      const auto parameter = [](DPoint p, const Segment& edge) {
+        return std::abs(edge.b.x - edge.a.x) >= std::abs(edge.b.y - edge.a.y)
+            ? (p.x - edge.a.x) / (edge.b.x - edge.a.x)
+            : (p.y - edge.a.y) / (edge.b.y - edge.a.y);
+      };
+      add_cut(a, parameter(b.a, a)); add_cut(a, parameter(b.b, a));
+      add_cut(b, parameter(a.a, b)); add_cut(b, parameter(a.b, b));
+    }
+  };
+  if (exhaustive) {
+    for (std::size_t i = 0; i < segments.size(); ++i) {
+      for (std::size_t j = i + 1; j < segments.size(); ++j) cut_pair(segments[i], segments[j]);
+    }
+  } else {
+    // The same pairs, found by a sweep over the boxes' left edges: a zoomed view (Dynamic
+    // Vector Preview) flattens tens of thousands of segments, and testing all pairs took
+    // seconds per tile. The cuts are sorted below, so the visiting order does not matter.
+    std::vector<std::size_t> by_left(segments.size());
+    std::iota(by_left.begin(), by_left.end(), std::size_t{0});
+    const auto left_of = [&](std::size_t index) { return std::min(segments[index].a.x, segments[index].b.x); };
+    std::sort(by_left.begin(), by_left.end(), [&](std::size_t x, std::size_t y) {
+      const auto lx = left_of(x), ly = left_of(y);
+      return lx != ly ? lx < ly : x < y;
+    });
+    for (std::size_t k = 0; k < by_left.size(); ++k) {
+      const auto right = std::max(segments[by_left[k]].a.x, segments[by_left[k]].b.x);
+      for (std::size_t m = k + 1; m < by_left.size() && left_of(by_left[m]) <= right; ++m) {
+        cut_pair(segments[std::min(by_left[k], by_left[m])], segments[std::max(by_left[k], by_left[m])]);
       }
     }
   }
+  // Each group's crossing parity reads only the edges spanning the query row: the edges
+  // sit in horizontal bands by their y range (every edge whose range holds y is in y's
+  // band), and parity does not depend on the order the crossings are counted in.
+  struct GroupEdges {
+    std::size_t first{0};
+    double top{0.0};
+    double bottom{0.0};
+    double right{0.0};
+    double band_height{1.0};
+    std::vector<std::vector<std::pair<DPoint, DPoint>>> bands;
+  };
+  std::vector<GroupEdges> groups;
+  for (std::size_t first = 0; first < original.size();) {
+    auto end = first + 1;
+    while (end < original.size() && path.subpaths[end].shape_group == path.subpaths[first].shape_group) ++end;
+    GroupEdges group{first};
+    std::vector<std::pair<DPoint, DPoint>> edges;
+    double top = 0.0, bottom = 0.0, right = 0.0;
+    for (auto s = first; s < end; ++s) {
+      const auto& points = original[s].points;
+      for (std::size_t i = 0; i < points.size(); ++i) {
+        const auto a = points[i], b = points[(i + 1) % points.size()];
+        if (a.y == b.y) continue;  // never satisfies the crossing test
+        top = edges.empty() ? std::min(a.y, b.y) : std::min({top, a.y, b.y});
+        bottom = edges.empty() ? std::max(a.y, b.y) : std::max({bottom, a.y, b.y});
+        right = edges.empty() ? std::max(a.x, b.x) : std::max({right, a.x, b.x});
+        edges.emplace_back(a, b);
+      }
+    }
+    auto count = exhaustive ? std::size_t{1} : std::clamp<std::size_t>(edges.size() / 4, 1, 4096);
+    group.top = top;
+    group.bottom = bottom;
+    group.right = right;
+    // Tall edges sit in every band they cross: fewer bands keep that copy count linear.
+    const auto copies = [&](std::size_t bands) {
+      const double height = bottom > top ? (bottom - top) / static_cast<double>(bands) : 1.0;
+      double total = 0.0;
+      for (const auto& edge : edges) total += std::abs(edge.second.y - edge.first.y) / height + 2.0;
+      return total;
+    };
+    while (count > 1 && copies(count) > 16.0 * static_cast<double>(edges.size()) + 1024.0) count /= 2;
+    group.band_height = bottom > top ? (bottom - top) / static_cast<double>(count) : 1.0;
+    group.bands.resize(count);
+    const auto band_of = [&group, count](double y) {
+      const auto band = std::floor((y - group.top) / group.band_height);
+      return static_cast<std::size_t>(std::clamp(band, 0.0, static_cast<double>(count - 1)));
+    };
+    for (const auto& edge : edges) {
+      const auto last = band_of(std::max(edge.first.y, edge.second.y));
+      for (auto band = band_of(std::min(edge.first.y, edge.second.y)); band <= last; ++band) {
+        group.bands[band].push_back(edge);
+      }
+    }
+    groups.push_back(std::move(group));
+    first = end;
+  }
   const auto filled = [&](DPoint point) {
     bool result = path.subpaths.front().op == PathCombineOp::Subtract;
-    for (std::size_t first = 0; first < original.size();) {
-      auto end = first + 1;
-      while (end < original.size() && path.subpaths[end].shape_group == path.subpaths[first].shape_group) ++end;
+    for (const auto& group : groups) {
+      const auto first = group.first;
       bool inside = false;
-      for (auto s = first; s < end; ++s) {
-        const auto& points = original[s].points;
-        for (std::size_t i = 0; i < points.size(); ++i) {
-          const auto a = points[i], b = points[(i + 1) % points.size()];
+      // A crossing needs an edge whose y range holds the point and an x right of it (the
+      // computed x stays within far less than a pixel of its edge's x range).
+      if (!group.bands.front().empty() && point.y >= group.top && point.y < group.bottom &&
+          point.x < group.right + 1.0) {
+        const auto band = std::floor((point.y - group.top) / group.band_height);
+        const auto& edges = group.bands[static_cast<std::size_t>(
+            std::clamp(band, 0.0, static_cast<double>(group.bands.size() - 1)))];
+        for (const auto& [a, b] : edges) {
           if ((a.y > point.y) != (b.y > point.y) &&
               point.x < a.x + (point.y - a.y) * (b.x - a.x) / (b.y - a.y)) inside = !inside;
         }
@@ -597,7 +751,6 @@ std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std:
         case PathCombineOp::Intersect: result &= inside; break;
         case PathCombineOp::Xor: result ^= inside; break;
       }
-      first = end;
     }
     return result;
   };
@@ -825,10 +978,35 @@ std::vector<StrokeRun> apply_dashes(const std::vector<DPoint>& points, bool clos
 // densely flattened arc the long wedges sweep across many short quads and
 // bite a hatched notch out of the band (the vectors_overlay_stroke top-right
 // corner glitch, July 2026). Normalize by signed area before emitting.
+// Document-pixel box a stroke's outline pieces must reach to matter: its clip
+// plus quantization and Align Edges snapping. Every piece is a small convex
+// loop; one whose box misses this lies wholly to one side of the band buffer
+// and adds nothing there (rasterize_edges: no cover right, above or below it,
+// and a net zero per row left of it), so it is not emitted.
+struct OutlineKeep {
+  double left{0.0};
+  double top{0.0};
+  double right{0.0};
+  double bottom{0.0};
+  [[nodiscard]] bool misses(double x0, double y0, double x1, double y1) const noexcept {
+    return x1 < left || x0 > right || y1 < top || y0 > bottom;
+  }
+};
+
 void append_outline_loop(const std::vector<DPoint>& loop, std::int32_t origin_x, std::int32_t origin_y,
-                         std::vector<Edge>& edges) {
+                         std::vector<Edge>& edges, const OutlineKeep* keep = nullptr) {
   if (loop.size() < 3) {
     return;
+  }
+  if (keep != nullptr) {
+    double x0 = loop.front().x, x1 = x0, y0 = loop.front().y, y1 = y0;
+    for (const auto& point : loop) {
+      x0 = std::min(x0, point.x); x1 = std::max(x1, point.x);
+      y0 = std::min(y0, point.y); y1 = std::max(y1, point.y);
+    }
+    if (keep->misses(x0, y0, x1, y1)) {
+      return;
+    }
   }
   double doubled_area = 0.0;
   for (std::size_t i = 0; i < loop.size(); ++i) {
@@ -860,7 +1038,12 @@ void append_outline_loop(const std::vector<DPoint>& loop, std::int32_t origin_x,
 // Subdivided arc fan between two unit vectors around `center` (radius h),
 // using normalized-midpoint halving (sqrt only; no trig).
 void append_arc_fan(const DPoint& center, DPoint from_unit, DPoint to_unit, double radius,
-                    std::int32_t origin_x, std::int32_t origin_y, std::vector<Edge>& edges, int depth = 0) {
+                    std::int32_t origin_x, std::int32_t origin_y, std::vector<Edge>& edges, int depth = 0,
+                    const OutlineKeep* keep = nullptr) {
+  if (keep != nullptr && depth == 0 &&
+      keep->misses(center.x - radius, center.y - radius, center.x + radius, center.y + radius)) {
+    return;  // every triangle of the fan lies inside its circle's box
+  }
   const double chord_x = to_unit.x - from_unit.x;
   const double chord_y = to_unit.y - from_unit.y;
   const double chord = std::sqrt(chord_x * chord_x + chord_y * chord_y);
@@ -868,7 +1051,7 @@ void append_arc_fan(const DPoint& center, DPoint from_unit, DPoint to_unit, doub
     append_outline_loop({center,
                          DPoint{center.x + from_unit.x * radius, center.y + from_unit.y * radius},
                          DPoint{center.x + to_unit.x * radius, center.y + to_unit.y * radius}},
-                        origin_x, origin_y, edges);
+                        origin_x, origin_y, edges, keep);
     return;
   }
   double mid_x = from_unit.x + to_unit.x;
@@ -883,15 +1066,15 @@ void append_arc_fan(const DPoint& center, DPoint from_unit, DPoint to_unit, doub
     mid_y /= mid_length;
   }
   const DPoint mid{mid_x, mid_y};
-  append_arc_fan(center, from_unit, mid, radius, origin_x, origin_y, edges, depth + 1);
-  append_arc_fan(center, mid, to_unit, radius, origin_x, origin_y, edges, depth + 1);
+  append_arc_fan(center, from_unit, mid, radius, origin_x, origin_y, edges, depth + 1, keep);
+  append_arc_fan(center, mid, to_unit, radius, origin_x, origin_y, edges, depth + 1, keep);
 }
 
 // Builds the stroke outline loops for one run at half-width h.
 void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
                         VectorStrokeCap cap, VectorStrokeJoin join,
                         double miter_limit, std::int32_t origin_x, std::int32_t origin_y,
-                        std::vector<Edge>& edges) {
+                        std::vector<Edge>& edges, const OutlineKeep* keep = nullptr) {
   const auto& pts = run.points;
   if (pts.size() < 2 || h <= 0.0) {
     return;
@@ -912,7 +1095,7 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
     const DPoint n{-directions[i].y * h, directions[i].x * h};
     append_outline_loop({DPoint{a.x + n.x, a.y + n.y}, DPoint{b.x + n.x, b.y + n.y},
                          DPoint{b.x - n.x, b.y - n.y}, DPoint{a.x - n.x, a.y - n.y}},
-                        origin_x, origin_y, edges);
+                        origin_x, origin_y, edges, keep);
   }
 
   // Joins at interior vertices (every vertex for closed runs).
@@ -938,9 +1121,9 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
     if (join == VectorStrokeJoin::Bevel) {
       append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h},
                            DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
-                          origin_x, origin_y, edges);
+                          origin_x, origin_y, edges, keep);
     } else if (join == VectorStrokeJoin::Round) {
-      append_arc_fan(v, n_in, n_out, h, origin_x, origin_y, edges);
+      append_arc_fan(v, n_in, n_out, h, origin_x, origin_y, edges, 0, keep);
     } else {
       // Miter: outer point along the normal bisector at h / cos(alpha/2);
       // ratio 1/cos(alpha/2) checked against the limit (bevel fallback).
@@ -950,7 +1133,7 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
       if (bis_length <= 1e-12) {
         append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h},
                              DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
-                            origin_x, origin_y, edges);
+                            origin_x, origin_y, edges, keep);
         continue;
       }
       bis_x /= bis_length;
@@ -960,12 +1143,12 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
       if (ratio > std::max(miter_limit, 1.0)) {
         append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h},
                              DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
-                            origin_x, origin_y, edges);
+                            origin_x, origin_y, edges, keep);
       } else {
         const DPoint m{v.x + bis_x * h * ratio, v.y + bis_y * h * ratio};
         append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h}, m,
                              DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
-                            origin_x, origin_y, edges);
+                            origin_x, origin_y, edges, keep);
       }
     }
   }
@@ -987,10 +1170,10 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
                DPoint{center.x - n.x * radius + direction.x * radius,
                       center.y - n.y * radius + direction.y * radius},
                DPoint{center.x - n.x * radius, center.y - n.y * radius}},
-              origin_x, origin_y, edges);
+              origin_x, origin_y, edges, keep);
         } else {
-          append_arc_fan(center, n, direction, radius, origin_x, origin_y, edges);
-          append_arc_fan(center, direction, DPoint{-n.x, -n.y}, radius, origin_x, origin_y, edges);
+          append_arc_fan(center, n, direction, radius, origin_x, origin_y, edges, 0, keep);
+          append_arc_fan(center, direction, DPoint{-n.x, -n.y}, radius, origin_x, origin_y, edges, 0, keep);
         }
       };
       const double shift = h - cap_half_width;
@@ -1120,7 +1303,10 @@ CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterO
       group_coverage.bounds = group_bounds;
       group_coverage.pixels = PixelBuffer(group_bounds.width, group_bounds.height, PixelFormat::gray8());
       std::vector<Edge> edges;
-      flatten_group(path, group.first, group.end, group_bounds.x, group_bounds.y, edges);
+      const FixedCullBox cull{0, 0, static_cast<std::int64_t>(group_bounds.width) * kSub,
+                              static_cast<std::int64_t>(group_bounds.height) * kSub};
+      flatten_group(path, group.first, group.end, group_bounds.x, group_bounds.y, edges,
+                    options.reference_geometry ? nullptr : &cull);
       rasterize_edges(edges, group_bounds.width, group_bounds.height, WindingRule::EvenOdd,
                       group_coverage.pixels);
     }
@@ -1215,7 +1401,27 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   std::vector<Edge> edges;
   // Off-center open contours: the centered band moved sideways, never clipped.
   std::vector<Edge> open_edges;
-  for (const auto& contour : combined_stroke_contours(path)) {
+  // Outline pieces reach at most a miter (or a square cap's corner) from the polyline.
+  // Dashes measure arc length and Align Edges tests every segment: both keep every curve.
+  std::optional<FixedCullBox> cull;
+  std::optional<OutlineKeep> keep;
+  if (!options.reference_geometry) {
+    keep = OutlineKeep{options.clip.x - 2.0, options.clip.y - 2.0,
+                       static_cast<double>(options.clip.x) + options.clip.width + 2.0,
+                       static_cast<double>(options.clip.y) + options.clip.height + 2.0};
+  }
+  if (stroke.dashes.empty() && !options.align_stroke_edges && !options.reference_geometry) {
+    const double reach = half * std::max(stroke.miter_limit, 1.5) + 4.0;
+    if (std::isfinite(reach) && reach < 1'000'000.0) {
+      const auto pad = static_cast<std::int64_t>(std::ceil(reach)) * kSub;
+      cull = FixedCullBox{static_cast<std::int64_t>(options.clip.x) * kSub - pad,
+                          static_cast<std::int64_t>(options.clip.y) * kSub - pad,
+                          (static_cast<std::int64_t>(options.clip.x) + options.clip.width) * kSub + pad,
+                          (static_cast<std::int64_t>(options.clip.y) + options.clip.height) * kSub + pad};
+    }
+  }
+  for (const auto& contour : combined_stroke_contours(path, cull ? &*cull : nullptr, centered,
+                                                             options.reference_geometry)) {
     if (contour.points.size() < 2) {
       continue;
     }
@@ -1227,7 +1433,7 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
       for (auto run : apply_dashes(contour.points, false, dashes_px, offset_px)) {
         run.points = offset_open_polyline(run.points, side * stroke.width / 2.0, run.dot_direction);
         append_run_outline(run, stroke.width / 2.0, stroke.width / 2.0, stroke.cap, stroke.join,
-                           stroke.miter_limit, 0, 0, open_edges);
+                           stroke.miter_limit, 0, 0, open_edges, keep ? &*keep : nullptr);
       }
       continue;
     }
@@ -1247,7 +1453,7 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
     const auto aligned_half = rectilinear ? snap_to_pixel_grid(geometry_width) * 0.5 : half;
     for (const auto& run : runs) {
       append_run_outline(run, aligned_half, rectilinear ? aligned_half : cap_half_width,
-                         stroke.cap, stroke.join, stroke.miter_limit, 0, 0, edges);
+                         stroke.cap, stroke.join, stroke.miter_limit, 0, 0, edges, keep ? &*keep : nullptr);
     }
     if (rectilinear) {
       const auto aligned = [](FixedPoint point) {
@@ -1306,6 +1512,7 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   if (!centered && !edges.empty()) {
     VectorRasterOptions region_options;
     region_options.clip = options.clip;
+    region_options.reference_geometry = options.reference_geometry;
     const auto region = rasterize_vector_path(path, region_options);
     auto* bytes = band.pixels.data().data();
     const auto stride = band.pixels.stride_bytes();
