@@ -7,6 +7,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/font_picker.hpp"
+#include "ui/font_replacement_memory.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/missing_fonts_dialog.hpp"
@@ -91,12 +92,18 @@ MissingFontEntry missing_font_entry(const DocumentMissingFont& font) {
   // The built-in substitute table first (issue 463): metric matches, then look-alikes, then an
   // installed default of the same font type, then the face Qt draws the text in now.
   if (const auto substitutes = installed_text_font_substitutes(font.family, font.first_text); !substitutes.empty()) {
-    const auto& best = substitutes.front();
+    for (const auto& substitute : substitutes) {
+      entry.candidates.push_back(MissingFontCandidate{
+          substitute.family,
+          substitute.same_type != FontClass::unknown ? MissingFontSuggestion::same_type
+          : substitute.metric                         ? MissingFontSuggestion::metric
+                                                      : MissingFontSuggestion::lookalike,
+          substitute.same_type});
+    }
+    const auto& best = entry.candidates.front();
     entry.suggested = best.family;
-    entry.font_type = best.same_type;
-    entry.suggestion = best.same_type != FontClass::unknown ? MissingFontSuggestion::same_type
-                       : best.metric                         ? MissingFontSuggestion::metric
-                                                             : MissingFontSuggestion::lookalike;
+    entry.font_type = best.font_type;
+    entry.suggestion = best.kind;
   } else if (text_font_class(font.family) == FontClass::symbol) {
     // A symbol font with no copy installed (issue 463 follow-up): no text font is offered, since
     // it would turn the pictures into letters. The row starts unticked on the UI font.
@@ -110,7 +117,50 @@ MissingFontEntry missing_font_entry(const DocumentMissingFont& font) {
       entry.suggested = default_text_family();
     }
   }
+  entry.recommended = entry.suggested;
+  // The replacements chosen for this font before (issue 692). The row's picker lists the ones still
+  // installed, and the row starts on the one chosen last that is installed and draws the text; an
+  // older pick answers when that one cannot, and the built-in recommendation when none can.
+  for (const auto& pick : remembered_font_replacements_by_count(font.family)) {
+    if (const auto installed = available_text_family_match(pick.family);
+        installed.has_value() && !entry.chosen_before_families.contains(*installed)) {
+      entry.chosen_before_families.push_back(*installed);
+    }
+  }
+  for (const auto& pick : remembered_font_replacements(font.family)) {
+    const auto installed = available_text_family_match(pick.family);
+    if (!installed.has_value()) {
+      continue;
+    }
+    QStringList cannot_draw;
+    append_missing_text_family(cannot_draw, *installed, font.first_text);
+    if (cannot_draw.isEmpty()) {
+      entry.suggested = *installed;
+      entry.chosen_before = true;
+      break;
+    }
+  }
   return entry;
+}
+
+// Remembers the replacements Resolve Fonts just applied (issue 692): a pick that differs from the
+// row's built-in recommendation, any pick for a symbol font nothing is recommended for (its row
+// starts unticked), and any pick for a font that already has remembered ones, so going back to
+// the recommendation is the new last pick and accepting a remembered font counts once more. An
+// untouched recommendation for a font with no history is not a choice and records nothing.
+void remember_font_replacements(const std::vector<MissingFontEntry>& entries,
+                                const QHash<QString, QString>& replacements) {
+  for (const auto& entry : entries) {
+    const auto chosen = replacements.constFind(text_font_replacement_key(entry.family));
+    if (chosen == replacements.constEnd() || chosen->trimmed().isEmpty()) {
+      continue;
+    }
+    const bool by_hand = entry.suggestion == MissingFontSuggestion::no_symbol_match ||
+                         chosen->compare(entry.recommended, Qt::CaseInsensitive) != 0;
+    if (by_hand || !remembered_font_replacements(entry.family).empty()) {
+      record_font_replacement(entry.family, *chosen);
+    }
+  }
 }
 
 }  // namespace
@@ -225,6 +275,7 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
   if (!result.has_value() || result->replacements.isEmpty()) {
     return;
   }
+  remember_font_replacements(entries, result->replacements);
   int skipped_locked = 0;
   const auto changed = resolve_missing_fonts(result->replacements, &skipped_locked);
   auto message = tr("Replaced missing fonts in %n text layer(s)", nullptr, changed);
@@ -334,15 +385,20 @@ void MainWindow::replace_all_missing_fonts() {
   QHash<QString, QString> replacements;
   int kept_symbol_fonts = 0;
   for (const auto& font : fonts) {
+    // Reads the remembered replacements (issue 692) and never writes them: only a pick made in the
+    // dialog is a choice.
     const auto entry = missing_font_entry(font);
-    if (entry.suggestion == MissingFontSuggestion::no_symbol_match) {
+    if (entry.suggestion == MissingFontSuggestion::no_symbol_match && !entry.chosen_before) {
       // The dialog starts this row unticked: a text font would turn the symbols into letters.
       ++kept_symbol_fonts;
       continue;
     }
-    // A recommendation from the substitute table or a same-type default; with none, the
-    // standard family new type starts in rather than whatever face Qt falls back to.
-    const auto family = entry.suggestion == MissingFontSuggestion::fallback ? default_text_family() : entry.suggested;
+    // The font chosen in the dialog before; else a recommendation from the substitute table or a
+    // same-type default; with none, the standard family new type starts in rather than whatever
+    // face Qt falls back to.
+    const auto family = !entry.chosen_before && entry.suggestion == MissingFontSuggestion::fallback
+                            ? default_text_family()
+                            : entry.suggested;
     replacements.insert(text_font_replacement_key(font.family), family);
   }
   int skipped_locked = 0;

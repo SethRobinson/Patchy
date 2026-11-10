@@ -15706,6 +15706,45 @@ Do you want to replace it?</source>
         <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
         <translation>안쪽은 획을 선 두께 안에 유지합니다. 선을 더 두껍게 하려면 중앙 또는 바깥쪽을 선택하세요.</translation>
     </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>같은 문자 폭</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>비슷한 디자인</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>같은 세리프 글꼴</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>같은 산세리프 글꼴</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>같은 고정폭 글꼴</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>이전에 선택한 글꼴</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>추천</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>이전 선택: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

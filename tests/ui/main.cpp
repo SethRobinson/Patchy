@@ -371,6 +371,9 @@ int main(int argc, char* argv[]) {
     // interactive open of them. The tests that cover it turn it on themselves.
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), false);
     settings.setValue(QStringLiteral("text/warnMissingFontsOnTransform"), false);
+    // Replacements a killed run chose in the Missing Fonts dialog (issue 692) would start every
+    // later run's rows on them.
+    settings.remove(QStringLiteral("text/missingFontReplacements"));
     // Esc commits text by default (issue 415), but most text tests leave a session with Esc
     // expecting the cancel; the tests that cover the option set it themselves.
     settings.setValue(QStringLiteral("input/escapeCommitsText"), false);

@@ -15762,6 +15762,45 @@ Voulez-vous le remplacer ?</translation>
         <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
         <translation>Intérieur garde le contour dans l&apos;Épaisseur du trait. Choisissez Centre ou Extérieur pour épaissir le trait.</translation>
     </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>mêmes largeurs de caractères</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>dessin similaire</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>aussi une police à empattements</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>aussi une police sans empattements</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>aussi une police à chasse fixe</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>Déjà choisies</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>Suggestions</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>Déjà choisie : %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

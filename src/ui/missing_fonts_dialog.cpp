@@ -14,11 +14,65 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QVBoxLayout>
 
 #include <algorithm>
 
 namespace patchy::ui {
+namespace {
+
+// Why a built-in candidate is offered, for its row in the picker's "Suggested" section. The same
+// reasons as the "Suggested: %1 (...)" lines.
+QString candidate_reason(const MissingFontCandidate& candidate) {
+  switch (candidate.kind) {
+    case MissingFontSuggestion::metric:
+      //: Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.
+      return QObject::tr("same character widths");
+    case MissingFontSuggestion::lookalike:
+      //: Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.
+      return QObject::tr("similar design");
+    case MissingFontSuggestion::same_type:
+      if (candidate.font_type == FontClass::serif) {
+        //: Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.
+        return QObject::tr("also a serif font");
+      }
+      if (candidate.font_type == FontClass::sans) {
+        //: Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.
+        return QObject::tr("also a sans-serif font");
+      }
+      if (candidate.font_type == FontClass::mono) {
+        //: Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.
+        return QObject::tr("also a monospaced font");
+      }
+      break;
+    case MissingFontSuggestion::no_symbol_match:
+    case MissingFontSuggestion::fallback:
+      break;
+  }
+  return {};
+}
+
+// The two short sections on top of a row's font list (GitHub issue 692): the fonts chosen for this
+// missing font before, most often chosen first, then every built-in candidate with its reason,
+// leaving out the ones already listed. The picker drops a section with nothing to show.
+std::vector<FontPickerSection> picker_sections(const MissingFontEntry& entry) {
+  //: Heading in the Missing Fonts dialog's font list: fonts the user picked for this missing font earlier.
+  FontPickerSection chosen{QObject::tr("Chosen before"), {}};
+  for (const auto& family : entry.chosen_before_families) {
+    chosen.rows.push_back(FontPickerSectionRow{family, QString()});
+  }
+  //: Heading in the Missing Fonts dialog's font list: fonts Patchy suggests for this missing font.
+  FontPickerSection suggested{QObject::tr("Suggested"), {}};
+  for (const auto& candidate : entry.candidates) {
+    if (!entry.chosen_before_families.contains(candidate.family, Qt::CaseInsensitive)) {
+      suggested.rows.push_back(FontPickerSectionRow{candidate.family, candidate_reason(candidate)});
+    }
+  }
+  return {std::move(chosen), std::move(suggested)};
+}
+
+}  // namespace
 
 std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent,
                                                                  const std::vector<MissingFontEntry>& fonts,
@@ -64,12 +118,16 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
       divider->setFrameShadow(QFrame::Plain);
       grid->addWidget(divider, grid_row - 1, 0, 1, 3);
     }
-    // The family in bold with its style beside it, split as the options bar shows a missing font
-    // (GitHub issue 669): "Museo Sans Rounded" + "500". Display only: the entry, its suggestion and
-    // the replacement keep the whole name, which the label carries as kMissingFontFullNameProperty.
+    // The name in bold, a style in brackets after its family, split as the options bar splits a
+    // missing font (GitHub issue 669): "Museo Sans Rounded (500)". One label, so a right-to-left
+    // layout keeps the name in reading order. Display only: the entry, its suggestion and the
+    // replacement keep the whole name, which the label carries as kMissingFontFullNameProperty.
     const auto parts = split_font_family_and_style(entry.family.trimmed().toStdString());
     const auto style_text = QString::fromStdString(parts.style);
-    auto* name = new QLabel(style_text.isEmpty() ? entry.family : QString::fromStdString(parts.family), rows_widget);
+    auto* name = new QLabel(
+        style_text.isEmpty() ? entry.family
+                             : QStringLiteral("%1 (%2)").arg(QString::fromStdString(parts.family), style_text),
+        rows_widget);
     name->setObjectName(QStringLiteral("missingFontName%1").arg(index));
     name->setProperty(kMissingFontFullNameProperty, entry.family);
     name->setTextFormat(Qt::PlainText);
@@ -77,12 +135,6 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     auto* name_line = new QHBoxLayout;
     name_line->setSpacing(6);
     name_line->addWidget(name);
-    if (!style_text.isEmpty()) {
-      auto* style = new QLabel(style_text, rows_widget);
-      style->setObjectName(QStringLiteral("missingFontStyle%1").arg(index));
-      style->setTextFormat(Qt::PlainText);
-      name_line->addWidget(style);
-    }
     name_line->addStretch(1);
     auto* detail = new QLabel(entry.no_glyphs
                                   ? QObject::tr("Installed, but has no glyphs for this text. Used in %n text layer(s).",
@@ -118,8 +170,18 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
       case MissingFontSuggestion::fallback:
         break;
     }
-    const bool no_symbol_match = entry.suggestion == MissingFontSuggestion::no_symbol_match;
-    if (no_symbol_match) {
+    // A font chosen for this missing font before (GitHub issue 692) is where the picker starts, and
+    // the line says so in place of the suggestion. That holds for a symbol font too: the pick was
+    // made by hand, so the row starts ticked on it.
+    const bool no_symbol_match =
+        entry.suggestion == MissingFontSuggestion::no_symbol_match && !entry.chosen_before;
+    if (entry.chosen_before && !entry.suggested.isEmpty()) {
+      auto* chosen = new QLabel(QObject::tr("Chosen before: %1").arg(entry.suggested), rows_widget);
+      chosen->setObjectName(QStringLiteral("missingFontChosenBefore%1").arg(index));
+      chosen->setProperty("patchyMissingFontSuggestion", true);
+      chosen->setTextFormat(Qt::PlainText);
+      name_column->addWidget(chosen);
+    } else if (no_symbol_match) {
       auto* note = new QLabel(QObject::tr("Symbol font: no installed font has the same symbols"), rows_widget);
       note->setObjectName(QStringLiteral("missingFontNoSymbolMatch%1").arg(index));
       note->setProperty("patchyMissingFontSuggestion", true);
@@ -135,7 +197,8 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     grid->addLayout(name_column, grid_row, 0);
 
     // Ticked by default (issue 463 follow-up, Seth): Resolve Fonts replaces every listed font with
-    // the picker's choice (the suggested stand-in, else the face drawing the text now). Unticking
+    // the picker's choice (the font chosen before, else the suggested stand-in, else the face
+    // drawing the text now). Unticking
     // a row, or Cancel, keeps the file naming the font, so a machine that has it shows the original.
     // A symbol font with no copy installed starts unticked: the user may still pick one by hand.
     auto* replace = new QCheckBox(QObject::tr("Replace with:"), rows_widget);
@@ -145,6 +208,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     auto* picker = new FontPickerCombo(rows_widget);
     picker->setObjectName(QStringLiteral("missingFontReplacementCombo%1").arg(index));
     picker->setMinimumWidth(220);
+    picker->set_extra_sections(picker_sections(entry));
     if (!entry.suggested.isEmpty()) {
       picker->setCurrentFont(QFont(entry.suggested));
     }
@@ -161,6 +225,10 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
   scroll->setFrameShape(QFrame::NoFrame);
   scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   scroll->setWidget(rows_widget);
+  // Wide enough for the widest row. The list never scrolls sideways, so a narrower one cut the
+  // pickers off at the right when a row's "Suggested:" line was long.
+  scroll->setMinimumWidth(rows_widget->minimumSizeHint().width() +
+                          (rows.size() > 5U ? scroll->verticalScrollBar()->sizeHint().width() : 0));
   // Up to five rows show without scrolling; a longer list scrolls inside the dialog.
   const auto row_height = std::max(1, rows_widget->sizeHint().height() / std::max<int>(1, static_cast<int>(rows.size())));
   scroll->setMinimumHeight(std::min(rows_widget->sizeHint().height(), row_height * 5) + 4);
