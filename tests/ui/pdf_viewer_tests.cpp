@@ -8,6 +8,7 @@
 #include "core/book_imposition.hpp"
 #include "import_print_resolution_test_support.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/pdf_book_print_dialog.hpp"
 #include "ui/pdf_page_view.hpp"
@@ -17,6 +18,7 @@
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -28,7 +30,9 @@
 #include <QFontMetrics>
 #include <QFile>
 #include <QImage>
+#include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPdfDocument>
 #include <QPdfDocumentRenderOptions>
@@ -42,6 +46,8 @@
 #include <QWheelEvent>
 
 #include <cmath>
+#include <functional>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -420,12 +426,144 @@ void ui_pdf_viewer_spreads_and_page_turns() {
   QTest::keyClick(page_spin != nullptr ? static_cast<QWidget*>(page_spin) : view, Qt::Key_2, Qt::ControlModifier);
   CHECK(view->fit_mode() == patchy::PageFitMode::Width);
   const QPointer<PdfViewerWindow> guard(viewer);
-  QTest::keySequence(view, QKeySequence(QKeySequence::Close));
+  // A literal Ctrl+W: QKeySequence(QKeySequence::Close) is Ctrl+F4 on Windows.
+  QTest::keyClick(view, Qt::Key_W, Qt::ControlModifier);
   CHECK(process_events_until([&guard] { return guard.isNull(); }));
   CHECK(MainWindowTestAccess::session_count(window) == sessions);
+  if (!guard.isNull()) {
+    viewer->close();
+    process_events_until([&guard] { return guard.isNull(); });
+  }
   // The layout choices persist.
   CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfViewer/pages")).toString() == QStringLiteral("single"));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfViewer/continuous")).toBool());
+}
+
+// Ctrl+W, each of the platform's Close keys (Ctrl+F4 on Windows) and the key the user gave
+// File > Close close the viewer they are typed in and leave the main window's documents
+// alone. Typed in the main window, Ctrl+W still closes its document while a viewer is open.
+void ui_pdf_viewer_close_keys_close_only_the_viewer() {
+  SettingsValueRestorer viewer_setting(QStringLiteral("imports/pdfOpenInViewer"));
+  SettingsValueRestorer pages_setting(QStringLiteral("pdfViewer/pages"));
+  SettingsValueRestorer continuous_setting(QStringLiteral("pdfViewer/continuous"));
+  SettingsValueRestorer direction_setting(QStringLiteral("pdfViewer/direction"));
+  SettingsValueRestorer zoom_setting(QStringLiteral("pdfViewer/zoom"));
+  SettingsValueRestorer sidebar_setting(QStringLiteral("pdfViewer/sidebar"));
+  SettingsValueRestorer geometry_setting(QStringLiteral("pdfViewer/geometry"));
+  SettingsValueRestorer positions_setting(QStringLiteral("pdfViewer/positions"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/pdfOpenInViewer"), true);
+  const QString path = write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_close_keys.pdf"), numbered_pdf_bytes(2));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 64, 64);
+  MainWindowTestAccess::create_document(window, 48, 48);
+
+  // The viewer as the user gets it (File > Open), active, or nullptr.
+  const auto open_viewer = [&window, &path]() -> PdfViewerWindow* {
+    MainWindowTestAccess::open_document_path_as_user(window, path);
+    auto* viewer = window.findChild<PdfViewerWindow*>();
+    CHECK(viewer != nullptr);
+    if (viewer != nullptr) {
+      CHECK(process_events_until([viewer] { return viewer->isActiveWindow(); }));
+    }
+    return viewer;
+  };
+  // Types `key` into `target` (the page area when null) of a fresh viewer. True when the
+  // viewer then closed, or stayed open, as `closes` says, and the main window kept its
+  // documents; otherwise says what happened. A viewer the key left open is closed again, so
+  // each key starts from the same state.
+  using KeyTarget = std::function<QWidget*(PdfViewerWindow&)>;
+  const auto typed_in_viewer = [&window, &open_viewer](QKeyCombination key, bool closes, const KeyTarget& target = {}) {
+    auto* viewer = open_viewer();
+    if (viewer == nullptr) {
+      return false;
+    }
+    const QPointer<PdfViewerWindow> guard(viewer);
+    const auto sessions = MainWindowTestAccess::session_count(window);
+    QWidget* widget = target ? target(*viewer) : viewer->page_view();
+    CHECK(widget != nullptr);
+    if (widget != nullptr) {
+      QTest::keyClick(widget, key.key(), key.keyboardModifiers());
+    }
+    const bool closed = process_events_until([&guard] { return guard.isNull(); }, closes ? 3000 : 300);
+    const auto sessions_after = MainWindowTestAccess::session_count(window);
+    if (!guard.isNull()) {
+      viewer->close();
+      CHECK(process_events_until([&guard] { return guard.isNull(); }));
+    }
+    const bool as_expected = closed == closes && sessions_after == sessions;
+    if (!as_expected) {
+      std::cerr << QKeySequence(key).toString(QKeySequence::PortableText).toStdString()
+                << " typed in the viewer: viewer " << (closed ? "closed" : "still open") << ", main window documents "
+                << sessions << " -> " << sessions_after << '\n';
+    }
+    return as_expected;
+  };
+  const auto page_field = [](PdfViewerWindow& viewer) {
+    return static_cast<QWidget*>(viewer.findChild<QSpinBox*>(QStringLiteral("pdfViewerPageSpin")));
+  };
+
+  // Ctrl+W, typed in the page area and in the toolbar's page field.
+  const QKeyCombination ctrl_w(Qt::ControlModifier, Qt::Key_W);
+  CHECK(typed_in_viewer(ctrl_w, true));
+  CHECK(typed_in_viewer(ctrl_w, true, page_field));
+  // Every Close key of the platform, not only its first.
+  const auto platform_close_keys = QKeySequence::keyBindings(QKeySequence::Close);
+  CHECK(!platform_close_keys.isEmpty());
+#if defined(Q_OS_WIN)
+  CHECK(platform_close_keys.contains(QKeySequence(Qt::CTRL | Qt::Key_F4)));
+#endif
+  for (const auto& key : platform_close_keys) {
+    CHECK(typed_in_viewer(key[0], true));
+  }
+
+  // The main window focused, a viewer open: Ctrl+W closes the main window's document, and
+  // the viewer stays.
+  if (auto* viewer = open_viewer(); viewer != nullptr) {
+    const QPointer<PdfViewerWindow> guard(viewer);
+    const auto sessions = MainWindowTestAccess::session_count(window);
+    window.activateWindow();
+    CHECK(process_events_until([&window] { return window.isActiveWindow(); }));
+    QTest::keyClick(MainWindowTestAccess::canvas(window), Qt::Key_W, Qt::ControlModifier);
+    CHECK(process_events_until(
+        [&window, sessions] { return MainWindowTestAccess::session_count(window) == sessions - 1; }, 1000));
+    CHECK(!guard.isNull() && viewer->isVisible());
+    if (!guard.isNull()) {
+      viewer->close();
+      CHECK(process_events_until([&guard] { return guard.isNull(); }));
+    }
+  }
+
+  // File > Close moved to another key: that key closes the viewer too, and Ctrl+W still does.
+  auto* file_close = window.findChild<QAction*>(QStringLiteral("fileCloseAction"));
+  CHECK(file_close != nullptr);
+  if (file_close == nullptr) {
+    return;
+  }
+  file_close->setShortcuts({QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F9)});
+  const QKeyCombination ctrl_alt_f9(Qt::ControlModifier | Qt::AltModifier, Qt::Key_F9);
+  CHECK(typed_in_viewer(ctrl_alt_f9, true));
+  CHECK(typed_in_viewer(ctrl_alt_f9, true, page_field));
+  CHECK(typed_in_viewer(ctrl_w, true));
+  // A plain letter as the Close key closes from the page area, and is still a letter in a
+  // text field of the viewer.
+  file_close->setShortcuts({QKeySequence(Qt::Key_J)});
+  CHECK(typed_in_viewer(QKeyCombination(Qt::Key_J), true));
+  QString typed;
+  const KeyTarget zoom_field = [&typed](PdfViewerWindow& viewer) -> QWidget* {
+    auto* zoom = viewer.findChild<QComboBox*>(QStringLiteral("pdfViewerZoomCombo"));
+    if (zoom == nullptr || zoom->lineEdit() == nullptr) {
+      return nullptr;
+    }
+    zoom->lineEdit()->clear();
+    QObject::connect(zoom->lineEdit(), &QLineEdit::textEdited, zoom, [&typed](const QString& text) { typed = text; });
+    return zoom->lineEdit();
+  };
+  CHECK(typed_in_viewer(QKeyCombination(Qt::Key_J), false, zoom_field));
+  CHECK(typed == QStringLiteral("j"));
+  // A key of the viewer's own keeps its meaning there when File > Close is given the same key.
+  file_close->setShortcuts({QKeySequence(Qt::CTRL | Qt::Key_0)});
+  CHECK(typed_in_viewer(QKeyCombination(Qt::ControlModifier, Qt::Key_0), false));
 }
 
 // The view renders the visible part of a page zoomed past a whole-page image through Qt PDF's
@@ -757,6 +895,7 @@ std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
       {"ui_pdf_viewer_opens_pdf_files", ui_pdf_viewer_opens_pdf_files},
       {"ui_pdf_viewer_opens_dropped_files", ui_pdf_viewer_opens_dropped_files},
       {"ui_pdf_viewer_spreads_and_page_turns", ui_pdf_viewer_spreads_and_page_turns},
+      {"ui_pdf_viewer_close_keys_close_only_the_viewer", ui_pdf_viewer_close_keys_close_only_the_viewer},
       {"ui_pdf_viewer_detail_renders_match_the_page", ui_pdf_viewer_detail_renders_match_the_page},
       {"ui_pdf_book_print_imposes_sheets", ui_pdf_book_print_imposes_sheets},
       {"ui_pdf_book_print_splits_spreads", ui_pdf_book_print_splits_spreads},

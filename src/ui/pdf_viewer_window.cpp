@@ -87,6 +87,42 @@ void fit_combo_popup_to_items(QComboBox* combo) {
   combo->setMaxVisibleItems(std::max(combo->maxVisibleItems(), combo->count()));
 }
 
+// Every key the platform gives a standard command, then `more`, each once.
+// QKeySequence(StandardKey) alone is only the first of them: on Windows Close is Ctrl+F4,
+// with Ctrl+W second.
+QList<QKeySequence> standard_keys(QKeySequence::StandardKey standard, const QList<QKeySequence>& more = {}) {
+  QList<QKeySequence> keys;
+  for (const auto& key : QKeySequence::keyBindings(standard) + more) {
+    if (!key.isEmpty() && !keys.contains(key)) {
+      keys.append(key);
+    }
+  }
+  return keys;
+}
+
+// The sequences a typed key can stand for: itself and, for a shifted symbol (Ctrl++ is
+// Ctrl+Shift+= on many layouts), the key without the Shift, as Qt's own shortcut lookup does.
+QList<QKeySequence> typed_key_candidates(const QKeyEvent& event) {
+  const auto combination = event.keyCombination();
+  const auto modifiers = combination.keyboardModifiers() & ~Qt::KeypadModifier;
+  QList<QKeySequence> candidates{QKeySequence(QKeyCombination(modifiers, combination.key()))};
+  if (modifiers.testFlag(Qt::ShiftModifier)) {
+    candidates.append(QKeySequence(QKeyCombination(modifiers & ~Qt::ShiftModifier, combination.key())));
+  }
+  return candidates;
+}
+
+bool any_shortcut_matches(const QList<QKeySequence>& shortcuts, const QList<QKeySequence>& candidates) {
+  for (const auto& shortcut : shortcuts) {
+    for (const auto& candidate : candidates) {
+      if (shortcut.matches(candidate) == QKeySequence::ExactMatch) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // A zoom token: a percentage written with a dot (settings, combo data). 0 when it is not one.
 double zoom_percent_from_token(const QString& token) {
   bool ok = false;
@@ -319,14 +355,18 @@ void PdfViewerWindow::build_ui() {
     action->setShortcutContext(Qt::WindowShortcut);
     connect(action, &QAction::triggered, this, run);
     addAction(action);
+    return action;
   };
-  add_key({QKeySequence(QKeySequence::ZoomIn), QKeySequence(Qt::CTRL | Qt::Key_Equal)}, [this] { view_->zoom_in(); });
-  add_key({QKeySequence(QKeySequence::ZoomOut)}, [this] { view_->zoom_out(); });
+  // Every key the platform has for a standard command (standard_keys), not only its first.
+  add_key(standard_keys(QKeySequence::ZoomIn, {QKeySequence(Qt::CTRL | Qt::Key_Equal)}), [this] { view_->zoom_in(); });
+  add_key(standard_keys(QKeySequence::ZoomOut), [this] { view_->zoom_out(); });
   add_key({QKeySequence(Qt::CTRL | Qt::Key_0)}, [this] { view_->set_fit_mode(PageFitMode::WholePage); });
   add_key({QKeySequence(Qt::CTRL | Qt::Key_1)}, [this] { view_->set_zoom_percent(100.0); });
   add_key({QKeySequence(Qt::CTRL | Qt::Key_2)}, [this] { view_->set_fit_mode(PageFitMode::Width); });
-  add_key({QKeySequence(QKeySequence::Close)}, [this] { close(); });
-  add_key({QKeySequence(QKeySequence::Print)}, [this] { print_as_book(); });
+  // Ctrl+W on every platform (Command+W on macOS), with the platform's own Close keys.
+  close_action_ =
+      add_key(standard_keys(QKeySequence::Close, {QKeySequence(Qt::CTRL | Qt::Key_W)}), [this] { close(); });
+  add_key(standard_keys(QKeySequence::Print), [this] { print_as_book(); });
   // These keys win over the main window's hotkeys while this window has focus (eventFilter).
   qApp->installEventFilter(this);
 
@@ -536,28 +576,24 @@ void PdfViewerWindow::dropEvent(QDropEvent* event) {
   }
 }
 
+void PdfViewerWindow::set_close_key_source(QAction* action) {
+  close_key_source_ = action;
+}
+
 QAction* PdfViewerWindow::window_key_action(const QKeyEvent& event) const {
-  const auto combination = event.keyCombination();
-  const auto modifiers = combination.keyboardModifiers() & ~Qt::KeypadModifier;
-  QList<QKeySequence> candidates{QKeySequence(QKeyCombination(modifiers, combination.key()))};
-  // Shifted symbols (Ctrl++ is Ctrl+Shift+= on many layouts) also match without the Shift,
-  // as Qt's own shortcut lookup does.
-  if (modifiers.testFlag(Qt::ShiftModifier)) {
-    candidates.append(QKeySequence(QKeyCombination(modifiers & ~Qt::ShiftModifier, combination.key())));
-  }
+  const auto candidates = typed_key_candidates(event);
   for (auto* action : findChildren<QAction*>()) {
-    if (!action->isEnabled() || action->shortcutContext() != Qt::WindowShortcut) {
-      continue;
-    }
-    for (const auto& shortcut : action->shortcuts()) {
-      for (const auto& candidate : candidates) {
-        if (shortcut.matches(candidate) == QKeySequence::ExactMatch) {
-          return action;
-        }
-      }
+    if (action->isEnabled() && action->shortcutContext() == Qt::WindowShortcut &&
+        any_shortcut_matches(action->shortcuts(), candidates)) {
+      return action;
     }
   }
   return nullptr;
+}
+
+bool PdfViewerWindow::is_close_source_key(const QKeyEvent& event) const {
+  return close_key_source_ != nullptr &&
+         any_shortcut_matches(close_key_source_->shortcuts(), typed_key_candidates(event));
 }
 
 bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
@@ -570,7 +606,15 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
   // run this window's command: claim the shortcut override, then trigger on the press.
   if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
     if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this) {
-      if (auto* action = window_key_action(*static_cast<QKeyEvent*>(event)); action != nullptr) {
+      const auto& key = *static_cast<QKeyEvent*>(event);
+      auto* action = window_key_action(key);
+      // The key the user gave the main window's Close closes this window too, instead of the
+      // document behind it. Only once the key reaches the window itself: a control under
+      // the focus that uses the key (a letter typed in the page field) took it before that.
+      if (action == nullptr && watched == this && is_close_source_key(key)) {
+        action = close_action_;
+      }
+      if (action != nullptr) {
         event->accept();
         if (event->type() == QEvent::KeyPress) {
           action->trigger();

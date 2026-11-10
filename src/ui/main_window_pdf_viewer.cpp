@@ -79,6 +79,11 @@ bool MainWindow::open_pdf_viewer(const QString& path) {
                                    });
                                    return true;
                                  });
+  // The key the user gave File > Close closes a viewer it is typed in.
+  if (const auto* close_command = hotkey_registry_.find_command(QStringLiteral("file.close"));
+      close_command != nullptr) {
+    viewer->set_close_key_source(close_command->action.data());
+  }
   pdf_viewers_.emplace_back(viewer);
   viewer->show();
   viewer->raise();
