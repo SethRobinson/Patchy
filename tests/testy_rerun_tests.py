@@ -860,10 +860,10 @@ class RerunTests(unittest.TestCase):
         import psd_sections
 
         self.assertEqual(testy.reference_space_key({"depth": 8, "mode": 3}), "")
-        self.assertEqual(testy.reference_space_key({"depth": 8, "mode": 3, "text": True}), "-freshtext2")
+        self.assertEqual(testy.reference_space_key({"depth": 8, "mode": 3, "text": True}), "-freshtext3")
         self.assertEqual(testy.reference_space_key({"depth": 8, "mode": 3, "smart": True}), "-freshsmart1")
         self.assertEqual(testy.reference_space_key({"depth": 16, "mode": 3, "text": True, "smart": True}),
-                         "-srgb1-freshtext2-freshsmart1-deep1")
+                         "-srgb1-freshtext3-freshsmart1-deep1")
         # Only 16-bit files get the 16-bit renders, so only they are measured afresh.
         self.assertEqual(testy.reference_space_key({"depth": 32, "mode": 3}), "-srgb1")
         # A linked smart object has nothing in the file to render from: never stripped.

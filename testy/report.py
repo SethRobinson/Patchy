@@ -569,6 +569,8 @@ function cellSummary(cell, psCell) {
   if (cell.native && cell.native.perCategory)
     bits.push("kept in .psd save " + cell.native.nativeKept + "/" + cell.native.nativeTotal +
               (cell.native.textNotSaved ? " = 0% (text lost)" : ""));
+  if (cell.textSave && cell.textSave.state === "done")
+    bits.push("after text update " + cell.textSave.same + "/" + cell.textSave.measured + " text layers");
   if (cell.renderMetrics && cell.renderMetrics.objectsScored) {
     const m = cell.renderMetrics;
     const objectsOk = S.run.compare === "perceptual" && m.objectsRenderedOkPerceptual != null
@@ -609,13 +611,19 @@ function cellSummary(cell, psCell) {
       ? " (rejected by " + rejected.map(label => "PS " + label).join(", ") + ")" : ""));
     severity = 2;
   }
+  const textSave = cell.textSave || {};
+  if (textSave.state === "rejected") {
+    notes.push("corrupted .psd after a text update");
+    severity = 2;
+  }
+  const textSaveBad = textSave.state === "done" && textSave.same < textSave.measured;
   const losses = cellLosses(cell);
   const lossLine = losses.length
     ? '<div class="flag">lost: ' + lossText(losses.slice(0, 3)) +
       (losses.length > 3 ? " +" + (losses.length - 3) + " more" : "") + "</div>"
     : "";
   const cls = cell.opens === "fail" || severity === 2 ? "bad"
-    : (severity || flags.length || losses.length) ? "warn" : "ok";
+    : (severity || flags.length || losses.length || textSaveBad) ? "warn" : "ok";
   // One span holds the whole label: .status-line is a flex row with a gap, so a bare
   // text node beside the note span would be spaced apart from it.
   const label = cell.opens === "fail" ? "failed to open"
@@ -625,6 +633,117 @@ function cellSummary(cell, psCell) {
          '<div class="nums">' + bits.join(" &middot; ") + '</div>' + lossLine +
          (flags.length ? '<div class="flag">' + flags.join(" &middot; ") + '</div>' : "") +
          (compositeNote ? '<div class="nums">' + compositeNote + '</div>' : "");
+}
+
+// The text-save leg (cell.textSave): the .psd an editor saves after its own text update,
+// reopened in Photoshop. Per type layer of the original: still text, drawn the same by
+// Photoshop, settings unchanged. Say on the cell what did not come back, and when the
+// leg could not be measured, with the reason on hover.
+const TEXT_SAVE_LABEL = "text kept after a text update";
+function textSaveNote(f, k) {
+  const leg = ((f.cells || {})[k] || {}).textSave;
+  if (!leg) return "";
+  if (leg.state === "not measured")
+    return '<div class="nums" title="' + esc(leg.reason || "") + '">save after a text update: not measured</div>';
+  if (leg.state === "rejected")
+    return '<div class="flag" title="' + esc(leg.error || "") + '">save after a text update: Photoshop cannot open it</div>';
+  let html = "";
+  if (leg.lost && leg.lost.length)
+    html += '<div class="flag" title="' + esc(leg.lost.join(", ")) + '">after a text update: ' + leg.lost.length +
+            " of " + leg.measured + " text layer(s) no longer text</div>";
+  if (leg.changed && leg.changed.length)
+    html += '<div class="flag" title="' + esc(leg.changed.join(", ")) + '">after a text update: ' + leg.changed.length +
+            " of " + leg.measured + " text layer(s) changed in Photoshop</div>";
+  if (leg.notMeasured && leg.notMeasured.length)
+    html += '<div class="nums" title="' + esc((leg.notMeasuredReason || "") + ": " + leg.notMeasured.join(", ")) +
+            '">after a text update: ' + leg.notMeasured.length + " text layer(s) not measured</div>";
+  return html;
+}
+
+// Photoshop's own names for the settings the leg compares, in plain words.
+const TEXT_SETTING_WORDS = {
+  left: "left", center: "center", right: "right", justifyLeft: "justify, last line left",
+  justifyCenter: "justify, last line centered", justifyRight: "justify, last line right",
+  justifyAll: "justify all", dirLeftToRight: "left to right", dirRightToLeft: "right to left",
+  "true": "on", "false": "off", paint: "point text", box: "paragraph text",
+  horizontal: "horizontal", vertical: "vertical", antiAliasNone: "none", antiAliasSharp: "sharp",
+  antiAliasCrisp: "crisp", antiAliasStrong: "strong", antiAliasSmooth: "smooth",
+};
+function textSettingWord(value, setting) {
+  if (value == null) return "not known";
+  if (setting === "line composer") return value ? "every-line" : "single-line";
+  const word = TEXT_SETTING_WORDS[String(value)];
+  if (word) return word;
+  const s = String(value).replace(/\r/g, " / ");
+  return s.length > 60 ? s.slice(0, 57) + "..." : s;
+}
+function textSaveLayerDetail(layer) {
+  const parts = [];
+  if (layer.verdict === "lost")
+    parts.push(layer.became == null ? "gone from the saved file"
+      : "now " + layer.became + (layer.became === "NORMAL" ? " (rasterized)" : ""));
+  if (layer.render === "changed")
+    parts.push("Photoshop draws it differently (" + pct(layer.movedFraction) + " of its box moved)");
+  if (layer.render === "differs as opened too")
+    parts.push("its box differs (" + pct(layer.movedFraction) + " moved), but the same way in the save as opened: not counted here");
+  (layer.settingsChanged || []).forEach(c =>
+    parts.push(c.setting + ": " + textSettingWord(c.was, c.setting) + " became " + textSettingWord(c.now, c.setting)));
+  if (layer.verdict === "not measured") parts.push(layer.reason || "");
+  return parts.join("; ");
+}
+function textSaveDetail(cell, editorName) {
+  const leg = cell.textSave;
+  if (!leg) return "";
+  let html = "<h3>Saved after " + editorName + "'s text update (via Photoshop reopen)" +
+    (leg.state === "done" ? ": " + leg.same + "/" + leg.measured + " text layers the same" : "") + "</h3>" +
+    '<div class="nums">The save test above saves the file as opened, which can pass a text layer through untouched. ' +
+    "Here the editor first re-lays out its text (" + esc(leg.update || "its own text update") +
+    "), then saves, and Photoshop opens that save and draws the text again.</div>";
+  (leg.dialogs || []).forEach(d => {
+    html += '<div class="nums">Photoshop warned while opening this save: ' + esc(d) + "</div>";
+  });
+  if (leg.state === "not measured")
+    return html + '<div class="nums">Not measured: ' + esc(leg.reason || "") + "</div>";
+  if (leg.state === "rejected")
+    return html + '<div class="loss-banner"><b>Save rejected: Photoshop could not open the .psd ' + editorName +
+      " saved after its text update</b>" + '<div class="nums">' + esc(leg.error || "") + "</div></div>";
+  const bad = (leg.lost || []).length + (leg.changed || []).length;
+  if (bad)
+    html += '<div class="loss-banner"><b>' +
+      ((leg.lost || []).length ? leg.lost.length + " text layer(s) no longer text: " + esc(leg.lost.join(", ")) + ". " : "") +
+      ((leg.changed || []).length ? leg.changed.length + " text layer(s) changed in Photoshop: " + esc(leg.changed.join(", ")) + "." : "") +
+      "</b></div>";
+  else
+    html += '<div class="keep-banner"><b>All ' + leg.measured + " measured text layer(s) are still text, drawn the same by " +
+      "Photoshop, with the same settings</b></div>";
+  if (leg.saveFontsMissing)
+    html += '<div class="nums">Photoshop finds a font missing in this save, so it kept the saved pixels instead of ' +
+      "drawing the text; the renders are not compared (" + esc(leg.saveFontsMissing) + ").</div>";
+  if (leg.render)
+    html += '<div class="nums">Text layer boxes in Photoshop\'s render of this save against the reference: byte match ' +
+      pct(leg.render.accuracy) + ", in place (nothing moved by more than 2 px) " + pct(leg.render.unmoved) + ".</div>";
+  const rows = (leg.layers || []).filter(l => l.verdict !== "same" || l.render === "differs as opened too");
+  if (rows.length)
+    html += "<table><tr><th>Text layer</th><th>After the text update</th><th>Detail</th></tr>" +
+      rows.slice(0, 40).map(l => "<tr><td>" + esc(l.name) + '</td><td class="' +
+        (l.verdict === "lost" || l.verdict === "changed" ? "bad-text" : "") + '">' + esc(l.verdict) +
+        '</td><td class="nums">' + esc(textSaveLayerDetail(l)) + "</td></tr>").join("") + "</table>";
+  const unstated = [];
+  (leg.layers || []).forEach(l => (l.settingsUnstated || []).forEach(c => {
+    const line = c.setting + ": " + textSettingWord(c.was, c.setting) + " in the original, " +
+                 textSettingWord(c.now, c.setting) + " in the save";
+    if (unstated.indexOf(line) < 0) unstated.push(line);
+  }));
+  if (unstated.length)
+    html += '<div class="nums">Not compared (Photoshop could not give the value for one of the two files): ' +
+      esc(unstated.slice(0, 8).join("; ")) + ".</div>";
+  if (leg.notMeasured && leg.notMeasured.length)
+    html += '<div class="nums">Not measured: ' + esc(leg.notMeasured.join(", ")) + ". " +
+      esc(leg.notMeasuredReason || "") + "</div>";
+  if (leg.updatedByEditor != null && leg.updatedByEditor < leg.measured)
+    html += '<div class="nums">' + editorName + " says its update reached " + leg.updatedByEditor + " of " +
+      leg.measured + " text layer(s); Testy cannot tell which, so all are scored.</div>";
+  return html;
 }
 
 function renderControls() {
@@ -849,12 +968,13 @@ function render() {
       '<div class="nums">' + fileFacts(f) + "</div>" + limitNote + versionNote + gtNote + scanNote + revision + rerunRowControls(f, fi) + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
                        cellSummary((f.cells || {})[k], (f.cells || {}).photoshop) + replayNote(f, k) +
+                       textSaveNote(f, k) +
                        "</td>").join("") + "</tr>";
   }).join("");
 
   const agg = {};
   editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, rejectedBy: {}, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
-                                   depth: [0, 0], deepRoundtrip: [],
+                                   depth: [0, 0], deepRoundtrip: [], textSave: [0, 0], textSaveRejected: 0,
                                    textTally: { scores: [], files: 0, noRender: 0, noSave: 0 } });
   renderKnownToggle();
   scoredFiles().forEach(f => editors.forEach(k => {
@@ -868,6 +988,8 @@ function render() {
     rejecting.forEach(label => { a.rejectedBy[label] = (a.rejectedBy[label] || 0) + 1; });
     if (c.saveDepth && c.saveDepth.original > 8) { a.depth[1]++; if (c.saveDepth.kept) a.depth[0]++; }
     if (c.deepRoundtrip && c.deepRoundtrip.state === "done") a.deepRoundtrip.push(c.deepRoundtrip.accuracy);
+    if (c.textSave && c.textSave.state === "done") { a.textSave[0] += c.textSave.same; a.textSave[1] += c.textSave.measured; }
+    if (c.textSave && c.textSave.state === "rejected") { a.textSave[1] += c.textSave.textLayers || 0; a.textSaveRejected++; }
     if (c.renderMetrics) a.acc.push(c.renderMetrics.accuracy);
     if (c.renderMetrics && c.renderMetrics.perceptual) a.vis.push(c.renderMetrics.perceptual.accuracy);
     if (!c.renderMetrics && refusedWithReference(f, c)) { a.acc.push(0); a.vis.push(0); }
@@ -953,6 +1075,15 @@ function render() {
     });
     const deepRt = mean(a.deepRoundtrip);
     if (deepRt != null) rows.push(["16-bit precision after save", pct(deepRt)]);
+    // The text-save leg: text layers that come back the same from the .psd saved after
+    // the editor's own text update (only editors that keep text as opened until an edit).
+    if (a.textSave[1])
+      rows.push(['<span title="Of the text layers in files whose fonts Photoshop has: still text, drawn the same by Photoshop and with the same settings in the .psd the editor saves after it re-lays out its text">' +
+                 TEXT_SAVE_LABEL + "</span>",
+                 a.textSave[0] < a.textSave[1] ? '<span class="bad-text">' + a.textSave[0] + "/" + a.textSave[1] + "</span>"
+                                               : a.textSave[0] + "/" + a.textSave[1]]);
+    if (a.textSaveRejected)
+      rows.push(["bad .psd saves after a text update", '<span class="bad-text">' + a.textSaveRejected + "</span>"]);
     return '<div class="card"><h3>' + esc(e.displayName || k) + '</h3><div class="ver">' +
       esc(editorVersionLabel(k)) + "</div>" +
       rows.map(r => '<div class="row"><span>' + r[0] + "</span><b>" + r[1] + "</b></div>").join("") +
@@ -1092,6 +1223,7 @@ function openDetail(fi, ek, keep) {
     img(art.heatmap, "Difference heatmap") +
     img(art.trapThumb, editorName + " trap render (sentinel = used baked composite)", art.trap) +
     img(art.roundtripThumb, editorName + " resave reopened in Photoshop", art.roundtripRender) +
+    img(art.textSaveThumb, editorName + " save after its text update, reopened in Photoshop", art.textSaveRender) +
     "</div>";
   textZeroReasons(cell).filter(r => r.kind === "render").forEach(r => {
     html += '<div class="loss-banner"><b>' + esc(r.long) + "</b></div>";
@@ -1195,6 +1327,7 @@ function openDetail(fi, ek, keep) {
       "<tr><td>" + pct(cell.roundtripRender.accuracy) + "</td><td>" + (rp ? pct(rp.accuracy) : "-") +
       "</td><td>" + pct(cell.roundtripRender.badFraction) + "</td></tr></table>";
   }
+  html += textSaveDetail(cell, editorName);
   // 16-bit files: precision at 16 bits against Photoshop's 16-bit render, which the
   // 8-bit metrics above cannot see (analyze.compare_deep_renders).
   const deepRows = [["render", cell.deepRender], ["resave reopened in Photoshop", cell.deepRoundtrip]]

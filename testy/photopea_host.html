@@ -22,7 +22,7 @@
 const params = new URLSearchParams(location.search);
 const fileUrl = params.get("file");
 const uploadBase = params.get("upload");        // e.g. http://127.0.0.1:8901/testy-upload?name=
-const renderName = params.get("render");        // runs/<run>/.../render.png
+const renderName = params.get("render") || ""; // runs/<run>/.../render.png (optional when a resave is asked for)
 const resaveName = params.get("resave") || ""; // optional psd upload target
 // Optional (nudge=1): make Photopea lay its text layers out afresh before the export.
 // It shows the raster cached in the file until a text layer is edited; assigning a
@@ -111,7 +111,7 @@ function finish(result) {
 }
 
 async function main() {
-  if (!fileUrl || !uploadBase || !renderName) {
+  if (!fileUrl || !uploadBase || !(renderName || resaveName)) {
     throw new Error("missing required parameters");
   }
   // Photopea's https iframe cannot fetch our plain-http local URLs itself (the
@@ -187,12 +187,14 @@ async function main() {
       log("text re-render failed: " + error);
     }
   }
-  log("document ready; exporting PNG");
-
-  let result = await runScript('app.activeDocument.saveToOE("png");');
-  if (result.buffers.length !== 1) throw new Error("PNG export returned " + result.buffers.length + " buffers");
-  await upload(renderName, result.buffers[0]);
-  log("render uploaded");
+  let result = null;
+  if (renderName) {
+    log("document ready; exporting PNG");
+    result = await runScript('app.activeDocument.saveToOE("png");');
+    if (result.buffers.length !== 1) throw new Error("PNG export returned " + result.buffers.length + " buffers");
+    await upload(renderName, result.buffers[0]);
+    log("render uploaded");
+  }
 
   if (resaveName) {
     log("exporting PSD");

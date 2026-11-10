@@ -8,7 +8,16 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   The driver opens each file once per probe: manifest walk (DOM + ActionManager by
   layer id), duplicate-flatten-save render (damaged and 32-bit files: copy merged, paste
   in place),
-  optional save-as-copy resave. Other versions can reopen every resave too:
+  optional save-as-copy resave. A type layer's manifest entry also lists its paragraph
+  settings (justification, Hyphenate, direction, line composer), orientation,
+  anti-aliasing and kind. The descriptor leaves out what a paragraph inherits from its
+  parent sheet (the DOM's `textItem.hyphenation` throws there too) and those stay null
+  in the probe's answer: setting a property to its own value would make Photoshop write
+  the whole sheet out, but that set also turns Adobe Every-line Composer on
+  ([txt2-kept-settings.md](txt2-kept-settings.md#line-composer)). `testy/text_sheets.py`
+  reads the inherited Hyphenate and line composer from the file's `Txt2` block (or the
+  TySh EngineData) instead. The probe never sets a text style, for a reading or for the
+  reference render ([testy-scoring.md](testy-scoring.md#the-reference-render)). Other versions can reopen every resave too:
   [testy-photoshop-versions.md](testy-photoshop-versions.md).
 - Krita 5.3.2 runs its own Python: `kritarunner.com -s testy_krita_export -f main <in>
   <out> <report>`, started in `drivers/krita_scripts/` (kritarunner replaces PYTHONPATH,
@@ -68,7 +77,9 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   without them, so the cache-free leg runs `photocraft-cli run <in> --cmd
   type.updateAllTextLayers --out <png>` (a plain convert when the document has no
   type layers, which the command refuses); its cells carry `-textafresh1`. Nothing
-  in the CLI redraws a smart object, so a blank one is not measured.
+  in the CLI redraws a smart object, so a blank one is not measured. The text-save
+  leg runs the same command with `--out <psd>` (`save_text_afresh`); the count the
+  command prints (`{"result":{"updated":N}}`) is kept as `updatedByEditor`.
 - Photopea (web) runs in a headless Chrome via selenium: `testy/photopea_host.html`
   iframes photopea.com and drives it through the official postMessage API. The host
   page fetches the staged PSD same-origin and posts the bytes as an ArrayBuffer
@@ -77,6 +88,19 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   ArrayBuffer back to the server's `/testy-upload` endpoint (uploads path-confined
   to `runs/`; CORS headers sent). Needs internet; selenium manager fetches
   chromedriver on first use.
+- The text-save leg ([testy-scoring.md](testy-scoring.md#the-save-after-a-text-update))
+  asks three editors for a .psd saved after their text update, from the original staged
+  file. Patchy: `drivers/patchy_text_afresh.js` again (`save_text_afresh`), with
+  `smart=0` so smart objects stay as they are and an `out` ending in .psd, which makes
+  the script call `doc.saveAs` instead of `exportAs`. `layer.rerenderText()` is the
+  per-layer form of Type > Update All Text Layers (`type.update_all_text_layers`): both
+  open a hidden text session on the layer, mark it changed and commit it. The per-layer
+  call is used because it says which layers were reached and exists in older builds. It
+  draws a layer whose font Patchy lacks in a fallback face, which the menu command
+  skips; the script prints each layer's name before the call, the driver ties the font
+  warning that follows to it (`fontFallback`), and the leg does not measure that layer.
+  Photopea: the host page with `nudge=1` and a `resave` target and no `render` (the PNG
+  export is skipped when none is asked for). PhotoCraft: above.
 - A percent sign in a corpus file name is a hazard: ExtendScript's `new File(...)`
   URI-decodes its argument and the dashboard server unquotes request paths, so
   `%20` in a name became a space (Photoshop saw a missing file; Photopea's staged

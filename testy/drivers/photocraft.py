@@ -16,6 +16,7 @@ not needed here. A 16-bit document exports a 16-bit PNG, which is split into
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -57,6 +58,24 @@ def render_text_afresh(exe: Path, input_path: Path, output_path: Path) -> dict:
     return result
 
 
+def save_text_afresh(exe: Path, input_path: Path, output_psd: Path) -> dict:
+    """A .psd saved after Type > Update All Text Layers, for the text-save leg: the
+    file then carries the text data PhotoCraft writes after an edit. Adds "updated"
+    (the count the command reports, None when it printed none) and "noTypeLayers"
+    (PhotoCraft found no type layer to update, so nothing was saved)."""
+    result = _run_cli([str(exe), "run", str(input_path), "--cmd", "type.updateAllTextLayers",
+                       "--out", str(output_psd)], output_psd)
+    result["noTypeLayers"] = not result["ok"] and _NO_TYPE_LAYERS in result["stderr"]
+    result["updated"] = None
+    for line in result.pop("stdout", "").splitlines():
+        if line.startswith("{") and "type.updateAllTextLayers" in line:
+            try:
+                result["updated"] = int((json.loads(line).get("result") or {}).get("updated"))
+            except (ValueError, TypeError):
+                pass
+    return result
+
+
 def _run_cli(command: list[str], output_path: Path) -> dict:
     try:
         with winproc.suppressed_error_dialogs():
@@ -69,12 +88,12 @@ def _run_cli(command: list[str], output_path: Path) -> dict:
                 "fileRejected": False, "note": ""}
     timed_out = False
     try:
-        _, stderr = process.communicate(timeout=TIMEOUT_SECONDS)
+        stdout, stderr = process.communicate(timeout=TIMEOUT_SECONDS)
         exit_code = process.returncode
     except subprocess.TimeoutExpired:
         subprocess.run(["taskkill", "/f", "/t", "/pid", str(process.pid)],
                        capture_output=True)
-        _, stderr = process.communicate()
+        stdout, stderr = process.communicate()
         exit_code, timed_out = -1, True
     lines = [line.strip() for line in (stderr or "").splitlines() if line.strip()]
     warnings = [line[len("warning: "):] for line in lines
@@ -97,6 +116,7 @@ def _run_cli(command: list[str], output_path: Path) -> dict:
     return {
         "exitCode": exit_code,
         "stderr": detail,
+        "stdout": (stdout or "")[-4000:],
         "ok": ok,
         "note": "; ".join(warnings)[:2000],
         "fileRejected": not ok and exit_code == 1,

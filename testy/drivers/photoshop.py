@@ -210,6 +210,50 @@ _PROBE_JSX = r"""
     try { return d.hasKey(t) ? d.getBoolean(t) : false; } catch (e) { return false; }
   }
 
+  // The settings of a type layer a save can silently change while the layer stays text:
+  // each paragraph's justification, Hyphenate, direction and line composer, and the
+  // layer's orientation, anti-aliasing and kind (point or box), for the text-save leg
+  // (manifest.py text_setting_changes). The layer's textKey descriptor names a value only
+  // where the layer states it: a paragraph that leaves Hyphenate or the composer to its
+  // parent sheet has no such key, and it is written here as null. Nothing may be SET to
+  // find it out: an Action Manager set whose paragraphStyle leaves the line composer out
+  // turns Adobe Every-line Composer on (docs/txt2-kept-settings.md, "Line composer"), so
+  // a set of even one paragraph property to the value it has re-breaks the paragraph.
+  // The values a layer leaves out are read from the file's own sheets instead
+  // (text_sheets.py, on the Python side).
+  // Appended to a type layer's manifest entry as ',"key":...' pairs; '' when the
+  // descriptor cannot be read.
+  function textSettings(id) {
+    function enumOrNull(d, sid) {
+      var t = stringIDToTypeID(sid);
+      try { return d.hasKey(t) ? q(typeIDToStringID(d.getEnumerationValue(t))) : 'null'; } catch (e) { return 'null'; }
+    }
+    function boolOrNull(d, sid) {
+      var t = stringIDToTypeID(sid);
+      try { return d.hasKey(t) ? (d.getBoolean(t) ? 'true' : 'false') : 'null'; } catch (e) { return 'null'; }
+    }
+    try {
+      var textKey = layerDescriptor(id).getObjectValue(stringIDToTypeID('textKey'));
+      var found = ',"orientation":' + enumOrNull(textKey, 'orientation') +
+                  ',"antiAlias":' + enumOrNull(textKey, 'antiAlias');
+      var shapes = textKey.getList(stringIDToTypeID('textShape'));
+      found += ',"textKind":' + (shapes.count > 0 ? enumOrNull(shapes.getObjectValue(0), 'char') : 'null');
+      var ranges = textKey.getList(stringIDToTypeID('paragraphStyleRange'));
+      var rows = [];
+      for (var r = 0; r < ranges.count; r++) {
+        var range = ranges.getObjectValue(r);
+        var style = range.getObjectValue(stringIDToTypeID('paragraphStyle'));
+        rows.push('{"from":' + range.getInteger(stringIDToTypeID('from')) +
+                  ',"to":' + range.getInteger(stringIDToTypeID('to')) +
+                  ',"align":' + enumOrNull(style, 'align') +
+                  ',"hyphenate":' + boolOrNull(style, 'hyphenate') +
+                  ',"direction":' + enumOrNull(style, 'directionType') +
+                  ',"everyLineComposer":' + boolOrNull(style, 'textEveryLineComposer') + '}');
+      }
+      return found + ',"paragraphs":[' + rows.join(',') + ']';
+    } catch (e) { return ''; }
+  }
+
   function walk(layers, path, out) {
     for (var i = 0; i < layers.length; i++) {
       var L = layers[i];
@@ -263,7 +307,15 @@ _PROBE_JSX = r"""
           var styleRanges = layerDescriptor(L.id).getObjectValue(stringIDToTypeID('textKey'))
                                                  .getList(stringIDToTypeID('textStyleRange'));
           for (var r = 0; r < styleRanges.count; r++) {
-            var rangeStyle = styleRanges.getObjectValue(r).getObjectValue(stringIDToTypeID('textStyle'));
+            var styleRange = styleRanges.getObjectValue(r);
+            // (A range without characters draws nothing; its face is not one the text uses.)
+            var rangeFrom = 0, rangeTo = 1;
+            try {
+              rangeFrom = styleRange.getInteger(stringIDToTypeID('from'));
+              rangeTo = styleRange.getInteger(stringIDToTypeID('to'));
+            } catch (eRange) {}
+            if (rangeTo <= rangeFrom && styleRanges.count > 1) { continue; }
+            var rangeStyle = styleRange.getObjectValue(stringIDToTypeID('textStyle'));
             if (!rangeStyle.hasKey(stringIDToTypeID('fontPostScriptName'))) { continue; }
             var face = q(rangeStyle.getString(stringIDToTypeID('fontPostScriptName')));
             var known = false;
@@ -272,6 +324,7 @@ _PROBE_JSX = r"""
           }
         } catch (e) {}
         entry += ',"fonts":[' + faces.join(',') + ']';
+        entry += textSettings(L.id);
       }
       entry += '}';
       out.push(entry);
@@ -327,10 +380,47 @@ _PROBE_JSX = r"""
 
   // Photoshop shows a type layer from the raster cached in the file until the text
   // changes, and an old file's cache can differ from what this Photoshop would draw.
-  // Writing each layer's own text descriptor back to it makes Photoshop lay the text
-  // out afresh with nothing altered (style runs, transform and warp all ride in the
-  // descriptor). Run on the flattened-for-render duplicate only, so the document
-  // itself, and any resave of it, stays exactly as opened.
+  // So each type layer is made to lay itself out again by a write that changes nothing:
+  // the layer's own textClickPoint, set alone. The write must not carry the layer's
+  // paragraph or character styles: writing the whole textKey back turns Adobe Every-line
+  // Composer on in every paragraph that does not state its composer (and re-breaks its
+  // lines), and a textStyle set (tracking to a value and back) levels every run's own
+  // tracking (docs/txt2-kept-settings.md, "Line composer"). Checked in Photoshop 2026 on
+  // a layer with five runs (three faces, four sizes, tracking 15, -25, 0, 60, 0) in two
+  // paragraphs (Every-line and Single-line, Hyphenate off and on) and on warped, rotated,
+  // vertical and right-to-left layers: every paragraph and run reads back identical, the
+  // layout is the one a tracking round trip gives on single-run layers, and a layer whose
+  // stored pixels another program drew is drawn again by Photoshop. A layer without a
+  // click point gets its anti-aliasing switched to another method and back, which does
+  // the same. Run on the flattened-for-render duplicate only, so the document itself,
+  // and any resave of it, stays exactly as opened.
+  function relayText(id) {
+    function setTextLayer(desc) {
+      var target = new ActionReference();
+      target.putEnumerated(stringIDToTypeID('textLayer'), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
+      var set = new ActionDescriptor();
+      set.putReference(charIDToTypeID('null'), target);
+      set.putObject(charIDToTypeID('T   '), stringIDToTypeID('textLayer'), desc);
+      executeAction(charIDToTypeID('setd'), set, DialogModes.NO);
+    }
+    var textKey = layerDescriptor(id).getObjectValue(stringIDToTypeID('textKey'));
+    var clickPoint = stringIDToTypeID('textClickPoint'), antiAlias = stringIDToTypeID('antiAlias');
+    if (textKey.hasKey(clickPoint)) {
+      var same = new ActionDescriptor();
+      same.putObject(clickPoint, stringIDToTypeID('paint'), textKey.getObjectValue(clickPoint));
+      setTextLayer(same);
+      return;
+    }
+    var own = textKey.getEnumerationValue(antiAlias);
+    var other = own == stringIDToTypeID('antiAliasCrisp') ? stringIDToTypeID('antiAliasSharp')
+                                                          : stringIDToTypeID('antiAliasCrisp');
+    var away = new ActionDescriptor();
+    away.putEnumerated(antiAlias, stringIDToTypeID('antiAliasType'), other);
+    setTextLayer(away);
+    var back = new ActionDescriptor();
+    back.putEnumerated(antiAlias, stringIDToTypeID('antiAliasType'), own);
+    setTextLayer(back);
+  }
   function refreshText(doc, layers, counter) {
     for (var i = 0; i < layers.length; i++) {
       var L = layers[i];
@@ -344,15 +434,7 @@ _PROBE_JSX = r"""
       try {
         var wasVisible = L.visible;
         doc.activeLayer = L;
-        var ref = new ActionReference();
-        ref.putEnumerated(charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
-        var textKey = executeActionGet(ref).getObjectValue(stringIDToTypeID('textKey'));
-        var target = new ActionReference();
-        target.putEnumerated(stringIDToTypeID('textLayer'), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
-        var set = new ActionDescriptor();
-        set.putReference(charIDToTypeID('null'), target);
-        set.putObject(charIDToTypeID('T   '), stringIDToTypeID('textLayer'), textKey);
-        executeAction(charIDToTypeID('setd'), set, DialogModes.NO);
+        relayText(L.id);
         // Selecting a hidden layer shows it; put it back.
         if (L.visible != wasVisible) { L.visible = wasVisible; }
         counter.n++;
@@ -500,13 +582,13 @@ _PROBE_JSX = r"""
     return '{"ok":false,"error":' + q(e) + '}';
   }
   try {
-    var entries = [];
-    walk(opened.layers, '', entries);
-    var renderStatus = 'skipped';
     // The reference render re-renders text, unless a font the text needs is missing:
     // then Photoshop cannot draw it faithfully either and the cache is the reference.
     var freshText = {n: 0, errors: 0}, freshFonts = [];
     textFontProblems(opened.layers, freshFonts);
+    var entries = [];
+    walk(opened.layers, '', entries);
+    var renderStatus = 'skipped';
     var freshSmart = {n: 0, errors: 0, skipped: 0, seen: {}, started: (new Date()).getTime()};
     if (RENDER_PNG !== null) {
       renderStatus = renderTo(opened, RENDER_PNG, freshFonts.length ? null : freshText, freshSmart);

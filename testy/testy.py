@@ -45,6 +45,7 @@ import manifest as manifest_mod
 import report
 import rerun
 import staging
+import text_sheets
 from drivers import gimp as gimp_driver
 from drivers import krita as krita_driver
 from drivers import patchy as patchy_driver
@@ -136,6 +137,36 @@ TEXT_HELP_NOTES = {
     "photopea": "Photopea is fed the correct fonts: it runs in a browser with only its own web fonts, "
                 "so Testy hands it this machine's font files for the fonts each document's text uses",
 }
+# The text-save leg (Runner._text_save_leg): editors that, like Photoshop, keep a type
+# layer as the file had it until the text is edited, with the edit Testy asks each for
+# before it saves a second .psd. A plain save from these says little about the text
+# data the editor writes itself (Patchy passes an untouched layer's data through), so
+# this save is the one that shows it. Krita and Affinity already lay text out and save
+# their own on a plain save; GIMP and PhotoDemon have no text engine; psd-tools is not
+# an editor.
+TEXT_SAVE_EDITORS = {
+    "patchy": "layer.rerenderText() on every type layer, the per-layer form of Type > Update All Text Layers",
+    "photocraft": "Type > Update All Text Layers",
+    "photopea": "a scripted edit of every text layer that changes nothing",
+}
+# Why a type layer the editor's text update did not touch is not measured.
+TEXT_SAVE_UNREACHED = {
+    "patchy": "Patchy's script could not re-render this layer",
+    "photopea": "Photopea's scripted edit did not reach this text layer",
+}
+TEXT_SAVE_FONT_FALLBACK = ("Patchy lacks a font this layer uses (Photoshop has it); Type > Update All Text "
+                           "Layers leaves such a layer alone")
+# Photoshop draws a type layer "the same" from the save when no more than this share of
+# the layer's box moved (analyze.compare_boxes "movedFraction": pixels with no
+# counterpart within 2 px in the other render). Both pictures are Photoshop's own, drawn
+# with the same fonts, so right data lands on the same pixels; the room is for layout
+# that differs by a fraction of a pixel. Measured on a 12 px justified paragraph of six
+# lines: 0.2% for spacing that differs invisibly, 3.8% for one line set flush left
+# instead of centered, 16% for different line breaks.
+TEXT_SAVE_BOX_LIMIT = 0.01
+# Pixels a layer's box is grown by on each side before it is compared.
+TEXT_SAVE_BOX_MARGIN = 2
+
 # Affinity is deliberately opt-in (--editors photoshop,patchy,krita,photopea,affinity):
 # its driver is background-UIA best-effort and the app's cold-start timing is flaky,
 # so default runs stay fast and reliable without it. (Aseprite was verified to have no
@@ -1210,12 +1241,144 @@ def reference_space_key(traits: dict | None) -> str:
     if traits.get("depth", 8) != 8 or traits.get("mode", 3) != 3 or traits.get("profile"):
         key += "-srgb1"
     if traits.get("text"):
-        key += "-freshtext2"  # the reference re-renders text; its manifest lists every face used
+        # The reference re-renders text; its manifest lists every face used. (3: the
+        # re-render no longer writes the text settings back, which had turned Adobe
+        # Every-line Composer on in paragraphs that do not state their composer.)
+        key += "-freshtext3"
     if traits.get("smart"):
         key += "-freshsmart1"  # and embedded smart objects from their contents
     if traits.get("depth") == 16:
         key += "-deep1"  # the probe also saves 16-bit renders (render16.png, roundtrip16.png)
     return key
+
+
+def _grown_box(bounds: list[int] | None, margin: int) -> list[int] | None:
+    """Layer bounds ([left, top, right, bottom]) grown by `margin`; None without area."""
+    if not bounds or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+        return None
+    return [bounds[0] - margin, bounds[1] - margin, bounds[2] + margin, bounds[3] + margin]
+
+
+def score_text_save(original_layers: list[dict], probe: dict, document_size: tuple[int, int],
+                    truth_render: Path | None, save_render: Path | None, opened_render: Path | None,
+                    unreached: dict[str, str]) -> dict:
+    """The text-save leg's verdict from Photoshop's probe of the save an editor wrote
+    after its text update (Runner._text_save_leg). Pure: the manifests and three of
+    Photoshop's renders in, a dict out. `unreached` maps the names of type layers the
+    editor's update did not touch to the reason; they are not measured.
+
+    Per type layer of the original, one of:
+      lost      it is no longer a type layer in the save (rasterized, converted, gone)
+      changed   still text, but Photoshop draws it differently or reports a changed setting
+      same      still text, drawn the same, every setting both files state unchanged
+    "Drawn the same" is the layer's box in Photoshop's render of the save against the
+    reference render, within TEXT_SAVE_BOX_LIMIT (the box is the ORIGINAL layer's: an
+    editor may store a larger rectangle that reaches into its neighbours, and text that
+    left its place is missing from it either way). A box that differs is not held against the text
+    update when Photoshop's render of the AS-OPENED save differs there too and the two
+    saves' renders agree: something else in the file was lost under the text, which the
+    round-trip render score already counts. The render says nothing (and is left out)
+    for a hidden layer, a layer without pixels, and a save in which Photoshop finds a
+    font missing (it then keeps the editor's pixels instead of drawing the text)."""
+    rows = manifest_mod.compare_text_layers(original_layers, probe.get("layers") or [])
+    save_fonts_missing = text_fonts_missing(probe)
+    comparable = bool(truth_render and save_render and document_size and document_size[0]
+                      and not save_fonts_missing)
+    scored_rows = [row for row in rows if row["name"] not in unreached and row["kept"]]
+    boxes: list[list[int] | None] = [
+        _grown_box(row["bounds"], TEXT_SAVE_BOX_MARGIN) if row["visible"] else None
+        for row in scored_rows]
+    after: list[dict | None] = [None] * len(scored_rows)
+    as_opened: list[dict | None] = [None] * len(scored_rows)
+    between: list[dict | None] = [None] * len(scored_rows)
+    union = None
+    if comparable and any(boxes):
+        usable = [box if box is not None else [0, 0, 0, 0] for box in boxes]
+        measured = analyze.compare_boxes(truth_render, save_render, document_size, usable)
+        after, union = measured["boxes"], measured["union"]
+        if opened_render is not None and any(
+                row and row["movedFraction"] > TEXT_SAVE_BOX_LIMIT for row in after):
+            as_opened = analyze.compare_boxes(truth_render, opened_render, document_size, usable)["boxes"]
+            between = analyze.compare_boxes(opened_render, save_render, document_size, usable)["boxes"]
+
+    layers: list[dict] = []
+    lost: list[str] = []
+    changed: list[str] = []
+    not_measured: list[str] = []
+    reasons: list[str] = []
+    same = 0
+    scored_index = 0
+    for row in rows:
+        name = row["name"]
+        out: dict = {"name": name}
+        if name in unreached:
+            out.update({"verdict": "not measured", "reason": unreached[name]})
+            not_measured.append(name)
+            if unreached[name] not in reasons:
+                reasons.append(unreached[name])
+            layers.append(out)
+            continue
+        if not row["kept"]:
+            out.update({"verdict": "lost", "became": row["became"]})
+            lost.append(name)
+            layers.append(out)
+            continue
+        box_after, box_opened, box_between = after[scored_index], as_opened[scored_index], between[scored_index]
+        scored_index += 1
+        render = "not compared"
+        if box_after is not None:
+            out["badFraction"] = box_after["badFraction"]
+            out["movedFraction"] = box_after["movedFraction"]
+            if box_after["movedFraction"] <= TEXT_SAVE_BOX_LIMIT:
+                render = "same"
+            elif (box_opened is not None and box_between is not None
+                  and box_opened["movedFraction"] > TEXT_SAVE_BOX_LIMIT
+                  and box_between["movedFraction"] <= TEXT_SAVE_BOX_LIMIT):
+                render = "differs as opened too"
+                out["asOpenedMovedFraction"] = box_opened["movedFraction"]
+            else:
+                render = "changed"
+                if box_opened is not None:
+                    out["asOpenedMovedFraction"] = box_opened["movedFraction"]
+        out["render"] = render
+        if row["settingsChanged"]:
+            out["settingsChanged"] = row["settingsChanged"]
+        if row["settingsUnstated"]:
+            out["settingsUnstated"] = row["settingsUnstated"]
+        if render == "changed" or row["settingsChanged"]:
+            out["verdict"] = "changed"
+            changed.append(name)
+        else:
+            out["verdict"] = "same"
+            same += 1
+        layers.append(out)
+
+    measured_count = len(rows) - len(not_measured)
+    result: dict = {
+        "state": "done" if measured_count else "not measured",
+        "measured": measured_count,
+        "kept": measured_count - len(lost),
+        "same": same,
+        "lost": lost,
+        "changed": changed,
+        "notMeasured": not_measured,
+        "layers": layers[:200],
+    }
+    if not measured_count:
+        result["reason"] = reasons[0] if reasons else "the editor's text update reached no type layer"
+    elif reasons:
+        result["notMeasuredReason"] = reasons[0]
+    if measured_count:
+        result["score"] = round(same / measured_count, 4)
+    if union is not None and union["pixels"]:
+        result["render"] = {"accuracy": round(1.0 - union["badFraction"], 4),
+                            "unmoved": round(1.0 - union["movedFraction"], 4),
+                            "pixels": union["pixels"]}
+    if save_fonts_missing:
+        result["saveFontsMissing"] = save_fonts_missing
+    if probe.get("freshTextErrors"):
+        result["photoshopRedrawErrors"] = int(probe["freshTextErrors"])
+    return result
 
 
 def reopen_verdict(result: dict) -> dict:
@@ -1611,9 +1774,13 @@ class Runner:
 
     def _ground_truth_cache_dir(self, entry: dict, staged: staging.StagedPsd) -> Path:
         font_key = self.ps.font_cache_key()
+        # (-textattrs2: the manifest lists each type layer's paragraph settings, which
+        # the text-save leg compares; 2 reads what a layer leaves out from the file's
+        # sheets instead of a set. Only the ground truth carries it.)
+        text_attributes = "-textattrs2" if (entry.get("traits") or {}).get("text") else ""
         return config.CACHE_DIR / (
             f"gt-{staged.sha1}-{_version_slug(self.ps.version())}-{self.suffix}-fontcheck1-{font_key}"
-            f"{reference_space_key(entry.get('traits'))}")
+            f"{reference_space_key(entry.get('traits'))}{text_attributes}")
 
     def recorded_ground_truth(self, index: int, staged: staging.StagedPsd) -> tuple[dict | None, str]:
         """--add-editors: the ground truth this run's other columns were scored against,
@@ -1659,6 +1826,9 @@ class Runner:
         else:
             result = self.ps.probe(staged.original, gt_dir / "render.png")
             if result.get("ok"):
+                # Hyphenate and the line composer where a paragraph leaves them to its
+                # sheet: Photoshop does not report those, the file does.
+                text_sheets.fill_paragraph_settings(staged.original, result.get("layers") or [])
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 result_path.write_text(json.dumps(result), encoding="utf-8")
                 for name in ("render.png", "render16.png"):
@@ -1773,6 +1943,8 @@ class Runner:
             version_key += "-fonts1"  # Photopea is now handed the fonts the text uses
         if editor_key == "photocraft" and (entry.get("traits") or {}).get("text"):
             version_key += "-textafresh1"  # stripped text laid out by Update All Text Layers
+        if editor_key in TEXT_SAVE_EDITORS and (entry.get("traits") or {}).get("text"):
+            version_key += "-textsave2"  # also saved after the editor's text update (_text_save_leg)
         cache_dir = config.CACHE_DIR / (
             f"cell-{staged.sha1}-{editor_key}-{_version_slug(version_key)}-{self.suffix}"
         )
@@ -1910,6 +2082,8 @@ class Runner:
                     cell["uncacheable"] = True
                 else:
                     cell["resaveRejected"] = True
+
+        self._text_save_leg(entry, editor_key, info, staged, cell, cell_dir, truth)
 
         cell["state"] = "done"
         cell["profileAware"] = True
@@ -2145,6 +2319,160 @@ class Runner:
         except Exception as error:
             void(f"harness error: {str(error)[:200]}")
 
+    def _save_text_afresh(self, editor_key: str, info: config.EditorInfo, source: Path,
+                          save_psd: Path) -> dict:
+        """The editor's own text update, then a .psd save, for the text-save leg.
+        Returns {"ok", "error", "failed": [type layers the update did not reach],
+        "fontFallback": [type layers the editor lacked a font for], "updated": the
+        editor's own count or None, "noTypeLayers"}."""
+        answer = {"ok": False, "error": "", "failed": [], "fontFallback": [], "updated": None,
+                  "noTypeLayers": False}
+        if editor_key == "patchy":
+            result = patchy_driver.save_text_afresh(info.exe, source, save_psd)
+            answer.update(ok=bool(result["ok"]), error=result.get("error") or "",
+                          failed=list(result.get("failed") or []),
+                          fontFallback=list(result.get("fontFallback") or []),
+                          updated=len(result.get("done") or []))
+        elif editor_key == "photocraft":
+            result = photocraft_driver.save_text_afresh(info.exe, source, save_psd)
+            answer.update(ok=bool(result["ok"]),
+                          error=result.get("stderr") or ("" if result["ok"] else f"exit {result['exitCode']}"),
+                          updated=result.get("updated"), noTypeLayers=bool(result.get("noTypeLayers")))
+        elif editor_key == "photopea":
+            if self.server_base is None:
+                answer["error"] = "Photopea needs a server (drop --no-serve, or pass --server-url)"
+                return answer
+            from drivers import photopea as photopea_driver
+
+            result = photopea_driver.save_text_afresh(self.server_base, config.TESTY_ROOT, source, save_psd,
+                                                      text_fonts=self._text_fonts)
+            answer.update(ok=bool(result.get("ok")) and save_psd.exists(), error=result.get("error") or "",
+                          failed=list(result.get("failed") or []), updated=len(result.get("done") or []))
+            if result.get("ok") and result.get("error"):
+                # The edit as a whole did not run: the save is not one made after a text update.
+                answer["ok"] = False
+                answer["error"] = f"the scripted text edit did not run ({result['error']})"
+        else:
+            answer["error"] = f"no text update is scripted for '{editor_key}'"
+        return answer
+
+    def _text_save_leg(self, entry: dict, editor_key: str, info: config.EditorInfo,
+                       staged: staging.StagedPsd, cell: dict, cell_dir: Path,
+                       truth: dict | None) -> None:
+        """Score the .psd this editor saves AFTER its own text update.
+
+        The normal save test saves the file as the editor opened it, and an editor
+        that keeps a type layer untouched until it is edited passes the layer's data
+        through. What the editor writes itself only reaches the file after an edit. So
+        the editors in TEXT_SAVE_EDITORS open the original again, run their text update
+        (the same edit the cache-free leg uses for the render score), and save
+        textsave.psd. Photoshop opens that save through the probe every resave goes
+        through (which lays the text out afresh, as the reference does), and
+        cell["textSave"] records, per type layer of the original: is it still a type
+        layer, does Photoshop draw it the same (the layer's box in Photoshop's render of
+        the save against the reference render), and did a setting Photoshop reports
+        change (justification, Hyphenate, direction, line composer, orientation,
+        anti-aliasing, point or paragraph text, the text itself, fonts).
+
+        Nothing here is folded into nativeScore or roundtripRender. The leg never marks
+        an editor down for something Testy could not make happen or could not see: no
+        font for Photoshop, no save written, a layer the update did not reach, a
+        setting only one of the two files states, a box the as-opened save already
+        differs in the same way are all "not measured", with the reason."""
+        if editor_key not in TEXT_SAVE_EDITORS or truth is None or cell.get("opens") == "fail":
+            return
+        text_layers = [layer for layer in truth["layers"] if layer.get("kind") == "TEXT"]
+        if not text_layers:
+            return
+
+        def void(reason: str) -> None:
+            cell["textSave"] = {"state": "not measured", "reason": reason, "textLayers": len(text_layers)}
+            log(f"    text-save leg not measured for {editor_key}: {reason}")
+
+        fonts_missing = text_fonts_missing(truth)
+        if fonts_missing:
+            void(f"Photoshop lacks a font this text needs, so it cannot draw the text faithfully either ({fonts_missing})")
+            return
+        cell["stage"] = "saving after the editor's text update"
+        self.push()
+        save_psd = cell_dir / "textsave.psd"
+        save_png = cell_dir / "textsave.png"
+        for stale in (save_psd, save_png, cell_dir / "textsave16.png"):
+            stale.unlink(missing_ok=True)
+        try:
+            saved = self._save_text_afresh(editor_key, info, staged.original, save_psd)
+            if saved["noTypeLayers"]:
+                void("the editor found no type layer to update in this file")
+                return
+            if not saved["ok"] or not save_psd.exists():
+                void(f"no .psd was saved after the editor's text update ({saved['error'] or 'no output'})")
+                return
+            cell["stage"] = "reopening the text-update save in Photoshop"
+            self.push()
+            probe = self.ps.probe(save_psd, save_png)
+            if not probe.get("ok") and probe.get("launchFailure"):
+                # Photoshop never started: no verdict on the save, and nothing to cache.
+                cell["uncacheable"] = True
+                void(f"Photoshop did not start ({probe.get('error', 'unknown')})")
+                return
+            artifacts = cell.setdefault("artifacts", {})
+            artifacts["textSavePsd"] = self._rel(save_psd)
+            leg: dict = {"textLayers": len(text_layers), "update": TEXT_SAVE_EDITORS[editor_key]}
+            # A dialog here is Photoshop complaining about what this editor wrote.
+            if probe.get("dialogs"):
+                leg["dialogs"] = probe["dialogs"]
+            self._drop_original_dialogs(leg, truth)
+            if not probe.get("ok"):
+                leg.update({"state": "rejected",
+                            "error": f"Photoshop could not open the save: {probe.get('error')}"})
+                cell["textSave"] = leg
+                log(f"    text-save leg: Photoshop rejected {editor_key}'s save after its text update")
+                return
+            text_sheets.fill_paragraph_settings(save_psd, probe.get("layers") or [])
+            (cell_dir / "textsave_manifest.json").write_text(json.dumps(probe["layers"], indent=1),
+                                                             encoding="utf-8")
+            if save_png.exists():
+                artifacts["textSaveRender"] = self._rel(save_png)
+                if _thumb(save_png, cell_dir / "textsave_thumb.png"):
+                    artifacts["textSaveThumb"] = self._rel(cell_dir / "textsave_thumb.png")
+            truth_render = self.files_dir / artifact_dir_name(entry) / "_truth" / "render.png"
+            opened_render = cell_dir / "roundtrip.png"
+            leg.update(score_text_save(
+                truth["layers"], probe, tuple(entry.get("docSize", (0, 0))),
+                truth_render if truth_render.exists() else None,
+                save_png if save_png.exists() else None,
+                opened_render if opened_render.exists() else None,
+                unreached={name: TEXT_SAVE_UNREACHED.get(editor_key, "the editor's text update did not reach this layer")
+                           for name in saved["failed"]}
+                | {name: TEXT_SAVE_FONT_FALLBACK for name in saved["fontFallback"]},
+            ))
+            if saved["updated"] is not None:
+                leg["updatedByEditor"] = saved["updated"]
+            cell["textSave"] = leg
+            if leg.get("changed") or leg.get("lost"):
+                log(f"    text-save leg: {leg.get('same', 0)}/{leg.get('measured', 0)} type layer(s) come back "
+                    f"the same after {editor_key}'s text update")
+        except Exception as error:
+            void(f"harness error: {str(error)[:200]}")
+
+    @staticmethod
+    def _drop_original_dialogs(leg: dict | None, truth: dict | None) -> bool:
+        """A dialog Photoshop also raised for the original file (old text layers that
+        "might need to be updated", say) is no news about the editor's save: only the
+        dialogs the save adds stay in textSave.dialogs. Returns True when it changed
+        `leg` (also applied to cached cells)."""
+        if not leg or not leg.get("dialogs"):
+            return False
+        original = set((truth or {}).get("dialogs") or [])
+        kept = [dialog for dialog in leg["dialogs"] if dialog not in original]
+        if len(kept) == len(leg["dialogs"]):
+            return False
+        if kept:
+            leg["dialogs"] = kept
+        else:
+            del leg["dialogs"]
+        return True
+
     @staticmethod
     def _apply_text_render_rule(cell: dict) -> bool:
         """An editor that cannot render a Photoshop text object (it can only show the
@@ -2246,6 +2574,8 @@ class Runner:
         if manifest_mod.apply_text_save_rule(cell.get("native")):
             changed = True
         if self._apply_text_render_rule(cell):
+            changed = True
+        if self._drop_original_dialogs(cell.get("textSave"), truth):
             changed = True
         if staged.trap is None and (
             "trapSentinelFraction" in cell or "trapError" in cell
@@ -2531,6 +2861,8 @@ class Runner:
                   "trap_thumb.png", "mutated.png", "mutated_thumb.png", "heatmap.png",  # mutated*: older runs
                   "roundtrip.png", "roundtrip_thumb.png", "roundtrip_manifest.json",
                   "render16.png", "roundtrip16.png",
+                  # the text-save leg: the save after the editor's text update, as Photoshop opens it
+                  "textsave.psd", "textsave.png", "textsave16.png", "textsave_thumb.png", "textsave_manifest.json",
                   # 16-bit originals of the other legs' renders (analyze.split_deep_png)
                   "trap16.png", "nocache16.png", "nocache_plain16.png")
 
@@ -2618,6 +2950,13 @@ class Runner:
                 if check.get("state") == "rejected":
                     how = " (it crashed)" if check.get("crashed") else ""
                     reasons.append(f"{name}: resave rejected by Photoshop {label}{how}")
+            text_save = cell.get("textSave") or {}
+            if text_save.get("state") == "rejected":
+                reasons.append(f"{name}: the save after its text update is rejected by Photoshop")
+            elif text_save.get("lost") or text_save.get("changed"):
+                count = len(text_save.get("lost") or []) + len(text_save.get("changed") or [])
+                reasons.append(f"{name}: {count} of {text_save.get('measured', 0)} text layer(s) lost or "
+                               "changed in the save after its text update")
         return reasons
 
     def _scrub_passed_file(self, entry: dict) -> None:
@@ -2977,6 +3316,9 @@ class Runner:
             depth_kept = depth_total = 0
             deep_render: list[float] = []
             deep_roundtrip: list[float] = []
+            # The text-save leg: type layers that come back the same after the editor's
+            # text update, of those measured; files measured; saves Photoshop refused.
+            text_save = {"same": 0, "measured": 0, "files": 0, "rejected": 0}
             for entry in self.status["files"]:
                 cell = entry["cells"].get(editor_key)
                 if not cell or cell.get("state") in ("pending", "running", "skipped"):
@@ -3012,6 +3354,15 @@ class Runner:
                     deep = cell.get(key)
                     if deep and deep.get("state") == "done":
                         scores.append(deep["accuracy"])
+                leg = cell.get("textSave") or {}
+                if leg.get("state") == "done":
+                    text_save["files"] += 1
+                    text_save["same"] += int(leg.get("same", 0))
+                    text_save["measured"] += int(leg.get("measured", 0))
+                elif leg.get("state") == "rejected":
+                    text_save["files"] += 1
+                    text_save["rejected"] += 1
+                    text_save["measured"] += int(leg.get("textLayers", 0))
             aggregate[editor_key] = {
                 "opened": opened,
                 "total": total,
@@ -3027,6 +3378,9 @@ class Runner:
                 "deepRender": sum(deep_render) / len(deep_render) if deep_render else None,
                 "deepRoundtrip": sum(deep_roundtrip) / len(deep_roundtrip) if deep_roundtrip else None,
             }
+            if text_save["files"]:
+                # New keys only: the older ones keep their meaning, so history stays comparable.
+                aggregate[editor_key]["textSave"] = text_save
             if version_labels:
                 aggregate[editor_key]["badSavesBy"] = rejected_by
         return aggregate
@@ -3083,6 +3437,9 @@ class Runner:
                 + (f"   deep saves kept depth {a['depthKept']}/{a['depthTotal']}" if a["depthTotal"] else "")
                 + (f"   16-bit precise {a['deepRoundtrip'] * 100:.1f}% (resave)"
                    if a["deepRoundtrip"] is not None else "")
+                + (f"   text kept after a text update {a['textSave']['same']}/{a['textSave']['measured']} layers"
+                   + (f" ({a['textSave']['rejected']} save(s) Photoshop refused)" if a["textSave"]["rejected"] else "")
+                   if a.get("textSave") else "")
             )
         if self.scan_threshold is not None:
             flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]

@@ -759,6 +759,100 @@ def compare_renders(
     }
 
 
+# compare_boxes: how far (pixels, each way) a detail may sit from its place in the other
+# render and still count as the same detail; the blur both renders get first, so a stem
+# that lands on one pixel in one render and across two in the other reads the same; and
+# how far a blurred value may then lie outside the other render's local range.
+BOX_SHIFT_RADIUS = 2
+BOX_SHIFT_BLUR_SIGMA = 1.0
+BOX_SHIFT_TOLERANCE = 20
+# Pixels a box is grown by before it is cut out, so the blur and the neighbourhood see
+# what lies just outside it.
+BOX_SHIFT_APRON = BOX_SHIFT_RADIUS + 3
+
+
+def _moved_map(first: np.ndarray, second: np.ndarray, radius: int) -> np.ndarray:
+    """Per pixel: is there something in one render with no counterpart within `radius`
+    pixels in the other? Both are blurred lightly, and a pixel passes when its value
+    lies inside the range the other render takes in that neighbourhood (give or take
+    BOX_SHIFT_TOLERANCE), so text laid out a fraction of a pixel differently passes and
+    a word that moved does not."""
+
+    def soften(image: np.ndarray) -> np.ndarray:
+        return np.stack([_gaussian_blur(image[:, :, channel], BOX_SHIFT_BLUR_SIGMA)
+                         for channel in range(image.shape[2])], axis=2)
+
+    def outside(image: np.ndarray, other: np.ndarray) -> np.ndarray:
+        height, width = other.shape[:2]
+        padded = np.pad(other, ((radius, radius), (radius, radius), (0, 0)), mode="edge")
+        low = other.copy()
+        high = other.copy()
+        for dy in range(2 * radius + 1):
+            for dx in range(2 * radius + 1):
+                window = padded[dy:dy + height, dx:dx + width]
+                np.minimum(low, window, out=low)
+                np.maximum(high, window, out=high)
+        return ((image < low - BOX_SHIFT_TOLERANCE) | (image > high + BOX_SHIFT_TOLERANCE)).any(axis=2)
+
+    first, second = soften(first), soften(second)
+    return outside(first, second) | outside(second, first)
+
+
+def compare_boxes(reference_png: Path, other_png: Path, document_size: tuple[int, int],
+                  boxes: list[list[int]]) -> dict:
+    """How much of each box ([left, top, right, bottom], document pixels) differs
+    between two renders of one document. Returns {"boxes": [{"badFraction",
+    "movedFraction"} or None for a box off the canvas], "union": the same two numbers
+    over every box together plus "pixels", "sizeMismatch"}.
+
+    badFraction is compare_renders' byte measure (a channel off by more than
+    PIXEL_TOLERANCE). movedFraction is the one to judge by when both renders come from
+    the same renderer: the share of pixels showing something that has no counterpart
+    within BOX_SHIFT_RADIUS pixels in the other render. Measured on Photoshop's renders
+    of a 12 px justified paragraph of six lines: the same text laid out a fraction of a
+    pixel differently changes 24% of the pixels and moves 0.2%; one line set flush left
+    instead of centered moves 3.8%; different line breaks move 16%. Used by the
+    text-save leg, which scores only the type layers' boxes so a
+    difference elsewhere in the picture (already in the round-trip render score) is
+    not counted again."""
+    reference, _ = _load_over_white(reference_png, document_size)
+    other, other_native = _load_over_white(other_png, document_size)
+    width, height = document_size
+    union_bad = np.zeros((height, width), dtype=bool)
+    union_moved = np.zeros((height, width), dtype=bool)
+    union = np.zeros((height, width), dtype=bool)
+    rows: list[dict | None] = []
+    for bounds in boxes:
+        box = _clipped_box(bounds, (width, height))
+        if box is None:
+            rows.append(None)
+            continue
+        left, top, right, bottom = box
+        # The blur and the neighbourhood reach past the box, so work on the box with an apron.
+        grown_left, grown_top = max(0, left - BOX_SHIFT_APRON), max(0, top - BOX_SHIFT_APRON)
+        grown_right, grown_bottom = min(width, right + BOX_SHIFT_APRON), min(height, bottom + BOX_SHIFT_APRON)
+        first = reference[grown_top:grown_bottom, grown_left:grown_right]
+        second = other[grown_top:grown_bottom, grown_left:grown_right]
+        inner = (slice(top - grown_top, bottom - grown_top), slice(left - grown_left, right - grown_left))
+        bad = (np.abs(first - second).max(axis=2) > PIXEL_TOLERANCE)[inner]
+        moved = _moved_map(first, second, BOX_SHIFT_RADIUS)[inner] if bad.any() else np.zeros(bad.shape, dtype=bool)
+        union[top:bottom, left:right] = True
+        union_bad[top:bottom, left:right] |= bad
+        union_moved[top:bottom, left:right] |= moved
+        rows.append({"badFraction": round(float(bad.mean()), 5),
+                     "movedFraction": round(float(moved.mean()), 5)})
+    pixels = int(union.sum())
+    return {
+        "boxes": rows,
+        "union": {
+            "pixels": pixels,
+            "badFraction": round(float(union_bad[union].mean()), 5) if pixels else 0.0,
+            "movedFraction": round(float(union_moved[union].mean()), 5) if pixels else 0.0,
+        },
+        "sizeMismatch": tuple(other_native) != tuple(document_size),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Self-test: `python testy\analyze.py --selftest`
 #

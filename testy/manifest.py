@@ -64,7 +64,9 @@ def _kind_preserved(original: dict, resaved: dict) -> bool:
     return not resaved.get("group") and _category(resaved) in ("raster", "fill", "smartObject")
 
 
-def compare_manifests(original_layers: list[dict], resaved_layers: list[dict]) -> dict:
+def _pair_layers(original_layers: list[dict], resaved_layers: list[dict]) -> tuple[list[tuple[dict, dict]], int]:
+    """(pairs of (original, resaved) layers, how many were paired by stack order after
+    a rename)."""
     matcher = SequenceMatcher(
         a=[layer.get("name", "") for layer in original_layers],
         b=[layer.get("name", "") for layer in resaved_layers],
@@ -86,6 +88,11 @@ def compare_manifests(original_layers: list[dict], resaved_layers: list[dict]) -
     left_resaved = [layer for layer in resaved_layers if id(layer) not in paired_resaved]
     renamed = list(zip(left_originals, left_resaved))
     pairs.extend(renamed)
+    return pairs, len(renamed)
+
+
+def compare_manifests(original_layers: list[dict], resaved_layers: list[dict]) -> dict:
+    pairs, renamed_count = _pair_layers(original_layers, resaved_layers)
 
     matched_names = {id(a) for a, _ in pairs}
     lost = [
@@ -146,7 +153,7 @@ def compare_manifests(original_layers: list[dict], resaved_layers: list[dict]) -
         "lostLayers": lost[:40],
         "changedLayers": changed[:40],
         "resavedLayerCount": len(resaved_layers),
-        "renamedLayers": len(renamed),
+        "renamedLayers": renamed_count,
         "matching": MATCHING_VERSION,
     }
     apply_text_save_rule(native)
@@ -170,3 +177,84 @@ def apply_text_save_rule(native: dict | None) -> bool:
     native["nativeScore"] = 0.0
     native["textNotSaved"] = {"lost": total - kept, "total": total}
     return True
+
+
+# The settings of a type layer the text-save leg compares between the original and the
+# .psd an editor saved after its text update (testy.py _text_save_leg), with the words
+# the report uses. Photoshop names a value only where the layer states it; Hyphenate and
+# the line composer a paragraph leaves to its sheet are filled in from the file
+# (text_sheets.fill_paragraph_settings). None is a value neither gave.
+PARAGRAPH_SETTINGS = (("align", "justification"), ("hyphenate", "Hyphenate"),
+                      ("direction", "paragraph direction"), ("everyLineComposer", "line composer"))
+LAYER_SETTINGS = (("orientation", "orientation"), ("antiAlias", "anti-aliasing"),
+                  ("textKind", "point or paragraph text"))
+
+
+def _text_contents(layer: dict) -> str | None:
+    """The layer's text with line ends unified and trailing breaks dropped, or None
+    when the manifest has none (Photoshop could not read it)."""
+    contents = layer.get("text")
+    if not contents:
+        return None
+    return contents.replace("\r\n", "\r").replace("\n", "\r").replace("\x03", "\r").rstrip()
+
+
+def text_setting_changes(original: dict, resaved: dict) -> tuple[list[dict], list[dict]]:
+    """(changed, unstated) settings of one type layer between two Photoshop manifests,
+    each a list of {"setting", "was", "now"}.
+
+    A setting counts as changed only when both files state it and the values differ.
+    One that only one of them states goes to `unstated`: it may or may not have
+    changed, and reading it as a change would blame the editor for something Testy
+    cannot see. Paragraph settings are compared wherever the two files' paragraph
+    ranges overlap, so an editor that splits or merges ranges is not marked down."""
+    changed: list[dict] = []
+    unstated: list[dict] = []
+
+    def judge(label: str, was, now) -> None:
+        if was == now:
+            return
+        row = {"setting": label, "was": was, "now": now}
+        target = unstated if was is None or now is None else changed
+        if row not in target:
+            target.append(row)
+
+    for key, label in LAYER_SETTINGS:
+        judge(label, original.get(key), resaved.get(key))
+    judge("text", _text_contents(original), _text_contents(resaved))
+    fonts_before = sorted(str(face) for face in original.get("fonts") or [])
+    fonts_after = sorted(str(face) for face in resaved.get("fonts") or [])
+    judge("fonts", ", ".join(fonts_before) or None, ", ".join(fonts_after) or None)
+    for before in original.get("paragraphs") or []:
+        for after in resaved.get("paragraphs") or []:
+            if min(before.get("to", 0), after.get("to", 0)) <= max(before.get("from", 0), after.get("from", 0)):
+                continue  # no characters in common
+            for key, label in PARAGRAPH_SETTINGS:
+                judge(label, before.get(key), after.get(key))
+    return changed, unstated
+
+
+def compare_text_layers(original_layers: list[dict], resaved_layers: list[dict]) -> list[dict]:
+    """One row per type layer of the original, against the same layer in a resave:
+    {"path", "name", "bounds", "visible", "kept" (still a type layer), "became" (its
+    kind now, None when it is gone), "savedBounds", "settingsChanged", "settingsUnstated"}.
+    Layers are paired exactly as compare_manifests pairs them."""
+    pairs, _renamed = _pair_layers(original_layers, resaved_layers)
+    lookup = {id(original): resaved for original, resaved in pairs}
+    rows = []
+    for original in original_layers:
+        if original.get("group") or original.get("kind") != "TEXT":
+            continue
+        resaved = lookup.get(id(original))
+        kept = resaved is not None and _category(resaved) == "text"
+        row = {
+            "path": original.get("path"), "name": original.get("name", ""),
+            "bounds": original.get("bounds"), "visible": bool(original.get("visible", True)),
+            "kept": kept, "became": None if resaved is None else resaved.get("kind"),
+            "savedBounds": None if resaved is None else resaved.get("bounds"),
+            "settingsChanged": [], "settingsUnstated": [],
+        }
+        if kept:
+            row["settingsChanged"], row["settingsUnstated"] = text_setting_changes(original, resaved)
+        rows.append(row)
+    return rows

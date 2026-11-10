@@ -57,6 +57,10 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   rejects is a bad save ([testy-photoshop-versions.md](testy-photoshop-versions.md)).
 - **Round-trip render** - Photoshop's render of the editor's resave vs the
   original's render.
+- **Text kept after a text update** (Patchy, PhotoCraft, Photopea; files with type
+  layers) - a second save made after the editor re-lays out its text, reopened in
+  Photoshop: each type layer still text, drawn the same, settings unchanged. See
+  [The save after a text update](#the-save-after-a-text-update).
 - **Missing fonts** - Photoshop checks every text layer's style ranges against its
   installed fonts (`textFontProblems`). If a font the text needs is missing or cannot
   be inspected, Photoshop cannot draw that text faithfully either: the reference keeps
@@ -105,11 +109,23 @@ preservation validate the pipeline itself.
 - The comparison honors an embedded ICC profile in either render
   (`analyze.load_srgb_rgba`), so an editor that exports in the document space with
   the profile attached is not marked down for it.
-- Type layers are laid out afresh for the reference: `refreshText` writes each type
-  layer's own `textKey` descriptor back (`setd` on `textLayer`), which makes
-  Photoshop render the text again and changes nothing else. An old file's cached
-  text pixels can differ from what today's Photoshop draws. Skipped when a font is
-  missing (the cache is then the only faithful picture).
+- Type layers are laid out afresh for the reference: `refreshText` sets each type
+  layer's own `textClickPoint`, alone (`setd` on `textLayer`; a layer without one gets
+  its anti-aliasing switched away and back), which makes Photoshop compose the text
+  again and changes nothing. An old file's cached text pixels can differ from what
+  today's Photoshop draws. Skipped when a font is missing (the cache is then the only
+  faithful picture). The write must carry no paragraph or character style
+  ([txt2-kept-settings.md](txt2-kept-settings.md#line-composer)): writing the whole
+  `textKey` back, as Testy did until November 2026, turns Adobe Every-line Composer on
+  in every paragraph that does not state its composer and re-breaks its lines (all four
+  paragraphs of GitHub issue 672's file), so an editor that kept the file's real
+  Single-line setting was marked down; a `textStyle` set (tracking to a value and
+  back) levels every run's own tracking. Checked in Photoshop 2026 on a layer with
+  five runs (three faces, four sizes, tracking 15, -25, 0, 60, 0) in an Every-line and a
+  Single-line paragraph, and on warped, rotated, vertical and right-to-left layers:
+  every paragraph and run reads back identical, the layout equals the tracking round
+  trip's on single-run layers, and a layer whose stored pixels another program drew is
+  drawn again. `ProbeNeverSetsTextSettings` (tests/testy_text_sheets_tests.py) pins it.
 - Embedded smart objects are rendered afresh too (`refreshSmartObjects`): the
   contents are opened, a layer is added and removed, and the save makes Photoshop
   render the layer from its contents, smart filters included. Verified by giving
@@ -119,7 +135,7 @@ preservation validate the pipeline itself.
   contents and lossy formats (a save would recompress a JPEG) keep their cache.
 - Shape and fill layers need nothing: Photoshop's render is identical with and
   without their cached pixels on all 133 corpus files that have them.
-- `reference_space_key` adds `-srgb1`, `-freshtext2` and `-freshsmart1` to the
+- `reference_space_key` adds `-srgb1`, `-freshtext3` and `-freshsmart1` to the
   ground-truth and cell cache keys for the files these rules change, so older cache
   entries are not reused.
 
@@ -233,6 +249,79 @@ vector-masked solid fills; Photopea redraws shapes, fills and smart objects, and
 text after the scripted edit; PhotoCraft redraws shapes and fills, and text after
 Update All Text Layers; psd-tools redraws shapes and fills only; GIMP and
 PhotoDemon draw nothing. Cell cache keys carry `-nocache11`.
+
+## The save after a text update
+
+The save test above saves each file as the editor opened it. An editor that, like
+Photoshop, keeps a type layer as the file had it until the text is edited can pass the
+layer's data through untouched (Patchy does), so that save says little about the text
+data the editor writes itself. Two Patchy bugs showed only after an edit: justified
+paragraphs saved as justify left (GitHub issue 672) and Hyphenate turned on (issue 683).
+So for files with type layers three editors get a second save (`_text_save_leg`,
+`cell.textSave`):
+
+- **Editors**: Patchy, PhotoCraft and Photopea (`TEXT_SAVE_EDITORS`), the ones whose
+  text render score already rests on a scripted text update. Krita and Affinity lay text
+  out on open and save their own on a plain save; GIMP and PhotoDemon have no text
+  engine; psd-tools is not an editor.
+- **Steps**: the editor opens the ORIGINAL staged file again (not a cache-stripped copy),
+  runs its text update and saves `textsave.psd`. Photoshop opens that save through the
+  probe every resave goes through, which lays the text out afresh as the reference does,
+  and writes `textsave.png` and `textsave_manifest.json`.
+- **Per type layer of the original** (`score_text_save`, `manifest.compare_text_layers`):
+  *lost* when it is no longer a type layer; *changed* when it is still text but Photoshop
+  draws it differently or reports a changed setting; otherwise *same*. The cell shows
+  `same`/`measured`, and the summary card adds the layers up as "text kept after a text
+  update".
+- **Drawn the same**: the original layer's box (grown 2 px) in Photoshop's render of the
+  save against the reference render, so a difference elsewhere in the picture, already in
+  the round-trip render score, is not counted twice. Both pictures are Photoshop's own,
+  so the measure is `analyze.compare_boxes`' `movedFraction`: the share of pixels showing
+  something with no counterpart within 2 px in the other render, after a light blur. On
+  a 12 px justified paragraph of six lines it reads 0.2% for the same text laid out a
+  fraction of a pixel differently (24% of the pixels change), 3.8% for one line set flush
+  left instead of centered and 16% for different line breaks; over 1%
+  (`TEXT_SAVE_BOX_LIMIT`) counts as drawn differently. A box that the as-opened save's
+  render differs in too, the same way, reads "differs as opened too" and is not counted.
+- **Settings**: each paragraph's justification, Hyphenate, direction and line composer
+  (every-line or single-line), the layer's orientation, anti-aliasing and kind (point or
+  paragraph text), the text itself and the fonts it names, from Photoshop's manifest of
+  both files. The layer's descriptor names a value only where the layer states it, and
+  no set may be used to make it say more (the same rule as for the reference render: a
+  set of one paragraph property to the value it has changes the composer). So Hyphenate
+  and the line composer that a paragraph leaves out are read from the file itself, the
+  way Photoshop resolves them (`text_sheets.fill_paragraph_settings`): the layer's
+  `Txt2` paragraph run, its parent ParagraphSheetSet entry, the block's default sheet;
+  for a layer without a `Txt2` object the TySh EngineData run and its normal sheet. The
+  layer is matched by its index path and must have the same name and paragraph count
+  in the file. A value neither Photoshop nor the file gives is never read as a change.
+- **Missing fonts**: when Photoshop lacks a font the original's text needs, the leg is
+  not measured, as with the text render score. A save in which Photoshop finds a font
+  missing that the original had keeps the editor's pixels, so its render is not
+  compared; the changed font is reported as a setting.
+- **Not measured, never a failure**: a layer the editor's update did not reach
+  (`notMeasured`, with the reason: Patchy's script or Photopea's edit failed on it, or
+  Patchy lacks a font Photoshop has, a layer Type > Update All Text Layers skips too);
+  an editor that wrote no save; a Photoshop that did not start (the cell is then not
+  cached). `state` is then "not measured" with `reason`.
+- **A save Photoshop refuses** has `state: "rejected"`, and dialogs Photoshop shows while
+  opening the save are in `textSave.dialogs`, as `resaveRejected` and `resaveDialogs` are
+  for the as-opened save. A dialog Photoshop raised for the original too (old text
+  layers that "might need to be updated") is left out: it is no news about the save.
+- Nothing is folded into `nativeScore`, `roundtripRender` or an existing history key.
+  The run summary and `history.jsonl` gain `textSave` `{same, measured, files, rejected}`
+  per editor that has the leg. Cells of the three editors carry `-textsave2` on text
+  files, and the ground truth of text files `-textattrs2` (its manifest lists the
+  settings).
+
+Acceptance (November 11, 2026, Photoshop 2026): the four justified paragraphs of the
+issue 672 file (Single-line Composer, Hyphenate off, both left to the parent sheet),
+saved after the text update by three Patchy builds. Patchy 1.29 (both bugs):
+justification changed on three layers and Hyphenate turned on in all four, three drawn
+differently (2.1% to 3.6% of the box moved). Patchy 1.31 (672 fixed): Hyphenate on in
+all four, drawn pixel for pixel the same. A build with both fixes: all four the same,
+pixel for pixel. Tests: `tests/testy_text_save_tests.py`,
+`tests/testy_text_sheets_tests.py`.
 
 ## The two text rules that score 0%
 
