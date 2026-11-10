@@ -495,10 +495,7 @@ void append_smart_object_notices(const SmartObjectImportCounts& counts, std::vec
     return;
   }
   const auto plural = [](std::size_t count) { return count == 1 ? "" : "s"; };
-  if (counts.editable > 0) {
-    notices->push_back("Imported " + std::to_string(counts.editable) + " smart object layer" +
-                       plural(counts.editable) + "; click a layer's smart-object badge to edit its embedded contents.");
-  }
+  // Editable smart objects get no note: it would ask nothing of the user (GitHub issue 669).
   if (counts.preview_locked > 0) {
     notices->push_back(std::to_string(counts.preview_locked) + " smart object layer" +
                        plural(counts.preview_locked) +

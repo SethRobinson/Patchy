@@ -10,6 +10,7 @@
 #include <QDialogButtonBox>
 #include <QFrame>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QScrollArea>
@@ -63,10 +64,26 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
       divider->setFrameShadow(QFrame::Plain);
       grid->addWidget(divider, grid_row - 1, 0, 1, 3);
     }
-    auto* name = new QLabel(entry.family, rows_widget);
+    // The family in bold with its style beside it, split as the options bar shows a missing font
+    // (GitHub issue 669): "Museo Sans Rounded" + "500". Display only: the entry, its suggestion and
+    // the replacement keep the whole name, which the label carries as kMissingFontFullNameProperty.
+    const auto parts = split_font_family_and_style(entry.family.trimmed().toStdString());
+    const auto style_text = QString::fromStdString(parts.style);
+    auto* name = new QLabel(style_text.isEmpty() ? entry.family : QString::fromStdString(parts.family), rows_widget);
     name->setObjectName(QStringLiteral("missingFontName%1").arg(index));
+    name->setProperty(kMissingFontFullNameProperty, entry.family);
     name->setTextFormat(Qt::PlainText);
     name->setFont(offset_font(name->font(), 0, true));
+    auto* name_line = new QHBoxLayout;
+    name_line->setSpacing(6);
+    name_line->addWidget(name);
+    if (!style_text.isEmpty()) {
+      auto* style = new QLabel(style_text, rows_widget);
+      style->setObjectName(QStringLiteral("missingFontStyle%1").arg(index));
+      style->setTextFormat(Qt::PlainText);
+      name_line->addWidget(style);
+    }
+    name_line->addStretch(1);
     auto* detail = new QLabel(entry.no_glyphs
                                   ? QObject::tr("Installed, but has no glyphs for this text. Used in %n text layer(s).",
                                                 nullptr, entry.layer_count)
@@ -76,7 +93,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     // One line: wrapped, the name column shrank until the count broke across lines.
     auto* name_column = new QVBoxLayout;
     name_column->setSpacing(1);
-    name_column->addWidget(name);
+    name_column->addLayout(name_line);
     name_column->addWidget(detail);
     // A substitute from the built-in table or a same-type default (issue 463) says how close it
     // is; the picker starts on it.
