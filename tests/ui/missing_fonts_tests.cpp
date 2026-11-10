@@ -1,8 +1,9 @@
 // Missing fonts: the Resolve Missing Fonts dialog (GitHub issue 169), the substitution prompt on
 // hidden layers (177), the layer badge during a session (178) and the options-bar font new type
-// starts in (180), the bar naming a missing family (652). See docs/font-resolution-missing-fonts.md,
-// "Missing fonts".
+// starts in (180), the bar naming a missing family (652), and Type > Replace All Missing Fonts and
+// Update All Text Layers (686). See docs/font-resolution-missing-fonts.md, "Missing fonts".
 #include "core/layer_metadata.hpp"
+#include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
@@ -35,6 +36,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QTest>
 #include <QTextEdit>
 #include <QTimer>
@@ -880,6 +882,237 @@ void ui_resolve_missing_fonts_replaces_the_font_in_every_layer() {
   for (const auto id : {top_id, hidden_id, grouped_id}) {
     CHECK(layer_font(window, id) == kMissing);
   }
+}
+
+QString layer_raster_status(MainWindow& window, patchy::LayerId id) {
+  const auto* layer = std::as_const(MainWindowTestAccess::document(window)).find_layer(id);
+  if (layer == nullptr) {
+    return {};
+  }
+  const auto found = layer->metadata().find(patchy::kLayerMetadataTextRasterStatus);
+  return found == layer->metadata().end() ? QString() : QString::fromStdString(found->second);
+}
+
+bool layer_has_font_problems(MainWindow& window, patchy::LayerId id) {
+  const auto* layer = std::as_const(MainWindowTestAccess::document(window)).find_layer(id);
+  if (layer == nullptr) {
+    return true;
+  }
+  const auto problems = patchy::ui::text_font_problems_for_layer(*layer);
+  return !problems.not_installed.isEmpty() || !problems.no_glyphs.isEmpty();
+}
+
+QString status_message(MainWindow& window) {
+  auto* bar = window.findChild<QStatusBar*>();
+  return bar != nullptr ? bar->currentMessage() : QString();
+}
+
+void trigger_type_action(MainWindow& window, const char* object_name) {
+  auto* action = window.findChild<QAction*>(QLatin1String(object_name));
+  CHECK(action != nullptr);
+  if (action != nullptr) {
+    CHECK(action->isEnabled() && action->shortcut().isEmpty());
+    action->trigger();
+  }
+  process_events_for(200);
+}
+
+// GitHub issue 686: Type > Update All Text Layers commits every text layer whose fonts are
+// installed (hidden and grouped ones too) as one undo step, so imported layers stop showing the
+// saved raster; layers with a missing font and locked layers are left alone and counted.
+void ui_update_all_text_layers_rerenders_installed_font_layers() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed = patchy::test::visual_test_font().family();
+  auto document = white_document();
+  const auto top_id = document.add_layer(missing_font_text_layer(document, "Top", installed, 20)).id();
+  const auto hidden_id = document.add_layer(missing_font_text_layer(document, "Hidden", installed, 60, false)).id();
+  const auto missing_id = document.add_layer(missing_font_text_layer(document, "Missing", kMissing, 100)).id();
+  auto locked = missing_font_text_layer(document, "Locked", installed, 140);
+  locked.set_lock_flags(patchy::kLayerLockAll);
+  const auto locked_id = document.add_layer(std::move(locked)).id();
+  patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+  auto child = missing_font_text_layer(document, "Grouped", installed, 180);
+  const auto grouped_id = child.id();
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Update All"));
+  QApplication::processEvents();
+  for (const auto id : {top_id, hidden_id, missing_id, locked_id, grouped_id}) {
+    CHECK(layer_raster_status(window, id) == QStringLiteral("psd_raster_preview"));
+  }
+
+  const auto depth_before = MainWindowTestAccess::active_session_undo_depth(window);
+  trigger_type_action(window, "typeUpdateAllTextLayersAction");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+  for (const auto id : {top_id, hidden_id, grouped_id}) {
+    CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+    CHECK(layer_font(window, id) == installed);
+  }
+  const auto* hidden = std::as_const(MainWindowTestAccess::document(window)).find_layer(hidden_id);
+  CHECK(hidden != nullptr && !hidden->visible());
+  CHECK(layer_raster_status(window, missing_id) == QStringLiteral("psd_raster_preview"));
+  CHECK(layer_font(window, missing_id) == kMissing);
+  CHECK(layer_raster_status(window, locked_id) == QStringLiteral("psd_raster_preview"));
+  const auto message = status_message(window);
+  std::fprintf(stderr, "update all: %s\n", message.toUtf8().constData());
+  CHECK(message.contains(QStringLiteral("missing fonts")) && message.contains(QStringLiteral("locked")));
+
+  // The next save writes Patchy's own TySh for the updated layers.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  const auto reopened = patchy::psd::DocumentIo::read(bytes);
+  int written = 0;
+  std::function<void(const std::vector<patchy::Layer>&)> check_layers = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      check_layers(layer.children());
+      if (layer.name() == "Top" || layer.name() == "Hidden" || layer.name() == "Grouped") {
+        written += std::ranges::any_of(layer.unknown_psd_blocks(),
+                                       [](const auto& block) { return block.key == "TySh"; })
+                       ? 1
+                       : 0;
+      }
+    }
+  };
+  check_layers(reopened.layers());
+  CHECK(written == 3);
+
+  MainWindowTestAccess::undo(window);
+  process_events_for(100);
+  for (const auto id : {top_id, hidden_id, grouped_id}) {
+    CHECK(layer_raster_status(window, id) == QStringLiteral("psd_raster_preview"));
+  }
+
+  // No text layers: nothing happens and the status bar says so.
+  MainWindow empty;
+  show_window(empty);
+  empty.add_document_session(white_document(), QStringLiteral("No Text"));
+  QApplication::processEvents();
+  const auto empty_depth = MainWindowTestAccess::active_session_undo_depth(empty);
+  trigger_type_action(empty, "typeUpdateAllTextLayersAction");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(empty) == empty_depth);
+  CHECK(status_message(empty) == QStringLiteral("This document has no text layers"));
+}
+
+// The same command on a PSD Photoshop wrote: every text layer is laid out and rendered by
+// Patchy, and the save replaces Photoshop's TySh with Patchy's.
+void ui_update_all_text_layers_rewrites_photoshop_text() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-auto-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  struct ImportedText {
+    patchy::LayerId id;
+    std::string name;
+    std::vector<std::uint8_t> tysh;
+  };
+  std::vector<ImportedText> imported;
+  for (const auto& layer : document.layers()) {
+    if (!patchy::layer_is_text(layer)) {
+      continue;
+    }
+    const auto problems = patchy::ui::text_font_problems_for_layer(layer);
+    if (!problems.not_installed.isEmpty() || !problems.no_glyphs.isEmpty()) {
+      patchy::test::skip("the fixture's font is not installed on this host");
+    }
+    const auto tysh = std::ranges::find_if(layer.unknown_psd_blocks(), [](const auto& block) { return block.key == "TySh"; });
+    CHECK(tysh != layer.unknown_psd_blocks().end());
+    imported.push_back(ImportedText{layer.id(), layer.name(),
+                                    tysh != layer.unknown_psd_blocks().end() ? tysh->payload
+                                                                             : std::vector<std::uint8_t>{}});
+  }
+  CHECK(!imported.empty());
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Photoshop Text"));
+  QApplication::processEvents();
+  trigger_type_action(window, "typeUpdateAllTextLayersAction");
+  for (const auto& entry : imported) {
+    CHECK(layer_raster_status(window, entry.id) == QStringLiteral("patchy_raster"));
+  }
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  // Kept for the Photoshop open check (docs/photoshop-com.md).
+  ensure_artifact_dir();
+  if (QFile out(QStringLiteral("test-artifacts/issue686-update-all-photoshop.psd")); out.open(QIODevice::WriteOnly)) {
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  const auto reopened = patchy::psd::DocumentIo::read(bytes);
+  std::size_t rewritten = 0;
+  for (const auto& layer : reopened.layers()) {
+    const auto original =
+        std::ranges::find_if(imported, [&layer](const ImportedText& entry) { return entry.name == layer.name(); });
+    if (original == imported.end()) {
+      continue;
+    }
+    const auto tysh = std::ranges::find_if(layer.unknown_psd_blocks(), [](const auto& block) { return block.key == "TySh"; });
+    CHECK(tysh != layer.unknown_psd_blocks().end());
+    if (tysh != layer.unknown_psd_blocks().end() && tysh->payload != original->tysh) {
+      ++rewritten;
+    }
+  }
+  CHECK(rewritten == imported.size());
+}
+
+// Type > Replace All Missing Fonts: no dialog; each missing family takes the dialog's
+// recommendation (the substitute table's pick for Helvetica), a family with none takes the
+// default text family, locked layers keep theirs, and the whole pass is one undo step.
+void ui_replace_all_missing_fonts_uses_recommendations_then_the_default() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto helvetica = QStringLiteral("Helvetica");
+  const bool helvetica_missing = !patchy::ui::available_text_family_match(helvetica).has_value();
+  auto document = white_document();
+  const auto missing_id = document.add_layer(missing_font_text_layer(document, "Unlisted", kMissing, 20)).id();
+  std::optional<patchy::LayerId> helvetica_id;
+  if (helvetica_missing) {
+    helvetica_id = document.add_layer(missing_font_text_layer(document, "Headline", helvetica, 60)).id();
+  }
+  auto locked = missing_font_text_layer(document, "Locked", kOtherMissing, 100);
+  locked.set_lock_flags(patchy::kLayerLockAll);
+  const auto locked_id = document.add_layer(std::move(locked)).id();
+  patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+  auto child = missing_font_text_layer(document, "Grouped", kMissing, 140);
+  const auto grouped_id = child.id();
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Replace All"));
+  QApplication::processEvents();
+  // The command never asks: a dialog here would block the trigger.
+  const auto depth_before = MainWindowTestAccess::active_session_undo_depth(window);
+  trigger_type_action(window, "typeReplaceAllMissingFontsAction");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+  const auto fallback = patchy::ui::default_text_family();
+  CHECK(layer_font(window, missing_id) == fallback);
+  CHECK(layer_font(window, grouped_id) == fallback);
+  CHECK(!layer_has_font_problems(window, missing_id) && !layer_has_font_problems(window, grouped_id));
+  if (helvetica_id.has_value()) {
+    const auto substitutes = patchy::ui::installed_text_font_substitutes(helvetica, QStringLiteral("Headline"));
+    const auto expected = substitutes.empty() ? fallback : substitutes.front().family;
+    std::fprintf(stderr, "Helvetica became %s (expected %s)\n", layer_font(window, *helvetica_id).toUtf8().constData(),
+                 expected.toUtf8().constData());
+    CHECK(layer_font(window, *helvetica_id) == expected);
+    CHECK(!layer_has_font_problems(window, *helvetica_id));
+  }
+  CHECK(layer_font(window, locked_id) == kOtherMissing);
+  CHECK(status_message(window).contains(QStringLiteral("locked")));
+
+  MainWindowTestAccess::undo(window);
+  process_events_for(100);
+  CHECK(layer_font(window, missing_id) == kMissing);
+  CHECK(layer_font(window, grouped_id) == kMissing);
+
+  // Nothing missing: no change, and the status bar says so.
+  MainWindow clean;
+  show_window(clean);
+  clean.add_document_session(white_document(), QStringLiteral("No Missing"));
+  QApplication::processEvents();
+  const auto clean_depth = MainWindowTestAccess::active_session_undo_depth(clean);
+  trigger_type_action(clean, "typeReplaceAllMissingFontsAction");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(clean) == clean_depth);
+  CHECK(status_message(clean) == QStringLiteral("This document has no missing fonts"));
 }
 
 // GitHub issue 669 follow-up: a row shows the family in bold with its style beside it, split as
@@ -1831,6 +2064,11 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
        ui_missing_font_badge_clears_when_the_substitution_is_accepted},
       {"ui_resolve_missing_fonts_replaces_the_font_in_every_layer",
        ui_resolve_missing_fonts_replaces_the_font_in_every_layer},
+      {"ui_update_all_text_layers_rerenders_installed_font_layers",
+       ui_update_all_text_layers_rerenders_installed_font_layers},
+      {"ui_update_all_text_layers_rewrites_photoshop_text", ui_update_all_text_layers_rewrites_photoshop_text},
+      {"ui_replace_all_missing_fonts_uses_recommendations_then_the_default",
+       ui_replace_all_missing_fonts_uses_recommendations_then_the_default},
       {"ui_missing_fonts_dialog_shows_family_and_style_apart", ui_missing_fonts_dialog_shows_family_and_style_apart},
       {"ui_missing_fonts_dialog_shows_on_open_until_turned_off", ui_missing_fonts_dialog_shows_on_open_until_turned_off},
       {"ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show", ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show},

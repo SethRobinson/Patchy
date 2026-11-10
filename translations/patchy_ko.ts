@@ -21575,6 +21575,18 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>도구 불투명도를 10% 높이기</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>설치되지 않은 각 글꼴을 추천 대체 글꼴로 바꾸기</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>설치된 글꼴을 쓰는 모든 텍스트 레이어 다시 렌더링</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>임시 채우기 텍스트 삽입</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35522,6 +35534,46 @@ Locked: %1</source>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>끄면 PDF를 열 때 PDF 가져오기 대화상자가 나타나 바로 페이지를 편집할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>모든 텍스트 레이어 업데이트</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>누락된 글꼴 모두 바꾸기</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>Lorem Ipsum 붙여넣기</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>(기호 글꼴 %n개를 유지했습니다: 같은 기호가 있는 설치된 글꼴이 없습니다)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>이 문서에는 텍스트 레이어가 없습니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>텍스트 레이어 %n개를 업데이트했습니다</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>(누락된 글꼴이 있는 레이어 %n개를 건너뛰었습니다)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>(잠긴 레이어 %n개를 건너뛰었습니다)</numerusform>
+        </translation>
     </message>
 </context>
 <context>

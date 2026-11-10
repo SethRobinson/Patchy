@@ -1,6 +1,6 @@
-// Type > Resolve Missing Fonts (GitHub issue 169) and the text-session state the layer panel and
-// the options bar read about missing fonts (issues 178 and 180). See
-// docs/font-resolution-missing-fonts.md, "Missing fonts".
+// Type > Resolve Missing Fonts (GitHub issue 169), Replace All Missing Fonts and Update All Text
+// Layers (issue 686), and the text-session state the layer panel and the options bar read about
+// missing fonts (issues 178 and 180). See docs/font-resolution-missing-fonts.md, "Missing fonts".
 #include "core/layer_metadata.hpp"
 #include "core/text_area.hpp"
 #include "ui/app_settings.hpp"
@@ -82,6 +82,35 @@ std::vector<DocumentMissingFont> document_missing_fonts(const Document& document
   };
   visit(document.layers());
   return fonts;
+}
+
+// The dialog's row for one missing family, with the stand-in its picker starts on. Replace All
+// Missing Fonts takes the same recommendation without showing the dialog.
+MissingFontEntry missing_font_entry(const DocumentMissingFont& font) {
+  MissingFontEntry entry{font.family, font.no_glyphs, static_cast<int>(font.layers.size()), {}};
+  // The built-in substitute table first (issue 463): metric matches, then look-alikes, then an
+  // installed default of the same font type, then the face Qt draws the text in now.
+  if (const auto substitutes = installed_text_font_substitutes(font.family, font.first_text); !substitutes.empty()) {
+    const auto& best = substitutes.front();
+    entry.suggested = best.family;
+    entry.font_type = best.same_type;
+    entry.suggestion = best.same_type != FontClass::unknown ? MissingFontSuggestion::same_type
+                       : best.metric                         ? MissingFontSuggestion::metric
+                                                             : MissingFontSuggestion::lookalike;
+  } else if (text_font_class(font.family) == FontClass::symbol) {
+    // A symbol font with no copy installed (issue 463 follow-up): no text font is offered, since
+    // it would turn the pictures into letters. The row starts unticked on the UI font.
+    entry.suggestion = MissingFontSuggestion::no_symbol_match;
+    entry.font_type = FontClass::symbol;
+    entry.suggested = default_text_family();
+  } else {
+    entry.suggested = substituted_text_family(font.family, font.first_text);
+    if (entry.suggested.compare(font.family, Qt::CaseInsensitive) == 0) {
+      // Nothing installed draws the text; offer the UI font rather than the missing name.
+      entry.suggested = default_text_family();
+    }
+  }
+  return entry;
 }
 
 }  // namespace
@@ -186,30 +215,7 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
   std::vector<MissingFontEntry> entries;
   entries.reserve(fonts.size());
   for (const auto& font : fonts) {
-    MissingFontEntry entry{font.family, font.no_glyphs, static_cast<int>(font.layers.size()), {}};
-    // The built-in substitute table first (issue 463): metric matches, then look-alikes, then an
-    // installed default of the same font type, then the face Qt draws the text in now.
-    if (const auto substitutes = installed_text_font_substitutes(font.family, font.first_text); !substitutes.empty()) {
-      const auto& best = substitutes.front();
-      entry.suggested = best.family;
-      entry.font_type = best.same_type;
-      entry.suggestion = best.same_type != FontClass::unknown ? MissingFontSuggestion::same_type
-                         : best.metric                         ? MissingFontSuggestion::metric
-                                                               : MissingFontSuggestion::lookalike;
-    } else if (text_font_class(font.family) == FontClass::symbol) {
-      // A symbol font with no copy installed (issue 463 follow-up): no text font is offered, since
-      // it would turn the pictures into letters. The row starts unticked on the UI font.
-      entry.suggestion = MissingFontSuggestion::no_symbol_match;
-      entry.font_type = FontClass::symbol;
-      entry.suggested = default_text_family();
-    } else {
-      entry.suggested = substituted_text_family(font.family, font.first_text);
-      if (entry.suggested.compare(font.family, Qt::CaseInsensitive) == 0) {
-        // Nothing installed draws the text; offer the UI font rather than the missing name.
-        entry.suggested = default_text_family();
-      }
-    }
-    entries.push_back(entry);
+    entries.push_back(missing_font_entry(font));
   }
   bool show_on_open_after = show_on_open;
   const auto result = run_missing_fonts_dialog(this, entries, show_on_open, &show_on_open_after);
@@ -259,13 +265,20 @@ int MainWindow::resolve_missing_fonts(const QHash<QString, QString>& replacement
   if (targets.empty()) {
     return 0;
   }
+  text_font_replacements_ = replacements;
+  return commit_text_layers_in_hidden_sessions(targets, tr("Resolve Missing Fonts"));
+}
 
+int MainWindow::commit_text_layers_in_hidden_sessions(const std::vector<LayerId>& targets, const QString& undo_label) {
+  if (targets.empty()) {
+    text_font_replacements_.reset();
+    return 0;
+  }
   const auto original_active = document().active_layer_id();
   const auto original_selection = selected_layer_ids();
   // One undo step for the whole pass, taken before any layer changes; every commit below skips
   // its own "Type" snapshot (the apply_text_character_edit pattern).
-  push_undo_snapshot(tr("Resolve Missing Fonts"));
-  text_font_replacements_ = replacements;
+  push_undo_snapshot(undo_label);
   applying_text_options_to_layers_ = true;
   text_commit_snapshot_suppressed_ = true;
   const auto cleanup = qScopeGuard([this, original_active, original_selection] {
@@ -290,9 +303,9 @@ int MainWindow::resolve_missing_fonts(const QHash<QString, QString>& replacement
     }
     const auto bounds = layer->bounds();
     document().set_active_layer(id);
-    // A hidden session (no editor shown) re-lays the layer out in the replacement faces and
-    // commits through the normal path, so the layer metadata, its raster and the Txt2 object
-    // the next save writes all name the new font.
+    // A hidden session (no editor shown) re-lays the layer out (in the replacement faces, for
+    // Resolve Missing Fonts) and commits through the normal path, so the layer metadata, its
+    // raster and the TySh and Txt2 the next save writes are Patchy's own.
     add_text_at(QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2), {}, false, std::nullopt, id);
     QPointer<QTextEdit> hidden = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
     if (hidden == nullptr) {
@@ -305,6 +318,88 @@ int MainWindow::resolve_missing_fonts(const QHash<QString, QString>& replacement
     commit_text_editor(hidden, origin, id);
     ++changed;
   }
+  return changed;
+}
+
+void MainWindow::replace_all_missing_fonts() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  finish_active_text_editor();
+  const auto fonts = document_missing_fonts(std::as_const(document()));
+  if (fonts.empty()) {
+    statusBar()->showMessage(tr("This document has no missing fonts"));
+    return;
+  }
+  QHash<QString, QString> replacements;
+  int kept_symbol_fonts = 0;
+  for (const auto& font : fonts) {
+    const auto entry = missing_font_entry(font);
+    if (entry.suggestion == MissingFontSuggestion::no_symbol_match) {
+      // The dialog starts this row unticked: a text font would turn the symbols into letters.
+      ++kept_symbol_fonts;
+      continue;
+    }
+    // A recommendation from the substitute table or a same-type default; with none, the
+    // standard family new type starts in rather than whatever face Qt falls back to.
+    const auto family = entry.suggestion == MissingFontSuggestion::fallback ? default_text_family() : entry.suggested;
+    replacements.insert(text_font_replacement_key(font.family), family);
+  }
+  int skipped_locked = 0;
+  const auto changed = replacements.isEmpty() ? 0 : resolve_missing_fonts(replacements, &skipped_locked);
+  auto message = tr("Replaced missing fonts in %n text layer(s)", nullptr, changed);
+  if (skipped_locked > 0) {
+    message += QLatin1Char(' ') + tr("(%n locked layer(s) kept their fonts)", nullptr, skipped_locked);
+  }
+  if (kept_symbol_fonts > 0) {
+    message += QLatin1Char(' ') +
+               tr("(%n symbol font(s) kept: no installed font has the same symbols)", nullptr, kept_symbol_fonts);
+  }
+  statusBar()->showMessage(message);
+}
+
+int MainWindow::update_all_text_layers() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return 0;
+  }
+  finish_active_text_editor();
+  std::vector<LayerId> targets;
+  int text_layers = 0;
+  int skipped_locked = 0;
+  int skipped_missing = 0;
+  const std::function<void(const std::vector<Layer>&)> visit = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer_is_text(layer)) {
+        ++text_layers;
+        const auto problems = text_font_problems_for_layer(layer);
+        if (layer_id_locks_image_pixels(layer.id()) || text_geometry_is_protected(layer)) {
+          ++skipped_locked;
+        } else if (!problems.not_installed.isEmpty() || !problems.no_glyphs.isEmpty()) {
+          // A session would substitute the font; Replace All Missing Fonts is for that.
+          ++skipped_missing;
+        } else {
+          targets.push_back(layer.id());
+        }
+      }
+      if (!layer.children().empty()) {
+        visit(layer.children());
+      }
+    }
+  };
+  visit(std::as_const(document()).layers());
+  if (text_layers == 0) {
+    statusBar()->showMessage(tr("This document has no text layers"));
+    return 0;
+  }
+  const auto changed = commit_text_layers_in_hidden_sessions(targets, tr("Update All Text Layers"));
+  auto message = tr("Updated %n text layer(s)", nullptr, changed);
+  if (skipped_missing > 0) {
+    message += QLatin1Char(' ') + tr("(%n layer(s) with missing fonts skipped)", nullptr, skipped_missing);
+  }
+  if (skipped_locked > 0) {
+    message += QLatin1Char(' ') + tr("(%n locked layer(s) skipped)", nullptr, skipped_locked);
+  }
+  statusBar()->showMessage(message);
   return changed;
 }
 

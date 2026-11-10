@@ -21637,6 +21637,18 @@ Sostituirlo?</translation>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Aumenta l&apos;opacità dello strumento del 10%</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>Sostituisci ogni font non installato con il sostituto suggerito</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>Esegui di nuovo il rendering di ogni livello di testo con font installati</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>Inserisci testo segnaposto di riempimento</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35625,6 +35637,50 @@ Bloccato: %1</translation>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Se disattivato, l&apos;apertura di un PDF mostra subito la finestra Importa PDF per modificarne le pagine.</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>Aggiorna tutti i livelli di testo</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>Sostituisci tutti i font mancanti</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>Incolla Lorem Ipsum</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>(%n font di simboli mantenuto: nessun font installato ha gli stessi simboli)</numerusform>
+            <numerusform>(%n font di simboli mantenuti: nessun font installato ha gli stessi simboli)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>Questo documento non ha livelli di testo</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>%n livello di testo aggiornato</numerusform>
+            <numerusform>%n livelli di testo aggiornati</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>(%n livello con font mancanti ignorato)</numerusform>
+            <numerusform>(%n livelli con font mancanti ignorati)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>(%n livello bloccato ignorato)</numerusform>
+            <numerusform>(%n livelli bloccati ignorati)</numerusform>
+        </translation>
     </message>
 </context>
 <context>

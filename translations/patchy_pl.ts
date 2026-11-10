@@ -21699,6 +21699,18 @@ Czy chcesz go zastąpić?</translation>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Zwiększ krycie narzędzia o 10%</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>Zamień każdą niezainstalowaną czcionkę na sugerowany zamiennik</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>Ponownie renderuj każdą warstwę tekstową z zainstalowanymi czcionkami</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>Wstaw tymczasowy tekst wypełniający</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35728,6 +35740,54 @@ Zablokowano: %1</translation>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Po wyłączeniu otwarcie pliku PDF od razu pokazuje okno Importuj PDF, aby edytować jego strony.</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>Aktualizuj wszystkie warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>Zastąp wszystkie brakujące czcionki</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>Wklej Lorem Ipsum</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>(zachowano %n czcionkę symboli: żadna zainstalowana czcionka nie ma tych samych symboli)</numerusform>
+            <numerusform>(zachowano %n czcionki symboli: żadna zainstalowana czcionka nie ma tych samych symboli)</numerusform>
+            <numerusform>(zachowano %n czcionek symboli: żadna zainstalowana czcionka nie ma tych samych symboli)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>Ten dokument nie ma warstw tekstowych</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>Zaktualizowano %n warstwę tekstową</numerusform>
+            <numerusform>Zaktualizowano %n warstwy tekstowe</numerusform>
+            <numerusform>Zaktualizowano %n warstw tekstowych</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>(pominięto %n warstwę z brakującymi czcionkami)</numerusform>
+            <numerusform>(pominięto %n warstwy z brakującymi czcionkami)</numerusform>
+            <numerusform>(pominięto %n warstw z brakującymi czcionkami)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>(pominięto %n zablokowaną warstwę)</numerusform>
+            <numerusform>(pominięto %n zablokowane warstwy)</numerusform>
+            <numerusform>(pominięto %n zablokowanych warstw)</numerusform>
+        </translation>
     </message>
 </context>
 <context>

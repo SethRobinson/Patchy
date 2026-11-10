@@ -39,7 +39,7 @@ Related documents:
 - The Type tool's options bar has Bold, Italic and Underline buttons, a Justify toggle that works with Left, Center and Right, and icon toggles for Vertical and RTL; anti-aliasing is in the Character panel and the Type menu
 - Type > Convert to Shape and Create Work Path turn any text, warped too, into vector outlines
 - Type Mask tool: type over a tinted canvas and the letters become a selection (new, add, subtract or intersect), horizontal or vertical, with no layer made
-- The Type menu opens the Character and Paragraph panels and sets alignment, direction, orientation, anti-aliasing and OpenType features for the selected text, with Rasterize Type Layer and Warp Text
+- The Type menu opens the Character and Paragraph panels and sets alignment, direction, orientation, anti-aliasing and OpenType features for the selected text, with Rasterize Type Layer and Warp Text; Update All Text Layers re-renders every text layer, Replace All Missing Fonts swaps each missing font for its suggested stand-in without a dialog, and Paste Lorem Ipsum adds placeholder text
 
 ## Pixel art and game assets
 

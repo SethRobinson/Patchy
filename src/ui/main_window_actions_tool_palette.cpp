@@ -2131,6 +2131,16 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   connect(warp_text_action, &QAction::triggered, this, [this] { request_warp_text_dialog(); });
   type_menu->addSeparator();
 
+  // Every text layer at once (GitHub issue 686): a no-change commit of each, and the Resolve
+  // Missing Fonts recommendations applied with no dialog. They stay enabled with a document, like
+  // the other entries; with nothing to act on, the status bar says so.
+  auto* update_all_text_action = add_type_action(type_menu, QT_TR_NOOP("Update All Text Layers"),
+                                                 "typeUpdateAllTextLayersAction", "type.update_all_text_layers");
+  connect(update_all_text_action, &QAction::triggered, this, [this] { update_all_text_layers(); });
+  auto* replace_all_fonts_action = add_type_action(type_menu, QT_TR_NOOP("Replace All Missing Fonts"),
+                                                   "typeReplaceAllMissingFontsAction",
+                                                   "type.replace_all_missing_fonts");
+  connect(replace_all_fonts_action, &QAction::triggered, this, [this] { replace_all_missing_fonts(); });
   // Photoshop's Type > Resolve Missing Fonts (GitHub issue 169).
   auto* resolve_fonts_action = type_menu->addAction(QString());
   bind_action_text(resolve_fonts_action, QT_TR_NOOP("Resolve Missing Fonts..."));
@@ -2139,6 +2149,11 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_hotkey(resolve_fonts_action, "type.resolve_missing_fonts");
   connect(resolve_fonts_action, &QAction::triggered, this, [this] { show_resolve_missing_fonts_dialog(); });
   register_document_action(resolve_fonts_action);
+  type_menu->addSeparator();
+  // Placeholder text (issue 686): into the open session, the selected text layers, or a new layer.
+  auto* lorem_action =
+      add_type_action(type_menu, QT_TR_NOOP("Paste Lorem Ipsum"), "typePasteLoremIpsumAction", "type.paste_lorem_ipsum");
+  connect(lorem_action, &QAction::triggered, this, [this] { paste_lorem_ipsum(); });
 
   // The color well and Quick Mask live in a footer pinned to the bar's bottom,
   // outside the toolbar layout, so they never fold into the extension and stay

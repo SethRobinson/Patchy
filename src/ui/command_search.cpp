@@ -353,6 +353,11 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.blend_mode.luminosity", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take only the layer's brightness")},
     // Type
     {"type.resolve_missing_fonts", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Replace fonts that are not installed")},
+    {"type.replace_all_missing_fonts",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Swap every uninstalled font for its suggested substitute")},
+    {"type.update_all_text_layers",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Re-render every text layer with installed fonts")},
+    {"type.paste_lorem_ipsum", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Insert placeholder filler text")},
     {"type.convert_to_shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn text into editable vector outlines")},
     {"type.create_work_path", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Outline the letters as a path")},
     {"type.character_panel", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Leading, tracking, glyph scales and font features")},

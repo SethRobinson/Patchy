@@ -8280,6 +8280,90 @@ int MainWindow::cli_append_text_to_text_layers(const QString& suffix) {
   return mutated;
 }
 
+void MainWindow::paste_lorem_ipsum() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  // The standard placeholder paragraph. It is Latin filler, the same in every language, so it is
+  // never translated (the menu entry is).
+  static const auto lorem = QStringLiteral(
+      "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et "
+      "dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex "
+      "ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+      "nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit "
+      "anim id est laborum.");
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
+    // An open session: at the caret, replacing any selected text, like a paste. The session's
+    // commit is the undo step.
+    apply_text_character_edit([](QTextEdit& session) {
+      session.insertPlainText(lorem);
+      return true;
+    });
+    return;
+  }
+  if (!text_character_target_layer_ids().empty()) {
+    // Selected text layers, no session: after each layer's text, a space apart, through the
+    // hidden sessions of apply_text_character_edit (one "Type" step for all of them).
+    apply_text_character_edit([](QTextEdit& session) {
+      const auto existing = session.toPlainText();
+      auto cursor = session.textCursor();
+      cursor.movePosition(QTextCursor::End);
+      session.setTextCursor(cursor);
+      session.insertPlainText(existing.isEmpty() || existing.back().isSpace() ? lorem
+                                                                              : QLatin1Char(' ') + lorem);
+      return true;
+    });
+    return;
+  }
+  // Nothing to add to: a new paragraph text layer at the view center, in the Type tool's
+  // current options. A paragraph is one long line as point text, so it gets a frame 60% as wide
+  // as the visible part of the document, fitted to the text's height below.
+  const auto& doc = std::as_const(*this).document();
+  const auto zoom = std::max(0.0001, canvas_->zoom());
+  const auto center = canvas_->view_center_document_point();
+  const auto visible_width = std::min(static_cast<double>(doc.width()), canvas_->width() / zoom);
+  const int box_width = std::max(64, static_cast<int>(std::lround(visible_width * 0.6)));
+  // Tall enough that the automatic size stays the document's (a short frame shrinks it).
+  const int box_height = std::max(64, doc.height());
+  const int left = static_cast<int>(std::lround(center.x() - box_width / 2.0));
+  const int center_y = static_cast<int>(std::lround(center.y()));
+  // add_text_at opens the active layer when the point lands inside it; a new layer is wanted.
+  document().clear_active_layer();
+  add_text_at(QPoint(left, center_y), QRect(left, center_y, box_width, box_height), true);
+  editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  editor->insertPlainText(lorem);
+  fit_text_editor_box_height_to_text(*editor, center_y);
+  finish_active_text_editor();
+}
+
+void MainWindow::fit_text_editor_box_height_to_text(QTextEdit& editor, int center_y) {
+  if (!text_flow_is_box(editor.property("patchy.documentTextFlow").toString()) || text_editor_is_vertical(editor)) {
+    return;
+  }
+  // Bumps the layout generation, so the document-space layout below holds the new text.
+  mark_text_editor_changed(&editor);
+  double layout_zoom = 1.0;
+  const auto* layout_document = text_editor_document_space_layout(editor, layout_zoom);
+  if (layout_document == nullptr) {
+    return;
+  }
+  const auto bounds = text_editor_line_geometry(editor, *layout_document).bounding_rect();
+  if (!bounds.isValid() || bounds.bottom() <= 0.0) {
+    return;
+  }
+  // A quarter of the size below the last line, so its descenders never count as overflow.
+  const auto size = std::max(1, editor.property("patchy.documentTextSize").toInt());
+  const int height = std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(bounds.bottom() + size / 4.0)));
+  editor.setProperty("patchy.documentTextY", center_y - height / 2);
+  editor.setProperty("patchy.documentTextHeight", height);
+  relayout_text_editor(&editor, false);
+  schedule_text_editor_preview(&editor);
+}
+
 bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& warp) {
   const auto inputs = text_render_inputs_from_layer(layer);
   if (!inputs.has_value()) {

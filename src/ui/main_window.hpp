@@ -3053,6 +3053,28 @@ private:
   // values the installed family. Returns the number of layers changed; locked layers are
   // skipped and counted in `skipped_locked`.
   int resolve_missing_fonts(const QHash<QString, QString>& replacements, int* skipped_locked = nullptr);
+  // Type > Replace All Missing Fonts (GitHub issue 686): resolve_missing_fonts with the dialog's
+  // recommended substitute for each missing family and the default text family for a family with
+  // no recommendation; no dialog. A symbol font with no installed copy keeps its name, as its
+  // dialog row starts unticked.
+  void replace_all_missing_fonts();
+  // The pass Resolve Missing Fonts and Update All Text Layers share: one hidden session per
+  // layer of `targets`, each committed through the normal path as if edited, all under one
+  // `undo_label` step. text_font_replacements_ (when set by the caller) picks the faces.
+  int commit_text_layers_in_hidden_sessions(const std::vector<LayerId>& targets, const QString& undo_label);
+  // Type > Update All Text Layers (issue 686): every text layer whose fonts are installed goes
+  // through a hidden session and the normal commit with no change, so Patchy re-lays it out,
+  // re-renders it and writes its own text data on the next save. One undo step; locked layers
+  // and layers with a missing font are skipped and counted on the status bar. Returns the
+  // number of layers updated.
+  int update_all_text_layers();
+  // Type > Paste Lorem Ipsum (issue 686): inserts the placeholder paragraph at the caret of the
+  // open session, else appends it to every selected editable text layer, else makes a new
+  // paragraph text layer at the view center from the Type tool options. One undo step.
+  void paste_lorem_ipsum();
+  // Sets a box session's frame height to its laid-out text, centered on document row
+  // `center_y` (Paste Lorem Ipsum's new layer).
+  void fit_text_editor_box_height_to_text(QTextEdit& editor, int center_y);
   // The layer a visible (not hidden, not finished) text session is editing. That session has
   // already moved the layer's missing fonts onto installed faces, so the layer panel stops
   // flagging it while the session is open (GitHub issue 178).
