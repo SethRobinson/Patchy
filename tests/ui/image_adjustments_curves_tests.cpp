@@ -834,6 +834,342 @@ void ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler() {
   CHECK(inspected);
 }
 
+// The point on the Levels input graph that sets `value` (LevelsInputGraph::graph_rect and
+// x_for_value).
+QPoint levels_input_graph_point(const QWidget& graph, int value) {
+  const auto graph_rect = QRect(0, 0, graph.width(), graph.height()).adjusted(8, 8, -8, -28);
+  return QPoint(graph_rect.left() + static_cast<int>(std::lround(value / 255.0 * (graph_rect.width() - 1))),
+                graph_rect.center().y());
+}
+
+// GitHub issue 687: Alt held while the black or white input handle is dragged asks for that
+// end's clipping view, for the channel of the active tab. The gray handle, the output handles
+// and a drag without Alt never ask, and the view ends with Alt, the mouse button or the dialog.
+void ui_levels_alt_drag_input_handles_report_clipping() {
+  using Mode = patchy::ui::CurvesClippingMode;
+  patchy::ui::CurvesDialogHooks hooks;
+  std::vector<std::pair<std::optional<Mode>, patchy::CurvesChannel>> calls;
+  hooks.clipping_changed = [&](std::optional<Mode> mode, patchy::CurvesChannel channel) {
+    calls.emplace_back(mode, channel);
+  };
+  std::vector<bool> preview_states;
+  bool inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* output = dialog->findChild<QWidget*>(QStringLiteral("levelsOutputRange"));
+    auto* tabs = dialog->findChild<QTabBar*>(QStringLiteral("levelsChannelTabs"));
+    auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    auto* gamma = dialog->findChild<QSpinBox*>(QStringLiteral("levelsGammaSpin"));
+    auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
+    auto* black_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
+    CHECK(graph != nullptr);
+    CHECK(output != nullptr);
+    CHECK(tabs != nullptr);
+    CHECK(black != nullptr);
+    CHECK(gamma != nullptr);
+    CHECK(white != nullptr);
+    CHECK(black_output != nullptr);
+    CHECK(preview != nullptr && preview->isChecked());
+
+    const auto press = [&](QWidget& widget, QPoint point, Qt::KeyboardModifiers modifiers) {
+      send_mouse(widget, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, modifiers);
+    };
+    const auto move = [&](QWidget& widget, QPoint point, Qt::KeyboardModifiers modifiers) {
+      send_mouse(widget, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton, modifiers);
+    };
+    const auto release = [&](QWidget& widget, QPoint point, Qt::KeyboardModifiers modifiers) {
+      send_mouse(widget, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, modifiers);
+    };
+    const auto at = [&](int value) { return levels_input_graph_point(*graph, value); };
+    const auto last_is = [&](std::optional<Mode> mode, patchy::CurvesChannel channel) {
+      return !calls.empty() && calls.back().first == mode && calls.back().second == channel;
+    };
+
+    // A drag without Alt moves the handle and never asks.
+    press(*graph, at(2), Qt::NoModifier);
+    move(*graph, at(30), Qt::NoModifier);
+    release(*graph, at(30), Qt::NoModifier);
+    CHECK(black->value() >= 28 && black->value() <= 32);
+    CHECK(calls.empty());
+
+    // Alt + the black handle: Shadows, reported once however far the handle moves.
+    press(*graph, at(30), Qt::AltModifier);
+    CHECK(calls.size() == 1U);
+    CHECK(last_is(Mode::Shadows, patchy::CurvesChannel::Rgb));
+    move(*graph, at(60), Qt::AltModifier);
+    CHECK(black->value() >= 58 && black->value() <= 62);
+    CHECK(calls.size() == 1U);
+    // Alt let go mid-drag ends the view; the key event goes to another widget of the dialog.
+    send_key_release(*dialog, Qt::Key_Alt);
+    CHECK(calls.size() == 2U);
+    CHECK(last_is(std::nullopt, patchy::CurvesChannel::Rgb));
+    move(*graph, at(70), Qt::NoModifier);
+    CHECK(calls.size() == 2U);
+    // Alt pressed again brings it back, and so does a move that carries Alt.
+    send_key_press(*dialog, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(calls.size() == 3U);
+    CHECK(last_is(Mode::Shadows, patchy::CurvesChannel::Rgb));
+    move(*graph, at(75), Qt::NoModifier);
+    CHECK(calls.size() == 4U);
+    CHECK(last_is(std::nullopt, patchy::CurvesChannel::Rgb));
+    move(*graph, at(80), Qt::AltModifier);
+    CHECK(calls.size() == 5U);
+    CHECK(last_is(Mode::Shadows, patchy::CurvesChannel::Rgb));
+    release(*graph, at(80), Qt::AltModifier);
+    CHECK(calls.size() == 6U);
+    CHECK(last_is(std::nullopt, patchy::CurvesChannel::Rgb));
+    CHECK(black->value() >= 78 && black->value() <= 82);
+    // Alt with no drag under way does nothing.
+    send_key_press(*dialog, Qt::Key_Alt, Qt::AltModifier);
+    send_key_release(*dialog, Qt::Key_Alt);
+    CHECK(calls.size() == 6U);
+
+    // Alt + the white handle: Highlights.
+    press(*graph, at(250), Qt::AltModifier);
+    CHECK(calls.size() == 7U);
+    CHECK(last_is(Mode::Highlights, patchy::CurvesChannel::Rgb));
+    move(*graph, at(200), Qt::AltModifier);
+    CHECK(white->value() >= 198 && white->value() <= 202);
+    release(*graph, at(200), Qt::AltModifier);
+    CHECK(calls.size() == 8U);
+    CHECK(last_is(std::nullopt, patchy::CurvesChannel::Rgb));
+
+    // Alt + the gray handle (halfway between black and white at gamma 1.00) and Alt + an
+    // output handle move their values and show no clipping.
+    const auto gamma_before = gamma->value();
+    press(*graph, at(140), Qt::AltModifier);
+    move(*graph, at(160), Qt::AltModifier);
+    release(*graph, at(160), Qt::AltModifier);
+    CHECK(gamma->value() != gamma_before);
+    CHECK(black->value() >= 78 && black->value() <= 82);
+    CHECK(white->value() >= 198 && white->value() <= 202);
+    const QPoint output_start(10, output->height() / 3);
+    press(*output, output_start, Qt::AltModifier);
+    move(*output, output_start + QPoint(40, 0), Qt::AltModifier);
+    release(*output, output_start + QPoint(40, 0), Qt::AltModifier);
+    CHECK(black_output->value() > 20);
+    CHECK(calls.size() == 8U);
+
+    // A color tab: the view is for that channel.
+    tabs->setCurrentIndex(1);
+    QApplication::processEvents();
+    CHECK(calls.size() == 8U);
+    press(*graph, at(2), Qt::AltModifier);
+    CHECK(last_is(Mode::Shadows, patchy::CurvesChannel::Red));
+    release(*graph, at(2), Qt::AltModifier);
+    CHECK(last_is(std::nullopt, patchy::CurvesChannel::Red));
+    tabs->setCurrentIndex(3);
+    QApplication::processEvents();
+    press(*graph, at(253), Qt::AltModifier);
+    CHECK(last_is(Mode::Highlights, patchy::CurvesChannel::Blue));
+    release(*graph, at(253), Qt::AltModifier);
+    CHECK(last_is(std::nullopt, patchy::CurvesChannel::Blue));
+    CHECK(calls.size() == 12U);
+
+    // The view reads the canvas, so the adjustment is previewed while it shows even with
+    // Preview unticked, and the unticked state returns after it.
+    preview->setChecked(false);
+    QApplication::processEvents();
+    CHECK(!preview_states.empty() && !preview_states.back());
+    preview_states.clear();
+    press(*graph, at(2), Qt::AltModifier);
+    CHECK(last_is(Mode::Shadows, patchy::CurvesChannel::Blue));
+    process_events_for(80);
+    CHECK(!preview_states.empty());
+    CHECK(std::all_of(preview_states.begin(), preview_states.end(), [](bool enabled) { return enabled; }));
+    release(*graph, at(2), Qt::AltModifier);
+    process_events_for(80);
+    CHECK(!preview_states.back());
+    preview->setChecked(true);
+
+    // Closing with the mouse still down on a handle ends the view.
+    press(*graph, at(253), Qt::AltModifier);
+    CHECK(last_is(Mode::Highlights, patchy::CurvesChannel::Blue));
+    inspected = true;
+    dialog->reject();
+  }));
+
+  const auto result = patchy::ui::request_levels_settings(
+      nullptr, [&](bool enabled, const patchy::ui::LevelsSettings&) { preview_states.push_back(enabled); }, {},
+      nullptr, hooks);
+  CHECK(!result.has_value());
+  CHECK(inspected);
+  CHECK(calls.size() == 16U);
+  CHECK(!calls.empty() && !calls.back().first.has_value());
+}
+
+// The same gesture through the main window (#687): the canvas shows the Curves clipping view
+// of the image as Levels leaves it, per channel on a color tab, and the normal preview returns
+// when Alt or the mouse button is let go and when the dialog closes mid-drag.
+void ui_levels_alt_drag_shows_canvas_clipping_view() {
+  // The committed street photo over a strip of three flat patches the checks read: dark
+  // (10, 20, 30), middle gray and bright (250, 240, 230).
+  QImage photo(patchy::ui::to_qstring(
+      patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg")));
+  CHECK(!photo.isNull());
+  if (photo.isNull()) {
+    return;
+  }
+  photo = photo.scaledToWidth(600, Qt::SmoothTransformation).convertToFormat(QImage::Format_RGBA8888);
+  constexpr int kStripHeight = 30;
+  const int width = photo.width();
+  const int height = photo.height() + kStripHeight;
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < photo.height(); ++y) {
+    std::memcpy(pixels.pixel(0, y), photo.constScanLine(y), static_cast<std::size_t>(width) * 4U);
+  }
+  const QRect dark_patch(0, photo.height(), width / 3, kStripHeight);
+  const QRect middle_patch(width / 3, photo.height(), width / 3, kStripHeight);
+  const QRect bright_patch(2 * (width / 3), photo.height(), width - 2 * (width / 3), kStripHeight);
+  fill_pixel_rect(pixels, dark_patch, QColor(10, 20, 30));
+  fill_pixel_rect(pixels, middle_patch, QColor(128, 128, 128));
+  fill_pixel_rect(pixels, bright_patch, QColor(250, 240, 230));
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Photo", std::move(pixels));
+  document.set_active_layer(layer.id());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Levels Clipping"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  const auto dark = [&] { return canvas_pixel(*canvas, dark_patch.center()); };
+  const auto middle = [&] { return canvas_pixel(*canvas, middle_patch.center()); };
+  const auto bright = [&] { return canvas_pixel(*canvas, bright_patch.center()); };
+  CHECK(color_close(dark(), QColor(10, 20, 30), 4));
+  CHECK(color_close(bright(), QColor(250, 240, 230), 4));
+  CHECK(!canvas->curves_clipping_preview_mode().has_value());
+
+  using Mode = patchy::ui::CurvesClippingMode;
+  // The destructive preview renders on a worker: wait for the canvas to show `expected`.
+  const auto shows = [&](const std::function<QColor()>& read, QColor expected) {
+    for (int attempt = 0; attempt < 60; ++attempt) {
+      if (color_close(read(), expected, 6)) {
+        return true;
+      }
+      process_events_for(50);
+    }
+    return false;
+  };
+
+  bool inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* tabs = dialog->findChild<QTabBar*>(QStringLiteral("levelsChannelTabs"));
+    auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
+    CHECK(graph != nullptr);
+    CHECK(tabs != nullptr);
+    CHECK(black != nullptr);
+    CHECK(white != nullptr);
+    const auto press = [&](int value, Qt::KeyboardModifiers modifiers) {
+      send_mouse(*graph, QEvent::MouseButtonPress, levels_input_graph_point(*graph, value), Qt::LeftButton,
+                 Qt::LeftButton, modifiers);
+    };
+    const auto move = [&](int value, Qt::KeyboardModifiers modifiers) {
+      send_mouse(*graph, QEvent::MouseMove, levels_input_graph_point(*graph, value), Qt::NoButton, Qt::LeftButton,
+                 modifiers);
+    };
+    const auto release = [&](int value, Qt::KeyboardModifiers modifiers) {
+      send_mouse(*graph, QEvent::MouseButtonRelease, levels_input_graph_point(*graph, value), Qt::LeftButton,
+                 Qt::NoButton, modifiers);
+    };
+
+    // A drag without Alt keeps the normal preview.
+    press(2, Qt::NoModifier);
+    move(25, Qt::NoModifier);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+    release(25, Qt::NoModifier);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+
+    // Black handle at 25 with Alt: the dark patch's red and green are at or under the black
+    // point, so they clip to 0 and the Shadows view shows the patch blue on white.
+    press(25, Qt::AltModifier);
+    CHECK(canvas->curves_clipping_preview_mode() == Mode::Shadows);
+    CHECK(black->value() >= 23 && black->value() <= 27);
+    CHECK(shows(dark, QColor(0, 0, 255)));
+    CHECK(color_close(middle(), QColor(Qt::white), 6));
+    CHECK(color_close(bright(), QColor(Qt::white), 6));
+    // Further right every channel of the dark patch clips: black.
+    move(100, Qt::AltModifier);
+    CHECK(canvas->curves_clipping_preview_mode() == Mode::Shadows);
+    CHECK(shows(dark, QColor(Qt::black)));
+    CHECK(color_close(middle(), QColor(Qt::white), 6));
+    {
+      // The issue shot: the window with the dialog placed over its right side.
+      dialog->move(window.mapToGlobal(QPoint(window.width() - dialog->width() - 24, 150)));
+      QApplication::processEvents();
+      auto shot = capture_widget_artifact("ui_levels_alt_drag_shadow_clipping_window", window);
+      const auto dialog_shot = capture_widget_artifact("ui_levels_alt_drag_shadow_clipping_dialog", *dialog);
+      if (!shot.isNull() && !dialog_shot.isNull()) {
+        QPainter painter(&shot);
+        const QRectF target(QPointF(dialog->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0))),
+                            QSizeF(dialog->size()));
+        painter.drawImage(target, dialog_shot);
+        painter.setPen(QPen(patchy::ui::theme().levels_graph_border, 1));
+        painter.drawRect(target.adjusted(-0.5, -0.5, 0.5, 0.5));
+        painter.end();
+        save_image_artifact("ui_levels_alt_drag_shadow_clipping", shot);
+      }
+    }
+
+    // Alt let go mid-drag: the normal preview (the gray patch darker, not the white of the
+    // clipping view); Alt again: the view is back.
+    send_key_release(*dialog, Qt::Key_Alt);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+    CHECK(shows(middle, QColor(46, 46, 46)));
+    send_key_press(*dialog, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(canvas->curves_clipping_preview_mode() == Mode::Shadows);
+    CHECK(color_close(middle(), QColor(Qt::white), 6));
+    release(100, Qt::AltModifier);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+    CHECK(shows(middle, QColor(46, 46, 46)));
+
+    // White handle at 235 with Alt: the bright patch's red and green reach the white point
+    // and its blue does not, so the Highlights view shows it yellow on black.
+    press(253, Qt::AltModifier);
+    CHECK(canvas->curves_clipping_preview_mode() == Mode::Highlights);
+    move(235, Qt::AltModifier);
+    CHECK(white->value() >= 234 && white->value() <= 236);
+    CHECK(shows(bright, QColor(255, 255, 0)));
+    CHECK(color_close(dark(), QColor(Qt::black), 6));
+    CHECK(color_close(middle(), QColor(Qt::black), 6));
+    save_widget_artifact("ui_levels_alt_drag_highlight_clipping", *canvas);
+    release(235, Qt::AltModifier);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+
+    // The Red tab: only red is judged. With the composite back at its defaults and red's
+    // black handle at 100, the dark patch's red clips: cyan on white.
+    black->setValue(0);
+    white->setValue(255);
+    tabs->setCurrentIndex(1);
+    QApplication::processEvents();
+    press(2, Qt::AltModifier);
+    move(100, Qt::AltModifier);
+    CHECK(canvas->curves_clipping_preview_mode() == Mode::Shadows);
+    CHECK(shows(dark, QColor(0, 255, 255)));
+    CHECK(color_close(middle(), QColor(Qt::white), 6));
+    save_widget_artifact("ui_levels_alt_drag_red_shadow_clipping", *canvas);
+
+    // Escape with the mouse still down: the dialog and the view both go.
+    inspected = true;
+    dialog->reject();
+  }));
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+  CHECK(!canvas->curves_clipping_preview_mode().has_value());
+  CHECK(color_close(dark(), QColor(10, 20, 30), 4));
+  CHECK(color_close(middle(), QColor(128, 128, 128), 4));
+  CHECK(color_close(bright(), QColor(250, 240, 230), 4));
+}
+
 void ui_hue_saturation_dialog_adjusts_selected_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -5022,6 +5358,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_levels_dialog_channel_tabs_tint_the_histogram", ui_levels_dialog_channel_tabs_tint_the_histogram},
       {"ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler",
        ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler},
+      {"ui_levels_alt_drag_input_handles_report_clipping", ui_levels_alt_drag_input_handles_report_clipping},
+      {"ui_levels_alt_drag_shows_canvas_clipping_view", ui_levels_alt_drag_shows_canvas_clipping_view},
       {"ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin",
        ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},

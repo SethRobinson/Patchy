@@ -209,8 +209,9 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
     // settings (empty hides it), re-read on every change.
     const std::function<QString(const FilterInvocation&)>& notice = {},
     FilterDialogSelectionLink* selection_link = nullptr);
-// `hooks` drives the black, gray and white eyedroppers (only set_canvas_mode and
-// clear_canvas_mode are used); without them the eyedroppers are disabled.
+// `hooks` drives the black, gray and white eyedroppers (set_canvas_mode and
+// clear_canvas_mode; without them the eyedroppers are disabled) and the clipping view an
+// Alt+drag of the black or white input handle shows (clipping_changed; GitHub issue 687).
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr, CurvesDialogHooks hooks = {});

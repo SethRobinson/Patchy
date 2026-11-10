@@ -45,6 +45,7 @@
 #include <QMessageBox>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QIcon>
 #include <QToolButton>
 #include <QLabel>
@@ -622,8 +623,32 @@ public:
     values_changed_ = std::move(callback);
   }
 
+  // Alt held while the black or white handle is dragged asks for that end's clipping view
+  // (GitHub issue 687): Shadows for black, Highlights for white, none for the gray handle.
+  // Called with the new mode on every change; nullopt ends it (Alt let go, the mouse
+  // released, the graph hidden).
+  void set_clipping_changed_callback(std::function<void(std::optional<CurvesClippingMode>)> callback) {
+    clipping_changed_ = std::move(callback);
+  }
+
   QSize sizeHint() const override {
     return QSize(272, 116);
+  }
+
+  // Installed on the application for the length of a handle drag only: Alt pressed or let
+  // go mid-drag reaches whichever widget has the focus, never this graph.
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (active_handle_ != InputHandle::None) {
+      if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+        const auto* key = static_cast<QKeyEvent*>(event);
+        if (key->key() == Qt::Key_Alt && !key->isAutoRepeat()) {
+          set_alt_held(event->type() == QEvent::KeyPress);
+        }
+      } else if (event->type() == QEvent::ApplicationDeactivate) {
+        set_alt_held(false);  // the release goes to another application
+      }
+    }
+    return QWidget::eventFilter(watched, event);
   }
 
 protected:
@@ -676,20 +701,32 @@ protected:
   }
 
   void mousePressEvent(QMouseEvent* event) override {
+    if (active_handle_ == InputHandle::None) {
+      qApp->installEventFilter(this);
+    }
     active_handle_ = nearest_handle(event->position().x());
+    // Modifiers come from the event itself (ui-conventions.md).
+    set_alt_held(event->modifiers().testFlag(Qt::AltModifier));
     update_from_position(event->position().x());
   }
 
   void mouseMoveEvent(QMouseEvent* event) override {
     if (active_handle_ != InputHandle::None) {
+      set_alt_held(event->modifiers().testFlag(Qt::AltModifier));
       update_from_position(event->position().x());
     }
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
     Q_UNUSED(event);
-    active_handle_ = InputHandle::None;
-    update();
+    end_drag();
+  }
+
+  // The dialog can close under a held mouse button (Escape, Enter): the drag and its
+  // clipping view end with it.
+  void hideEvent(QHideEvent* event) override {
+    end_drag();
+    QWidget::hideEvent(event);
   }
 
 private:
@@ -699,6 +736,35 @@ private:
     Gamma,
     White
   };
+
+  void set_alt_held(bool held) {
+    alt_held_ = held;
+    sync_clipping();
+  }
+
+  void sync_clipping() {
+    std::optional<CurvesClippingMode> mode;
+    if (alt_held_ && active_handle_ == InputHandle::Black) {
+      mode = CurvesClippingMode::Shadows;
+    } else if (alt_held_ && active_handle_ == InputHandle::White) {
+      mode = CurvesClippingMode::Highlights;
+    }
+    if (mode != clipping_mode_) {
+      clipping_mode_ = mode;
+      if (clipping_changed_) {
+        clipping_changed_(mode);
+      }
+    }
+  }
+
+  void end_drag() {
+    if (active_handle_ != InputHandle::None) {
+      qApp->removeEventFilter(this);
+    }
+    active_handle_ = InputHandle::None;
+    set_alt_held(false);
+    update();
+  }
 
   QRect graph_rect() const {
     return rect().adjusted(8, 8, -8, -28);
@@ -777,7 +843,10 @@ private:
   int white_input_{255};
   int gamma_percent_{100};
   InputHandle active_handle_{InputHandle::None};
+  bool alt_held_{false};
+  std::optional<CurvesClippingMode> clipping_mode_{};
   std::function<void(int, int, int)> values_changed_;
+  std::function<void(std::optional<CurvesClippingMode>)> clipping_changed_;
 };
 
 class LevelsOutputRange final : public QWidget {
@@ -1246,11 +1315,25 @@ std::optional<LevelsSettings> request_levels_settings(
           preview_changed(request.enabled, request.settings);
         }
       });
+  // The clipping view an Alt+drag of the black or white input handle shows (#687). It reads
+  // the canvas, so the adjustment is previewed for as long as it shows, Preview ticked or not.
+  std::optional<CurvesClippingMode> clipping_mode;
   auto preview_request = [&] {
-    return AdjustmentPreviewRequest<LevelsSettings>{preview->isChecked(), committed_settings()};
+    return AdjustmentPreviewRequest<LevelsSettings>{preview->isChecked() || clipping_mode.has_value(),
+                                                    committed_settings()};
   };
   auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
   auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
+  input_graph->set_clipping_changed_callback([&](std::optional<CurvesClippingMode> mode) {
+    if (!hooks.clipping_changed || mode == clipping_mode) {
+      return;
+    }
+    clipping_mode = mode;
+    hooks.clipping_changed(mode, curves_channel_for_levels(visible_channel));
+    if (!preview->isChecked()) {
+      flush_preview();
+    }
+  });
 
   // Presets (#589): the combo follows the settings; Save, Delete, Import and Export sit
   // under it and share its width.
@@ -1353,6 +1436,9 @@ std::optional<LevelsSettings> request_levels_settings(
     dialog_settings.channel = visible_channel;
     apply_settings_to_widgets(dialog_settings);
     schedule_preview();
+    if (clipping_mode.has_value() && hooks.clipping_changed) {
+      hooks.clipping_changed(clipping_mode, curves_channel_for_levels(visible_channel));
+    }
   });
   QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
   input_graph->set_values_changed_callback([&](int black, int white, int gamma_percent) {
@@ -1466,10 +1552,19 @@ std::optional<LevelsSettings> request_levels_settings(
 
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  // Closing ends the clipping view too, with the mouse still down on a handle or not.
+  const auto end_clipping = [&] {
+    input_graph->set_clipping_changed_callback({});
+    if (clipping_mode.has_value() && hooks.clipping_changed) {
+      clipping_mode.reset();
+      hooks.clipping_changed(std::nullopt, curves_channel_for_levels(visible_channel));
+    }
+  };
   QObject::connect(&dialog, &QDialog::finished, &dialog, [&] {
     if (hooks.clear_canvas_mode) {
       hooks.clear_canvas_mode();
     }
+    end_clipping();
   });
 
   apply_settings_to_widgets(initial);
@@ -1484,6 +1579,7 @@ std::optional<LevelsSettings> request_levels_settings(
   if (hooks.clear_canvas_mode) {
     hooks.clear_canvas_mode();
   }
+  end_clipping();
   if (result != QDialog::Accepted) {
     return std::nullopt;
   }
