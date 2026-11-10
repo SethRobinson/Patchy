@@ -31,6 +31,7 @@ Related documents:
   bindings ([vector-automation.md](vector-automation.md)); `src/ui/script_brush.cpp` and
   `brush_automation.*`: `patchy.brushes` ([brush-automation.md](brush-automation.md)).
 - `src/ui/script_perspective.{hpp,cpp}`: `patchy.perspective` ([perspective-planes.md](perspective-planes.md)).
+- `src/ui/script_smart_filters.cpp`: `layer.smartFilters` and the Smart Filter edits, committed through the Layers panel's stack commit ([smart-objects.md](smart-objects.md)).
 - `src/ui/script_canvas_window.{hpp,cpp}`: interactive script windows (games/demos).
 - `src/ui/script_editor_dialog.{hpp,cpp}` + `src/ui/js_syntax_highlighter.{hpp,cpp}`: the
   Script Manager UI (folder tree, shadow-override saves, context menu, run status area).

@@ -38699,6 +38699,50 @@ Locked: %1</source>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

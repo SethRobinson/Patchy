@@ -38781,6 +38781,50 @@ Bloqueada: %1</translation>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation>zoomToRect necesita un rectángulo que se superponga al documento.</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 necesita una capa de objeto inteligente.</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 no tiene una correspondencia editable como filtro inteligente. Rasterice el objeto inteligente para aplicarlo de forma destructiva.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>%1 no puede ser un filtro inteligente editable con estos ajustes.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1: %2 debe ser true o false.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1: %2 debe ser un número.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1: los filtros inteligentes no pueden usar el modo de fusión %2.</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1: no hay ningún filtro inteligente en el índice %2 (la pila tiene %3).</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1: %2 debe ser un objeto.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1: el filtro inteligente %2 no tiene ajustes que un script pueda cambiar.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1: el filtro inteligente %2 no tiene ningún ajuste llamado %3 (ajustes: %4).</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>Este objeto inteligente no tiene filtros inteligentes.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

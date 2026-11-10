@@ -18,6 +18,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests_part5();
 std::vector<patchy::test::TestCase> smart_filter_tests_adjustments();
 std::vector<patchy::test::TestCase> smart_filter_tests_gallery();
 std::vector<patchy::test::TestCase> smart_filter_tests_classic();
+std::vector<patchy::test::TestCase> smart_filter_tests_scripting();
 
 std::vector<patchy::test::TestCase> smart_filter_tests() {
   std::vector<patchy::test::TestCase> tests;
@@ -25,7 +26,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
                            &smart_filter_tests_part3, &smart_filter_tests_part4,
                            &smart_filter_tests_part5,
                            &smart_filter_tests_adjustments, &smart_filter_tests_gallery,
-                           &smart_filter_tests_classic}) {
+                           &smart_filter_tests_classic, &smart_filter_tests_scripting}) {
     auto cases = (*part)();
     tests.insert(tests.end(), cases.begin(), cases.end());
   }

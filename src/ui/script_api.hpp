@@ -60,6 +60,9 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(bool isText READ is_text)
   Q_PROPERTY(bool isShape READ is_shape)
   Q_PROPERTY(bool isSmartObject READ is_smart_object)
+  // A smart object's Smart Filters (script_smart_filters.cpp, patchy.d.ts).
+  Q_PROPERTY(QJSValue smartFilters READ smart_filters)
+  Q_PROPERTY(bool smartFiltersVisible READ smart_filters_visible WRITE set_smart_filters_visible)
   // Artboards (docs/artboards.md, script_artboards.cpp).
   Q_PROPERTY(bool isArtboard READ is_artboard)
   Q_PROPERTY(QJSValue artboard READ artboard)
@@ -115,6 +118,21 @@ public:
   // throws for an embedded smart object, a missing file, or an unreadable one.
   Q_INVOKABLE int updateSmartObject();
   Q_INVOKABLE int rerenderSmartObject();
+  // Smart Filters, in execution order (0 runs first: the bottom row in the Layers panel):
+  // [{index, filterId, name, params, visible, opacity, blendMode, modeled}]. Throws for a
+  // layer that is not a smart object.
+  [[nodiscard]] QJSValue smart_filters() const;
+  [[nodiscard]] bool smart_filters_visible() const;
+  void set_smart_filters_visible(bool visible);
+  // Appends a Smart Filter (applyFilter's ids and params; options {visible, opacity,
+  // blendMode}) and returns its index.
+  Q_INVOKABLE int addSmartFilter(const QString& filterId, const QJSValue& params = QJSValue(),
+                                 const QJSValue& options = QJSValue());
+  // Changes {visible, params, opacity, blendMode} of the filter at `index`.
+  Q_INVOKABLE void setSmartFilter(int index, const QJSValue& changes);
+  Q_INVOKABLE void removeSmartFilter(int index);
+  Q_INVOKABLE void moveSmartFilter(int from, int to);
+  Q_INVOKABLE void clearSmartFilters();
   Q_INVOKABLE QJSValue getShape() const;
   Q_INVOKABLE void updateShape(const QJSValue& changes);
   Q_INVOKABLE void transformShape(const QJSValue& matrix, const QJSValue& options = QJSValue());

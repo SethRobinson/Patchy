@@ -38674,6 +38674,50 @@ Locked: %1</source>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation>zoomToRect 需要與文件重疊的矩形。</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 需要智慧型物件圖層。</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 沒有可編輯的智慧型濾鏡對應項目。請將智慧型物件點陣化，以破壞性方式套用。</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>使用這些設定時，%1 無法成為可編輯的智慧型濾鏡。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1：%2 必須是 true 或 false。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1：%2 必須是數字。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1：智慧型濾鏡無法使用混合模式 %2。</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1：索引 %2 沒有智慧型濾鏡（堆疊中有 %3 個）。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1：%2 必須是物件。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1：智慧型濾鏡 %2 沒有指令碼可以變更的設定。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1：智慧型濾鏡 %2 沒有名為 %3 的設定（設定：%4）。</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>此智慧型物件沒有智慧型濾鏡。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

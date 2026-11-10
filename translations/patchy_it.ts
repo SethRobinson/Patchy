@@ -38781,6 +38781,50 @@ Bloccato: %1</translation>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation>zoomToRect richiede un rettangolo che si sovrapponga al documento.</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 richiede un livello oggetto avanzato.</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 non ha una corrispondenza modificabile come filtro avanzato. Rasterizza l&apos;oggetto avanzato per applicarlo in modo distruttivo.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>%1 non può essere un filtro avanzato modificabile con queste impostazioni.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1: %2 deve essere true o false.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1: %2 deve essere un numero.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1: i filtri avanzati non possono usare il metodo di fusione %2.</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1: nessun filtro avanzato all&apos;indice %2 (la pila ne ha %3).</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1: %2 deve essere un oggetto.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1: il filtro avanzato %2 non ha impostazioni modificabili da uno script.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1: il filtro avanzato %2 non ha un&apos;impostazione chiamata %3 (impostazioni: %4).</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>Questo oggetto avanzato non ha filtri avanzati.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

@@ -48,6 +48,11 @@ class QDialog;
 class QJSEngine;
 class QTimer;
 
+namespace patchy {
+class FilterRegistry;
+struct FilterInvocation;
+}  // namespace patchy
+
 namespace patchy::ui {
 
 class CanvasWidget;
@@ -508,6 +513,25 @@ public:
   // Filter > Camera Raw Filter's settings (GitHub issue 392) on a layer, limited to the
   // session's selection like the menu command.
   bool apply_camera_raw_filter_to_layer(std::int64_t session_id, LayerId layer_id, const QJSValue& settings);
+  // Smart Filters on a smart object (layer.smartFilters and friends; script_smart_filters.cpp,
+  // docs/scripting.md). Each edit goes through MainWindow::commit_smart_filter_stack_edit,
+  // the Layers panel's and the settings dialogs' commit, and rides this run's snapshot;
+  // refusals throw a JS error. Indexes are execution order (0 runs first).
+  struct SmartFilterEntryChanges {
+    std::optional<bool> visible;
+    std::optional<double> opacity;  // 0..1
+    std::optional<BlendMode> blend_mode;
+  };
+  [[nodiscard]] QJSValue smart_filters_to_js(std::int64_t session_id, LayerId layer_id);
+  [[nodiscard]] bool smart_filters_visible(std::int64_t session_id, LayerId layer_id);
+  void set_smart_filters_visible(std::int64_t session_id, LayerId layer_id, bool visible);
+  // Returns the new entry's index, or -1 after throwing.
+  int add_smart_filter(std::int64_t session_id, LayerId layer_id, const QString& filter_id,
+                       const QJSValue& params, const QJSValue& options);
+  void set_smart_filter(std::int64_t session_id, LayerId layer_id, int index, const QJSValue& changes);
+  void remove_smart_filter(std::int64_t session_id, LayerId layer_id, int index);
+  void move_smart_filter(std::int64_t session_id, LayerId layer_id, int from, int to);
+  void clear_smart_filters(std::int64_t session_id, LayerId layer_id);
   // Legacy Photoshop plug-in by identifier (patchy.plugins.list()), limited to
   // the session's selection; the dialog is skipped for unattended runs.
   bool apply_legacy_plugin_to_layer(std::int64_t session_id, LayerId layer_id, const QString& plugin_id,
@@ -663,6 +687,15 @@ public:
   bool call_script_callback(QJSValue callback, const QJSValueList& args);
 
 private:
+  // applyFilter's parameter parsing: the normalized invocation of a catalog filter for
+  // `params`, or nullopt after throwing (an unknown id or key, rejected values).
+  std::optional<FilterInvocation> script_filter_invocation(const FilterRegistry& registry, const QString& filter_id,
+                                                           const QJSValue& params);
+  // Appends `normalized` to a smart object's Smart Filters (addSmartFilter, and applyFilter
+  // on a smart object). Returns the new index, or -1 after throwing.
+  int add_smart_filter_invocation(std::int64_t session_id, LayerId layer_id, const FilterRegistry& registry,
+                                  const FilterInvocation& normalized, const char* api,
+                                  const SmartFilterEntryChanges& changes);
   bool connector_mode_{false};
   QPointer<McpActivity> script_activity_;
   bool presenting_view_{false};

@@ -1720,12 +1720,16 @@ private:
       std::vector<std::optional<std::size_t>> entry_sources,
       const QString& undo_text, const QString& status_text,
       SmartFilterCacheEdit cache_edit = SmartFilterCacheEdit::Preserve);
+  // before_mutation, when set, runs instead of the undo snapshot right before the
+  // document changes (a script run's snapshot); false abandons the edit. An empty
+  // status_text leaves the status bar alone.
   bool commit_smart_filter_stack_edit(
       DocumentSession& target_session, CanvasWidget* target_canvas,
       LayerId layer_id, std::optional<SmartFilterStack> candidate,
       std::vector<std::optional<std::size_t>> entry_sources,
       const QString& undo_text, const QString& status_text,
-      SmartFilterCacheEdit cache_edit);
+      SmartFilterCacheEdit cache_edit,
+      const std::function<bool()>& before_mutation = {});
   [[nodiscard]] bool commit_smart_filter_mask_edit(
       CanvasWidget* source_canvas, LayerId layer_id, QString undo_text,
       PixelBuffer pixels);

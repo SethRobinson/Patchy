@@ -19,6 +19,10 @@ namespace patchy {
 [[nodiscard]] std::optional<SmartFilterKind> native_smart_filter_kind_for(
     std::string_view filter_id);
 [[nodiscard]] bool native_smart_filter_kind_supported(SmartFilterKind kind);
+// The reverse of native_smart_filter_kind_for: the Filter-menu command id that appends
+// `kind`, or nullopt for a kind only imported files carry.
+[[nodiscard]] std::optional<std::string_view> native_smart_filter_command_id(
+    SmartFilterKind kind);
 
 // The settings of a table-described native filter (core/smart_filter_schema.hpp,
 // core/smart_filter_table.hpp) for a catalog invocation whose parameter keys are

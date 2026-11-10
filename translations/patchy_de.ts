@@ -38781,6 +38781,50 @@ Fixiert: %1</translation>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation>zoomToRect benötigt ein Rechteck, das das Dokument überlappt.</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 benötigt eine Smartobjekt-Ebene.</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 hat keine bearbeitbare Smartfilter-Entsprechung. Rastern Sie das Smartobjekt, um den Filter destruktiv anzuwenden.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>%1 kann mit diesen Einstellungen kein bearbeitbarer Smartfilter sein.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1: %2 muss true oder false sein.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1: %2 muss eine Zahl sein.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1: Smartfilter können den Mischmodus %2 nicht verwenden.</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1: Kein Smartfilter an Index %2 (der Stapel hat %3).</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1: %2 muss ein Objekt sein.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1: Smartfilter %2 hat keine Einstellungen, die ein Skript ändern kann.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1: Smartfilter %2 hat keine Einstellung namens %3 (Einstellungen: %4).</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>Dieses Smartobjekt hat keine Smartfilter.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

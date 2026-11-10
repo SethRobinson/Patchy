@@ -38674,6 +38674,50 @@ Locked: %1</source>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation>zoomToRect にはドキュメントと重なる長方形が必要です。</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 にはスマートオブジェクトレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 には編集可能なスマートフィルターの対応がありません。破壊的に適用するには、スマートオブジェクトをラスタライズしてください。</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>この設定では %1 を編集可能なスマートフィルターにできません。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1: %2 は true または false である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1: %2 は数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1: スマートフィルターでは描画モード %2 を使用できません。</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1: インデックス %2 にスマートフィルターはありません (スタックには %3 個あります)。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1: %2 はオブジェクトである必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1: スマートフィルター %2 には、スクリプトで変更できる設定がありません。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1: スマートフィルター %2 に %3 という設定はありません (設定: %4)。</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>このスマートオブジェクトにはスマートフィルターがありません。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

@@ -36,6 +36,7 @@
 #include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_filter_table_ui.hpp"
+#include "ui/smart_filter_editing.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
@@ -975,6 +976,171 @@ SmartFilterStack smart_filter_stack_with_invocation(
   return stack;
 }
 
+// The settings of `entry` as the invocation its settings dialog edits (the dialog's
+// starting values); nullopt for an entry with no settings dialog (adjustments, a
+// multi-effect Filter Gallery entry, an unmodeled filter). The script bindings read
+// and edit Smart Filter settings through it (smart_filter_editing.hpp).
+std::optional<FilterInvocation> smart_filter_entry_dialog_invocation(
+    const SmartFilterEntry &entry) {
+  const auto kind = smart_filter_dialog_kind(entry);
+  if (!native_smart_filter_kind_supported(kind) ||
+      kind == SmartFilterKind::Adjustment ||
+      kind == SmartFilterKind::FilterGallery) {
+    return std::nullopt;
+  }
+  auto invocation = editable_smart_filter_invocation(kind);
+  if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
+    const auto *values = std::get_if<TableSmartFilter>(
+        &entry.parameters);
+    if (values == nullptr) {
+      return std::nullopt;
+    }
+    invocation = table_smart_filter_invocation(*table, *values);
+  } else if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
+    const auto* settings = std::get_if<SchemaSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    put_schema_invocation_parameters(invocation, *schema, *settings);
+  } else if (kind == SmartFilterKind::SmartSharpen) {
+    const auto *settings = std::get_if<SmartSharpenSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["amount"] = settings->amount_percent;
+    invocation.parameters["radius"] = settings->radius_pixels;
+  } else if (parameterless_smart_filter_native(kind) != nullptr) {
+    // No parameters: only the Blending section edits this entry.
+  } else if (kind == SmartFilterKind::GaussianBlur) {
+    const auto* gaussian = std::get_if<GaussianBlurSmartFilter>(
+        &entry.parameters);
+    if (gaussian == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["radius"] = gaussian->radius_pixels;
+  } else if (kind == SmartFilterKind::HighPass) {
+    const auto* radius = std::get_if<HighPassSmartFilter>(
+        &entry.parameters);
+    if (radius == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["radius"] = radius->radius_pixels;
+  } else if (kind == SmartFilterKind::Median) {
+    const auto* radius = std::get_if<MedianSmartFilter>(
+        &entry.parameters);
+    if (radius == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["radius"] = radius->radius_pixels;
+  } else if (kind == SmartFilterKind::DustAndScratches) {
+    const auto* settings = std::get_if<DustAndScratchesSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["radius"] =
+        static_cast<std::int64_t>(settings->radius_pixels);
+    invocation.parameters["threshold"] =
+        static_cast<std::int64_t>(settings->threshold);
+  } else if (kind == SmartFilterKind::SurfaceBlur) {
+    const auto *settings = std::get_if<SurfaceBlurSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["radius"] = settings->radius_pixels;
+    invocation.parameters["threshold"] =
+        static_cast<std::int64_t>(settings->threshold);
+  } else if (kind == SmartFilterKind::UnsharpMask) {
+    const auto *settings = std::get_if<UnsharpMaskSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["amount"] =
+        static_cast<std::int64_t>(std::lround(settings->amount_percent));
+    invocation.parameters["radius"] = settings->radius_pixels;
+    invocation.parameters["threshold"] =
+        static_cast<std::int64_t>(settings->threshold);
+  } else if (kind == SmartFilterKind::MotionBlur) {
+    const auto *settings = std::get_if<MotionBlurSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["angle"] =
+        static_cast<std::int64_t>(settings->angle_degrees);
+    invocation.parameters["distance"] =
+        static_cast<std::int64_t>(settings->distance_pixels);
+  } else if (kind == SmartFilterKind::Mosaic) {
+    const auto *settings = std::get_if<MosaicSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["cell_size"] =
+        static_cast<std::int64_t>(settings->cell_size_pixels);
+  } else if (kind == SmartFilterKind::Emboss) {
+    const auto *settings = std::get_if<EmbossSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["angle"] =
+        static_cast<std::int64_t>(settings->angle_degrees);
+    invocation.parameters["height"] =
+        static_cast<std::int64_t>(settings->height_pixels);
+    invocation.parameters["amount"] =
+        static_cast<std::int64_t>(settings->amount_percent);
+  } else if (kind == SmartFilterKind::BoxBlur) {
+    const auto *settings = std::get_if<BoxBlurSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["radius"] = settings->radius_pixels;
+  } else if (kind == SmartFilterKind::RadialBlur) {
+    const auto *settings = std::get_if<RadialBlurSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["amount"] =
+        static_cast<std::int64_t>(settings->amount);
+    invocation.parameters["quality"] = std::string(
+        settings->quality == RadialBlurQuality::Draft
+            ? "draft"
+            : (settings->quality == RadialBlurQuality::Good ? "good"
+                                                            : "best"));
+  } else if (kind == SmartFilterKind::AddNoise) {
+    const auto *settings = std::get_if<AddNoiseSmartFilter>(
+        &entry.parameters);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["amount"] = settings->amount_percent;
+    invocation.parameters["distribution"] =
+        std::string(settings->gaussian ? "gaussian" : "uniform");
+    invocation.parameters["monochromatic"] = settings->monochromatic;
+    invocation.parameters["seed"] =
+        static_cast<std::int64_t>(settings->seed);
+  } else {
+    const auto *settings = editable_plastic_wrap(entry);
+    if (settings == nullptr) {
+      return std::nullopt;
+    }
+    invocation.parameters["highlight_strength"] =
+        static_cast<std::int64_t>(settings->highlight_strength);
+    invocation.parameters["detail"] =
+        static_cast<std::int64_t>(settings->detail);
+    invocation.parameters["smoothness"] =
+        static_cast<std::int64_t>(settings->smoothness);
+  }
+  return invocation;
+}
+
 SmartFilterEntry make_editable_smart_filter_entry(
     SmartFilterKind kind, const FilterInvocation& invocation,
     RgbColor foreground,
@@ -1205,6 +1371,38 @@ bool filter_applies_without_settings_dialog(const std::string& identifier) {
 
 }  // namespace
 
+SmartFilterMask new_smart_filter_stack_mask(const Document& document,
+                                            const CanvasWidget& canvas) {
+  SmartFilterMask mask;
+  mask.bounds = Rect::from_size(document.width(), document.height());
+  mask.enabled = true;
+  mask.linked = false;
+  if (canvas.has_selection()) {
+    mask.pixels = canvas.selection_as_grayscale();
+    mask.default_color = 0U;
+    mask.extend_with_white = false;
+  } else {
+    mask.pixels = PixelBuffer(document.width(), document.height(),
+                              PixelFormat::gray8());
+    mask.pixels.clear(255U);
+    mask.default_color = 255U;
+    mask.extend_with_white = true;
+  }
+  mask.pixels = coverage_at_document_depth(document, std::move(mask.pixels));
+  return mask;
+}
+
+std::optional<FilterInvocation> smart_filter_entry_settings(
+    const SmartFilterEntry& entry) {
+  return smart_filter_entry_dialog_invocation(entry);
+}
+
+SmartFilterStack smart_filter_stack_with_entry_settings(
+    SmartFilterStack stack, std::size_t index,
+    const FilterInvocation& settings) {
+  return smart_filter_stack_with_invocation(std::move(stack), index, settings);
+}
+
 bool MainWindow::commit_smart_filter_stack_edit(
     LayerId layer_id, std::optional<SmartFilterStack> candidate,
     std::vector<std::optional<std::size_t>> entry_sources,
@@ -1223,7 +1421,8 @@ bool MainWindow::commit_smart_filter_stack_edit(
     LayerId layer_id, std::optional<SmartFilterStack> candidate,
     std::vector<std::optional<std::size_t>> entry_sources,
     const QString& undo_text, const QString& status_text,
-    SmartFilterCacheEdit cache_edit) {
+    SmartFilterCacheEdit cache_edit,
+    const std::function<bool()>& before_mutation) {
   if (target_canvas == nullptr ||
       (patchy::layer_effective_lock_flags(target_session.document.layers(),
                                           layer_id) &
@@ -1351,7 +1550,13 @@ bool MainWindow::commit_smart_filter_stack_edit(
   }
 
   const auto old_bounds = layer->bounds();
-  push_undo_snapshot(target_session, undo_text);
+  if (before_mutation) {
+    if (!before_mutation()) {
+      return false;
+    }
+  } else {
+    push_undo_snapshot(target_session, undo_text);
+  }
   layer = doc.find_layer(layer_id);
   if (layer == nullptr) {
     return false;
@@ -1391,7 +1596,9 @@ bool MainWindow::commit_smart_filter_stack_edit(
   }
   target_canvas->document_changed(
       to_qrect(old_bounds).united(to_qrect(new_bounds)));
-  statusBar()->showMessage(status_text);
+  if (!status_text.isEmpty()) {
+    statusBar()->showMessage(status_text);
+  }
   return true;
 }
 
@@ -1539,21 +1746,7 @@ void MainWindow::editable_smart_filter_dialog(
       stack.enabled = true;
       stack.valid_at_position = true;
       stack.support = SmartFilterStackSupport::Supported;
-      stack.mask.bounds = Rect::from_size(doc.width(), doc.height());
-      stack.mask.enabled = true;
-      stack.mask.linked = false;
-      if (canvas_->has_selection()) {
-        stack.mask.pixels = coverage_at_document_depth(doc, canvas_->selection_as_grayscale());
-        stack.mask.default_color = 0U;
-        stack.mask.extend_with_white = false;
-      } else {
-        stack.mask.pixels =
-            PixelBuffer(doc.width(), doc.height(), PixelFormat::gray8());
-        stack.mask.pixels.clear(255U);
-        stack.mask.pixels = coverage_at_document_depth(doc, std::move(stack.mask.pixels));
-        stack.mask.default_color = 255U;
-        stack.mask.extend_with_white = true;
-      }
+      stack.mask = new_smart_filter_stack_mask(doc, *canvas_);
       entry_sources.emplace_back(std::nullopt);
     }
     const auto to_rgb = [](const QColor& color) {
@@ -1580,187 +1773,14 @@ void MainWindow::editable_smart_filter_dialog(
           tr("This Smart Filter can only be preserved, not edited"));
       return;
     }
-    if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
-      const auto *values = std::get_if<TableSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (values == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation = table_smart_filter_invocation(*table, *values);
-    } else if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
-      const auto* settings = std::get_if<SchemaSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      put_schema_invocation_parameters(initial_invocation, *schema, *settings);
-    } else if (kind == SmartFilterKind::SmartSharpen) {
-      const auto *settings = std::get_if<SmartSharpenSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["amount"] = settings->amount_percent;
-      initial_invocation.parameters["radius"] = settings->radius_pixels;
-    } else if (parameterless_smart_filter_native(kind) != nullptr) {
-      // No parameters: only the Blending section edits this entry.
-    } else if (kind == SmartFilterKind::GaussianBlur) {
-      const auto* gaussian = std::get_if<GaussianBlurSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (gaussian == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["radius"] = gaussian->radius_pixels;
-    } else if (kind == SmartFilterKind::HighPass) {
-      const auto* radius = std::get_if<HighPassSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (radius == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["radius"] = radius->radius_pixels;
-    } else if (kind == SmartFilterKind::Median) {
-      const auto* radius = std::get_if<MedianSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (radius == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["radius"] = radius->radius_pixels;
-    } else if (kind == SmartFilterKind::DustAndScratches) {
-      const auto* settings = std::get_if<DustAndScratchesSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["radius"] =
-          static_cast<std::int64_t>(settings->radius_pixels);
-      initial_invocation.parameters["threshold"] =
-          static_cast<std::int64_t>(settings->threshold);
-    } else if (kind == SmartFilterKind::SurfaceBlur) {
-      const auto *settings = std::get_if<SurfaceBlurSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["radius"] = settings->radius_pixels;
-      initial_invocation.parameters["threshold"] =
-          static_cast<std::int64_t>(settings->threshold);
-    } else if (kind == SmartFilterKind::UnsharpMask) {
-      const auto *settings = std::get_if<UnsharpMaskSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["amount"] =
-          static_cast<std::int64_t>(std::lround(settings->amount_percent));
-      initial_invocation.parameters["radius"] = settings->radius_pixels;
-      initial_invocation.parameters["threshold"] =
-          static_cast<std::int64_t>(settings->threshold);
-    } else if (kind == SmartFilterKind::MotionBlur) {
-      const auto *settings = std::get_if<MotionBlurSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["angle"] =
-          static_cast<std::int64_t>(settings->angle_degrees);
-      initial_invocation.parameters["distance"] =
-          static_cast<std::int64_t>(settings->distance_pixels);
-    } else if (kind == SmartFilterKind::Mosaic) {
-      const auto *settings = std::get_if<MosaicSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["cell_size"] =
-          static_cast<std::int64_t>(settings->cell_size_pixels);
-    } else if (kind == SmartFilterKind::Emboss) {
-      const auto *settings = std::get_if<EmbossSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["angle"] =
-          static_cast<std::int64_t>(settings->angle_degrees);
-      initial_invocation.parameters["height"] =
-          static_cast<std::int64_t>(settings->height_pixels);
-      initial_invocation.parameters["amount"] =
-          static_cast<std::int64_t>(settings->amount_percent);
-    } else if (kind == SmartFilterKind::BoxBlur) {
-      const auto *settings = std::get_if<BoxBlurSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["radius"] = settings->radius_pixels;
-    } else if (kind == SmartFilterKind::RadialBlur) {
-      const auto *settings = std::get_if<RadialBlurSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["amount"] =
-          static_cast<std::int64_t>(settings->amount);
-      initial_invocation.parameters["quality"] = std::string(
-          settings->quality == RadialBlurQuality::Draft
-              ? "draft"
-              : (settings->quality == RadialBlurQuality::Good ? "good"
-                                                              : "best"));
-    } else if (kind == SmartFilterKind::AddNoise) {
-      const auto *settings = std::get_if<AddNoiseSmartFilter>(
-          &stack.entries[filter_index].parameters);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["amount"] = settings->amount_percent;
-      initial_invocation.parameters["distribution"] =
-          std::string(settings->gaussian ? "gaussian" : "uniform");
-      initial_invocation.parameters["monochromatic"] = settings->monochromatic;
-      initial_invocation.parameters["seed"] =
-          static_cast<std::int64_t>(settings->seed);
-    } else {
-      const auto *settings = editable_plastic_wrap(stack.entries[filter_index]);
-      if (settings == nullptr) {
-        show_status_error(
-            tr("This Smart Filter can only be preserved, not edited"));
-        return;
-      }
-      initial_invocation.parameters["highlight_strength"] =
-          static_cast<std::int64_t>(settings->highlight_strength);
-      initial_invocation.parameters["detail"] =
-          static_cast<std::int64_t>(settings->detail);
-      initial_invocation.parameters["smoothness"] =
-          static_cast<std::int64_t>(settings->smoothness);
+    const auto entry_invocation =
+        smart_filter_entry_dialog_invocation(stack.entries[filter_index]);
+    if (!entry_invocation.has_value()) {
+      show_status_error(
+          tr("This Smart Filter can only be preserved, not edited"));
+      return;
     }
+    initial_invocation = *entry_invocation;
   }
 
   if (adding && parameterless_smart_filter_native(kind) != nullptr) {
@@ -3340,25 +3360,8 @@ void MainWindow::visual_filter_gallery_dialog(const FilterRecipe* repeat) {
     if (source_layer->smart_filter_stack() != nullptr) {
       native_base_stack = *source_layer->smart_filter_stack();
     }
-    native_new_stack_mask.bounds =
-        Rect::from_size(source_document.width(), source_document.height());
-    native_new_stack_mask.enabled = true;
-    native_new_stack_mask.linked = false;
-    if (target_session->canvas->has_selection()) {
-      native_new_stack_mask.pixels =
-          target_session->canvas->selection_as_grayscale();
-      native_new_stack_mask.default_color = 0U;
-      native_new_stack_mask.extend_with_white = false;
-    } else {
-      native_new_stack_mask.pixels = PixelBuffer(
-          source_document.width(), source_document.height(),
-          PixelFormat::gray8());
-      native_new_stack_mask.pixels.clear(255U);
-      native_new_stack_mask.default_color = 255U;
-      native_new_stack_mask.extend_with_white = true;
-    }
-    native_new_stack_mask.pixels =
-        coverage_at_document_depth(source_document, std::move(native_new_stack_mask.pixels));
+    native_new_stack_mask =
+        new_smart_filter_stack_mask(source_document, *target_session->canvas);
     const auto parent_document_dir =
         target_session->path.isEmpty()
             ? QString()

@@ -38674,6 +38674,50 @@ Locked: %1</source>
         <source>zoomToRect needs a rectangle that overlaps the document.</source>
         <translation>zoomToRect에는 문서와 겹치는 사각형이 필요합니다.</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1에는 스마트 개체 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1에는 편집 가능한 스마트 필터 대응이 없습니다. 파괴적으로 적용하려면 스마트 개체를 래스터화하십시오.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>이 설정으로는 %1을(를) 편집 가능한 스마트 필터로 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1: %2은(는) true 또는 false여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1: %2은(는) 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1: 스마트 필터에는 혼합 모드 %2을(를) 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1: 인덱스 %2에 스마트 필터가 없습니다(스택에 %3개 있음).</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1: %2은(는) 개체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1: 스마트 필터 %2에는 스크립트로 변경할 수 있는 설정이 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1: 스마트 필터 %2에 %3(이)라는 설정이 없습니다(설정: %4).</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>이 스마트 개체에는 스마트 필터가 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
