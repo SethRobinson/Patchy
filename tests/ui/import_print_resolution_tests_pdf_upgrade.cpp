@@ -1082,6 +1082,151 @@ void ui_pdf_import_size_label_describes_the_merged_canvas() {
   reset_pdf_pages_target();
 }
 
+// Pages of 2088 x 3168 pt (29 x 44 inches: 8700 x 13200 px at 300 ppi), each a white
+// sheet with a colored block and a few gray bars, so the page picker's thumbnails show.
+QByteArray large_pages_pdf_bytes(int pages) {
+  static constexpr std::array<const char*, 4> colors = {"0.85 0.25 0.2", "0.2 0.45 0.8", "0.25 0.65 0.35",
+                                                         "0.9 0.65 0.15"};
+  std::string kids;
+  for (int page = 0; page < pages; ++page) {
+    kids += std::to_string(3 + page * 2) + " 0 R ";
+  }
+  std::vector<std::string> objects = {"<</Type/Catalog/Pages 2 0 R>>",
+                                      "<</Type/Pages/Kids[" + kids + "]/Count " + std::to_string(pages) + ">>"};
+  for (int page = 0; page < pages; ++page) {
+    const std::string content = std::string("1 1 1 rg 0 0 2088 3168 re f ") +
+                                colors[static_cast<std::size_t>(page) % colors.size()] +
+                                " rg 200 1900 1691 1000 re f 0.35 0.35 0.35 rg 200 1500 1691 120 re f "
+                                "200 1200 1691 120 re f 200 900 1100 120 re f";
+    objects.push_back("<</Type/Page/Parent 2 0 R/MediaBox[0 0 2088 3168]/Contents " +
+                      std::to_string(objects.size() + 2) + " 0 R>>");
+    objects.push_back("<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream");
+  }
+  return pdf_from_objects(objects);
+}
+
+// local-050 (Seth: Shift+clicking every page of an 8-page PDF left the thumbnail column a
+// sliver). The long size warning widened the options column and the page list paid for it.
+// The list keeps the width of its rows (thumbnail, "Page N", scroll bar) whatever the note
+// says, the note wraps inside the options column, and the dialog grows taller when the
+// wrapped note needs it, so no line of it and no button is cut off: in English and in a
+// long translation, with the longest note, at the default size, narrower and wider.
+void ui_pdf_import_page_list_keeps_its_width_under_the_size_warning() {
+  const auto path = write_artifact(QStringLiteral("ui_pdf_import_page_list_width.pdf"), large_pages_pdf_bytes(40));
+  LanguageRestorer restore_language;
+  patchy::set_deep_editing_override(true);
+  for (const char* language : {"en", "de"}) {
+    patchy::ui::LocalizationManager::instance().set_language(QString::fromLatin1(language), false);
+    QApplication::processEvents();
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto done = std::make_shared<bool>(false);
+    auto step = std::make_shared<std::function<bool()>>();
+    *step = [done, language] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("pdfImportDialog"));
+      if (dialog == nullptr) {
+        return false;
+      }
+      auto* pages = dialog->findChild<QListWidget*>(QStringLiteral("pdfImportPagesList"));
+      auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportResolutionCombo"));
+      auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportModeCombo"));
+      auto* pages_target = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportPagesTargetCombo"));
+      auto* bit_depth = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportBitDepthCombo"));
+      auto* reverse = dialog->findChild<QCheckBox*>(QStringLiteral("pdfImportReverseOrderCheck"));
+      auto* size_label = dialog->findChild<QLabel*>(QStringLiteral("pdfImportSizeLabel"));
+      auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
+      if (pages == nullptr || resolution == nullptr || mode == nullptr || pages_target == nullptr ||
+          bit_depth == nullptr || reverse == nullptr || size_label == nullptr || import_button == nullptr) {
+        return false;
+      }
+      const auto settle = [] {
+        for (int pass = 0; pass < 8; ++pass) {
+          QApplication::processEvents();
+        }
+      };
+      const auto select_first = [pages](int count) {
+        pages->clearSelection();
+        for (int row = 0; row < count; ++row) {
+          pages->item(row)->setSelected(true);
+        }
+      };
+      const auto bottom_in_dialog = [dialog](const QWidget* widget) {
+        return widget->mapTo(dialog, QPoint(0, widget->height())).y();
+      };
+      // Every row whole (no sideways scrolling), every line of the note on screen below the
+      // last check box and above the buttons, the buttons inside the dialog.
+      const auto check_nothing_is_cut_off = [&] {
+        settle();
+        CHECK(pages->viewport()->width() >= pages->sizeHintForColumn(0));
+        CHECK(pages->viewport()->width() >= pages->iconSize().width());
+        CHECK(size_label->width() > 0);
+        CHECK(size_label->height() >= size_label->heightForWidth(size_label->width()));
+        CHECK(bottom_in_dialog(reverse) <= size_label->mapTo(dialog, QPoint(0, 0)).y());
+        CHECK(bottom_in_dialog(size_label) <= import_button->mapTo(dialog, QPoint(0, 0)).y());
+        CHECK(bottom_in_dialog(import_button) <= dialog->height());
+      };
+      mode->setCurrentIndex(mode->findData(QStringLiteral("editable")));
+      pages_target->setCurrentIndex(pages_target->findData(QStringLiteral("artboards")));
+      bit_depth->setCurrentIndex(bit_depth->findData(8));
+      resolution->setCurrentText(QStringLiteral("300"));
+      select_first(1);
+      // The thumbnails render one per timer tick; let the first rows fill in for the capture.
+      for (int pass = 0; pass < 60; ++pass) {
+        QApplication::processEvents();
+      }
+      CHECK(!size_label->property("importWarning").toBool());
+      const int list_width = pages->width();
+      const int dialog_width = dialog->width();
+      check_nothing_is_cut_off();
+
+      // Seth's case: eight pages as artboards at 300 ppi, a canvas of 26300 x 39800 px.
+      select_first(8);
+      settle();
+      save_widget_artifact(std::string("ui_pdf_import_page_list_width_warning_") + language, *dialog);
+      CHECK(size_label->property("importWarning").toBool());
+      CHECK(size_label->text().contains(QStringLiteral("26300 x 39800")));
+      CHECK(dialog->width() == dialog_width);
+      CHECK(pages->width() == list_width);
+      check_nothing_is_cut_off();
+
+      // The longest note: all 40 pages at 1200 ppi and 32 bits, three paragraphs, past half
+      // of any test machine's memory.
+      pages->selectAll();
+      bit_depth->setCurrentIndex(bit_depth->findData(32));
+      resolution->setCurrentText(QStringLiteral("1200"));
+      settle();
+      save_widget_artifact(std::string("ui_pdf_import_page_list_width_longest_") + language, *dialog);
+      CHECK(size_label->property("importWarning").toBool());
+      CHECK(size_label->text().count(QLatin1Char('\n')) == 2);
+      CHECK(dialog->width() == dialog_width);
+      CHECK(pages->width() == list_width);
+      check_nothing_is_cut_off();
+
+      // As narrow and short as the dialog goes, then larger: the note rewraps, nothing is cut.
+      dialog->resize(dialog->minimumSize());
+      check_nothing_is_cut_off();
+      CHECK(dialog->width() < dialog_width);
+      save_widget_artifact(std::string("ui_pdf_import_page_list_width_smallest_") + language, *dialog);
+      dialog->resize(900, 760);
+      check_nothing_is_cut_off();
+      // Back to one page at the larger size: the list is as wide as before the note changed.
+      const int large_list_width = pages->width();
+      select_first(1);
+      bit_depth->setCurrentIndex(bit_depth->findData(8));
+      resolution->setCurrentText(QStringLiteral("300"));
+      check_nothing_is_cut_off();
+      CHECK(pages->width() == large_list_width);
+      *done = true;
+      dialog->reject();
+      return true;
+    };
+    drive_modal_dialog(step);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    CHECK(*done);
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 // The real scanned document (85 pages of JPEG 2000; the first 5 here) round-trips both
 // ways: imported as page folders and exported by groups, and imported as artboards and
 // exported by artboards, every page comes back with its original image bytes, in order.
@@ -1267,6 +1412,8 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part4() {
       {"ui_pdf_import_pages_share_one_image_pass_and_progress_dialog",
        ui_pdf_import_pages_share_one_image_pass_and_progress_dialog},
       {"ui_pdf_import_size_label_describes_the_merged_canvas", ui_pdf_import_size_label_describes_the_merged_canvas},
+      {"ui_pdf_import_page_list_keeps_its_width_under_the_size_warning",
+       ui_pdf_import_page_list_keeps_its_width_under_the_size_warning},
       {"ui_pdf_local_scans_round_trip_as_folders_and_artboards_if_available",
        ui_pdf_local_scans_round_trip_as_folders_and_artboards_if_available},
       {"ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available",

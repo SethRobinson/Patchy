@@ -43,8 +43,10 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QRect>
+#include <QScrollBar>
 #include <QSize>
 #include <QSizeF>
+#include <QSizePolicy>
 #include <QStandardItemModel>
 #include <QStringList>
 #include <QThread>
@@ -693,6 +695,13 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
       pages_list->scrollToItem(pages_list->currentItem());
     }
   }
+  // Never narrower than its rows (thumbnail and "Page N", measured with the list's own
+  // font and style) plus the scroll bar. The list is the row's stretch item, and a box
+  // layout hands a stretch item its bare minimum as soon as the column beside it asks for
+  // more than there is: without this the thumbnails were cut to a sliver (local-050).
+  const int page_rows_width = pages_list->sizeHintForColumn(0);  // polishes the list first
+  pages_list->setMinimumWidth(page_rows_width + 2 * pages_list->frameWidth() +
+                              pages_list->verticalScrollBar()->sizeHint().width());
   body->addWidget(pages_list, 1);
 
   auto* side = new QVBoxLayout();
@@ -801,6 +810,13 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   auto* size_label = new QLabel(&dialog);
   size_label->setObjectName(QStringLiteral("pdfImportSizeLabel"));
   size_label->setWordWrap(true);
+  // The note never sizes the options column: it wraps inside the width the controls above
+  // it ask for. A wrapped label asks for up to 80 characters of width, so the long warning
+  // widened the column and the page list paid for it (local-050). The dialog grows taller
+  // instead when the wrapped note needs more lines than there is room for.
+  auto size_label_policy = size_label->sizePolicy();
+  size_label_policy.setHorizontalPolicy(QSizePolicy::Ignored);
+  size_label->setSizePolicy(size_label_policy);
   side->addWidget(size_label);
   side->addStretch(1);
   body->addLayout(side);
@@ -940,6 +956,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   QObject::connect(color_mode, &QComboBox::currentIndexChanged, &dialog, sync_size_label);
   sync_size_label();
 
+  keep_dialog_tall_enough_for_wrapped_text(dialog);
   remember_dialog_position(dialog);
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;

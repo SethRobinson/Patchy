@@ -3145,6 +3145,51 @@ void remember_dialog_position(QDialog& dialog) {
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
 }
 
+namespace {
+
+// The preferred height, not the minimum: at the minimum spin boxes lose their bottom
+// pixels. A text change (LayoutRequest) or a narrower window (Resize) re-fits the height.
+class WrappedTextDialogHeightGuard final : public QObject {
+public:
+  explicit WrappedTextDialogHeightGuard(QDialog& dialog) : QObject(&dialog), dialog_(dialog) {
+    dialog.installEventFilter(this);
+  }
+
+  void fit() {
+    auto* layout = dialog_.layout();
+    if (layout == nullptr || !layout->hasHeightForWidth()) {
+      return;
+    }
+    const int needed = layout->totalHeightForWidth(dialog_.width());
+    if (needed <= 0) {
+      return;
+    }
+    if (dialog_.minimumHeight() != needed) {
+      dialog_.setMinimumHeight(needed);
+    }
+    if (dialog_.height() < needed) {
+      dialog_.resize(dialog_.width(), needed);
+    }
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == &dialog_ && (event->type() == QEvent::LayoutRequest || event->type() == QEvent::Resize)) {
+      fit();
+    }
+    return false;
+  }
+
+private:
+  QDialog& dialog_;
+};
+
+}  // namespace
+
+void keep_dialog_tall_enough_for_wrapped_text(QDialog& dialog) {
+  new WrappedTextDialogHeightGuard(dialog);
+}
+
 static bool unattended_dialog(const QWidget& dialog) {
   for (auto* owner = dialog.parentWidget(); owner != nullptr; owner = owner->parentWidget()) {
     if (auto* window = qobject_cast<MainWindow*>(owner); window != nullptr) {

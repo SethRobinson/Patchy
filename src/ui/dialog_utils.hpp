@@ -362,6 +362,12 @@ void mark_dialog_always_centered(QDialog& dialog);
 // Places the complete window frame inside the available screen area, then
 // rechecks after Show/Resize when Qt has finalized its size and frame margins.
 void remember_dialog_position(QDialog& dialog);
+// Keeps a dialog as tall as its layout wants at its current width, for a dialog whose
+// word-wrapped label changes text while it is open. Qt sizes a window's minimum from a
+// wrapped label's width-independent hint, so text that wraps to more lines squeezes the
+// rows around it instead of growing the dialog (GitHub #612). The minimum height follows
+// the layout's height-for-width: a longer text or a narrower window grows the dialog.
+void keep_dialog_tall_enough_for_wrapped_text(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
 // Coalesces the mouse moves of a slider drag app-wide (GitHub #601): the first
