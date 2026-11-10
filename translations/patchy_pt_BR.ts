@@ -15742,6 +15742,14 @@ Deseja substituí-lo?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Livreto grampeado a cavalo (dobrar e grampear)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Mostrar o campo Preenchimento</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>O campo Preenchimento ao lado de Opacidade, acima da lista de camadas. Sem ele, o modo de mesclagem e a opacidade cabem em uma linha em um painel estreito.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

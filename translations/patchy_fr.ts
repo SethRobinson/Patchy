@@ -15742,6 +15742,14 @@ Voulez-vous le remplacer ?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Livret en piqûre à cheval (plier et agrafer)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Afficher le champ Fond</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Le champ Fond à côté de l&apos;opacité, au-dessus de la liste des calques. Sans lui, le mode de fusion et l&apos;opacité tiennent sur une ligne dans un panneau étroit.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

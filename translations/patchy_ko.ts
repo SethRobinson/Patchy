@@ -15686,6 +15686,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>중철 소책자(접어서 스테이플러)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>칠 필드 표시</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>레이어 목록 위, 불투명도 옆의 칠 필드입니다. 숨기면 좁은 패널에서도 혼합 모드와 불투명도가 한 줄에 들어갑니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

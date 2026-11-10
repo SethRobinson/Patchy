@@ -1,7 +1,8 @@
 // Customize Layers Panel's row options (GitHub issue 680; docs/layer-panel-row-options.md):
 // compact rows without the blend mode and opacity line, the row tooltip switch, the color label
 // as a strip or a tint over the whole row, and the Thumbnail Size and Thumbnail Display combos
-// that share their settings with the Layers gear's and the thumbnail menus.
+// that share their settings with the Layers gear's and the thumbnail menus. The same column's
+// "Show Fill field" (issue 680 follow-up) hides the Fill field above the list.
 #include "ui/app_settings.hpp"
 #include "ui/layer_row_options.hpp"
 #include "ui/layer_thumbnail_size.hpp"
@@ -22,8 +23,10 @@
 #include <QDialogButtonBox>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
@@ -55,7 +58,8 @@ struct RowOptionSettingsGuard {
           "layersPanel/footerIconSize", "toolPalette/ungroupTools", "toolPalette/customizeDialogSize",
           "toolPalette/hideExpandButton", "toolPalette/hideScrollArrows", patchy::ui::kLayerCompactRowsSettingsKey,
           patchy::ui::kLayerRowTooltipsSettingsKey, patchy::ui::kLayerRowColorSettingsKey,
-          patchy::ui::kLayerThumbnailSizeSettingsKey, "view/zoomLayerThumbnailsToContent"}) {
+          patchy::ui::kLayerShowFillSettingsKey, patchy::ui::kLayerThumbnailSizeSettingsKey,
+          "view/zoomLayerThumbnailsToContent"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -554,6 +558,7 @@ void ui_layer_rows_thumbnail_combos_follow_the_menus() {
   customize_rows(window, [&](QDialog& dialog) {
     require_child<QCheckBox>(dialog, "layerRowsCompactCheck")->setChecked(true);
     require_child<QCheckBox>(dialog, "layerRowsTooltipsCheck")->setChecked(false);
+    require_child<QCheckBox>(dialog, "layerRowsShowFillCheck")->setChecked(false);
     pick(require_child<QComboBox>(dialog, "layerRowColorCombo"), QStringLiteral("whole_row"));
     pick(require_child<QComboBox>(dialog, "layerThumbnailDisplayCombo"), false);
     (void)capture_widget_artifact("issue680_customize_layers_panel_tab_changed", dialog);
@@ -564,6 +569,7 @@ void ui_layer_rows_thumbnail_combos_follow_the_menus() {
     settle();
     CHECK(!require_child<QCheckBox>(dialog, "layerRowsCompactCheck")->isChecked());
     CHECK(require_child<QCheckBox>(dialog, "layerRowsTooltipsCheck")->isChecked());
+    CHECK(require_child<QCheckBox>(dialog, "layerRowsShowFillCheck")->isChecked());
     CHECK(require_child<QComboBox>(dialog, "layerRowColorCombo")->currentData().toString() == QStringLiteral("strip"));
     CHECK(require_child<QComboBox>(dialog, "layerThumbnailSizeCombo")->currentData().toString() ==
           QStringLiteral("medium"));
@@ -571,6 +577,158 @@ void ui_layer_rows_thumbnail_combos_follow_the_menus() {
   });
   CHECK(medium->isChecked() && layer_content->isChecked());
   CHECK(patchy::ui::stored_layer_row_options() == patchy::ui::LayerRowOptions{});
+}
+
+// The column width of a Layers panel narrowed to its footer buttons in the report (issue 680
+// follow-up): under the opening width, so the blend row with Fill wraps there.
+constexpr int kFooterWidthColumn = 293;
+
+void set_column_width(patchy::ui::MainWindow& window, int width) {
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, width);
+  // Each wrapped row re-requests the layout once after the pass that wrapped or unwrapped it.
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();
+  }
+  settle();
+}
+
+struct BlendRowWidgets {
+  QComboBox* combo{nullptr};
+  QSpinBox* opacity{nullptr};
+  QSpinBox* fill{nullptr};
+  QLineEdit* filter{nullptr};
+  QToolButton* filter_button{nullptr};
+  QToolButton* lock_all{nullptr};
+
+  explicit BlendRowWidgets(patchy::ui::MainWindow& window)
+      : combo(window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"))),
+        opacity(window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"))),
+        fill(window.findChild<QSpinBox*>(QStringLiteral("layerFillOpacitySpin"))),
+        filter(window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"))),
+        filter_button(window.findChild<QToolButton*>(QStringLiteral("layerFilterButton"))),
+        lock_all(window.findChild<QToolButton*>(QStringLiteral("layerLockAllButton"))) {}
+  [[nodiscard]] bool complete() const {
+    return combo != nullptr && opacity != nullptr && fill != nullptr && filter != nullptr &&
+           filter_button != nullptr && lock_all != nullptr;
+  }
+  // Opacity beside the blend mode, inside the panel's right inset (the filter row's end).
+  [[nodiscard]] bool opacity_shares_the_combo_line() const {
+    return std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1 &&
+           opacity->x() > combo->geometry().right() &&
+           opacity->geometry().right() <= filter_button->geometry().right();
+  }
+  [[nodiscard]] bool opacity_is_under_the_combo() const { return opacity->y() > combo->geometry().bottom(); }
+};
+
+// "Show Fill field" (issue 680 follow-up): on by default. Off, the Fill field is hidden and out
+// of the blend row, so at the width of the footer buttons the blend mode and Opacity share one
+// line and the rows below move up; the layer's fill opacity is untouched. Stored as false only, a
+// new window starts without the field, and ticking it again brings the field and the wrap back.
+void ui_layer_rows_show_fill_option_hides_the_fill_field() {
+  RowOptionSettingsGuard settings_guard;
+  const auto fill_document = [] {
+    auto document = labeled_document();
+    document.layers().front().set_fill_opacity(0.4F);
+    return document;
+  };
+  const auto active_fill = [](patchy::ui::MainWindow& window) {
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto active = document.active_layer_id();
+    const auto* layer = active.has_value() ? document.find_layer(*active) : nullptr;
+    return layer != nullptr ? layer->fill_opacity() : -1.0F;
+  };
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.add_document_session(fill_document(), QStringLiteral("Fill Field"));
+    settle();
+    QWidget* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+    const BlendRowWidgets row(window);
+    CHECK(column != nullptr && layers_dock != nullptr && row.complete());
+    if (column == nullptr || layers_dock == nullptr || !row.complete()) {
+      return;
+    }
+    CHECK(patchy::ui::stored_layer_row_options().show_fill);
+    CHECK(row.fill->isVisible() && row.fill->value() == 40);
+    const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
+    CHECK(kFooterWidthColumn < opening);
+
+    // With Fill, the row does not fit the footer's width: Opacity and Fill go under the combo.
+    set_column_width(window, kFooterWidthColumn);
+    CHECK(column->width() == kFooterWidthColumn);
+    CHECK(row.opacity_is_under_the_combo());
+    CHECK(row.fill->y() == row.opacity->y());
+    const auto wrapped_filter_y = row.filter->y();
+    const auto wrapped_lock_y = row.lock_all->y();
+    save_widget_artifact("issue680_fu_layers_fill_shown", *layers_dock);
+
+    customize_rows(window, [](QDialog& dialog) {
+      auto* show_fill = require_child<QCheckBox>(dialog, "layerRowsShowFillCheck");
+      CHECK(show_fill != nullptr && show_fill->isChecked());
+      if (show_fill != nullptr) {
+        (void)capture_widget_artifact("issue680_fu_customize_layers_panel_tab", dialog);
+        show_fill->setChecked(false);
+      }
+    });
+    for (int pass = 0; pass < 4; ++pass) {
+      QApplication::processEvents();
+    }
+    settle();
+    CHECK(patchy::ui::app_settings().contains(QLatin1String(patchy::ui::kLayerShowFillSettingsKey)));
+    CHECK(!patchy::ui::app_settings().value(QLatin1String(patchy::ui::kLayerShowFillSettingsKey)).toBool());
+    CHECK(!patchy::ui::stored_layer_row_options().show_fill);
+    // Hidden and no part of the row: one line, and the Lock and filter row moves up by the line.
+    CHECK(row.fill->isHidden() && !row.fill->isVisible());
+    CHECK(row.combo->isVisible() && row.opacity->isVisible());
+    CHECK(column->width() == kFooterWidthColumn);
+    if (!row.opacity_shares_the_combo_line()) {
+      std::printf("[INFO] combo %d..%d y %d, opacity %d..%d y %d, content right %d\n", row.combo->x(),
+                  row.combo->geometry().right(), row.combo->y(), row.opacity->x(), row.opacity->geometry().right(),
+                  row.opacity->y(), row.filter_button->geometry().right());
+    }
+    CHECK(row.opacity_shares_the_combo_line());
+    CHECK(row.filter->y() < wrapped_filter_y);
+    CHECK(row.lock_all->y() < wrapped_lock_y);
+    CHECK(row.filter->y() > row.combo->geometry().bottom());
+    // Display only: the layer keeps its fill opacity, and the hidden field still follows it.
+    CHECK(std::abs(active_fill(window) - 0.4F) < 0.001F);
+    CHECK(row.fill->value() == 40);
+    // The widths never grow without the field.
+    CHECK(patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window) <= opening);
+    save_widget_artifact("issue680_fu_layers_fill_hidden", *layers_dock);
+  }
+
+  // A new window starts without the field, on one line at the footer's width.
+  auto&& [reopened, canvas] = ShownWindowFixture{};
+  reopened.add_document_session(fill_document(), QStringLiteral("Fill Field Again"));
+  settle();
+  const BlendRowWidgets row(reopened);
+  CHECK(row.complete());
+  if (!row.complete()) {
+    return;
+  }
+  CHECK(row.fill->isHidden());
+  set_column_width(reopened, kFooterWidthColumn);
+  CHECK(row.opacity_shares_the_combo_line());
+  CHECK(std::abs(active_fill(reopened) - 0.4F) < 0.001F);
+
+  // Ticked again: the default stores no key, the field is back and the row wraps again.
+  customize_rows(reopened, [](QDialog& dialog) {
+    auto* show_fill = require_child<QCheckBox>(dialog, "layerRowsShowFillCheck");
+    CHECK(show_fill != nullptr && !show_fill->isChecked());
+    if (show_fill != nullptr) {
+      show_fill->setChecked(true);
+    }
+  });
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();
+  }
+  settle();
+  CHECK(!patchy::ui::app_settings().contains(QLatin1String(patchy::ui::kLayerShowFillSettingsKey)));
+  CHECK(row.fill->isVisible() && row.fill->value() == 40);
+  CHECK(row.opacity_is_under_the_combo());
+  CHECK(row.fill->y() == row.opacity->y());
+  CHECK(row.fill->geometry().right() <= row.filter_button->geometry().right());
 }
 
 }  // namespace
@@ -582,5 +740,6 @@ std::vector<patchy::test::TestCase> layer_row_options_tests() {
       {"ui_layer_rows_tooltip_option_turns_row_tips_off", ui_layer_rows_tooltip_option_turns_row_tips_off},
       {"ui_layer_rows_whole_row_color_tints_rows", ui_layer_rows_whole_row_color_tints_rows},
       {"ui_layer_rows_thumbnail_combos_follow_the_menus", ui_layer_rows_thumbnail_combos_follow_the_menus},
+      {"ui_layer_rows_show_fill_option_hides_the_fill_field", ui_layer_rows_show_fill_option_hides_the_fill_field},
   };
 }

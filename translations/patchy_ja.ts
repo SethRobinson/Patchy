@@ -15686,6 +15686,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>中とじ冊子(折ってホチキス留め)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>「塗りつぶし」フィールドを表示</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>レイヤー一覧の上、不透明度の横にある「塗りつぶし」フィールドです。非表示にすると、幅の狭いパネルでも描画モードと不透明度が 1 行に収まります。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

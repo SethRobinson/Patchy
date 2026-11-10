@@ -4946,11 +4946,30 @@ void MainWindow::apply_layer_row_options(const LayerRowOptions& options) {
   if (options == layer_row_options_) {
     return;
   }
+  // The Fill field sits above the list: showing or hiding it rebuilds no row.
+  auto rows_before = layer_row_options_;
+  rows_before.show_fill = options.show_fill;
+  const bool rows_changed = rows_before != options;
   layer_row_options_ = options;
   set_stored_layer_row_options(options);
-  if (has_active_document()) {
+  apply_layer_fill_field_visibility();
+  if (rows_changed && has_active_document()) {
     refresh_layer_list();
   }
+}
+
+void MainWindow::apply_layer_fill_field_visibility() {
+  if (fill_opacity_spin_ == nullptr || fill_opacity_spin_->isHidden() != layer_row_options_.show_fill) {
+    return;
+  }
+  if (!layer_row_options_.show_fill) {
+    // A value still on its way to the layers lands before the field goes.
+    finish_pending_layer_fill_opacity_edit();
+  }
+  // A hidden widget is an empty layout item, so the wrapping blend row drops it from its lines
+  // and its widths; the column's content-fit and compact widths follow.
+  fill_opacity_spin_->setVisible(layer_row_options_.show_fill);
+  update_right_dock_minimum_width();
 }
 
 QAction* MainWindow::add_layer_context_export_menu(QMenu* menu, bool group_target) {
