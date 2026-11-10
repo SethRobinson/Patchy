@@ -95,6 +95,7 @@ class QLayout;
 class QLineEdit;
 class QMenu;
 class QMimeData;
+class QProgressDialog;
 class QPushButton;
 namespace patchy::ui::openai {
 struct GifFrame;  // openai_images.hpp: a decoded animation frame and its delay
@@ -1246,6 +1247,72 @@ private:
   // resample their smart-object source through the placement quad.
   void render_pending_pdf_text_layers(Document& target);
   void render_pending_pdf_image_layers(Document& target);
+  // The same pass over every page document of one import at once (docs/pdf-import.md,
+  // "Progress"): one "Preparing page image N of M" count over all their pending images, and
+  // the decodes of different pages share the bounded worker window. With `stamp_sources`
+  // each document that is one original image gets its pass-through fingerprint afterwards
+  // (on a worker); a merge stamps its pages itself, from the merged document.
+  void render_pending_pdf_image_layers(std::span<Document* const> targets, bool stamp_sources);
+
+  // One progress dialog carried through the slow steps of an open (docs/pdf-import.md,
+  // "Progress"): the page-image pass, the merge into folders or artboards, the pass-through
+  // fingerprints and the session's layer rows report through the innermost live one
+  // (open_progress_), so the user sees one dialog whose label changes rather than a dialog
+  // per step. It appears once the open has waited its delay and never under unattended
+  // automation; pump() turns the event loop (no user input) either way.
+  class OpenProgress {
+   public:
+    // `show_after_ms` < 0 takes the default delay (open_progress_delay_ms).
+    OpenProgress(MainWindow& window, QString window_title, QString object_name, int show_after_ms = -1);
+    ~OpenProgress();
+    OpenProgress(const OpenProgress&) = delete;
+    OpenProgress& operator=(const OpenProgress&) = delete;
+    // Names the step now running; `maximum` 0 shows a busy bar. Shows the dialog when it
+    // is due but delivers no events: safe where a half-built session must not see any.
+    void set_step(const QString& label, int value, int maximum);
+    void pump();
+    // pump(), at most once per 32 ms: for loops whose turns are short.
+    void pump_throttled();
+    [[nodiscard]] bool visible() const;
+
+   private:
+    // Creates the dialog once it is due and brings its label and range up to date.
+    void sync_dialog();
+    MainWindow& window_;
+    QString window_title_;
+    QString object_name_;
+    QString label_;
+    int value_{0};
+    int maximum_{0};
+    int show_after_ms_{0};
+    QElapsedTimer clock_;
+    QElapsedTimer since_pump_;
+    std::unique_ptr<QProgressDialog> dialog_;
+    OpenProgress* outer_{nullptr};
+  };
+  OpenProgress* open_progress_{nullptr};
+  // What the last open's progress did, whether or not a dialog showed (tests; the dialog
+  // is skipped in short and unattended opens).
+  struct OpenProgressStats {
+    QStringList dialogs;  // object names of the progress dialogs shown
+    int pdf_image_passes{0};
+    int pdf_images{0};
+    int pdf_image_window{0};  // decodes and fingerprints allowed in flight at once
+    QStringList steps;  // every label set, in order, consecutive repeats dropped
+  };
+  OpenProgressStats open_progress_stats_;
+  // Milliseconds an open waits before its progress dialog shows (400). Tests set 0 to
+  // make the dialog deterministic; a negative value restores the default.
+  static void set_open_progress_delay_ms(int delay_ms);
+  [[nodiscard]] static int open_progress_delay_ms();
+  // How many page-sized tasks (an image decode, a pass-through fingerprint) may run at
+  // once: four (half the hardware threads when that is fewer), and fewer when the pages
+  // are huge, so the tasks in flight stay within about an eighth of this computer's memory.
+  [[nodiscard]] static std::size_t pdf_page_task_window(double largest_page_bytes);
+  // Every page of a PDF import once its reader is done: the pending text, then one image
+  // pass over all the pages (render_pending_pdf_image_layers). With `merge` the pages'
+  // fingerprints are left to merge_imported_pdf_pages.
+  void render_imported_pdf_pages(Document& first, std::vector<PdfImportedDocument>& extras, PdfPagesMerge merge);
   // Reopened Patchy PSDs: layout metrics for the kept text rasters
   // (docs/text-render-calibration-patchy-authored.md).
   void record_text_layout_metrics_for_reopened_text(Document& target);
@@ -1267,11 +1334,12 @@ private:
                                          PdfImportColorMode mode, std::optional<BitDepth> depth,
                                          QStringList& notices);
   // The Layers and Artboards targets of a multi-page PDF import (GitHub issues 154 and 19):
-  // renders the extra pages' pending text and images, then folds every page into `first`
-  // as a "Page N" folder (Layers, only the first visible; a page that is one plain raster
-  // layer stays that layer) or a "Page N" artboard on a grid (Artboards, White or
-  // Transparent background), and empties `extras`. An artboard page that is one original
-  // image keeps it for export (DocumentMetadata::pdf_page_source_pages).
+  // renders every page's pending text and images (one image pass over all the pages), then
+  // folds every page into `first` as a "Page N" folder (Layers, only the first visible; a
+  // page that is one plain raster layer stays that layer) or a "Page N" artboard on a grid
+  // (Artboards, White or Transparent background), and empties `extras`. An artboard page
+  // that is one original image keeps it for export (DocumentMetadata::pdf_page_source_pages);
+  // those fingerprints are taken on workers while the open's progress keeps painting.
   void merge_imported_pdf_pages(Document& first, const QString& first_title, std::vector<PdfImportedDocument>& extras,
                                 PdfPagesMerge merge, bool white_background);
   // Reloads the session's file from disk in place (tab position, float window,

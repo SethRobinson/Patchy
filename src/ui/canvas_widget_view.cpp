@@ -288,19 +288,27 @@ QRectF CanvasWidget::view_content_rect() const {
   return QRectF(left, top, std::max(1, width() - left - right), std::max(1, height() - top - bottom));
 }
 
-void CanvasWidget::fit_to_view() {
+double CanvasWidget::fit_logical_zoom() const {
   if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
-    return;
+    return 0.0;
   }
-
   const auto area = view_content_rect();
   const auto available_width = std::max(1.0, area.width() - 2.0 * kFitMarginPerSide);
   const auto available_height = std::max(1.0, area.height() - 2.0 * kFitMarginPerSide);
   const auto unit_extent = CanvasViewTransform(1.0, QPointF(), view_rotation_degrees_,
                                                QSizeF(document_->width(), document_->height()))
                                .extent();
-  zoom_ = clamp_logical_zoom(
+  return clamp_logical_zoom(
       std::min(available_width / unit_extent.width(), available_height / unit_extent.height()));
+}
+
+void CanvasWidget::fit_to_view() {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
+    return;
+  }
+
+  const auto area = view_content_rect();
+  zoom_ = fit_logical_zoom();
   pan_ = centered_pan(area, view_transform());
   constrain_pan();
   update();

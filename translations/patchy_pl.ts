@@ -15806,6 +15806,14 @@ Czy chcesz go zastąpić?</translation>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>Pole Wypełnienie obok Krycia, nad listą warstw. Bez niego tryb mieszania i krycie mieszczą się w jednym wierszu w wąskim panelu.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Jedno płótno o wymiarach %1 x %2 px, czyli bardzo duże: otwieranie i edycja będą powolne. Mniej stron, niższa rozdzielczość lub „Oddzielne dokumenty” będą szybsze.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Jedno płótno o wymiarach %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31580,10 +31588,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Kadrowanie nie dotyczy dokumentu z obszarami roboczymi; zmień rozmiar obszaru roboczego narzędziem Obszar roboczy</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Przygotowywanie obrazów stron...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>Otwieranie pliku PDF</translation>
     </message>
@@ -35828,6 +35832,22 @@ Zablokowano: %1</translation>
             <numerusform>(pominięto %n ukryte lub puste warstwy)</numerusform>
             <numerusform>(pominięto %n ukrytych lub pustych warstw)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Konwertowanie głębi bitowej...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Tworzenie obszaru roboczego %1 z %2...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Tworzenie folderu strony %1 z %2...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Kończenie strony %1 z %2...</translation>
     </message>
 </context>
 <context>

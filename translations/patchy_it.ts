@@ -15750,6 +15750,14 @@ Sostituirlo?</translation>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>Il campo Riempimento accanto a Opacità, sopra l&apos;elenco dei livelli. Senza il campo, metodo di fusione e opacità stanno su una riga in un pannello stretto.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Un quadro di %1 x %2 px, che è molto grande: sarà lento da aprire e modificare. Meno pagine, una risoluzione più bassa o &quot;Documenti separati&quot; saranno più veloci.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Un quadro di %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31484,10 +31492,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Il ritaglio non si applica a un documento con tavole da disegno; ridimensiona una tavola da disegno con lo strumento Tavola da disegno</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Preparazione delle immagini delle pagine...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>Apertura del PDF</translation>
     </message>
@@ -35719,6 +35723,22 @@ Bloccato: %1</translation>
             <numerusform>(%n livello nascosto o vuoto escluso)</numerusform>
             <numerusform>(%n livelli nascosti o vuoti esclusi)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Conversione della profondità di bit...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Creazione della tavola da disegno %1 di %2...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Creazione della cartella di pagina %1 di %2...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Completamento della pagina %1 di %2...</translation>
     </message>
 </context>
 <context>

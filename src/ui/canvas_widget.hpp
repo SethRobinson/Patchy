@@ -294,6 +294,9 @@ public:
   void refresh_tool_cursor();
   // View > Fit on Screen: the whole document in the viewport, zooming in when it is small.
   void fit_to_view();
+  // The logical zoom fit_to_view picks for the widget's current size (0 with no document
+  // or no size yet).
+  [[nodiscard]] double fit_logical_zoom() const;
   // The view a document opens with (File > Open and every other opening or new-document
   // path): a document larger than the viewport is fitted, a smaller one shows at 100% view
   // zoom, centered, as in other editors (GitHub issue 247).
@@ -2020,11 +2023,14 @@ private:
   // compile-time constant, so tests that force the overlay path via
   // PATCHY_PROCESSING_OVERLAY_MIN_PIXELS keep their blocking semantics).
   [[nodiscard]] bool should_defer_full_refresh_to_async() const noexcept;
-  // First-paint variant for many-layer documents (kDeferFullRefreshMinLayers):
-  // no same-size previous frame exists, so paint shows checkerboard plus the
-  // processing spinner while the async composite runs, instead of blocking for
-  // seconds. Pixel-huge documents keep their historical synchronous first paint.
+  // First-paint variant for many-layer documents (kDeferFullRefreshMinLayers) and
+  // very large canvases (kDeferFirstRenderMinPixels): no same-size previous frame
+  // exists, so paint shows checkerboard plus the processing spinner while the async
+  // composite runs, instead of blocking for seconds. Other pixel-huge documents keep
+  // their historical synchronous first paint.
   [[nodiscard]] bool should_defer_first_render_to_async() const noexcept;
+  // The document passes one of those two gates.
+  [[nodiscard]] bool first_render_runs_in_background() const noexcept;
   // Whether that first-render wait is currently on screen (drives the spinner
   // overlay and its animation timer without any stored state to go stale).
   [[nodiscard]] bool first_render_spinner_active() const noexcept;

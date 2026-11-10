@@ -316,30 +316,42 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   // owns activation. configure_canvas still births canvases edit-locked as
   // defense in depth.
   //: Shown while decoding a file and while preparing its document session and layer rows.
-  QProgressDialog progress(tr("Opening %1...").arg(tab_title), QString(), 0, 0, this);
-  progress.setObjectName(QStringLiteral("openSessionProgressDialog"));
-  progress.setWindowTitle(tr("Opening %1").arg(tab_title));
-  progress.setWindowModality(Qt::WindowModal);
-  progress.setCancelButton(nullptr);
-  progress.setAutoClose(false);
-  progress.setAutoReset(false);
-  const auto started = std::chrono::steady_clock::now();
-  auto last_tick = started;
-  const auto tick_progress = [&] {
-    const auto now = std::chrono::steady_clock::now();
-    if (now - last_tick < std::chrono::milliseconds(32)) {
-      return;
-    }
-    if (!progress.isVisible() && now - started >= std::chrono::milliseconds(500)) {
-      remember_dialog_position(progress);
-      progress.show();
-    }
-    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
-    // Budget row work between pumps, excluding time spent delivering events.
-    // Otherwise a slow pump immediately schedules another one on the next row.
-    last_tick = std::chrono::steady_clock::now();
-  };
-  activate_document_canvas(canvas, tick_progress);
+  const auto opening_label = tr("Opening %1...").arg(tab_title);
+  if (open_progress_ != nullptr) {
+    // An open that already shows progress (a PDF import, docs/pdf-import.md "Progress")
+    // keeps that one dialog through the layer rows instead of starting another.
+    open_progress_->set_step(opening_label, 0, 0);
+    activate_document_canvas(canvas, [this] {
+      if (open_progress_ != nullptr) {
+        open_progress_->pump_throttled();
+      }
+    });
+  } else {
+    QProgressDialog progress(opening_label, QString(), 0, 0, this);
+    progress.setObjectName(QStringLiteral("openSessionProgressDialog"));
+    progress.setWindowTitle(tr("Opening %1").arg(tab_title));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setCancelButton(nullptr);
+    progress.setAutoClose(false);
+    progress.setAutoReset(false);
+    const auto started = std::chrono::steady_clock::now();
+    auto last_tick = started;
+    const auto tick_progress = [&] {
+      const auto now = std::chrono::steady_clock::now();
+      if (now - last_tick < std::chrono::milliseconds(32)) {
+        return;
+      }
+      if (!progress.isVisible() && now - started >= std::chrono::milliseconds(500)) {
+        remember_dialog_position(progress);
+        progress.show();
+      }
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+      // Budget row work between pumps, excluding time spent delivering events.
+      // Otherwise a slow pump immediately schedules another one on the next row.
+      last_tick = std::chrono::steady_clock::now();
+    };
+    activate_document_canvas(canvas, tick_progress);
+  }
   if (used_default_tool_settings) {
     if (brush_preset_combo_ != nullptr) {
       const auto preset_index = brush_preset_combo_->findData(default_startup_brush_preset_id());

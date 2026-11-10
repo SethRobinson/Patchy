@@ -15732,6 +15732,14 @@ Do you want to replace it?</source>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31412,10 +31420,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation type="unfinished"></translation>
     </message>
@@ -35637,6 +35641,22 @@ Locked: %1</source>
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

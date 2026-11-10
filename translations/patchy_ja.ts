@@ -15694,6 +15694,14 @@ Do you want to replace it?</source>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>レイヤー一覧の上、不透明度の横にある「塗りつぶし」フィールドです。非表示にすると、幅の狭いパネルでも描画モードと不透明度が 1 行に収まります。</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>キャンバスは 1 つで %1 x %2 px と非常に大きく、開くのも編集も遅くなります。ページ数を減らすか、解像度を下げるか、「個別のドキュメント」を選ぶと速くなります。</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>キャンバスは 1 つで %1 x %2 px です。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31388,10 +31396,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>アートボードのあるドキュメントには切り抜きは適用されません。アートボードのサイズはアートボードツールで変更してください</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>ページ画像を準備中...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>PDF を開いています</translation>
     </message>
@@ -35610,6 +35614,22 @@ Locked: %1</source>
         <translation>
             <numerusform>(非表示または空のレイヤー %n 個を除外)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>ビット深度を変換中...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>アートボード %1 / %2 を作成中...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>ページフォルダー %1 / %2 を作成中...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>ページ %1 / %2 を仕上げ中...</translation>
     </message>
 </context>
 <context>

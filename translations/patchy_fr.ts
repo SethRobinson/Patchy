@@ -15750,6 +15750,14 @@ Voulez-vous le remplacer ?</translation>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>Le champ Fond à côté de l&apos;opacité, au-dessus de la liste des calques. Sans lui, le mode de fusion et l&apos;opacité tiennent sur une ligne dans un panneau étroit.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Une zone de travail de %1 x %2 px, ce qui est très grand : l&apos;ouverture et la modification seront lentes. Moins de pages, une résolution plus faible ou « Documents séparés » seront plus rapides.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Une zone de travail de %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31484,10 +31492,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Le recadrage ne s&apos;applique pas à un document avec des plans de travail ; redimensionnez un plan de travail avec l&apos;outil Plan de travail</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Préparation des images des pages...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>Ouverture du PDF</translation>
     </message>
@@ -35719,6 +35723,22 @@ Verrouillé : %1</translation>
             <numerusform>(%n calque masqué ou vide ignoré)</numerusform>
             <numerusform>(%n calques masqués ou vides ignorés)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Conversion de la profondeur de bits...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Création du plan de travail %1 sur %2...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Création du dossier de page %1 sur %2...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Finalisation de la page %1 sur %2...</translation>
     </message>
 </context>
 <context>

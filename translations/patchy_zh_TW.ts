@@ -15694,6 +15694,14 @@ Do you want to replace it?</source>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>圖層清單上方、不透明度旁的「填滿」欄位。隱藏後，混合模式和不透明度在較窄的面板中可排成一列。</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>一個 %1 x %2 px 的畫布，尺寸非常大：開啟和編輯都會很慢。減少頁數、降低解析度或選擇「個別文件」會更快。</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>一個 %1 x %2 px 的畫布。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31388,10 +31396,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>裁切不適用於含工作區域的文件；請使用工作區域工具調整工作區域大小</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>正在準備頁面影像...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>正在開啟 PDF</translation>
     </message>
@@ -35610,6 +35614,22 @@ Locked: %1</source>
         <translation>
             <numerusform>(已略過 %n 個隱藏或空白的圖層)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>正在轉換位元深度...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>正在建立第 %1 個工作區域（共 %2 個）...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>正在建立第 %1 個頁面資料夾（共 %2 個）...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>正在完成第 %1 頁，共 %2 頁...</translation>
     </message>
 </context>
 <context>

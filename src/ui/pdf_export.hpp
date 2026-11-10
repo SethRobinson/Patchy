@@ -88,6 +88,11 @@ struct PdfExportOptions {
 // Stamps the document's size, resolution, and composite hash onto `source` (a
 // PageProbe::source_page) and stores it as the document's pdf_source_page.
 void attach_pdf_source_page(Document& document, const std::shared_ptr<const PdfSourcePage>& source);
+// The stamp attach_pdf_source_page stores, without touching the document: safe on a worker
+// while nothing changes `document`. Null when `source` carries no image data or the
+// document has no composite.
+[[nodiscard]] std::shared_ptr<const PdfSourcePage> stamped_pdf_source_page(
+    const Document& document, const std::shared_ptr<const PdfSourcePage>& source);
 // True when the document still is what its pdf_source_page stands for. `composite` is
 // flat_export_qimage(document, true), passed in because the caller already has it.
 [[nodiscard]] bool document_matches_pdf_source(const Document& document, const QImage& composite);
@@ -172,6 +177,9 @@ bool write_multipage_pdf_file(std::span<const Document* const> pages, const QStr
 // stamps `source` against the page its exporter derives and files it under the layer's id.
 void attach_pdf_page_source(Document& document, LayerId page_layer_id,
                             const std::shared_ptr<const PdfSourcePage>& source);
+// The page attach_pdf_page_source stamps against: document_for_artboard or
+// document_for_page_group of that layer. Nullopt when the layer is gone.
+[[nodiscard]] std::optional<Document> document_for_imported_page(const Document& document, LayerId page_layer_id);
 
 namespace pdf_detail {
 // The Qt engine's side of the atomic-write rule: QPdfWriter draws onto device(), a

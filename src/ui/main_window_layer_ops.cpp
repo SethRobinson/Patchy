@@ -2832,17 +2832,18 @@ std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& s
   // documents share dimensions and centers on the target canvas otherwise.
   std::int32_t dx = 0;
   std::int32_t dy = 0;
-  {
+  if (placement.exact_offset.has_value()) {
+    // No extent needed: finding one reads every pixel of every copied raster layer.
+    dx = placement.exact_offset->x();
+    dy = placement.exact_offset->y();
+  } else {
     std::optional<Rect> extent;
     for (const auto* layer : roots) {
       unite_placement_bounds(*layer, extent);
     }
     const bool same_size = source_document.width() == target_document.width() &&
                            source_document.height() == target_document.height();
-    if (placement.exact_offset.has_value()) {
-      dx = placement.exact_offset->x();
-      dy = placement.exact_offset->y();
-    } else if (extent.has_value() && !(placement.keep_source_position && same_size)) {
+    if (extent.has_value() && !(placement.keep_source_position && same_size)) {
       const auto center_x = placement.drop_document_point.has_value() ? placement.drop_document_point->x()
                                                                         : target_document.width() / 2;
       const auto center_y = placement.drop_document_point.has_value() ? placement.drop_document_point->y()

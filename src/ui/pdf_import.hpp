@@ -2,9 +2,13 @@
 
 #include "core/document.hpp"
 
+#include "core/artboard.hpp"
+
+#include <QSize>
 #include <QString>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -93,7 +97,31 @@ struct PdfImportResult {
   PdfPagesMerge merge{PdfPagesMerge::None};
   // The White page background choice, for the merged artboards' background.
   bool white_background{true};
+  // Milliseconds from the accepted Import PDF dialog to this result: how long its own
+  // progress dialog was up. The MainWindow's progress for the rest of the open follows
+  // without a pause when that was long enough to notice.
+  qint64 import_ms{0};
 };
+
+// The artboard grid "Artboards in one document" lays `pages` pages out on (columns x rows):
+// about as wide as tall, so a long PDF stays a reasonable canvas.
+[[nodiscard]] inline QSize pdf_artboard_grid(int pages) {
+  const int count = std::max(1, pages);
+  const int columns = std::max(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(count)))));
+  return QSize(columns, (count + columns - 1) / columns);
+}
+
+// The canvas a merged import builds from `pages` pages whose largest is `cell`: the cell
+// itself for Layers, the grid of cells kArtboardSpacing apart for Artboards. The Import PDF
+// dialog's size estimate and MainWindow::merge_imported_pdf_pages both use it.
+[[nodiscard]] inline QSize pdf_merged_canvas_size(QSize cell, int pages, PdfPagesMerge merge) {
+  if (merge != PdfPagesMerge::Artboards) {
+    return cell;
+  }
+  const QSize grid = pdf_artboard_grid(pages);
+  return QSize(grid.width() * cell.width() + (grid.width() - 1) * kArtboardSpacing,
+               grid.height() * cell.height() + (grid.height() - 1) * kArtboardSpacing);
+}
 
 // True when this build linked Qt PDF, i.e. when opening a .pdf can work at all.
 [[nodiscard]] bool pdf_import_is_available();

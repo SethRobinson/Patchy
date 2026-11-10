@@ -29,16 +29,20 @@
 #include <QFileInfo>
 #include <QImageWriter>
 #include <QLabel>
+#include <QLocale>
 #if defined(PATCHY_HAVE_QT_PDF)
 #include <QPdfDocument>
 #endif
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QPointer>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QStandardItemModel>
 #include <QTextEdit>
+#include <QThread>
 #include <QTimer>
 #include <QTransform>
 
@@ -57,6 +61,49 @@
 namespace {
 using namespace patchy::test::ui;
 using namespace patchy::test::ui::import_print_resolution_support;
+
+// The canvas side of local-049 (eight scanned PDF pages imported as artboards showed a
+// progress dialog per page, then froze): eight 115 Mpx pages as artboards are one 1,048 Mpx
+// canvas, whose first paint composited it inside paintEvent and then built the zoomed-out
+// display mips on the UI thread (20 s frozen on a laptop). A canvas of 200 Mpx or more now
+// gets its first frame like a many-layer document does: the paint returns at once, a
+// worker builds the frame and the mips a fitted view draws from, and the canvas shows its
+// spinner meanwhile.
+void ui_canvas_very_large_document_first_paint_runs_in_background() {
+  EnvironmentVariableRestorer restore_render_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
+  // The worker waits before it renders, so "not settled yet" below is not a race.
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("400"));
+  patchy::Document document(20000, 10000, patchy::PixelFormat::rgba8());
+  auto mark = patchy::Layer(document.allocate_layer_id(), "Mark",
+                            solid_pixels(4000, 4000, patchy::PixelFormat::rgba8(), QColor(200, 30, 30)));
+  document.add_layer(std::move(mark));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Very Large"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view_without_enlarging();
+  QApplication::processEvents();
+  // Shown and painted without the frame: nothing waited on a render inside a paint.
+  CHECK(!canvas->render_settled());
+  CHECK(canvas->render_cache_diagnostics().awaited_renders == 0);
+  CHECK(canvas->render_cache_diagnostics().full_refreshes == 0);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(120);
+  while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+    QApplication::processEvents();
+    QThread::msleep(5);
+  }
+  CHECK(canvas->render_settled());
+  static_cast<void>(render_widget_image(*canvas));
+  const auto diagnostics = canvas->render_cache_diagnostics();
+  CHECK(diagnostics.full_refreshes == 1);
+  CHECK(diagnostics.awaited_renders == 0);
+  // The fitted view's mips came with the frame: the paint built none.
+  CHECK(canvas->view_zoom() < 0.5);
+  CHECK(diagnostics.display_mip_rebuilds == 0);
+  // The frame is on screen: the mark where it is, the empty canvas beside it.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(2000, 2000)), QColor(200, 30, 30), 8));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(15000, 7000)), QColor(200, 30, 30), 60));
+}
 
 #if defined(PATCHY_HAVE_QT_PDF)
 
@@ -772,6 +819,269 @@ void ui_pdf_import_artboard_pages_pass_through() {
   reset_pdf_pages_target();
 }
 
+// A PDF whose every page is one gray JPEG covering the page (a scan), page sizes in points
+// equal to the image sizes.
+QByteArray scan_pages_pdf(const std::vector<std::pair<QByteArray, QSize>>& pages) {
+  std::string kids;
+  for (std::size_t index = 0; index < pages.size(); ++index) {
+    kids += std::to_string(3 + index * 3) + " 0 R ";
+  }
+  std::vector<std::string> objects = {"<</Type/Catalog/Pages 2 0 R>>",
+                                      "<</Type/Pages/Kids[" + kids + "]/Count " + std::to_string(pages.size()) + ">>"};
+  for (const auto& [jpeg, size] : pages) {
+    const int base = static_cast<int>(objects.size()) + 1;
+    const auto width = std::to_string(size.width());
+    const auto height = std::to_string(size.height());
+    const std::string content = "q " + width + " 0 0 " + height + " 0 0 cm /Im0 Do Q";
+    objects.push_back("<</Type/Page/Parent 2 0 R/MediaBox[0 0 " + width + " " + height +
+                      "]/Resources<</XObject<</Im0 " + std::to_string(base + 2) + " 0 R>>>>/Contents " +
+                      std::to_string(base + 1) + " 0 R>>");
+    objects.push_back("<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream");
+    objects.push_back("<</Type/XObject/Subtype/Image/Width " + width + "/Height " + height +
+                      "/ColorSpace/DeviceGray/BitsPerComponent 8/Filter/DCTDecode/Length " +
+                      std::to_string(jpeg.size()) + ">>\nstream\n" + jpeg.toStdString() + "\nendstream");
+  }
+  return pdf_from_objects(objects);
+}
+
+// Seth's report (local-049): eight scanned pages imported as artboards showed eight
+// "Preparing page image 1 of 1" dialogs, one per page. An editable multi-page import now
+// runs ONE page-image pass over every page, for the artboard and the layer targets and for
+// separate documents alike, under one progress dialog that stays up through the merge;
+// the merged result is what it was (the tree, the artboard rects, each page's original
+// image still attached for pass-through).
+void ui_pdf_import_pages_share_one_image_pass_and_progress_dialog() {
+  const std::vector<std::pair<QByteArray, QSize>> scans = {{gray_scan_jpeg(72, 72, 0), QSize(72, 72)},
+                                                          {gray_scan_jpeg(48, 96, 40), QSize(48, 96)},
+                                                          {gray_scan_jpeg(72, 72, 90), QSize(72, 72)}};
+  const auto path = write_artifact(QStringLiteral("ui_pdf_import_one_image_pass.pdf"), scan_pages_pdf(scans));
+  // The dialog normally waits 400 ms, which three tiny pages never reach: show it at once.
+  patchy::ui::MainWindowTestAccess::set_open_progress_delay_ms(0);
+  for (const char* target : {"artboards", "layers", "documents"}) {
+    const QString target_id = QString::fromLatin1(target);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    // Every progress dialog that shows while the open runs, by object name.
+    QStringList dialogs_seen;
+    std::vector<QPointer<QProgressDialog>> counted;
+    QTimer watch;
+    watch.setInterval(0);
+    QObject::connect(&watch, &QTimer::timeout, [&dialogs_seen, &counted] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* progress = qobject_cast<QProgressDialog*>(widget);
+        if (progress == nullptr || !progress->isVisible() ||
+            std::find(counted.begin(), counted.end(), progress) != counted.end()) {
+          continue;
+        }
+        counted.emplace_back(progress);
+        dialogs_seen.push_back(progress->objectName());
+      }
+    });
+    watch.start();
+    const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+    CHECK(import_through_dialog(window, path, QStringLiteral("editable"), target_id, true));
+    watch.stop();
+
+    const auto record = patchy::ui::MainWindowTestAccess::open_progress_record(window);
+    CHECK(record.pdf_image_passes == 1);
+    CHECK(record.pdf_images == 3);
+    CHECK(record.pdf_image_window >= 1 && record.pdf_image_window <= 4);
+    // One dialog for the whole open, and no other progress dialog on screen at any turn
+    // of the event loop (the Import PDF dialog's own "Importing page" one aside).
+    CHECK(record.dialogs == QStringList{QStringLiteral("pdfPageImagesProgressDialog")});
+    for (const auto& name : dialogs_seen) {
+      CHECK(name == QStringLiteral("pdfPageImagesProgressDialog") || name == QStringLiteral("pdfImportProgressDialog"));
+    }
+    CHECK(dialogs_seen.count(QStringLiteral("pdfPageImagesProgressDialog")) <= 1);
+    // The count runs over every page's image: never "1 of 1" per page.
+    CHECK(record.steps.contains(QStringLiteral("Preparing page image 1 of 3...")));
+    CHECK(record.steps.contains(QStringLiteral("Preparing page image 3 of 3...")));
+    CHECK(!record.steps.contains(QStringLiteral("Preparing page image 1 of 1...")));
+    const auto first_index = [&record](const QString& prefix) {
+      for (qsizetype index = 0; index < record.steps.size(); ++index) {
+        if (record.steps[index].startsWith(prefix)) {
+          return index;
+        }
+      }
+      return qsizetype{-1};
+    };
+    const auto images_at = first_index(QStringLiteral("Preparing page image"));
+    const auto opening_at = first_index(QStringLiteral("Opening "));
+    CHECK(images_at >= 0 && opening_at > images_at);
+
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    if (target_id == QStringLiteral("documents")) {
+      CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 3);
+      CHECK(first_index(QStringLiteral("Opening page 3 of 3")) > opening_at);
+      // Page 1 stays active and carries its own fingerprint for pass-through.
+      CHECK(document.width() == 72 && document.height() == 72);
+      CHECK(document.metadata().pdf_source_page != nullptr &&
+            document.metadata().pdf_source_page->composite_hash_valid);
+      continue;
+    }
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+    CHECK(document.layers().size() == 3);
+    CHECK(document.metadata().pdf_page_source_pages.size() == 3);
+    for (const auto& [layer_id, source] : document.metadata().pdf_page_source_pages) {
+      CHECK(document.find_layer(layer_id) != nullptr);
+      CHECK(source != nullptr && source->composite_hash_valid);
+    }
+    const auto building_at = first_index(target_id == QStringLiteral("artboards") ? QStringLiteral("Building artboard 1 of 3")
+                                                                                 : QStringLiteral("Building page folder 1 of 3"));
+    const auto finishing_at = first_index(QStringLiteral("Finishing page 1 of 3"));
+    CHECK(building_at > images_at && finishing_at > building_at && opening_at > finishing_at);
+    if (target_id == QStringLiteral("artboards")) {
+      const auto artboards = patchy::document_artboards(document);
+      CHECK(artboards.size() == 3);
+      if (artboards.size() == 3) {
+        // Two columns of 72 x 96 cells, 100 px apart: page 3 starts the second row.
+        CHECK(artboards[0]->name() == "Page 1" && artboards[2]->name() == "Page 3");
+        CHECK((artboards[0]->artboard()->rect == patchy::Rect{0, 0, 72, 72}));
+        CHECK((artboards[1]->artboard()->rect == patchy::Rect{172, 0, 48, 96}));
+        CHECK((artboards[2]->artboard()->rect == patchy::Rect{0, 196, 72, 72}));
+        CHECK(document.width() == 244 && document.height() == 292);
+      }
+    } else {
+      CHECK(document.width() == 72 && document.height() == 96);
+      CHECK(document.layers()[2].name() == "Page 1" && document.layers()[0].name() == "Page 3");
+      CHECK(document.layers()[2].visible() && !document.layers()[0].visible());
+    }
+    // Untouched, every page goes back out as its original JPEG bytes.
+    patchy::ui::PdfExportOptions options;
+    options.pages = target_id == QStringLiteral("layers") ? patchy::ui::PdfPageSource::Groups
+                                                          : patchy::ui::PdfPageSource::Artboards;
+    const auto out_path = QStringLiteral("test-artifacts/ui_pdf_import_one_image_pass_%1.pdf").arg(target_id);
+    QFile::remove(out_path);
+    patchy::ui::write_pdf_document_file(document, out_path, options);
+    const QByteArray bytes = read_file_bytes(out_path);
+    auto file = patchy::pdf::File::open(std::vector<std::uint8_t>(bytes.begin(), bytes.end()), nullptr);
+    CHECK(file.has_value() && file->pages().size() == 3);
+    if (file.has_value() && file->pages().size() == 3) {
+      for (std::size_t index = 0; index < 3; ++index) {
+        const auto* xobjects = file->get(file->pages()[index].resources, "XObject").dictionary();
+        CHECK(xobjects != nullptr && !xobjects->empty());
+        if (xobjects != nullptr && !xobjects->empty()) {
+          const auto data = file->stream_data(file->resolve(xobjects->begin()->second));
+          CHECK(QByteArray(reinterpret_cast<const char*>(data.data.data()), static_cast<qsizetype>(data.data.size())) ==
+                scans[index].first);
+        }
+      }
+    }
+  }
+  // A picture of the dialog for the review desk: eight larger pages, so the pass is long
+  // enough for the event loop to turn while it is up. Best effort, nothing rides on it.
+  {
+    std::vector<std::pair<QByteArray, QSize>> larger;
+    for (int page = 0; page < 8; ++page) {
+      larger.emplace_back(gray_scan_jpeg(900, 1300, page * 20), QSize(900, 1300));
+    }
+    const auto larger_path =
+        write_artifact(QStringLiteral("ui_pdf_import_one_image_pass_capture.pdf"), scan_pages_pdf(larger));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    bool captured = false;
+    QTimer watch;
+    watch.setInterval(0);
+    QObject::connect(&watch, &QTimer::timeout, [&captured] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("pdfPageImagesProgressDialog"));
+      auto* progress = qobject_cast<QProgressDialog*>(dialog);
+      if (captured || progress == nullptr || !progress->isVisible() || progress->value() < 2) {
+        return;
+      }
+      captured = true;
+      save_widget_artifact("ui_pdf_import_one_progress_dialog", *progress);
+    });
+    watch.start();
+    CHECK(import_through_dialog(window, larger_path, QStringLiteral("editable"), QStringLiteral("artboards"), true));
+    watch.stop();
+    const auto record = patchy::ui::MainWindowTestAccess::open_progress_record(window);
+    CHECK(record.pdf_image_passes == 1 && record.pdf_images == 8);
+    CHECK(record.dialogs == QStringList{QStringLiteral("pdfPageImagesProgressDialog")});
+    CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).metadata().pdf_page_source_pages.size() == 8);
+  }
+  patchy::ui::MainWindowTestAccess::set_open_progress_delay_ms(-1);
+  reset_pdf_pages_target();
+}
+
+// The Import PDF dialog's size note describes what the chosen target really builds: for
+// artboards the one canvas of the grid (largest page per cell, the gaps and the empty cell
+// included) and its memory, and it turns into a warning when that canvas is very large.
+void ui_pdf_import_size_label_describes_the_merged_canvas() {
+  // Five pages of 20 x 30 inches: at 300 ppi each is 6000 x 9000 px.
+  std::vector<std::pair<QByteArray, QSize>> scans;
+  for (int page = 0; page < 5; ++page) {
+    scans.emplace_back(gray_scan_jpeg(16, 24, page * 20), QSize(1440, 2160));
+  }
+  const auto path = write_artifact(QStringLiteral("ui_pdf_import_size_label.pdf"), scan_pages_pdf(scans));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto done = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [done] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("pdfImportDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* pages = dialog->findChild<QListWidget*>(QStringLiteral("pdfImportPagesList"));
+    auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportResolutionCombo"));
+    auto* pages_target = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportPagesTargetCombo"));
+    auto* bit_depth = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportBitDepthCombo"));
+    auto* size_label = dialog->findChild<QLabel*>(QStringLiteral("pdfImportSizeLabel"));
+    if (pages == nullptr || resolution == nullptr || pages_target == nullptr || bit_depth == nullptr ||
+        size_label == nullptr) {
+      return false;
+    }
+    const auto choose = [&](const char* target, const char* ppi) {
+      pages_target->setCurrentIndex(pages_target->findData(QString::fromLatin1(target)));
+      resolution->setCurrentText(QString::fromLatin1(ppi));
+      QApplication::processEvents();
+    };
+    bit_depth->setCurrentIndex(bit_depth->findData(8));
+    pages->selectAll();
+
+    // Artboards at 300 ppi: 3 columns x 2 rows of 6000 x 9000 cells, 100 px apart, the
+    // sixth cell empty: 18200 x 18100 px, 329 Mpx. Past the "very large" line: a warning.
+    choose("artboards", "300");
+    CHECK(size_label->text().contains(QStringLiteral("5 artboard(s), first page 6000 x 9000 px")));
+    CHECK(size_label->text().contains(QStringLiteral("One canvas of 18200 x 18100 px")));
+    CHECK(size_label->text().contains(QStringLiteral("very large")));
+    CHECK(size_label->property("importWarning").toBool());
+    CHECK(!size_label->styleSheet().isEmpty());
+    // Five pages (5 x 216 MB) plus the canvas frame (1318 MB): 2.2 GB, not the 1.0 GB of
+    // the pages alone.
+    CHECK(size_label->text().contains(QLocale().toString(2.2, 'f', 1) + QStringLiteral(" GB")));
+    save_widget_artifact("ui_pdf_import_size_label_warning", *dialog);
+
+    // At 72 ppi the same grid is 4520 x 4420 px: said plainly, no warning.
+    choose("artboards", "72");
+    CHECK(size_label->text().contains(QStringLiteral("One canvas of 4520 x 4420 px.")));
+    CHECK(!size_label->text().contains(QStringLiteral("very large")));
+    CHECK(!size_label->property("importWarning").toBool());
+    CHECK(size_label->styleSheet().isEmpty());
+
+    // Layers share a canvas of the largest page; separate documents share none.
+    choose("layers", "300");
+    CHECK(size_label->text().contains(QStringLiteral("One canvas of 6000 x 9000 px.")));
+    CHECK(!size_label->property("importWarning").toBool());
+    choose("documents", "300");
+    CHECK(!size_label->text().contains(QStringLiteral("One canvas")));
+    CHECK(!size_label->property("importWarning").toBool());
+
+    // One page is no merge: nothing to say about a shared canvas.
+    pages->clearSelection();
+    pages->item(0)->setSelected(true);
+    choose("artboards", "300");
+    CHECK(!size_label->text().contains(QStringLiteral("One canvas")));
+    *done = true;
+    dialog->reject();
+    return true;
+  };
+  drive_modal_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  CHECK(*done);
+  reset_pdf_pages_target();
+}
+
 // The real scanned document (85 pages of JPEG 2000; the first 5 here) round-trips both
 // ways: imported as page folders and exported by groups, and imported as artboards and
 // exported by artboards, every page comes back with its original image bytes, in order.
@@ -954,10 +1264,15 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part4() {
       {"ui_pdf_import_pages_become_artboards_and_export_back", ui_pdf_import_pages_become_artboards_and_export_back},
       {"ui_pdf_import_artboard_pages_pass_through", ui_pdf_import_artboard_pages_pass_through},
       {"ui_pdf_import_page_folders_export_back_by_groups", ui_pdf_import_page_folders_export_back_by_groups},
+      {"ui_pdf_import_pages_share_one_image_pass_and_progress_dialog",
+       ui_pdf_import_pages_share_one_image_pass_and_progress_dialog},
+      {"ui_pdf_import_size_label_describes_the_merged_canvas", ui_pdf_import_size_label_describes_the_merged_canvas},
       {"ui_pdf_local_scans_round_trip_as_folders_and_artboards_if_available",
        ui_pdf_local_scans_round_trip_as_folders_and_artboards_if_available},
       {"ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available",
        ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available},
 #endif
+      {"ui_canvas_very_large_document_first_paint_runs_in_background",
+       ui_canvas_very_large_document_first_paint_runs_in_background},
   };
 }

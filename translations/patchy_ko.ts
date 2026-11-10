@@ -15694,6 +15694,14 @@ Do you want to replace it?</source>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>레이어 목록 위, 불투명도 옆의 칠 필드입니다. 숨기면 좁은 패널에서도 혼합 모드와 불투명도가 한 줄에 들어갑니다.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>캔버스 하나가 %1 x %2 px로 매우 큽니다. 열기와 편집이 느려집니다. 페이지 수를 줄이거나 해상도를 낮추거나 &quot;개별 문서&quot;를 선택하면 더 빠릅니다.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>캔버스 하나, %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31388,10 +31396,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>대지가 있는 문서에는 자르기가 적용되지 않습니다. 대지 도구로 대지의 크기를 조정하세요</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>페이지 이미지 준비 중...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>PDF 여는 중</translation>
     </message>
@@ -35610,6 +35614,22 @@ Locked: %1</source>
         <translation>
             <numerusform>(숨겨졌거나 비어 있는 레이어 %n개 제외)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>비트 심도 변환 중...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>대지 %1/%2 만드는 중...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>페이지 폴더 %1/%2 만드는 중...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>페이지 %1/%2 마무리 중...</translation>
     </message>
 </context>
 <context>

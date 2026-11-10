@@ -15750,6 +15750,14 @@ Deseja substituí-lo?</translation>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>O campo Preenchimento ao lado de Opacidade, acima da lista de camadas. Sem ele, o modo de mesclagem e a opacidade cabem em uma linha em um painel estreito.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Uma tela de %1 x %2 px, que é muito grande: será lenta para abrir e editar. Menos páginas, uma resolução mais baixa ou &quot;Documentos separados&quot; serão mais rápidos.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Uma tela de %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31484,10 +31492,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Cortar não se aplica a um documento com pranchetas; redimensione uma prancheta com a ferramenta Prancheta</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Preparando as imagens das páginas...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>Abrindo PDF</translation>
     </message>
@@ -35719,6 +35723,22 @@ Bloqueado: %1</translation>
             <numerusform>(%n camada oculta ou vazia omitida)</numerusform>
             <numerusform>(%n camadas ocultas ou vazias omitidas)</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Convertendo a profundidade de bits...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Criando a prancheta %1 de %2...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Criando a pasta de página %1 de %2...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Finalizando a página %1 de %2...</translation>
     </message>
 </context>
 <context>
