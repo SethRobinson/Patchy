@@ -63,6 +63,16 @@ namespace {
 
 using namespace patchy::test::ui;
 
+// QImage::mirrored is deprecated from Qt 6.9 (the Flatpak runtime's Qt), and its
+// replacement does not exist in the 6.8.3 the native presets use.
+QImage mirrored_horizontally(const QImage& image) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+  return image.flipped(Qt::Horizontal);
+#else
+  return image.mirrored(true, false);
+#endif
+}
+
 QImage readme_photo(const char* name) {
   const auto path = patchy::test::committed_format_fixture_path("readme", name);
   QImage image(QString::fromStdString(path.string()));
@@ -152,7 +162,7 @@ void shot_readme_gegl() {
   {
     QPainter painter(&photo);
     painter.drawImage(0, 0, half);
-    painter.drawImage(600, 0, half.mirrored(true, false));
+    painter.drawImage(600, 0, mirrored_horizontally(half));
   }
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);

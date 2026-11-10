@@ -561,6 +561,10 @@ Box layer_box(const Document& document, const Layer& layer) {
 
 Declarations layer_declarations(const Document& document, const Layer& layer, const Box& box) {
   Declarations declarations;
+  // One allocation covers a typical class. It also keeps GCC 12 quiet: without the spare
+  // capacity it reports a false -Warray-bounds in the growth path it inlines for the second
+  // emplace_back below.
+  declarations.reserve(16);
   declarations.emplace_back("position", "absolute");
   declarations.emplace_back("left", px(box.left));
   declarations.emplace_back("top", px(box.top));
