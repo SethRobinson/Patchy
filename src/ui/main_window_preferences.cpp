@@ -33,6 +33,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
+#include "ui/font_display_names.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/icon_theme.hpp"
@@ -897,6 +898,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       tr("Type > Resolve Missing Fonts opens the same dialog at any time."));
   missing_fonts_check->setChecked(settings.value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
   application_form->addRow(missing_fonts_check);
+  // GitHub issue 691: the font picker's names only; documents keep the family they name.
+  auto* english_font_names_check = new WrappingCheckBox(tr("Show font names in English"), application_group);
+  english_font_names_check->setObjectName(QStringLiteral("preferencesShowFontNamesInEnglishCheck"));
+  english_font_names_check->setToolTip(
+      tr("When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or "
+         "Korean, under their English names. Search finds either name."));
+  english_font_names_check->setChecked(stored_show_font_names_in_english());
+  application_form->addRow(english_font_names_check);
   auto* missing_links_check = new WrappingCheckBox(
       tr("Show the Missing Linked Files dialog when opening a document with missing linked files"), application_group);
   missing_links_check->setObjectName(QStringLiteral("preferencesShowMissingLinksDialogCheck"));
@@ -2433,6 +2442,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/flatAlphaAsLayerMask"), flat_alpha_mask_check->isChecked());
     settings.setValue(QStringLiteral("newDocument/addEmptyLayer"), new_document_layer_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());
+    set_stored_show_font_names_in_english(english_font_names_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/afImageLayers"), af_image_layers_combo->currentData().toString());
