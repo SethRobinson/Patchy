@@ -20,6 +20,8 @@ A window a modal blocks shows the arrow, whatever sets its cursor (issue 504, `s
 
 Placement clamps the full frame to the screen's available area (no taskbars or docks), again after Show finalizes sizes and margins and on Resize, for unnamed and transient dialogs too. Automatic moves never enter position memory.
 
+A dialog whose word-wrapped label changes text while it is open calls `keep_dialog_tall_enough_for_wrapped_text` (`src/ui/dialog_utils`): Qt takes a window's minimum height from the label's width-independent hint, so more wrapped lines squeeze the rows around it instead of growing the dialog (Remove Object's status, GitHub #612; Import PDF's size note). When such a label sits in a fixed column beside a stretch widget, also give it the horizontal size policy `Ignored` and the stretch widget a real minimum width: a wrapped QLabel hints up to 80 characters of width, and a box layout hands its stretch item the bare minimum once the row's hints no longer fit ([pdf-import.md](pdf-import.md)).
+
 `show_warning_message` answers bare letters: Y/N (Yes/No, Save/Discard), S/D, C (Cancel). A Save + Discard box reads "&Yes", "&No", "&Cancel" (same roles, one width), so its text is a yes/no question; close prompt quotes the name, Yes default (issues 70, 240, 605; `ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys`). The default button has the accent outline.
 
 Fields typing replaces (hex, ratios) call `select_all_on_focus`: select-all on focus-in, queued past the click. The color picker focuses its HTML field on show (Ctrl+V, Return pastes a hex) (GitHub issue 68; `ui_color_picker_opens_with_hex_field_selected_for_paste`).

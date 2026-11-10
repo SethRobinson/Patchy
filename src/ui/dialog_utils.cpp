@@ -513,7 +513,14 @@ double scrub_value(const QAbstractSpinBox* spin) {
 // either direction.
 void set_scrub_value(QAbstractSpinBox* spin, double anchor, double steps) {
   if (auto* int_spin = qobject_cast<QSpinBox*>(spin); int_spin != nullptr) {
-    int_spin->setValue(static_cast<int>(anchor + std::trunc(steps) * int_spin->singleStep()));
+    // A field whose arrows step by a tenth of the value's size (the arrowhead percents,
+    // 10 to 100000) scrubs by the step its starting value has, so a drag is useful at both
+    // ends of the range.
+    double step = int_spin->singleStep();
+    if (int_spin->stepType() == QAbstractSpinBox::AdaptiveDecimalStepType && std::abs(anchor) >= 100.0) {
+      step = std::max(step, std::pow(10.0, std::floor(std::log10(std::abs(anchor))) - 1.0));
+    }
+    int_spin->setValue(static_cast<int>(std::lround(anchor + std::trunc(steps) * step)));
   } else if (auto* double_spin = qobject_cast<QDoubleSpinBox*>(spin); double_spin != nullptr) {
     double_spin->setValue(anchor + steps * double_spin->singleStep());
   }
@@ -3143,6 +3150,51 @@ void remember_dialog_position(QDialog& dialog) {
   place_dialog(dialog, remember_position);
   dialog.installEventFilter(new DialogPositionMemoryFilter(dialog, remember_position, had_remembered_position));
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
+}
+
+namespace {
+
+// The preferred height, not the minimum: at the minimum spin boxes lose their bottom
+// pixels. A text change (LayoutRequest) or a narrower window (Resize) re-fits the height.
+class WrappedTextDialogHeightGuard final : public QObject {
+public:
+  explicit WrappedTextDialogHeightGuard(QDialog& dialog) : QObject(&dialog), dialog_(dialog) {
+    dialog.installEventFilter(this);
+  }
+
+  void fit() {
+    auto* layout = dialog_.layout();
+    if (layout == nullptr || !layout->hasHeightForWidth()) {
+      return;
+    }
+    const int needed = layout->totalHeightForWidth(dialog_.width());
+    if (needed <= 0) {
+      return;
+    }
+    if (dialog_.minimumHeight() != needed) {
+      dialog_.setMinimumHeight(needed);
+    }
+    if (dialog_.height() < needed) {
+      dialog_.resize(dialog_.width(), needed);
+    }
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == &dialog_ && (event->type() == QEvent::LayoutRequest || event->type() == QEvent::Resize)) {
+      fit();
+    }
+    return false;
+  }
+
+private:
+  QDialog& dialog_;
+};
+
+}  // namespace
+
+void keep_dialog_tall_enough_for_wrapped_text(QDialog& dialog) {
+  new WrappedTextDialogHeightGuard(dialog);
 }
 
 static bool unattended_dialog(const QWidget& dialog) {

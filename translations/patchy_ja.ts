@@ -15702,6 +15702,49 @@ Do you want to replace it?</source>
         <source>One canvas of %1 x %2 px.</source>
         <translation>キャンバスは 1 つで %1 x %2 px です。</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>「内側」では、境界線は直線の太さの範囲内に収まります。直線を太くするには「中央」または「外側」を選択してください。</translation>
+    </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>文字幅が同じ</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>似たデザイン</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>同じセリフ体</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>同じサンセリフ体</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>同じ等幅フォント</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>以前に選択したフォント</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>候補</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>以前の選択: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35638,6 +35681,10 @@ Locked: %1</source>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>ページ %1 / %2 を仕上げ中...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>「内側」では、この境界線は直線の太さの範囲内に収まります。直線を太くするには、シェイプの外観の「位置」で「中央」または「外側」を選択してください。</translation>
     </message>
 </context>
 <context>

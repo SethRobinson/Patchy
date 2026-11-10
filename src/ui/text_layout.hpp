@@ -132,7 +132,8 @@ inline constexpr int kTextLanguageFormatProperty = QTextFormat::UserProperty + 6
 // renders from them (GitHub issue 683).
 inline constexpr int kTextMiddleEasternFormatProperty = QTextFormat::UserProperty + 61;
 // Block property: the paragraph's kept Photoshop settings (Hyphenate, the hyphenation settings,
-// the Kashida width) as their paragraph runs v6 column 11 tokens ("hyphenate,kashida:0"), absent
+// the Kashida width, the Every-line composer) as their paragraph runs v6 column 11 tokens
+// ("hyphenate,kashida:0,everyline"), absent
 // when every one is at its default. A paragraph split by Return inherits it with the block
 // format; nothing renders from it (GitHub issue 683).
 inline constexpr int kTextBlockPhotoshopSettingsProperty = QTextFormat::UserProperty + 62;

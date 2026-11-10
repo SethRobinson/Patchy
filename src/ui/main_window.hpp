@@ -2153,7 +2153,9 @@ private:
   // path, so the Properties panel can still change them afterwards.
   void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths,
                                  std::optional<patchy::LiveShapeParams> live = std::nullopt);
-  [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
+  // The fill and stroke a new shape gets from the options bar. `line`: for a line, whose
+  // stroke is centered unless a saved stroke preset chose its alignment.
+  [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content(bool line = false) const;
   void refresh_vector_tool_options_visibility();
   void refresh_path_point_count_chip();
   // Layer > Shape commands (docs/vector-commands-shapes.md).
@@ -2270,7 +2272,11 @@ private:
   void apply_selected_line_weight(double weight);
   void apply_selected_line_arrowhead(bool at_end, bool on);
   void sync_line_options_from_selection(const std::vector<LayerId>& ids);
-  void queue_shape_appearance_edit(const ShapeAppearanceSettings& settings);
+  // `after_commit` runs once the queued edit has been applied.
+  void queue_shape_appearance_edit(const ShapeAppearanceSettings& settings, std::function<void()> after_commit = {});
+  // Says in the status bar why a stroke width does not thicken a selected line whose stroke
+  // is aligned Inside.
+  void note_inside_stroke_on_selected_lines();
   bool commit_shape_appearance_edit(const std::vector<LayerId>& ids,
                                     const ShapeAppearanceSettings& settings);
   // Options-bar W / H of the active shape layer (Photoshop's readouts): the

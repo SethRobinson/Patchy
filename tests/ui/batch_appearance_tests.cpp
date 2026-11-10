@@ -24,8 +24,12 @@
 #include <QListWidget>
 #include <QMetaObject>
 #include <QMenu>
+#include <QPainter>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
+#include <QStatusBar>
 #include <QTimer>
 #include <QToolButton>
 #include <QWidget>
@@ -34,6 +38,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <chrono>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -47,6 +52,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "ui_test_access.hpp"
@@ -999,8 +1006,8 @@ void ui_shape_appearance_arrowhead_size() {
     auto* length = field<QSpinBox>(dialog, "shapeArrowLengthSpin");
     auto* concavity = field<QSpinBox>(dialog, "shapeArrowConcavitySpin");
     CHECK(width->value() == 500 && length->value() == 1000 && concavity->value() == 0);
-    CHECK(width->isEnabled() && width->minimum() == 10 && width->maximum() == 1000);
-    CHECK(length->minimum() == 10 && length->maximum() == 5000);
+    CHECK(width->isEnabled() && width->minimum() == 10 && width->maximum() == 100000);
+    CHECK(length->minimum() == 10 && length->maximum() == 100000);
     CHECK(concavity->minimum() == -50 && concavity->maximum() == 50);
     width->setValue(300);
     length->setValue(800);
@@ -1655,6 +1662,677 @@ void ui_shape_appearance_line_weight_in_geometry() {
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
 }
 
+// Rows of `image` in column x, from y0 to y1, that are not the white canvas.
+int inked_rows(const QImage& image, int x, int y0, int y1) {
+  int count = 0;
+  for (int y = std::max(0, y0); y <= std::min(image.height() - 1, y1); ++y) {
+    const QColor color = image.pixelColor(x, y);
+    if (color.red() < 200 || color.green() < 200 || color.blue() < 200) ++count;
+  }
+  return count;
+}
+
+const VectorStroke& stroke_of(const Document& doc, LayerId id) {
+  return std::as_const(doc).find_layer(id)->vector_shape()->stroke;
+}
+
+// local-051: a line is a filled outline as wide as its Weight, so an Inside stroke (the
+// default of the other shapes) only recolours it. A line drawn with the Line tool gets a
+// Center stroke, the drag preview shows the same band, the options bar's Stroke width then
+// changes the line's thickness, and a saved stroke preset's own alignment is kept.
+void ui_line_tool_new_line_stroke_is_centered() {
+  SettingsValueRestorer arrow_start_setting(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer arrow_end_setting(QStringLiteral("tools/lineArrowEnd"));
+  SettingsValueRestorer saved_presets{QString::fromLatin1(kStrokeStylePresetsKey)};
+  save_stroke_style_presets({StrokeStylePreset{QStringLiteral("Outside solid"), VectorStrokeAlignment::Outside,
+                                               VectorStrokeCap::Butt, VectorStrokeJoin::Miter, {}, 0.0},
+                             StrokeStylePreset{QStringLiteral("Inside solid"), VectorStrokeAlignment::Inside,
+                                               VectorStrokeCap::Butt, VectorStrokeJoin::Miter, {}, 0.0}});
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  require_action_by_text(window, QStringLiteral("Line"))->trigger();
+  QApplication::processEvents();
+  canvas->setFocus(Qt::MouseFocusReason);
+  canvas->set_snap_enabled(false);
+  auto* weight = field<QDoubleSpinBox>(window, "vectorLineWeightSpin");
+  auto* stroke_width = field<QDoubleSpinBox>(window, "vectorStrokeWidthSpin");
+  auto* dashes = field<QComboBox>(window, "vectorStrokeDashCombo");
+  for (const char* name : {"lineArrowStartButton", "lineArrowEndButton"}) {
+    auto* button = field<QPushButton>(window, name);
+    if (button->isChecked()) button->click();
+  }
+  weight->setValue(4.0);
+  QMetaObject::invokeMethod(weight, "editingFinished", Qt::DirectConnection);
+  auto& fill = MainWindowTestAccess::current_vector_fill(window);
+  fill.kind = VectorFillKind::Solid; fill.color = {30, 60, 200};
+  auto& paint = MainWindowTestAccess::current_vector_stroke_paint(window);
+  paint.kind = VectorFillKind::Solid; paint.color = {220, 40, 40};
+  stroke_width->setValue(24.0);
+  QApplication::processEvents();
+
+  const auto widget = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto band_at_middle = [&] {
+    const auto image = canvas->grab().toImage();
+    const auto middle = widget(220, 120);
+    const int reach = static_cast<int>(std::ceil(60.0 * canvas->zoom()));
+    return inked_rows(image, middle.x(), middle.y() - reach, middle.y() + reach);
+  };
+  // Mid-drag: the preview band.
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget(80, 120), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget(360, 120), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const int preview_band = band_at_middle();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget(360, 120), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(doc.active_layer_id().has_value());
+  const auto line = *doc.active_layer_id();
+  CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+  const int committed_band = band_at_middle();
+  {
+    // For the review: the line as drawn, Weight 4 px with a 24 px stroke.
+    const auto zoom = canvas->zoom();
+    canvas->zoom_to_document_rect(QRect(40, 60, 360, 120));
+    QApplication::processEvents();
+    save_widget_artifact("ui_local_051_line_stroke_24", *canvas);
+    patchy::psd::DocumentIo::write_layered_rgb8_file(
+        doc, std::filesystem::path("test-artifacts") / "ui_local_051_line_center_stroke.psd");
+    canvas->set_zoom(zoom);
+    QApplication::processEvents();
+  }
+  CHECK(stroke_of(doc, line).enabled && stroke_of(doc, line).width == 24.0);
+  CHECK(stroke_of(doc, line).alignment == VectorStrokeAlignment::Center);
+  // Weight 4 plus 12 px of stroke on each side, in the preview and on the layer.
+  const double expected_band = 28.0 * canvas->zoom();
+  CHECK(std::abs(committed_band - expected_band) <= 2.0);
+  CHECK(std::abs(preview_band - committed_band) <= 2);
+  CHECK(std::abs(std::as_const(doc).find_layer(line)->bounds().height - 28) <= 2);
+
+  // The options bar's Stroke width changes the selected line's thickness.
+  stroke_width->setValue(40.0);
+  CHECK(process_events_until([&] { return stroke_of(doc, line).width == 40.0; }));
+  CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+  CHECK(std::abs(std::as_const(doc).find_layer(line)->bounds().height - 44) <= 2);
+  CHECK(stroke_of(doc, line).alignment == VectorStrokeAlignment::Center);
+
+  // Saved and reopened, the stroke is still centered.
+  {
+    const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(doc, {}));
+    const auto* content = reopened.layers().back().vector_shape();
+    CHECK(content != nullptr && content->stroke.alignment == VectorStrokeAlignment::Center);
+    CHECK(content != nullptr && content->stroke.width == 40.0);
+  }
+
+  // The other shapes keep Inside.
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget(500, 300), widget(700, 420));
+  QApplication::processEvents();
+  const auto box = *doc.active_layer_id();
+  CHECK(box != line && stroke_of(doc, box).alignment == VectorStrokeAlignment::Inside);
+
+  // A saved preset is the user's own choice of alignment: the next line takes it as it is.
+  require_action_by_text(window, QStringLiteral("Line"))->trigger();
+  QApplication::processEvents();
+  for (const auto& [name, alignment] : {std::pair{"Outside solid", VectorStrokeAlignment::Outside},
+                                        std::pair{"Inside solid", VectorStrokeAlignment::Inside}}) {
+    const int row = dashes->findText(QLatin1String(name));
+    CHECK(row >= 0);
+    dashes->setCurrentIndex(row);
+    QApplication::processEvents();
+    const int y = alignment == VectorStrokeAlignment::Outside ? 520 : 620;
+    drag(*canvas, widget(80, y), widget(360, y));
+    QApplication::processEvents();
+    const auto drawn = *doc.active_layer_id();
+    const auto* shape = std::as_const(doc).find_layer(drawn)->vector_shape();
+    CHECK(shape != nullptr && shape->origination.size() == 1 &&
+          shape->origination.front().kind == LiveShapeKind::Line);
+    CHECK(stroke_of(doc, drawn).alignment == alignment);
+  }
+  // That last line's stroke is Inside: a width change from the options bar says why the
+  // line does not get thicker.
+  const auto inside_line = *doc.active_layer_id();
+  stroke_width->setValue(30.0);
+  CHECK(process_events_until([&] { return stroke_of(doc, inside_line).width == 30.0; }));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Inside")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Weight")));
+}
+
+Layer stroked_line_layer(LayerId id, const Document& doc, double x1, double x2, double y, double weight,
+                         bool arrow_end, double stroke_width, VectorStrokeAlignment alignment) {
+  Layer layer(id, "Line " + std::to_string(id), PixelBuffer());
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Line;
+  params.line_start_x = x1; params.line_start_y = y;
+  params.line_end_x = x2; params.line_end_y = y;
+  params.line_weight = weight; params.arrow_end = arrow_end;
+  give_line_arrowheads_default_size(params);
+  params.index = static_cast<int>(id);
+  VectorShapeContent content;
+  content.path.subpaths = generate_live_shape_subpaths(params);
+  if (const auto bounds = content.path.bounds()) {
+    params.left = bounds->left; params.top = bounds->top; params.right = bounds->right; params.bottom = bounds->bottom;
+  }
+  content.origination.push_back(params);
+  content.fill.kind = VectorFillKind::Solid; content.fill.color = {30, 60, 200};
+  content.stroke.enabled = stroke_width > 0.0;
+  content.stroke.width = stroke_width > 0.0 ? stroke_width : 3.0;
+  content.stroke.alignment = alignment;
+  content.stroke.content.kind = VectorFillKind::Solid; content.stroke.content.color = {220, 40, 40};
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()), nullptr);
+  return layer;
+}
+
+// local-051: an Inside stroke on a line stays within the line's Weight, so the Stroke width
+// never makes the line thicker. Shape Appearance says so under the Align row while that is
+// the case, and showing or hiding the note moves nothing in the dialog.
+void ui_shape_appearance_inside_stroke_hint_on_lines() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id(), box = doc.allocate_layer_id();
+  doc.add_layer(stroked_line_layer(id, doc, 80, 480, 160, 4, false, 24, VectorStrokeAlignment::Inside));
+  doc.add_layer(rectangle(box, 80, 160, {0, 0, 0, 0}, {40, 120, 60}));
+  select_batch_layers(window, {id});
+  const auto rendered_height = [&] { return std::as_const(doc).find_layer(id)->bounds().height; };
+  CHECK(rendered_height() <= 5);  // the 24 px stroke only recolours the 4 px line
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    QApplication::processEvents();
+    save_widget_artifact("ui_local_051_inside_stroke_hint", dialog);
+    auto* hint = dialog.findChild<QLabel*>(QStringLiteral("shapeStrokeInsideLineHint"));
+    CHECK(hint != nullptr);
+    if (hint == nullptr) { dialog.reject(); return; }
+    auto* align = field<QComboBox>(dialog, "shapeStrokeAlignCombo");
+    auto* width = field<QDoubleSpinBox>(dialog, "shapeStrokeWidthSpin");
+    auto* caps = field<QComboBox>(dialog, "shapeStrokeCapCombo");
+    CHECK(align->currentData().toInt() == static_cast<int>(VectorStrokeAlignment::Inside));
+    CHECK(hint->isVisible());
+    CHECK(hint->text() == QStringLiteral("Inside keeps the stroke within the line's Weight. Choose Center or "
+                                         "Outside to make the line thicker."));
+    // Under the Align row, above Caps, inside the Stroke column, every line of it shown.
+    const auto top = [&](QWidget* w) { return w->mapTo(&dialog, QPoint(0, 0)).y(); };
+    CHECK(top(hint) >= top(align) + align->height());
+    CHECK(top(hint) + hint->height() <= top(caps));
+    CHECK(hint->width() > 0 && hint->height() >= hint->heightForWidth(hint->width()));
+    CHECK(hint->mapTo(&dialog, QPoint(hint->width(), 0)).x() <= dialog.width());
+    // The dialog and its page keep their size whether the note shows or not: hidden, its
+    // height stays as room under the Stroke section, and the rows below Align close up.
+    auto* right_column = field<QWidget>(dialog, "shapeAppearanceRightColumn");
+    auto* scroll = dialog.findChild<QScrollArea*>();
+    CHECK(scroll != nullptr && scroll->widget() != nullptr);
+    const auto page_state = [&] {
+      QApplication::processEvents();
+      return std::tuple{dialog.size(), right_column->minimumSizeHint().height(), scroll->widget()->height(),
+                        scroll->verticalScrollBar()->isVisible()};
+    };
+    const auto size = dialog.size();
+    const auto with_note = page_state();
+    const int caps_top = top(caps);
+    align->setCurrentIndex(align->findData(static_cast<int>(VectorStrokeAlignment::Center)));
+    QApplication::processEvents();
+    CHECK(!hint->isVisible());
+    CHECK(page_state() == with_note);
+    CHECK(top(caps) < caps_top);
+    // Center shows the stroke: the line is 4 + 24 px thick in the preview.
+    CHECK(process_events_until([&] { return std::abs(rendered_height() - 28) <= 2; }));
+    align->setCurrentIndex(align->findData(static_cast<int>(VectorStrokeAlignment::Outside)));
+    QApplication::processEvents();
+    CHECK(!hint->isVisible());
+    align->setCurrentIndex(align->findData(static_cast<int>(VectorStrokeAlignment::Inside)));
+    QApplication::processEvents();
+    CHECK(hint->isVisible());
+    CHECK(page_state() == with_note && top(caps) == caps_top);
+    // No stroke, nothing to explain.
+    width->setValue(0.0);
+    QApplication::processEvents();
+    CHECK(!hint->isVisible());
+    width->setValue(24.0);
+    QApplication::processEvents();
+    CHECK(hint->isVisible());
+    // Reset gives a line the stroke a new line gets: centered, so no note.
+    field<QPushButton>(dialog, "shapeAppearanceResetButton")->click();
+    QApplication::processEvents();
+    CHECK(align->currentData().toInt() == static_cast<int>(VectorStrokeAlignment::Center));
+    CHECK(!hint->isVisible());
+    CHECK(page_state() == with_note);
+    // With a gradient stroke the Stroke column is the tall one (the dialog grows for its
+    // rows): the note still comes and goes without changing the dialog.
+    width->setValue(24.0);
+    auto* paint = field<QComboBox>(dialog, "shapeStrokePaintCombo");
+    paint->setCurrentIndex(paint->findData(static_cast<int>(VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    const auto gradient_without_note = page_state();
+    CHECK(std::get<0>(gradient_without_note).height() >= size.height());
+    align->setCurrentIndex(align->findData(static_cast<int>(VectorStrokeAlignment::Inside)));
+    QApplication::processEvents();
+    CHECK(hint->isVisible());
+    CHECK(hint->height() >= hint->heightForWidth(hint->width()));
+    CHECK(page_state() == gradient_without_note);
+    align->setCurrentIndex(align->findData(static_cast<int>(VectorStrokeAlignment::Outside)));
+    QApplication::processEvents();
+    CHECK(!hint->isVisible() && page_state() == gradient_without_note);
+    CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+  CHECK(stroke_of(doc, id).alignment == VectorStrokeAlignment::Inside && rendered_height() <= 5);
+
+  // A rectangle's Inside stroke shows, so its dialog has no such note, and its Reset keeps Inside.
+  select_batch_layers(window, {box});
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("shapeStrokeInsideLineHint")) == nullptr);
+    field<QPushButton>(dialog, "shapeAppearanceResetButton")->click();
+    QApplication::processEvents();
+    CHECK(field<QComboBox>(dialog, "shapeStrokeAlignCombo")->currentData().toInt() ==
+          static_cast<int>(VectorStrokeAlignment::Inside));
+    CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+}
+
+// local-051: arrowhead Width and Length reach 100000% of the weight (a head up to 30000 px),
+// so a thin line can carry a large head; the fields step by a tenth of their size, the head
+// saves and reopens, and several lines still take the percent each of its own weight.
+void ui_shape_appearance_arrowheads_grow_large() {
+  SettingsValueRestorer arrow_start_setting(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer arrow_end_setting(QStringLiteral("tools/lineArrowEnd"));
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id(), second = doc.allocate_layer_id();
+  doc.add_layer(stroked_line_layer(id, doc, 100, 900, 300, 4, true, 0, VectorStrokeAlignment::Center));
+  doc.add_layer(stroked_line_layer(second, doc, 100, 900, 650, 10, true, 0, VectorStrokeAlignment::Center));
+  select_batch_layers(window, {id});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  int width_maximum = 0, length_maximum = 0, width_shown = 0, length_shown = 0;
+  int stepped_up = 0, stepped_small = 0, scrubbed = 0;
+  const int scrub_travel = QApplication::startDragDistance() + 5;
+  bool adaptive = false;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    auto* length = field<QSpinBox>(dialog, "shapeArrowLengthSpin");
+    width_maximum = width->maximum();
+    length_maximum = length->maximum();
+    adaptive = width->stepType() == QAbstractSpinBox::AdaptiveDecimalStepType &&
+               length->stepType() == QAbstractSpinBox::AdaptiveDecimalStepType;
+    // One step from 50% is 1%, from 7900% it is 100%.
+    width->setValue(50);
+    width->stepBy(1);
+    stepped_small = width->value();
+    width->setValue(7900);
+    width->stepBy(1);
+    stepped_up = width->value();
+    // A drag on the Width label scrubs by that step too: 100% a pixel from 8000%.
+    for (auto* label : dialog.findChildren<QLabel*>()) {
+      if (label->text() != QStringLiteral("Width:") || !inside(label, "shapeArrowheadsGroup")) continue;
+      const auto origin = label->rect().center();
+      send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*label, QEvent::MouseMove, origin + QPoint(scrub_travel, 0), Qt::NoButton, Qt::LeftButton);
+      send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(scrub_travel, 0), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      scrubbed = width->value();
+    }
+    width->setValue(8000);
+    // 8000% and 12000% of 4 px: a head 320 px wide and 480 px long.
+    length->setValue(12000);
+    width_shown = width->value();
+    length_shown = length->value();
+    QApplication::processEvents();
+    (void)process_events_until([&] { return !canvas->processing_operation_active(); });
+    save_widget_artifact("ui_local_051_arrowhead_dialog", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  (void)process_events_until([&] { return !canvas->processing_operation_active(); });
+  {
+    // For the review: the 4 px line and its head.
+    canvas->zoom_to_document_rect(QRect(60, 20, 900, 560));
+    QApplication::processEvents();
+    save_widget_artifact("ui_local_051_arrowhead_canvas", *canvas);
+    patchy::psd::DocumentIo::write_layered_rgb8_file(
+        doc, std::filesystem::path("test-artifacts") / "ui_local_051_large_arrowhead.psd");
+  }
+  CHECK(width_maximum == 100000 && length_maximum == 100000);
+  CHECK(adaptive && stepped_small == 51 && stepped_up == 8000);
+  CHECK(scrubbed == 8000 + scrub_travel * 100);
+  CHECK(width_shown == 8000 && length_shown == 12000);
+  CHECK(line_params(doc, id).arrow_width == 320 && line_params(doc, id).arrow_length == 480);
+  CHECK(line_params(doc, id).line_weight == 4);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  const auto bounds = std::as_const(doc).find_layer(id)->vector_shape()->path.bounds();
+  CHECK(bounds && std::abs(bounds->bottom - bounds->top - 320.0) < 1e-6);
+  CHECK(std::abs(std::as_const(doc).find_layer(id)->bounds().height - 320) <= 2);
+
+  // Saved and reopened: the head sizes are pixels in the file, and the line is still live.
+  {
+    const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(doc, {}));
+    const auto found = std::find_if(reopened.layers().begin(), reopened.layers().end(),
+                                    [&](const auto& layer) { return layer.name() == "Line " + std::to_string(id); });
+    CHECK(found != reopened.layers().end() && found->vector_shape() && found->vector_shape()->origination.size() == 1);
+    const auto* content = found->vector_shape();
+    const auto live = resolve_live_shape_group(content->path, content->origination, content->origination.front().index);
+    CHECK(live.has_value() && live->arrow_width == 320 && live->arrow_length == 480);
+    CHECK(live.has_value() && live->arrow_width_unit_pixels && live->arrow_length_unit_pixels);
+  }
+  // The dialog opens on the stored size, past the old 1000% and 5000% ceilings.
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    width_shown = field<QSpinBox>(dialog, "shapeArrowWidthSpin")->value();
+    length_shown = field<QSpinBox>(dialog, "shapeArrowLengthSpin")->value();
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(width_shown == 8000 && length_shown == 12000);
+
+  // Two lines: 20000% is 200 times each line's own weight.
+  select_batch_layers(window, {id, second});
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    field<QSpinBox>(dialog, "shapeArrowWidthSpin")->setValue(20000);
+    QApplication::processEvents();
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(line_params(doc, id).arrow_width == 800 && line_params(doc, second).arrow_width == 2000);
+  CHECK(line_params(doc, id).arrow_length == 480 && line_params(doc, second).arrow_length == 100);
+
+  // One rule for every way in: a head is at most 30000 px, whatever the percent or weight.
+  LiveShapeParams heavy = line_params(doc, second);
+  heavy.line_weight = 1000.0;
+  tie_line_arrowheads_to_weight(heavy, 10.0);
+  CHECK(heavy.arrow_width == 30000.0 && heavy.arrow_length == 10000.0);
+  CHECK(line_arrow_size_from_percent(4.0, 100000.0) == 4000.0);
+  CHECK(line_arrow_size_from_percent(1000.0, 100000.0) == 30000.0);
+  CHECK(line_arrow_size_from_percent(4.0, 5.0) == 0.4);  // percent floors at 10
+  CHECK(line_arrow_size_from_percent(4.0, 200000.0) == 4000.0);
+}
+
+// Whether the layer's pixels are what its own vector content draws: the same bounds and bytes.
+bool raster_matches_vector(const Document& doc, LayerId id) {
+  const auto* layer = std::as_const(doc).find_layer(id);
+  if (layer == nullptr || layer->vector_shape() == nullptr) return false;
+  Layer fresh = *layer;
+  update_vector_shape_raster(fresh, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  const auto& drawn = std::as_const(fresh);
+  return layer->bounds() == drawn.bounds() && std::ranges::equal(layer->pixels().data(), drawn.pixels().data());
+}
+
+bool same_layer_content(const Layer& a, const Layer& b) {
+  return a.bounds() == b.bounds() && std::ranges::equal(a.pixels().data(), b.pixels().data()) &&
+         a.vector_shape() != nullptr && b.vector_shape() != nullptr &&
+         shape_vector_appearance_equal(*a.vector_shape(), *b.vector_shape()) &&
+         a.vector_shape()->path == b.vector_shape()->path;
+}
+
+// One frame strip for the review: the canvas as a repaint draws it from the layers the
+// document holds at that moment, with a caption under each frame.
+void save_frame_strip(const std::string& name, const std::vector<std::pair<QImage, QString>>& frames) {
+  if (frames.empty()) return;
+  constexpr int kWidth = 230, kCaption = 34, kGap = 6;
+  const int frame_height = frames.front().first.height() * kWidth / std::max(1, frames.front().first.width());
+  QImage sheet(static_cast<int>(frames.size()) * (kWidth + kGap) - kGap, frame_height + kCaption,
+               QImage::Format_ARGB32_Premultiplied);
+  sheet.fill(QColor(32, 33, 36));
+  QPainter painter(&sheet);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+  painter.setPen(QColor(230, 230, 230));
+  int x = 0;
+  for (const auto& [image, caption] : frames) {
+    painter.drawImage(QRect(x, 0, kWidth, frame_height), image);
+    painter.drawText(QRect(x, frame_height, kWidth, kCaption), Qt::AlignCenter | Qt::TextWordWrap, caption);
+    x += kWidth + kGap;
+  }
+  painter.end();
+  save_image_artifact(name, sheet);
+}
+
+// local-051 follow-up: while a value is scrubbed in Shape Appearance the canvas must only
+// ever show finished renders, each newer than the last. The preview used to put the shape's
+// new outline into the document at once with the pixels the layer had when the dialog
+// opened, and to drop a finished render whenever a newer value was waiting, so a repaint
+// during a scrub showed the arrow at its old size, then the new one, back and forth.
+void ui_shape_appearance_preview_shows_only_finished_renders() {
+  SettingsValueRestorer arrow_start_setting(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer arrow_end_setting(QStringLiteral("tools/lineArrowEnd"));
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id(), box = doc.allocate_layer_id(), star = doc.allocate_layer_id();
+  doc.add_layer(stroked_line_layer(id, doc, 200, 800, 380, 4, true, 6, VectorStrokeAlignment::Center));
+  doc.add_layer(rectangle(box, 80, 160, {0, 0, 0, 0}, {40, 120, 60}));
+  doc.add_layer(polygon_layer(star, 320, 5, 0));
+  select_batch_layers(window, {id});
+  canvas->zoom_to_document_rect(QRect(520, 190, 320, 380));
+  QApplication::processEvents();
+  const Layer opened = *std::as_const(doc).find_layer(id);
+  CHECK(raster_matches_vector(doc, id) && raster_matches_vector(doc, box) && raster_matches_vector(doc, star));
+  const auto layer_now = [&]() -> const Layer& { return *std::as_const(doc).find_layer(id); };
+  const auto idle = [&] { return !canvas->processing_operation_active(); };
+
+  std::vector<std::pair<QImage, QString>> frames;
+  // What a repaint shows from the layers the document holds right now. No event runs here.
+  const auto frame = [&](const QString& caption) {
+    canvas->document_changed();
+    frames.emplace_back(canvas->grab().toImage(), caption);
+  };
+  std::vector<int> between_heights, landed_heights;
+  bool between_consistent = true, between_was_opened = false;
+  int first_landed_height = 0;
+  double first_landed_width = 0.0;
+  bool first_landed_consistent = false;
+  std::vector<int> scrubbed_values;
+  std::vector<double> scrubbed_widths;
+  const int drag_start = QApplication::startDragDistance();
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    auto* length = field<QSpinBox>(dialog, "shapeArrowLengthSpin");
+    // A real drag on the Width label: the field's values, and the head sizes the document
+    // shows as each render lands, only go up.
+    for (auto* label : dialog.findChildren<QLabel*>()) {
+      if (label->text() != QStringLiteral("Width:") || !inside(label, "shapeArrowheadsGroup")) continue;
+      const auto values = QObject::connect(width, &QSpinBox::valueChanged, &dialog,
+                                           [&](int value) { scrubbed_values.push_back(value); });
+      const auto origin = label->rect().center();
+      send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+      for (int travel = 2; travel <= 12; travel += 2) {
+        send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start + travel, 0), Qt::NoButton, Qt::LeftButton);
+        QApplication::processEvents();
+        scrubbed_widths.push_back(line_params(doc, id).arrow_width);
+        between_consistent = between_consistent && raster_matches_vector(doc, id);
+      }
+      send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 12, 0), Qt::LeftButton, Qt::NoButton);
+      QObject::disconnect(values);
+      (void)process_events_until([&] { return idle() && line_params(doc, id).arrow_width == width->value() * 4 / 100.0; });
+    }
+    // A Length typed first, then Width scrubbed (Seth's order): 240 px long, 40 px wide.
+    length->setValue(6000);
+    width->setValue(1000);
+    (void)process_events_until([&] {
+      return idle() && line_params(doc, id).arrow_width == 40 && line_params(doc, id).arrow_length == 240 &&
+             raster_matches_vector(doc, id);
+    });
+    frame(QStringLiteral("Width 1000%\nshown"));
+    landed_heights.push_back(layer_now().bounds().height);
+    int step = 0;
+    for (const int percent : {2000, 3000, 4000, 5000, 6000}) {
+      // A scrub step arrives; its render is now running on the worker.
+      width->setValue(percent);
+      between_consistent = between_consistent && raster_matches_vector(doc, id);
+      between_was_opened = between_was_opened || layer_now().bounds() == opened.bounds();
+      between_heights.push_back(layer_now().bounds().height);
+      if (step < 3) frame(QStringLiteral("%1% asked,\nnot rendered yet").arg(percent));
+      (void)process_events_until([&] {
+        return idle() && line_params(doc, id).arrow_width == percent * 4 / 100 && raster_matches_vector(doc, id);
+      });
+      landed_heights.push_back(layer_now().bounds().height);
+      if (step < 3) frame(QStringLiteral("Width %1%\nshown").arg(percent));
+      ++step;
+    }
+    // Two steps before the first one's render lands: that render still shows, then the second.
+    const auto held = layer_now().bounds();
+    width->setValue(7000);
+    width->setValue(8000);
+    // The 7000% render finishes on its worker while no event runs here. One delivery of
+    // the queued calls then lands it and starts 8000%, whose own landing cannot be in the
+    // same delivery (Qt sends only what was posted before the call).
+    for (int waited = 0; waited < 250 && layer_now().bounds() == held; ++waited) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+    }
+    first_landed_height = layer_now().bounds().height;
+    first_landed_width = line_params(doc, id).arrow_width;
+    first_landed_consistent = raster_matches_vector(doc, id);
+    (void)process_events_until([&] { return idle() && line_params(doc, id).arrow_width == 320; });
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  (void)process_events_until(idle);
+  save_frame_strip("ui_local_051_scrub_frames", frames);
+
+  // The label drag stepped the field evenly upward from 500% (10% a pixel there), and the
+  // head the document showed never shrank on the way.
+  CHECK(scrubbed_values.size() == 6);
+  for (std::size_t step = 0; step < scrubbed_values.size(); ++step) {
+    CHECK(scrubbed_values[step] == 500 + (drag_start + 2 * (static_cast<int>(step) + 1)) * 10);
+  }
+  CHECK(std::is_sorted(scrubbed_widths.begin(), scrubbed_widths.end()));
+  // Between a step and its render the document held a finished render, never the pixels
+  // from when the dialog opened, and its outline and pixels always agreed.
+  CHECK(between_consistent);
+  CHECK(!between_was_opened);
+  // Each step in between showed the previous step's head; each landing showed its own,
+  // larger one.
+  CHECK(landed_heights.size() == 6 && between_heights.size() == 5);
+  for (std::size_t step = 0; step < between_heights.size() && step + 1 < landed_heights.size(); ++step) {
+    CHECK(between_heights[step] == landed_heights[step]);
+    CHECK(landed_heights[step + 1] > landed_heights[step]);
+  }
+  // A finished render shows even while a newer value waits: 7000% (a 280 px head) landed
+  // before 8000% did.
+  CHECK(first_landed_width == 280 && first_landed_consistent);
+  CHECK(first_landed_height > landed_heights.back());
+
+  // OK committed the last value as one undo step, the same layer a single edit gives.
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  CHECK(line_params(doc, id).arrow_width == 320 && line_params(doc, id).arrow_length == 240);
+  CHECK(raster_matches_vector(doc, id));
+  {
+    Layer direct = opened;
+    auto content = *std::as_const(direct).vector_shape();
+    auto& params = content.origination.front();
+    params.arrow_width = 320; params.arrow_length = 240;
+    content.path.subpaths = generate_live_shape_subpaths(params);
+    CHECK(content.path == layer_now().vector_shape()->path);
+    direct.set_vector_shape(std::move(content));
+    update_vector_shape_raster(direct, Rect::from_size(doc.width(), doc.height()), nullptr);
+    CHECK(direct.bounds() == layer_now().bounds());
+    CHECK(std::ranges::equal(std::as_const(direct).pixels().data(), layer_now().pixels().data()));
+  }
+  MainWindowTestAccess::undo(window);
+  CHECK(same_layer_content(layer_now(), opened));
+
+  // Preview off shows the layer as it was; on again shows the edit; Cancel restores it exactly.
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    auto* preview = field<QCheckBox>(dialog, "shapeAppearancePreviewCheck");
+    width->setValue(3000);
+    CHECK(process_events_until([&] { return idle() && line_params(doc, id).arrow_width == 120; }));
+    width->setValue(4000);  // still rendering when Preview goes off
+    preview->setChecked(false);
+    CHECK(same_layer_content(layer_now(), opened));
+    CHECK(process_events_until(idle));
+    QApplication::processEvents();
+    CHECK(same_layer_content(layer_now(), opened));
+    preview->setChecked(true);
+    CHECK(process_events_until([&] {
+      return idle() && line_params(doc, id).arrow_width == 160 && raster_matches_vector(doc, id);
+    }));
+    width->setValue(5000);
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until(idle));
+  CHECK(same_layer_content(layer_now(), opened));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+
+  // The other live fields share the preview: Weight, Stroke width and an end point of a line,
+  // a rectangle's radius, a polygon's sides. No step leaves outline and pixels apart.
+  const auto steady = [&](LayerId target, const char* spin_name, const std::vector<double>& values) {
+    select_batch_layers(window, {target});
+    bool consistent = true;
+    when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+      auto* spin = dialog.findChild<QAbstractSpinBox*>(QLatin1String(spin_name));
+      CHECK(spin != nullptr);
+      for (const double value : values) {
+        if (auto* decimal = qobject_cast<QDoubleSpinBox*>(spin)) decimal->setValue(value);
+        else if (auto* whole = qobject_cast<QSpinBox*>(spin)) whole->setValue(static_cast<int>(value));
+        consistent = consistent && raster_matches_vector(doc, target);
+        // Let renders land for some steps and pile up for others.
+        if (static_cast<int>(value) % 2 == 0) (void)process_events_until(idle);
+        consistent = consistent && raster_matches_vector(doc, target);
+      }
+      (void)process_events_until(idle);
+      dialog.accept();
+    });
+    MainWindowTestAccess::edit_active_shape_appearance(window);
+    (void)process_events_until(idle);
+    return consistent && raster_matches_vector(doc, target);
+  };
+  CHECK(steady(id, "shapeGeometryLineWeightSpin", {6, 9, 12, 15, 18}));
+  CHECK(line_params(doc, id).line_weight == 18);
+  CHECK(steady(id, "shapeStrokeWidthSpin", {8, 11, 14, 17, 20}));
+  CHECK(std::as_const(doc).find_layer(id)->vector_shape()->stroke.width == 20);
+  CHECK(steady(id, "shapeGeometryLineEndXSpin", {760, 721, 700, 663, 640}));
+  CHECK(line_params(doc, id).line_end_x == 640);
+  CHECK(steady(box, "shapeGeometryRadiusTopLeftSpin", {4, 9, 14, 19, 24}));
+  CHECK(std::as_const(doc).find_layer(box)->vector_shape()->origination.front().corner_radii[0] == 24);
+  CHECK(steady(star, "shapePolygonSidesSpin", {6, 7, 8, 9, 10}));
+  CHECK(std::as_const(doc).find_layer(star)->vector_shape()->origination.front().polygon_sides == 10);
+
+  // Dynamic Vector Preview at a high zoom draws the same finished states: after a scrub
+  // settles, the sharp view shows the committed head, not the one the dialog opened with.
+  // The probe is 150 px behind the tip and 30 px off the axis: inside the 90 px wide head
+  // the line has now, outside the 18 px one the scrub ends on.
+  select_batch_layers(window, {id});
+  const auto tip = line_params(doc, id);
+  CHECK(tip.arrow_width == 90 && tip.arrow_length == 180);
+  const QPoint beside(static_cast<int>(tip.line_end_x) - 150, static_cast<int>(tip.line_end_y) - 30);
+  canvas->set_vector_preview_enabled(true);
+  canvas->zoom_to_document_rect(QRect(beside.x() - 20, beside.y() - 20, 40, 40));
+  QApplication::processEvents();
+  CHECK(canvas->zoom() >= 8.0);
+  CHECK(process_events_until([&] { return canvas->render_settled(); }, 20000));
+  // The middle of the document pixel: at this zoom the pixel grid runs along its edges.
+  CHECK(!color_close(canvas_pixel_center(*canvas, beside), Qt::white, 8));
+  bool sharp_consistent = true;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    for (const int percent : {300, 250, 200, 150, 100}) {
+      width->setValue(percent);
+      sharp_consistent = sharp_consistent && raster_matches_vector(doc, id);
+      if (percent % 100 == 0) (void)process_events_until(idle);
+    }
+    (void)process_events_until(idle);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(sharp_consistent && raster_matches_vector(doc, id));
+  CHECK(process_events_until([&] { return canvas->render_settled(); }, 20000));
+  QApplication::processEvents();
+  CHECK(line_params(doc, id).arrow_width == 18);
+  save_widget_artifact("ui_local_051_scrub_sharp_view", *canvas);
+  CHECK(color_close(canvas_pixel_center(*canvas, beside), Qt::white, 8));
+  canvas->set_vector_preview_enabled(false);
+}
+
 } // namespace
 
 std::vector<patchy::test::TestCase> batch_appearance_tests() {
@@ -1684,5 +2362,9 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_shape_appearance_picker_shows_stamped_shape", ui_shape_appearance_picker_shows_stamped_shape},
     {"ui_shape_appearance_radius_section_layout", ui_shape_appearance_radius_section_layout},
     {"ui_shape_appearance_line_weight_in_geometry", ui_shape_appearance_line_weight_in_geometry},
+    {"ui_line_tool_new_line_stroke_is_centered", ui_line_tool_new_line_stroke_is_centered},
+    {"ui_shape_appearance_inside_stroke_hint_on_lines", ui_shape_appearance_inside_stroke_hint_on_lines},
+    {"ui_shape_appearance_arrowheads_grow_large", ui_shape_appearance_arrowheads_grow_large},
+    {"ui_shape_appearance_preview_shows_only_finished_renders", ui_shape_appearance_preview_shows_only_finished_renders},
   };
 }

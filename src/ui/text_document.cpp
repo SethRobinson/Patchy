@@ -496,9 +496,11 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
   }
 
   for (const auto& range : block_ranges) {
+    // The block's own positions only (its last is its paragraph break): one further is the next
+    // block, which mergeBlockFormat would then give this block's whole format.
     QTextCursor cursor(&document);
     cursor.setPosition(range.position);
-    cursor.setPosition(range.position + range.length, QTextCursor::KeepAnchor);
+    cursor.setPosition(range.position + range.length - 1, QTextCursor::KeepAnchor);
     cursor.mergeBlockFormat(range.format);
   }
 
@@ -572,7 +574,11 @@ std::unique_ptr<QTextDocument> copy_text_document_formats(const QTextDocument& s
   for (auto block = source.begin(); block.isValid(); block = block.next()) {
     QTextCursor block_cursor(document.get());
     const auto block_start = std::clamp(block.position(), 0, std::max(0, plain_length));
-    const auto block_end = std::clamp(block.position() + std::max(1, block.length()), 0, std::max(0, plain_length));
+    // Up to the block's paragraph break, not past it: the next position is the next block, and
+    // a merge there left it every property this block has and it lacks (the kept Photoshop
+    // settings of an Every-line paragraph reached the Single-line one after it).
+    const auto block_end =
+        std::clamp(block.position() + std::max(1, block.length()) - 1, 0, std::max(0, plain_length));
     block_cursor.setPosition(block_start);
     block_cursor.setPosition(block_end, QTextCursor::KeepAnchor);
     block_cursor.mergeBlockFormat(block.blockFormat());
@@ -989,7 +995,11 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
     }
     QTextCursor cursor(&document);
     cursor.setPosition(start);
-    cursor.setPosition(std::min(plain_length, start + std::max(1, length)), QTextCursor::KeepAnchor);
+    // Up to the run's last character, not one past it: a run ends with its paragraph break, the
+    // position after that is the next paragraph's first, and mergeBlockFormat reaches every
+    // block the selection touches. The next paragraph then kept whatever this run set and its
+    // own run leaves unset (the kept Photoshop settings, a composer, an explicit direction).
+    cursor.setPosition(std::min(plain_length, start + std::max(1, length) - 1), QTextCursor::KeepAnchor);
     QTextBlockFormat format;
     format.setAlignment(Qt::AlignLeft);
     set_paragraph_alignment(format, fields[2]);

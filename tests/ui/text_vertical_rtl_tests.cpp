@@ -286,6 +286,8 @@ ToolLayer create_vertical_layer_with_tool(patchy::ui::MainWindow& window, patchy
     auto* button = window.findChild<QPushButton*>(QString::fromLatin1(alignment_button));
     CHECK(button != nullptr);
     if (button != nullptr) {
+      // Every paragraph (column): alignment is per paragraph, and a bare caret aligns only its own.
+      editor->selectAll();
       button->click();
     }
   }

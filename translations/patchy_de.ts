@@ -15758,6 +15758,49 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Eine Arbeitsfläche von %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>Innen hält die Kontur innerhalb der Stärke der Linie. Wählen Sie Mitte oder Außen, um die Linie dicker zu machen.</translation>
+    </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>gleiche Zeichenbreiten</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>ähnliches Design</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>ebenfalls eine Serifenschrift</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>ebenfalls eine serifenlose Schrift</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>ebenfalls eine dicktengleiche Schrift</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>Zuvor gewählt</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>Vorschläge</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>Zuvor gewählt: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35747,6 +35790,10 @@ Fixiert: %1</translation>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Seite %1 von %2 wird fertiggestellt...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>Innen hält diese Kontur innerhalb der Stärke der Linie. Wählen Sie unter Ausrichten in der Formdarstellung Mitte oder Außen, um die Linie dicker zu machen.</translation>
     </message>
 </context>
 <context>

@@ -1170,6 +1170,328 @@ void text_engine_middle_eastern_settings_round_trip() {
   CHECK(patchy::psd::serialize_text_run_character_styles(run) == "marky:60,justalt");
 }
 
+namespace {
+
+// The layers of a saved file that carry text, with what the save wrote for each paragraph's line
+// composer: "E" (Every-line) or "S" (Single-line) per paragraph run, from the TySh
+// (/EveryLineComposer) and from the Txt2 object the TySh points at (/29, "?" when absent).
+struct SavedLineComposers {
+  std::string layer;
+  std::string tysh;
+  std::string txt2;
+};
+
+std::vector<SavedLineComposers> saved_line_composers(const patchy::Document& document,
+                                                     const std::vector<std::uint8_t>& bytes) {
+  std::vector<SavedLineComposers> saved;
+  const auto payload = text_engine_payload(bytes);
+  const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+  for (int index = 0; index < static_cast<int>(document.layers().size()); ++index) {
+    const auto& layer = document.layers()[static_cast<std::size_t>(index)];
+    if (!layer.metadata().contains(patchy::kLayerMetadataText)) {
+      continue;
+    }
+    SavedLineComposers entry;
+    entry.layer = layer.name();
+    const auto runs = tysh_paragraph_runs(bytes, index);
+    static constexpr std::string_view kKey = "/EveryLineComposer ";
+    for (auto at = runs.find(kKey); at != std::string::npos; at = runs.find(kKey, at + kKey.size())) {
+      entry.tysh += runs.compare(at + kKey.size(), 4, "true") == 0 ? 'E' : 'S';
+    }
+    const auto object = text_index_of(bytes, index);
+    if (block.has_value() && object.has_value()) {
+      for (const auto* sheet : txt2_run_sheets(*block, *object, "5")) {
+        const auto flag = sheet_flag(sheet, "29");
+        entry.txt2 += flag == 1 ? 'E' : flag == 0 ? 'S' : '?';
+      }
+    }
+    saved.push_back(std::move(entry));
+  }
+  return saved;
+}
+
+// Column 11 of a layer's paragraph runs, joined with "|" ("" for a paragraph without the column).
+std::string paragraph_settings_of(const patchy::Layer& layer) {
+  std::string joined;
+  bool first = true;
+  for (const auto& value : metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 11)) {
+    if (!first) {
+      joined += '|';
+    }
+    first = false;
+    joined += value;
+  }
+  return joined;
+}
+
+const patchy::Layer* first_text_layer(const patchy::Document& document) {
+  for (const auto& layer : document.layers()) {
+    if (layer.metadata().contains(patchy::kLayerMetadataText)) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+// Photoshop's line composer (the Paragraph panel menu's Adobe Every-line Composer or Adobe
+// Single-line Composer) is kept per paragraph: TySh /EveryLineComposer and Txt2 paragraph key
+// /29. Patchy wrote "false" into every paragraph it rewrote, which switched an Every-line
+// paragraph to the Single-line composer in Photoshop. A new layer still writes false, as
+// Photoshop 2026 writes one, and the default sheets keep Photoshop's false.
+void text_engine_line_composer_round_trips() {
+  patchy::Document document(600, 300, patchy::PixelFormat::rgb8());
+  document.add_layer(patchy_text_layer(document, "New", "A new Patchy layer", false));
+  auto kept = patchy_text_layer(document, "Kept", "Every-line paragraph\nSingle-line paragraph", false);
+  kept.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v6\n0\t21\tjustify\t0\t0\t0\t0\t0\t1.2\tauto\t1\teveryline\n"
+      "21\t21\tjustify\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-";
+  document.add_layer(std::move(kept));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  write_artifact("text-engine-line-composer.psd", bytes);
+
+  const auto check_written = [](const patchy::Document& source, const std::vector<std::uint8_t>& written) {
+    const auto saved = saved_line_composers(source, written);
+    CHECK(saved.size() == 2U);
+    if (saved.size() != 2U) {
+      return;
+    }
+    CHECK(saved[0].layer == "New" && saved[0].tysh == "S" && saved[0].txt2 == "S");
+    CHECK(saved[1].layer == "Kept" && saved[1].tysh == "ES" && saved[1].txt2 == "ES");
+    // The normal paragraph sheet (in the ResourceDict and its DocumentResources twin) keeps
+    // Photoshop's "false" on both layers.
+    CHECK(count_of(tysh_text(written, 0), "/EveryLineComposer false") == 3U);
+    CHECK(count_of(tysh_text(written, 0), "/EveryLineComposer true") == 0U);
+    CHECK(count_of(tysh_text(written, 1), "/EveryLineComposer false") == 3U);
+    CHECK(count_of(tysh_text(written, 1), "/EveryLineComposer true") == 1U);
+    // So do the Txt2 default sheets: the template's ParagraphSheetSet entry ("Normal RGB", the
+    // parent every authored run names) and /1/3.
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    CHECK(block.has_value());
+    if (block.has_value()) {
+      CHECK(sheet_flag(block->root().at_path({"0", "6", "0", "0", "0", "5"}), "29") == 0);
+      CHECK(sheet_flag(block->root().at_path({"1", "3"}), "29") == 0);
+    }
+  };
+  check_written(document, bytes);
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2U);
+  if (read.layers().size() != 2U) {
+    return;
+  }
+  // The new layer's paragraph keeps its short form: no settings column.
+  CHECK(read.layers()[0].metadata().at(patchy::kLayerMetadataTextParagraphRuns).rfind("v6", 0) != 0);
+  CHECK(paragraph_settings_of(read.layers()[1]) == "everyline|-");
+  mark_text_layers_edited(read);
+  check_written(read, patchy::psd::DocumentIo::write_layered_rgb8(read));
+
+  // The column's token.
+  patchy::psd::PsdTextParagraphRun run;
+  CHECK(!run.every_line_composer);
+  patchy::psd::parse_paragraph_run_settings("everyline,future-token", run);
+  CHECK(run.every_line_composer && !run.auto_hyphenate && run.kashida_width == 2);
+  CHECK(patchy::psd::serialize_paragraph_run_settings(run) == "everyline");
+  patchy::psd::parse_paragraph_run_settings("everyline,kashida:0,hyphenate", run);
+  CHECK(patchy::psd::serialize_paragraph_run_settings(run) == "hyphenate,kashida:0,everyline");
+  patchy::psd::PsdTextParagraphRun copy;
+  patchy::psd::copy_paragraph_run_settings(run, copy);
+  CHECK(copy.every_line_composer && copy.auto_hyphenate && copy.kashida_width == 0);
+  patchy::psd::parse_paragraph_run_settings("-", run);
+  CHECK(!run.every_line_composer);
+  patchy::psd::parse_paragraph_run_settings("everylines,EveryLine", run);  // not the token
+  CHECK(!run.every_line_composer);
+}
+
+// Where Photoshop takes a paragraph's line composer from (Photoshop 2026 render probes,
+// docs/txt2-kept-settings.md): the Txt2 paragraph run's own /29, else its parent ParagraphSheetSet entry's,
+// else the document's default sheet; the TySh /EveryLineComposer only for a layer with no Txt2
+// object, where a run without the key takes the normal paragraph sheet's. Each case edits the
+// committed Photoshop fixture in place (one paragraph, Single-line everywhere).
+void text_engine_line_composer_reads_photoshop_sheets() {
+  const auto original = read_all(patchy::test::committed_psd_fixture_path("photoshop-text-track-box-right-m80.psd"));
+  static constexpr std::string_view kMarker = "8BIMTxt2";
+  // The fixture with its Txt2 block edited: the block keeps its length (the edits here only
+  // shorten it, and the difference goes into the whitespace before the root's end).
+  const auto with_txt2 = [&original](const std::function<void(patchy::psd::EngineNode&)>& edit) {
+    auto bytes = original;
+    const auto payload = text_engine_payload(bytes);
+    auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    CHECK(block.has_value());
+    if (!block.has_value()) {
+      return bytes;
+    }
+    edit(block->root());
+    auto* sheet = block->root().at_path({"1", "1", "0", "0", "5", "0", "0", "0", "0", "5"});
+    CHECK(sheet != nullptr);
+    const auto shorter = block->serialize();
+    CHECK(shorter.size() <= payload->size());
+    if (sheet == nullptr || shorter.size() > payload->size()) {
+      return bytes;
+    }
+    sheet->close_ws.append(payload->size() - shorter.size(), ' ');
+    const auto edited = block->serialize();
+    CHECK(edited.size() == payload->size());
+    const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+    std::copy(edited.begin(), edited.end(), at + static_cast<std::ptrdiff_t>(kMarker.size() + 4));
+    return bytes;
+  };
+  // The fixture with the Nth "/EveryLineComposer false" of its TySh EngineData (0 the paragraph
+  // run, 1 the normal paragraph sheet) rewritten in place.
+  const auto with_tysh = [](std::vector<std::uint8_t> bytes, int occurrence, std::string_view replacement) {
+    static constexpr std::string_view kKey = "/EveryLineComposer false";
+    CHECK(replacement.size() == kKey.size());
+    auto at = bytes.begin();
+    for (int index = 0; index <= occurrence; ++index) {
+      at = std::search(index == 0 ? at : at + 1, bytes.end(), kKey.begin(), kKey.end());
+      CHECK(at != bytes.end());
+      if (at == bytes.end()) {
+        return bytes;
+      }
+    }
+    std::copy(replacement.begin(), replacement.end(), at);
+    return bytes;
+  };
+  // The fixture with its Txt2 block renamed to a key no reader knows: the layer has no text
+  // object, as in a file from an editor that writes only the TySh.
+  const auto without_txt2 = [](std::vector<std::uint8_t> bytes) {
+    const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+    CHECK(at != bytes.end());
+    if (at != bytes.end()) {
+      *(at + 7) = 'X';
+    }
+    return bytes;
+  };
+  const auto run_sheet = [](patchy::psd::EngineNode& root) {
+    return root.at_path({"1", "1", "0", "0", "5", "0", "0", "0", "0", "5"});
+  };
+  const auto parent_sheet = [](patchy::psd::EngineNode& root) { return root.at_path({"0", "6", "0", "1", "0", "5"}); };
+  const auto set_true = [](patchy::psd::EngineNode* sheet) {
+    auto* node = sheet != nullptr ? sheet->find("29") : nullptr;
+    CHECK(node != nullptr && node->raw == "false");
+    if (node != nullptr) {
+      node->raw = "true";
+    }
+  };
+  const auto erase = [](patchy::psd::EngineNode* sheet) { CHECK(sheet != nullptr && sheet->erase("29")); };
+  // What a read finds, and what an edit and a save then write for the paragraph.
+  const auto read_and_saved = [](const std::vector<std::uint8_t>& bytes) {
+    auto document = patchy::psd::DocumentIo::read(bytes);
+    const auto* layer = first_text_layer(document);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return std::string("no text layer");
+    }
+    auto found = paragraph_settings_of(*layer);
+    mark_text_layers_edited(document);
+    for (const auto& saved : saved_line_composers(document, patchy::psd::DocumentIo::write_layered_rgb8(document))) {
+      found += " tysh=" + saved.tysh + " txt2=" + saved.txt2;
+    }
+    return found;
+  };
+  static constexpr const char* kSingle = " tysh=S txt2=S";
+  static constexpr const char* kEvery = "everyline tysh=E txt2=E";
+
+  // As Photoshop wrote it: Single-line, no settings column.
+  CHECK(read_and_saved(original) == kSingle);
+  // The run's own /29.
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) { set_true(run_sheet(root)); })) == kEvery);
+  // A run that leaves /29 out takes its parent sheet's ("Basic Paragraph").
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) {
+          erase(run_sheet(root));
+          set_true(parent_sheet(root));
+        })) == kEvery);
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) { erase(run_sheet(root)); })) == kSingle);
+  // Neither names it: the document's default paragraph sheet.
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) {
+          erase(run_sheet(root));
+          erase(parent_sheet(root));
+          set_true(root.at_path({"1", "3"}));
+        })) == kEvery);
+  // The other ParagraphSheetSet entry ("Normal RGB") is not the run's parent: not read.
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) {
+          erase(run_sheet(root));
+          set_true(root.at_path({"0", "6", "0", "0", "0", "5"}));
+        })) == kSingle);
+  // The Txt2 object wins over the TySh run, both ways.
+  CHECK(read_and_saved(with_tysh(original, 0, "/EveryLineComposer true ")) == kSingle);
+  CHECK(read_and_saved(with_tysh(with_txt2([&](patchy::psd::EngineNode& root) { set_true(run_sheet(root)); }), 0,
+                                 "/EveryLineComposer false")) == kEvery);
+  // No Txt2 object: the TySh run, and for a run without the key the normal paragraph sheet.
+  CHECK(read_and_saved(without_txt2(original)) == kSingle);
+  CHECK(read_and_saved(without_txt2(with_tysh(original, 0, "/EveryLineComposer true "))) == kEvery);
+  CHECK(read_and_saved(without_txt2(with_tysh(original, 1, "/EveryLineComposer true "))) == kSingle);
+  CHECK(read_and_saved(without_txt2(with_tysh(with_tysh(original, 1, "/EveryLineComposer true "), 0,
+                                              "/EveryLineCompose_ false"))) == kEvery);
+}
+
+// Photoshop 2026 files (local fixtures, README.txt beside them): the #672 justify-modes file with
+// Adobe Every-line Composer set on its four layers, a layer whose first paragraph is Every-line
+// and whose second is Single-line, and the #672 file with only its parent paragraph sheet saying
+// Every-line. Opened, marked edited and saved by Patchy, every paragraph keeps its composer in
+// both blocks, and the #672 file itself (Single-line) stays Single-line.
+void text_engine_photoshop_line_composer_survives_an_edit_if_available() {
+  struct Fixture {
+    const char* file;
+    const char* artifact;
+    std::size_t layers;
+    const char* settings;  // column 11 of every layer
+    const char* written;   // each layer's paragraphs in both blocks
+  };
+  const Fixture fixtures[] = {
+      {"every-line-composer/justify-modes-every-line-photoshop.psd", "line-composer-every-line-edited.psd", 4U,
+       "everyline", "E"},
+      {"every-line-composer/two-paragraphs-every-then-single-photoshop.psd", "line-composer-mixed-edited.psd", 1U,
+       "everyline|-", "ES"},
+      {"every-line-composer/justify-modes-parent-sheet-every-line.psd", "line-composer-parent-sheet-edited.psd", 4U,
+       "everyline", "E"},
+      {"issue-672-justify-modes.psd", "line-composer-single-line-edited.psd", 4U, "", "S"},
+  };
+  for (const auto& fixture : fixtures) {
+    patchy::test::skip_unless_exists(patchy::test::local_psd_fixture_path(fixture.file));
+  }
+  for (const auto& fixture : fixtures) {
+    auto document = patchy::psd::DocumentIo::read(read_all(patchy::test::local_psd_fixture_path(fixture.file)));
+    std::size_t text_layers = 0;
+    for (const auto& layer : document.layers()) {
+      if (!layer.metadata().contains(patchy::kLayerMetadataText)) {
+        continue;
+      }
+      ++text_layers;
+      const auto settings = paragraph_settings_of(layer);
+      if (settings != fixture.settings) {
+        std::printf("  %s [%s]: read \"%s\"\n", fixture.file, layer.name().c_str(), settings.c_str());
+      }
+      CHECK(settings == fixture.settings);
+    }
+    CHECK(text_layers == fixture.layers);
+    mark_text_layers_edited(document);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    write_artifact(fixture.artifact, bytes);
+    const auto saved = saved_line_composers(document, bytes);
+    CHECK(saved.size() == fixture.layers);
+    for (const auto& entry : saved) {
+      if (entry.tysh != fixture.written || entry.txt2 != fixture.written) {
+        std::printf("  %s [%s]: wrote tysh %s, txt2 %s\n", fixture.file, entry.layer.c_str(), entry.tysh.c_str(),
+                    entry.txt2.c_str());
+      }
+      CHECK(entry.tysh == fixture.written && entry.txt2 == fixture.written);
+    }
+    // A reopen of the saved file reads the same composers back.
+    const auto reread = patchy::psd::DocumentIo::read(bytes);
+    std::size_t reread_layers = 0;
+    for (const auto& layer : reread.layers()) {
+      if (layer.metadata().contains(patchy::kLayerMetadataText)) {
+        ++reread_layers;
+        CHECK(paragraph_settings_of(layer) == fixture.settings);
+      }
+    }
+    CHECK(reread_layers == fixture.layers);
+  }
+}
+
 // The reporter's Photoshop files (GitHub issue 683, local fixtures): Hebrew boxes with Hyphenate
 // off, and an Arabic file with one layer per Middle Eastern setting. Opened, marked edited and
 // saved by Patchy, every layer keeps Hyphenate, the Kashida width, the digit set, Justification
@@ -1332,6 +1654,10 @@ std::vector<patchy::test::TestCase> text_engine_block_tests() {
       {"text_engine_photoshop_languages_survive_an_edit", text_engine_photoshop_languages_survive_an_edit},
       {"text_engine_hyphenation_round_trips", text_engine_hyphenation_round_trips},
       {"text_engine_middle_eastern_settings_round_trip", text_engine_middle_eastern_settings_round_trip},
+      {"text_engine_line_composer_round_trips", text_engine_line_composer_round_trips},
+      {"text_engine_line_composer_reads_photoshop_sheets", text_engine_line_composer_reads_photoshop_sheets},
+      {"text_engine_photoshop_line_composer_survives_an_edit_if_available",
+       text_engine_photoshop_line_composer_survives_an_edit_if_available},
       {"text_engine_issue_683_reporter_settings_survive_an_edit_if_available",
        text_engine_issue_683_reporter_settings_survive_an_edit_if_available},
       {"text_engine_issue341_every_object_keeps_a_cache_key_if_available",

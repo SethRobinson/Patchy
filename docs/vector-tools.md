@@ -11,6 +11,7 @@ Related documents:
 - [vector-tools-appearance.md](vector-tools-appearance.md): the Shape Appearance dialog (paint, stroke and dash presets, geometry, opacity, Edge), its worker-thread preview, and fill layers.
 - [vector-psd-encodings.md](vector-psd-encodings.md): the observed PSD encodings of shape and fill layers, vector masks, strokes, live shapes and document paths.
 - [vector-tools-shape-handles.md](vector-tools-shape-handles.md): the shape tools' eight-handle resize box and the two drag points of a live Polygon and Line (GitHub #690).
+- [vector-tools-lines.md](vector-tools-lines.md): the Line tool: a line's stroke alignment, Weight and arrowheads, the arrowhead size limits, and a head longer than its line.
 
 ## Shape tools (Line / Rectangle / Ellipse)
 
@@ -24,7 +25,7 @@ committed geometry as a path-accent outline (`shape_drag_preview_path`), never
 Pixels mode's brush-size paint (`ui_path_mode_drag_previews_path_outline_only`). Release creates a
 shape layer from live parameters (rect, rounded rect via Radius, ellipse,
 line with Weight) and the options-bar paints. Stroke alignment defaults to
-Inside, like PS. An open subpath (a two-point Pen line) has no area to clip
+Inside; a line gets Center ([why](vector-tools-lines.md#a-lines-stroke)). An open subpath (a two-point Pen line) has no area to clip
 to, so `rasterize_vector_stroke` moves its centered stroke half a width to the
 right of the path's direction for Inside, to the left for Outside, as PS draws
 it (issue 553, measured on a PS file); closed subpaths keep the clip. Dashes
@@ -141,32 +142,8 @@ record is only partly known ([vector-psd-encodings.md](vector-psd-encodings.md#v
 The reader gives a shape layer whose one outline is exactly a generated polygon or star its parameters
 back (`recognize_live_polygon`, #643; an axis-aligned rectangle never counts), so Patchy's polygons stay
 live through save and recovery (`psd_reopened_polygons_are_recognized_as_live`). Scripts see no live
-entry for it. The Line tool has
-start/end arrowhead glyph toggles; a new head is 500% of the weight wide and 1000% long
-(PS's proportions, `give_line_arrowheads_default_size`), encoded through the probed
-keyOriginLine arrow keys. Weight and the
-toggles also edit the selected live lines (GitHub #622), as Radius does rectangles:
-the `line.weight` / `line.arrow_start` / `line.arrow_end` appearance properties
-(appearance_properties.cpp; other shapes ignore them), a Weight drag queued as one
-undo step, a toggle committed at once. A weight change scales the heads with it, so a
-line keeps its own head proportions (`tie_line_arrowheads_to_weight`, with the previous
-weight; options bar, Shape Appearance and script `updateShape` alike); a head switched
-on keeps the line's own size if it has one. Selecting a
-line shows its values (`sync_line_options_from_selection`) without changing the
-next-line defaults. Shape Appearance has Weight in Geometry (GitHub #622 follow-up 2) and an
-Arrowheads section (`shapeArrowheadsGroup`, #622 follow-up) with Start / End
-(`shapeGeometryLineArrowStartCheck` / `EndCheck`), and Width, Length (percent of the weight, 10 to 1000% and 10 to 5000%, PS's
-Line tool ranges) and Concavity (-50 to 50%; positive pulls the back of the head toward
-the tip): `shapeArrowWidthSpin`, `shapeArrowLengthSpin`, `shapeArrowConcavitySpin`, off
-while neither head is on. A head wider than the shaft makes one outline with it
-(`line_subpaths`: the shaft edges run to where they meet the back edges), since an
-overlap would be punched out by the group's even-odd fill and a concave head would
-leave a gap behind its notch; a narrower head stays a separate polygon. The model keeps head sizes in pixels; the percent properties
-`line.arrow_width` / `line.arrow_length` and `line.arrow_concavity` let several selected
-lines take one field each, every line getting that percent of its own weight. The PSD
-reader turns a head size whose `keyOriginLine*ArrowUnitPixels` flag is off (read as a
-percent of the weight, from the key name; not confirmed by a Photoshop regeneration) into
-pixels; the writer writes pixels with the flags on, which Photoshop reads back unchanged. The
+entry for it. The Line tool's Weight, arrowheads and their limits, and a line's stroke, are in
+[vector-tools-lines.md](vector-tools-lines.md). The
 custom shape library, the Shapes Manager, the Shape picker, the bundled
 game-icons.net pack and .csh import are in
 [vector-tools-custom-shapes.md](vector-tools-custom-shapes.md).

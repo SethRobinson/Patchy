@@ -8,14 +8,19 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "core/layer_metadata.hpp"
+#include "core_test_support.hpp"
+#include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <limits>
 #include <map>
 #include <memory>
 #include <set>
+#include <string>
 #include <array>
 #include <utility>
 #include <vector>
@@ -238,6 +243,292 @@ void live_line_arrowheads_generate_heads() {
   LiveShapeParams degenerate = line;
   degenerate.line_end_x = 0.0;
   CHECK(patchy::generate_live_shape_subpaths(degenerate).empty());
+}
+
+LiveShapeParams arrow_line(double length, double weight, double head_width, double head_length, int concavity,
+                           bool start, bool end) {
+  LiveShapeParams line;
+  line.kind = LiveShapeKind::Line;
+  line.index = 2;
+  line.line_start_x = 0.0;
+  line.line_start_y = 0.0;
+  line.line_end_x = length;
+  line.line_end_y = 0.0;
+  line.line_weight = weight;
+  line.arrow_start = start;
+  line.arrow_end = end;
+  line.arrow_width = head_width;
+  line.arrow_length = head_length;
+  line.arrow_concavity = concavity;
+  return line;
+}
+
+bool anchors_are(const std::vector<PathAnchor>& anchors, const std::vector<std::pair<double, double>>& expected) {
+  if (anchors.size() != expected.size()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    if (!nearly(anchors[index].anchor_x, expected[index].first, 1e-9) ||
+        !nearly(anchors[index].anchor_y, expected[index].second, 1e-9)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// local-051: a head longer than its line keeps its size, tip on the line's end, and the
+// outline stays one valid shape: the shaft goes once the head's back passes the other end.
+void live_line_head_longer_than_the_line_keeps_its_size() {
+  // A flat-backed head, 60 wide and 300 long, on a 100 px line: the head alone, its back
+  // 200 px behind the line's start (listed from the middle of the back).
+  const auto flat = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 300, 0, false, true));
+  CHECK(flat.size() == 1 && flat[0].closed && flat[0].shape_group == 2);
+  CHECK(anchors_are(flat[0].anchors, {{-200.0, 0.0}, {-200.0, -30.0}, {100.0, 0.0}, {-200.0, 30.0}}));
+  // The same head at the start points the other way.
+  const auto at_start = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 300, 0, true, false));
+  CHECK(at_start.size() == 1);
+  CHECK(anchors_are(at_start[0].anchors, {{300.0, 30.0}, {0.0, 0.0}, {300.0, -30.0}, {300.0, 0.0}}));
+
+  // A concave head (50%) 190 long: its notch reaches 95 px back from the tip, so the last
+  // 5 px of the line still fill the notch, cut off square at the line's start.
+  const auto concave = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 190, 50, false, true));
+  CHECK(concave.size() == 1);
+  const double notch_half = 30.0 * 5.0 / 95.0;
+  CHECK(anchors_are(concave[0].anchors,
+                    {{0.0, notch_half}, {0.0, -notch_half}, {-90.0, -30.0}, {100.0, 0.0}, {-90.0, 30.0}}));
+  // Longer still, the notch passes the start and the head is alone.
+  const auto past = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 400, 50, false, true));
+  CHECK(past.size() == 1);
+  CHECK(anchors_are(past[0].anchors, {{-100.0, 0.0}, {-300.0, -30.0}, {100.0, 0.0}, {-300.0, 30.0}}));
+
+  // A convex head (-50%) whose point passes the line's start while its sides have not:
+  // the start cap carries that point.
+  const auto convex = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 67, -50, false, true));
+  CHECK(convex.size() == 1 && convex[0].anchors.size() == 10);
+  const double back = 67.0 * (1.0 + 0.5 * (1.0 - 2.0 / 30.0));
+  const double share = 0.5 / (100.5 - back);
+  CHECK(nearly(convex[0].anchors[0].anchor_x, 0.0) && nearly(convex[0].anchors[0].anchor_y, 2.0));
+  CHECK(nearly(convex[0].anchors[1].anchor_x, 0.0) && nearly(convex[0].anchors[1].anchor_y, 2.0 * share, 1e-9));
+  CHECK(nearly(convex[0].anchors[2].anchor_x, -0.5, 1e-9) && nearly(convex[0].anchors[2].anchor_y, 0.0));
+  CHECK(nearly(convex[0].anchors[3].anchor_y, -2.0 * share, 1e-9));
+  CHECK(nearly(convex[0].anchors[4].anchor_x, 0.0) && nearly(convex[0].anchors[4].anchor_y, -2.0));
+
+  // A head narrower than the shaft and longer than the line: the head alone, no shaft
+  // drawn backwards behind the start.
+  const auto narrow = patchy::generate_live_shape_subpaths(arrow_line(100, 10, 6, 300, 0, false, true));
+  CHECK(narrow.size() == 1);
+  CHECK(anchors_are(narrow[0].anchors, {{100.0, 0.0}, {-200.0, -3.0}, {-200.0, 0.0}, {-200.0, 3.0}}));
+
+  // Such a line still resolves as live, moved or not.
+  LiveShapeParams params = arrow_line(100, 4, 60, 300, 0, false, true);
+  VectorPath path;
+  path.subpaths = patchy::generate_live_shape_subpaths(params);
+  auto resolved = patchy::resolve_live_shape_group(path, {params}, 2);
+  CHECK(resolved.has_value() && resolved->arrow_length == 300.0);
+  patchy::transform_vector_path(path, {1.0, 0.0, 0.0, 1.0, 12.0, -7.0});
+  resolved = patchy::resolve_live_shape_group(path, {params}, 2);
+  CHECK(resolved.has_value() && nearly(resolved->line_end_x, 112.0, 1e-9) && nearly(resolved->line_end_y, -7.0, 1e-9));
+}
+
+// local-051: two heads share the line. When they would run into each other each is drawn
+// at most as long as lets their backs meet in the middle, at its own width.
+void live_line_two_heads_meet_in_the_middle() {
+  // Flat backs: a diamond, the two backs on one line.
+  const auto flat = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 80, 0, true, true));
+  CHECK(flat.size() == 1);
+  CHECK(anchors_are(flat[0].anchors, {{0.0, 0.0}, {50.0, -30.0}, {100.0, 0.0}, {50.0, 30.0}}));
+  // Far longer heads draw the same shape: the length that fits is all that shows.
+  const auto huge = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 30000, 0, true, true));
+  CHECK(huge.size() == 1 && anchors_are(huge[0].anchors, {{0.0, 0.0}, {50.0, -30.0}, {100.0, 0.0}, {50.0, 30.0}}));
+  // Concave heads: the barbs meet at the middle, the shaft still shows in both notches.
+  const auto concave = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 80, 50, true, true));
+  CHECK(concave.size() == 1 && concave[0].anchors.size() == 10);
+  CHECK(nearly(concave[0].anchors[1].anchor_x, 50.0) && nearly(concave[0].anchors[1].anchor_y, 30.0));
+  CHECK(nearly(concave[0].anchors[8].anchor_x, 50.0) && nearly(concave[0].anchors[8].anchor_y, 30.0));
+  // Convex heads: the points where the backs meet the shaft's edges touch at the middle.
+  const auto convex = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 60, 80, -50, true, true));
+  CHECK(convex.size() == 1 && convex[0].anchors.size() == 8);
+  CHECK(nearly(convex[0].anchors[3].anchor_x, 50.0, 1e-9) && nearly(convex[0].anchors[3].anchor_y, -2.0));
+  CHECK(nearly(convex[0].anchors[7].anchor_x, 50.0, 1e-9) && nearly(convex[0].anchors[7].anchor_y, 2.0));
+  // Narrow heads: two head polygons, base to base, and no shaft.
+  const auto narrow = patchy::generate_live_shape_subpaths(arrow_line(100, 10, 6, 80, 0, true, true));
+  CHECK(narrow.size() == 2);
+  CHECK(nearly(narrow[0].anchors[1].anchor_x, 50.0) && nearly(narrow[1].anchors[1].anchor_x, 50.0));
+  // Heads that fit are untouched (the #622 outline).
+  const auto fits = patchy::generate_live_shape_subpaths(arrow_line(100, 4, 12, 16, 0, true, true));
+  CHECK(fits.size() == 1 && fits[0].anchors.size() == 10);
+}
+
+// Even-odd membership of (x, y) in the subpaths' straight-edged outlines.
+bool inside_outline(const std::vector<PathSubpath>& subpaths, double x, double y) {
+  bool inside = false;
+  for (const auto& subpath : subpaths) {
+    const auto& anchors = subpath.anchors;
+    for (std::size_t i = 0, j = anchors.size() - 1; i < anchors.size(); j = i++) {
+      const double xi = anchors[i].anchor_x, yi = anchors[i].anchor_y;
+      const double xj = anchors[j].anchor_x, yj = anchors[j].anchor_y;
+      if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
+}
+
+double distance_to_segment(double x, double y, double ax, double ay, double bx, double by) {
+  const double dx = bx - ax, dy = by - ay;
+  const double span = dx * dx + dy * dy;
+  const double t = span > 0.0 ? std::clamp(((x - ax) * dx + (y - ay) * dy) / span, 0.0, 1.0) : 0.0;
+  return std::hypot(x - (ax + dx * t), y - (ay + dy * t));
+}
+
+// local-051: across short and long lines, small and very large heads, every concavity and
+// either or both ends, a line's outline fills exactly its shaft and heads: nothing punched
+// out where they overlap, no shaft drawn backwards, no stray area.
+void live_line_outline_is_the_union_of_shaft_and_heads() {
+  int compared = 0;
+  for (const double length : {10.0, 40.0, 100.0, 400.0}) {
+    for (const double head_length : {5.0, 30.0, 80.0, 150.0, 500.0, 30000.0}) {
+      for (const double head_width : {6.0, 30.0, 3000.0}) {
+        for (const int concavity : {-50, -20, 0, 20, 50}) {
+          for (const int heads : {1, 2, 3}) {
+            const double weight = 4.0;
+            const auto line = arrow_line(length, weight, head_width, head_length, concavity, (heads & 1) != 0,
+                                         (heads & 2) != 0);
+            const auto subpaths = patchy::generate_live_shape_subpaths(line);
+            CHECK(subpaths.size() == 1);
+            for (const auto& anchor : subpaths[0].anchors) {
+              CHECK(std::isfinite(anchor.anchor_x) && std::isfinite(anchor.anchor_y));
+            }
+            CHECK(subpaths[0].anchors.size() >= 3);
+
+            // The shape by its parts, in line coordinates (t along the line, s across it).
+            const double half = weight / 2.0;
+            const double half_width = head_width / 2.0;
+            const double c = concavity / 100.0;
+            const double back = 1.0 - c * (1.0 - half / half_width);
+            double drawn_length = head_length;
+            if (heads == 3 && 2.0 * head_length * std::max(1.0, back) >= length) {
+              drawn_length = length / (2.0 * std::max(1.0, back));
+            }
+            const double notch = drawn_length * (1.0 - c);
+            const double join = drawn_length * back;
+            // A head, u along the line from its tip and s across it.
+            std::vector<PathSubpath> head(1);
+            for (const auto& [u, s] : {std::pair{0.0, 0.0}, std::pair{drawn_length, half_width},
+                                       std::pair{notch, 0.0}, std::pair{drawn_length, -half_width}}) {
+              PathAnchor anchor;
+              anchor.anchor_x = u;
+              anchor.anchor_y = s;
+              head[0].anchors.push_back(anchor);
+            }
+            const auto in_head = [&](double u, double s) { return inside_outline(head, u, s); };
+            // The shaft ends on a head's back: the line from its middle to where it meets
+            // the shaft's edge.
+            const auto behind_back = [&](double u, double s) {
+              return u >= notch + std::abs(s) / half * (join - notch);
+            };
+            const auto expected = [&](double t, double s) {
+              const bool start_head = (heads & 1) != 0, end_head = (heads & 2) != 0;
+              if ((start_head && in_head(t, s)) || (end_head && in_head(length - t, s))) {
+                return true;
+              }
+              return t >= 0.0 && t <= length && std::abs(s) <= half && (!start_head || behind_back(t, s)) &&
+                     (!end_head || behind_back(length - t, s));
+            };
+            VectorPath outline;
+            outline.subpaths = subpaths;
+            const auto bounds = outline.bounds();
+            CHECK(bounds.has_value());
+            const double left = std::min(bounds->left, -1.0) - 3.0, right = std::max(bounds->right, length + 1.0) + 3.0;
+            const double top = bounds->top - 3.0, bottom = bounds->bottom + 3.0;
+            constexpr int kGrid = 37;
+            for (int row = 0; row < kGrid; ++row) {
+              for (int column = 0; column < kGrid; ++column) {
+                const double x = left + (right - left) * (column + 0.37) / kGrid;
+                const double y = top + (bottom - top) * (row + 0.61) / kGrid;
+                // A sample on an edge has no side: leave it out.
+                double edge_distance = std::numeric_limits<double>::max();
+                const auto& anchors = subpaths[0].anchors;
+                for (std::size_t i = 0, j = anchors.size() - 1; i < anchors.size(); j = i++) {
+                  edge_distance = std::min(edge_distance,
+                                           distance_to_segment(x, y, anchors[i].anchor_x, anchors[i].anchor_y,
+                                                               anchors[j].anchor_x, anchors[j].anchor_y));
+                }
+                if (edge_distance < 1e-6 * std::max(1.0, right - left)) {
+                  continue;
+                }
+                ++compared;
+                if (inside_outline(subpaths, x, y) != expected(x, y)) {
+                  patchy::test::report_failure(
+                      "line outline differs from its parts: length " + std::to_string(length) + " head " +
+                      std::to_string(head_width) + "x" + std::to_string(head_length) + " concavity " +
+                      std::to_string(concavity) + " heads " + std::to_string(heads) + " at " + std::to_string(x) +
+                      ", " + std::to_string(y));
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  CHECK(compared > 400000);
+}
+
+// local-051: a head far past the old 1000% and 5000% ceilings, one longer than its line and
+// one at the 30000 px ceiling are pixels in the PSD and come back as the same live line.
+// The files stay in test-artifacts for the Photoshop open check (docs/vector-tools.md).
+void live_line_large_arrowhead_survives_a_psd_round_trip() {
+  struct Case {
+    double line_length;
+    double head_width;
+    double head_length;
+  };
+  std::filesystem::create_directories("test-artifacts");
+  for (const auto& [line_length, head_width, head_length] :
+       {Case{900.0, 320.0, 480.0}, Case{200.0, 320.0, 480.0}, Case{900.0, 5000.0, 5000.0},
+        Case{900.0, patchy::kLiveLineArrowMaxSize, patchy::kLiveLineArrowMaxSize}}) {
+    patchy::Document document(1200, 700, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("bg", patchy::test::solid_rgba(1200, 700, 255, 255, 255, 255));
+    Layer shape(document.allocate_layer_id(), "Line 1", patchy::PixelBuffer());
+    LiveShapeParams params = arrow_line(line_length, 4, head_width, head_length, 20, false, true);
+    params.index = 0;
+    params.line_start_x = 150; params.line_start_y = 350;
+    params.line_end_x = 150 + line_length; params.line_end_y = 350;
+    patchy::VectorShapeContent content;
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    const auto hull = content.path.bounds();
+    CHECK(hull.has_value());
+    params.left = hull->left; params.top = hull->top; params.right = hull->right; params.bottom = hull->bottom;
+    patchy::populate_live_shape_box_corners(params);
+    content.origination = {params};
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{20, 40, 160};
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(1200, 700), nullptr);
+    document.add_layer(std::move(shape));
+
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    patchy::psd::DocumentIo::write_layered_rgb8_file(
+        document, std::filesystem::path("test-artifacts") /
+                      ("local_051_line_" + std::to_string(static_cast<int>(line_length)) + "_head_" +
+                       std::to_string(static_cast<int>(head_width)) + "x" +
+                       std::to_string(static_cast<int>(head_length)) + ".psd"));
+    const auto reread = patchy::psd::DocumentIo::read(written, {});
+    const auto* line = reread.layers()[1].vector_shape();
+    CHECK(line != nullptr && line->origination.size() == 1);
+    const auto live = patchy::resolve_live_shape_group(line->path, line->origination, line->origination[0].index);
+    CHECK(live.has_value() && live->kind == LiveShapeKind::Line && live->arrow_end && !live->arrow_start);
+    CHECK(live.has_value() && nearly(live->arrow_width, head_width, 1e-9) &&
+          nearly(live->arrow_length, head_length, 1e-9));
+    CHECK(live.has_value() && live->arrow_concavity == 20 && nearly(live->line_weight, 4.0, 1e-9));
+    CHECK(live.has_value() && live->arrow_width_unit_pixels && live->arrow_length_unit_pixels);
+    // The head is as tall as its width on the canvas, up to the 700 px canvas.
+    CHECK(std::abs(reread.layers()[1].bounds().height - static_cast<int>(std::min(head_width, 700.0))) <= 2);
+  }
 }
 
 void rounded_rect_zero_and_clamped_radii() {
@@ -998,6 +1289,10 @@ std::vector<patchy::test::TestCase> vector_shape_tests() {
       {"live_ellipse_and_line_match_photoshop_construction",
        live_ellipse_and_line_match_photoshop_construction},
       {"live_line_arrowheads_generate_heads", live_line_arrowheads_generate_heads},
+      {"live_line_head_longer_than_the_line_keeps_its_size", live_line_head_longer_than_the_line_keeps_its_size},
+      {"live_line_two_heads_meet_in_the_middle", live_line_two_heads_meet_in_the_middle},
+      {"live_line_outline_is_the_union_of_shaft_and_heads", live_line_outline_is_the_union_of_shaft_and_heads},
+      {"live_line_large_arrowhead_survives_a_psd_round_trip", live_line_large_arrowhead_survives_a_psd_round_trip},
       {"rounded_rect_zero_and_clamped_radii", rounded_rect_zero_and_clamped_radii},
       {"vector_path_bounds_groups_and_transforms", vector_path_bounds_groups_and_transforms},
       {"vector_metadata_flags_round_trip", vector_metadata_flags_round_trip},

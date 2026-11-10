@@ -685,6 +685,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                   // object over the TySh run (GitHub issue 683).
                   paragraph.auto_hyphenate = entry.auto_hyphenate.value_or(paragraph.auto_hyphenate);
                   paragraph.kashida_width = entry.kashida_width.value_or(paragraph.kashida_width);
+                  paragraph.every_line_composer =
+                      entry.every_line_composer.value_or(paragraph.every_line_composer);
                   paragraph.hyphenated_word_size =
                       entry.hyphenated_word_size.value_or(paragraph.hyphenated_word_size);
                   paragraph.pre_hyphen = entry.pre_hyphen.value_or(paragraph.pre_hyphen);

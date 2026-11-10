@@ -1,6 +1,6 @@
 # Missing fonts and substitutes
 
-Split from [font-resolution.md](font-resolution.md): what happens when a document names a font this machine cannot draw (the substitution prompt, the layer badge, the Free Transform question, Type > Resolve Missing Fonts), the built-in substitute table, and same-type stand-ins for fonts the table does not list.
+Split from [font-resolution.md](font-resolution.md): what happens when a document names a font this machine cannot draw (the substitution prompt, the layer badge, the Free Transform question, Type > Resolve Missing Fonts and the replacements it remembers), the built-in substitute table, and same-type stand-ins for fonts the table does not list.
 
 ## Missing fonts
 
@@ -68,12 +68,15 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
 - **Type > Resolve Missing Fonts** (issue 169; hotkey id `type.resolve_missing_fonts`;
   `src/ui/missing_fonts_dialog.*`, `main_window_missing_fonts.cpp`). One row per family any text
   layer cannot draw, hidden and grouped layers included, deduped by `text_font_replacement_key`
-  (the compact key), with a `@dlg_divider` line between rows. A row's name shows the family in bold
-  with the style beside it, split by `split_font_family_and_style` as the options bar does
-  (issue 669: "Museo Sans Rounded" + "500"; display only, the whole name stays the row's key and
-  the label's `patchyMissingFontFullName` property). Every row starts ticked (Seth,
-  issue 463 follow-up) with its picker on the suggested stand-in ("Substitute table" below), else
-  the face drawing the text now. "Resolve Fonts" is enabled while at least one row is ticked;
+  (the compact key), with a `@dlg_divider` line between rows. A row's name is one bold label: the
+  family, then the style in brackets, split by `split_font_family_and_style` as the options bar
+  does (issue 669: "Museo Sans Rounded (500)"; a plain literal pattern, since every catalog keeps
+  ASCII brackets; display only, the whole name stays the row's key and the label's
+  `patchyMissingFontFullName` property). The row list is as wide as its widest row (it never
+  scrolls sideways, so a narrower one cut the pickers off). Every row starts ticked (Seth,
+  issue 463 follow-up) with its picker on the font chosen before ("Remembered replacements"
+  below), else the suggested stand-in ("Substitute table" below), else the face drawing the text
+  now. "Resolve Fonts" is enabled while at least one row is ticked;
   there is no "Don't Resolve" button: Cancel or Escape keeps every font (the file keeps the
   names, so a machine with the fonts shows the originals) and still opens the document. On
   Resolve and on Cancel the "Don't show" box is saved. Resolve runs one hidden session per affected layer with `text_font_replacements_` set:
@@ -83,8 +86,9 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
   protected text geometry are skipped and counted in the status message.
 - **Type > Replace All Missing Fonts** (issue 686; `type.replace_all_missing_fonts`,
   `replace_all_missing_fonts`): the dialog's answer with no dialog. `missing_font_entry` builds
-  each row's recommendation for both paths; a row whose suggestion is `fallback` (no table pick,
-  no same-type default) takes `default_text_family()`, not the face Qt falls back to, and a
+  each row's recommendation for both paths, a remembered replacement first (read, never
+  written: only a pick in the dialog is a choice); a row whose suggestion is `fallback` (no table
+  pick, no same-type default) takes `default_text_family()`, not the face Qt falls back to, and a
   `no_symbol_match` symbol font keeps its name, as its dialog row starts unticked. Then
   `resolve_missing_fonts` as above: one "Resolve Missing Fonts" step, locked layers counted.
   Nothing missing: the status bar says "This document has no missing fonts".
@@ -102,6 +106,47 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
   set that key. The UI test main sets it false; tests that need
   the dialog turn it on. Tests: the `missing_font` filter (tests/ui/missing_fonts_tests.cpp),
   `ui_update_all_text_layers_`, `ui_replace_all_missing_fonts_`.
+
+### Remembered replacements
+
+Resolve Missing Fonts remembers what was chosen for each missing font (issue 692), so the same
+or another document naming that font starts on it. `src/ui/font_replacement_memory.{hpp,cpp}`.
+
+- **Store.** The settings key `text/missingFontReplacements` (a persisted identifier, never
+  renamed) holds compact JSON: `[{"font": <text_font_replacement_key>, "picks": [{"family",
+  "count"}, ...]}, ...]`. The member names are part of the contract. Both arrays are ordered most
+  recently chosen first, so a font's first pick is the last one made. At most
+  `kMaxRememberedReplacementFonts` (100) fonts with `kMaxRememberedReplacementsPerFont` (6)
+  families each; the entry chosen longest ago goes first. A damaged value reads as empty.
+- **Recording** (`remember_font_replacements`, after Resolve Fonts only). A ticked row's pick is
+  recorded when it differs from the built-in recommendation the row would start on
+  (`MissingFontEntry::recommended`), when the font is a `no_symbol_match` symbol font (its row
+  starts unticked, so any pick is by hand), or when the font already has remembered picks (going
+  back to the recommendation becomes the last pick; accepting a remembered font counts once
+  more). An untouched recommendation for a font with no history records nothing, so those rows
+  keep their "Suggested:" line. Cancel and unticked rows record nothing: "keep the missing font"
+  is not remembered.
+- **Use** (`missing_font_entry`, so the dialog and Replace All Missing Fonts agree). The row
+  starts on the font chosen last that is installed and draws the row's text
+  (`append_missing_text_family`); a pick that fails either test is skipped for the next most
+  recent one, then for the built-in recommendation. The row then shows "Chosen before: X"
+  (`missingFontChosenBefore<N>`) in place of its "Suggested:" line or its symbol-font note, and a
+  symbol font's row starts ticked on it.
+- **Picker sections.** Each row hands its picker two sections
+  (`FontPickerCombo::set_extra_sections`, [font-picker.md](font-picker.md#extra-sections-issue-692)):
+  "Chosen before", the remembered families still installed, most often chosen first and the most
+  recent first among equals, then "Suggested", every installed candidate of
+  `installed_text_font_substitutes` with its reason ("same character widths", "similar design",
+  "also a serif font" and its sans-serif and monospaced forms) minus the fonts the first section
+  lists. The full list with search, filters, Recent, Favorites and the preview stays below them
+  (Seth chose that over a plain list).
+- Tests: `ui_missing_fonts_dialog_remembers_the_replacement_chosen`,
+  `ui_missing_fonts_dialog_skips_a_remembered_font_that_is_not_installed`,
+  `ui_missing_fonts_picker_`, `ui_replace_all_missing_fonts_uses_the_remembered_replacement`,
+  `ui_missing_fonts_untouched_suggestion_and_cancel_remember_nothing`,
+  `ui_missing_font_replacement_memory_counts_orders_and_caps`. A test that resolves a hand-picked
+  font holds a `ReplacementMemoryReset`, or its pick starts a later test's row; the UI test main
+  clears the key at startup.
 
 ### Substitute table
 

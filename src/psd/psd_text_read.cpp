@@ -1458,6 +1458,26 @@ bool engine_normal_paragraph_auto_hyphenate(std::string_view resources) {
   return engine_bool_after_key(sheets[static_cast<std::size_t>(index)], "/AutoHyphenate", false);
 }
 
+// /EveryLineComposer of the normal paragraph sheet inside a ResourceDict, for a paragraph run
+// that leaves the key out; false (Adobe Single-line Composer) when the sheet has none.
+bool engine_normal_paragraph_every_line_composer(std::string_view resources) {
+  const auto set_range = balanced_range_after(resources, "/ParagraphSheetSet", '[', ']');
+  if (!set_range.has_value()) {
+    return false;
+  }
+  const auto sheets =
+      engine_dictionary_ranges(resources.substr(set_range->first, set_range->second - set_range->first));
+  auto index = 0;
+  if (const auto value = engine_number_after_key(resources, "/TheNormalParagraphSheet");
+      value.has_value() && std::isfinite(*value) && *value >= 0.0 && *value <= 255.0) {
+    index = static_cast<int>(std::lround(*value));
+  }
+  if (sheets.empty() || static_cast<std::size_t>(index) >= sheets.size()) {
+    return false;
+  }
+  return engine_bool_after_key(sheets[static_cast<std::size_t>(index)], "/EveryLineComposer", false);
+}
+
 // Parse the ResourceDict's normal style/paragraph sheets (see PsdTextEngineDefaults). The
 // fallbacks passed in are used when the engine data has no parsable ResourceDict (hand-built
 // engine data in old files and tests).
@@ -1802,6 +1822,7 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
   const auto resources = resource_pos == std::string_view::npos ? std::string_view{} : engine.substr(resource_pos);
   const auto default_auto_leading_fraction = engine_normal_paragraph_auto_leading_fraction(resources);
   const bool default_auto_hyphenate = engine_normal_paragraph_auto_hyphenate(resources);
+  const bool default_every_line_composer = engine_normal_paragraph_every_line_composer(resources);
   std::vector<PsdTextParagraphRun> runs;
   int start = 0;
   for (std::size_t index = 0; index < length_values.size() && index < dictionaries.size(); ++index) {
@@ -1832,6 +1853,10 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
     // run; one that leaves /AutoHyphenate out takes the normal paragraph sheet's. Kept, never
     // applied (Patchy does not hyphenate). The Txt2 object's /9 to /15 override these.
     run.auto_hyphenate = engine_bool_after_key(dictionaries[index], "/AutoHyphenate", default_auto_hyphenate);
+    // The line composer (Every-line or Single-line), kept the same way; the Txt2 object's /29
+    // overrides it.
+    run.every_line_composer =
+        engine_bool_after_key(dictionaries[index], "/EveryLineComposer", default_every_line_composer);
     const auto hyphen_count = [&](std::string_view key, int fallback) {
       const auto value = engine_number_after_key(dictionaries[index], key);
       return value.has_value() && std::isfinite(*value) && *value >= 0.0 && *value <= 1000.0
@@ -2352,6 +2377,7 @@ std::string serialize_paragraph_run_settings(const PsdTextParagraphRun& run) {
         serialize_paragraph_metric(run.hyphenation_zone) + ':' + (run.hyphenate_capitalized ? '1' : '0'));
   }
   if (run.kashida_width != 2) add("kashida:" + std::to_string(run.kashida_width));
+  if (run.every_line_composer) add("everyline");
   return tokens.empty() ? std::string("-") : tokens;
 }
 
@@ -2364,6 +2390,7 @@ void copy_paragraph_run_settings(const PsdTextParagraphRun& from, PsdTextParagra
   to.hyphenation_zone = from.hyphenation_zone;
   to.hyphenate_capitalized = from.hyphenate_capitalized;
   to.kashida_width = from.kashida_width;
+  to.every_line_composer = from.every_line_composer;
 }
 
 void parse_paragraph_run_settings(std::string_view field, PsdTextParagraphRun& run) {
@@ -2408,6 +2435,8 @@ void parse_paragraph_run_settings(std::string_view field, PsdTextParagraphRun& r
       if (const auto value = number(token.substr(8)); value && *value <= 4.0) {
         run.kashida_width = static_cast<int>(std::lround(*value));
       }
+    } else if (token == "everyline") {
+      run.every_line_composer = true;
     }
   }
 }

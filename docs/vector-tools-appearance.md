@@ -35,6 +35,17 @@ the four nested gradient and pattern forms share another; the fill-only dialog m
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
+With a line among the targets the Stroke form has a note under Align
+(`shapeStrokeInsideLineHint`, local-051), shown while the stroke is on and Align is
+Inside: "Inside keeps the stroke within the line's Weight. Choose Center or Outside to
+make the line thicker." ([why](vector-tools-lines.md#a-lines-stroke)). It takes no width of its
+own (Ignored horizontal policy) and has a fixed height, what the text needs at the form's
+narrowest. QFormLayout drops a hidden row whatever its retain-size policy, so while the
+note is hidden a spacer under the Stroke section (`stroke_hint_room`) holds its height:
+the rows below Align close up, and the page and the dialog keep their size when the note
+comes and goes (`ui_shape_appearance_inside_stroke_hint_on_lines`). Reset gives a line
+Center, the stroke a new line gets.
+
 The left column is Layer, Geometry (`shapeGeometryGroup`), Radius (`shapeRadiusGroup`),
 Arrowheads, Polygon (`shapePolygonGroup`) and Edge. Every section lines its fields up
 (#641): Geometry and Radius are grids (label, link column, field), the others forms whose
@@ -58,7 +69,7 @@ single-layer rows (X, Y, Width, Height, Start, End) are off or absent; Weight
 Weight, Shape, Radius, Arrowheads and Polygon apply per field to the layers they fit. A
 line's arrowheads (a Heads: row with Start and End, `shapeArrowHeadsLabel`; Width, Length,
 Concavity) are its Arrowheads section
-([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). A radius makes a
+([vector-tools-lines.md](vector-tools-lines.md#weight-and-arrowheads)). A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
 on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
@@ -67,9 +78,17 @@ the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
 
 Edits preview live and restore on cancel or exception; a PSD-read
 gradient/pattern stroke stays untouched unless re-picked. The preview
-rasterizes on a worker: the vector MODEL applies synchronously, baked pixels
-lag, requests coalesce, the pattern anchor rides a scratch layer; accept
-commits the in-flight result (60 s timeout).
+rasterizes on a worker and shows only finished renders (`edit_active_shape_appearance`,
+local-051 follow-up): a request's outline and the pixels baked from it reach the document
+together when its render lands, so the composite, the path outline and Dynamic Vector
+Preview never pair a new outline with older pixels, and between two renders the canvas
+shows the last finished one, never the layer from when the dialog opened. One render runs
+at a time and a finished one lands even while a newer value waits (the adjustment
+previews' rule, GitHub #601), so a scrub shows each size in order; requests coalesce to
+the newest; Preview off restores the originals at once and bumps the generation, so a
+render it overtook never lands. The request's pattern store lands with its layers, the
+pattern anchor rides a scratch layer, and accept commits the in-flight result (60 s
+timeout). Test: `ui_shape_appearance_preview_shows_only_finished_renders`.
 
 Layer > New Fill Layer makes Solid Color, Gradient (FG-to-BG linear) and
 Pattern fill layers: shape layers with an empty path (whole canvas); a

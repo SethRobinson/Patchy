@@ -15814,6 +15814,49 @@ Do you want to replace it?</source>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Один холст размером %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>«Внутри» удерживает обводку в пределах толщины линии. Выберите «По центру» или «Снаружи», чтобы сделать линию толще.</translation>
+    </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>та же ширина символов</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>похожий рисунок</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>тоже шрифт с засечками</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>тоже шрифт без засечек</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>тоже моноширинный шрифт</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>Выбранные ранее</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>Предлагаемые</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>Выбран ранее: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35856,6 +35899,10 @@ Locked: %1</source>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Завершение страницы %1 из %2...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>«Внутри» удерживает эту обводку в пределах толщины линии. Выберите «По центру» или «Снаружи» в поле «Выровнять» окна «Внешний вид фигуры», чтобы сделать линию толще.</translation>
     </message>
 </context>
 <context>

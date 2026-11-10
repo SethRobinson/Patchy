@@ -231,13 +231,18 @@ VectorShapeContent geometry(ScriptEngineHost& host, const QJsonObject& value, do
     keys(value, {"type", "x1", "y1", "x2", "y2", "weight", "arrowStart", "arrowEnd", "arrowWidth", "arrowLength",
                  "arrowConcavity"});
     params.kind = LiveShapeKind::Line;
+    // A line is a filled outline as wide as its weight: a centered stroke shows, an inside
+    // one could only recolour it (local-051). A style's own alignment still wins.
+    result.stroke.alignment = VectorStrokeAlignment::Center;
     params.line_start_x = required_number(value, "x1"); params.line_start_y = required_number(value, "y1");
     params.line_end_x = required_number(value, "x2"); params.line_end_y = required_number(value, "y2");
     if (std::hypot(params.line_end_x - params.line_start_x, params.line_end_y - params.line_start_y) < 0.001) { invalid("line.length"); }
     params.line_weight = number(value, "weight", 1, 0.001, 30000);
     params.arrow_start = boolean(value, "arrowStart", false); params.arrow_end = boolean(value, "arrowEnd", false);
-    params.arrow_width = number(value, "arrowWidth", params.line_weight * 5, 0, 30000);
-    params.arrow_length = number(value, "arrowLength", params.line_weight * 10, 0, 30000);
+    params.arrow_width = number(value, "arrowWidth", std::min(params.line_weight * 5, kLiveLineArrowMaxSize), 0,
+                                kLiveLineArrowMaxSize);
+    params.arrow_length = number(value, "arrowLength", std::min(params.line_weight * 10, kLiveLineArrowMaxSize), 0,
+                                 kLiveLineArrowMaxSize);
     params.arrow_concavity = integer(value, "arrowConcavity", 0, -50, 50);
     params.left = std::min(params.line_start_x, params.line_end_x); params.right = std::max(params.line_start_x, params.line_end_x);
     params.top = std::min(params.line_start_y, params.line_end_y); params.bottom = std::max(params.line_start_y, params.line_end_y);

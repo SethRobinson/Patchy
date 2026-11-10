@@ -565,6 +565,68 @@ void ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits
   CHECK(!patchy::ui::rich_text_runs_from_document(plain, fallback, Qt::black).contains(QStringLiteral("digits")));
 }
 
+// Each paragraph run sets only its own paragraphs. A run ends with its paragraph break, and the
+// editor document used to merge its block format one position further, into the next
+// paragraph, which then kept whatever its own run leaves unset: the kept Photoshop settings
+// (an Every-line paragraph made the Single-line one after it Every-line), a composer other than
+// World-Ready, and a right-to-left direction ahead of an automatic one.
+void ui_text_paragraph_runs_stay_on_their_own_paragraphs() {
+  const auto column = [](const QString& serialized, int index) {
+    QStringList out;
+    for (const auto& line : serialized.split(QLatin1Char('\n')).mid(1)) {
+      out << line.split(QLatin1Char('\t')).value(index);
+    }
+    return out.join(QLatin1Char('|'));
+  };
+  // "One\n" 0-4, "Two\n" 4-8, "\n" 8-9 (an empty paragraph), "Four" 9-13.
+  const QString text = QStringLiteral("One\nTwo\n\nFour");
+  const QString paragraphs = QStringLiteral(
+      "v6\n"
+      "0\t4\tleft\t0\t0\t0\t0\t0\t1.2\trtl\t0\thyphenate,everyline\n"
+      "4\t4\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-\n"
+      "8\t1\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\tkashida:0\n"
+      "9\t4\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-");
+  QTextDocument document;
+  document.setPlainText(text);
+  patchy::ui::apply_paragraph_runs_to_document(document, paragraphs);
+  const auto serialized = patchy::ui::paragraph_runs_from_document(document);
+  CHECK(column(serialized, 11) == QStringLiteral("hyphenate,everyline|-|kashida:0|-"));
+  CHECK(column(serialized, 10) == QStringLiteral("0|1|1|1"));
+  CHECK(column(serialized, 9) == QStringLiteral("rtl|auto|auto|auto"));
+
+  // One run over several paragraphs still reaches each of them, and stops at its end.
+  QTextDocument spanning;
+  spanning.setPlainText(text);
+  patchy::ui::apply_paragraph_runs_to_document(
+      spanning, QStringLiteral("v6\n0\t8\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\teveryline\n"
+                               "8\t5\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-"));
+  CHECK(column(patchy::ui::paragraph_runs_from_document(spanning), 11) == QStringLiteral("everyline|everyline|-|-"));
+
+  // The commit's copy of the editor document and its change of scale keep each paragraph's own
+  // format too: the first paragraph's indent, settings, composer and direction stay off the others.
+  QTextDocument indented;
+  indented.setPlainText(text);
+  patchy::ui::apply_paragraph_runs_to_document(
+      indented, QStringLiteral("v6\n"
+                               "0\t4\tleft\t24\t12\t0\t0\t6\t1.2\trtl\t0\thyphenate,everyline\n"
+                               "4\t4\tcenter\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-\n"
+                               "8\t1\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\tkashida:0\n"
+                               "9\t4\tright\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-"));
+  const auto check_paragraphs = [&](const QTextDocument& checked, const QString& first_indent) {
+    const auto runs = patchy::ui::paragraph_runs_from_document(checked);
+    CHECK(column(runs, 2) == QStringLiteral("left|center|left|right"));
+    CHECK(column(runs, 3) == first_indent + QStringLiteral("|0|0|0"));
+    CHECK(column(runs, 9) == QStringLiteral("rtl|auto|auto|auto"));
+    CHECK(column(runs, 10) == QStringLiteral("0|1|1|1"));
+    CHECK(column(runs, 11) == QStringLiteral("hyphenate,everyline|-|kashida:0|-"));
+  };
+  check_paragraphs(indented, QStringLiteral("24"));
+  const auto copy = patchy::ui::copy_text_document_formats(indented);
+  check_paragraphs(*copy, QStringLiteral("24"));
+  patchy::ui::scale_document_font_sizes(*copy, 2.0);
+  check_paragraphs(*copy, QStringLiteral("48"));
+}
+
 // The reporter's justified Hebrew file (GitHub issue 683, local fixture): after a re-render the
 // Alef and Noto layers' justified lines reach the box's right edge like the left one. Skips the
 // edge check for a layer whose font the host lacks (its substitute wraps differently, but still
@@ -643,6 +705,7 @@ std::vector<patchy::test::TestCase> text_rtl_psd_tests() {
        ui_arabic_justify_all_spreads_the_last_line_over_word_spaces},
       {"ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits",
        ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits},
+      {"ui_text_paragraph_runs_stay_on_their_own_paragraphs", ui_text_paragraph_runs_stay_on_their_own_paragraphs},
       {"ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available",
        ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available},
       {"ui_issue_683_photoshop_leading_survives_patchy_save_and_reedit",

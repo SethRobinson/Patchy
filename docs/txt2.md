@@ -9,13 +9,19 @@ Photoshop shows the stale object. This
 document records its format and what Photoshop 2026 accepts, established by COM probes. Area-frame
 contour encoding and measured flow rules are in [area-text.md](area-text.md).
 
+Related documents:
+
+- [txt2-kept-settings.md](txt2-kept-settings.md): the settings Patchy keeps and does not draw (Hyphenate and its numbers, the Kashida width, the line composer, the Middle Eastern character settings), where Photoshop takes each from, and the Action Manager `set` that changes a layer's line composer.
+
 Probe files live in `local-test-fixtures/psd/txt2-probes/` (gitignored). The tooling is in
 `scripts/dev/txt2/`: `txt2tool.py` (PSD section walker, byte-exact EngineData tokenizer and
 serializer, `dump`/`roundtrip`/`diff`/`variant` commands), `variants.py` (the V1 to V6 edits),
 `ps-probe.ps1` (opens files in Photoshop over COM, selects each type layer, reads
 `textKey` back through Action Manager, renders a PNG, resaves; logs any `PSDialogBox` text),
 `ps-capture-p2b.ps1` (single-setting captures through Action Manager, list styles
-included) and `make_template.py` (generates the authoring template).
+included), `ps-relayout.ps1` (makes Photoshop lay text out again without touching the paragraph
+style and saves the render, for layout comparisons) and `make_template.py` (generates the
+authoring template).
 
 ## The writer
 
@@ -75,7 +81,7 @@ embedded smart-object PSD in its `lnk2` block, not at document level).
 
 | Path | Meaning | Notes |
 |---|---|---|
-| `/98 << /0 14 >>` | format version | Photoshop 2026 writes 14 |
+| `/98 << /0 14 >>` | format version | Photoshop 2026 wrote 14 in October 2026 and writes 16 from 27.11; GitHub issue 672's file has 7 and its paragraph runs name only `/0` |
 | `/0` | DocumentResources | |
 | `/0/1/0[]` | FontSet | `/99 /CoolTypeFont`, `/0` PostScript name, `/2` type (0 default/Myriad, 1 ordinary), `/5` version string; entry 0 is `AdobeInvisFont` |
 | `/0/2`, `/0/3`, `/0/4` | MojiKumi / MojiKumiSet (9) / KinsokuSet (6) | boilerplate, identical across captures |
@@ -122,14 +128,16 @@ Paragraph sheet (`/1/1[i]/0/5/0[j]/0/0/5`, and `/0/6`, `/1/3`):
 | `/5` | SpaceAfter | px |
 | `/6` | (default sheets only) | 1 |
 | `/7` | AutoLeading | 1.2, 1.125, 1.16667 |
-| `/8` | LeadingType | 0 |
-| `/9` | AutoHyphenate | bool; kept, see [Settings Patchy keeps](#settings-patchy-keeps-and-does-not-draw) |
+| `/8` | LeadingType (`leadingType`) | 0 bottom-to-bottom (`leadingBelow`), 1 top-to-top (`leadingAbove`) |
+| `/9` | AutoHyphenate | bool; kept, see [txt2-kept-settings.md](txt2-kept-settings.md) |
 | `/10`..`/15` | HyphenatedWordSize 6, PreHyphen 2, PostHyphen 2, ConsecutiveHyphens 8 (0 in defaults), Zone 36.0, HyphenateCapitalized true | a run's sheet names them only off these values; kept |
 | `/16` | HyphenationPreference | .5 (default sheets) |
 | `/17`, `/18`, `/19` | WordSpacing, LetterSpacing, GlyphSpacing | `[ .8 1.0 1.33 ]`, `[ 0.0 0.0 0.0 ]`, `[ 1.0 1.0 1.0 ]` |
-| `/21` | Burasagari | false |
+| `/21` | Hanging (Roman Hanging Punctuation, `hangingRoman`) | false; true pinned by a capture |
 | `/23` | KeepTogether | true |
-| `/24`, `/25` | KinsokuOrder, (unknown) | 0 |
+| `/24` | Burasagari (`burasagari`) | 0 none (every file seen), 1 standard |
+| `/25` | KinsokuOrder (by position) | 0 |
+| `/29` | EveryLineComposer (`textEveryLineComposer`) | false Adobe Single-line Composer, true Adobe Every-line Composer; kept, see [txt2-kept-settings.md](txt2-kept-settings.md) |
 | `/33` | ParagraphDirection | 0 ltr, 1 rtl (`directionType` in Action Manager); Photoshop's only record of it, read before any TySh key; `/Justification` is relative to it ([text-render-calibration-vertical-rtl.md](text-render-calibration-vertical-rtl.md#paragraph-direction-right-to-left)) |
 | `/35` | composer | 0 Latin and East Asian, 1 World-Ready (`textOptycaComposer`; default, also for a file with no Txt2), 2 unnamed; read run, its sheet, then `/1/3`. 1 and 2 kern a paragraph's end ([text-render-calibration.md](text-render-calibration.md#tracking-and-alignment), COM byte-edits) |
 | `/32` | the paragraph style's character style | sparse style sheet; see below |
@@ -212,56 +220,6 @@ language. There is no UI for it: Patchy has no hyphenation or spell check. Accep
 2026 over COM): a Patchy-born file with English UK, German and Arabic runs, and the Photoshop
 fixture (`local-test-fixtures/psd/issue-682/`) edited and saved by Patchy, both open clean
 (`textWarningLevel 0`, no `oldText`) and read those languages back on the same runs.
-
-## Settings Patchy keeps and does not draw
-
-Hyphenation and the Middle Eastern settings change how Photoshop lays text out; Patchy has no
-hyphenation, kashida insertion, digit substitution or diacritic positioning, so it only keeps
-the values a file has through an edit and a save (GitHub issue 683; COM captures on This PC,
-November 2026: one throwaway box layer per setting, set through Action Manager on the
-`textLayer` `paragraphStyle` or `textStyle` property, then both blocks read). There is no UI.
-
-- **Hyphenate** (`hyphenate`): Txt2 `/9`, TySh `/AutoHyphenate` on every paragraph run.
-  Photoshop 2026 writes it off for a new layer (its "Basic Paragraph" sheet has `/9 false`;
-  the normal sheets keep `true`), so a paragraph Patchy writes has it off unless the file had it
-  on. Patchy used to write `true` into every paragraph it rewrote, which turned Hyphenate on in
-  Photoshop.
-- **Hyphenation settings** (`hyphenateWordSize`, `hyphenatePreLength`, `hyphenatePostLength`,
-  `hyphenateLimit`, `hyphenationZone`, `hyphenateCapitalized`): Txt2 `/10` to `/15`, TySh
-  `/HyphenatedWordSize`, `/PreHyphen`, `/PostHyphen`, `/ConsecutiveHyphens`, `/Zone` (no TySh key
-  for capitalized words). The TySh run always carries the effective values (`/ConsecutiveHyphens
-  8`) while the default sheets say `/13 0`, so the reader takes the TySh run and only the Txt2
-  run's OWN sheet over it, never the parent sheets.
-- **Kashida width**: Txt2 paragraph `/40` only.
-- **Digit set, diacritic offsets, mark distance, Justification Alternates**: Txt2 style `/70`,
-  `/72`, `/73`, `/87`, `/75`. Photoshop 2026 writes no TySh key for any of them; older versions
-  wrote `/HindiNumbers` (true for Hindi and Farsi digits), which Patchy writes back for a run
-  with a digit set and reads only for a layer without a Txt2 object.
-
-Model: `PsdTextParagraphRun` (`auto_hyphenate`, the five numbers, `hyphenate_capitalized`,
-`kashida_width`), paragraph runs v6 column 11 tokens `hyphenate`,
-`hyphenation:<word>:<before>:<after>:<limit>:<zone>:<capitalized 0|1>`, `kashida:<n>`
-(`serialize_paragraph_run_settings`), the editor's `kTextBlockPhotoshopSettingsProperty`; and
-`PsdTextStyleRun` (`digit_set`, `diacritic_x_offset`, `diacritic_y_offset`, `mark_y_distance`,
-`justification_alternates`), runs v9 column 16 tokens `digits:<n>`, `diacx:<v>`, `diacy:<v>`,
-`marky:<v>`, `justalt`, the editor's `kTextMiddleEasternFormatProperty`. Each token is written
-only off its default, so other text keeps its metadata. Hyphenate, the Kashida width and the
-style keys resolve through the run's sheet, its parent sheet and the document's default sheet,
-as the composer does.
-
-Acceptance (Photoshop 2026 over COM, `photoshop-open-check.ps1` and a `textKey` readback): the
-reporter's Hebrew and Arabic files re-rendered and saved by Patchy, a Patchy-born file with
-Latin, Hebrew and Arabic boxes, and the two round-trip tests' files all open clean
-(`textWarningLevel 0`, no `oldText`). Hyphenate reads off on every layer that had it off and on
-new layers (the same Hebrew file saved by the build before this fix read on), and the
-hyphenation numbers, `kashidaWidthNone`, `hindiDigits` / `farsiDigits` / `arabicDigits`,
-`diacXOffset -100`, `diacYOffset 25.5`, `markYDistFromBaseline 0` and Justification Alternates
-read back on the paragraphs and runs that carry them.
-
-Tests: `text_engine_hyphenation_round_trips`, `text_engine_middle_eastern_settings_round_trip`,
-`text_engine_issue_683_reporter_settings_survive_an_edit_if_available`
-(`local-test-fixtures/psd/issue-683/`: the reporter's Hebrew and Arabic Photoshop files),
-`ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits`.
 
 ## What Photoshop 2026 accepts (probe results, all opened clean, no dialog, correct readback)
 

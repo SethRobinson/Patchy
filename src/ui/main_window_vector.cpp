@@ -494,7 +494,7 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   push_undo_snapshot(tr("New shape layer"));
   Layer layer(doc.allocate_layer_id(), name, PixelBuffer());
   const auto layer_id = layer.id();
-  auto content = current_shape_appearance_content();
+  auto content = current_shape_appearance_content(origination.has_value() && origination->kind == LiveShapeKind::Line);
   content.path.subpaths = std::move(subpaths);
   if (origination.has_value()) {
     content.origination = {std::move(*origination)};
@@ -697,13 +697,16 @@ LiveShapeParams MainWindow::polygon_live_shape_params(QRectF box, double angle_r
   return params;
 }
 
-VectorShapeContent MainWindow::current_shape_appearance_content() const {
+VectorShapeContent MainWindow::current_shape_appearance_content(bool line) const {
   VectorShapeContent content;
   content.fill = current_vector_fill_;
   content.stroke.enabled = current_vector_stroke_enabled_;
   content.stroke.width = current_vector_stroke_width_;
-  // Photoshop's default for new shapes: the stroke hugs the inside of the path.
-  content.stroke.alignment = VectorStrokeAlignment::Inside;
+  // New shapes: the stroke hugs the inside of the path. A line is a filled outline as wide
+  // as its Weight, where an Inside stroke could only recolour it, so a line's stroke is
+  // centered on that outline and its width makes the line thicker (local-051). A saved
+  // stroke preset, below, still sets the alignment it was saved with.
+  content.stroke.alignment = line ? VectorStrokeAlignment::Center : VectorStrokeAlignment::Inside;
   content.stroke.content = current_vector_stroke_paint_;
   apply_stroke_dash_preset(content.stroke, current_vector_stroke_dash_preset_);
   if (current_vector_stroke_style_.has_value()) {
@@ -904,17 +907,28 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
     }
     return true;
   };
+  // The live preview shows only finished renders (local-051 follow-up). A request's layers,
+  // the new outline with the pixels baked from it, reach the document together when their
+  // render lands. Until then the document keeps the last finished render, so nothing a
+  // repaint reads (the composite, the path outline, Dynamic Vector Preview) can pair a new
+  // outline with older pixels: assigning the request's layers at once put the pixels from
+  // when the dialog opened back for the length of every render, and a scrubbed arrowhead
+  // flipped between that size and the new one. A finished render also lands while a newer
+  // value waits, as in the adjustment previews (GitHub #601): one render runs at a time, so
+  // results arrive in request order and a scrub shows every size it passes.
   preview_state->start = [this, preview_state, latest, render_failed, prepare, render, target_canvas, request_serial](
                              const ShapeAppearanceSettings& settings) {
+    // prepare() adopts the request's patterns into the document's store. The store goes
+    // back to what the shown layers use, and the request's store lands with its layers.
+    auto shown_patterns = document().metadata().patterns;
     auto result = prepare(settings);
     const auto patterns = std::make_shared<PatternStore>(document().metadata().patterns);
+    document().metadata().patterns = std::move(shown_patterns);
     const auto bounds = Rect::from_size(document().width(), document().height());
     const auto generation = ++preview_state->generation;
     const auto serial = request_serial->load();
     preview_state->in_flight = true;
     *render_failed = false;
-    for (const auto& layer : *result)
-      if (auto* target = document().find_layer(layer.id())) *target = layer;
     canvas_->begin_processing_operation(tr("Updating shapes..."));
     const QPointer<MainWindow> window(this);
     auto* app = QCoreApplication::instance();
@@ -923,16 +937,17 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
       bool failed = false;
       try { failed = !render(*result, bounds, *patterns, serial); } catch (...) { failed = true; }
       if (!app) return;
-      QMetaObject::invokeMethod(app, [window, preview_state, latest, render_failed, result,
+      QMetaObject::invokeMethod(app, [window, preview_state, latest, render_failed, result, patterns,
                                      generation, failed, target_canvas] {
         preview_state->in_flight = false;
         if (target_canvas) target_canvas->end_processing_operation();
+        // Preview off bumps the generation, so a render it overtook never lands.
         if (window && target_canvas && window->canvas_ == target_canvas &&
-            !preview_state->closed && !preview_state->pending &&
-            generation == preview_state->generation) {
+            !preview_state->closed && generation == preview_state->generation) {
           *render_failed = failed;
           if (!failed) {
             *latest = *result;
+            window->document().metadata().patterns = *patterns;
             for (const auto& layer : *result)
               if (auto* target = window->document().find_layer(layer.id())) *target = layer;
             window->canvas_->document_changed();
@@ -964,8 +979,14 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
   defaults.stroke.width = 3.0;
   defaults.stroke.alignment = VectorStrokeAlignment::Inside;
   const auto preview_changed = [preview_state, restore, request_serial](const ShapeAppearanceSettings& value) {
-    ++*request_serial;
-    if (!value.preview_enabled) restore();
+    if (!value.preview_enabled) {
+      // Preview off shows the layers as they were, at once: a render still running is
+      // abandoned (the serial) and never lands (the generation). An ordinary change lets the
+      // running render finish and land, then renders the newest value.
+      ++*request_serial;
+      ++preview_state->generation;
+      restore();
+    }
     enqueue_async_pixel_preview(preview_state, value);
   };
   const auto accepted = editor ? editor(context.originals.front(), preview_changed) : request_shape_appearance_settings(
@@ -2745,7 +2766,7 @@ void MainWindow::refresh_vector_stroke_dash_combo() {
       }
     }
   }
-  refresh_vector_stroke_dash_combo(current_shape_appearance_content().stroke);
+  refresh_vector_stroke_dash_combo(current_shape_appearance_content(current_tool_ == CanvasTool::Line).stroke);
 }
 
 void MainWindow::refresh_vector_stroke_dash_combo(const VectorStroke& shown) {
@@ -2941,7 +2962,23 @@ void MainWindow::finish_pending_shape_appearance_edit() {
   if (pending) pending();
 }
 
-void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& settings) {
+void MainWindow::note_inside_stroke_on_selected_lines() {
+  if (!has_active_document()) return;
+  for (const auto id : stroke_target_shape_layer_ids()) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr) continue;
+    const auto settings = shape_appearance_settings(*layer);
+    if (appearance_has_editable_line(settings) && settings.stroke.enabled &&
+        settings.stroke.alignment == VectorStrokeAlignment::Inside) {
+      statusBar()->showMessage(tr("Inside keeps this stroke within the line's Weight. Choose Center or Outside "
+                                  "under Align in Shape Appearance to make the line thicker."));
+      return;
+    }
+  }
+}
+
+void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& settings,
+                                             std::function<void()> after_commit) {
   if (!has_active_document() || !vector_appearance_controls_live()) return;
   const auto property = settings.edits && !settings.edits->operations.empty()
       ? settings.edits->operations.front().key : std::string();
@@ -2958,9 +2995,11 @@ void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& sett
   }
   const auto session_id = session().session_id;
   pending_shape_appearance_property_ = property;
-  pending_shape_appearance_edit_ = [this, session_id, ids, settings] {
-    if (has_active_document() && session().session_id == session_id)
+  pending_shape_appearance_edit_ = [this, session_id, ids, settings, after_commit = std::move(after_commit)] {
+    if (has_active_document() && session().session_id == session_id) {
       commit_shape_appearance_edit(ids, settings);
+      if (after_commit) after_commit();
+    }
   };
   vector_appearance_apply_timer_->start();
 }
@@ -2976,7 +3015,10 @@ void MainWindow::schedule_vector_appearance_apply() {
     if (property.key == "stroke.enabled" || (property.key == "stroke.width" && current_vector_stroke_enabled_))
       edits->append(property.capture(settings));
   settings.edits = std::move(edits);
-  queue_shape_appearance_edit(settings);
+  // A width that cannot thicken an Inside-stroked line says why (local-051).
+  queue_shape_appearance_edit(settings, current_vector_stroke_enabled_
+                                            ? std::function<void()>([this] { note_inside_stroke_on_selected_lines(); })
+                                            : std::function<void()>{});
 }
 
 void MainWindow::apply_selected_shape_corner_radius(double radius) {

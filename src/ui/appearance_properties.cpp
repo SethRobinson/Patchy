@@ -592,6 +592,12 @@ bool vector_path_is_fitted_shape(const VectorPath& outline, const VectorPath& sh
   return true;
 }
 
+double line_arrow_size_from_percent(double weight, double percent) {
+  const double bounded = std::clamp(percent, static_cast<double>(kLineArrowMinPercent),
+                                    static_cast<double>(kLineArrowMaxPercent));
+  return std::min(std::max(weight, 0.0) * bounded / 100.0, kLiveLineArrowMaxSize);
+}
+
 void give_line_arrowheads_default_size(LiveShapeParams& params) {
   if (!params.arrow_start && !params.arrow_end) return;
   if (params.arrow_width <= 0.0) params.arrow_width = params.line_weight * kLineArrowDefaultWidthPercent / 100.0;
@@ -603,8 +609,8 @@ void tie_line_arrowheads_to_weight(LiveShapeParams& params, double previous_weig
   // Appearance's Weight field and scripts share this rule).
   if (previous_weight > 0.0 && params.line_weight > 0.0) {
     const double scale = params.line_weight / previous_weight;
-    if (params.arrow_width > 0.0) params.arrow_width *= scale;
-    if (params.arrow_length > 0.0) params.arrow_length *= scale;
+    if (params.arrow_width > 0.0) params.arrow_width = std::min(params.arrow_width * scale, kLiveLineArrowMaxSize);
+    if (params.arrow_length > 0.0) params.arrow_length = std::min(params.arrow_length * scale, kLiveLineArrowMaxSize);
   }
   give_line_arrowheads_default_size(params);
 }
@@ -707,7 +713,7 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
       return {key, [value = percent(source), length](Settings& target) {
         if (!appearance_has_editable_line(target)) return;
         auto& params = *target.geometry;
-        (length ? params.arrow_length : params.arrow_width) = params.line_weight * value / 100.0;
+        (length ? params.arrow_length : params.arrow_width) = line_arrow_size_from_percent(params.line_weight, value);
       }};
     };
     result.push_back(std::move(property));

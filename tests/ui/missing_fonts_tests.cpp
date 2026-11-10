@@ -1,7 +1,8 @@
 // Missing fonts: the Resolve Missing Fonts dialog (GitHub issue 169), the substitution prompt on
 // hidden layers (177), the layer badge during a session (178) and the options-bar font new type
-// starts in (180), the bar naming a missing family (652), and Type > Replace All Missing Fonts and
-// Update All Text Layers (686). See docs/font-resolution-missing-fonts.md, "Missing fonts".
+// starts in (180), the bar naming a missing family (652), Type > Replace All Missing Fonts and
+// Update All Text Layers (686), and the replacements the dialog remembers (692). See
+// docs/font-resolution-missing-fonts.md, "Missing fonts".
 #include "core/layer_metadata.hpp"
 #include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
@@ -10,6 +11,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/font_face_name_index.hpp"
+#include "ui/font_replacement_memory.hpp"
 #include "ui/fontconfig_font_class.hpp"
 #include "ui/main_window.hpp"
 #include "ui/missing_fonts_dialog.hpp"
@@ -33,10 +35,13 @@
 #include <QFrame>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStatusBar>
+#include <QStringList>
 #include <QTest>
 #include <QTextEdit>
 #include <QTimer>
@@ -52,6 +57,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -132,19 +138,44 @@ void answer_missing_font_prompt(bool accept, std::shared_ptr<int> answered) {
   answer_message_box(QStringLiteral("missingPsdTextFontMessageBox"), accept, std::move(answered));
 }
 
-// Polls for the Missing Fonts dialog and hands it to `act` (which must close it).
-void handle_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
-  QTimer::singleShot(20, [act = std::move(act), seen, attempts]() mutable {
+// Polls for the Missing Fonts dialog and hands it to `act` (which must close it). Guarded: a
+// failed check in `act` is recorded and the dialog rejected, never thrown through Qt's event
+// dispatch (macOS aborts there). A dialog that never shows is not a failure here: some callers
+// arm it to prove none opens.
+//
+// One poller at a time: arming a new one retires every earlier one, and so does
+// retire_missing_fonts_dialog_pollers. A poller armed to prove no dialog opens can outlive its
+// quiet wait (20 ms timers run late on a busy host). It then closed the next step's dialog, and
+// that step's own poller, left without one, closed the first dialog of the test after, whose
+// count stayed 0.
+int& missing_fonts_dialog_poller_generation() {
+  static int generation = 0;
+  return generation;
+}
+
+void retire_missing_fonts_dialog_pollers() { ++missing_fonts_dialog_poller_generation(); }
+
+void poll_for_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts,
+                                   int generation) {
+  QTimer::singleShot(20, guarded([act = std::move(act), seen, attempts, generation]() mutable {
+    if (generation != missing_fonts_dialog_poller_generation()) {
+      return;
+    }
     auto* dialog = find_top_level_dialog(QStringLiteral("missingFontsDialog"));
     if (dialog == nullptr || !dialog->isVisible()) {
       if (attempts > 0) {
-        handle_missing_fonts_dialog(std::move(act), seen, attempts - 1);
+        poll_for_missing_fonts_dialog(std::move(act), seen, attempts - 1, generation);
       }
       return;
     }
     ++*seen;
     act(*dialog);
-  });
+  }));
+}
+
+void handle_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
+  retire_missing_fonts_dialog_pollers();
+  poll_for_missing_fonts_dialog(std::move(act), std::move(seen), attempts, missing_fonts_dialog_poller_generation());
 }
 
 // The dialog row whose name label reads `family`: its index, or -1.
@@ -161,6 +192,125 @@ int missing_font_row(QDialog& dialog, const QString& family) {
     }
   }
   return -1;
+}
+
+// Clears the replacements Resolve Missing Fonts remembers (GitHub issue 692) for one test and puts
+// the stored value back afterwards, so nothing a test picks reaches another test's dialog.
+struct ReplacementMemoryReset {
+  ReplacementMemoryReset() { patchy::ui::clear_remembered_font_replacements(); }
+  SettingsValueRestorer restorer{QString::fromLatin1(patchy::ui::kMissingFontReplacementsKey)};
+};
+
+// Installed families that draw Latin text and that the font picker lists, under the names the
+// font database gives them. The faces the suite registers come first (three on Windows: Arial,
+// Segoe UI, Calibri), then whatever else the host lists; never a private family (macOS lists
+// ".AppleSystemUIFont" and its kind, which the picker leaves out).
+QStringList latin_text_families() {
+  QStringList out;
+  const auto consider = [&out](const QString& family) {
+    const auto listed = patchy::ui::available_text_family_match(family);
+    if (!listed.has_value() || *listed != family || out.contains(family) || QFontDatabase::isPrivateFamily(family) ||
+        !QFontDatabase::writingSystems(family).contains(QFontDatabase::Latin)) {
+      return;
+    }
+    QStringList cannot_draw;
+    patchy::ui::append_missing_text_family(cannot_draw, family, QStringLiteral("Headline"));
+    if (cannot_draw.isEmpty()) {
+      out.append(family);
+    }
+  };
+  for (const auto& family :
+       {patchy::test::visual_test_font().family(), QStringLiteral("Arial"), QStringLiteral("Segoe UI"),
+        QStringLiteral("Calibri"), QStringLiteral("Liberation Sans"), QStringLiteral("DejaVu Sans"),
+        QStringLiteral("Verdana"), QStringLiteral("Courier New"), QStringLiteral("Times New Roman"),
+        QStringLiteral("Georgia")}) {
+    consider(family);
+  }
+  for (const auto& family : patchy::ui::font_families_without_foundries(QFontDatabase::families())) {
+    consider(family);
+  }
+  return out;
+}
+
+// The issue 669 reporter's font, for the screenshots; the made-up name where a host has it.
+QString screenshot_missing_font() {
+  const auto museo = QStringLiteral("Museo Sans Rounded 500");
+  return patchy::ui::available_text_family_match(museo).has_value() ||
+                 patchy::ui::available_text_family_style_match(museo).has_value()
+             ? kMissing
+             : museo;
+}
+
+// One row of the Missing Fonts dialog; a line the row does not show is null.
+struct MissingFontRow {
+  QCheckBox* check{nullptr};
+  patchy::ui::FontPickerCombo* picker{nullptr};
+  QLabel* suggestion{nullptr};
+  QLabel* chosen_before{nullptr};
+  QLabel* no_symbol_match{nullptr};
+  QPushButton* resolve{nullptr};
+};
+
+MissingFontRow missing_font_row_widgets(QDialog& dialog, const QString& family) {
+  const auto index = missing_font_row(dialog, family);
+  CHECK(index >= 0);
+  if (index < 0) {
+    return {};
+  }
+  return MissingFontRow{
+      dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(index)),
+      dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo%1").arg(index)),
+      dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(index)),
+      dialog.findChild<QLabel*>(QStringLiteral("missingFontChosenBefore%1").arg(index)),
+      dialog.findChild<QLabel*>(QStringLiteral("missingFontNoSymbolMatch%1").arg(index)),
+      dialog.findChild<QPushButton*>(QStringLiteral("missingFontsResolveButton"))};
+}
+
+// The extra sections on top of a picker's open list (GitHub issue 692), read from the popup's
+// rows: each header with the families under it and the note beside each. Opens and closes the
+// popup; `artifact` saves an image of it.
+struct PickerSection {
+  QString title;
+  QStringList families;
+  QStringList notes;
+};
+
+std::vector<PickerSection> picker_extra_sections(patchy::ui::FontPickerCombo& picker, const char* artifact = nullptr) {
+  std::vector<PickerSection> sections;
+  picker.showPopup();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QLatin1String(patchy::ui::kFontPickerPopupObjectName) && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return sections;
+  }
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  CHECK(list != nullptr);
+  if (list != nullptr) {
+    const auto* model = list->model();
+    for (int row = 0; row < model->rowCount(); ++row) {
+      const auto index = model->index(row, 0);
+      const auto kind = static_cast<patchy::ui::FontPickerRowKind>(index.data(patchy::ui::kFontPickerRowKindRole).toInt());
+      if (kind == patchy::ui::FontPickerRowKind::extra_section_header) {
+        sections.push_back(PickerSection{index.data(Qt::DisplayRole).toString(), {}, {}});
+      } else if (kind == patchy::ui::FontPickerRowKind::family && !sections.empty() &&
+                 index.data(patchy::ui::kFontPickerExtraSectionRole).toInt() >= 0) {
+        sections.back().families.append(index.data(Qt::DisplayRole).toString());
+        sections.back().notes.append(index.data(patchy::ui::kFontPickerRowNoteRole).toString());
+      }
+    }
+  }
+  if (artifact != nullptr) {
+    save_widget_artifact(artifact, *popup);
+  }
+  popup->close();
+  QApplication::processEvents();
+  return sections;
 }
 
 // A real type layer (a synthetic one carries no layout, so the writer stores no TySh) typed into a
@@ -752,6 +902,7 @@ void ui_resolve_missing_fonts_replaces_the_font_in_every_layer() {
   // The shipped default, so the saved dialog image shows what a user sees.
   SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
   patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const ReplacementMemoryReset memory;  // the pick below is remembered (issue 692)
   const auto replacement = patchy::test::visual_test_font().family();
   CHECK(QFontDatabase::families().contains(replacement));
   auto document = white_document();
@@ -1054,6 +1205,165 @@ void ui_update_all_text_layers_rewrites_photoshop_text() {
   CHECK(rewritten == imported.size());
 }
 
+// Column 11 of a layer's paragraph runs (the kept Photoshop settings), one entry per paragraph
+// joined with "|"; a paragraph without the column gives "".
+QString paragraph_settings_column(const patchy::Layer& layer) {
+  const auto found = layer.metadata().find(patchy::kLayerMetadataTextParagraphRuns);
+  if (found == layer.metadata().end()) {
+    return QStringLiteral("(no paragraph runs)");
+  }
+  QStringList settings;
+  for (const auto& line : QString::fromStdString(found->second).split(QLatin1Char('\n')).mid(1)) {
+    settings << line.split(QLatin1Char('\t')).value(11);
+  }
+  return settings.join(QLatin1Char('|'));
+}
+
+// How many paragraph runs of a layer's saved TySh say /EveryLineComposer true (the normal
+// paragraph sheets always say false).
+int saved_every_line_paragraphs(const patchy::Layer& layer) {
+  static constexpr std::string_view kKey = "/EveryLineComposer true";
+  int count = 0;
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key != "TySh") {
+      continue;
+    }
+    for (auto at = std::search(block.payload.begin(), block.payload.end(), kKey.begin(), kKey.end());
+         at != block.payload.end();
+         at = std::search(at + 1, block.payload.end(), kKey.begin(), kKey.end())) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+// Type > Update All Text Layers and a save keep each paragraph's Photoshop line composer: an
+// Adobe Every-line Composer paragraph stays Every-line, a Single-line one stays Single-line, and
+// a layer with one of each keeps both. Patchy saved every paragraph it re-rendered as Single-line.
+void ui_update_all_text_layers_keeps_the_line_composer() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed = patchy::test::visual_test_font().family();
+  auto document = white_document();
+  const auto two_paragraphs = [&](const std::string& name, int top, const char* first, const char* second) {
+    auto layer = missing_font_text_layer(document, name, installed, top);
+    layer.metadata()[patchy::kLayerMetadataText] = "First paragraph\nSecond paragraph";
+    layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+        std::string("v6\n0\t16\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t") + first +
+        "\n16\t16\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t" + second;
+    return layer;
+  };
+  const auto every_id = document.add_layer(two_paragraphs("Every", 20, "everyline", "everyline")).id();
+  const auto single_id = document.add_layer(missing_font_text_layer(document, "Single", installed, 100)).id();
+  const auto mixed_id = document.add_layer(two_paragraphs("Mixed", 150, "everyline", "-")).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Line Composer"));
+  QApplication::processEvents();
+  trigger_type_action(window, "typeUpdateAllTextLayersAction");
+  for (const auto id : {every_id, single_id, mixed_id}) {
+    CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+  }
+  const auto check = [&](const patchy::Document& checked, bool saved) {
+    int found = 0;
+    for (const auto& layer : checked.layers()) {
+      if (layer.name() == "Every") {
+        ++found;
+        CHECK(paragraph_settings_column(layer) == QStringLiteral("everyline|everyline"));
+        CHECK(!saved || saved_every_line_paragraphs(layer) == 2);
+      } else if (layer.name() == "Single") {
+        ++found;
+        CHECK(!paragraph_settings_column(layer).contains(QStringLiteral("everyline")));
+        CHECK(!saved || saved_every_line_paragraphs(layer) == 0);
+      } else if (layer.name() == "Mixed") {
+        ++found;
+        CHECK(paragraph_settings_column(layer) == QStringLiteral("everyline|-"));
+        CHECK(!saved || saved_every_line_paragraphs(layer) == 1);
+      }
+    }
+    CHECK(found == 3);
+  };
+  check(std::as_const(MainWindowTestAccess::document(window)), false);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  // Kept for the Photoshop open check (docs/photoshop-com.md).
+  ensure_artifact_dir();
+  if (QFile out(QStringLiteral("test-artifacts/line-composer-update-all.psd")); out.open(QIODevice::WriteOnly)) {
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  check(patchy::psd::DocumentIo::read(bytes), true);
+}
+
+// The same on Photoshop 2026 files (local fixtures, README.txt beside them): the #672
+// justify-modes file with Adobe Every-line Composer on its four layers, a layer whose first
+// paragraph is Every-line and whose second is Single-line, and the #672 file itself, whose four
+// paragraphs are Single-line and stay so.
+void ui_update_all_text_layers_keeps_the_line_composer_if_available() {
+  struct Fixture {
+    const char* file;
+    const char* artifact;
+    int layers;
+    const char* settings;
+    int every_line_paragraphs;
+  };
+  const Fixture fixtures[] = {
+      {"every-line-composer/justify-modes-every-line-photoshop.psd",
+       "test-artifacts/line-composer-update-all-every-line.psd", 4, "everyline", 1},
+      {"every-line-composer/two-paragraphs-every-then-single-photoshop.psd",
+       "test-artifacts/line-composer-update-all-mixed.psd", 1, "everyline|-", 1},
+      {"issue-672-justify-modes.psd", "test-artifacts/line-composer-update-all-single-line.psd", 4, "", 0},
+  };
+  for (const auto& fixture : fixtures) {
+    patchy::test::skip_unless_exists(patchy::test::local_psd_fixture_path(fixture.file));
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  for (const auto& fixture : fixtures) {
+    auto document = patchy::psd::DocumentIo::read_file(patchy::test::local_psd_fixture_path(fixture.file));
+    std::vector<patchy::LayerId> text_ids;
+    for (const auto& layer : document.layers()) {
+      if (!patchy::layer_is_text(layer)) {
+        continue;
+      }
+      const auto problems = patchy::ui::text_font_problems_for_layer(layer);
+      if (!problems.not_installed.isEmpty() || !problems.no_glyphs.isEmpty()) {
+        patchy::test::skip("the fixtures' font (Arial) is not installed on this host");
+      }
+      text_ids.push_back(layer.id());
+      CHECK(paragraph_settings_column(layer) == QLatin1String(fixture.settings));
+    }
+    CHECK(static_cast<int>(text_ids.size()) == fixture.layers);
+
+    MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Photoshop Line Composer"));
+    QApplication::processEvents();
+    trigger_type_action(window, "typeUpdateAllTextLayersAction");
+    for (const auto id : text_ids) {
+      CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+    }
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+    ensure_artifact_dir();
+    if (QFile out(QString::fromLatin1(fixture.artifact)); out.open(QIODevice::WriteOnly)) {
+      out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+    }
+    const auto reopened = patchy::psd::DocumentIo::read(bytes);
+    int checked = 0;
+    for (const auto& layer : reopened.layers()) {
+      if (!patchy::layer_is_text(layer)) {
+        continue;
+      }
+      ++checked;
+      const auto settings = paragraph_settings_column(layer);
+      if (settings != QLatin1String(fixture.settings)) {
+        std::fprintf(stderr, "%s [%s]: saved \"%s\"\n", fixture.file, layer.name().c_str(),
+                     settings.toUtf8().constData());
+      }
+      CHECK(settings == QLatin1String(fixture.settings));
+      CHECK(saved_every_line_paragraphs(layer) == fixture.every_line_paragraphs);
+    }
+    CHECK(checked == fixture.layers);
+  }
+}
+
 // Type > Replace All Missing Fonts: no dialog; each missing family takes the dialog's
 // recommendation (the substitute table's pick for Helvetica), a family with none takes the
 // default text family, locked layers keep theirs, and the whole pass is one undo step.
@@ -1115,13 +1425,14 @@ void ui_replace_all_missing_fonts_uses_recommendations_then_the_default() {
   CHECK(status_message(clean) == QStringLiteral("This document has no missing fonts"));
 }
 
-// GitHub issue 669 follow-up: a row shows the family in bold with its style beside it, split as
-// the options bar shows a missing font ("Museo Sans Rounded" + "500"), while Resolve still
-// replaces the whole name. A name with no style shows whole, with no style label.
+// GitHub issue 669 follow-ups: a row shows its name in bold with the style in brackets after the
+// family, split as the options bar splits a missing font ("Museo Sans Rounded (500)"), while
+// Resolve still replaces the whole name. A name with no style shows whole, with no brackets.
 void ui_missing_fonts_dialog_shows_family_and_style_apart() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
   patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const ReplacementMemoryReset memory;  // the pick below is remembered (issue 692)
   const auto styled = QStringLiteral("Museo Sans Rounded 500");
   const auto plain = QStringLiteral("Anydore");
   for (const auto& family : {styled, plain}) {
@@ -1148,13 +1459,13 @@ void ui_missing_fonts_dialog_shows_family_and_style_apart() {
         const auto styled_row = missing_font_row(dialog, styled);
         const auto plain_row = missing_font_row(dialog, plain);
         CHECK(styled_row >= 0 && plain_row >= 0);
+        // One bold label holds the family and the bracketed style; the property keeps the whole name.
         auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingFontName%1").arg(styled_row));
-        auto* style = dialog.findChild<QLabel*>(QStringLiteral("missingFontStyle%1").arg(styled_row));
-        CHECK(name != nullptr && name->text() == QStringLiteral("Museo Sans Rounded") && name->font().bold());
-        CHECK(style != nullptr && style->text() == QStringLiteral("500") && !style->font().bold());
+        CHECK(name != nullptr && name->text() == QStringLiteral("Museo Sans Rounded (500)") && name->font().bold());
+        CHECK(name != nullptr && name->property(patchy::ui::kMissingFontFullNameProperty).toString() == styled);
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontStyle%1").arg(styled_row)) == nullptr);
         auto* plain_name = dialog.findChild<QLabel*>(QStringLiteral("missingFontName%1").arg(plain_row));
-        CHECK(plain_name != nullptr && plain_name->text() == plain);
-        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontStyle%1").arg(plain_row)) == nullptr);
+        CHECK(plain_name != nullptr && plain_name->text() == plain && plain_name->font().bold());
         save_widget_artifact("ui_missing_fonts_dialog_family_and_style", dialog);
         auto* plain_check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(plain_row));
         auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(
@@ -1164,6 +1475,13 @@ void ui_missing_fonts_dialog_shows_family_and_style_apart() {
         if (plain_check == nullptr || picker == nullptr || resolve == nullptr) {
           dialog.reject();
           return;
+        }
+        // The row list is as wide as its widest row: a long "Suggested:" line used to push the
+        // pickers past its right edge, where they were cut off.
+        auto* scroll = dialog.findChild<QScrollArea*>(QStringLiteral("missingFontsScroll"));
+        CHECK(scroll != nullptr);
+        if (scroll != nullptr) {
+          CHECK(picker->mapTo(scroll->viewport(), QPoint(picker->width(), 0)).x() <= scroll->viewport()->width());
         }
         plain_check->setChecked(false);
         picker->setCurrentFont(QFont(replacement));
@@ -1510,6 +1828,7 @@ void ui_unattended_open_skips_the_missing_fonts_dialog() {
   process_events_for(300);
   CHECK(!host.run_active());
   CHECK(*seen == 0);
+  retire_missing_fonts_dialog_pollers();
   CHECK(MainWindowTestAccess::document_tab_count(window) == tabs_before_script + 1);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
 }
@@ -2041,6 +2360,610 @@ void ui_font_caches_stay_consistent_across_threads_while_the_database_changes() 
   CHECK(mismatches.load() == 0);
 }
 
+// GitHub issue 692: a replacement picked in Resolve Missing Fonts is remembered, so the next
+// document with the same missing font starts on it and says so. Accepting it again counts once
+// more, and going back to the built-in recommendation becomes the new last pick.
+void ui_missing_fonts_dialog_remembers_the_replacement_chosen() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto missing = screenshot_missing_font();
+  const auto families = latin_text_families();
+  if (families.size() < 2) {
+    patchy::test::skip("fewer than two Latin font families on this host");
+  }
+
+  MainWindow window;
+  show_window(window);
+  const auto add_document = [&](const QString& title) {
+    auto document = white_document();
+    const auto id = document.add_layer(missing_font_text_layer(document, "Headline", missing, 40)).id();
+    window.add_document_session(std::move(document), title);
+    QApplication::processEvents();
+    return id;
+  };
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  const auto run_dialog = [&](const std::function<void(QDialog&, const MissingFontRow&)>& act) {
+    auto seen = std::make_shared<int>(0);
+    handle_missing_fonts_dialog(
+        [&](QDialog& dialog) {
+          const auto row = missing_font_row_widgets(dialog, missing);
+          CHECK(row.check != nullptr && row.picker != nullptr && row.resolve != nullptr);
+          if (row.check == nullptr || row.picker == nullptr || row.resolve == nullptr) {
+            dialog.reject();
+            return;
+          }
+          act(dialog, row);
+        },
+        seen);
+    action->trigger();
+    process_events_for(200);
+    CHECK(*seen == 1);
+  };
+  const auto remembered = [&missing] { return patchy::ui::remembered_font_replacements(missing); };
+
+  // Nothing remembered: the row starts on the built-in recommendation. Another font is picked.
+  const auto first_id = add_document(QStringLiteral("First"));
+  QString recommended;
+  QString pick;
+  run_dialog([&](QDialog&, const MissingFontRow& row) {
+    CHECK(row.chosen_before == nullptr);
+    recommended = row.picker->currentFont().family();
+    for (const auto& family : families) {
+      if (family.compare(recommended, Qt::CaseInsensitive) != 0) {
+        pick = family;
+        break;
+      }
+    }
+    row.picker->setCurrentFont(QFont(pick));
+    row.resolve->click();
+  });
+  std::fprintf(stderr, "  recommended '%s', picked '%s', layer became '%s'\n", qPrintable(recommended),
+               qPrintable(pick), qPrintable(layer_font(window, first_id)));
+  CHECK(!pick.isEmpty() && layer_font(window, first_id) == pick);
+  CHECK(remembered().size() == 1U);
+  if (remembered().size() == 1U) {
+    CHECK(remembered().front().family == pick && remembered().front().count == 1);
+  }
+
+  // Another document: the row starts on the font chosen before and says so, in place of the
+  // "Suggested" line, and the picker lists it under "Chosen before". Resolving it again counts.
+  const auto second_id = add_document(QStringLiteral("Second"));
+  run_dialog([&](QDialog& dialog, const MissingFontRow& row) {
+    CHECK(row.check->isChecked() && row.picker->isEnabled());
+    CHECK(row.picker->currentFont().family() == pick);
+    CHECK(row.chosen_before != nullptr &&
+          row.chosen_before->text() == QStringLiteral("Chosen before: %1").arg(pick));
+    CHECK(row.suggestion == nullptr);
+    save_widget_artifact("ui_missing_fonts_dialog_remembered_pick", dialog);
+    const auto sections = picker_extra_sections(*row.picker);
+    CHECK(!sections.empty());
+    if (!sections.empty()) {
+      CHECK(sections.front().title == QStringLiteral("Chosen before"));
+      CHECK(sections.front().families == QStringList{pick});
+    }
+    row.resolve->click();
+  });
+  CHECK(layer_font(window, second_id) == pick);
+  CHECK(remembered().size() == 1U);
+  if (remembered().size() == 1U) {
+    CHECK(remembered().front().family == pick && remembered().front().count == 2);
+  }
+
+  // Going back to the recommendation is a choice too once the font has remembered picks.
+  const auto third_id = add_document(QStringLiteral("Third"));
+  run_dialog([&](QDialog&, const MissingFontRow& row) {
+    row.picker->setCurrentFont(QFont(recommended));
+    row.resolve->click();
+  });
+  CHECK(layer_font(window, third_id) == recommended);
+  CHECK(remembered().size() == 2U);
+  if (remembered().size() == 2U) {
+    CHECK(remembered().front().family == recommended && remembered().front().count == 1);
+    CHECK(remembered().back().family == pick && remembered().back().count == 2);
+  }
+
+  // The next row starts on the last pick; the section lists the font chosen more often first.
+  const auto fourth_id = add_document(QStringLiteral("Fourth"));
+  run_dialog([&](QDialog& dialog, const MissingFontRow& row) {
+    CHECK(row.picker->currentFont().family() == recommended);
+    CHECK(row.chosen_before != nullptr &&
+          row.chosen_before->text() == QStringLiteral("Chosen before: %1").arg(recommended));
+    const auto sections = picker_extra_sections(*row.picker);
+    CHECK(!sections.empty());
+    if (!sections.empty()) {
+      CHECK(sections.front().families == (QStringList{pick, recommended}));
+    }
+    dialog.reject();
+  });
+  CHECK(layer_font(window, fourth_id) == missing);
+  CHECK(remembered().size() == 2U);  // Cancel records nothing
+}
+
+// GitHub issue 692: a remembered font that is no longer installed is skipped. An older pick that is
+// installed answers instead; with none, the row keeps its built-in recommendation and says nothing
+// about an earlier choice.
+void ui_missing_fonts_dialog_skips_a_remembered_font_that_is_not_installed() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto gone = QStringLiteral("Patchy Not Installed 692");
+  CHECK(!patchy::ui::available_text_family_match(gone).has_value());
+  const auto families = latin_text_families();
+  if (families.isEmpty()) {
+    patchy::test::skip("no Latin font family on this host");
+  }
+  const auto older = families.back();
+  patchy::ui::record_font_replacement(kMissing, older);
+  patchy::ui::record_font_replacement(kMissing, gone);  // the last pick
+  patchy::ui::record_font_replacement(kOtherMissing, gone);
+  auto document = white_document();
+  document.add_layer(missing_font_text_layer(document, "Headline", kMissing, 20));
+  document.add_layer(missing_font_text_layer(document, "Caption", kOtherMissing, 80));
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Skips"));
+  QApplication::processEvents();
+  // What the second row starts on with nothing usable remembered.
+  QString other_recommended;
+  {
+    const ReplacementMemoryReset nothing_remembered;
+    auto seen = std::make_shared<int>(0);
+    handle_missing_fonts_dialog(
+        [&](QDialog& dialog) {
+          const auto row = missing_font_row_widgets(dialog, kOtherMissing);
+          other_recommended = row.picker == nullptr ? QString() : row.picker->currentFont().family();
+          dialog.reject();
+        },
+        seen);
+    window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"))->trigger();
+    process_events_for(200);
+    CHECK(*seen == 1);
+  }
+  CHECK(patchy::ui::remembered_font_replacements(kMissing).size() == 2U);  // the inner reset restored them
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto row = missing_font_row_widgets(dialog, kMissing);
+        const auto other = missing_font_row_widgets(dialog, kOtherMissing);
+        CHECK(row.picker != nullptr && other.picker != nullptr);
+        if (row.picker == nullptr || other.picker == nullptr) {
+          dialog.reject();
+          return;
+        }
+        CHECK(row.picker->currentFont().family() == older);
+        CHECK(row.chosen_before != nullptr &&
+              row.chosen_before->text() == QStringLiteral("Chosen before: %1").arg(older));
+        const auto sections = picker_extra_sections(*row.picker);
+        CHECK(!sections.empty());
+        if (!sections.empty()) {
+          CHECK(sections.front().title == QStringLiteral("Chosen before"));
+          CHECK(sections.front().families == QStringList{older});  // never the font that is gone
+        }
+        CHECK(other.picker->currentFont().family() == other_recommended);
+        CHECK(other.chosen_before == nullptr);
+        for (const auto& section : picker_extra_sections(*other.picker)) {
+          CHECK(section.title != QStringLiteral("Chosen before"));
+        }
+        dialog.reject();
+      },
+      seen);
+  window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"))->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+}
+
+// GitHub issue 692: the picker's "Chosen before" section lists the remembered fonts most often
+// chosen first (the most recent first among equals), while the row starts on the one chosen last;
+// "Suggested" follows with every built-in candidate that is not already listed, each with its reason.
+void ui_missing_fonts_picker_orders_chosen_before_by_count() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto missing = screenshot_missing_font();
+  const auto text = QStringLiteral("Headline");
+  QStringList candidates;
+  for (const auto& substitute : patchy::ui::installed_text_font_substitutes(missing, text)) {
+    candidates.append(substitute.family);
+  }
+  QStringList others;
+  for (const auto& family : latin_text_families()) {
+    if (!candidates.contains(family, Qt::CaseInsensitive)) {
+      others.append(family);
+    }
+  }
+  if (others.size() < 2) {
+    patchy::test::skip("fewer than two Latin font families beside the suggested ones on this host");
+  }
+  const auto often = others.at(0);
+  const auto once = others.at(1);
+  std::fprintf(stderr, "  chosen often '%s', once '%s'; candidates: %s\n", qPrintable(often), qPrintable(once),
+               qPrintable(candidates.join(QStringLiteral(", "))));
+  patchy::ui::record_font_replacement(missing, once);
+  patchy::ui::record_font_replacement(missing, often);
+  patchy::ui::record_font_replacement(missing, often);
+
+  MainWindow window;
+  show_window(window);
+  auto document = white_document();
+  document.add_layer(missing_font_text_layer(document, "Headline", missing, 40));
+  window.add_document_session(std::move(document), QStringLiteral("Chosen Before"));
+  QApplication::processEvents();
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  const auto check_dialog = [&](const QString& starts_on, const QStringList& chosen_order, bool capture) {
+    auto seen = std::make_shared<int>(0);
+    handle_missing_fonts_dialog(
+        [&](QDialog& dialog) {
+          const auto row = missing_font_row_widgets(dialog, missing);
+          CHECK(row.picker != nullptr);
+          if (row.picker == nullptr) {
+            dialog.reject();
+            return;
+          }
+          CHECK(row.picker->currentFont().family() == starts_on);
+          CHECK(row.chosen_before != nullptr &&
+                row.chosen_before->text() == QStringLiteral("Chosen before: %1").arg(starts_on));
+          if (capture) {
+            save_widget_artifact("ui_missing_fonts_dialog_chosen_before", dialog);
+          }
+          const auto sections = picker_extra_sections(*row.picker, capture ? "ui_missing_fonts_picker_sections" : nullptr);
+          for (const auto& section : sections) {
+            std::fprintf(stderr, "  section '%s': %s\n", qPrintable(section.title),
+                         qPrintable(section.families.join(QStringLiteral(", "))));
+          }
+          CHECK(sections.size() == (candidates.isEmpty() ? 1U : 2U));
+          if (!sections.empty()) {
+            CHECK(sections.front().title == QStringLiteral("Chosen before"));
+            CHECK(sections.front().families == chosen_order);
+          }
+          if (sections.size() == 2U) {
+            CHECK(sections.back().title == QStringLiteral("Suggested"));
+            CHECK(sections.back().families == candidates);
+            for (const auto& note : sections.back().notes) {
+              CHECK(!note.isEmpty());
+            }
+          }
+          dialog.reject();
+        },
+        seen);
+    action->trigger();
+    process_events_for(200);
+    CHECK(*seen == 1);
+  };
+  check_dialog(often, {often, once}, true);
+  // Equal counts: the font chosen more recently comes first.
+  patchy::ui::record_font_replacement(missing, once);
+  check_dialog(once, {once, often}, false);
+}
+
+// GitHub issue 692: the "Suggested" section names every installed candidate with its reason and
+// leaves out the fonts "Chosen before" already lists; a candidate that is not installed and a
+// section with nothing to show are dropped. Rows are built by hand so every reason is covered on
+// any host.
+void ui_missing_fonts_picker_suggests_every_candidate_with_its_reason() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto families = latin_text_families();
+  if (families.size() < 2) {
+    patchy::test::skip("fewer than two Latin font families on this host");
+  }
+  const auto first = families.at(0);
+  const auto second = families.at(1);
+  const auto gone = QStringLiteral("Patchy Not Installed 692");
+  using patchy::FontClass;
+  using patchy::ui::MissingFontCandidate;
+  using patchy::ui::MissingFontEntry;
+  using patchy::ui::MissingFontSuggestion;
+  const auto entry = [&](const QString& family, std::vector<MissingFontCandidate> candidates, QStringList chosen) {
+    MissingFontEntry row{family, false, 1, first};
+    row.recommended = first;
+    row.candidates = std::move(candidates);
+    row.chosen_before_families = std::move(chosen);
+    return row;
+  };
+  const std::vector<MissingFontEntry> fonts{
+      entry(QStringLiteral("Patchy Reasons Table"),
+            {{first, MissingFontSuggestion::metric, FontClass::unknown},
+             {gone, MissingFontSuggestion::metric, FontClass::unknown},
+             {second, MissingFontSuggestion::lookalike, FontClass::unknown}},
+            {}),
+      entry(QStringLiteral("Patchy Reasons Serif"), {{first, MissingFontSuggestion::same_type, FontClass::serif}},
+            {second, gone}),
+      entry(QStringLiteral("Patchy Reasons Sans"), {{first, MissingFontSuggestion::same_type, FontClass::sans}},
+            {first}),
+      entry(QStringLiteral("Patchy Reasons Mono"), {{first, MissingFontSuggestion::same_type, FontClass::mono}}, {}),
+      entry(QStringLiteral("Patchy Reasons None"), {}, {}),
+  };
+
+  MainWindow window;
+  show_window(window);
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto sections_of = [&dialog](int row) {
+          auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(
+              QStringLiteral("missingFontReplacementCombo%1").arg(row));
+          CHECK(picker != nullptr);
+          return picker == nullptr ? std::vector<PickerSection>{} : picker_extra_sections(*picker);
+        };
+        const auto table = sections_of(0);
+        CHECK(table.size() == 1U);
+        if (table.size() == 1U) {
+          CHECK(table.front().title == QStringLiteral("Suggested"));
+          CHECK(table.front().families == (QStringList{first, second}));
+          CHECK(table.front().notes ==
+                (QStringList{QStringLiteral("same character widths"), QStringLiteral("similar design")}));
+        }
+        const auto serif = sections_of(1);
+        CHECK(serif.size() == 2U);
+        if (serif.size() == 2U) {
+          CHECK(serif.front().title == QStringLiteral("Chosen before"));
+          CHECK(serif.front().families == QStringList{second});
+          CHECK(serif.front().notes == QStringList{QString()});
+          CHECK(serif.back().title == QStringLiteral("Suggested"));
+          CHECK(serif.back().families == QStringList{first});
+          CHECK(serif.back().notes == QStringList{QStringLiteral("also a serif font")});
+        }
+        // The only candidate was chosen before: it is listed once, and "Suggested" has no header.
+        const auto sans = sections_of(2);
+        CHECK(sans.size() == 1U);
+        if (sans.size() == 1U) {
+          CHECK(sans.front().title == QStringLiteral("Chosen before"));
+          CHECK(sans.front().families == QStringList{first});
+        }
+        const auto mono = sections_of(3);
+        CHECK(mono.size() == 1U);
+        if (mono.size() == 1U) {
+          CHECK(mono.front().notes == QStringList{QStringLiteral("also a monospaced font")});
+        }
+        CHECK(sections_of(4).empty());
+        dialog.reject();
+      },
+      seen);
+  static_cast<void>(patchy::ui::run_missing_fonts_dialog(&window, fonts, true));
+  process_events_for(100);
+  CHECK(*seen == 1);
+
+  // The sans reason, which the row above never shows.
+  const std::vector<MissingFontEntry> sans_only{
+      entry(QStringLiteral("Patchy Reasons Sans"), {{first, MissingFontSuggestion::same_type, FontClass::sans}}, {})};
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo0"));
+        CHECK(picker != nullptr);
+        if (picker != nullptr) {
+          const auto sections = picker_extra_sections(*picker);
+          CHECK(sections.size() == 1U);
+          if (sections.size() == 1U) {
+            CHECK(sections.front().notes == QStringList{QStringLiteral("also a sans-serif font")});
+          }
+        }
+        dialog.reject();
+      },
+      seen);
+  static_cast<void>(patchy::ui::run_missing_fonts_dialog(&window, sans_only, true));
+  process_events_for(100);
+  CHECK(*seen == 2);
+}
+
+// GitHub issue 692: Type > Replace All Missing Fonts takes the replacement chosen in the dialog
+// before, for a symbol font too (its pick was made by hand), and never changes what is remembered.
+void ui_replace_all_missing_fonts_uses_the_remembered_replacement() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto dingbats = QStringLiteral("Patchy Missing Dingbats");
+  CHECK(patchy::ui::text_font_class(dingbats) == patchy::FontClass::symbol);
+  const auto fallback = patchy::ui::default_text_family();
+  QString pick;
+  for (const auto& family : latin_text_families()) {
+    if (family.compare(fallback, Qt::CaseInsensitive) != 0) {
+      pick = family;
+      break;
+    }
+  }
+  if (pick.isEmpty()) {
+    patchy::test::skip("no Latin font family beside the default one on this host");
+  }
+  patchy::ui::record_font_replacement(kMissing, pick);
+  patchy::ui::record_font_replacement(dingbats, pick);
+  auto document = white_document();
+  const auto remembered_id = document.add_layer(missing_font_text_layer(document, "Headline", kMissing, 20)).id();
+  const auto other_id = document.add_layer(missing_font_text_layer(document, "Caption", kOtherMissing, 70)).id();
+  const auto symbol_id = document.add_layer(missing_font_text_layer(document, "JKL", dingbats, 120)).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Replace All Remembered"));
+  QApplication::processEvents();
+
+  // The dialog first: the symbol font's row starts ticked on the font chosen before, with that
+  // line in place of the "no installed font has the same symbols" note.
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto row = missing_font_row_widgets(dialog, dingbats);
+        CHECK(row.check != nullptr && row.check->isChecked());
+        CHECK(row.picker != nullptr && row.picker->isEnabled() && row.picker->currentFont().family() == pick);
+        CHECK(row.chosen_before != nullptr &&
+              row.chosen_before->text() == QStringLiteral("Chosen before: %1").arg(pick));
+        CHECK(row.no_symbol_match == nullptr);
+        dialog.reject();
+      },
+      seen);
+  window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"))->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+
+  trigger_type_action(window, "typeReplaceAllMissingFontsAction");
+  CHECK(layer_font(window, remembered_id) == pick);
+  CHECK(layer_font(window, symbol_id) == pick);
+  CHECK(layer_font(window, other_id) == fallback);  // nothing remembered: the default, as before
+  CHECK(!status_message(window).contains(QStringLiteral("symbol font")));
+  // Read, never written.
+  for (const auto& family : {kMissing, dingbats}) {
+    const auto remembered = patchy::ui::remembered_font_replacements(family);
+    CHECK(remembered.size() == 1U);
+    if (remembered.size() == 1U) {
+      CHECK(remembered.front().family == pick && remembered.front().count == 1);
+    }
+  }
+  CHECK(patchy::ui::remembered_font_replacements(kOtherMissing).empty());
+}
+
+// GitHub issue 692: only a choice is remembered. Resolving a row left on its built-in
+// recommendation records nothing (so it keeps its "Suggested" line), an unticked row records
+// nothing whatever its picker shows, and neither does Cancel.
+void ui_missing_fonts_untouched_suggestion_and_cancel_remember_nothing() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto families = latin_text_families();
+  if (families.size() < 2) {
+    patchy::test::skip("fewer than two Latin font families on this host");
+  }
+  const auto stored = [] {
+    return patchy::ui::app_settings().contains(QString::fromLatin1(patchy::ui::kMissingFontReplacementsKey));
+  };
+
+  MainWindow window;
+  show_window(window);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  const auto add_document = [&] {
+    auto document = white_document();
+    const auto id = document.add_layer(missing_font_text_layer(document, "Headline", kMissing, 20)).id();
+    document.add_layer(missing_font_text_layer(document, "Caption", kOtherMissing, 80));
+    window.add_document_session(std::move(document), QStringLiteral("Nothing Remembered"));
+    QApplication::processEvents();
+    return id;
+  };
+  const auto other_than = [&families](const QString& family) {
+    for (const auto& candidate : families) {
+      if (candidate.compare(family, Qt::CaseInsensitive) != 0) {
+        return candidate;
+      }
+    }
+    return QString();
+  };
+  const auto run_dialog = [&](const std::function<void(QDialog&, const MissingFontRow&, const MissingFontRow&)>& act) {
+    auto seen = std::make_shared<int>(0);
+    handle_missing_fonts_dialog(
+        [&](QDialog& dialog) {
+          const auto row = missing_font_row_widgets(dialog, kMissing);
+          const auto other = missing_font_row_widgets(dialog, kOtherMissing);
+          CHECK(row.picker != nullptr && other.picker != nullptr && other.check != nullptr && row.resolve != nullptr);
+          if (row.picker == nullptr || other.picker == nullptr || other.check == nullptr || row.resolve == nullptr) {
+            dialog.reject();
+            return;
+          }
+          act(dialog, row, other);
+        },
+        seen);
+    action->trigger();
+    process_events_for(200);
+    CHECK(*seen == 1);
+  };
+
+  // Untouched and resolved; the other row is unticked after its picker moved.
+  const auto first_id = add_document();
+  QString recommended;
+  run_dialog([&](QDialog&, const MissingFontRow& row, const MissingFontRow& other) {
+    recommended = row.picker->currentFont().family();
+    other.picker->setCurrentFont(QFont(other_than(other.picker->currentFont().family())));
+    other.check->setChecked(false);
+    row.resolve->click();
+  });
+  CHECK(!recommended.isEmpty() && layer_font(window, first_id) == recommended);
+  CHECK(!stored());
+
+  // A changed picker, then Cancel.
+  const auto second_id = add_document();
+  run_dialog([&](QDialog& dialog, const MissingFontRow& row, const MissingFontRow&) {
+    CHECK(row.chosen_before == nullptr);  // the untouched resolve above left no memory
+    CHECK(row.picker->currentFont().family() == recommended);
+    row.picker->setCurrentFont(QFont(other_than(recommended)));
+    dialog.reject();
+  });
+  CHECK(layer_font(window, second_id) == kMissing);
+  CHECK(!stored());
+}
+
+// GitHub issue 692: the store behind the remembered replacements counts repeats, keeps the most
+// recent pick first, shares one entry between spellings of a font, stays inside its caps and
+// reads a damaged value as empty.
+void ui_missing_font_replacement_memory_counts_orders_and_caps() {
+  const ReplacementMemoryReset memory;
+  using patchy::ui::record_font_replacement;
+  using patchy::ui::remembered_font_replacements;
+  const auto font = QStringLiteral("Patchy Memory Font");
+  CHECK(remembered_font_replacements(font).empty());
+  record_font_replacement(font, QStringLiteral("Alpha"));
+  record_font_replacement(font, QStringLiteral("Beta"));
+  record_font_replacement(QStringLiteral("PatchyMemoryFont"), QStringLiteral("alpha"));  // same font, same family
+  record_font_replacement(font, QString());                                             // ignored
+  record_font_replacement(QString(), QStringLiteral("Alpha"));                          // ignored
+  auto picks = remembered_font_replacements(font);
+  CHECK(picks.size() == 2U);
+  if (picks.size() == 2U) {
+    CHECK(picks.front().family.compare(QStringLiteral("Alpha"), Qt::CaseInsensitive) == 0 && picks.front().count == 2);
+    CHECK(picks.back().family == QStringLiteral("Beta") && picks.back().count == 1);
+  }
+  record_font_replacement(font, QStringLiteral("Beta"));  // 2 and 2: the more recent first
+  picks = patchy::ui::remembered_font_replacements_by_count(font);
+  CHECK(picks.size() == 2U && picks.front().family == QStringLiteral("Beta"));
+  record_font_replacement(font, QStringLiteral("Gamma"));  // the last pick, chosen least often
+  CHECK(remembered_font_replacements(font).front().family == QStringLiteral("Gamma"));
+  CHECK(patchy::ui::remembered_font_replacements_by_count(font).back().family == QStringLiteral("Gamma"));
+
+  // Per font: the families chosen longest ago go first.
+  for (int n = 0; n < patchy::ui::kMaxRememberedReplacementsPerFont + 3; ++n) {
+    record_font_replacement(font, QStringLiteral("Filler %1").arg(n));
+  }
+  picks = remembered_font_replacements(font);
+  CHECK(static_cast<int>(picks.size()) == patchy::ui::kMaxRememberedReplacementsPerFont);
+  CHECK(picks.front().family ==
+        QStringLiteral("Filler %1").arg(patchy::ui::kMaxRememberedReplacementsPerFont + 2));
+  CHECK(std::ranges::none_of(picks, [](const auto& pick) { return pick.family == QStringLiteral("Gamma"); }));
+
+  // Across fonts: the font resolved longest ago goes first.
+  for (int n = 0; n < patchy::ui::kMaxRememberedReplacementFonts + 2; ++n) {
+    record_font_replacement(QStringLiteral("Patchy Cap Font %1").arg(n), QStringLiteral("Alpha"));
+  }
+  CHECK(remembered_font_replacements(font).empty());
+  CHECK(remembered_font_replacements(QStringLiteral("Patchy Cap Font 0")).empty());
+  CHECK(remembered_font_replacements(QStringLiteral("Patchy Cap Font 2")).size() == 1U);
+  CHECK(remembered_font_replacements(
+            QStringLiteral("Patchy Cap Font %1").arg(patchy::ui::kMaxRememberedReplacementFonts + 1))
+            .size() == 1U);
+
+  // A damaged value reads as nothing remembered, and the next choice starts over.
+  patchy::ui::app_settings().setValue(QString::fromLatin1(patchy::ui::kMissingFontReplacementsKey),
+                                      QStringLiteral("{not json"));
+  CHECK(remembered_font_replacements(QStringLiteral("Patchy Cap Font 2")).empty());
+  record_font_replacement(font, QStringLiteral("Alpha"));
+  CHECK(remembered_font_replacements(font).size() == 1U);
+  patchy::ui::clear_remembered_font_replacements();
+  CHECK(remembered_font_replacements(font).empty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
@@ -2067,9 +2990,25 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_update_all_text_layers_rerenders_installed_font_layers",
        ui_update_all_text_layers_rerenders_installed_font_layers},
       {"ui_update_all_text_layers_rewrites_photoshop_text", ui_update_all_text_layers_rewrites_photoshop_text},
+      {"ui_update_all_text_layers_keeps_the_line_composer", ui_update_all_text_layers_keeps_the_line_composer},
+      {"ui_update_all_text_layers_keeps_the_line_composer_if_available",
+       ui_update_all_text_layers_keeps_the_line_composer_if_available},
       {"ui_replace_all_missing_fonts_uses_recommendations_then_the_default",
        ui_replace_all_missing_fonts_uses_recommendations_then_the_default},
       {"ui_missing_fonts_dialog_shows_family_and_style_apart", ui_missing_fonts_dialog_shows_family_and_style_apart},
+      {"ui_missing_fonts_dialog_remembers_the_replacement_chosen",
+       ui_missing_fonts_dialog_remembers_the_replacement_chosen},
+      {"ui_missing_fonts_dialog_skips_a_remembered_font_that_is_not_installed",
+       ui_missing_fonts_dialog_skips_a_remembered_font_that_is_not_installed},
+      {"ui_missing_fonts_picker_orders_chosen_before_by_count", ui_missing_fonts_picker_orders_chosen_before_by_count},
+      {"ui_missing_fonts_picker_suggests_every_candidate_with_its_reason",
+       ui_missing_fonts_picker_suggests_every_candidate_with_its_reason},
+      {"ui_replace_all_missing_fonts_uses_the_remembered_replacement",
+       ui_replace_all_missing_fonts_uses_the_remembered_replacement},
+      {"ui_missing_fonts_untouched_suggestion_and_cancel_remember_nothing",
+       ui_missing_fonts_untouched_suggestion_and_cancel_remember_nothing},
+      {"ui_missing_font_replacement_memory_counts_orders_and_caps",
+       ui_missing_font_replacement_memory_counts_orders_and_caps},
       {"ui_missing_fonts_dialog_shows_on_open_until_turned_off", ui_missing_fonts_dialog_shows_on_open_until_turned_off},
       {"ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show", ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show},
       {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},
