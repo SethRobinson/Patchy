@@ -21575,6 +21575,18 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>ツールの不透明度を10%上げる</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>インストールされていない各フォントを推奨の代替フォントに置き換える</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>インストール済みフォントのテキストレイヤーをすべて再レンダリング</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>仮のダミーテキストを挿入</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35522,6 +35534,46 @@ Locked: %1</source>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>オフにすると、PDFを開いたときにPDFの読み込みダイアログが表示され、すぐにページを編集できます。</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>すべてのテキストレイヤーを更新</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>見つからないフォントをすべて置き換え</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>Lorem Ipsum を貼り付け</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>(%n 個の記号フォントを保持しました: 同じ記号を持つフォントがインストールされていません)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>このドキュメントにテキストレイヤーはありません</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>%n 個のテキストレイヤーを更新しました</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>(見つからないフォントを使う %n 個のレイヤーをスキップしました)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>(ロックされた %n 個のレイヤーをスキップしました)</numerusform>
+        </translation>
     </message>
 </context>
 <context>

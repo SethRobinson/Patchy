@@ -21637,6 +21637,18 @@ Voulez-vous le remplacer ?</translation>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Augmenter l&apos;opacité de l&apos;outil de 10 %</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>Remplacer chaque police non installée par son substitut suggéré</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>Refaire le rendu de chaque calque de texte avec des polices installées</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>Insérer un texte de remplissage provisoire</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35625,6 +35637,50 @@ Verrouillé : %1</translation>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Si cette option est désactivée, l&apos;ouverture d&apos;un PDF affiche tout de suite la boîte de dialogue Importer un PDF pour modifier ses pages.</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>Mettre à jour tous les calques de texte</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>Remplacer toutes les polices manquantes</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>Coller Lorem Ipsum</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>(%n police de symboles conservée : aucune police installée n&apos;a les mêmes symboles)</numerusform>
+            <numerusform>(%n polices de symboles conservées : aucune police installée n&apos;a les mêmes symboles)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>Ce document n&apos;a aucun calque de texte</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>%n calque de texte mis à jour</numerusform>
+            <numerusform>%n calques de texte mis à jour</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>(%n calque avec des polices manquantes ignoré)</numerusform>
+            <numerusform>(%n calques avec des polices manquantes ignorés)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>(%n calque verrouillé ignoré)</numerusform>
+            <numerusform>(%n calques verrouillés ignorés)</numerusform>
+        </translation>
     </message>
 </context>
 <context>

@@ -78,11 +78,27 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
   names, and all commits share one "Resolve Missing Fonts" undo step. A commit regenerates the
   layer, so its TySh and the Txt2 object name the replacement on the next save. Locked layers and
   protected text geometry are skipped and counted in the status message.
+- **Type > Replace All Missing Fonts** (issue 686; `type.replace_all_missing_fonts`,
+  `replace_all_missing_fonts`): the dialog's answer with no dialog. `missing_font_entry` builds
+  each row's recommendation for both paths; a row whose suggestion is `fallback` (no table pick,
+  no same-type default) takes `default_text_family()`, not the face Qt falls back to, and a
+  `no_symbol_match` symbol font keeps its name, as its dialog row starts unticked. Then
+  `resolve_missing_fonts` as above: one "Resolve Missing Fonts" step, locked layers counted.
+  Nothing missing: the status bar says "This document has no missing fonts".
+- **Type > Update All Text Layers** (issue 686; `type.update_all_text_layers`,
+  `update_all_text_layers`): every text layer whose fonts are installed (hidden, grouped and
+  artboard layers included) gets the same hidden session and a commit marked changed, so an
+  imported `psd_raster_preview` layer is laid out and rendered by Patchy (`patchy_raster`) and
+  the next save writes Patchy's TySh and Txt2 for it (for PSD text compatibility checks). One
+  "Update All Text Layers" step; layers with a missing or glyphless font (Replace All Missing
+  Fonts is for those) and locked or protected layers are skipped and counted on the status bar.
+  Both passes share `commit_text_layers_in_hidden_sessions`.
 - Every interactive open (`open_document_path`, never unattended automation) shows the dialog while
   `imports/showMissingFontsDialog` (default true) allows. Its "Don't show when opening documents"
   box (its label names Preferences > Application as the way back) and Preferences > Application
   set that key. The UI test main sets it false; tests that need
-  the dialog turn it on. Tests: the `missing_font` filter (tests/ui/missing_fonts_tests.cpp).
+  the dialog turn it on. Tests: the `missing_font` filter (tests/ui/missing_fonts_tests.cpp),
+  `ui_update_all_text_layers_`, `ui_replace_all_missing_fonts_`.
 
 ### Substitute table
 

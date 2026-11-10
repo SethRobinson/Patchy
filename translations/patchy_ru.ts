@@ -21699,6 +21699,18 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Увеличить непрозрачность инструмента на 10%</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>Заменить каждый неустановленный шрифт предложенной заменой</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>Заново отрисовать все текстовые слои с установленными шрифтами</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>Вставить временный текст-заполнитель</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35728,6 +35740,54 @@ Locked: %1</source>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Если отключено, при открытии PDF сразу показывается диалог импорта PDF для редактирования страниц.</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>Обновить все текстовые слои</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>Заменить все отсутствующие шрифты</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>Вставить Lorem Ipsum</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>(сохранён %n символьный шрифт: ни у одного установленного шрифта нет таких же символов)</numerusform>
+            <numerusform>(сохранено %n символьных шрифта: ни у одного установленного шрифта нет таких же символов)</numerusform>
+            <numerusform>(сохранено %n символьных шрифтов: ни у одного установленного шрифта нет таких же символов)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>В этом документе нет текстовых слоёв</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>Обновлён %n текстовый слой</numerusform>
+            <numerusform>Обновлено %n текстовых слоя</numerusform>
+            <numerusform>Обновлено %n текстовых слоёв</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>(пропущен %n слой с отсутствующими шрифтами)</numerusform>
+            <numerusform>(пропущено %n слоя с отсутствующими шрифтами)</numerusform>
+            <numerusform>(пропущено %n слоёв с отсутствующими шрифтами)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>(пропущен %n заблокированный слой)</numerusform>
+            <numerusform>(пропущено %n заблокированных слоя)</numerusform>
+            <numerusform>(пропущено %n заблокированных слоёв)</numerusform>
+        </translation>
     </message>
 </context>
 <context>

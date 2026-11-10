@@ -21575,6 +21575,18 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>将工具不透明度提高 10%</translation>
     </message>
+    <message>
+        <source>Swap every uninstalled font for its suggested substitute</source>
+        <translation>将每个未安装的字体换成建议的替代字体</translation>
+    </message>
+    <message>
+        <source>Re-render every text layer with installed fonts</source>
+        <translation>重新渲染使用已安装字体的每个文字图层</translation>
+    </message>
+    <message>
+        <source>Insert placeholder filler text</source>
+        <translation>插入占位填充文字</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35522,6 +35534,46 @@ Locked: %1</source>
     <message>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>关闭后，打开 PDF 时会显示导入 PDF 对话框，可立即编辑其页面。</translation>
+    </message>
+    <message>
+        <source>Update All Text Layers</source>
+        <translation>更新所有文字图层</translation>
+    </message>
+    <message>
+        <source>Replace All Missing Fonts</source>
+        <translation>替换所有缺少的字体</translation>
+    </message>
+    <message>
+        <source>Paste Lorem Ipsum</source>
+        <translation>粘贴 Lorem Ipsum</translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n symbol font(s) kept: no installed font has the same symbols)</source>
+        <translation>
+            <numerusform>（保留了 %n 个符号字体：没有已安装的字体具有相同的符号）</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This document has no text layers</source>
+        <translation>此文档没有文字图层</translation>
+    </message>
+    <message numerus="yes">
+        <source>Updated %n text layer(s)</source>
+        <translation>
+            <numerusform>已更新 %n 个文字图层</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n layer(s) with missing fonts skipped)</source>
+        <translation>
+            <numerusform>（已跳过 %n 个缺少字体的图层）</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n locked layer(s) skipped)</source>
+        <translation>
+            <numerusform>（已跳过 %n 个锁定的图层）</numerusform>
+        </translation>
     </message>
 </context>
 <context>

@@ -3,7 +3,7 @@
 // outlines. The shape must cover the pixels the text drew (point, area, vertical and warped
 // text), keep the layer's own properties, undo in one step, survive a PSD round trip, and the
 // outline grouping must fill like the nonzero glyph outlines it came from.
-// Also the Type menu's rows and submenus (GitHub issue 650).
+// Also the Type menu's rows and submenus (GitHub issue 650) and Paste Lorem Ipsum (issue 686).
 #include "core/document.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
@@ -11,6 +11,7 @@
 #include "core/vector_shape.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/text_outline.hpp"
@@ -27,6 +28,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QStringList>
+#include <QTextCursor>
+#include <QTextEdit>
 
 #include <algorithm>
 #include <cmath>
@@ -667,7 +670,10 @@ void ui_type_menu_rows_and_enabled_states() {
                              QStringLiteral("-"),
                              QStringLiteral("typeRasterizeAction"), QStringLiteral("typeWarpTextAction"),
                              QStringLiteral("-"),
-                             QStringLiteral("typeResolveMissingFontsAction")};
+                             QStringLiteral("typeUpdateAllTextLayersAction"),
+                             QStringLiteral("typeReplaceAllMissingFontsAction"),
+                             QStringLiteral("typeResolveMissingFontsAction"), QStringLiteral("-"),
+                             QStringLiteral("typePasteLoremIpsumAction")};
   const auto rows = menu_rows(*menu);
   if (rows != expected) {
     std::fprintf(stderr, "Type menu rows: %s\n", rows.join(QLatin1Char(',')).toUtf8().constData());
@@ -828,6 +834,174 @@ void ui_type_menu_applies_to_selected_text_layer() {
 }
 
 // Review capture for the desk card: the Type menu with its OpenType submenu beside it.
+const QString kLoremIpsum = QStringLiteral(
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et "
+    "dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex "
+    "ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+    "nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit "
+    "anim id est laborum.");
+
+QTextEdit* open_text_editor(MainWindow& window) {
+  auto* canvas = MainWindowTestAccess::canvas(window);
+  auto* editor = canvas != nullptr ? canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  return editor;
+}
+
+std::size_t count_text_layers(const std::vector<patchy::Layer>& layers) {
+  std::size_t count = 0;
+  for (const auto& layer : layers) {
+    count += patchy::layer_is_text(layer) ? 1U : 0U;
+    count += count_text_layers(layer.children());
+  }
+  return count;
+}
+
+// GitHub issue 686: Type > Paste Lorem Ipsum appends the paragraph to a selected text layer, goes
+// in at the caret of an open session, and with no text layer selected makes a new paragraph
+// layer at the view center whose frame fits the text. Each is one undo step.
+void ui_type_paste_lorem_ipsum_appends_inserts_and_creates() {
+  MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  const auto id = add_point_text(window);
+  auto* action = patchy::test::ui::require_action(window, "typePasteLoremIpsumAction");
+  CHECK(action != nullptr && action->isEnabled());
+  if (action == nullptr) {
+    return;
+  }
+  CHECK(action->shortcut().isEmpty());
+
+  // A selected text layer and no session: after its text, a space apart.
+  select_only(window, id);
+  auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  action->trigger();
+  patchy::test::ui::process_events_for(100);
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataText) == QStringLiteral("Shape 598 ") + kLoremIpsum);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(open_text_editor(window) == nullptr);
+  MainWindowTestAccess::undo(window);
+  patchy::test::ui::process_events_for(100);
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataText) == QStringLiteral("Shape 598"));
+
+  // An open session: at the caret, and the session stays open until it is committed.
+  MainWindowTestAccess::edit_text_layer(window, id);
+  patchy::test::ui::process_events_for(200);
+  auto* editor = open_text_editor(window);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  auto cursor = editor->textCursor();
+  cursor.setPosition(5);
+  editor->setTextCursor(cursor);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(editor->toPlainText() == QStringLiteral("Shape") + kLoremIpsum + QStringLiteral(" 598"));
+  CHECK(open_text_editor(window) == editor);
+  depth = MainWindowTestAccess::active_session_undo_depth(window);
+  patchy::test::ui::send_key(*editor, Qt::Key_Enter, Qt::KeypadModifier);
+  patchy::test::ui::process_events_for(200);
+  CHECK(open_text_editor(window) == nullptr);
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataText) == QStringLiteral("Shape") + kLoremIpsum +
+                                                                       QStringLiteral(" 598"));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  MainWindowTestAccess::undo(window);
+  patchy::test::ui::process_events_for(100);
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataText) == QStringLiteral("Shape 598"));
+
+  // Only the pixel background selected: a new paragraph layer at the view center.
+  std::optional<patchy::LayerId> pixel_layer;
+  for (const auto& layer : MainWindowTestAccess::document(window).layers()) {
+    if (!patchy::layer_is_text(layer)) {
+      pixel_layer = layer.id();
+    }
+  }
+  CHECK(pixel_layer.has_value());
+  if (!pixel_layer.has_value()) {
+    return;
+  }
+  select_only(window, *pixel_layer);
+  const auto& document = MainWindowTestAccess::document(window);
+  const auto text_layers_before = count_text_layers(document.layers());
+  const auto center = MainWindowTestAccess::canvas(window)->view_center_document_point();
+  depth = MainWindowTestAccess::active_session_undo_depth(window);
+  action->trigger();
+  patchy::test::ui::process_events_for(200);
+  CHECK(open_text_editor(window) == nullptr);
+  CHECK(count_text_layers(document.layers()) == text_layers_before + 1U);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  const auto created = document.active_layer_id();
+  const auto* layer = created.has_value() ? std::as_const(document).find_layer(*created) : nullptr;
+  CHECK(layer != nullptr && patchy::layer_is_text(*layer) && *created != id);
+  if (layer == nullptr || !created.has_value()) {
+    return;
+  }
+  const auto new_id = *created;
+  CHECK(metadata_value(window, new_id, patchy::kLayerMetadataText) == kLoremIpsum);
+  CHECK(metadata_value(window, new_id, patchy::kLayerMetadataTextFlow) == QStringLiteral("box"));
+  const auto box_width = metadata_value(window, new_id, patchy::kLayerMetadataTextBoxWidth).toDouble();
+  const auto box_height = metadata_value(window, new_id, patchy::kLayerMetadataTextBoxHeight).toDouble();
+  const auto ink = ink_rect(*layer);
+  std::fprintf(stderr, "lorem box %.0fx%.0f, ink %.0f,%.0f %.0fx%.0f, view center %.0f,%.0f\n", box_width,
+               box_height, ink.x(), ink.y(), ink.width(), ink.height(), center.x(), center.y());
+  // Several lines, a frame narrower than the document, and the ink centered on the view.
+  CHECK(box_width > 64.0 && box_width < document.width());
+  CHECK(box_height > 0.0 && box_height < document.height() * 4.0);
+  CHECK(ink.height() > ink.width() / 8.0);
+  CHECK(std::abs(ink.center().x() - center.x()) < box_width * 0.25);
+  CHECK(std::abs(ink.center().y() - center.y()) < box_height * 0.25);
+  // The frame was fitted to the text: reopened, it hides no lines.
+  MainWindowTestAccess::edit_text_layer(window, new_id);
+  patchy::test::ui::process_events_for(300);
+  editor = open_text_editor(window);
+  CHECK(editor != nullptr);
+  if (editor != nullptr) {
+    CHECK(!editor->property("patchy.textHiddenLines").toBool());
+    patchy::test::ui::send_key(*editor, Qt::Key_Escape);
+    patchy::test::ui::process_events_for(100);
+  }
+  MainWindowTestAccess::undo(window);
+  patchy::test::ui::process_events_for(100);
+  CHECK(count_text_layers(document.layers()) == text_layers_before);
+}
+
+// The review file for GitHub issue 686: text layers in installed fonts and two in fonts no host
+// has (one the substitute table knows, one it does not), saved as test-artifacts/issue686-text-layers.psd
+// for Update All Text Layers and Replace All Missing Fonts by hand.
+void ui_type_text_commands_review_file() {
+  MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  run_script(window, QStringLiteral(R"JS(
+    var d = app.newDocument(900, 460);
+    d.activeLayer.fill('#ffffff');
+    d.addTextLayer('Headline in Arial', {font: 'Arial', size: 60, x: 40, y: 30, color: '#202020'}).name = 'Arial headline';
+    d.addTextLayer('Body text in Times New Roman', {font: 'Times New Roman', size: 40, x: 40, y: 130, color: '#3050a0'}).name = 'Times body';
+    d.addTextLayer('Caption set in Helvetica', {font: 'Arial', size: 36, x: 40, y: 230, color: '#a03020'}).name = 'Helvetica caption';
+    d.addTextLayer('Label in a font nobody has', {font: 'Arial', size: 36, x: 40, y: 330, color: '#207040'}).name = 'Missing font label';
+  )JS"));
+  auto& document = MainWindowTestAccess::document(window);
+  const auto rename_font = [&document](const std::string& layer_name, const std::string& family) {
+    const auto* found = find_named(std::as_const(document).layers(), layer_name);
+    CHECK(found != nullptr);
+    if (found == nullptr) {
+      return;
+    }
+    auto* layer = document.find_layer(found->id());
+    for (const auto* key : {patchy::kLayerMetadataTextFont, patchy::kLayerMetadataTextRuns}) {
+      if (auto value = layer->metadata().find(key); value != layer->metadata().end()) {
+        value->second = QString::fromStdString(value->second)
+                            .replace(QStringLiteral("Arial"), QString::fromStdString(family))
+                            .toStdString();
+      }
+    }
+  };
+  rename_font("Helvetica caption", "Helvetica");
+  rename_font("Missing font label", "Patchy Demo Missing Font");
+  patchy::test::ui::ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(std::as_const(document),
+                                                   std::filesystem::path("test-artifacts") / "issue686-text-layers.psd");
+  CHECK(std::filesystem::exists(std::filesystem::path("test-artifacts") / "issue686-text-layers.psd"));
+}
+
 void ui_type_menu_review_capture() {
   MainWindow window;
   patchy::test::ui::show_window_empty(window);
@@ -956,5 +1130,7 @@ std::vector<patchy::test::TestCase> text_outline_tests() {
       {"ui_type_menu_rows_and_enabled_states", ui_type_menu_rows_and_enabled_states},
       {"ui_type_menu_applies_to_selected_text_layer", ui_type_menu_applies_to_selected_text_layer},
       {"ui_type_menu_review_capture", ui_type_menu_review_capture},
+      {"ui_type_paste_lorem_ipsum_appends_inserts_and_creates", ui_type_paste_lorem_ipsum_appends_inserts_and_creates},
+      {"ui_type_text_commands_review_file", ui_type_text_commands_review_file},
   };
 }
