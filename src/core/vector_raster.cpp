@@ -829,15 +829,101 @@ double distance(const DPoint& a, const DPoint& b) noexcept {
 // meet at the offset lines' intersection; a turn sharper than that limit keeps
 // both segment ends instead, so a hairpin never throws a vertex far away. A
 // zero-length run (a dot) moves along the normal of `dot_direction`.
+//
+// Two things keep the moved line from folding back on itself (local-051 follow-up 2). A
+// fold is two near reversals, and the stroker's miter join on one threw a spike along the
+// path, as far as the canvas edge.
+//
+// 1. Short steps are skipped first (`offset_source_points`). A flattened curve bunches its
+//    points where an anchor has no handle, in steps of a lattice unit or two, and a step
+//    that short points anywhere: its normal is not the curve's. A lattice point is up to
+//    0.003 px off the curve, so two steps of length L turn by up to 0.011 / L by rounding
+//    alone, and the moved step between them (L - offset * turn long) keeps its direction
+//    while L * L > 0.011 * offset. The least step is twice that bound, 0.25 * sqrt(offset),
+//    and never under an eighth of a pixel; on a curve no tighter than the offset it costs
+//    under 0.01 px of chord. A corner among the skipped points is kept: a skipped point
+//    more than 1/32 px off the step that passes it takes the place of the last kept point,
+//    since a corner cut by a short chord folds on its inner side.
+// 2. A moved step that ends before it starts is dropped (`forward` below). On the inner
+//    side of a sharp corner between curves the two moved arms cross well past the steps
+//    next to the corner (offset * tan(turn / 2) along each arm), so those steps come out
+//    reversed. Dropping them, innermost first, leaves the crossing of the first steps that
+//    reach it: the inner corner of the band. Steps left without a shared point meet where
+//    their moved lines cross, or are joined end to end when the lines are near parallel or
+//    cross far away. A polyline of long steps is untouched.
+std::vector<DPoint> offset_source_points(const std::vector<DPoint>& input, double offset) {
+  std::vector<DPoint> points;
+  if (input.empty()) {
+    return points;
+  }
+  const double min_step = std::max(0.125, 0.25 * std::sqrt(std::abs(offset)));
+  constexpr double kCornerDeviation = 1.0 / 32.0;
+  points.reserve(input.size());
+  points.push_back(input.front());
+  std::size_t skipped_from = 1;  // input[skipped_from, i) were passed over since the last kept point
+  const auto distance_to_step = [](const DPoint& a, const DPoint& b, const DPoint& p) {
+    const double abx = b.x - a.x;
+    const double aby = b.y - a.y;
+    const double apx = p.x - a.x;
+    const double apy = p.y - a.y;
+    const double length_squared = abx * abx + aby * aby;
+    const double t = length_squared > 0.0 ? std::clamp((apx * abx + apy * aby) / length_squared, 0.0, 1.0) : 0.0;
+    const double dx = apx - t * abx;
+    const double dy = apy - t * aby;
+    return std::sqrt(dx * dx + dy * dy);
+  };
+  const auto keep_hidden_corner = [&](const DPoint& to, std::size_t end) {
+    double worst = kCornerDeviation;
+    std::size_t corner = end;
+    for (std::size_t j = skipped_from; j < end; ++j) {
+      const double deviation = distance_to_step(points.back(), to, input[j]);
+      if (deviation > worst) {
+        worst = deviation;
+        corner = j;
+      }
+    }
+    if (corner == end) {
+      return false;
+    }
+    if (points.size() >= 2) {
+      points.back() = input[corner];
+    } else {
+      points.push_back(input[corner]);
+    }
+    skipped_from = corner + 1;
+    return true;
+  };
+  for (std::size_t i = 1; i < input.size(); ++i) {
+    const bool last = i + 1 == input.size();  // the run keeps its true end
+    bool keep = true;
+    for (;;) {
+      if (!last && distance(points.back(), input[i]) < min_step) {
+        keep = false;
+        break;
+      }
+      if (!keep_hidden_corner(input[i], i)) {
+        break;
+      }
+    }
+    if (!keep) {
+      continue;
+    }
+    if (last && points.size() >= 2 && distance(points.back(), input[i]) < min_step) {
+      points.back() = input[i];
+    } else {
+      points.push_back(input[i]);
+    }
+    skipped_from = i + 1;
+  }
+  points.erase(std::unique(points.begin(), points.end(),
+                           [](const DPoint& a, const DPoint& b) { return a.x == b.x && a.y == b.y; }),
+               points.end());
+  return points;
+}
+
 std::vector<DPoint> offset_open_polyline(const std::vector<DPoint>& input, double offset,
                                          DPoint dot_direction = {}) {
-  std::vector<DPoint> points;
-  points.reserve(input.size());
-  for (const auto& point : input) {
-    if (points.empty() || point.x != points.back().x || point.y != points.back().y) {
-      points.push_back(point);
-    }
-  }
+  const auto points = offset_source_points(input, offset);
   if (points.size() < 2) {
     std::vector<DPoint> result = input;  // no direction of its own to offset along
     for (auto& point : result) {
@@ -852,25 +938,82 @@ std::vector<DPoint> offset_open_polyline(const std::vector<DPoint>& input, doubl
     const double length = distance(points[i], points[i + 1]);
     normals.push_back({-(points[i + 1].y - points[i].y) / length, (points[i + 1].x - points[i].x) / length});
   }
-  std::vector<DPoint> result;
-  result.reserve(points.size() + 2);
-  result.push_back({points.front().x + normals.front().x * offset, points.front().y + normals.front().y * offset});
-  for (std::size_t i = 1; i + 1 < points.size(); ++i) {
-    const auto& before = normals[i - 1];
-    const auto& after = normals[i];
+  const auto moved = [&](std::size_t point, std::size_t step) {
+    return DPoint{points[point].x + normals[step].x * offset, points[point].y + normals[step].y * offset};
+  };
+  const auto direction = [&](std::size_t step) { return DPoint{normals[step].y, -normals[step].x}; };
+  // The vertices that join step `from` to a later step `to`: one where the moved lines
+  // meet, or both step ends.
+  const auto join = [&](std::size_t from, std::size_t to, std::array<DPoint, 2>& out) {
+    const auto& before = normals[from];
+    const auto& after = normals[to];
     const DPoint sum{before.x + after.x, before.y + after.y};
     const double sum_squared = sum.x * sum.x + sum.y * sum.y;
+    const DPoint from_end = moved(from + 1, from);
+    const DPoint to_start = moved(to, to);
     // |sum| = 2 cos(turn / 2); the intersection lies offset / cos(turn / 2) out.
     constexpr double kMinSumSquared = 0.25;  // cos(turn / 2) >= 0.25: at most 4x out
     if (sum_squared >= kMinSumSquared) {
-      const double scale = 2.0 * offset / sum_squared;
-      result.push_back({points[i].x + sum.x * scale, points[i].y + sum.y * scale});
-    } else {
-      result.push_back({points[i].x + before.x * offset, points[i].y + before.y * offset});
-      result.push_back({points[i].x + after.x * offset, points[i].y + after.y * offset});
+      if (to == from + 1) {
+        const double scale = 2.0 * offset / sum_squared;
+        out[0] = {points[to].x + sum.x * scale, points[to].y + sum.y * scale};
+        return 1;
+      }
+      const DPoint a = direction(from);
+      const DPoint b = direction(to);
+      const double cross = a.x * b.y - a.y * b.x;
+      constexpr double kMinCross = 0.05;
+      if (std::abs(cross) >= kMinCross) {
+        const double along = ((to_start.x - from_end.x) * b.y - (to_start.y - from_end.y) * b.x) / cross;
+        const DPoint meet{from_end.x + a.x * along, from_end.y + a.y * along};
+        const double limit = 4.0 * std::abs(offset) + distance(from_end, to_start);
+        if (distance(meet, from_end) <= limit && distance(meet, to_start) <= limit) {
+          out[0] = meet;
+          return 1;
+        }
+      }
+    }
+    out[0] = from_end;
+    out[1] = to_start;
+    return 2;
+  };
+  struct Piece {
+    std::size_t step{0};
+    std::array<DPoint, 2> lead{};  // the vertices before this step
+    int leads{0};
+  };
+  // Whether `step`, starting at `from`, still runs its own way when it ends at `to`.
+  const auto forward = [&](const Piece& piece, const DPoint& to) {
+    const auto& from = piece.lead[static_cast<std::size_t>(piece.leads - 1)];
+    const DPoint along = direction(piece.step);
+    return (to.x - from.x) * along.x + (to.y - from.y) * along.y > 0.0;
+  };
+  std::vector<Piece> pieces;
+  pieces.reserve(normals.size());
+  pieces.push_back({0, {moved(0, 0), DPoint{}}, 1});
+  for (std::size_t step = 1; step < normals.size(); ++step) {
+    Piece piece{step, {}, 0};
+    for (;;) {
+      piece.leads = join(pieces.back().step, step, piece.lead);
+      if (pieces.size() == 1 || forward(pieces.back(), piece.lead[0])) {
+        break;
+      }
+      pieces.pop_back();
+    }
+    pieces.push_back(piece);
+  }
+  const DPoint end = moved(points.size() - 1, normals.size() - 1);
+  while (pieces.size() > 1 && !forward(pieces.back(), end)) {
+    pieces.pop_back();
+  }
+  std::vector<DPoint> result;
+  result.reserve(pieces.size() + 2);
+  for (const auto& piece : pieces) {
+    for (int lead = 0; lead < piece.leads; ++lead) {
+      result.push_back(piece.lead[static_cast<std::size_t>(lead)]);
     }
   }
-  result.push_back({points.back().x + normals.back().x * offset, points.back().y + normals.back().y * offset});
+  result.push_back(end);
   return result;
 }
 
@@ -1678,6 +1821,17 @@ Rect shape_bake_domain(const VectorShapeContent& content, Rect canvas) {
 }
 
 }  // namespace
+
+Rect vector_shape_coverage_domain(const VectorShapeContent& content, Rect canvas) {
+  const auto domain = shape_bake_domain(content, canvas);
+  if (!(content.feather > 0.05)) {
+    return domain;
+  }
+  // rasterize_vector_shape's raster_domain.
+  const auto radii = mask_feather_box_radii(content.feather);
+  const std::int32_t reach = radii[0] + radii[1] + radii[2];
+  return Rect{domain.x - reach, domain.y - reach, domain.width + 2 * reach, domain.height + 2 * reach};
+}
 
 void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* patterns) {
   const auto* shape = layer.vector_shape();

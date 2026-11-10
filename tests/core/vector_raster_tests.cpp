@@ -1173,6 +1173,134 @@ void stroke_open_path_alignment_moves_band_sideways() {
   CHECK(coverage_pixel(both, 70, 69) == 0);
 }
 
+// local-051 follow-up 2: an Inside or Outside stroke on an open curve stays beside the
+// curve at every scale. The curve's end anchors have no handles, so its flattened ends are
+// steps of a lattice unit or two; offsetting along those folded the moved line back and
+// its miter join drew a spike along the tangent to the canvas edge.
+void stroke_open_curve_alignment_stays_beside_the_curve() {
+  for (const double scale : {1.0, 2.0, 2.5, 4.0, 8.0}) {
+    PathSubpath curve;
+    curve.closed = false;
+    curve.op = PathCombineOp::Add;
+    auto peak = corner(80 * scale, 40 * scale);
+    peak.in_x = 54 * scale; peak.in_y = 50 * scale;
+    peak.out_x = 106 * scale; peak.out_y = 30 * scale;
+    peak.smooth = true;
+    curve.anchors = {corner(24 * scale, 84 * scale), peak, corner(138 * scale, 78 * scale)};
+    VectorPath path;
+    path.subpaths = {curve};
+    const Rect clip{0, 0, static_cast<std::int32_t>(160 * scale), static_cast<std::int32_t>(120 * scale)};
+    patchy::VectorStroke stroke;
+    stroke.enabled = true;
+    stroke.width = 5.0 * scale;
+    // The curve itself: two cubic segments, 145.5 px long at scale 1.
+    const auto hull = path.bounds();
+    CHECK(hull.has_value());
+    for (const auto alignment : {patchy::VectorStrokeAlignment::Inside, patchy::VectorStrokeAlignment::Outside}) {
+      for (const auto join : {patchy::VectorStrokeJoin::Miter, patchy::VectorStrokeJoin::Round}) {
+        stroke.alignment = alignment;
+        stroke.join = join;
+        stroke.cap = join == patchy::VectorStrokeJoin::Round ? patchy::VectorStrokeCap::Round
+                                                             : patchy::VectorStrokeCap::Butt;
+        const auto band = stroke_coverage(path, stroke, clip);
+        CHECK(!band.bounds.empty());
+        // Nothing drawn farther from the curve's box than the stroke is wide (plus a round cap).
+        std::int32_t left = clip.width;
+        std::int32_t top = clip.height;
+        std::int32_t right = -1;
+        std::int32_t bottom = -1;
+        double area = 0.0;
+        for (std::int32_t y = clip.y; y < clip.y + clip.height; ++y) {
+          for (std::int32_t x = clip.x; x < clip.x + clip.width; ++x) {
+            const auto value = coverage_pixel(band, x, y);
+            area += value / 255.0;
+            if (value >= 8) {
+              left = std::min(left, x);
+              top = std::min(top, y);
+              right = std::max(right, x);
+              bottom = std::max(bottom, y);
+            }
+          }
+        }
+        const double reach = stroke.width * 1.5 + 2.0;
+        // And the band's area is the curve's length times the width.
+        const double expected = 145.5 * scale * stroke.width;
+        const bool beside = left >= hull->left - reach && top >= hull->top - reach &&
+                            right <= hull->right + reach && bottom <= hull->bottom + reach;
+        const bool whole = std::abs(area - expected) < expected * 0.12;
+        if (!beside || !whole) {
+          std::printf("  open curve stroke: scale %.1f alignment %d join %d drawn %d,%d..%d,%d edges %d,%d %dx%d "
+                      "hull %.1f,%.1f..%.1f,%.1f area %.0f expected %.0f\n",
+                      scale, static_cast<int>(alignment), static_cast<int>(join), left, top, right, bottom,
+                      band.bounds.x, band.bounds.y, band.bounds.width, band.bounds.height,
+                      static_cast<double>(hull->left), static_cast<double>(hull->top),
+                      static_cast<double>(hull->right), static_cast<double>(hull->bottom), area, expected);
+        }
+        CHECK(beside);
+        CHECK(whole);
+      }
+    }
+  }
+  // Two curves meeting in a sharp corner (the anchor has no handles): on the corner's
+  // inner side the moved arms cross past the flattened steps next to it. Those steps came
+  // out reversed, and at some scales a miter join on one drew a spike to the canvas edge.
+  for (int quarter = 4; quarter <= 32; quarter += quarter < 16 ? 1 : 8) {
+    const double scale = quarter / 4.0;
+    const auto anchor = [scale](double x, double y, double in_x, double in_y, double out_x, double out_y) {
+      auto result = corner(x * scale, y * scale);
+      result.in_x = (x + in_x) * scale; result.in_y = (y + in_y) * scale;
+      result.out_x = (x + out_x) * scale; result.out_y = (y + out_y) * scale;
+      return result;
+    };
+    PathSubpath bend;
+    bend.closed = false;
+    bend.op = PathCombineOp::Add;
+    bend.anchors = {anchor(66, 132, 0, 0, 0, 0), anchor(100, 64, -18, 14, 18, -14), anchor(136, 110, 0, 0, 0, 0),
+                    anchor(174, 70, -14, 6, 10, -4)};
+    VectorPath path;
+    path.subpaths = {bend};
+    const Rect clip{0, 0, static_cast<std::int32_t>(240 * scale), static_cast<std::int32_t>(200 * scale)};
+    const auto hull = path.bounds();
+    CHECK(hull.has_value());
+    for (const double width : {4.0, 7.0}) {
+      for (const auto alignment : {patchy::VectorStrokeAlignment::Inside, patchy::VectorStrokeAlignment::Outside}) {
+        patchy::VectorStroke stroke;
+        stroke.enabled = true;
+        stroke.width = width * scale;
+        stroke.alignment = alignment;
+        stroke.join = patchy::VectorStrokeJoin::Miter;
+        stroke.cap = patchy::VectorStrokeCap::Butt;
+        const auto band = stroke_coverage(path, stroke, clip);
+        std::int32_t left = clip.width;
+        std::int32_t top = clip.height;
+        std::int32_t right = -1;
+        std::int32_t bottom = -1;
+        for (std::int32_t y = band.bounds.y; y < band.bounds.y + band.bounds.height; ++y) {
+          for (std::int32_t x = band.bounds.x; x < band.bounds.x + band.bounds.width; ++x) {
+            if (coverage_pixel(band, x, y) >= 8) {
+              left = std::min(left, x);
+              top = std::min(top, y);
+              right = std::max(right, x);
+              bottom = std::max(bottom, y);
+            }
+          }
+        }
+        // The corner's outer miter reaches 2.3 widths; nothing is drawn past that.
+        const double reach = stroke.width * 2.6 + 2.0;
+        const bool beside = right >= left && left >= hull->left - reach && top >= hull->top - reach &&
+                            right <= hull->right + reach && bottom <= hull->bottom + reach;
+        if (!beside) {
+          std::printf("  open corner stroke: scale %.2f width %.0f alignment %d drawn %d,%d..%d,%d hull %.1f,%.1f..%.1f,%.1f\n",
+                      scale, width, static_cast<int>(alignment), left, top, right, bottom,
+                      static_cast<double>(hull->left), static_cast<double>(hull->top),
+                      static_cast<double>(hull->right), static_cast<double>(hull->bottom));
+        }
+        CHECK(beside);
+      }
+    }
+  }
+}
+
 void stroke_open_path_alignment_dashes_follow_the_path() {
   // Issue 558: Photoshop spaces an Inside or Outside open stroke's dashes along
   // the path itself and then moves each dash sideways, so the dashes after a
@@ -2630,6 +2758,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_dash_presets_follow_caps_and_map_back", stroke_dash_presets_follow_caps_and_map_back},
       {"stroke_dash_presets_set_caps_and_corners", stroke_dash_presets_set_caps_and_corners},
       {"stroke_open_path_alignment_moves_band_sideways", stroke_open_path_alignment_moves_band_sideways},
+      {"stroke_open_curve_alignment_stays_beside_the_curve", stroke_open_curve_alignment_stays_beside_the_curve},
       {"stroke_open_path_alignment_dashes_follow_the_path", stroke_open_path_alignment_dashes_follow_the_path},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},

@@ -15801,6 +15801,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Chosen before: %1</source>
         <translation>Déjà choisie : %1</translation>
     </message>
+    <message>
+        <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation>Sous 100 %, le fond transparaît aussi sur toute la zone de travail, comme dans Photoshop.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -1416,15 +1416,44 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   density_spin->setToolTip(QObject::tr("Below 100% the fill shows through everywhere, like Photoshop's vector mask density"));
   configure_dialog_spinbox(density_spin, 80);
   add_spin_row(edge_form, QObject::tr("Density:"), density_spin);
+  // Density below 100% shows the fill over the whole canvas, not only at the shape
+  // (Photoshop's vector mask density on a shape layer, and what the file stores). The note
+  // says so while that is the case (local-051 follow-up 2: it reads as a bug otherwise).
+  // Like the Stroke section's note it sets no width, and while hidden its height stays as
+  // room under the section, so the dialog keeps its size.
+  auto* density_note =
+      new QLabel(QObject::tr("Below 100% the fill also shows over the whole canvas, as in Photoshop."), edge_group);
+  density_note->setObjectName(QStringLiteral("shapeDensityNote"));
+  density_note->setWordWrap(true);
+  density_note->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+  {
+    auto policy = density_note->sizePolicy();
+    policy.setHorizontalPolicy(QSizePolicy::Ignored);
+    density_note->setSizePolicy(policy);
+  }
+  edge_form->addRow(density_note);
+  auto* density_note_room = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Fixed);
+  const auto refresh_density_note = [state, density_note, density_note_room, edge_form, left_column, fill_layer_only] {
+    const bool shown = state->settings.density != 255;
+    density_note->setVisible(shown);
+    // Its height is fixed once the page is built (below); a fill layer's dialog has no Edge.
+    const int room = !fill_layer_only && density_note->minimumHeight() > 0
+                         ? density_note->minimumHeight() + edge_form->verticalSpacing()
+                         : 0;
+    density_note_room->changeSize(0, shown ? 0 : room, QSizePolicy::Minimum, QSizePolicy::Fixed);
+    left_column->invalidate();
+  };
   QObject::connect(feather_spin, &QDoubleSpinBox::valueChanged, &dialog, [state, notify](double value) {
     state->settings.feather = value;
     notify({"feather"});
   });
-  QObject::connect(density_spin, &QSpinBox::valueChanged, &dialog, [state, notify](int value) {
+  QObject::connect(density_spin, &QSpinBox::valueChanged, &dialog, [state, notify, refresh_density_note](int value) {
     state->settings.density = static_cast<std::uint8_t>(std::lround(value * 255.0 / 100.0));
+    refresh_density_note();
     notify({"density"});
   });
   left_column->addWidget(edge_group);
+  left_column->addSpacerItem(density_note_room);
   left_forms.push_back(edge_form);
   align_section_columns(left_forms, left_grids);
 
@@ -1984,6 +2013,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     {
       QSignalBlocker feather_blocker(feather_spin);
       feather_spin->setValue(state->settings.feather);
+      refresh_density_note();
       QSignalBlocker width_blocker(stroke_width_spin);
       stroke_width_spin->setValue(stroke_field_value());
     }
@@ -2006,6 +2036,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         stroke_inside_line_hint->heightForWidth(std::max(120, stroke_form->minimumSize().width())));
     refresh_inside_line_hint();
   }
+  density_note->setFixedHeight(density_note->heightForWidth(std::max(120, edge_form->minimumSize().width())));
+  refresh_density_note();
   // Measure the page while EVERY per-kind row is still visible, so switching
   // a paint kind later never pushes the columns' minimum past the viewport (a
   // hidden horizontal bar would clip the steppers), the Layer Style

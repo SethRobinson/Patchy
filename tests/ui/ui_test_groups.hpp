@@ -89,6 +89,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests();
 std::vector<patchy::test::TestCase> vector_mask_editing_tests();
 std::vector<patchy::test::TestCase> batch_appearance_tests();
 std::vector<patchy::test::TestCase> vector_preview_tests();
+std::vector<patchy::test::TestCase> vector_preview_parity_tests();
 std::vector<patchy::test::TestCase> vector_point_editing_tests();
 std::vector<patchy::test::TestCase> vector_commands_tests();
 std::vector<patchy::test::TestCase> vector_path_edits_tests();

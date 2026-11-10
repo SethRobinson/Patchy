@@ -470,6 +470,7 @@ int main(int argc, char* argv[]) {
            vector_mask_editing_tests,
            batch_appearance_tests,
            vector_preview_tests,
+           vector_preview_parity_tests,
            vector_point_editing_tests,
            vector_commands_tests,
            vector_path_edits_tests,

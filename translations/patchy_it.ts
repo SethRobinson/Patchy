@@ -15801,6 +15801,10 @@ Sostituirlo?</translation>
         <source>Chosen before: %1</source>
         <translation>Scelto in precedenza: %1</translation>
     </message>
+    <message>
+        <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation>Sotto il 100% il riempimento traspare anche su tutto il quadro, come in Photoshop.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

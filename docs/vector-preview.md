@@ -140,6 +140,45 @@ closed canvases, tracked workers participate in shutdown, and `render_settled()`
 includes pending preview work. Unchanged repaints only reuse cached results.
 Builds without background threads keep the normal view.
 
+## Shape Feather and Density
+
+A shape layer's Edge values belong to its node (`copy_nodes` takes `feather` and
+`density` with the path and paints; local-051 follow-up 2: they were left out when
+Shape Appearance gained them, so the sharp view drew the shape unfeathered and without
+its Density tint for seven weeks). The sharp view must show what the document render
+shows:
+
+- Density below 100% shows the fill over the whole canvas (`apply_shape_density`), so
+  such a node has no bounds: it is never culled, and every tile's clip (its area inside
+  the mapped canvas) takes the tint.
+- Feather is scaled with the view and blurred by `rasterize_vector_shape`, which reaches
+  the three box radii past the clip itself, so a halo is not cut at the path's box or at a
+  tile edge. The node's cull bounds grow by that reach, and the blur's planes over the
+  enlarged domain are reserved in the raster budget first.
+- Past `kVectorPreviewNativeFeatherReach` (192 view pixels of reach, a feather of about
+  64 view pixels) every tile would blur far past its own edge. A feather that wide has no
+  detail a document pixel cannot hold, so the node is `sampled`: the layer's document
+  bake, and its fill, stroke and matte planes for effects, are read bilinearly
+  (`sample_pixels_smooth`) whatever the view's smoothing rule. A 9 px feather is blurred
+  natively up to about 700% and sampled above.
+- A layer-aligned gradient spans the box of its paint's coverage in the document render,
+  and the Edge values change that box: a feathered shape is drawn over the canvas grown
+  by the feather's reach (so a shape past the canvas edge is cut there, not at the
+  canvas), and a fill with Density under 100% covers all of it. `native_gradient_bounds`
+  mirrors both; before it did, a gradient on such a shape was a different gradient in
+  the sharp view.
+
+## Pattern phase
+
+`PatternTileSampler` interpolates a magnified or rotated tile at whole pixel indices,
+`src = (x - anchor) / scale`. A view pixel's index is not its document position times
+the zoom: its center sits at `(index + 0.5) / zoom - 0.5` document pixels. So
+`transform_pattern` adds `(zoom - 1) / 2` to the scaled phase when the scaled tile is
+magnified or rotated; without it a pattern fill, stroke or overlay sat up to half a
+document pixel off the document render. The nearest (100%) and box-filter (minified)
+paths work on pixel edges and take no shift. The sharp view still interpolates a
+pattern's texels where the pixel view shows them as blocks.
+
 ## Raster content sampling
 
 The frame covers the composite, so its raster content (pixel layers, text, Smart
@@ -234,6 +273,32 @@ gradients follow the whole shape, as in Photoshop
 `ui_shape_moved_off_canvas_by_free_transform_moves_back`).
 
 ## Verification
+
+`tests/ui/vector_preview_parity_tests.cpp` holds the sharp view to the document render:
+
+- `ui_vector_preview_matches_document_render_for_shape_layers`: 60 documents (every
+  shape kind, fill, stroke alignment, dash, cap and join, Feather and Density alone and
+  together, inverted and disabled paths, masks, effects, shapes past the canvas edge,
+  combine ops, a merged vector layer), each rendered at 100%, 400% and 250%. The frame,
+  averaged down to document pixels, is compared with the composite; a reduced view counts
+  how far a pixel lies outside the range of the other image's 3 x 3 neighborhood, so an
+  antialiased edge costs nothing and a flat area, a missing feature or an extra one costs
+  in full. A panned 400% view must equal the same pixels of the full one. The report is
+  `test-artifacts/vector-preview-parity.txt`; a failing view saves its images beside it.
+  Two classes are looser on purpose: an Outside stroke leaves a one-pixel seam along the
+  path's edge in the document render, and a pattern is interpolated in the sharp view.
+- `ui_vector_preview_shows_shape_feather_and_density_at_every_zoom`: on the canvas at
+  50%, 100%, 300% and 1600%, preview on and off, live in Shape Appearance, after OK, Undo
+  and Cancel.
+- `ui_shape_appearance_fields_show_on_the_canvas_for_every_shape_kind` and
+  `ui_shape_options_bar_fields_show_on_the_canvas`: every spin box, list and checkbox of
+  Shape Appearance, and the options bar's shape fields, for each shape kind with the
+  preview on and off. After each change lands: the layer's pixels are what its outline
+  draws, the sharp view matches the render, and forcing a fresh frame changes no canvas
+  pixel. The changes pile up (Feather and Density stay set while the paints change), which
+  is how the gradient box above was found. Failures are listed in
+  `test-artifacts/vector-preview-states.txt` with the paints in play, and the first ones
+  keep their pictures.
 
 `ui_vector_preview` covers tile/full-render equality, fractional pan and zoom,
 strokes and path complements, mixed raster/shape compositing, clipping, adjustments,
