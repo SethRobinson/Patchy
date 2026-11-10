@@ -14,6 +14,7 @@
 #include "ui/pdf_page_view.hpp"
 #include "ui/pdf_viewer_window.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/recent_file_list.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
@@ -32,8 +33,10 @@
 #include <QImage>
 #include <QKeySequence>
 #include <QLabel>
+#include <QFileInfo>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPdfDocument>
 #include <QPdfDocumentRenderOptions>
 #include <QPointer>
@@ -257,6 +260,165 @@ void ui_pdf_viewer_opens_pdf_files() {
   MainWindowTestAccess::open_document_path_as_user(window, other);
   CHECK(saw_import);
   CHECK(window.findChild<PdfViewerWindow*>() == nullptr);
+}
+
+// A PDF opens in its viewer with the Home screen still up behind it: the Home screen's
+// Recent Files list shows that PDF as its first row, in view, whatever was typed in the
+// filter and wherever the list was scrolled.
+void ui_pdf_viewer_open_updates_home_recent_list() {
+  SettingsValueRestorer viewer_setting(QStringLiteral("imports/pdfOpenInViewer"));
+  SettingsValueRestorer positions_setting(QStringLiteral("pdfViewer/positions"));
+  SettingsValueRestorer geometry_setting(QStringLiteral("pdfViewer/geometry"));
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  SettingsValueRestorer open_dir_restorer(QStringLiteral("lastOpenDirectory"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/pdfOpenInViewer"), true);
+  const auto absolute = [](const QString& path) { return QFileInfo(path).absoluteFilePath(); };
+  const QString first = absolute(write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_recent_1.pdf"), numbered_pdf_bytes(2)));
+  const QString second = absolute(write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_recent_2.pdf"), numbered_pdf_bytes(3)));
+  const QString third = absolute(write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_recent_3.pdf"), numbered_pdf_bytes(2)));
+  const QString image_path = absolute(QStringLiteral("test-artifacts/ui_pdf_viewer_recent.png"));
+  QImage image(24, 16, QImage::Format_ARGB32);
+  image.fill(QColor(30, 120, 200));
+  CHECK(image.save(image_path));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{image_path, second});
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("startPanelRecentList"));
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(panel != nullptr && list != nullptr && recent_menu != nullptr);
+  const auto rows = [list] {
+    QStringList paths;
+    for (int row = 0; row < list->count(); ++row) {
+      paths << list->item(row)->data(patchy::ui::kRecentPathRole).toString();
+    }
+    return paths;
+  };
+  // The Home screen list and File > Open Recent File both hold exactly `wanted`, newest first.
+  const auto expect = [&](const char* step, const QStringList& wanted) {
+    QApplication::processEvents();
+    const auto menu_rows = patchy::test::ui::recent_menu_paths(*recent_menu);
+    const bool matches = panel->isVisible() && rows() == wanted && menu_rows == wanted;
+    if (!matches) {
+      std::cerr << "recent lists after \"" << step << "\": panel " << rows().join(QStringLiteral(" | ")).toStdString()
+                << "; menu " << menu_rows.join(QStringLiteral(" | ")).toStdString() << '\n';
+    }
+    CHECK(matches);
+  };
+  const auto click_row = [list](int row) {
+    const auto center = list->visualItemRect(list->item(row)).center();
+    patchy::test::ui::send_mouse(*list->viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    patchy::test::ui::send_mouse(*list->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto close_viewers = [&window] {
+    for (auto* open_viewer : window.findChildren<PdfViewerWindow*>()) {
+      open_viewer->close();
+    }
+    CHECK(process_events_until([&window] { return window.findChildren<PdfViewerWindow*>().isEmpty(); }));
+  };
+  expect("start", {image_path, second});
+
+  // A PDF not in the history: the viewer opens and the Home screen lists it first.
+  MainWindowTestAccess::open_document_path_as_user(window, first);
+  CHECK(window.findChildren<PdfViewerWindow*>().size() == 1);
+  expect("viewer open", {first, image_path, second});
+  close_viewers();
+  expect("viewer closed", {first, image_path, second});
+
+  // A PDF row of the Home screen list that is not the first.
+  click_row(2);
+  CHECK(window.findChildren<PdfViewerWindow*>().size() == 1);
+  expect("row click", {second, first, image_path});
+
+  // A PDF dropped on that viewer opens a viewer of its own.
+  if (auto* viewer = window.findChild<PdfViewerWindow*>(); viewer != nullptr) {
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(third)});
+    const QPoint position = viewer->rect().center();
+    QDragEnterEvent enter(position, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(viewer, &enter);
+    QDropEvent drop(QPointF(position), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(viewer, &drop);
+    CHECK(process_events_until([&window] { return window.findChildren<PdfViewerWindow*>().size() == 2; }));
+  }
+  expect("drop on viewer", {third, second, first, image_path});
+  close_viewers();
+  expect("viewers closed", {third, second, first, image_path});
+
+  // Opened while the main window is minimized (the viewer is in front), then restored.
+  window.showMinimized();
+  QApplication::processEvents();
+  MainWindowTestAccess::open_document_path_as_user(window, first);
+  close_viewers();
+  window.showNormal();
+  QApplication::processEvents();
+  expect("minimized", {first, third, second, image_path});
+
+  // Opened while the main window is hidden, then shown: the panel was only told of a
+  // change while it was showing, and nothing repaired its rows afterwards.
+  window.hide();
+  QApplication::processEvents();
+  MainWindowTestAccess::open_document_path_as_user(window, second);
+  close_viewers();
+  window.show();
+  QApplication::processEvents();
+  expect("hidden", {second, first, third, image_path});
+
+  // A long list scrolled to its end: a PDF opened from there is the first row in view.
+  QStringList many;
+  for (int index = 0; index < 13; ++index) {
+    const auto png = absolute(QStringLiteral("test-artifacts/ui_pdf_viewer_recent_%1.png").arg(index, 2, 10, QLatin1Char('0')));
+    CHECK(image.save(png));
+    many << png;
+  }
+  many << third;
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), many);
+    settings.sync();
+  }
+  CHECK(process_events_until([&] { return rows() == many; }, 6000));
+  auto* bar = list->verticalScrollBar();
+  CHECK(bar->maximum() > 0);
+  bar->setValue(bar->maximum());
+  QApplication::processEvents();
+  CHECK(bar->value() == bar->maximum());
+  click_row(13);
+  CHECK(window.findChildren<PdfViewerWindow*>().size() == 1);
+  close_viewers();
+  auto moved = many;
+  moved.move(13, 0);
+  expect("scrolled row", moved);
+  (void)process_events_until([] { return false; }, 100);  // the refilled rows' layout
+  CHECK(bar->value() == 0);
+  CHECK(list->visualItemRect(list->item(0)).intersects(list->viewport()->rect()));
+
+  // The panel stays up behind a viewer, so a filter typed to find a PDF used to stay too
+  // and hide the next file, opened another way.
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("startPanelRecentFilterEdit"));
+  CHECK(filter_edit != nullptr);
+  filter_edit->setText(QStringLiteral("recent_3.pdf"));
+  QApplication::processEvents();
+  CHECK(list->count() == 1);
+  click_row(0);
+  CHECK(window.findChildren<PdfViewerWindow*>().size() == 1);
+  CHECK(filter_edit->text().isEmpty());
+  close_viewers();
+  expect("filtered row", moved);
+  filter_edit->setText(QStringLiteral("recent_3.pdf"));
+  QApplication::processEvents();
+  MainWindowTestAccess::open_document_path_as_user(window, first);
+  close_viewers();
+  moved.prepend(first);
+  CHECK(filter_edit->text().isEmpty());
+  expect("opened past a filter", moved);
 }
 
 // Files dropped on the viewer open as they would dropped on the main window: an image as a
@@ -894,6 +1056,7 @@ std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
   return {
       {"ui_pdf_viewer_opens_pdf_files", ui_pdf_viewer_opens_pdf_files},
       {"ui_pdf_viewer_opens_dropped_files", ui_pdf_viewer_opens_dropped_files},
+      {"ui_pdf_viewer_open_updates_home_recent_list", ui_pdf_viewer_open_updates_home_recent_list},
       {"ui_pdf_viewer_spreads_and_page_turns", ui_pdf_viewer_spreads_and_page_turns},
       {"ui_pdf_viewer_close_keys_close_only_the_viewer", ui_pdf_viewer_close_keys_close_only_the_viewer},
       {"ui_pdf_viewer_detail_renders_match_the_page", ui_pdf_viewer_detail_renders_match_the_page},

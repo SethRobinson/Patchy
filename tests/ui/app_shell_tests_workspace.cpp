@@ -968,6 +968,190 @@ void ui_start_panel_recent_filter_narrows_rows_and_opens_match() {
   CHECK(recent_list->count() == 3);
 }
 
+// A file opened and closed again is the first row of the Home screen's Recent Files list,
+// in view, without a restart, however it was opened and wherever the list was scrolled
+// (Seth, November 2026); File > Open Recent File agrees.
+void ui_start_panel_recent_list_follows_open_and_close() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  using patchy::ui::kRecentPathRole;
+  ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts/start_panel_follow")).absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  const auto make = [&dir](const char* name) {
+    const auto path = dir + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".png");
+    QImage image(24, 16, QImage::Format_RGB32);
+    image.fill(QColor(70, 130, 180));
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto a = make("follow_a");
+  const auto b = make("follow_b");
+  const auto c = make("follow_c");
+  const auto d = make("follow_d");
+  const auto e = dir + QStringLiteral("/follow_e.png");
+  QFile::remove(e);
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  SettingsValueRestorer open_dir_restorer(QStringLiteral("lastOpenDirectory"));
+  SettingsValueRestorer save_dir_restorer(QStringLiteral("lastSaveDirectory"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{a, b, c});
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("startPanelRecentList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("startPanelRecentFilterEdit"));
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(tabs != nullptr && panel != nullptr && list != nullptr && filter_edit != nullptr && recent_menu != nullptr);
+  const auto rows = [list] {
+    QStringList paths;
+    for (int row = 0; row < list->count(); ++row) {
+      paths << list->item(row)->data(kRecentPathRole).toString();
+    }
+    return paths;
+  };
+  // The Home screen list and File > Open Recent File both hold exactly `wanted`, newest first.
+  const auto expect = [&](const char* step, const QStringList& wanted) {
+    QApplication::processEvents();
+    const bool matches = panel->isVisible() && rows() == wanted && recent_menu_paths(*recent_menu) == wanted;
+    if (!matches) {
+      std::cerr << "recent lists after \"" << step << "\": panel " << rows().join(QStringLiteral(" | ")).toStdString()
+                << "; menu " << recent_menu_paths(*recent_menu).join(QStringLiteral(" | ")).toStdString() << '\n';
+    }
+    CHECK(matches);
+  };
+  const auto close_all = [&] {
+    while (tabs->count() > 0) {
+      CHECK(Access::close_document_tab(window, 0));
+    }
+    QApplication::processEvents();
+  };
+  const auto click_row = [&](int row) {
+    const auto center = list->visualItemRect(list->item(row)).center();
+    send_mouse(*list->viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*list->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  expect("start", {a, b, c});
+
+  // A file not in the history yet.
+  Access::open_document_path_as_user(window, d);
+  CHECK(tabs->count() == 1);
+  close_all();
+  expect("new file", {d, a, b, c});
+
+  // A row that is not the first.
+  click_row(2);
+  CHECK(tabs->count() == 1);
+  close_all();
+  expect("row 2", {b, d, a, c});
+
+  // A filtered row.
+  filter_edit->setText(QStringLiteral("follow_c"));
+  QApplication::processEvents();
+  CHECK(list->count() == 1);
+  click_row(0);
+  CHECK(tabs->count() == 1);
+  close_all();
+  expect("filtered row", {c, b, d, a});
+
+  // Two documents, closed newest first and oldest first.
+  Access::open_document_path_as_user(window, a);
+  Access::open_document_path_as_user(window, d);
+  CHECK(tabs->count() == 2);
+  close_all();
+  expect("two documents", {d, a, c, b});
+
+  // A floated document closed through its window.
+  Access::open_document_path_as_user(window, b);
+  Access::float_active_document(window);
+  QApplication::processEvents();
+  CHECK(Access::active_session_is_floated(window));
+  {
+    auto* canvas = window.findChild<patchy::ui::CanvasWidget*>();
+    CHECK(canvas != nullptr && canvas->window() != &window);
+    canvas->window()->close();
+  }
+  CHECK(process_events_until([&] { return Access::session_count(window) == 0U; }));
+  expect("float window", {b, d, a, c});
+
+  // Save As to a new name, then close.
+  Access::open_document_path_as_user(window, c);
+  CHECK(Access::save_document_to_path(window, e));
+  close_all();
+  expect("save as", {e, c, b, d, a});
+
+  // The list settles: later ticks of the refresh timer keep it.
+  process_events_for(2600);
+  expect("after a refresh tick", {e, c, b, d, a});
+
+  // A file the background check found missing, which exists again when it is opened.
+  const auto never = dir + QStringLiteral("/follow_never_there.png");
+  CHECK(QFile::remove(d));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{e, c, b, d, a, never});
+    settings.sync();
+  }
+  CHECK(process_events_until([&] { return rows() == QStringList({e, c, b, a}); }, 8000));
+  CHECK(make("follow_d") == d);
+  Access::open_document_path_as_user(window, d);
+  CHECK(tabs->count() == 1);
+  close_all();
+  expect("missing, then back", {d, e, c, b, a});
+  process_events_for(2600);
+  expect("missing, then back, after a refresh tick", {d, e, c, b, a});
+
+  // A long list scrolled to its end: a row opened from there and closed is the first row
+  // IN VIEW. The rows are refilled in one layout pass, so a list as long as before kept
+  // its scroll position, the opened file moved out of view above it, and the list looked
+  // as if nothing had changed until a restart.
+  QStringList many;
+  for (int index = 0; index < 14; ++index) {
+    many << make(QStringLiteral("follow_many_%1").arg(index, 2, 10, QLatin1Char('0')).toLatin1().constData());
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), many);
+    settings.sync();
+  }
+  CHECK(process_events_until([&] { return rows() == many; }, 6000));
+  auto* bar = list->verticalScrollBar();
+  CHECK(bar->maximum() > 0);
+  bar->setValue(bar->maximum());
+  QApplication::processEvents();
+  CHECK(bar->value() == bar->maximum());
+  click_row(13);
+  CHECK(tabs->count() == 1);
+  close_all();
+  auto moved = many;
+  moved.move(13, 0);
+  expect("scrolled row", moved);
+  process_events_for(100);  // the refilled rows' layout
+  save_widget_artifact("ui_start_panel_recent_follows_open_and_close", window);
+  CHECK(bar->value() == 0);
+  CHECK(list->visualItemRect(list->item(0)).intersects(list->viewport()->rect()));
+
+  // A change made while the window is hidden reaches the panel as well: a recent file
+  // that has vanished is dropped when it is asked for.
+  window.hide();
+  QApplication::processEvents();
+  CHECK(QFile::remove(moved[1]));
+  Access::open_recent_document(window, moved[1]);
+  CHECK(tabs->count() == 0);
+  window.show();
+  QApplication::processEvents();
+  auto dropped = moved;
+  dropped.removeAt(1);
+  expect("hidden window", dropped);
+}
+
 // A click on the empty start panel, or Escape, takes focus out of the recent filter,
 // so Ctrl+V reaches Edit > Paste and opens a copied file path instead of typing it.
 void ui_start_panel_background_click_frees_ctrl_v_for_path_paste() {
@@ -5438,6 +5622,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_open_recent_menu_remove_keeps_place", ui_open_recent_menu_remove_keeps_place},
       {"ui_empty_workspace_disables_document_commands", ui_empty_workspace_disables_document_commands},
       {"ui_start_panel_recent_filter_narrows_rows_and_opens_match", ui_start_panel_recent_filter_narrows_rows_and_opens_match},
+      {"ui_start_panel_recent_list_follows_open_and_close", ui_start_panel_recent_list_follows_open_and_close},
       {"ui_start_panel_background_click_frees_ctrl_v_for_path_paste", ui_start_panel_background_click_frees_ctrl_v_for_path_paste},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
