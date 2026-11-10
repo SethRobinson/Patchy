@@ -10,6 +10,7 @@ Related documents:
 - [vector-tools-custom-shapes.md](vector-tools-custom-shapes.md): the custom shape library (builtins, seeding, user entries), the Shapes Manager and the options-bar Shape picker, the bundled game-icons.net pack, and Photoshop .csh import.
 - [vector-tools-appearance.md](vector-tools-appearance.md): the Shape Appearance dialog (paint, stroke and dash presets, geometry, opacity, Edge), its worker-thread preview, and fill layers.
 - [vector-psd-encodings.md](vector-psd-encodings.md): the observed PSD encodings of shape and fill layers, vector masks, strokes, live shapes and document paths.
+- [vector-tools-shape-handles.md](vector-tools-shape-handles.md): the shape tools' eight-handle resize box and the two drag points of a live Polygon and Line (GitHub #690).
 
 ## Shape tools (Line / Rectangle / Ellipse)
 
@@ -66,49 +67,13 @@ repeats the row (`propertiesShapeSizePanel`) for an active editable shape
 layer; both share `handle_vector_shape_size_value_changed`
 (`ui_shape_size_controls_follow_move_and_properties_selection`).
 
-### Resize handles on the shape tools (GitHub #690)
+### Handles and drag points on the shape tools (GitHub #690)
 
-With a shape tool active in Shape mode and an editable shape layer active (just
-drawn, or picked in the Layers panel), the canvas draws the box the W / H fields
-describe (`shape_resize_box_rect`: the path's bounds, or those of the components
-Path Select picked) with the Move tool's transform controls, without the rotate
-stem: the dashed frame (`draw_transform_frame`) under the shape's path outline,
-which it coincides with on a rectangle, and the eight squares
-(`draw_transform_handle_squares`) over it.
-`transform_handle_at(..., TransformHitZones::ResizeHandles)` takes a press only on
-a handle square (14 px; the nearest one where squares overlap). Every other press,
-inside the box included, draws a new shape; Ctrl stays the temporary Path Select.
-Shift on a corner keeps the proportions (the pointer's travel projected onto the
-box diagonal, the Move box's rule), Alt resizes about the center, the grabbed side
-moves on whole pixels through the snap targets (the layer's own edges excluded,
-`free_transform_snap_exclude_ids`), a handle stops 1 px before its opposite side
-(a mirrored shape would stop being live), and Esc cancels.
-
-The canvas side (canvas_widget_shape_resize.cpp) follows the Gradient Fill
-handles: `ShapeResizePhase` Preview / Commit / Cancel through
-`set_shape_resize_callback`, with the box at the press and the box now.
-`MainWindow::handle_shape_resize_edit` keeps the layer as it was at the press,
-scales that copy for every preview (`transform_path_component_target`, no
-history, the W / H fields following) and commits through
-`apply_path_component_geometry`, the W / H fields' own path: one "Shape size" undo
-step, and live shapes stay live. The box hides while a shape is dragged out, in
-Path and Pixels modes, with a mask targeted, for a hidden, locked or
-position-locked layer, with several layers selected, and whenever the shape's path
-outline is hidden (a dismissed path row, View > Show > Target Path, View > Extras).
-
-An uneven scale (a side handle, or one W / H field) would stretch a rounded
-rectangle's corner arcs into a curve its live parameters no longer generate.
-`transform_path_component_target` rebuilds such a rectangle from its scaled
-parameters (`keep_rectangles_round`; the radii follow the mean factor, as in
-`scale_live_shape_params`), so the corners stay round and Radius keeps editing
-it. A Line resized unevenly is stretched like any path and stops being a live line.
-
-The handles are the same plain bounding-box resize as the Move tool's transform
-controls, not a live-shape gizmo: a drag changes the box and nothing else. No
-handle edits a shape parameter (corner radius, side count, star inset); those stay
-in the options bar and the Properties panel
-([Patents and trademarks](#patents-and-trademarks-assessed-july-2026)).
-Tests: tests/ui/shape_resize_handles_tests.cpp (`ui_shape_tool_`).
+With a shape tool active the active shape layer can be edited in place: Rectangle,
+Ellipse and Custom Shape show their box with eight resize handles, a live Polygon
+shows its center and first vertex, a live Line its two ends. A press anywhere else
+still draws a new shape. Details, hide cases and tests:
+[vector-tools-shape-handles.md](vector-tools-shape-handles.md).
 
 ### Live components and the Properties panel (GitHub #521)
 
@@ -370,12 +335,18 @@ Excluded pending their own review (do NOT build without a new patent check):
   docs/legal-constraints.md.)
 - Snap-to-pixel "align edges" automatic pixel-grid fitting of vector renders
   (plain user-invoked grid/guide snapping of anchors is fine).
-- On-canvas live-shape gizmo widgets (in-canvas radius handles etc.);
-  options-bar/dialog parameter editing is the reviewed route (Apple
-  US 8971623; docs/patent-research.md). The shape tools' bounding-box
-  handles (GitHub #690) are not such a widget: they are the Move tool's
-  frame with eight resize squares, the selection frame drawing programs
-  have had since the 1980s, and they edit no shape parameter.
+- On-canvas live-shape gizmo widgets (in-canvas corner-radius handles,
+  side-count or star-inset handles etc.); options-bar/dialog parameter
+  editing is the reviewed route (Apple US 8971623; docs/patent-research.md).
+  Two things are reviewed and built
+  ([vector-tools-shape-handles.md](vector-tools-shape-handles.md)): the
+  shape tools' bounding-box handles (GitHub #690), the Move tool's frame
+  with eight resize squares, which edit no shape parameter; and the two
+  points of the drawing drag on a live Polygon (center, first vertex) and a
+  live Line (its ends), checked 2026-11-10
+  ([record](patent-research-shape-handles.md),
+  [rules](legal-constraints.md#shape-drag-points)). Every other handle
+  stays excluded.
 - Variable-width strokes / art brushes on paths (out of scope).
 
 Method rules (as for all PSD work): ground truth is licensed Photoshop's

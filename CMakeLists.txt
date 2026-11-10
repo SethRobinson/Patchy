@@ -1290,6 +1290,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   src/ui/canvas_widget_perspective_crop.cpp
   src/ui/canvas_widget_ruler.cpp
   src/ui/canvas_widget_gradient_handles.cpp
+  src/ui/canvas_widget_shape_points.cpp
   src/ui/canvas_widget_shape_resize.cpp
       src/ui/ruler_tool.hpp
       src/ui/ruler_tool.cpp

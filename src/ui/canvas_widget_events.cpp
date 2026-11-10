@@ -315,7 +315,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       } else if (key_event->key() == Qt::Key_Control && shape_tool_active()) {
         // Ctrl is a shape tool's temporary Path Select (GitHub issue 312): the arrow and the
         // path overlay show with a stationary pointer; a drag in progress keeps its mode.
-        if (!drawing_shape_ && !shape_temp_path_select_ && !shape_resize_drag_.has_value()) {
+        if (!drawing_shape_ && !shape_temp_path_select_ && !shape_handle_drag_active()) {
           set_shape_ctrl_path_select((modifiers & Qt::ControlModifier) != 0);
         }
       } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Text) {
@@ -413,7 +413,7 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
     const auto* key_event = static_cast<QKeyEvent*>(event);
-    if ((move_layer_selection_gesture_ || gradient_handle_drag_.has_value() || shape_resize_drag_.has_value()) &&
+    if ((move_layer_selection_gesture_ || gradient_handle_drag_.has_value() || shape_handle_drag_active()) &&
         key_event->key() == Qt::Key_Escape) {
       event->accept();
       return true;
@@ -2256,7 +2256,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     shape_temp_path_select_ = false;  // the release went elsewhere
   }
   // A resize-handle drag in progress keeps its mode, whatever Ctrl does (GitHub issue 690).
-  if (shape_tool_active() && !drawing_shape_ && !shape_resize_drag_.has_value()) {
+  if (shape_tool_active() && !drawing_shape_ && !shape_handle_drag_active()) {
     if (!shape_temp_path_select_) {
       set_shape_ctrl_path_select((event->modifiers() & Qt::ControlModifier) != 0);
     }
@@ -2271,7 +2271,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
   }
   // A shape tool's resize-handle drag, or the resize cursor over a handle (GitHub issue 690).
-  if ((shape_resize_drag_.has_value() || shape_tool_active()) && !drawing_shape_ &&
+  if ((shape_handle_drag_active() || shape_tool_active()) && !drawing_shape_ &&
       move_shape_resize_handle(event)) {
     clear_move_hover_outline();
     last_mouse_position_ = event->pos();
@@ -3185,7 +3185,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
-  if (shape_resize_drag_.has_value() && release_shape_resize_handle(event)) {
+  if (shape_handle_drag_active() && release_shape_resize_handle(event)) {
     event->accept();
     return;
   }
@@ -4621,7 +4621,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
-  if (shape_resize_drag_.has_value() && event->key() == Qt::Key_Escape) {
+  if (shape_handle_drag_active() && event->key() == Qt::Key_Escape) {
     // Esc mid-drag puts the shape back as it was before the press.
     cancel_shape_resize_drag();
     event->accept();
@@ -4746,7 +4746,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       spacebar_repositioning_drag_rect_ = true;
       spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
       setCursor(Qt::SizeAllCursor);
-    } else if (shape_resize_drag_.has_value()) {
+    } else if (shape_handle_drag_active()) {
       // A shape tool's resize-handle drag keeps its cursor: Space neither pans nor slides it.
     } else {
       spacebar_panning_ = true;

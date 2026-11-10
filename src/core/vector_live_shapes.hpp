@@ -68,4 +68,24 @@ void keep_or_drop_live_shapes_after_path_edit(VectorShapeContent& content,
 // position and combine op are kept. False when the group is missing or nothing generates.
 bool replace_live_shape_group(VectorPath& path, const LiveShapeParams& params);
 
+// The two points of the drag that drew a live Polygon or Line, which the shape tools show
+// on the canvas to edit it (GitHub #690 follow-up). A polygon has them only while its box
+// is square, what the center-out drag makes: a W / H edit that stretched it has no single
+// radius to drag. docs/vector-tools-shape-handles.md, "Drag points on a live Polygon and Line".
+struct LiveShapePoint {
+  double x{0.0};
+  double y{0.0};
+};
+[[nodiscard]] bool live_polygon_is_regular(const LiveShapeParams& params) noexcept;
+[[nodiscard]] LiveShapePoint live_polygon_center(const LiveShapeParams& params) noexcept;
+[[nodiscard]] LiveShapePoint live_polygon_first_vertex(const LiveShapeParams& params) noexcept;
+// Puts the first vertex at (x, y) about the unchanged center: the radius and polygon_angle
+// follow exactly as in the Polygon tool's center-out drag; Sides and Star inset stay. False
+// (params untouched) when the point is under a pixel from the center.
+bool set_live_polygon_first_vertex(LiveShapeParams& params, double x, double y) noexcept;
+// Moves one end of a live line (`end`: the end point, else the start); the other end, the
+// weight and the arrowheads stay, and the box is refitted to the line the parameters
+// generate. False (params untouched) when the line would be under a pixel long.
+bool set_live_line_point(LiveShapeParams& params, bool end, double x, double y);
+
 }  // namespace patchy

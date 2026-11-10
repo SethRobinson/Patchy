@@ -6425,6 +6425,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     handle_shape_resize_edit(layer_id, from, to, phase, serial);
   });
+  canvas->set_shape_point_callback([this, canvas](LayerId layer_id, const LiveShapeParams& to,
+                                                  ShapeResizePhase phase, std::uint64_t serial) {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_shape_point_edit(layer_id, to, phase, serial);
+  });
   canvas->set_gradient_fill_stop_color_requested_callback([this, canvas](LayerId layer_id, int stop_index) {
     if (canvas != canvas_) {
       return;

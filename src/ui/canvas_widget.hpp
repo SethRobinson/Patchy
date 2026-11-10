@@ -499,6 +499,24 @@ public:
   using ShapeResizeCallback = std::function<void(LayerId, const QRectF& from, const QRectF& to, ShapeResizePhase,
                                                  std::uint64_t serial)>;
   void set_shape_resize_callback(ShapeResizeCallback callback);
+  // The two drag points a live Polygon or Line shows in place of that box (GitHub #690
+  // follow-up, canvas_widget_shape_points.cpp): the two points of the drag that drew it. A
+  // polygon has its center (a drag moves it) and its first vertex (a drag sets size and
+  // angle), a line its two ends. Empty when the box shows or nothing does. The callback
+  // gets the component's parameters now; MainWindow regenerates the shape from them, so it
+  // stays live (docs/vector-tools-shape-handles.md, "Drag points on a live Polygon and Line").
+  enum class ShapePointsKind { Polygon, Line };
+  struct ShapeLivePoints {
+    ShapePointsKind kind{ShapePointsKind::Polygon};
+    LayerId layer_id{0};
+    patchy::LiveShapeParams params;  // the live component the points edit
+    QPointF first;                   // document: a polygon's center, a line's start
+    QPointF second;                  // document: a polygon's first vertex, a line's end
+  };
+  [[nodiscard]] std::optional<ShapeLivePoints> shape_live_points() const;
+  using ShapePointCallback =
+      std::function<void(LayerId, const patchy::LiveShapeParams& to, ShapeResizePhase, std::uint64_t serial)>;
+  void set_shape_point_callback(ShapePointCallback callback);
   // A double-click on a color stop: MainWindow opens the color picker for that stop.
   void set_gradient_fill_stop_color_requested_callback(std::function<void(LayerId, int)> callback);
   // The gradient the handles show (document space), when they are shown: the layer's own, or
@@ -1857,7 +1875,7 @@ protected:
   // (GitHub #597), Smudge and the toning brushes (GitHub #660), which keep every recorded
   // position (pending_stroke_positions_).
   [[nodiscard]] bool coalescing_drag_active() const noexcept {
-    return moving_layer_ || dragging_transform_ || color_picking_ || shape_resize_drag_.has_value() ||
+    return moving_layer_ || dragging_transform_ || color_picking_ || shape_handle_drag_active() ||
            coalescing_retouch_stroke();
   }
   // Smudge and the toning brushes (Dodge, Burn, Sponge, Blur, Sharpen) coalesce the same
@@ -3072,6 +3090,22 @@ private:
   // Repaints where the box was last drawn and where it is now, when they differ: the
   // handle squares reach past the layer bounds a bounded document change repaints.
   void refresh_shape_resize_box();
+  // The drag points of a live Polygon or Line (canvas_widget_shape_points.cpp). They share
+  // the box's entry points above: press, move, release, cancel, abandon and the cursor.
+  enum class ShapePoint { None, First, Second };
+  [[nodiscard]] std::optional<ShapeLivePoints> shape_live_points_of(const Layer& layer) const;
+  [[nodiscard]] ShapePoint shape_point_at(QPointF widget_point) const;
+  bool press_shape_point(QMouseEvent* event);
+  void update_shape_point_drag(QPointF widget_point);
+  void release_shape_point(QMouseEvent* event);
+  void cancel_shape_point_drag();
+  bool apply_shape_point_cursor(QPointF widget_point);
+  void set_shape_point_hover(ShapePoint point);
+  void draw_shape_points(QPainter& painter) const;
+  // A box handle or a drag point is being dragged.
+  [[nodiscard]] bool shape_handle_drag_active() const noexcept {
+    return shape_resize_drag_.has_value() || shape_point_drag_.has_value();
+  }
   // Ruler gestures (canvas_widget_ruler.cpp).
   enum class RulerPart { None, Start, End, Second, Body };
   [[nodiscard]] RulerPart ruler_part_at(QPoint widget_point) const;
@@ -4226,6 +4260,25 @@ private:
   // The box draw_shape_resize_frame last painted (refresh_shape_resize_box).
   mutable std::optional<QRectF> shape_resize_painted_rect_;
   ShapeResizeCallback shape_resize_callback_;
+  // A drag of one of a live Polygon's or Line's two points, from the press to the release.
+  struct ShapePointDrag {
+    LayerId layer_id{0};
+    ShapePointsKind kind{ShapePointsKind::Polygon};
+    ShapePoint point{ShapePoint::None};
+    patchy::LiveShapeParams start;    // the component at the press
+    patchy::LiveShapeParams current;  // the component now
+    QPointF press_widget;
+    QPointF press_document;
+    QPointF grab_offset;  // document offset from the press to the grabbed point
+    bool moved{false};
+    bool previewed{false};
+    std::uint64_t serial{0};
+  };
+  std::optional<ShapePointDrag> shape_point_drag_;
+  ShapePoint shape_point_hover_{ShapePoint::None};
+  // Where draw_shape_points last painted the two points, in widget coordinates.
+  mutable std::optional<std::pair<QPointF, QPointF>> shape_points_painted_;
+  ShapePointCallback shape_point_callback_;
   // gradient_fill_alignment_bounds rasterizes the path: kept per layer and revision.
   struct GradientHandleBoundsCache {
     LayerId layer_id{0};

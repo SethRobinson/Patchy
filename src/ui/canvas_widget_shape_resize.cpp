@@ -1,11 +1,15 @@
-// CanvasWidget's resize handles for the shape tools (GitHub issue 690, docs/vector-tools.md,
-// "Resize handles on the shape tools"). With Rectangle, Ellipse, Polygon, Line or Custom
-// Shape active in Shape mode and an editable shape layer active, the box the options-bar
-// W / H fields describe is drawn with the Move tool's transform controls (the dashed frame
-// under the shape's outline and eight squares over it, no rotate stem). A press on a handle square resizes the shape: Shift
-// keeps the proportions on a corner, Alt resizes about the center, Esc cancels. Any other
-// press still draws a new shape. The drag previews through MainWindow and lands as one
-// "Shape size" undo step, the scale the W / H fields apply, so live shapes stay live.
+// CanvasWidget's resize handles for the shape tools (GitHub issue 690,
+// docs/vector-tools-shape-handles.md, "Resize handles on the shape tools"). With Rectangle,
+// Ellipse, Polygon, Line or Custom Shape active in Shape mode and an editable shape layer
+// active, the box the options-bar W / H fields describe is drawn with the Move tool's
+// transform controls (the dashed frame under the shape's outline and eight squares over it,
+// no rotate stem). A press on a handle square resizes the shape: Shift keeps the proportions
+// on a corner, Alt resizes about the center, Esc cancels. Any other press still draws a new
+// shape. The drag previews through MainWindow and lands as one "Shape size" undo step, the
+// scale the W / H fields apply, so live shapes stay live.
+//
+// A live Polygon with a square box and a live Line show their two drag points in place of
+// the box (canvas_widget_shape_points.cpp); those share the entry points below.
 //
 // This is a plain bounding-box resize only. Nothing here edits a shape parameter (corner
 // radius, side count, star inset): those stay in the options bar and the Properties panel
@@ -91,6 +95,9 @@ const Layer* CanvasWidget::shape_resize_layer() const {
   if (shape_resize_drag_.has_value()) {
     return document.find_layer(shape_resize_drag_->layer_id);
   }
+  if (shape_point_drag_.has_value()) {
+    return document.find_layer(shape_point_drag_->layer_id);
+  }
   // Shape mode only: Path and Pixels modes draw no shape layer, and the W / H fields the
   // box mirrors show in Shape mode alone.
   if (!shape_tool_active() || vector_tool_mode_ != VectorToolMode::Shape || drawing_shape_ ||
@@ -137,8 +144,15 @@ std::optional<QRectF> CanvasWidget::shape_resize_box_rect() const {
   if (shape_resize_drag_.has_value()) {
     return shape_resize_drag_->current_rect;
   }
+  if (shape_point_drag_.has_value()) {
+    return std::nullopt;
+  }
   const auto* layer = shape_resize_layer();
   if (layer == nullptr) {
+    return std::nullopt;
+  }
+  // A live Polygon or Line shows its two drag points instead of the box.
+  if (shape_live_points_of(*layer).has_value()) {
     return std::nullopt;
   }
   const auto& path = layer->vector_shape()->path;
@@ -161,7 +175,7 @@ CanvasWidget::TransformHandle CanvasWidget::shape_resize_handle_at(QPoint widget
 }
 
 bool CanvasWidget::press_shape_resize_handle(QMouseEvent* event) {
-  if (shape_resize_drag_.has_value()) {
+  if (shape_handle_drag_active()) {
     // A press while a drag is live means its release was lost: put the shape back.
     cancel_shape_resize_drag();
   }
@@ -170,6 +184,10 @@ bool CanvasWidget::press_shape_resize_handle(QMouseEvent* event) {
   const auto* layer = shape_resize_layer();
   if (layer == nullptr) {
     return false;
+  }
+  // A live Polygon or Line: its two drag points (canvas_widget_shape_points.cpp).
+  if (press_shape_point(event)) {
+    return true;
   }
   const auto rect = shape_resize_box_rect();
   if (!rect.has_value()) {
@@ -270,6 +288,14 @@ void CanvasWidget::update_shape_resize_drag(QPointF widget_point, Qt::KeyboardMo
 }
 
 bool CanvasWidget::move_shape_resize_handle(QMouseEvent* event) {
+  if (shape_point_drag_.has_value()) {
+    if ((event->buttons() & Qt::LeftButton) == 0) {
+      cancel_shape_point_drag();  // the release never arrived
+      return true;
+    }
+    update_shape_point_drag(event->position());
+    return true;
+  }
   if (shape_resize_drag_.has_value()) {
     if ((event->buttons() & Qt::LeftButton) == 0) {
       // The release never arrived: put the shape back rather than commit a guess.
@@ -289,6 +315,10 @@ bool CanvasWidget::move_shape_resize_handle(QMouseEvent* event) {
 }
 
 bool CanvasWidget::release_shape_resize_handle(QMouseEvent* event) {
+  if (shape_point_drag_.has_value() && event->button() == Qt::LeftButton) {
+    release_shape_point(event);
+    return true;
+  }
   if (!shape_resize_drag_.has_value() || event->button() != Qt::LeftButton) {
     return false;
   }
@@ -314,6 +344,7 @@ bool CanvasWidget::release_shape_resize_handle(QMouseEvent* event) {
 }
 
 void CanvasWidget::cancel_shape_resize_drag() {
+  cancel_shape_point_drag();
   if (!shape_resize_drag_.has_value()) {
     return;
   }
@@ -330,9 +361,13 @@ void CanvasWidget::abandon_shape_resize_drag() {
   // The document under the drag was swapped (undo, redo, a history jump): its preview went
   // with it, so nothing is restored and a later call for this drag is stale.
   shape_resize_drag_.reset();
+  shape_point_drag_.reset();
 }
 
 bool CanvasWidget::apply_shape_resize_cursor(QPoint widget_point) {
+  if (!shape_resize_drag_.has_value() && apply_shape_point_cursor(QPointF(widget_point))) {
+    return true;
+  }
   const auto handle =
       shape_resize_drag_.has_value() ? shape_resize_drag_->handle : shape_resize_handle_at(widget_point);
   if (handle == TransformHandle::None) {
@@ -357,19 +392,34 @@ void CanvasWidget::draw_shape_resize_handles(QPainter& painter) const {
 }
 
 void CanvasWidget::refresh_shape_resize_box() {
-  if (!shape_resize_painted_rect_.has_value() && !shape_tool_active()) {
+  if (!shape_resize_painted_rect_.has_value() && !shape_points_painted_.has_value() && !shape_tool_active()) {
     return;  // nothing drawn and nothing to draw: the common case for every other tool
   }
-  const auto rect = shape_resize_box_rect();
-  if (rect == shape_resize_painted_rect_) {
-    return;
+  if (const auto rect = shape_resize_box_rect(); rect != shape_resize_painted_rect_) {
+    // The squares are 8 px with a 1 px outline, centered on the box's corners and sides.
+    constexpr int kHandleReach = 8;
+    for (const auto& box : {shape_resize_painted_rect_, rect}) {
+      if (box.has_value()) {
+        update(widget_rect_for_document_rect(*box).toAlignedRect().adjusted(-kHandleReach, -kHandleReach,
+                                                                           kHandleReach, kHandleReach));
+      }
+    }
   }
-  // The squares are 8 px with a 1 px outline, centered on the box's corners and sides.
-  constexpr int kHandleReach = 8;
-  for (const auto& box : {shape_resize_painted_rect_, rect}) {
-    if (box.has_value()) {
-      update(widget_rect_for_document_rect(*box).toAlignedRect().adjusted(-kHandleReach, -kHandleReach, kHandleReach,
-                                                                         kHandleReach));
+  // The drag points of a live Polygon or Line (canvas_widget_shape_points.cpp): discs of
+  // 6 px with a ring, where they were last painted and where they are now.
+  std::optional<std::pair<QPointF, QPointF>> points_now;
+  if (const auto points = shape_live_points(); points.has_value()) {
+    points_now = std::make_pair(widget_position_f(points->first), widget_position_f(points->second));
+  }
+  if (points_now != shape_points_painted_) {
+    constexpr double kRepaintReach = 10.0;  // the disc, its ring and antialiasing
+    for (const auto& pair : {shape_points_painted_, points_now}) {
+      if (pair.has_value()) {
+        for (const auto& at : {pair->first, pair->second}) {
+          update(QRectF(at.x() - kRepaintReach, at.y() - kRepaintReach, kRepaintReach * 2.0, kRepaintReach * 2.0)
+                     .toAlignedRect());
+        }
+      }
     }
   }
 }

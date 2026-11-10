@@ -430,8 +430,9 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(path_select_cursor());  // Ctrl: temporary Path Select (GitHub issue 312)
     return;
   }
-  // Over a resize handle of the active shape's box, or dragging one (GitHub issue 690).
-  if ((shape_tool_active() || shape_resize_drag_.has_value()) && apply_shape_resize_cursor(last_mouse_position_)) {
+  // Over a resize handle of the active shape's box or one of its drag points, or dragging
+  // one (GitHub issue 690).
+  if ((shape_tool_active() || shape_handle_drag_active()) && apply_shape_resize_cursor(last_mouse_position_)) {
     return;
   }
   if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape || tool_ == CanvasTool::RedEye) {

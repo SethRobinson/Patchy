@@ -298,7 +298,7 @@ bool CanvasWidget::pointer_gesture_active() const noexcept {
          pen_session_drag_anchor_ >= 0 || path_drag_mode_ != PathEditDrag::None ||
          path_transform_drag_handle_ != TransformHandle::None || artboard_drag_active() ||
          ruler_drag_part_ != RulerPart::None || gradient_handle_drag_.has_value() ||
-         shape_resize_drag_.has_value();
+         shape_handle_drag_active();
 }
 
 void CanvasWidget::set_tiling_preview_enabled(bool enabled) {
