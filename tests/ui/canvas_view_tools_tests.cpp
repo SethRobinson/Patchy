@@ -2253,6 +2253,155 @@ void ui_options_bar_separators_sit_centered_in_their_gaps() {
   CHECK(problems.empty());
 }
 
+// GitHub issue 689: the Path Select and Direct Select bars carry the shape bars' separators.
+// With an editable shape layer active they read Fill [swatch] | Stroke [width] [swatch]
+// [dashes] | W [link] H | Combine | Merge Shapes, Split Shapes | [gear]. With none (a plain
+// path selection) only Combine | Merge Shapes, Split Shapes show, and the separators whose
+// groups are hidden go with them: none leads, trails or doubles. Either way the bar is one
+// row at 1366 px, as tall as the Move bar, and each line sits centered in its gap. The
+// artifacts are the issue shots, in both schemes.
+void ui_path_select_options_bar_groups_its_controls() {
+  VectorSettingsGuard settings_guard;
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && mode != nullptr);
+    if (options_bar == nullptr || options == nullptr || mode == nullptr) {
+      return;
+    }
+    const auto settle = [] {
+      QApplication::processEvents();
+      process_events_for(20);
+    };
+    require_action(window, "toolMoveAction")->trigger();
+    settle();
+    const int one_row_bar = options_bar->height();
+
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto pixel_layer = document.active_layer_id();
+    require_action(window, "toolRectAction")->trigger();
+    mode->setCurrentIndex(0);  // Shape
+    settle();
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+         canvas->widget_position_for_document_point(QPoint(180, 140)));
+    settle();
+    const auto shape_layer = document.active_layer_id();
+    CHECK(pixel_layer.has_value() && shape_layer.has_value() && pixel_layer != shape_layer);
+    if (!pixel_layer.has_value() || !shape_layer.has_value()) {
+      return;
+    }
+
+    const QString separator = QStringLiteral("|");
+    struct SelectBar {
+      const char* tool;
+      const char* name;
+    };
+    for (const auto& bar : {SelectBar{"toolPathSelectAction", "path_select"},
+                            SelectBar{"toolDirectSelectAction", "direct_select"}}) {
+      for (const bool with_shape : {true, false}) {
+        const auto active = with_shape ? *shape_layer : *pixel_layer;
+        patchy::ui::MainWindowTestAccess::select_layers(window, {active}, active);
+        require_action(window, bar.tool)->trigger();
+        settle();
+        const std::string name = std::string(bar.name) + (with_shape ? "" : "_no_shape") + suffix;
+        const auto tokens = options_row_tokens(*options);
+        std::printf("  %-32s", name.c_str());
+        for (const auto& token : tokens) {
+          std::printf(" %s", qPrintable(token));
+        }
+        const auto [right, lines] = options_row_extent(*options);
+        std::printf(" (row %d px of %d)\n", right, options->width());
+        const QPoint origin = options->mapTo(options_bar, QPoint(0, 0));
+        const QRect strip(0, 0, std::min(options_bar->width(), origin.x() + right + 8), options_bar->height());
+        save_image_artifact("issue_689_" + std::string(bar.name) + "_options_bar" + (with_shape ? "" : "_no_shape") +
+                                suffix,
+                            options_bar->grab(strip).toImage());
+
+        const auto problem = [&](const std::string& what) { problems.push_back(name + ": " + what); };
+        const auto at = [&tokens](const QString& token) {
+          const auto found = std::find(tokens.begin(), tokens.end(), token);
+          return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+        };
+        const auto expect_separator_before = [&](const QString& token) {
+          const int index = at(token);
+          if (index <= 0 || tokens[static_cast<std::size_t>(index) - 1] != separator) {
+            problem("no separator before " + token.toStdString());
+          }
+        };
+        const auto expect_next_to = [&](const QString& left, const QString& right_token) {
+          const int index = at(left);
+          if (index < 0 || index + 1 >= static_cast<int>(tokens.size()) ||
+              tokens[static_cast<std::size_t>(index) + 1] != right_token) {
+            problem(left.toStdString() + " is not followed by " + right_token.toStdString());
+          }
+        };
+        const auto separators = static_cast<int>(std::count(tokens.begin(), tokens.end(), separator));
+        if (with_shape) {
+          // The five the reporter listed: before Stroke, W, Combine, Merge Shapes and the gear.
+          for (const char* token : {"vectorStrokeWidthLabel", "W", "Combine", "vectorMergeShapesButton",
+                                    "vectorAppearanceButton"}) {
+            expect_separator_before(QLatin1String(token));
+          }
+          if (separators != 5) {
+            problem("shows " + std::to_string(separators) + " separators, not 5");
+          }
+          // Each group stays whole.
+          expect_next_to(QStringLiteral("Fill"), QStringLiteral("vectorFillSwatchButton"));
+          expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), QStringLiteral("vectorStrokeDashCombo"));
+          expect_next_to(QStringLiteral("Combine"), QStringLiteral("vectorCombineCombo"));
+          expect_next_to(QStringLiteral("vectorMergeShapesButton"), QStringLiteral("vectorSplitShapesButton"));
+          if (!tokens.empty() && tokens.back() != QStringLiteral("vectorAppearanceButton")) {
+            problem("the gear is not last");
+          }
+        } else {
+          // No shape layer: the appearance and size groups hide, and so do their separators.
+          const std::vector<QString> expected{QStringLiteral("Combine"), QStringLiteral("vectorCombineCombo"), separator,
+                                              QStringLiteral("vectorMergeShapesButton"),
+                                              QStringLiteral("vectorSplitShapesButton")};
+          if (tokens != expected) {
+            problem("is not Combine | Merge Shapes, Split Shapes");
+          }
+        }
+        if (!tokens.empty() && (tokens.front() == separator || tokens.back() == separator)) {
+          problem("starts or ends with a separator");
+        }
+        for (std::size_t i = 1; i < tokens.size(); ++i) {
+          if (tokens[i] == separator && tokens[i - 1] == separator) {
+            problem("two separators with nothing between them");
+          }
+        }
+        if (lines != 1) {
+          problem("takes " + std::to_string(lines) + " rows at 1366 px (row " + std::to_string(right) + " px)");
+        }
+        if (options_bar->height() != one_row_bar) {
+          problem("bar is " + std::to_string(options_bar->height()) + " px tall, the Move bar " +
+                  std::to_string(one_row_bar) + " px");
+        }
+        const auto gaps = options_separator_gaps(*options);
+        if (static_cast<int>(gaps.size()) != separators) {
+          problem("measured " + std::to_string(gaps.size()) + " of " + std::to_string(separators) + " separators");
+        }
+        for (const auto& gap : gaps) {
+          if (gap.left < 0 || std::abs(gap.left - gap.right) > 1) {
+            problem(gap.before.toStdString() + " " + std::to_string(gap.left) + " px | " + std::to_string(gap.right) +
+                    " px " + gap.after.toStdString());
+          }
+        }
+      }
+    }
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
   // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
@@ -12532,6 +12681,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_options_bar_separators_sit_centered_in_their_gaps",
        ui_options_bar_separators_sit_centered_in_their_gaps},
+      {"ui_path_select_options_bar_groups_its_controls", ui_path_select_options_bar_groups_its_controls},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
       {"ui_swap_dimension_buttons_sit_evenly_between_width_and_height",
