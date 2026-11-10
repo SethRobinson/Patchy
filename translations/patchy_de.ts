@@ -15750,6 +15750,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>Das Feld „Fläche“ neben der Deckkraft, über der Ebenenliste. Ohne das Feld passen Füllmethode und Deckkraft in einem schmalen Bedienfeld auf eine Zeile.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Eine Arbeitsfläche von %1 x %2 px, das ist sehr groß: Öffnen und Bearbeiten werden langsam sein. Weniger Seiten, eine niedrigere Auflösung oder „Separate Dokumente“ sind schneller.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Eine Arbeitsfläche von %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31484,10 +31492,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Freistellen gilt nicht für ein Dokument mit Zeichenflächen; ändern Sie die Größe einer Zeichenfläche mit dem Zeichenflächen-Werkzeug</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Seitenbilder werden vorbereitet...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>PDF wird geöffnet</translation>
     </message>
@@ -35727,6 +35731,22 @@ Fixiert: %1</translation>
     <message>
         <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
         <translation>Wenn aktiviert, zeigt die Schriftliste Schriften, deren Name in einer anderen Schrift steht, etwa Chinesisch, Japanisch oder Koreanisch, unter ihrem englischen Namen. Die Suche findet beide Namen.</translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Bittiefe wird konvertiert...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Zeichenfläche %1 von %2 wird erstellt...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Seitenordner %1 von %2 wird erstellt...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Seite %1 von %2 wird fertiggestellt...</translation>
     </message>
 </context>
 <context>

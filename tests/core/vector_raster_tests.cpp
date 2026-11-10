@@ -112,6 +112,86 @@ void raster_axis_aligned_rect_coverage_is_exact() {
   CHECK(coverage_pixel(quarter_coverage, 2, 3) == 64);
 }
 
+// A path that is one pixel-aligned rectangle skips the scan conversion (an artboard's paper
+// and clip are page-sized rectangles): same bounds and bytes as the reference rasterizer for
+// every corner order, direction, first op and clip, and anything that is not such a
+// rectangle still goes the long way.
+void raster_pixel_aligned_rect_shortcut_matches_reference() {
+  const auto same = [](const VectorPath& path, Rect clip) {
+    VectorRasterOptions fast;
+    fast.clip = clip;
+    VectorRasterOptions reference = fast;
+    reference.reference_geometry = true;
+    const auto a = patchy::rasterize_vector_path(path, fast);
+    const auto b = patchy::rasterize_vector_path(path, reference);
+    if (!(a.bounds == b.bounds) || a.pixels.width() != b.pixels.width() || a.pixels.height() != b.pixels.height()) {
+      return false;
+    }
+    for (std::int32_t y = 0; y < a.pixels.height(); ++y) {
+      const auto row_a = a.pixels.row(y);
+      const auto row_b = b.pixels.row(y);
+      if (!std::equal(row_a.begin(), row_a.end(), row_b.begin())) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const Rect clip{0, 0, 40, 30};
+  for (const auto op : {PathCombineOp::Add, PathCombineOp::Xor, PathCombineOp::Intersect, PathCombineOp::Subtract}) {
+    VectorPath path;
+    path.subpaths = {rect_subpath(5.0, 4.0, 21.0, 17.0, op, 0)};
+    CHECK(same(path, clip));
+    // Every starting corner, both directions.
+    for (int turn = 0; turn < 4; ++turn) {
+      std::rotate(path.subpaths.front().anchors.begin(), path.subpaths.front().anchors.begin() + 1,
+                  path.subpaths.front().anchors.end());
+      CHECK(same(path, clip));
+      auto reversed = path;
+      std::reverse(reversed.subpaths.front().anchors.begin(), reversed.subpaths.front().anchors.end());
+      CHECK(same(reversed, clip));
+    }
+  }
+  // Partly and wholly outside the clip, the clip itself, a negative origin, one pixel.
+  for (const auto& rect : {std::array<double, 4>{-6.0, -3.0, 12.0, 9.0}, std::array<double, 4>{30.0, 20.0, 55.0, 44.0},
+                           std::array<double, 4>{50.0, 40.0, 60.0, 50.0}, std::array<double, 4>{0.0, 0.0, 40.0, 30.0},
+                           std::array<double, 4>{-100.0, -100.0, 200.0, 200.0},
+                           std::array<double, 4>{7.0, 7.0, 8.0, 8.0}}) {
+    VectorPath path;
+    path.subpaths = {rect_subpath(rect[0], rect[1], rect[2], rect[3], PathCombineOp::Add, 0)};
+    CHECK(same(path, clip));
+    CHECK(same(path, Rect{-8, -8, 30, 30}));
+  }
+  // The shortcut's own answer: full coverage over the clipped rectangle.
+  VectorPath page;
+  page.subpaths = {rect_subpath(-2.0, 3.0, 12.0, 50.0, PathCombineOp::Add, 0)};
+  const auto covered = rasterize(page, clip);
+  CHECK((covered.bounds == Rect{0, 3, 12, 27}));
+  CHECK(coverage_pixel(covered, 0, 3) == 255 && coverage_pixel(covered, 11, 29) == 255);
+  // Not such rectangles: off the pixel grid, an open subpath, a curve, a diamond, two subpaths.
+  VectorPath off_grid;
+  off_grid.subpaths = {rect_subpath(5.0, 4.0, 21.5, 17.0, PathCombineOp::Add, 0)};
+  CHECK(same(off_grid, clip));
+  CHECK(coverage_pixel(rasterize(off_grid, clip), 21, 10) == 128);
+  VectorPath open = page;
+  open.subpaths.front().closed = false;
+  CHECK(same(open, clip));
+  VectorPath curved;
+  curved.subpaths = {rect_subpath(5.0, 4.0, 21.0, 17.0, PathCombineOp::Add, 0)};
+  curved.subpaths.front().anchors[1].out_y = 9.0;
+  CHECK(same(curved, clip));
+  VectorPath diamond;
+  PathSubpath rhombus;
+  rhombus.anchors = {corner(20.0, 2.0), corner(34.0, 14.0), corner(20.0, 26.0), corner(6.0, 14.0)};
+  diamond.subpaths = {rhombus};
+  CHECK(same(diamond, clip));
+  CHECK(coverage_pixel(rasterize(diamond, clip), 7, 3) == 0);
+  VectorPath two;
+  two.subpaths = {rect_subpath(2.0, 2.0, 12.0, 12.0, PathCombineOp::Add, 0),
+                  rect_subpath(8.0, 8.0, 20.0, 20.0, PathCombineOp::Subtract, 1)};
+  CHECK(same(two, clip));
+  CHECK(coverage_pixel(rasterize(two, clip), 10, 10) == 0 && coverage_pixel(rasterize(two, clip), 4, 4) == 255);
+}
+
 void vector_stroke_aligned_edges_match_photoshop() {
   VectorPath path;
   path.subpaths = {rect_subpath(4, 3, 28, 27, PathCombineOp::Add, 0)};
@@ -2522,6 +2602,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"raster_shape_feather_softens_edge_and_density_floors_alpha",
        raster_shape_feather_softens_edge_and_density_floors_alpha},
       {"raster_axis_aligned_rect_coverage_is_exact", raster_axis_aligned_rect_coverage_is_exact},
+      {"raster_pixel_aligned_rect_shortcut_matches_reference", raster_pixel_aligned_rect_shortcut_matches_reference},
       {"vector_stroke_aligned_edges_match_photoshop", vector_stroke_aligned_edges_match_photoshop},
       {"raster_half_plane_diagonal_ramp", raster_half_plane_diagonal_ramp},
       {"raster_area_sum_matches_analytic", raster_area_sum_matches_analytic},

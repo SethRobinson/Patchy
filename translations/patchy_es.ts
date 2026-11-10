@@ -15750,6 +15750,14 @@ Do you want to replace it?</source>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>El campo Relleno junto a Opacidad, sobre la lista de capas. Sin él, el modo de fusión y la opacidad caben en una línea en un panel estrecho.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Un lienzo de %1 x %2 px, que es muy grande: será lento de abrir y editar. Con menos páginas, una resolución menor o &quot;Documentos separados&quot; irá más rápido.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Un lienzo de %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31484,10 +31492,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Recortar no se aplica a un documento con mesas de trabajo; cambie el tamaño de una mesa de trabajo con la herramienta Mesa de trabajo</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Preparando las imágenes de las páginas...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>Abriendo PDF</translation>
     </message>
@@ -35727,6 +35731,22 @@ Bloqueada: %1</translation>
     <message>
         <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
         <translation>Si está activado, la lista de fuentes muestra con su nombre en inglés las fuentes cuyo nombre está en otra escritura, como chino, japonés o coreano. La búsqueda encuentra cualquiera de los dos nombres.</translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Convirtiendo la profundidad de bits...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Creando la mesa de trabajo %1 de %2...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Creando la carpeta de página %1 de %2...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Finalizando la página %1 de %2...</translation>
     </message>
 </context>
 <context>

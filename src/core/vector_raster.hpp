@@ -38,8 +38,9 @@ struct VectorRasterOptions {
   bool align_stroke_edges{false};  // Photoshop's native sn2P / Align Edges flag
   // Curves outside the clip are flattened to their chords, stroke pieces outside it are
   // skipped, and a combined path's stroke outline uses a sweep and a per-thread cache
-  // (same pixels, far less work for a zoomed shape). True turns all of that off: the
-  // tests' reference (docs/vector-preview.md, "Clipped flattening").
+  // (same pixels, far less work for a zoomed shape), and a path that is one pixel-aligned
+  // rectangle is filled without scan conversion. True turns all of that off: the tests'
+  // reference (docs/vector-preview.md, "Clipped flattening").
   bool reference_geometry{false};
 };
 

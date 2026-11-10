@@ -175,6 +175,7 @@
 #include "ui/measurement_units.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/paths_panel.hpp"
+#include "ui/memory_info.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
@@ -10639,43 +10640,84 @@ void MainWindow::record_text_layout_metrics_for_reopened_text(Document& target) 
   process(process, target.layers());
 }
 
+std::size_t MainWindow::pdf_page_task_window(double largest_page_bytes) {
+  const auto threads = std::max<std::size_t>(1, std::min<std::size_t>(4, std::thread::hardware_concurrency() / 2));
+  const double budget_bytes = std::max(1024.0, static_cast<double>(total_physical_ram_mb()) / 8.0) * 1024.0 * 1024.0;
+  // A decode holds the resampled image and the layer pixels at once (the source image is
+  // usually far smaller); a fingerprint holds the composite and its image.
+  const double per_task_bytes = std::max(1.0, largest_page_bytes * 2.0);
+  return static_cast<std::size_t>(std::clamp(budget_bytes / per_task_bytes, 1.0, static_cast<double>(threads)));
+}
+
 void MainWindow::render_pending_pdf_image_layers(Document& target) {
+  Document* const targets[] = {&target};
+  render_pending_pdf_image_layers(targets, /*stamp_sources=*/true);
+}
+
+void MainWindow::render_pending_pdf_image_layers(std::span<Document* const> targets, bool stamp_sources) {
   struct Job {
+    Document* document;
     Layer* layer;
     SmartObjectPlacement placement;
     const SmartObjectSource* source;
+    bool last_of_document{false};
   };
   std::vector<Job> jobs;
-  const auto collect = [&](auto&& self, std::vector<Layer>& layers) -> void {
-    for (auto& layer : layers) {
-      if (!layer.children().empty()) {
-        self(self, layer.children());
-      }
-      auto& metadata = layer.metadata();
-      if (!metadata.contains(kLayerMetadataPdfPendingImage)) {
-        continue;
-      }
-      metadata.erase(kLayerMetadataPdfPendingImage);
-      const auto placement = smart_object_placement_from_layer(layer);
-      if (!placement.has_value()) {
-        continue;
-      }
-      const auto* source = std::as_const(target).metadata().smart_objects.find(placement->uuid);
-      if (source == nullptr) {
-        continue;
-      }
-      jobs.push_back({&layer, *placement, source});
-    }
+  // Documents with nothing to decode whose original page image still wants its fingerprint.
+  std::vector<Document*> stamp_only;
+  const auto wants_stamp = [stamp_sources](const Document& document) {
+    const auto& source = document.metadata().pdf_source_page;
+    return stamp_sources && source != nullptr && !source->composite_hash_valid;
   };
-  collect(collect, target.layers());
+  for (auto* target : targets) {
+    const auto first_job = jobs.size();
+    const auto collect = [&](auto&& self, std::vector<Layer>& layers) -> void {
+      for (auto& layer : layers) {
+        if (!layer.children().empty()) {
+          self(self, layer.children());
+        }
+        auto& metadata = layer.metadata();
+        if (!metadata.contains(kLayerMetadataPdfPendingImage)) {
+          continue;
+        }
+        metadata.erase(kLayerMetadataPdfPendingImage);
+        const auto placement = smart_object_placement_from_layer(layer);
+        if (!placement.has_value()) {
+          continue;
+        }
+        const auto* source = std::as_const(*target).metadata().smart_objects.find(placement->uuid);
+        if (source == nullptr) {
+          continue;
+        }
+        jobs.push_back({target, &layer, *placement, source});
+      }
+    };
+    collect(collect, target->layers());
+    if (jobs.size() > first_job) {
+      jobs.back().last_of_document = true;
+    } else if (wants_stamp(std::as_const(*target))) {
+      stamp_only.push_back(target);
+    }
+  }
+  if (jobs.empty() && stamp_only.empty()) {
+    return;
+  }
+  ++open_progress_stats_.pdf_image_passes;
+  open_progress_stats_.pdf_images += static_cast<int>(jobs.size());
 
   // Decoding and resampling every page image was most of an open's wait (16 scanned pages,
   // about 0.4 s each, all on this thread). They run on workers, a few at a time to bound
-  // memory, while this thread keeps painting a progress dialog once the wait is noticeable.
-  // The document is not attached to a session yet, so nothing else touches it meanwhile.
-  using Result = std::optional<std::pair<PixelBuffer, Rect>>;
-  const auto depth = std::as_const(target).color_state().bit_depth;
-  const auto decode = [depth](const SmartObjectSource* source, SmartObjectPlacement placement) -> Result {
+  // memory, while this thread keeps painting the open's progress dialog once the wait is
+  // noticeable. One pass covers every page of the import, so the count runs over all of
+  // them and different pages decode side by side. The documents are not attached to a
+  // session yet, so nothing else touches them meanwhile.
+  std::optional<OpenProgress> own_progress;
+  if (open_progress_ == nullptr) {
+    own_progress.emplace(*this, tr("Opening PDF"), QStringLiteral("pdfPageImagesProgressDialog"));
+  }
+  auto& progress = *open_progress_;
+  using Decoded = std::optional<std::pair<PixelBuffer, Rect>>;
+  const auto decode = [](const SmartObjectSource* source, SmartObjectPlacement placement, BitDepth depth) -> Decoded {
     const auto image = decode_smart_object_source_image(*source);
     if (!image.has_value()) {
       return std::nullopt;
@@ -10686,71 +10728,115 @@ void MainWindow::render_pending_pdf_image_layers(Document& target) {
     }
     return std::make_pair(pixels_from_image_at_depth(rendered->image, depth), rendered->bounds);
   };
-  const std::size_t window = std::max<std::size_t>(1, std::min<std::size_t>(4, std::thread::hardware_concurrency() / 2));
-  std::deque<std::future<Result>> pending;
-  std::unique_ptr<QProgressDialog> progress;
-  QElapsedTimer clock;
-  clock.start();
-  std::size_t applied = 0;
-  const auto pump = [&] {
-    if (progress == nullptr && clock.elapsed() >= 400 && !unattended_automation()) {
-      progress = std::make_unique<QProgressDialog>(tr("Preparing page images..."), QString(), 0,
-                                                   static_cast<int>(jobs.size()), this);
-      progress->setObjectName(QStringLiteral("pdfPageImagesProgressDialog"));
-      progress->setWindowTitle(tr("Opening PDF"));
-      progress->setWindowModality(Qt::WindowModal);
-      progress->setMinimumDuration(0);
-      progress->setCancelButton(nullptr);
-      progress->setAutoClose(false);
-      progress->setAutoReset(false);
-      remember_dialog_position(*progress);
-      progress->show();
-    }
-    if (progress != nullptr) {
-      progress->setLabelText(tr("Preparing page image %1 of %2...")
-                                 .arg(static_cast<int>(applied) + 1)
-                                 .arg(static_cast<int>(jobs.size())));
-      progress->setValue(static_cast<int>(applied));
-    }
-    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 15);
+  double largest_page_bytes = 0.0;
+  for (const auto* target : targets) {
+    largest_page_bytes = std::max(largest_page_bytes, 4.0 * static_cast<double>(target->width()) *
+                                                          static_cast<double>(target->height()));
+  }
+  const std::size_t window = pdf_page_task_window(largest_page_bytes);
+  open_progress_stats_.pdf_image_window = static_cast<int>(window);
+
+  using Stamp = std::shared_ptr<const PdfSourcePage>;
+  struct PendingStamp {
+    Document* document;
+    std::future<Stamp> future;
   };
-  const auto apply_oldest = [&] {
-    auto& future = pending.front();
+  std::deque<std::future<Decoded>> decodes;
+  std::deque<PendingStamp> stamps;
+  std::size_t applied = 0;
+  const auto show_step = [&] {
+    if (!jobs.empty()) {
+      const auto shown = std::min(applied + 1, jobs.size());
+      progress.set_step(
+          tr("Preparing page image %1 of %2...").arg(static_cast<int>(shown)).arg(static_cast<int>(jobs.size())),
+          static_cast<int>(applied), static_cast<int>(jobs.size()));
+    }
+  };
+  const auto pump = [&] {
+    show_step();
+    progress.pump();
+  };
+  // An editable page that is one image carries its source bytes from the reader, but its
+  // pixels only exist now: fingerprint the composite so an unchanged page can export those
+  // bytes. Flattened pages arrive already stamped. The composite and its hash run on a
+  // worker (about a second for a 115 Mpx page); nothing changes the document until the
+  // pass returns.
+  const auto launch_stamp = [&](Document* document) {
+    if (!wants_stamp(std::as_const(*document))) {
+      return;
+    }
+    stamps.push_back({document, launch_async([document, source = std::as_const(*document).metadata().pdf_source_page] {
+                        const UiProfileScope profile_scope("pdf_images.source_stamp");
+                        return stamped_pdf_source_page(std::as_const(*document), source);
+                      })});
+  };
+  const auto finish_stamp = [&](bool wait) {
+    auto& oldest = stamps.front();
+    while (oldest.future.wait_for(std::chrono::milliseconds(wait ? 15 : 0)) != std::future_status::ready) {
+      if (!wait) {
+        return false;
+      }
+      pump();
+    }
+    if (auto stamped = oldest.future.get(); stamped != nullptr) {
+      oldest.document->metadata().pdf_source_page = std::move(stamped);
+    }
+    stamps.pop_front();
+    return true;
+  };
+  const auto apply_oldest_decode = [&] {
+    show_step();
+    auto& future = decodes.front();
     while (future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
       pump();
     }
     auto result = future.get();
-    pending.pop_front();
-    auto& layer = *jobs[applied].layer;
+    decodes.pop_front();
+    const auto& job = jobs[applied];
     ++applied;
-    if (!result.has_value()) {
-      return;
+    if (result.has_value()) {
+      auto& layer = *job.layer;
+      layer.set_pixels(std::move(result->first));
+      layer.set_bounds(result->second);
+      layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
     }
-    layer.set_pixels(std::move(result->first));
-    layer.set_bounds(result->second);
-    layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+    if (job.last_of_document) {
+      launch_stamp(job.document);
+    }
   };
-  for (const auto& job : jobs) {
-    if (pending.size() >= window) {
-      apply_oldest();
+  // Frees a slot: a finished fingerprint first, else the oldest decode (which may start
+  // its document's fingerprint in the slot it gave up), else the oldest fingerprint.
+  const auto make_room = [&] {
+    while (decodes.size() + stamps.size() >= window) {
+      if (!stamps.empty() && finish_stamp(/*wait=*/false)) {
+        continue;
+      }
+      if (!decodes.empty()) {
+        apply_oldest_decode();
+      } else {
+        finish_stamp(/*wait=*/true);
+      }
     }
-    pending.push_back(launch_async([decode, source = job.source, placement = job.placement] {
-      return decode(source, placement);
+  };
+  for (auto* document : stamp_only) {
+    make_room();
+    launch_stamp(document);
+  }
+  for (const auto& job : jobs) {
+    make_room();
+    decodes.push_back(launch_async([decode, source = job.source, placement = job.placement,
+                                    depth = std::as_const(*job.document).color_state().bit_depth] {
+      const UiProfileScope profile_scope("pdf_images.decode");
+      return decode(source, placement, depth);
     }));
   }
-  while (!pending.empty()) {
-    apply_oldest();
+  while (!decodes.empty()) {
+    apply_oldest_decode();
   }
-  if (progress != nullptr) {
-    progress->close();
+  while (!stamps.empty()) {
+    finish_stamp(/*wait=*/true);
   }
-  // An editable page that is one image carries its source bytes from the reader, but its
-  // pixels only exist now: fingerprint the composite so an unchanged page can export
-  // those bytes. Flattened pages arrive already stamped.
-  if (const auto source = std::as_const(target).metadata().pdf_source_page;
-      source != nullptr && !source->composite_hash_valid) {
-    attach_pdf_source_page(target, source);
-  }
+  show_step();
 }
 
 std::vector<LayerId> MainWindow::rasterize_target_layer_ids(std::vector<LayerId> selected_ids) const {

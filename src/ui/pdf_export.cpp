@@ -322,13 +322,14 @@ std::uint64_t pdf_composite_hash(const QImage& composite) {
   return hash;
 }
 
-void attach_pdf_source_page(Document& document, const std::shared_ptr<const PdfSourcePage>& source) {
+std::shared_ptr<const PdfSourcePage> stamped_pdf_source_page(const Document& document,
+                                                             const std::shared_ptr<const PdfSourcePage>& source) {
   if (source == nullptr || source->image_bytes == nullptr || source->image_bytes->empty()) {
-    return;
+    return nullptr;
   }
   const QImage composite = flat_export_qimage(document, true);
   if (composite.isNull()) {
-    return;
+    return nullptr;
   }
   auto stamped = std::make_shared<PdfSourcePage>(*source);  // the byte payloads stay shared
   stamped->document_width = document.width();
@@ -337,7 +338,13 @@ void attach_pdf_source_page(Document& document, const std::shared_ptr<const PdfS
   stamped->vertical_ppi = document.print_settings().vertical_ppi;
   stamped->composite_hash = pdf_composite_hash(composite);
   stamped->composite_hash_valid = true;
-  document.metadata().pdf_source_page = std::move(stamped);
+  return stamped;
+}
+
+void attach_pdf_source_page(Document& document, const std::shared_ptr<const PdfSourcePage>& source) {
+  if (auto stamped = stamped_pdf_source_page(std::as_const(document), source); stamped != nullptr) {
+    document.metadata().pdf_source_page = std::move(stamped);
+  }
 }
 
 bool document_matches_pdf_source(const Document& document, const QImage& composite) {
@@ -738,16 +745,22 @@ std::vector<Document> documents_for_artboards(const Document& document, bool inc
 
 void attach_pdf_page_source(Document& document, LayerId page_layer_id,
                             const std::shared_ptr<const PdfSourcePage>& source) {
-  const auto* layer = std::as_const(document).find_layer(page_layer_id);
-  if (layer == nullptr) {
+  const auto page = document_for_imported_page(std::as_const(document), page_layer_id);
+  if (!page.has_value()) {
     return;
   }
-  auto page = layer_is_artboard(*layer) ? document_for_artboard(document, page_layer_id)
-                                        : document_for_page_group(document, page_layer_id);
-  attach_pdf_source_page(page, source);
-  if (const auto stamped = std::as_const(page).metadata().pdf_source_page; stamped != nullptr) {
-    document.metadata().pdf_page_source_pages[page_layer_id] = stamped;
+  if (auto stamped = stamped_pdf_source_page(*page, source); stamped != nullptr) {
+    document.metadata().pdf_page_source_pages[page_layer_id] = std::move(stamped);
   }
+}
+
+std::optional<Document> document_for_imported_page(const Document& document, LayerId page_layer_id) {
+  const auto* layer = document.find_layer(page_layer_id);
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+  return layer_is_artboard(*layer) ? document_for_artboard(document, page_layer_id)
+                                   : document_for_page_group(document, page_layer_id);
 }
 
 QString pdf_page_source_token(PdfPageSource source) {

@@ -1239,6 +1239,51 @@ std::vector<std::array<double, 2>> flatten_subpath_polyline(const PathSubpath& s
   return points;
 }
 
+namespace {
+
+// The rectangle a path is when it is nothing else: one closed subpath of four corners
+// with straight sides on whole pixels (an artboard's paper and clip, a mask made from a
+// marquee, a rectangle drawn on the pixel grid). Its coverage is 255 inside and nothing
+// outside, exactly what the scan conversion below produces for it.
+std::optional<Rect> pixel_aligned_rect(const VectorPath& path) {
+  if (path.subpaths.size() != 1U) {
+    return std::nullopt;
+  }
+  const auto& subpath = path.subpaths.front();
+  // A first group that subtracts starts from a covered canvas instead.
+  if (!subpath.closed || subpath.op == PathCombineOp::Subtract || subpath.anchors.size() != 4U) {
+    return std::nullopt;
+  }
+  constexpr double kLimit = 100'000'000.0;
+  for (const auto& anchor : subpath.anchors) {
+    if (anchor.in_x != anchor.anchor_x || anchor.in_y != anchor.anchor_y || anchor.out_x != anchor.anchor_x ||
+        anchor.out_y != anchor.anchor_y || !(std::abs(anchor.anchor_x) <= kLimit) ||
+        !(std::abs(anchor.anchor_y) <= kLimit) || anchor.anchor_x != std::floor(anchor.anchor_x) ||
+        anchor.anchor_y != std::floor(anchor.anchor_y)) {
+      return std::nullopt;
+    }
+  }
+  const auto& a = subpath.anchors;
+  // Sides alternate horizontal and vertical, from any corner, in either direction.
+  const bool horizontal_first = a[0].anchor_y == a[1].anchor_y && a[1].anchor_x == a[2].anchor_x &&
+                                a[2].anchor_y == a[3].anchor_y && a[3].anchor_x == a[0].anchor_x;
+  const bool vertical_first = a[0].anchor_x == a[1].anchor_x && a[1].anchor_y == a[2].anchor_y &&
+                              a[2].anchor_x == a[3].anchor_x && a[3].anchor_y == a[0].anchor_y;
+  if (!horizontal_first && !vertical_first) {
+    return std::nullopt;
+  }
+  const auto left = static_cast<std::int32_t>(std::min(a[0].anchor_x, a[2].anchor_x));
+  const auto right = static_cast<std::int32_t>(std::max(a[0].anchor_x, a[2].anchor_x));
+  const auto top = static_cast<std::int32_t>(std::min(a[0].anchor_y, a[2].anchor_y));
+  const auto bottom = static_cast<std::int32_t>(std::max(a[0].anchor_y, a[2].anchor_y));
+  if (right <= left || bottom <= top) {
+    return std::nullopt;
+  }
+  return Rect{left, top, right - left, bottom - top};
+}
+
+}  // namespace
+
 CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterOptions& options) {
   if (options.clip.empty()) {
     return CoverageBuffer{};
@@ -1246,6 +1291,13 @@ CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterO
   if (path.empty()) {
     // Empty path = cover everything (fill layers without a mask path).
     return full_coverage(options.clip);
+  }
+  if (!options.reference_geometry) {
+    // Scan-converting a page-sized rectangle was 13 s of a 115 Mpx artboard page's
+    // export derivation (paper plus clip); the answer needs no edges at all.
+    if (const auto rect = pixel_aligned_rect(path); rect.has_value()) {
+      return full_coverage(intersect_rects(*rect, options.clip));
+    }
   }
 
   // Split subpaths into shape groups (consecutive runs of equal shape_group).

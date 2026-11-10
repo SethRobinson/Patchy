@@ -106,6 +106,15 @@ void MainWindowTestAccess::open_document_path_as_user(MainWindow& window, QStrin
   window.open_document_path(std::move(path));
 }
 
+MainWindowTestAccess::OpenProgressRecord MainWindowTestAccess::open_progress_record(const MainWindow& window) {
+  const auto& stats = window.open_progress_stats_;
+  return {stats.dialogs, stats.pdf_image_passes, stats.pdf_images, stats.pdf_image_window, stats.steps};
+}
+
+void MainWindowTestAccess::set_open_progress_delay_ms(int delay_ms) {
+  MainWindow::set_open_progress_delay_ms(delay_ms);
+}
+
 void MainWindowTestAccess::open_recent_document(MainWindow& window, QString path) {
   window.open_recent_document(std::move(path));
 }

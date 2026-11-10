@@ -6,6 +6,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/memory_info.hpp"
 #include "ui/pdf_export.hpp"
+#include "ui/theme_qss.hpp"
 #include "ui/ui_profile.hpp"
 
 #include "core/gray_conversion.hpp"
@@ -22,6 +23,7 @@
 #include <QFile>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -75,6 +77,11 @@ constexpr int kMaxResolutionPpi = 1200;
 // capped per axis and the effective resolution drops to match (reported as a notice).
 constexpr int kMaxRenderedPagePixels = 20000;
 constexpr int kThumbnailHeight = 96;
+// A merged canvas ("Layers in one document", "Artboards in one document") from this many
+// pixels on is slow to open and edit, and the Import PDF dialog says so before the import:
+// every full refresh composites the whole canvas and the view keeps a frame of it (eight
+// 29 x 44 inch scans at 300 ppi as artboards are 1,048 Mpx, a 4 GB frame).
+constexpr double kHugeMergedCanvasPixels = 250.0e6;
 // Set on a page-list row whose thumbnail has not been rendered yet.
 constexpr int kThumbnailPendingRole = Qt::UserRole + 1;
 
@@ -843,10 +850,36 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
     // (85 pages at 300 ppi is about 6 GB). Say so before the import, not after.
     const double bytes_per_channel = bit_depth->isEnabled() ? bit_depth->currentData().toInt() / 8.0 : 1.0;
     double bytes = 0.0;
+    QSize cell(0, 0);
     for (const int page : pages) {
       const QSize page_size = rendered_page_size(pdf.pagePointSize(page), ppi, nullptr);
       if (page_size.isValid()) {
         bytes += 4.0 * bytes_per_channel * page_size.width() * page_size.height();
+        cell = cell.expandedTo(page_size);
+      }
+    }
+    // What the chosen target really builds: the one canvas every page shares (the largest
+    // page for layers, the artboard grid with its gaps and any empty cell for artboards),
+    // and the 8-bit RGBA frame of its canvas the open document keeps for the view.
+    const auto merge = target == QStringLiteral("artboards") ? PdfPagesMerge::Artboards
+                       : target == QStringLiteral("layers")  ? PdfPagesMerge::Layers
+                                                              : PdfPagesMerge::None;
+    const QSize canvas = merge == PdfPagesMerge::None || cell.isEmpty()
+                             ? size
+                             : pdf_merged_canvas_size(cell, static_cast<int>(pages.size()), merge);
+    const double canvas_pixels = canvas.isValid() ? static_cast<double>(canvas.width()) * canvas.height() : 0.0;
+    bytes += 4.0 * canvas_pixels;
+    bool warning = false;
+    if (merge != PdfPagesMerge::None && pages.size() > 1U && canvas.isValid()) {
+      text += QLatin1Char('\n');
+      if (canvas_pixels >= kHugeMergedCanvasPixels) {
+        warning = true;
+        text += QObject::tr("One canvas of %1 x %2 px, which is very large: it will be slow to open and "
+                            "edit. Fewer pages, a lower resolution or \"Separate documents\" will be faster.")
+                    .arg(canvas.width())
+                    .arg(canvas.height());
+      } else {
+        text += QObject::tr("One canvas of %1 x %2 px.").arg(canvas.width()).arg(canvas.height());
       }
     }
     const double gigabytes = bytes / (1024.0 * 1024.0 * 1024.0);
@@ -854,13 +887,20 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
       const qint64 ram_mb = total_physical_ram_mb();
       const double ram_gb = ram_mb > 0 ? static_cast<double>(ram_mb) / 1024.0 : 0.0;
       text += QLatin1Char('\n');
-      text += ram_gb > 0.0 && gigabytes > ram_gb / 2.0
-                  ? QObject::tr("About %1 GB of memory, more than half of this computer's %2 GB. Fewer pages "
-                                "or a lower resolution will open faster.")
-                        .arg(QLocale().toString(gigabytes, 'f', 1), QLocale().toString(ram_gb, 'f', 0))
-                  : QObject::tr("About %1 GB of memory.").arg(QLocale().toString(gigabytes, 'f', 1));
+      if (ram_gb > 0.0 && gigabytes > ram_gb / 2.0) {
+        warning = true;
+        text += QObject::tr("About %1 GB of memory, more than half of this computer's %2 GB. Fewer pages "
+                            "or a lower resolution will open faster.")
+                    .arg(QLocale().toString(gigabytes, 'f', 1), QLocale().toString(ram_gb, 'f', 0));
+      } else {
+        text += QObject::tr("About %1 GB of memory.").arg(QLocale().toString(gigabytes, 'f', 1));
+      }
     }
     size_label->setText(text);
+    // The firm cases are hard to miss: warning color and weight (the property is for tests).
+    size_label->setProperty("importWarning", warning);
+    set_themed_style(*size_label, warning ? QStringLiteral("color: @console_warning_text; font-weight: 600;")
+                                          : QString());
   };
   QObject::connect(pages_list, &QListWidget::itemSelectionChanged, &dialog, sync_size_label);
   QObject::connect(resolution, &QComboBox::currentTextChanged, &dialog, sync_size_label);
@@ -905,6 +945,8 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
     return std::nullopt;
   }
 
+  QElapsedTimer import_clock;
+  import_clock.start();
   options.pages = selected_pages();
   if (reverse_order->isChecked()) {
     std::reverse(options.pages.begin(), options.pages.end());
@@ -1137,6 +1179,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
                         "page\" for an exact copy.")
                 .toStdString());
       }
+      result.import_ms = import_clock.elapsed();
       return result;
     }
   }
@@ -1161,6 +1204,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
     // for the whole file rather than once per page.
     result->notices.insert(result->notices.begin(), scanned_pages_notice(scanned_pages));
   }
+  result->import_ms = import_clock.elapsed();
   return result;
 }
 

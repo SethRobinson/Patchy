@@ -120,13 +120,25 @@ void crop_layer_to_rect(Layer& layer, Rect crop) {
     return;
   }
 
+  if (intersection == old_bounds && old_pixels.width() == old_bounds.width &&
+      old_pixels.height() == old_bounds.height) {
+    // The crop cuts nothing off this layer: its pixels stay as they are (and stay shared
+    // with any copy of the layer), only its origin moves. Copying them here was two
+    // passes over every page of a merged PDF import (document_for_artboard, 115 Mpx each).
+    layer.set_bounds(Rect{old_bounds.x - crop.x, old_bounds.y - crop.y, old_bounds.width, old_bounds.height});
+    return;
+  }
+
   PixelBuffer cropped(intersection.width, intersection.height, old_pixels.format());
   const auto pixel_bytes = bytes_per_pixel(old_pixels.format());
+  // Read through the const view: a non-const row() on shared storage copies the whole
+  // buffer first (PixelBuffer is copy-on-write), only to be replaced below.
+  const auto& source_pixels = std::as_const(old_pixels);
   for (std::int32_t y = 0; y < intersection.height; ++y) {
     const auto source_y = intersection.y - old_bounds.y + y;
     const auto source_x = intersection.x - old_bounds.x;
-    auto source = old_pixels.row(source_y).subspan(static_cast<std::size_t>(source_x) * pixel_bytes,
-                                                   static_cast<std::size_t>(intersection.width) * pixel_bytes);
+    const auto source = source_pixels.row(source_y).subspan(static_cast<std::size_t>(source_x) * pixel_bytes,
+                                                            static_cast<std::size_t>(intersection.width) * pixel_bytes);
     auto destination = cropped.row(y);
     std::copy(source.begin(), source.end(), destination.begin());
   }

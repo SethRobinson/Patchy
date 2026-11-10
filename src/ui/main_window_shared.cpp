@@ -84,6 +84,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -972,11 +973,15 @@ void log_ui_profile(std::string_view stage, double elapsed_ms, std::string_view 
   if (!ui_profile_enabled()) {
     return;
   }
-  std::cerr << "PATCHY_UI_PROFILE stage=" << stage << " elapsed_ms=" << elapsed_ms;
+  // One write per line: workers log too (page decodes, fingerprints, encoders), and
+  // piecewise output from two threads interleaves.
+  std::ostringstream line;
+  line << "PATCHY_UI_PROFILE stage=" << stage << " elapsed_ms=" << elapsed_ms;
   if (!detail.empty()) {
-    std::cerr << " detail=\"" << detail << "\"";
+    line << " detail=\"" << detail << "\"";
   }
-  std::cerr << '\n';
+  line << '\n';
+  std::cerr << line.str();
 }
 
 void restyle_layer_rows(QListWidget* list) {

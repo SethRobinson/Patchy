@@ -113,6 +113,13 @@ constexpr int kMaxDirtyRegionRects = 64;
 // constant on purpose, like the pixel threshold above: the gate must stay
 // deterministic for tests.
 constexpr int kDeferFullRefreshMinLayers = 200;
+// A canvas this large takes many seconds to composite and more to build the display mips
+// a zoomed-out view draws from (eight 29 x 44 inch PDF scans as artboards at 300 ppi are
+// 1,048 Mpx: a 4 GB frame). Its first paint takes the many-layer route too, checkerboard
+// plus the spinner while a worker builds the frame and its mips, instead of holding the
+// window. Compile-time for the same reason as the layer gate; nothing in the suites
+// opens a canvas this size.
+constexpr std::int64_t kDeferFirstRenderMinPixels = 200'000'000;
 
 int total_layer_count(const std::vector<Layer>& layers) noexcept {
   int count = 0;
@@ -299,14 +306,24 @@ bool CanvasWidget::should_defer_first_render_to_async() const noexcept {
       render_cache_.size() == QSize(document_->width(), document_->height())) {
     return false;
   }
-  return total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
+  return first_render_runs_in_background();
+}
+
+bool CanvasWidget::first_render_runs_in_background() const noexcept {
+  if (document_ == nullptr) {
+    return false;
+  }
+  const auto canvas_area =
+      static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
+  return canvas_area >= kDeferFirstRenderMinPixels ||
+         total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
 }
 
 bool CanvasWidget::first_render_spinner_active() const noexcept {
   return async_render_cache_in_flight_ && document_ != nullptr &&
          (render_cache_.isNull() ||
           render_cache_.size() != QSize(document_->width(), document_->height())) &&
-         total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
+         first_render_runs_in_background();
 }
 
 bool CanvasWidget::processing_overlay_visible() const noexcept {
@@ -1437,8 +1454,15 @@ void CanvasWidget::start_async_render_cache_refresh() {
   // The chain paint would build for this zoom (display_image_for_zoom); a zoom
   // change before the frame lands extends or rebuilds it there as before. A
   // palette display quantizes the frame on install, so its chain stays there.
-  const int mip_level =
-      zoom_ < 1.0 && palette_snap_context() == nullptr ? display_mip_level_for_zoom(view_zoom()) : 0;
+  int mip_level = zoom_ < 1.0 && palette_snap_context() == nullptr ? display_mip_level_for_zoom(view_zoom()) : 0;
+  if (render_cache_.isNull() && palette_snap_context() == nullptr) {
+    // A session's first frame: the open fits the view right after the first paint asks
+    // for it, so the chain a fitted view draws from is built here on the worker too.
+    // Left to paint, it held the window for seconds on a 1 Gpx canvas.
+    if (const double fit = fit_logical_zoom(); fit > 0.0) {
+      mip_level = std::max(mip_level, display_mip_level_for_zoom(fit * devicePixelRatioF()));
+    }
+  }
   auto* app = QApplication::instance();
   QPointer<CanvasWidget> widget(this);
   run_tracked_background_worker([app, widget, generation, snapshot_size, document_snapshot, region,

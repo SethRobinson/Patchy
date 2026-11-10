@@ -156,6 +156,12 @@ linear in the zoomed path per tile, and its output must stay byte-identical:
 - Stroke outline pieces (segment quads, joins, caps: small convex loops) whose
   box misses the clip plus 2 px are not emitted; such a loop adds nothing inside
   the band buffer.
+- A path that is one pixel-aligned rectangle (a closed four-corner subpath with
+  straight sides on whole pixels and a first op other than Subtract: an
+  artboard's paper and clip, a mask made from a marquee) is not scan-converted:
+  its fill coverage is `full_coverage` of the rectangle inside the clip, the
+  bytes the scan conversion gives (`raster_pixel_aligned_rect_shortcut_matches_reference`).
+  A page-sized one took 13 s of a 115 Mpx artboard page's export derivation.
 - A multi-group path's stroke follows its Boolean outline
   (`fill_boundary_contours`). Its crossings come from a sweep over segment boxes
   and its inside tests read only the edges in the query's horizontal band: the

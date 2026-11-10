@@ -15806,6 +15806,14 @@ Do you want to replace it?</source>
         <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
         <translation>Поле «Заливка» рядом с непрозрачностью, над списком слоёв. Без него режим наложения и непрозрачность помещаются в одну строку в узкой панели.</translation>
     </message>
+    <message>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <translation>Один холст размером %1 x %2 px, это очень много: открытие и редактирование будут медленными. Меньше страниц, более низкое разрешение или «Отдельные документы» будут быстрее.</translation>
+    </message>
+    <message>
+        <source>One canvas of %1 x %2 px.</source>
+        <translation>Один холст размером %1 x %2 px.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31580,10 +31588,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Кадрирование не применяется к документу с монтажными областями; измените размер монтажной области инструментом «Монтажная область»</translation>
     </message>
     <message>
-        <source>Preparing page images...</source>
-        <translation>Подготовка изображений страниц...</translation>
-    </message>
-    <message>
         <source>Opening PDF</source>
         <translation>Открытие PDF</translation>
     </message>
@@ -35836,6 +35840,22 @@ Locked: %1</source>
     <message>
         <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
         <translation>Если этот параметр включен, шрифты, названные в другой письменности, например китайской, японской или корейской, показываются в списке шрифтов под английскими названиями. Поиск находит шрифт по любому из названий.</translation>
+    </message>
+    <message>
+        <source>Converting the bit depth...</source>
+        <translation>Преобразование разрядности...</translation>
+    </message>
+    <message>
+        <source>Building artboard %1 of %2...</source>
+        <translation>Создание монтажной области %1 из %2...</translation>
+    </message>
+    <message>
+        <source>Building page folder %1 of %2...</source>
+        <translation>Создание папки страницы %1 из %2...</translation>
+    </message>
+    <message>
+        <source>Finishing page %1 of %2...</source>
+        <translation>Завершение страницы %1 из %2...</translation>
     </message>
 </context>
 <context>

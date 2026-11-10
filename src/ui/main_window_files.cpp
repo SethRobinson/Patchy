@@ -203,6 +203,8 @@
 #include <cstring>
 #include <exception>
 #include <functional>
+#include <atomic>
+#include <deque>
 #include <future>
 #include <iterator>
 #include <limits>
@@ -1218,6 +1220,8 @@ struct OpenDocumentResult {
   // A PDF import whose pages merge into one document (folders or artboards).
   PdfPagesMerge pdf_merge{PdfPagesMerge::None};
   bool pdf_white_background{true};
+  // How long the Import PDF dialog's own progress dialog was up (PdfImportResult::import_ms).
+  qint64 pdf_import_ms{0};
   // Network servers a Krita file layer names that are not allowed yet (lower case): the
   // interactive open offers to allow them and reload (docs/kra.md, "File layers").
   QStringList blocked_link_servers{};
@@ -2485,6 +2489,7 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
     loaded.pdf_bit_depth = outcome->bit_depth;
     loaded.pdf_merge = outcome->merge;
     loaded.pdf_white_background = outcome->white_background;
+    loaded.pdf_import_ms = outcome->import_ms;
     // CMYK is the session's CMYK Proof, the same state a CMYK JPEG opens in.
     loaded.cmyk_source = outcome->color_mode == PdfImportColorMode::Cmyk;
     if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
@@ -3673,13 +3678,24 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
     render_pending_xcf_text_layers(loaded->document);
-    render_pending_pdf_text_layers(loaded->document);
-    render_pending_pdf_image_layers(loaded->document);
+    // A PDF import keeps one progress dialog up from here until its tab is fit on screen
+    // (docs/pdf-import.md, "Progress"), under the Import PDF progress dialog's own title
+    // and without a gap when that one was just showing.
+    open_progress_stats_ = {};
+    std::optional<OpenProgress> pdf_progress;
+    if (loaded->pdf_bit_depth.has_value()) {
+      pdf_progress.emplace(*this, QCoreApplication::translate("QObject", "Import PDF - %1").arg(loaded->file_name),
+                           QStringLiteral("pdfPageImagesProgressDialog"),
+                           loaded->pdf_import_ms >= open_progress_delay_ms() ? 0 : -1);
+    }
+    render_imported_pdf_pages(loaded->document, loaded->extra_documents, loaded->pdf_merge);
     if (loaded->pdf_merge != PdfPagesMerge::None) {
+      const UiProfileScope profile_scope("pdf_merge.total");
       merge_imported_pdf_pages(loaded->document, loaded->document_title, loaded->extra_documents, loaded->pdf_merge,
                                loaded->pdf_white_background);
     }
     if (loaded->pdf_bit_depth.has_value()) {
+      const UiProfileScope profile_scope("pdf_merge.finish");
       finish_imported_pdf_document(loaded->document, loaded->pdf_color_mode, *loaded->pdf_bit_depth,
                                    loaded->import_notices);
     }
@@ -3751,6 +3767,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool();
     open_extra_imported_page_sessions(loaded_file_name, std::move(loaded->extra_documents), loaded->pdf_color_mode,
                                       loaded->pdf_bit_depth, loaded->import_notices);
+    pdf_progress.reset();
     update_undo_redo_actions();
     fire_theme_event(ThemeSoundEvent::DocumentOpened,
                      {{QStringLiteral("width"), std::as_const(document()).width()},
@@ -3937,6 +3954,98 @@ void MainWindow::revert_active_document() {
   statusBar()->showMessage(tr("Reverted %1").arg(file_name));
 }
 
+namespace {
+
+constexpr int kDefaultOpenProgressDelayMs = 400;
+std::atomic<int> open_progress_delay_override_ms{-1};
+
+}  // namespace
+
+void MainWindow::set_open_progress_delay_ms(int delay_ms) {
+  open_progress_delay_override_ms.store(delay_ms);
+}
+
+int MainWindow::open_progress_delay_ms() {
+  const int override_ms = open_progress_delay_override_ms.load();
+  return override_ms < 0 ? kDefaultOpenProgressDelayMs : override_ms;
+}
+
+MainWindow::OpenProgress::OpenProgress(MainWindow& window, QString window_title, QString object_name,
+                                       int show_after_ms)
+    : window_(window),
+      window_title_(std::move(window_title)),
+      object_name_(std::move(object_name)),
+      show_after_ms_(show_after_ms < 0 ? open_progress_delay_ms() : show_after_ms),
+      outer_(window.open_progress_) {
+  clock_.start();
+  since_pump_.start();
+  window_.open_progress_ = this;
+}
+
+MainWindow::OpenProgress::~OpenProgress() {
+  if (dialog_ != nullptr) {
+    dialog_->close();
+  }
+  window_.open_progress_ = outer_;
+}
+
+void MainWindow::OpenProgress::set_step(const QString& label, int value, int maximum) {
+  label_ = label;
+  value_ = std::max(0, value);
+  maximum_ = std::max(0, maximum);
+  auto& steps = window_.open_progress_stats_.steps;
+  if (steps.isEmpty() || steps.back() != label_) {
+    steps.push_back(label_);
+  }
+  sync_dialog();
+}
+
+void MainWindow::OpenProgress::sync_dialog() {
+  if (dialog_ == nullptr && !label_.isEmpty() && clock_.elapsed() >= show_after_ms_ &&
+      !window_.unattended_automation()) {
+    dialog_ = std::make_unique<QProgressDialog>(label_, QString(), 0, maximum_, &window_);
+    dialog_->setObjectName(object_name_);
+    dialog_->setWindowTitle(window_title_);
+    dialog_->setWindowModality(Qt::WindowModal);
+    dialog_->setMinimumDuration(0);
+    dialog_->setCancelButton(nullptr);
+    dialog_->setAutoClose(false);
+    dialog_->setAutoReset(false);
+    remember_dialog_position(*dialog_);
+    dialog_->show();
+    window_.open_progress_stats_.dialogs.push_back(object_name_);
+  }
+  if (dialog_ != nullptr) {
+    if (dialog_->labelText() != label_) {
+      dialog_->setLabelText(label_);
+    }
+    if (dialog_->maximum() != maximum_) {
+      dialog_->setRange(0, maximum_);
+    }
+  }
+}
+
+bool MainWindow::OpenProgress::visible() const {
+  return dialog_ != nullptr && dialog_->isVisible();
+}
+
+void MainWindow::OpenProgress::pump() {
+  sync_dialog();
+  // QProgressDialog::setValue delivers events itself when the dialog is modal, so the bar
+  // only moves here, where events are due anyway.
+  if (dialog_ != nullptr && maximum_ > 0 && dialog_->value() != std::min(value_, maximum_)) {
+    dialog_->setValue(std::min(value_, maximum_));
+  }
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 15);
+  since_pump_.restart();
+}
+
+void MainWindow::OpenProgress::pump_throttled() {
+  if (since_pump_.elapsed() >= 32) {
+    pump();
+  }
+}
+
 // The pages after the first of a PDF opened as separate documents. Each becomes a
 // pathless session (the PDF is a read-only source, so page 1 saves through Save As
 // too), added in the background so page 1 stays the active document throughout.
@@ -3955,8 +4064,41 @@ void MainWindow::finish_imported_pdf_document(Document& document, PdfImportColor
     return;
   }
   if (depth != std::as_const(document).color_state().bit_depth && depth_supported_on_platform(depth)) {
-    convert_document_depth(document, depth);
+    if (open_progress_ == nullptr) {
+      convert_document_depth(document, depth);
+      return;
+    }
+    // Every pixel of every page: on a worker while the open's progress keeps painting. The
+    // document is not attached to a session yet, so nothing else reads it meanwhile.
+    open_progress_->set_step(tr("Converting the bit depth..."), 0, 0);
+    auto converted = launch_async([&document, depth] { convert_document_depth(document, depth); });
+    while (converted.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
+      open_progress_->pump();
+    }
+    converted.get();
   }
+}
+
+void MainWindow::render_imported_pdf_pages(Document& first, std::vector<PdfImportedDocument>& extras,
+                                           PdfPagesMerge merge) {
+  std::vector<Document*> pages{&first};
+  pages.reserve(extras.size() + 1U);
+  for (auto& extra : extras) {
+    pages.push_back(&extra.document);
+  }
+  {
+    const UiProfileScope profile_scope("pdf_pages.pending_text");
+    for (auto* page : pages) {
+      render_pending_pdf_text_layers(*page);
+      if (open_progress_ != nullptr && pages.size() > 1U) {
+        open_progress_->pump_throttled();
+      }
+    }
+  }
+  // A merge fingerprints its pages itself, from the merged document: stamping them here
+  // too would composite and hash every page twice.
+  const UiProfileScope profile_scope("pdf_images.pass");
+  render_pending_pdf_image_layers(pages, /*stamp_sources=*/merge == PdfPagesMerge::None);
 }
 
 void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_title,
@@ -3968,8 +4110,6 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
   };
   std::vector<Page> pages{{&first, first_title.isEmpty() ? tr("Page %1").arg(1) : first_title}};
   for (auto& extra : extras) {
-    render_pending_pdf_text_layers(extra.document);
-    render_pending_pdf_image_layers(extra.document);
     pages.push_back({&extra.document, extra.title});
   }
   // Layers: one canvas the size of the largest page, every page at its top-left. Artboards:
@@ -3982,22 +4122,16 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
     cell_height = std::max(cell_height, page.document->height());
   }
   const auto count = static_cast<int>(pages.size());
-  const int columns = merge == PdfPagesMerge::Artboards
-                          ? std::max(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(count)))))
-                          : 1;
-  const int rows = merge == PdfPagesMerge::Artboards ? (count + columns - 1) / columns : 1;
+  const QSize grid = merge == PdfPagesMerge::Artboards ? pdf_artboard_grid(count) : QSize(1, 1);
+  const int columns = grid.width();
   const auto origin_of = [&](int index) {
     if (merge != PdfPagesMerge::Artboards) {
       return QPoint(0, 0);
     }
     return QPoint((index % columns) * (cell_width + kArtboardSpacing), (index / columns) * (cell_height + kArtboardSpacing));
   };
-  const auto canvas_width = merge == PdfPagesMerge::Artboards
-                                ? columns * cell_width + (columns - 1) * kArtboardSpacing
-                                : cell_width;
-  const auto canvas_height =
-      merge == PdfPagesMerge::Artboards ? rows * cell_height + (rows - 1) * kArtboardSpacing : cell_height;
-  Document merged(canvas_width, canvas_height, std::as_const(first).format());
+  const QSize canvas = pdf_merged_canvas_size(QSize(cell_width, cell_height), count, merge);
+  Document merged(canvas.width(), canvas.height(), std::as_const(first).format());
   merged.print_settings() = std::as_const(first).print_settings();
   merged.color_state() = std::as_const(first).color_state();
   merged.file_info() = std::as_const(first).file_info();
@@ -4005,10 +4139,23 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
     merged.metadata().artboard_settings.emplace();
   }
 
+  std::optional<OpenProgress> own_progress;
+  if (open_progress_ == nullptr) {
+    own_progress.emplace(*this, tr("Opening PDF"), QStringLiteral("pdfPageImagesProgressDialog"));
+  }
+  auto& progress = *open_progress_;
+
   std::vector<std::pair<LayerId, std::shared_ptr<const PdfSourcePage>>> page_sources;
   // Copied bottom-up so page 1 ends on top: the topmost folder (only it visible) or the
   // topmost, top-left artboard, which is also the order every per-page export writes.
   for (int step = 0; step < count; ++step) {
+    const UiProfileScope profile_scope("pdf_merge.place_page");
+    progress.set_step((merge == PdfPagesMerge::Artboards ? tr("Building artboard %1 of %2...")
+                                                           : tr("Building page folder %1 of %2..."))
+                          .arg(step + 1)
+                          .arg(count),
+                      step, count);
+    progress.pump_throttled();
     const int index = count - 1 - step;
     auto& page = *pages[static_cast<std::size_t>(index)].document;
     const auto& title = pages[static_cast<std::size_t>(index)].title;
@@ -4048,13 +4195,60 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
         page_sources.emplace_back(copied.front(), source);
       }
     }
+    // The merged document holds the page now; dropping the page's own layers here leaves
+    // its pixels with one owner, so nothing later copies them to write (PixelBuffer shares
+    // its bytes across copies until the first write).
+    page.layers().clear();
   }
   first = std::move(merged);
   extras.clear();
   // Each untouched page re-exports its original image (docs/pdf.md "Pass-through"):
-  // fingerprint the page exactly as the per-page export derives it.
+  // fingerprint the page exactly as the per-page export derives it. Deriving a page
+  // (a copy of the document cropped to it), compositing it and hashing it is about a second
+  // for a 115 Mpx page, so the pages run on workers, a few at a time, and only read
+  // `first`; the stamps are filed once every worker is done.
+  const std::size_t window =
+      pdf_page_task_window(4.0 * static_cast<double>(cell_width) * static_cast<double>(cell_height));
+  using Stamp = std::shared_ptr<const PdfSourcePage>;
+  std::deque<std::pair<LayerId, std::future<Stamp>>> stamping;
+  std::vector<std::pair<LayerId, Stamp>> stamped;
+  const int stamp_count = static_cast<int>(page_sources.size());
+  int stamps_done = 0;
+  const auto show_stamp_step = [&] {
+    progress.set_step(tr("Finishing page %1 of %2...").arg(std::min(stamps_done + 1, stamp_count)).arg(stamp_count),
+                      stamps_done, stamp_count);
+  };
+  const auto finish_oldest = [&] {
+    auto& [layer_id, future] = stamping.front();
+    while (future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
+      progress.pump();
+    }
+    stamped.emplace_back(layer_id, future.get());
+    stamping.pop_front();
+    ++stamps_done;
+    show_stamp_step();
+  };
+  if (stamp_count > 0) {
+    show_stamp_step();
+  }
   for (const auto& [page_layer_id, source] : page_sources) {
-    attach_pdf_page_source(first, page_layer_id, source);
+    if (stamping.size() >= window) {
+      finish_oldest();
+    }
+    stamping.emplace_back(page_layer_id,
+                          launch_async([&document = std::as_const(first), id = page_layer_id, source = source]() -> Stamp {
+                            const UiProfileScope profile_scope("pdf_merge.page_source");
+                            const auto page = document_for_imported_page(document, id);
+                            return page.has_value() ? stamped_pdf_source_page(*page, source) : nullptr;
+                          }));
+  }
+  while (!stamping.empty()) {
+    finish_oldest();
+  }
+  for (auto& [page_layer_id, stamp] : stamped) {
+    if (stamp != nullptr) {
+      first.metadata().pdf_page_source_pages[page_layer_id] = std::move(stamp);
+    }
   }
   if (const auto default_layer = default_non_group_layer_id(std::as_const(first).layers()); default_layer.has_value()) {
     first.set_active_layer(*default_layer);
@@ -4069,34 +4263,27 @@ void MainWindow::open_extra_imported_page_sessions(const QString& file_name,
   }
   auto* first_session = active_session();
   const auto first_session_id = first_session != nullptr ? first_session->session_id : 0;
-  // Text and image passes and the session setup all run here on the UI thread; a
-  // progress dialog plus an event pump per page keeps the window painting and lets
+  // The pages' pending text and images are rendered already (render_imported_pdf_pages,
+  // one image pass over every page); the session setup runs here on the UI thread. The
+  // open's progress dialog plus an event pump per page keeps the window painting and lets
   // each new tab show up in the tab bar as it is made instead of all at once at the end.
   const int page_count = static_cast<int>(pages.size()) + 1;
-  QProgressDialog progress(tr("Opening page %1 of %2...").arg(2).arg(page_count), QString(), 0, page_count, this);
-  progress.setObjectName(QStringLiteral("pdfPagesProgressDialog"));
-  progress.setWindowTitle(tr("Opening %1").arg(file_name));
-  progress.setWindowModality(Qt::WindowModal);
-  progress.setMinimumDuration(0);
-  progress.setCancelButton(nullptr);
-  progress.setAutoClose(false);
-  progress.setAutoReset(false);
-  remember_dialog_position(progress);
-  progress.setValue(1);
+  std::optional<OpenProgress> own_progress;
+  if (open_progress_ == nullptr) {
+    own_progress.emplace(*this, tr("Opening %1").arg(file_name), QStringLiteral("pdfPagesProgressDialog"), 0);
+  }
+  auto& progress = *open_progress_;
   int position = 1;
   for (auto& page : pages) {
     ++position;
-    progress.setLabelText(tr("Opening page %1 of %2...").arg(position).arg(page_count));
-    progress.setValue(position - 1);
-    QApplication::processEvents(QEventLoop::AllEvents);
+    progress.set_step(tr("Opening page %1 of %2...").arg(position).arg(page_count), position - 1, page_count);
+    progress.pump();
     const std::string profile_detail = "page=" + std::to_string(position);
-    {
-      const UiProfileScope profile_scope("pdf_pages.pending_layers", profile_detail);
-      render_pending_pdf_text_layers(page.document);
-      render_pending_pdf_image_layers(page.document);
-      if (depth.has_value()) {
-        finish_imported_pdf_document(page.document, mode, *depth, notices);
-      }
+    if (depth.has_value()) {
+      const UiProfileScope profile_scope("pdf_pages.finish", profile_detail);
+      finish_imported_pdf_document(page.document, mode, *depth, notices);
+      // The depth conversion names its own step.
+      progress.set_step(tr("Opening page %1 of %2...").arg(position).arg(page_count), position - 1, page_count);
     }
     {
       // In the background: page 1 stays the active document, and each of these fits
@@ -4115,9 +4302,9 @@ void MainWindow::open_extra_imported_page_sessions(const QString& file_name,
       }
     }
     const UiProfileScope profile_scope("pdf_pages.pump", profile_detail);
-    QApplication::processEvents(QEventLoop::AllEvents);
+    progress.pump();
   }
-  progress.setValue(page_count);
+  progress.set_step(tr("Opening page %1 of %2...").arg(page_count).arg(page_count), page_count, page_count);
   // Nothing above moved the active document, but an event pumped along the way could
   // have: land on page 1 either way.
   if (auto* first = session_with_id(first_session_id); first != nullptr && first != active_session()) {
@@ -4168,8 +4355,14 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
     render_pending_xcf_text_layers(loaded->document);
-    render_pending_pdf_text_layers(loaded->document);
-    render_pending_pdf_image_layers(loaded->document);
+    open_progress_stats_ = {};
+    std::optional<OpenProgress> pdf_progress;
+    if (loaded->pdf_bit_depth.has_value()) {
+      pdf_progress.emplace(*this, QCoreApplication::translate("QObject", "Import PDF - %1").arg(loaded->file_name),
+                           QStringLiteral("pdfPageImagesProgressDialog"),
+                           loaded->pdf_import_ms >= open_progress_delay_ms() ? 0 : -1);
+    }
+    render_imported_pdf_pages(loaded->document, loaded->extra_documents, loaded->pdf_merge);
     if (loaded->pdf_merge != PdfPagesMerge::None) {
       merge_imported_pdf_pages(loaded->document, loaded->document_title, loaded->extra_documents, loaded->pdf_merge,
                                loaded->pdf_white_background);
@@ -4178,6 +4371,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
       finish_imported_pdf_document(loaded->document, loaded->pdf_color_mode, *loaded->pdf_bit_depth,
                                    loaded->import_notices);
     }
+    pdf_progress.reset();
     lay_out_raster_less_imported_text(loaded->document);
     record_text_layout_metrics_for_reopened_text(loaded->document);
     if (!unattended_automation() &&

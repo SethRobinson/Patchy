@@ -88,6 +88,20 @@ public:
   // just saved; open_document_path_as_user switches to that document instead (issue 560).
   static void open_document_path(MainWindow& window, QString path);
   static void open_document_path_as_user(MainWindow& window, QString path);
+  // What the last open's progress did (MainWindow::OpenProgressStats, docs/pdf-import.md
+  // "Progress"): the dialogs it showed, the PDF page-image passes and images, the tasks it
+  // let run at once, and every step label in order.
+  struct OpenProgressRecord {
+    QStringList dialogs;
+    int pdf_image_passes{0};
+    int pdf_images{0};
+    int pdf_image_window{0};
+    QStringList steps;
+  };
+  static OpenProgressRecord open_progress_record(const MainWindow& window);
+  // The wait before an open's progress dialog shows; 0 makes it show at its first step, a
+  // negative value restores the default.
+  static void set_open_progress_delay_ms(int delay_ms);
   static void open_recent_document(MainWindow& window, QString path);
 
   static int open_folder_path(MainWindow& window, const QString& directory);

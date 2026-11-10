@@ -35,10 +35,13 @@
 #include <QFileInfo>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QImage>
 #include <QPainter>
+#include <QPointer>
+#include <QProgressDialog>
 #if __has_include(<QPdfDocument>)
 #include <QPdfDocument>
 #include <QPdfDocumentRenderOptions>
@@ -103,8 +106,11 @@ namespace patchy::ui {
 class MainWindowTestAccess {
  public:
   static void open_document_path(MainWindow& window, const QString& path) {
-    window.open_document_path(path, MainWindow::OpenExisting::LoadCopy);
+    // The Import PDF dialog, which pdfopen drives; a user's open shows a PDF in the viewer first.
+    window.open_document_path(path, MainWindow::OpenExisting::LoadCopy, MainWindow::PdfOpen::Import);
   }
+  static bool has_document(MainWindow& window) { return window.active_session() != nullptr; }
+  static CanvasWidget* canvas(MainWindow& window) { return window.canvas_; }
   static Document& document(MainWindow& window) { return window.document(); }
   static void toggle_layer_folder_expanded(MainWindow& window, patchy::LayerId id) {
     window.toggle_layer_folder_expanded(id);
@@ -2151,8 +2157,10 @@ void pdf_open_perf_if_available(int argc, char* argv[]) {
   std::cout << "[PERF] pdfopen file_bytes=" << QFileInfo(path).size() << " total_pages=" << total_pages
             << " measured_pages=" << pages << '\n';
 
+  // PATCHY_PERF_PDF_GUI_ONLY=1 runs only the real open at the end (a big merge needs the memory).
+  const bool gui_only = qEnvironmentVariableIsSet("PATCHY_PERF_PDF_GUI_ONLY");
 #ifdef PATCHY_PERF_HAVE_QPDF
-  {
+  if (!gui_only) {
     QPdfDocument pdf;
     const auto load_ms = elapsed_ms([&] { (void)pdf.load(path); });
     std::cout << "[PERF] pdfopen qpdf_load ms=" << load_ms << '\n';
@@ -2193,7 +2201,7 @@ void pdf_open_perf_if_available(int argc, char* argv[]) {
   }
 #endif
 
-  {
+  if (!gui_only) {
     QFile file(path);
     CHECK(file.open(QIODevice::ReadOnly));
     QByteArray bytes;
@@ -2221,7 +2229,7 @@ void pdf_open_perf_if_available(int argc, char* argv[]) {
               << " per_page_ms=" << vector_ms / pages << " failed_pages=" << failed << " layers=" << layers << '\n';
   }
 
-  {
+  if (!gui_only) {
     patchy::ui::PdfImportOptions options;
     for (int page = 0; page < pages; ++page) {
       options.pages.push_back(page);
@@ -2238,15 +2246,65 @@ void pdf_open_perf_if_available(int argc, char* argv[]) {
 
   // The real thing: File > Open through the import dialog with its stored defaults
   // (editable, separate documents), the first `pages` pages selected.
+  // PATCHY_PERF_PDF_TARGET=documents|layers|artboards picks "Pages become" and
+  // PATCHY_PERF_PDF_PPI the resolution. A 5 ms timer measures how long the UI thread goes
+  // without an event-loop turn after the dialog is accepted (the stalls a user sees as a
+  // frozen window) and records which progress dialogs come up.
   {
     patchy::ui::MainWindow window;
     window.resize(1600, 1000);
     window.show();
     QApplication::processEvents();
     const auto started = Clock::now();
+    const auto since_start = [started] {
+      return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    };
+    const QString target = QString::fromLocal8Bit(qgetenv("PATCHY_PERF_PDF_TARGET"));
+    const QString ppi = QString::fromLocal8Bit(qgetenv("PATCHY_PERF_PDF_PPI"));
+    struct Stall {
+      double at_ms;
+      double gap_ms;
+    };
+    struct SeenDialog {
+      QPointer<QProgressDialog> dialog;
+      QString name;
+      QString first_label;
+      QString last_label;
+      int maximum{0};
+      double shown_at_ms{0.0};
+    };
+    auto stalls = std::make_shared<std::vector<Stall>>();
+    auto seen = std::make_shared<std::vector<SeenDialog>>();
+    auto last_tick_ms = std::make_shared<double>(-1.0);
+    QTimer watch;
+    watch.setInterval(5);
+    watch.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&watch, &QTimer::timeout, &window, [=] {
+      const double now = since_start();
+      if (*last_tick_ms >= 0.0 && now - *last_tick_ms >= 200.0) {
+        stalls->push_back({*last_tick_ms, now - *last_tick_ms});
+      }
+      *last_tick_ms = now;
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* progress = qobject_cast<QProgressDialog*>(widget);
+        if (progress == nullptr || !progress->isVisible()) {
+          continue;
+        }
+        const auto found = std::find_if(seen->begin(), seen->end(), [progress](const SeenDialog& entry) {
+          return entry.dialog == progress;
+        });
+        if (found == seen->end()) {
+          seen->push_back({progress, progress->objectName(), progress->labelText(), progress->labelText(),
+                           progress->maximum(), now});
+        } else {
+          found->last_label = progress->labelText();
+          found->maximum = progress->maximum();
+        }
+      }
+    });
     auto dialog_shown_ms = std::make_shared<double>(-1.0);
     auto step = std::make_shared<std::function<bool()>>();
-    *step = [pages, started, dialog_shown_ms] {
+    *step = [pages, started, dialog_shown_ms, target, ppi, last_tick_ms, &watch] {
       QDialog* dialog = nullptr;
       for (auto* widget : QApplication::topLevelWidgets()) {
         if (widget->objectName() == QStringLiteral("pdfImportDialog") && widget->isVisible()) {
@@ -2266,6 +2324,19 @@ void pdf_open_perf_if_available(int argc, char* argv[]) {
       for (int row = 0; row < std::min(pages, list->count()); ++row) {
         list->item(row)->setSelected(true);
       }
+      if (auto* target_combo = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportPagesTargetCombo"));
+          target_combo != nullptr && !target.isEmpty()) {
+        target_combo->setCurrentIndex(std::max(0, target_combo->findData(target)));
+      }
+      if (auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportResolutionCombo"));
+          resolution != nullptr && !ppi.isEmpty()) {
+        resolution->setCurrentText(ppi);
+      }
+      if (auto* size_label = dialog->findChild<QLabel*>(QStringLiteral("pdfImportSizeLabel")); size_label != nullptr) {
+        std::cout << "[PERF] pdfopen size_label=\"" << clean_name(size_label->text().toStdString()) << "\"\n";
+      }
+      *last_tick_ms = -1.0;
+      watch.start();
       import_button->click();
       return true;
     };
@@ -2274,9 +2345,50 @@ void pdf_open_perf_if_available(int argc, char* argv[]) {
       patchy::ui::MainWindowTestAccess::open_document_path(window, path);
       QApplication::processEvents();
     });
+    // A very large canvas gets its first frame from a worker after the open returns: time
+    // until the picture is there, with the stall watch still running.
+    double first_frame_ms = open_ms;
+    if (auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window); canvas != nullptr) {
+      const auto deadline = Clock::now() + std::chrono::minutes(15);
+      while (!canvas->render_settled() && Clock::now() < deadline) {
+        QApplication::processEvents(QEventLoop::AllEvents, 20);
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+      first_frame_ms = since_start();
+      QApplication::processEvents();
+    }
+    watch.stop();
+    // The last stretch has no tick after it when the open returns mid-stall.
+    if (*last_tick_ms >= 0.0 && since_start() - *last_tick_ms >= 200.0) {
+      stalls->push_back({*last_tick_ms, since_start() - *last_tick_ms});
+    }
     std::cout << "[PERF] pdfopen gui_open pages=" << pages << " dialog_shown_ms=" << *dialog_shown_ms
               << " total_ms=" << open_ms << " after_dialog_ms=" << open_ms - *dialog_shown_ms
-              << " after_dialog_per_page_ms=" << (open_ms - *dialog_shown_ms) / pages << '\n';
+              << " after_dialog_per_page_ms=" << (open_ms - *dialog_shown_ms) / pages
+              << " first_frame_after_dialog_ms=" << first_frame_ms - *dialog_shown_ms << '\n';
+    CHECK(patchy::ui::MainWindowTestAccess::has_document(window));
+    if (!patchy::ui::MainWindowTestAccess::has_document(window)) {
+      return;
+    }
+    const auto& opened = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    double longest = 0.0;
+    double stalled = 0.0;
+    for (const auto& stall : *stalls) {
+      longest = std::max(longest, stall.gap_ms);
+      stalled += stall.gap_ms;
+      std::cout << "[PERF] pdfopen ui_stall at_ms=" << stall.at_ms - *dialog_shown_ms << " gap_ms=" << stall.gap_ms
+                << '\n';
+    }
+    std::cout << "[PERF] pdfopen gui_open_result target=" << (target.isEmpty() ? "stored" : target.toStdString())
+              << " canvas=" << opened.width() << "x" << opened.height() << " top_layers=" << opened.layers().size()
+              << " stalls_over_200ms=" << stalls->size() << " longest_stall_ms=" << longest
+              << " stalled_total_ms=" << stalled << '\n';
+    for (const auto& entry : *seen) {
+      std::cout << "[PERF] pdfopen progress_dialog name=" << entry.name.toStdString()
+                << " shown_at_ms=" << entry.shown_at_ms - *dialog_shown_ms << " maximum=" << entry.maximum
+                << " first=\"" << clean_name(entry.first_label.toStdString()) << "\" last=\""
+                << clean_name(entry.last_label.toStdString()) << "\"\n";
+    }
   }
 }
 

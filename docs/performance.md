@@ -57,10 +57,18 @@ previous-frame-async semantics as pixel-huge documents. With no same-size
 previous frame to show (first paint of a fresh session),
 `should_defer_first_render_to_async` kicks the async composite and paints
 checkerboard plus the processing spinner instead of freezing
-(`first_render_spinner_active` drives the overlay with no stored state);
-pixel-huge documents keep a synchronous first paint. Both gates
+(`first_render_spinner_active` drives the overlay with no stored state).
+A very large canvas takes the same first-paint route from
+`kDeferFirstRenderMinPixels` (200 Mpx) up: composited inside the paint, a
+1,048 Mpx canvas (eight scanned PDF pages as artboards at 300 ppi) then held
+the window while paint built the zoomed-out display mips of its 4 GB frame.
+A session's first async frame builds the mip chain of the fitted view on the
+worker (`fit_logical_zoom`), because the open fits the view right after the
+first paint asks for the frame
+(`ui_canvas_very_large_document_first_paint_runs_in_background`). Other
+pixel-huge documents keep a synchronous first paint. The gates
 are compile-time constants on purpose: tests need deterministic paint
-semantics, and nothing in the suites builds 200 layers.
+semantics, and nothing else in the suites builds 200 layers or 200 Mpx.
 
 ## Parallel strip rendering
 
