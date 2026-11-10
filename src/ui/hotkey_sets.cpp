@@ -49,7 +49,8 @@ constexpr std::array kPhotoshopEntries{
 };
 
 // GIMP-style: the GIMP 3.0 User Manual (docs.gimp.org/3.0/en: the tool pages, the menu
-// command pages and the Keys and Mouse Reference). GIMP's plain 1 (zoom 1:1) is a digit,
+// command pages and the Keys and Mouse Reference), plus the size and opacity keys GIMP 3's own
+// Keyboard Shortcuts dialog lists (issue 645 follow-up 2). GIMP's plain 1 (zoom 1:1) is a digit,
 // which Patchy keeps for layer opacity, so it is left out. Patchy keys that GIMP's take over
 // with no GIMP default of their own are cleared ("").
 constexpr std::array kGimpEntries{
@@ -161,6 +162,24 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"channel.view_second", ""},
     HotkeySetEntry{"channel.view_third", ""},
     HotkeySetEntry{"channel.view_fourth", ""},
+    // Issue 645 follow-up 2, from GIMP 3's own Edit > Keyboard Shortcuts list (Tool's Size and
+    // Tool's Opacity): [ ] size by 1, { } by 10, < > opacity by 1, Ctrl+< Ctrl+> by 10. On a
+    // US layout Qt matches { } < > as Shift+[ Shift+] Shift+, Shift+. (as the defaults do), so
+    // Patchy's own keys there (Brush Smaller/Larger, Softer/Harder, First/Last Preset) go.
+    HotkeySetEntry{"brush.size_minus_1", "["},
+    HotkeySetEntry{"brush.size_plus_1", "]"},
+    HotkeySetEntry{"brush.size_minus_10", "Shift+["},
+    HotkeySetEntry{"brush.size_plus_10", "Shift+]"},
+    HotkeySetEntry{"brush.opacity_minus_1", "Shift+,"},
+    HotkeySetEntry{"brush.opacity_plus_1", "Shift+."},
+    HotkeySetEntry{"brush.opacity_minus_10", "Ctrl+Shift+,"},
+    HotkeySetEntry{"brush.opacity_plus_10", "Ctrl+Shift+."},
+    HotkeySetEntry{"brush.smaller", ""},
+    HotkeySetEntry{"brush.larger", ""},
+    HotkeySetEntry{"brush.softer", ""},
+    HotkeySetEntry{"brush.harder", ""},
+    HotkeySetEntry{"brush.preset_first", ""},
+    HotkeySetEntry{"brush.preset_last", ""},
 };
 
 // Krita-style: Krita's own default scheme (not its Photoshop-compatible one), from the Krita
