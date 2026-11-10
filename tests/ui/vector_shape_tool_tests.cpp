@@ -5525,12 +5525,13 @@ void ui_shape_stroke_width_zero_means_no_stroke() {
   stroke = patchy::VectorFill{};
   stroke.color = patchy::RgbColor{220, 30, 30};
 
-  // 10 px: an inside stroke along the left edge.
+  // 10 px: an inside stroke along the left edge (read off the edge's midpoint, where the
+  // Rectangle tool's resize handle sits, GitHub issue 690).
   stroke_width->setValue(10.0);
   shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
   const auto stroked_id = document.active_layer_id();
   CHECK(stroked_id.has_value());
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 160)), QColor(220, 30, 30), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 140)), QColor(220, 30, 30), 12));
 
   // 0: no stroke; the fill reaches the edge, the model keeps the 10 px width. The Background is
   // made active first, or the bar would live-edit the stroked shape (Photoshop's rule).
@@ -5546,7 +5547,7 @@ void ui_shape_stroke_width_zero_means_no_stroke() {
   shape_drag(*canvas, QPoint(400, 100), QPoint(600, 220));
   const auto plain_id = document.active_layer_id();
   CHECK(plain_id.has_value() && plain_id != stroked_id);
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(403, 160)), QColor(255, 255, 255), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(403, 140)), QColor(255, 255, 255), 12));
   if (!stroked_id || !plain_id) {
     return;
   }
