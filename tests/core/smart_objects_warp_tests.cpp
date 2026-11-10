@@ -428,7 +428,8 @@ void psd_smart_object_fixture_parses_placement_and_source() {
   CHECK(source->file_bytes != nullptr);
   CHECK(source->file_bytes->size() == 8012);  // the original png, byte-for-byte
   CHECK(source->file_bytes->size() >= 8 && (*source->file_bytes)[1] == 'P' && (*source->file_bytes)[2] == 'N');
-  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+  // An editable smart object asks nothing of the user, so no import note names it (issue 669).
+  CHECK(std::none_of(notices.begin(), notices.end(), [](const std::string& notice) {
     return notice.find("smart object") != std::string::npos;
   }));
 }

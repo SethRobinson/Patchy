@@ -306,7 +306,9 @@ void ui_text_options_bar_rtl_toggle_sets_the_paragraph_direction() {
     return;
   }
   CHECK(rtl->isVisible() && rtl->focusPolicy() == Qt::NoFocus);
-  CHECK(rtl->text() == QStringLiteral("RTL"));
+  // Issue 673 follow-up: an icon button, named for screen readers, explained by its tooltip.
+  CHECK(rtl->text().isEmpty() && !rtl->icon().isNull());
+  CHECK(rtl->accessibleName() == QStringLiteral("RTL") && !rtl->toolTip().isEmpty());
   select_row(window, QStringLiteral("Beta"));
   CHECK(rtl->isEnabled() && !rtl->isChecked());
   const auto depth = MainWindowTestAccess::active_session_undo_depth(window);

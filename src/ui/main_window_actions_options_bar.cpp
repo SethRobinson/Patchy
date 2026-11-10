@@ -5232,7 +5232,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(text_align_right_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Justify on top of L / C / R (GitHub issue 673): L, C and R show the last line, so Center +
   // Justify is Justify (last line centered); Justify all shows Justify with none of the three.
-  // Outside the exclusive group, and Qt::NoFocus like the Vertical toggle.
+  // An independent toggle, so it opens the Vertical / RTL section rather than joining the
+  // exclusive L / C / R group (issue 673 follow-up). Qt::NoFocus like the Vertical toggle.
   text_justify_button_ = new QPushButton(toolbar);
   text_justify_button_->setIcon(text_alignment_icon(Qt::AlignJustify, false));
   text_justify_button_->setObjectName(QStringLiteral("textJustifyButton"));
@@ -5241,29 +5242,39 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                QT_TR_NOOP("Justify: spread lines to both edges; the last line follows Left, Center or Right"));
   text_justify_button_->setFixedSize(30, 26);
   text_justify_button_->setFocusPolicy(Qt::NoFocus);
+  add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
   add_option_widget(text_justify_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Photoshop's "Toggle text orientation": one Type tool with a vertical switch instead of a
   // second tool. Qt::NoFocus like the session buttons, so toggling never auto-commits.
-  text_orientation_button_ = new QPushButton(tr("Vertical"), toolbar);
-  bind_widget_text(text_orientation_button_, QT_TR_NOOP("Vertical"));
+  // Vertical and RTL are icon buttons (a T with a down arrow, a T over a left arrow; issue 673
+  // follow-up): the words stay as their accessible names and the tooltips explain them.
+  text_orientation_button_ = new QPushButton(toolbar);
+  text_orientation_button_->setIcon(text_flow_toggle_icon(true));
+  text_orientation_button_->setIconSize(QSize(20, 20));
   text_orientation_button_->setObjectName(QStringLiteral("textOrientationButton"));
   text_orientation_button_->setCheckable(true);
   text_orientation_button_->setChecked(false);
   bind_tooltip(text_orientation_button_, QT_TR_NOOP("Vertical text: columns read top to bottom, right to left"));
+  text_orientation_button_->setFixedSize(30, 26);
   text_orientation_button_->setFocusPolicy(Qt::NoFocus);
-  add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
   add_option_widget(text_orientation_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Paragraph direction as one toggle (GitHub issue 673): checked only for an explicit right to
   // left paragraph; a press sets right to left, a second press left to right. The Paragraph
   // panel's Direction list and Type > Direction keep Auto.
-  text_rtl_button_ = new QPushButton(tr("RTL"), toolbar);
-  bind_widget_text(text_rtl_button_, QT_TR_NOOP("RTL"));
+  text_rtl_button_ = new QPushButton(toolbar);
+  text_rtl_button_->setIcon(text_flow_toggle_icon(false));
+  text_rtl_button_->setIconSize(QSize(20, 20));
   text_rtl_button_->setObjectName(QStringLiteral("textRtlButton"));
   text_rtl_button_->setCheckable(true);
   bind_tooltip(text_rtl_button_,
                QT_TR_NOOP("Right to left paragraph direction (press again for left to right)"));
+  text_rtl_button_->setFixedSize(30, 26);
   text_rtl_button_->setFocusPolicy(Qt::NoFocus);
   add_option_widget(text_rtl_button_, {CanvasTool::Text, CanvasTool::TypeMask});
+  register_retranslation([this] {
+    text_orientation_button_->setAccessibleName(tr("Vertical"));
+    text_rtl_button_->setAccessibleName(tr("RTL"));
+  });
   add_option_separator({CanvasTool::Text});
   text_warp_button_ = new QPushButton(tr("Warp..."), toolbar);
   bind_widget_text(text_warp_button_, QT_TR_NOOP("Warp..."));

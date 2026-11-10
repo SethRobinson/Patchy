@@ -1345,8 +1345,10 @@ void ui_pick_options_bar_groups_its_controls() {
 // GitHub issue 343: the Text bar reads Font and style | Size | ... | color | ..., and the text
 // color button is the shape bar's framed swatch button (optionsBarSwatch, a wide chip of the
 // color) instead of a colored "T". GitHub issue 673: Size | Bold Italic Underline | color |
-// L C R Justify | Vertical RTL | Warp | Character Paragraph, with no Smoothing list. The row
-// still fits one line at 1366 px. The artifacts are the issue shots, in both schemes.
+// L C R | Justify Vertical RTL | Warp | Character Paragraph, with no Smoothing list; Justify is
+// an independent toggle, so it opens the Vertical / RTL section, and Vertical and RTL are icon
+// buttons with tooltips (issue 673 follow-up). The row still fits one line at 1366 px. The
+// artifacts are the issue shots, in both schemes.
 void ui_text_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -1400,9 +1402,38 @@ void ui_text_options_bar_groups_its_controls() {
                   QStringLiteral("textFauxItalicButton"), QStringLiteral("textUnderlineButton"), QStringLiteral("|"),
                   QStringLiteral("textColorButton"), QStringLiteral("|"), QStringLiteral("textAlignLeftButton"),
                   QStringLiteral("textAlignCenterButton"), QStringLiteral("textAlignRightButton"),
-                  QStringLiteral("textJustifyButton"), QStringLiteral("|"), QStringLiteral("textOrientationButton"),
+                  QStringLiteral("|"), QStringLiteral("textJustifyButton"), QStringLiteral("textOrientationButton"),
                   QStringLiteral("textRtlButton"), QStringLiteral("|"), QStringLiteral("textWarpButton"),
                   QStringLiteral("|"), QStringLiteral("textCharacterButton")}) >= 0);
+    std::printf("  text%s row right edge: %d of %d px\n", suffix.c_str(), options_row_extent(*options).first,
+                options->width());
+    // Vertical and RTL are icon toggles the size of Justify, named by tooltip and accessible name,
+    // and their checked face differs from the unchecked one.
+    auto* justify = window.findChild<QPushButton*>(QStringLiteral("textJustifyButton"));
+    CHECK(justify != nullptr);
+    for (const char* name : {"textOrientationButton", "textRtlButton"}) {
+      auto* toggle = window.findChild<QPushButton*>(QLatin1String(name));
+      CHECK(toggle != nullptr);
+      if (toggle == nullptr || justify == nullptr) {
+        continue;
+      }
+      CHECK(toggle->text().isEmpty() && !toggle->icon().isNull());
+      CHECK(!toggle->toolTip().isEmpty() && !toggle->accessibleName().isEmpty());
+      CHECK(toggle->isCheckable() && toggle->focusPolicy() == Qt::NoFocus);
+      CHECK(toggle->size() == justify->size());
+      const bool was_checked = toggle->isChecked();
+      const QImage off = toggle->grab().toImage();
+      {
+        QSignalBlocker blocker(toggle);
+        toggle->setChecked(true);
+      }
+      const QImage on = toggle->grab().toImage();
+      {
+        QSignalBlocker blocker(toggle);
+        toggle->setChecked(was_checked);
+      }
+      CHECK(off != on);
+    }
 
     auto* color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
     auto* fill = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));

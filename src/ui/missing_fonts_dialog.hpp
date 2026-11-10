@@ -41,6 +41,10 @@ struct MissingFontsDialogResult {
   bool show_on_open{true};
 };
 
+// Each row's name label (missingFontName<N>) shows the family part of a name with a style
+// ("Museo Sans Rounded", the style in missingFontStyle<N>); this property holds the whole name.
+inline constexpr const char* kMissingFontFullNameProperty = "patchyMissingFontFullName";
+
 // nullopt when cancelled. `show_on_open` seeds the "Don't show" box; a cancel still reports it
 // through `show_on_open_out`, since that box is about the dialog itself, not the fonts.
 [[nodiscard]] std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(

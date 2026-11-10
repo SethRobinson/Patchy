@@ -12,6 +12,7 @@
 #include "ui/font_face_name_index.hpp"
 #include "ui/fontconfig_font_class.hpp"
 #include "ui/main_window.hpp"
+#include "ui/missing_fonts_dialog.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/text_font_service.hpp"
@@ -153,7 +154,9 @@ int missing_font_row(QDialog& dialog, const QString& family) {
     if (name == nullptr) {
       return -1;
     }
-    if (name->text() == family) {
+    // The label shows only the family part of a name with a style (issue 669); the property
+    // holds the whole name.
+    if (name->property(patchy::ui::kMissingFontFullNameProperty).toString() == family) {
       return index;
     }
   }
@@ -1112,6 +1115,74 @@ void ui_replace_all_missing_fonts_uses_recommendations_then_the_default() {
   CHECK(status_message(clean) == QStringLiteral("This document has no missing fonts"));
 }
 
+// GitHub issue 669 follow-up: a row shows the family in bold with its style beside it, split as
+// the options bar shows a missing font ("Museo Sans Rounded" + "500"), while Resolve still
+// replaces the whole name. A name with no style shows whole, with no style label.
+void ui_missing_fonts_dialog_shows_family_and_style_apart() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto styled = QStringLiteral("Museo Sans Rounded 500");
+  const auto plain = QStringLiteral("Anydore");
+  for (const auto& family : {styled, plain}) {
+    if (patchy::ui::available_text_family_match(family).has_value() ||
+        patchy::ui::available_text_family_style_match(family).has_value()) {
+      patchy::test::skip("the test font is installed on this host");
+    }
+  }
+  const auto replacement = patchy::test::visual_test_font().family();
+  CHECK(QFontDatabase::families().contains(replacement));
+  auto document = white_document();
+  const auto plain_id = document.add_layer(missing_font_text_layer(document, "Plain", plain, 20)).id();
+  const auto styled_id = document.add_layer(missing_font_text_layer(document, "Styled", styled, 70)).id();
+  const auto second_id = document.add_layer(missing_font_text_layer(document, "Second", styled, 120)).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Split Names"));
+  QApplication::processEvents();
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto styled_row = missing_font_row(dialog, styled);
+        const auto plain_row = missing_font_row(dialog, plain);
+        CHECK(styled_row >= 0 && plain_row >= 0);
+        auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingFontName%1").arg(styled_row));
+        auto* style = dialog.findChild<QLabel*>(QStringLiteral("missingFontStyle%1").arg(styled_row));
+        CHECK(name != nullptr && name->text() == QStringLiteral("Museo Sans Rounded") && name->font().bold());
+        CHECK(style != nullptr && style->text() == QStringLiteral("500") && !style->font().bold());
+        auto* plain_name = dialog.findChild<QLabel*>(QStringLiteral("missingFontName%1").arg(plain_row));
+        CHECK(plain_name != nullptr && plain_name->text() == plain);
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontStyle%1").arg(plain_row)) == nullptr);
+        save_widget_artifact("ui_missing_fonts_dialog_family_and_style", dialog);
+        auto* plain_check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(plain_row));
+        auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(
+            QStringLiteral("missingFontReplacementCombo%1").arg(styled_row));
+        auto* resolve = dialog.findChild<QPushButton*>(QStringLiteral("missingFontsResolveButton"));
+        CHECK(plain_check != nullptr && picker != nullptr && resolve != nullptr);
+        if (plain_check == nullptr || picker == nullptr || resolve == nullptr) {
+          dialog.reject();
+          return;
+        }
+        plain_check->setChecked(false);
+        picker->setCurrentFont(QFont(replacement));
+        resolve->click();
+      },
+      seen);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  action->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+  CHECK(layer_font(window, styled_id) == replacement);
+  CHECK(layer_font(window, second_id) == replacement);
+  CHECK(layer_font(window, plain_id) == plain);
+}
+
 // Opening a document with missing fonts shows the dialog (Photoshop does); "Don't show when
 // opening documents" turns that off, and Type > Resolve Missing Fonts still opens it.
 void ui_missing_fonts_dialog_shows_on_open_until_turned_off() {
@@ -1998,6 +2069,7 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_update_all_text_layers_rewrites_photoshop_text", ui_update_all_text_layers_rewrites_photoshop_text},
       {"ui_replace_all_missing_fonts_uses_recommendations_then_the_default",
        ui_replace_all_missing_fonts_uses_recommendations_then_the_default},
+      {"ui_missing_fonts_dialog_shows_family_and_style_apart", ui_missing_fonts_dialog_shows_family_and_style_apart},
       {"ui_missing_fonts_dialog_shows_on_open_until_turned_off", ui_missing_fonts_dialog_shows_on_open_until_turned_off},
       {"ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show", ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show},
       {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},

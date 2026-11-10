@@ -51,7 +51,7 @@ void ui_smart_filter_adjustment_entry_edits_with_its_dialog() {
   CHECK(QFileInfo::exists(path));
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
-  // Review shot: the import notice counts every adjustment-filtered layer as editable.
+  // Review shot: the document as opened.
   save_widget_artifact("ui_smart_filter_adjustments_opened", window);
 
   const auto layer_id = select_named_layer(window, QStringLiteral("Levels master"));

@@ -50,11 +50,14 @@ session, selection and commit boundary; a layer is read once per revision) and
   italic twin, `apply_text_character_style_to_active_editor(4, on)`), so one Type step each
   and the panel and bar show each other's changes. They do not seed new text, and turn off with
   no session or text layer to edit.
-- **Justify** sits on top of L / C / R, which show the last line: Left + Justify is `justify`,
+- **Justify** sits on top of L / C / R, which show the last line; it is its own toggle, so the bar
+  puts it in the Vertical and RTL section, and its icon is four full lines: Left + Justify is `justify`,
   Center + Justify `justifyCenter`, Right + Justify `justifyRight`; `justifyAll` checks Justify
   with none of L / C / R (the sync lifts the group's exclusivity to clear them). Pressing L, C
   or R while Justify is on keeps it and changes the last line; Justify off returns to the plain
   alignment (Left from Justify all).
+- **Vertical** and **RTL** are icon buttons (`text_flow_toggle_icon`), named for screen readers
+  and explained by their tooltips.
 - **RTL** is checked only for an explicit right to left paragraph (Auto shows unchecked); a
   press applies right to left, the next left to right, through
   `apply_text_direction_to_active_editor`. Off with no text to edit.
