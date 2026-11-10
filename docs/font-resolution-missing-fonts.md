@@ -68,7 +68,10 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
 - **Type > Resolve Missing Fonts** (issue 169; hotkey id `type.resolve_missing_fonts`;
   `src/ui/missing_fonts_dialog.*`, `main_window_missing_fonts.cpp`). One row per family any text
   layer cannot draw, hidden and grouped layers included, deduped by `text_font_replacement_key`
-  (the compact key), with a `@dlg_divider` line between rows. Every row starts ticked (Seth,
+  (the compact key), with a `@dlg_divider` line between rows. A row's name shows the family in bold
+  with the style beside it, split by `split_font_family_and_style` as the options bar does
+  (issue 669: "Museo Sans Rounded" + "500"; display only, the whole name stays the row's key and
+  the label's `patchyMissingFontFullName` property). Every row starts ticked (Seth,
   issue 463 follow-up) with its picker on the suggested stand-in ("Substitute table" below), else
   the face drawing the text now. "Resolve Fonts" is enabled while at least one row is ticked;
   there is no "Don't Resolve" button: Cancel or Escape keeps every font (the file keeps the
