@@ -82,8 +82,12 @@ without touching the paragraph style):
   Every-line on** (and `burasagari` to `burasagariStandard`, `/24 1`). The `textKey` getter
   reports only what the run states, so writing a layer's own `textKey` back, or the DOM's
   `textItem.justification = textItem.justification`, changes the composer of such a layer and
-  re-breaks its lines. Never use either to read a setting or to refresh a reference render;
-  re-lay text out with a `textStyle` property set instead (tracking to another value and back).
+  re-breaks its lines. Never use either to read a setting or to refresh a reference render.
+  To re-lay text out, set the layer's own `textClickPoint` alone (Testy's `refreshText`:
+  every paragraph and run reads back identical, mixed runs included), or, only on a layer
+  whose runs all have tracking 0, a `textStyle` set of tracking to another value and back
+  (`ps-relayout.ps1`; it levels every run's own tracking). A set of `textStyleRange` alone
+  resets the layer's anti-aliasing.
 
 Acceptance (Photoshop 2026 over COM on This PC, November 2026): the Every-line version of
 issue 672's file, a layer with one Every-line and one Single-line paragraph, and issue 672's

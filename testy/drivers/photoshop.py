@@ -211,81 +211,26 @@ _PROBE_JSX = r"""
   }
 
   // The settings of a type layer a save can silently change while the layer stays text:
-  // each paragraph's justification, Hyphenate, direction and composer, and the layer's
-  // orientation, anti-aliasing and kind (point or box), for the text-save leg
+  // each paragraph's justification, Hyphenate, direction and line composer, and the
+  // layer's orientation, anti-aliasing and kind (point or box), for the text-save leg
   // (manifest.py text_setting_changes). The layer's textKey descriptor names a value only
-  // where the layer states it: a paragraph that leaves Hyphenate or the composer to the
-  // document's default sheet has no such key, and no getter resolves it. Photoshop does
-  // write the whole paragraph sheet out once a paragraph property is set, even to the
-  // value it has, so resolveTextSettings does exactly that on a throwaway duplicate
-  // (never the document, never the duplicate that is rendered) and textSettings takes
-  // from it the values the layer itself leaves out. What stays unknown is null, and
-  // manifest.py compares only values both files give.
-  function enumOrNull(d, sid) {
-    var t = stringIDToTypeID(sid);
-    try { return d.hasKey(t) ? q(typeIDToStringID(d.getEnumerationValue(t))) : 'null'; } catch (e) { return 'null'; }
-  }
-  function boolOrNull(d, sid) {
-    var t = stringIDToTypeID(sid);
-    try { return d.hasKey(t) ? (d.getBoolean(t) ? 'true' : 'false') : 'null'; } catch (e) { return 'null'; }
-  }
-  function paragraphRows(textKey) {
-    var ranges = textKey.getList(stringIDToTypeID('paragraphStyleRange'));
-    var rows = [];
-    for (var r = 0; r < ranges.count; r++) {
-      var range = ranges.getObjectValue(r);
-      var style = range.getObjectValue(stringIDToTypeID('paragraphStyle'));
-      rows.push({from: range.getInteger(stringIDToTypeID('from')), to: range.getInteger(stringIDToTypeID('to')),
-                 align: enumOrNull(style, 'align'), hyphenate: boolOrNull(style, 'hyphenate'),
-                 direction: enumOrNull(style, 'directionType'),
-                 everyLineComposer: boolOrNull(style, 'textEveryLineComposer')});
-    }
-    return rows;
-  }
-  var resolvedText = {};  // layer path -> paragraphRows() after the write
-  function resolveTextSettings(doc) {
-    var dup = null;
-    var started = (new Date()).getTime();
-    function visit(layers, path) {
-      for (var i = 0; i < layers.length; i++) {
-        var L = layers[i];
-        var p = path === '' ? String(i) : path + '/' + i;
-        if (L.typename == 'LayerSet') { visit(L.layers, p); continue; }
-        var kind = '';
-        try { kind = String(L.kind); } catch (e) {}
-        if (kind != 'LayerKind.TEXT') { continue; }
-        // (Well inside the probe's hang watchdog; the layers left over stay unresolved.)
-        if ((new Date()).getTime() - started > 20000) { return; }
-        try {
-          if (L.allLocked) { continue; }
-          // Changes nothing about one paragraph; in a layer whose paragraphs differ it
-          // would level their justification, which is why only the values the layer
-          // itself leaves out are read from this duplicate.
-          L.textItem.justification = L.textItem.justification;
-          resolvedText[p] = paragraphRows(layerDescriptor(L.id).getObjectValue(stringIDToTypeID('textKey')));
-        } catch (e) {}
-      }
-    }
-    function hasText(layers) {
-      for (var i = 0; i < layers.length; i++) {
-        if (layers[i].typename == 'LayerSet') { if (hasText(layers[i].layers)) { return true; } continue; }
-        try { if (String(layers[i].kind) == 'LayerKind.TEXT') { return true; } } catch (e) {}
-      }
-      return false;
-    }
-    try {
-      if (!hasText(doc.layers)) { return; }
-      dup = doc.duplicate();
-      visit(dup.layers, '');
-    } catch (e) {}
-    try { if (dup !== null) { dup.close(SaveOptions.DONOTSAVECHANGES); } } catch (e2) {}
-    try { app.activeDocument = doc; } catch (e3) {}
-  }
+  // where the layer states it: a paragraph that leaves Hyphenate or the composer to its
+  // parent sheet has no such key, and it is written here as null. Nothing may be SET to
+  // find it out: an Action Manager set whose paragraphStyle leaves the line composer out
+  // turns Adobe Every-line Composer on (docs/txt2-kept-settings.md, "Line composer"), so
+  // a set of even one paragraph property to the value it has re-breaks the paragraph.
+  // The values a layer leaves out are read from the file's own sheets instead
+  // (text_sheets.py, on the Python side).
   // Appended to a type layer's manifest entry as ',"key":...' pairs; '' when the
   // descriptor cannot be read.
-  function textSettings(id, path) {
-    function pick(row, filled, key) {
-      return (row[key] == 'null' && filled !== null) ? filled[key] : row[key];
+  function textSettings(id) {
+    function enumOrNull(d, sid) {
+      var t = stringIDToTypeID(sid);
+      try { return d.hasKey(t) ? q(typeIDToStringID(d.getEnumerationValue(t))) : 'null'; } catch (e) { return 'null'; }
+    }
+    function boolOrNull(d, sid) {
+      var t = stringIDToTypeID(sid);
+      try { return d.hasKey(t) ? (d.getBoolean(t) ? 'true' : 'false') : 'null'; } catch (e) { return 'null'; }
     }
     try {
       var textKey = layerDescriptor(id).getObjectValue(stringIDToTypeID('textKey'));
@@ -293,17 +238,17 @@ _PROBE_JSX = r"""
                   ',"antiAlias":' + enumOrNull(textKey, 'antiAlias');
       var shapes = textKey.getList(stringIDToTypeID('textShape'));
       found += ',"textKind":' + (shapes.count > 0 ? enumOrNull(shapes.getObjectValue(0), 'char') : 'null');
-      var stated = paragraphRows(textKey);
-      var resolved = resolvedText[path];
+      var ranges = textKey.getList(stringIDToTypeID('paragraphStyleRange'));
       var rows = [];
-      for (var r = 0; r < stated.length; r++) {
-        var row = stated[r];
-        var filled = (resolved && resolved.length == stated.length &&
-                      resolved[r].from == row.from && resolved[r].to == row.to) ? resolved[r] : null;
-        rows.push('{"from":' + row.from + ',"to":' + row.to + ',"align":' + row.align +
-                  ',"hyphenate":' + pick(row, filled, 'hyphenate') +
-                  ',"direction":' + pick(row, filled, 'direction') +
-                  ',"everyLineComposer":' + pick(row, filled, 'everyLineComposer') + '}');
+      for (var r = 0; r < ranges.count; r++) {
+        var range = ranges.getObjectValue(r);
+        var style = range.getObjectValue(stringIDToTypeID('paragraphStyle'));
+        rows.push('{"from":' + range.getInteger(stringIDToTypeID('from')) +
+                  ',"to":' + range.getInteger(stringIDToTypeID('to')) +
+                  ',"align":' + enumOrNull(style, 'align') +
+                  ',"hyphenate":' + boolOrNull(style, 'hyphenate') +
+                  ',"direction":' + enumOrNull(style, 'directionType') +
+                  ',"everyLineComposer":' + boolOrNull(style, 'textEveryLineComposer') + '}');
       }
       return found + ',"paragraphs":[' + rows.join(',') + ']';
     } catch (e) { return ''; }
@@ -379,7 +324,7 @@ _PROBE_JSX = r"""
           }
         } catch (e) {}
         entry += ',"fonts":[' + faces.join(',') + ']';
-        entry += textSettings(L.id, p);
+        entry += textSettings(L.id);
       }
       entry += '}';
       out.push(entry);
@@ -435,10 +380,47 @@ _PROBE_JSX = r"""
 
   // Photoshop shows a type layer from the raster cached in the file until the text
   // changes, and an old file's cache can differ from what this Photoshop would draw.
-  // Writing each layer's own text descriptor back to it makes Photoshop lay the text
-  // out afresh with nothing altered (style runs, transform and warp all ride in the
-  // descriptor). Run on the flattened-for-render duplicate only, so the document
-  // itself, and any resave of it, stays exactly as opened.
+  // So each type layer is made to lay itself out again by a write that changes nothing:
+  // the layer's own textClickPoint, set alone. The write must not carry the layer's
+  // paragraph or character styles: writing the whole textKey back turns Adobe Every-line
+  // Composer on in every paragraph that does not state its composer (and re-breaks its
+  // lines), and a textStyle set (tracking to a value and back) levels every run's own
+  // tracking (docs/txt2-kept-settings.md, "Line composer"). Checked in Photoshop 2026 on
+  // a layer with five runs (three faces, four sizes, tracking 15, -25, 0, 60, 0) in two
+  // paragraphs (Every-line and Single-line, Hyphenate off and on) and on warped, rotated,
+  // vertical and right-to-left layers: every paragraph and run reads back identical, the
+  // layout is the one a tracking round trip gives on single-run layers, and a layer whose
+  // stored pixels another program drew is drawn again by Photoshop. A layer without a
+  // click point gets its anti-aliasing switched to another method and back, which does
+  // the same. Run on the flattened-for-render duplicate only, so the document itself,
+  // and any resave of it, stays exactly as opened.
+  function relayText(id) {
+    function setTextLayer(desc) {
+      var target = new ActionReference();
+      target.putEnumerated(stringIDToTypeID('textLayer'), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
+      var set = new ActionDescriptor();
+      set.putReference(charIDToTypeID('null'), target);
+      set.putObject(charIDToTypeID('T   '), stringIDToTypeID('textLayer'), desc);
+      executeAction(charIDToTypeID('setd'), set, DialogModes.NO);
+    }
+    var textKey = layerDescriptor(id).getObjectValue(stringIDToTypeID('textKey'));
+    var clickPoint = stringIDToTypeID('textClickPoint'), antiAlias = stringIDToTypeID('antiAlias');
+    if (textKey.hasKey(clickPoint)) {
+      var same = new ActionDescriptor();
+      same.putObject(clickPoint, stringIDToTypeID('paint'), textKey.getObjectValue(clickPoint));
+      setTextLayer(same);
+      return;
+    }
+    var own = textKey.getEnumerationValue(antiAlias);
+    var other = own == stringIDToTypeID('antiAliasCrisp') ? stringIDToTypeID('antiAliasSharp')
+                                                          : stringIDToTypeID('antiAliasCrisp');
+    var away = new ActionDescriptor();
+    away.putEnumerated(antiAlias, stringIDToTypeID('antiAliasType'), other);
+    setTextLayer(away);
+    var back = new ActionDescriptor();
+    back.putEnumerated(antiAlias, stringIDToTypeID('antiAliasType'), own);
+    setTextLayer(back);
+  }
   function refreshText(doc, layers, counter) {
     for (var i = 0; i < layers.length; i++) {
       var L = layers[i];
@@ -452,15 +434,7 @@ _PROBE_JSX = r"""
       try {
         var wasVisible = L.visible;
         doc.activeLayer = L;
-        var ref = new ActionReference();
-        ref.putEnumerated(charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
-        var textKey = executeActionGet(ref).getObjectValue(stringIDToTypeID('textKey'));
-        var target = new ActionReference();
-        target.putEnumerated(stringIDToTypeID('textLayer'), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
-        var set = new ActionDescriptor();
-        set.putReference(charIDToTypeID('null'), target);
-        set.putObject(charIDToTypeID('T   '), stringIDToTypeID('textLayer'), textKey);
-        executeAction(charIDToTypeID('setd'), set, DialogModes.NO);
+        relayText(L.id);
         // Selecting a hidden layer shows it; put it back.
         if (L.visible != wasVisible) { L.visible = wasVisible; }
         counter.n++;
@@ -612,9 +586,6 @@ _PROBE_JSX = r"""
     // then Photoshop cannot draw it faithfully either and the cache is the reference.
     var freshText = {n: 0, errors: 0}, freshFonts = [];
     textFontProblems(opened.layers, freshFonts);
-    // (With a font missing a write to the text would have Photoshop substitute it, so
-    // the paragraph settings a layer leaves out stay unresolved then.)
-    if (!freshFonts.length) { resolveTextSettings(opened); }
     var entries = [];
     walk(opened.layers, '', entries);
     var renderStatus = 'skipped';

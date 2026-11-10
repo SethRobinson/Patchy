@@ -91,7 +91,8 @@ partial refresh. These batches contain measurements from multiple builds.
 Existing batches get current controls when served by an updated Testy server;
 restart the server after updating Testy. Frozen reports have no rerun controls.
 Editor-free regressions (via `scripts\run-throttled.bat python`): `tests\testy_rerun_tests.py`,
-`testy_shutdown_tests.py`, `testy_driver_failure_tests.py`, `testy_text_save_tests.py`.
+`testy_shutdown_tests.py`, `testy_driver_failure_tests.py`, `testy_text_save_tests.py`,
+`testy_text_sheets_tests.py`.
 
 **Retest file** in the detail panel creates a separate one-file run, reusing
 caches and refreshing Patchy's build. Both controls require an idle Testy server.
@@ -222,6 +223,7 @@ testy/
   analyze.py         render metrics, sentinel detection, heatmaps (--selftest included)
   fonts.py           installed font files by PostScript name (handed to Photopea)
   manifest.py        original-vs-resave structural diff
+  text_sheets.py     paragraph settings a type layer leaves to its Txt2 or TySh sheets
   report.py          status.json + live report.html + history
   rerun.py           one-image updates and previous-result snapshots
   export_static.py   one finished run as a folder a plain web host can serve

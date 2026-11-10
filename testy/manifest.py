@@ -181,9 +181,9 @@ def apply_text_save_rule(native: dict | None) -> bool:
 
 # The settings of a type layer the text-save leg compares between the original and the
 # .psd an editor saved after its text update (testy.py _text_save_leg), with the words
-# the report uses. None is a value Photoshop could not give: the layer leaves it to the
-# document's default and the probe could not resolve it (drivers/photoshop.py
-# resolveTextSettings: a locked layer, a file with a font missing).
+# the report uses. Photoshop names a value only where the layer states it; Hyphenate and
+# the line composer a paragraph leaves to its sheet are filled in from the file
+# (text_sheets.fill_paragraph_settings). None is a value neither gave.
 PARAGRAPH_SETTINGS = (("align", "justification"), ("hyphenate", "Hyphenate"),
                       ("direction", "paragraph direction"), ("everyLineComposer", "line composer"))
 LAYER_SETTINGS = (("orientation", "orientation"), ("antiAlias", "anti-aliasing"),

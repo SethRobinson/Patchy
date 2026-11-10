@@ -45,6 +45,7 @@ import manifest as manifest_mod
 import report
 import rerun
 import staging
+import text_sheets
 from drivers import gimp as gimp_driver
 from drivers import krita as krita_driver
 from drivers import patchy as patchy_driver
@@ -1240,7 +1241,10 @@ def reference_space_key(traits: dict | None) -> str:
     if traits.get("depth", 8) != 8 or traits.get("mode", 3) != 3 or traits.get("profile"):
         key += "-srgb1"
     if traits.get("text"):
-        key += "-freshtext2"  # the reference re-renders text; its manifest lists every face used
+        # The reference re-renders text; its manifest lists every face used. (3: the
+        # re-render no longer writes the text settings back, which had turned Adobe
+        # Every-line Composer on in paragraphs that do not state their composer.)
+        key += "-freshtext3"
     if traits.get("smart"):
         key += "-freshsmart1"  # and embedded smart objects from their contents
     if traits.get("depth") == 16:
@@ -1770,10 +1774,10 @@ class Runner:
 
     def _ground_truth_cache_dir(self, entry: dict, staged: staging.StagedPsd) -> Path:
         font_key = self.ps.font_cache_key()
-        # (-textattrs1: the manifest lists each type layer's paragraph settings, which
-        # the text-save leg compares. Only the ground truth carries it, so the cells of
-        # editors without that leg stay cached.)
-        text_attributes = "-textattrs1" if (entry.get("traits") or {}).get("text") else ""
+        # (-textattrs2: the manifest lists each type layer's paragraph settings, which
+        # the text-save leg compares; 2 reads what a layer leaves out from the file's
+        # sheets instead of a set. Only the ground truth carries it.)
+        text_attributes = "-textattrs2" if (entry.get("traits") or {}).get("text") else ""
         return config.CACHE_DIR / (
             f"gt-{staged.sha1}-{_version_slug(self.ps.version())}-{self.suffix}-fontcheck1-{font_key}"
             f"{reference_space_key(entry.get('traits'))}{text_attributes}")
@@ -1822,6 +1826,9 @@ class Runner:
         else:
             result = self.ps.probe(staged.original, gt_dir / "render.png")
             if result.get("ok"):
+                # Hyphenate and the line composer where a paragraph leaves them to its
+                # sheet: Photoshop does not report those, the file does.
+                text_sheets.fill_paragraph_settings(staged.original, result.get("layers") or [])
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 result_path.write_text(json.dumps(result), encoding="utf-8")
                 for name in ("render.png", "render16.png"):
@@ -1937,7 +1944,7 @@ class Runner:
         if editor_key == "photocraft" and (entry.get("traits") or {}).get("text"):
             version_key += "-textafresh1"  # stripped text laid out by Update All Text Layers
         if editor_key in TEXT_SAVE_EDITORS and (entry.get("traits") or {}).get("text"):
-            version_key += "-textsave1"  # also saved after the editor's text update (_text_save_leg)
+            version_key += "-textsave2"  # also saved after the editor's text update (_text_save_leg)
         cache_dir = config.CACHE_DIR / (
             f"cell-{staged.sha1}-{editor_key}-{_version_slug(version_key)}-{self.suffix}"
         )
@@ -2421,6 +2428,7 @@ class Runner:
                 cell["textSave"] = leg
                 log(f"    text-save leg: Photoshop rejected {editor_key}'s save after its text update")
                 return
+            text_sheets.fill_paragraph_settings(save_psd, probe.get("layers") or [])
             (cell_dir / "textsave_manifest.json").write_text(json.dumps(probe["layers"], indent=1),
                                                              encoding="utf-8")
             if save_png.exists():

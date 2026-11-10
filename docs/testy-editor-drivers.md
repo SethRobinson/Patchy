@@ -10,12 +10,14 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   in place),
   optional save-as-copy resave. A type layer's manifest entry also lists its paragraph
   settings (justification, Hyphenate, direction, line composer), orientation,
-  anti-aliasing and kind. The descriptor leaves out what a paragraph inherits from the
-  document's default sheet (`DOM textItem.hyphenation` throws there too), so
-  `resolveTextSettings` first sets `textItem.justification` to its own value on a second,
-  throwaway duplicate: Photoshop then writes all 33 keys of the paragraph sheet, and the
-  inherited values are read from that (20 second budget; skipped when a font is missing,
-  where a write would substitute it). Other versions can reopen every resave too:
+  anti-aliasing and kind. The descriptor leaves out what a paragraph inherits from its
+  parent sheet (the DOM's `textItem.hyphenation` throws there too) and those stay null
+  in the probe's answer: setting a property to its own value would make Photoshop write
+  the whole sheet out, but that set also turns Adobe Every-line Composer on
+  ([txt2-kept-settings.md](txt2-kept-settings.md#line-composer)). `testy/text_sheets.py`
+  reads the inherited Hyphenate and line composer from the file's `Txt2` block (or the
+  TySh EngineData) instead. The probe never sets a text style, for a reading or for the
+  reference render ([testy-scoring.md](testy-scoring.md#the-reference-render)). Other versions can reopen every resave too:
   [testy-photoshop-versions.md](testy-photoshop-versions.md).
 - Krita 5.3.2 runs its own Python: `kritarunner.com -s testy_krita_export -f main <in>
   <out> <report>`, started in `drivers/krita_scripts/` (kritarunner replaces PYTHONPATH,

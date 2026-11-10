@@ -109,11 +109,23 @@ preservation validate the pipeline itself.
 - The comparison honors an embedded ICC profile in either render
   (`analyze.load_srgb_rgba`), so an editor that exports in the document space with
   the profile attached is not marked down for it.
-- Type layers are laid out afresh for the reference: `refreshText` writes each type
-  layer's own `textKey` descriptor back (`setd` on `textLayer`), which makes
-  Photoshop render the text again and changes nothing else. An old file's cached
-  text pixels can differ from what today's Photoshop draws. Skipped when a font is
-  missing (the cache is then the only faithful picture).
+- Type layers are laid out afresh for the reference: `refreshText` sets each type
+  layer's own `textClickPoint`, alone (`setd` on `textLayer`; a layer without one gets
+  its anti-aliasing switched away and back), which makes Photoshop compose the text
+  again and changes nothing. An old file's cached text pixels can differ from what
+  today's Photoshop draws. Skipped when a font is missing (the cache is then the only
+  faithful picture). The write must carry no paragraph or character style
+  ([txt2-kept-settings.md](txt2-kept-settings.md#line-composer)): writing the whole
+  `textKey` back, as Testy did until November 2026, turns Adobe Every-line Composer on
+  in every paragraph that does not state its composer and re-breaks its lines (all four
+  paragraphs of GitHub issue 672's file), so an editor that kept the file's real
+  Single-line setting was marked down; a `textStyle` set (tracking to a value and
+  back) levels every run's own tracking. Checked in Photoshop 2026 on a layer with
+  five runs (three faces, four sizes, tracking 15, -25, 0, 60, 0) in an Every-line and a
+  Single-line paragraph, and on warped, rotated, vertical and right-to-left layers:
+  every paragraph and run reads back identical, the layout equals the tracking round
+  trip's on single-run layers, and a layer whose stored pixels another program drew is
+  drawn again. `ProbeNeverSetsTextSettings` (tests/testy_text_sheets_tests.py) pins it.
 - Embedded smart objects are rendered afresh too (`refreshSmartObjects`): the
   contents are opened, a layer is added and removed, and the save makes Photoshop
   render the layer from its contents, smart filters included. Verified by giving
@@ -123,7 +135,7 @@ preservation validate the pipeline itself.
   contents and lossy formats (a save would recompress a JPEG) keep their cache.
 - Shape and fill layers need nothing: Photoshop's render is identical with and
   without their cached pixels on all 133 corpus files that have them.
-- `reference_space_key` adds `-srgb1`, `-freshtext2` and `-freshsmart1` to the
+- `reference_space_key` adds `-srgb1`, `-freshtext3` and `-freshsmart1` to the
   ground-truth and cell cache keys for the files these rules change, so older cache
   entries are not reused.
 
@@ -274,11 +286,15 @@ So for files with type layers three editors get a second save (`_text_save_leg`,
 - **Settings**: each paragraph's justification, Hyphenate, direction and line composer
   (every-line or single-line), the layer's orientation, anti-aliasing and kind (point or
   paragraph text), the text itself and the fonts it names, from Photoshop's manifest of
-  both files. The layer's descriptor names a value only where the layer states it, so
-  the probe also reads the values a layer leaves to the document's default sheet:
-  `resolveTextSettings` sets a paragraph property to the value it has on a throwaway
-  duplicate, after which Photoshop writes the whole sheet out. A value Photoshop still
-  cannot give (a locked layer, a file with a font missing) is never read as a change.
+  both files. The layer's descriptor names a value only where the layer states it, and
+  no set may be used to make it say more (the same rule as for the reference render: a
+  set of one paragraph property to the value it has changes the composer). So Hyphenate
+  and the line composer that a paragraph leaves out are read from the file itself, the
+  way Photoshop resolves them (`text_sheets.fill_paragraph_settings`): the layer's
+  `Txt2` paragraph run, its parent ParagraphSheetSet entry, the block's default sheet;
+  for a layer without a `Txt2` object the TySh EngineData run and its normal sheet. The
+  layer is matched by its index path and must have the same name and paragraph count
+  in the file. A value neither Photoshop nor the file gives is never read as a change.
 - **Missing fonts**: when Photoshop lacks a font the original's text needs, the leg is
   not measured, as with the text render score. A save in which Photoshop finds a font
   missing that the original had keeps the editor's pixels, so its render is not
@@ -294,18 +310,18 @@ So for files with type layers three editors get a second save (`_text_save_leg`,
   layers that "might need to be updated") is left out: it is no news about the save.
 - Nothing is folded into `nativeScore`, `roundtripRender` or an existing history key.
   The run summary and `history.jsonl` gain `textSave` `{same, measured, files, rejected}`
-  per editor that has the leg. Cells of the three editors carry `-textsave1` on text
-  files, and the ground truth of text files `-textattrs1` (its manifest lists the
-  settings), which leaves the other editors' cells cached.
+  per editor that has the leg. Cells of the three editors carry `-textsave2` on text
+  files, and the ground truth of text files `-textattrs2` (its manifest lists the
+  settings).
 
-Acceptance (November 10, 2026, Photoshop 2026): the four justified paragraphs of the
-issue 672 file, saved after the text update by three Patchy builds. Patchy 1.29 (both
-bugs): justification changed on three layers and Hyphenate turned on in all four, three
-drawn differently. Patchy 1.31 (672 fixed): Hyphenate on in all four. The build with
-both fixes: justification and Hyphenate unchanged; what it still reports there is the
-line composer (every-line saved as single-line, which re-breaks the Justify All
-paragraph). PhotoCraft 0.22.0 and Photopea: all four the same. Tests:
-`tests/testy_text_save_tests.py`.
+Acceptance (November 11, 2026, Photoshop 2026): the four justified paragraphs of the
+issue 672 file (Single-line Composer, Hyphenate off, both left to the parent sheet),
+saved after the text update by three Patchy builds. Patchy 1.29 (both bugs):
+justification changed on three layers and Hyphenate turned on in all four, three drawn
+differently (2.1% to 3.6% of the box moved). Patchy 1.31 (672 fixed): Hyphenate on in
+all four, drawn pixel for pixel the same. A build with both fixes: all four the same,
+pixel for pixel. Tests: `tests/testy_text_save_tests.py`,
+`tests/testy_text_sheets_tests.py`.
 
 ## The two text rules that score 0%
 
