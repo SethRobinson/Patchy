@@ -29,7 +29,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -961,20 +960,35 @@ void ui_vector_preview_cost_follows_viewport_not_zoom() {
   collect_shapes(doc.layers(), shapes);
   CHECK(shapes.size() > 100U);
   // The viewport is the same size at every zoom; before the fix 800% cost 35x 100% and
-  // 1600% did not finish in 10 minutes. Each level's best of two renders, taken apart from
-  // each other, keeps a busy machine or a move to a slower core from failing it; the floors
-  // keep a fast 100% from making the factors too tight.
-  std::map<double, double> best;
-  for (const double scale : {1.0, 2.0, 4.0, 8.0, 16.0, 1.0, 8.0, 16.0}) {
+  // 1600% did not finish in 10 minutes. A loaded or throttling machine (a laptop that moves
+  // the test to slower cores a few seconds in) slows every render alike for a while, so a
+  // zoomed render is compared with the slower of the two 100% renders around it in the same
+  // round, and the better of two rounds counts.
+  const auto timed = [&](double scale) {
     const auto result = render_vector_preview(scene, balloon_view(doc, scale));
     CHECK(result.fallback == VectorPreviewFallback::None);
     CHECK(!result.image.isNull());
-    const auto found = best.find(scale);
-    best[scale] = found == best.end() ? result.elapsed_ms : std::min(found->second, result.elapsed_ms);
+    // Many times the slowest render seen on a throttled laptop (3.4 s); the old code took
+    // 110 s at 400%.
+    CHECK(result.elapsed_ms < 60000.0);
     std::cout << "  balloons " << scale * 100.0 << "%: " << result.elapsed_ms << " ms\n";
+    return result.elapsed_ms;
+  };
+  double ratio_800 = std::numeric_limits<double>::infinity();
+  double ratio_1600 = ratio_800;
+  for (int round = 0; round < 2; ++round) {
+    const double before = timed(1.0);
+    timed(2.0);
+    timed(4.0);
+    const double at_800 = timed(8.0);
+    const double at_1600 = timed(16.0);
+    const double reference = std::max({before, timed(1.0), 100.0});
+    ratio_800 = std::min(ratio_800, at_800 / reference);
+    ratio_1600 = std::min(ratio_1600, at_1600 / reference);
   }
-  CHECK(best[8.0] <= std::max(3.0 * best[1.0], 1500.0));
-  CHECK(best[16.0] <= std::max(4.0 * best[1.0], 2500.0));
+  std::cout << "  balloons 800% / 100%: " << ratio_800 << ", 1600% / 100%: " << ratio_1600 << "\n";
+  CHECK(ratio_800 <= 4.0);
+  CHECK(ratio_1600 <= 5.0);
 
   // What a tile rasterizes is byte-identical to the reference geometry (every curve
   // flattened, every segment pair of a combined stroke tested; slow, hence 200%).

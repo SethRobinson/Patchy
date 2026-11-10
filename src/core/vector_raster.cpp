@@ -685,7 +685,8 @@ std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std:
   for (std::size_t first = 0; first < original.size();) {
     auto end = first + 1;
     while (end < original.size() && path.subpaths[end].shape_group == path.subpaths[first].shape_group) ++end;
-    GroupEdges group{first};
+    GroupEdges group;
+    group.first = first;
     std::vector<std::pair<DPoint, DPoint>> edges;
     double top = 0.0, bottom = 0.0, right = 0.0;
     for (auto s = first; s < end; ++s) {
