@@ -301,6 +301,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.quick_export_png", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the layer as a PNG at once")},
     {"layer.export_as", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the layer to a file")},
     {"layer.duplicate_to_document", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Copy the layer into another document")},
+    {"layer.copy_css",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Put the layers' position, size, colors and fonts on the clipboard as style sheet text for a web page")},
     {"layer.prevent_auto_nesting", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep dragged layers out of folders and artboards")},
     {"layer.link", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the selected layers move and transform together")},
     {"layer.unlink", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Let the selected layers move on their own again")},

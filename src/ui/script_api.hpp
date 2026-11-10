@@ -365,6 +365,7 @@ public:
   // Combine Shapes: merges the shape layers (siblings) into the bottom-most
   // one with op "unite" | "subtract" | "intersect" | "exclude"; returns it.
   Q_INVOKABLE QJSValue combineShapes(const QJSValue& layers, const QString& op);
+  Q_INVOKABLE QString cssForLayers(const QJSValue& layers);
   Q_INVOKABLE QJSValue mergeLayers(const QJSValue& layers, const QJSValue& options = QJSValue());
   // Layer > Arrange > Align / Distribute. `edge` is "left" | "hcenter" |
   // "right" | "top" | "vcenter" | "bottom" (Distribute adds "hspacing" |

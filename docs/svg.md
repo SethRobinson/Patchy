@@ -31,7 +31,8 @@ All Qt-free, in src/formats/ (patchy_formats):
   its own rules (inside-stroke vs vector-mask clip slot, disabled raster masks).
 - `svg_document_read.cpp` + `svg_document_write.cpp` share
   `svg_io_internal.hpp` (Affine helpers, number I/O, and the BlendMode <->
-  CSS mix-blend-mode map; the enum switch is append-only). Number I/O is
+  CSS mix-blend-mode map; the enum switch is append-only, and Copy CSS writes
+  the same names: [web-export-copy-css.md](web-export-copy-css.md)). Number I/O is
   deliberately NOT <charconv>: Apple's libc++ marks the floating-point
   overloads unavailable, so formatting is classic-locale %.15g (correctly
   rounded everywhere = deterministic) and parsing is a hand-written

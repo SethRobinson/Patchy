@@ -1842,6 +1842,22 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_export_menu->addSeparator();
   layer_export_menu->addAction(duplicate_layer_to_document_action_);
   duplicate_layer_to_document_action_->setMenuRole(QAction::NoRole);
+  // Copy CSS (GitHub issue 688): the selected layers as CSS classes on the clipboard. Here and
+  // in the layer context menus' Export submenu, with the other ways a layer leaves the document.
+  layer_copy_css_action_ = new QAction(tr("Copy CSS"), this);
+  layer_copy_css_action_->setObjectName(QStringLiteral("layerCopyCssAction"));
+  layer_copy_css_action_->setProperty("patchy.channelViewBlocked", true);
+  layer_copy_css_action_->setStatusTip(tr("Copy the selected layers to the clipboard as CSS classes"));
+  bind_action_text(layer_copy_css_action_, QT_TR_NOOP("Copy CSS"));
+  bind_translated_status_tip(layer_copy_css_action_, "Copy the selected layers to the clipboard as CSS classes");
+  apply_bound_translation(layer_copy_css_action_);
+  layer_copy_css_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(layer_copy_css_action_, "layer.copy_css");
+  connect(layer_copy_css_action_, &QAction::triggered, this, [this] { copy_as_css(); });
+  addAction(layer_copy_css_action_);
+  register_document_action(layer_copy_css_action_);
+  layer_export_menu->addSeparator();
+  layer_export_menu->addAction(layer_copy_css_action_);
   register_document_action(layer_export_menu->menuAction());
   // The fill and merge commands have their own submenus (Seth, October 31, 2026); shortcuts
   // still fire from them. The Layer menu's rows are laid out below the lock commands.

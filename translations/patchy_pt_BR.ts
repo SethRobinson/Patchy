@@ -21657,6 +21657,10 @@ Deseja substituí-lo?</translation>
         <source>Insert placeholder filler text</source>
         <translation>Inserir texto de preenchimento provisório</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Colocar na área de transferência a posição, o tamanho, as cores e as fontes das camadas como texto de folha de estilos para uma página da web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35690,6 +35694,32 @@ Bloqueado: %1</translation>
             <numerusform>(%n camadas bloqueadas ignoradas)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copiar CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copia as camadas selecionadas para a área de transferência como classes CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Selecione uma camada visível com conteúdo para copiar como CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n camada copiada como CSS</numerusform>
+            <numerusform>%n camadas copiadas como CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n camada oculta ou vazia omitida)</numerusform>
+            <numerusform>(%n camadas ocultas ou vazias omitidas)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38888,6 +38918,10 @@ Bloqueado: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Este Objeto Inteligente não tem Filtros Inteligentes.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers precisa de uma matriz de camadas deste documento.</translation>
     </message>
 </context>
 <context>

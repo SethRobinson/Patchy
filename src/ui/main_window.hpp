@@ -1604,6 +1604,8 @@ private:
   void set_system_clipboard_mime(QMimeData* mime);
   // Edit > Copy as SVG: the selected layers as image/svg+xml plus text.
   void copy_as_svg();
+  // Layer > Export > Copy CSS (GitHub issue 688): the selected layers as CSS classes, as text.
+  void copy_as_css();
   // Layer > New > Ungroup Layers (docs/vector-commands-shapes.md).
   void ungroup_selected_layers();
   void clear_internal_clipboard_on_external_change();
@@ -4094,6 +4096,7 @@ private:
   QAction* duplicate_layer_to_document_action_{nullptr};
   QAction* layer_quick_export_png_action_{nullptr};
   QAction* layer_export_as_action_{nullptr};
+  QAction* layer_copy_css_action_{nullptr};
   QAction* dock_document_action_{nullptr};
   QAction* consolidate_tabs_action_{nullptr};
   QAction* float_all_action_{nullptr};

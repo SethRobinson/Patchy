@@ -21657,6 +21657,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Insert placeholder filler text</source>
         <translation>Platzhalter-Fülltext einfügen</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Position, Größe, Farben und Schriften der Ebenen als Stylesheet-Text für eine Webseite in die Zwischenablage legen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35690,6 +35694,32 @@ Fixiert: %1</translation>
             <numerusform>(%n gesperrte Ebenen übersprungen)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>CSS kopieren</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Kopiert die ausgewählten Ebenen als CSS-Klassen in die Zwischenablage</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Wählen Sie eine sichtbare Ebene mit Inhalt aus, um sie als CSS zu kopieren</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n Ebene als CSS kopiert</numerusform>
+            <numerusform>%n Ebenen als CSS kopiert</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n ausgeblendete oder leere Ebene ausgelassen)</numerusform>
+            <numerusform>(%n ausgeblendete oder leere Ebenen ausgelassen)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38888,6 +38918,10 @@ Fixiert: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Dieses Smartobjekt hat keine Smartfilter.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers benötigt ein Array von Ebenen dieses Dokuments.</translation>
     </message>
 </context>
 <context>

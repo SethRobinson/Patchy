@@ -2202,4 +2202,20 @@ bool should_write_generated_text_block(const EncodedLayer& encoded) {
   return layer_metadata_value(*encoded.layer, kLayerMetadataText).has_value();
 }
 
+std::vector<PsdTextStyleRun> text_style_runs_from_layer(const Layer& layer) {
+  const auto text = layer_metadata_value(layer, kLayerMetadataText);
+  if (!text.has_value()) {
+    return {};
+  }
+  return text_runs_for_layer(layer, *text);
+}
+
+std::vector<PsdTextParagraphRun> text_paragraph_runs_from_layer(const Layer& layer) {
+  const auto text = layer_metadata_value(layer, kLayerMetadataText);
+  if (!text.has_value()) {
+    return {};
+  }
+  return paragraph_runs_for_layer(layer, *text);
+}
+
 }  // namespace patchy::psd

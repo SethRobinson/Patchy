@@ -4076,7 +4076,8 @@ void ui_background_layer_marker_and_short_menu() {
                              QStringLiteral("Merge Visible"), QStringLiteral("Merge Visible to New Layer (Copy)"),
                              QStringLiteral("Flatten Image"), QStringLiteral("-"), QStringLiteral("Export")}));
   const QStringList export_entries{QStringLiteral("layerQuickExportPngAction"), QStringLiteral("layerExportAsAction"),
-                                   QStringLiteral("-"), QStringLiteral("layerContextDuplicateToDocumentAction")};
+                                   QStringLiteral("-"), QStringLiteral("layerContextDuplicateToDocumentAction"),
+                                   QStringLiteral("-"), QStringLiteral("layerCopyCssAction")};
   CHECK(export_seen == export_entries);
   const auto& bottom = std::as_const(doc).layers().front();
   CHECK(bottom.name() == "Layer 0");

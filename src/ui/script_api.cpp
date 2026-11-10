@@ -25,6 +25,7 @@
 #include "formats/metadata/metadata_view.hpp"
 #include "formats/animation_timing.hpp"
 #include "formats/apng_writer.hpp"
+#include "formats/css_layer_export.hpp"
 #include "formats/webp_animation_io.hpp"
 
 #include "ui/pdf_export.hpp"
@@ -2851,6 +2852,34 @@ void ScriptDocumentObject::set_active_layer(const QJSValue& layer) {
   // so a script's selection is visible exactly like a user's click would be.
   host_.reveal_layer_row(session_id_, wrapper->layer_id());
   host_.note_structure_changed(session_id_);
+}
+
+// The text Layer > Export > Copy CSS puts on the clipboard for these layers (GitHub issue
+// 688); reads only, and leaves the clipboard alone.
+QString ScriptDocumentObject::cssForLayers(const QJSValue& layers) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return {};
+  }
+  std::vector<LayerId> ids;
+  bool valid = layers.isArray();
+  const auto length = valid ? layers.property(QStringLiteral("length")).toInt() : 0;
+  for (int i = 0; valid && i < length; ++i) {
+    const auto* wrapper = qobject_cast<ScriptLayerObject*>(layers.property(static_cast<quint32>(i)).toQObject());
+    if (wrapper == nullptr || wrapper->session_id() != session_id_ ||
+        document->find_layer(wrapper->layer_id()) == nullptr) {
+      valid = false;
+      break;
+    }
+    ids.push_back(wrapper->layer_id());
+  }
+  if (!valid) {
+    host_.throw_js_error(ScriptEngineHost::tr("cssForLayers needs an array of layers of this document."));
+    return {};
+  }
+  return QString::fromStdString(
+      css::layers_to_css(*document, ids, host_.session_title(session_id_).toStdString()).text);
 }
 
 QJSValue ScriptDocumentObject::combineShapes(const QJSValue& layers, const QString& op) {

@@ -21595,6 +21595,10 @@ Do you want to replace it?</source>
         <source>Insert placeholder filler text</source>
         <translation>插入占位填充文字</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>将图层的位置、大小、颜色和字体作为网页样式表文本放到剪贴板</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35583,6 +35587,30 @@ Locked: %1</source>
             <numerusform>（已跳过 %n 个锁定的图层）</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>复制 CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>将选中的图层以 CSS 类的形式拷贝到剪贴板</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>请选择一个有内容的可见图层以拷贝为 CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>已将 %n 个图层拷贝为 CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(已略过 %n 个隐藏或空的图层)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38777,6 +38805,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>此智能对象没有智能滤镜。</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers 需要一个由本文档图层组成的数组。</translation>
     </message>
 </context>
 <context>

@@ -488,13 +488,17 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   auto* quick = require_hotkey_action(window, QStringLiteral("layer.quick_export_png"));
   auto* export_as = require_hotkey_action(window, QStringLiteral("layer.export_as"));
   auto* to_document = require_hotkey_action(window, QStringLiteral("layer.duplicate_to_document"));
+  auto* copy_css = require_hotkey_action(window, QStringLiteral("layer.copy_css"));
   const auto export_actions = export_menu->actions();
-  CHECK(export_actions.size() == 4);
-  if (export_actions.size() == 4) {
-    // Duplicate Layer to Document... after a line, as in the layer context menu's Export.
+  CHECK(export_actions.size() == 6);
+  if (export_actions.size() == 6) {
+    // Duplicate Layer to Document... after a line, as in the layer context menu's Export; then
+    // Copy CSS after another (GitHub issue 688).
     CHECK(export_actions.at(0) == quick && export_actions.at(1) == export_as);
     CHECK(export_actions.at(2)->isSeparator() && export_actions.at(3) == to_document);
+    CHECK(export_actions.at(4)->isSeparator() && export_actions.at(5) == copy_css);
   }
+  CHECK(copy_css->menuRole() == QAction::NoRole && copy_css->shortcut().isEmpty());
   CHECK(to_document->menuRole() == QAction::NoRole);
   CHECK(quick->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Apostrophe));
   CHECK(export_as->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::ALT | Qt::Key_Apostrophe));

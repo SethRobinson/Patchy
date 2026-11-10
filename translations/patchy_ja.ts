@@ -21595,6 +21595,10 @@ Do you want to replace it?</source>
         <source>Insert placeholder filler text</source>
         <translation>仮のダミーテキストを挿入</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>レイヤーの位置、サイズ、色、フォントをウェブページ用のスタイルシートのテキストとしてクリップボードに入れる</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35583,6 +35587,30 @@ Locked: %1</source>
             <numerusform>(ロックされた %n 個のレイヤーをスキップしました)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>CSSをコピー</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>選択したレイヤーをCSSクラスとしてクリップボードにコピーします</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>CSSとしてコピーするには、内容のある表示中のレイヤーを選択してください</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n 個のレイヤーをCSSとしてコピーしました</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(非表示または空のレイヤー %n 個を除外)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38777,6 +38805,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>このスマートオブジェクトにはスマートフィルターがありません。</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers にはこのドキュメントのレイヤーの配列が必要です。</translation>
     </message>
 </context>
 <context>
