@@ -21699,6 +21699,10 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Увеличить непрозрачность инструмента на 10%</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Поместить положение, размер, цвета и шрифты слоёв в буфер обмена как текст таблицы стилей для веб-страницы</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35729,6 +35733,34 @@ Locked: %1</source>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Если отключено, при открытии PDF сразу показывается диалог импорта PDF для редактирования страниц.</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Скопировать CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Скопировать выбранные слои в буфер обмена как классы CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Выберите видимый слой с содержимым, чтобы скопировать его как CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n слой скопирован как CSS</numerusform>
+            <numerusform>%n слоя скопированы как CSS</numerusform>
+            <numerusform>%n слоёв скопировано как CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(пропущен %n скрытый или пустой слой)</numerusform>
+            <numerusform>(пропущено %n скрытых или пустых слоя)</numerusform>
+            <numerusform>(пропущено %n скрытых или пустых слоёв)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38931,6 +38963,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>У этого смарт-объекта нет смарт-фильтров.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers требует массив слоёв этого документа.</translation>
     </message>
 </context>
 <context>

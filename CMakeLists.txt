@@ -728,6 +728,7 @@ add_library(patchy_formats
   src/formats/raw_white_balance.cpp
   src/formats/rttex_document_io.cpp
   src/formats/dds_document_io.cpp
+  src/formats/css_layer_export.cpp
   src/formats/svg_document_read.cpp
   src/formats/svg_document_write.cpp
   src/formats/svg_xml.cpp
@@ -2555,6 +2556,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pdf_tests.cpp
     tests/core/artboard_tests.cpp
     tests/core/svg_tests.cpp
+    tests/core/css_layer_export_tests.cpp
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
     tests/core/path_edits_tests.cpp

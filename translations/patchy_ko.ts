@@ -21575,6 +21575,10 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>도구 불투명도를 10% 높이기</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>레이어의 위치, 크기, 색상, 글꼴을 웹 페이지용 스타일 시트 텍스트로 클립보드에 넣기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35523,6 +35527,30 @@ Locked: %1</source>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>끄면 PDF를 열 때 PDF 가져오기 대화상자가 나타나 바로 페이지를 편집할 수 있습니다.</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>CSS 복사</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>선택한 레이어를 클립보드에 CSS 클래스로 복사합니다.</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>CSS로 복사하려면 내용이 있는 보이는 레이어를 선택하세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n개의 레이어를 CSS로 복사했습니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(숨겨졌거나 비어 있는 레이어 %n개 제외)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38717,6 +38745,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>이 스마트 개체에는 스마트 필터가 없습니다.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers에는 이 문서의 레이어 배열이 필요합니다.</translation>
     </message>
 </context>
 <context>

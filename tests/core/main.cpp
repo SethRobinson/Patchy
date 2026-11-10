@@ -195,6 +195,7 @@ int main(int argc, char** argv) {
            book_imposition_tests,
            psd_vector_fixtures_tests,
            svg_tests,
+           css_layer_export_tests,
            pdf_tests,
            artboard_tests,
            af_format_tests,

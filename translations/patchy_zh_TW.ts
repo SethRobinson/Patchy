@@ -21575,6 +21575,10 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>將工具不透明度提高 10%</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>將圖層的位置、大小、顏色和字型作為網頁樣式表文字放到剪貼簿</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35523,6 +35527,30 @@ Locked: %1</source>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>關閉後，開啟 PDF 時會顯示匯入 PDF 對話方塊，可立即編輯其頁面。</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>拷貝 CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>將選取的圖層以 CSS 類別的形式拷貝到剪貼簿</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>請選取有內容的可見圖層以拷貝為 CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>已將 %n 個圖層複製為 CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(已略過 %n 個隱藏或空白的圖層)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38717,6 +38745,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>此智慧型物件沒有智慧型濾鏡。</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers 需要由此文件的圖層組成的陣列。</translation>
     </message>
 </context>
 <context>

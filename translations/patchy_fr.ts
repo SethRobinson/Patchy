@@ -21637,6 +21637,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Augmenter l&apos;opacité de l&apos;outil de 10 %</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Placer la position, la taille, les couleurs et les polices des calques dans le presse-papiers sous forme de feuille de style pour une page web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35626,6 +35630,32 @@ Verrouillé : %1</translation>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Si cette option est désactivée, l&apos;ouverture d&apos;un PDF affiche tout de suite la boîte de dialogue Importer un PDF pour modifier ses pages.</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copier le CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copier les calques sélectionnés dans le presse-papiers sous forme de classes CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Sélectionnez un calque visible avec du contenu à copier en CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n calque copié en CSS</numerusform>
+            <numerusform>%n calques copiés en CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n calque masqué ou vide ignoré)</numerusform>
+            <numerusform>(%n calques masqués ou vides ignorés)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38824,6 +38854,10 @@ Verrouillé : %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Cet objet dynamique n&apos;a pas de filtres dynamiques.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers nécessite un tableau de calques de ce document.</translation>
     </message>
 </context>
 <context>

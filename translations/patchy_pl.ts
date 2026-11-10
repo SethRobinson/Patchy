@@ -21699,6 +21699,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Zwiększ krycie narzędzia o 10%</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Umieść w schowku położenie, rozmiar, kolory i czcionki warstw jako tekst arkusza stylów dla strony internetowej</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35729,6 +35733,34 @@ Zablokowano: %1</translation>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Po wyłączeniu otwarcie pliku PDF od razu pokazuje okno Importuj PDF, aby edytować jego strony.</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Kopiuj CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Skopiuj wybrane warstwy do schowka jako klasy CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Wybierz widoczną warstwę z zawartością, aby skopiować ją jako CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>Skopiowano %n warstwę jako CSS</numerusform>
+            <numerusform>Skopiowano %n warstwy jako CSS</numerusform>
+            <numerusform>Skopiowano %n warstw jako CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(pominięto %n ukrytą lub pustą warstwę)</numerusform>
+            <numerusform>(pominięto %n ukryte lub puste warstwy)</numerusform>
+            <numerusform>(pominięto %n ukrytych lub pustych warstw)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38931,6 +38963,10 @@ Zablokowano: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Ten obiekt inteligentny nie ma filtrów inteligentnych.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers wymaga tablicy warstw tego dokumentu.</translation>
     </message>
 </context>
 <context>

@@ -68,6 +68,7 @@ std::vector<patchy::test::TestCase> book_scan_tests();
 std::vector<patchy::test::TestCase> book_imposition_tests();
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests();
 std::vector<patchy::test::TestCase> svg_tests();
+std::vector<patchy::test::TestCase> css_layer_export_tests();
 std::vector<patchy::test::TestCase> pdf_tests();
 std::vector<patchy::test::TestCase> artboard_tests();
 std::vector<patchy::test::TestCase> af_format_tests();

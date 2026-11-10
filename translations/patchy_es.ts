@@ -21637,6 +21637,10 @@ Do you want to replace it?</source>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Subir la opacidad de la herramienta un 10 %</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Poner en el portapapeles la posición, el tamaño, los colores y las fuentes de las capas como texto de hoja de estilos para una página web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35626,6 +35630,32 @@ Bloqueada: %1</translation>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Si está desactivado, al abrir un PDF se muestra enseguida el diálogo Importar PDF para editar sus páginas.</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copiar CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copia las capas seleccionadas al portapapeles como clases CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Seleccione una capa visible con contenido para copiarla como CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n capa copiada como CSS</numerusform>
+            <numerusform>%n capas copiadas como CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n capa oculta o vacía omitida)</numerusform>
+            <numerusform>(%n capas ocultas o vacías omitidas)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38824,6 +38854,10 @@ Bloqueada: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Este objeto inteligente no tiene filtros inteligentes.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers necesita una matriz de capas de este documento.</translation>
     </message>
 </context>
 <context>

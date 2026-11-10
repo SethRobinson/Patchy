@@ -21637,6 +21637,10 @@ Sostituirlo?</translation>
         <source>Raise the tool&apos;s opacity by 10%</source>
         <translation>Aumenta l&apos;opacità dello strumento del 10%</translation>
     </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Mette negli appunti posizione, dimensioni, colori e font dei livelli come testo di foglio di stile per una pagina web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35626,6 +35630,32 @@ Bloccato: %1</translation>
         <source>When disabled, opening a PDF shows the Import PDF dialog to edit its pages right away.</source>
         <translation>Se disattivato, l&apos;apertura di un PDF mostra subito la finestra Importa PDF per modificarne le pagine.</translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copia CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copia i livelli selezionati negli appunti come classi CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Seleziona un livello visibile con contenuto da copiare come CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>Copiato %n livello come CSS</numerusform>
+            <numerusform>Copiati %n livelli come CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n livello nascosto o vuoto escluso)</numerusform>
+            <numerusform>(%n livelli nascosti o vuoti esclusi)</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38824,6 +38854,10 @@ Bloccato: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Questo oggetto avanzato non ha filtri avanzati.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers richiede un array di livelli di questo documento.</translation>
     </message>
 </context>
 <context>
