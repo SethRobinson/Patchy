@@ -433,6 +433,11 @@ bool MainWindow::handle_window_resize_event(QObject* watched, QEvent* event) {
   }
 
   auto* mouse_event = static_cast<QMouseEvent*>(event);
+  if (!chrome_resizing_ && event->type() == QEvent::MouseMove && mouse_event->buttons() != Qt::NoButton) {
+    // A drag that did not start on a resize border (a paint stroke) cannot become a resize:
+    // skip the hit tests below, a widget-tree walk per move (GitHub issue 677 follow-up).
+    return false;
+  }
   if (auto* widget = qobject_cast<QWidget*>(watched);
       widget_is_or_contains_scroll_bar(widget) ||
       window_resize_hit_targets_scroll_bar(this, mouse_event->globalPosition().toPoint())) {

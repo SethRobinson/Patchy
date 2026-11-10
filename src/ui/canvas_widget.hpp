@@ -863,6 +863,8 @@ public:
   // at a time again instead of the banded walk (GitHub issue 677), so a test can paint the same
   // stroke both ways and compare the bytes.
   void set_banded_brush_dabs_enabled_for_testing(bool enabled) noexcept { banded_brush_dabs_enabled_ = enabled; }
+  // Off: every spaced Brush dab is painted the moment it is placed, as in 1.30 (GitHub issue 677).
+  void set_brush_dab_batching_enabled_for_testing(bool enabled) noexcept { brush_dab_batching_enabled_ = enabled; }
   // Turns off the Clone/Healing stamp's row spans and continued-segment skip (GitHub issue
   // 597) so a test can paint the same stroke both ways and compare the bytes.
   void set_clone_stamp_skip_enabled_for_testing(bool enabled) noexcept { clone_stamp_skip_enabled_ = enabled; }
@@ -1849,9 +1851,11 @@ protected:
     return moving_layer_ || dragging_transform_ || color_picking_ || coalescing_retouch_stroke();
   }
   // Smudge and the toning brushes (Dodge, Burn, Sponge, Blur, Sharpen) coalesce the same
-  // way (GitHub #660).
+  // way (GitHub #660), and so do Brush and Eraser strokes, whose queued moves then paint their
+  // spaced dabs in one batch (GitHub #677 follow-up).
   [[nodiscard]] bool coalescing_retouch_stroke() const noexcept {
-    return painting_ && (retouch_source_tool_active() || toning_stroke_tool_active());
+    return painting_ && (retouch_source_tool_active() || toning_stroke_tool_active() || tool_ == CanvasTool::Brush ||
+                         tool_ == CanvasTool::Eraser);
   }
   [[nodiscard]] bool toning_stroke_tool_active() const noexcept {
     return tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
@@ -2435,6 +2439,16 @@ private:
   // A procedural dab through the stroke compositor without per-pixel callbacks, its rows fanned
   // out over threads when big (GitHub issue 677). Nullopt when options need core paint_brush_dab.
   [[nodiscard]] std::optional<QRect> draw_banded_brush_dab(QPointF point, bool erase, const EditOptions& options);
+  // While a dab batch is open (one mouse move's samples, GitHub issue 677 follow-up), a dab
+  // draw_banded_brush_dab could paint is only placed (its walk begun, so the layer grows in
+  // order) and painted later with the others by flush_brush_dab_batch. False when the dab must
+  // be painted now: no batch open, other options than the queued dabs', or core's path.
+  [[nodiscard]] bool queue_batched_brush_dab(QPointF point, bool erase, const EditOptions& options);
+  // Paints the queued dabs in one pass: every pixel's accumulated alpha steps through the dabs
+  // in order, then the pixel is blended from the stroke-start snapshot once, which gives the
+  // bytes painting them one by one gives (each blend depends only on the snapshot and the
+  // final alpha). Returns each dab's dirty rect, in order.
+  [[nodiscard]] std::vector<QRect> flush_brush_dab_batch();
   [[nodiscard]] QRect draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
                                                    const EffectiveBrushInput& brush,
                                                    bool stamp_endpoint);
@@ -4443,6 +4457,16 @@ private:
   std::optional<HardRoundSegmentEnd> brush_stroke_hard_round_end_;
   bool hard_round_skip_enabled_{true};
   bool banded_brush_dabs_enabled_{true};
+  bool brush_dab_batching_enabled_{true};
+  // Dabs placed but not painted yet (queue_batched_brush_dab) and the options they share.
+  struct BrushDabBatch {
+    std::vector<patchy::BrushDabWalk> dabs;
+    EditOptions options;
+    bool erase{false};
+  };
+  std::optional<BrushDabBatch> brush_dab_batch_;
+  // Above 0 while a mouse move's stroke samples run (mouseMoveEvent).
+  int brush_dab_batch_depth_{0};
   // install_brush_stroke_compositor gave the options its plain snapshot writer and gate (not
   // Pattern Stamp's, not the Opacity-0 no-op), the pair draw_banded_brush_dab reproduces.
   bool brush_stroke_plain_writer_installed_{false};
