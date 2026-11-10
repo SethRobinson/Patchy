@@ -38872,6 +38872,22 @@ Zablokowano: %1</translation>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf: pageSize musi mieć wartość &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; lub [szerokość, wysokość] w calach.</translation>
     </message>
+    <message>
+        <source>viewCenter needs an object with finite x and y numbers.</source>
+        <translation>viewCenter wymaga obiektu ze skończonymi liczbami x i y.</translation>
+    </message>
+    <message>
+        <source>zoomTo needs finite x and y numbers and a zoom greater than 0 (percent).</source>
+        <translation>zoomTo wymaga skończonych liczb x i y oraz powiększenia większego niż 0 (procent).</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more.</source>
+        <translation>zoomToRect wymaga {x, y, width, height} ze skończonymi liczbami i dodatnim rozmiarem oraz marginesu 0 lub większego.</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs a rectangle that overlaps the document.</source>
+        <translation>zoomToRect wymaga prostokąta, który nachodzi na dokument.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

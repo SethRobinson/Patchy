@@ -38658,6 +38658,22 @@ Locked: %1</source>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf pageSize 必须是 &quot;median&quot;、&quot;largest&quot;、&quot;cover&quot; 或以英寸为单位的 [width, height]。</translation>
     </message>
+    <message>
+        <source>viewCenter needs an object with finite x and y numbers.</source>
+        <translation>viewCenter 需要一个包含有限数字 x 和 y 的对象。</translation>
+    </message>
+    <message>
+        <source>zoomTo needs finite x and y numbers and a zoom greater than 0 (percent).</source>
+        <translation>zoomTo 需要有限数字 x 和 y，以及一个大于 0 的缩放值（百分比）。</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more.</source>
+        <translation>zoomToRect 需要包含有限数字且大小为正的 {x, y, width, height}，以及 0 或更大的边距。</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs a rectangle that overlaps the document.</source>
+        <translation>zoomToRect 需要一个与文档重叠的矩形。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

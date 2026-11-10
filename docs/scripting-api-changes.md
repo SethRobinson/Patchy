@@ -23,6 +23,10 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-10 (additive): `patchy.ui.viewCenter` (read/write `{x, y}` in document pixels, null with
+no document), `patchy.ui.zoomTo(x, y, zoomPercent)` and `patchy.ui.zoomToRect(rect, margin)` choose
+where the view looks, not only how far it zooms (card local-045, [view-navigation.md](view-navigation.md#scripted-view-placement)).
+Their names are permanent identifiers. Pinned by `ui_script_ui_view_zoom_to_point_and_rect`.
 2026-11-09 (behavioral): `patchy.ui.captureWindow` leaves the running script's own status-bar
 indicator (Running script, Stop, Pause, Slow) out of the capture; it shows again right after. Pinned
 by `ui_script_capture_window_omits_its_run_indicator`.

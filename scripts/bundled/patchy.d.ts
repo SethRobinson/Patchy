@@ -1778,6 +1778,29 @@ interface PatchyUi {
   /** View > Fit on Screen for the active document; throws with no document. */
   fitOnScreen(): void;
   /**
+   * Where the active document's view looks: the document point (in document pixels) at the
+   * center of the view area, the part of the canvas the rulers and scroll bars leave free.
+   * Reads null with no document. Setting pans the view so that point is at the center,
+   * keeping the zoom and rotation; a point off the document is moved onto its nearest edge.
+   * Setting throws for anything but {x, y} with finite numbers, or with no document. Only
+   * window captures see the view.
+   */
+  viewCenter: {x: number; y: number} | null;
+  /**
+   * Sets the zoom (percent, clamped to 0.01..12800 like `zoom`) and centers the view on
+   * document point (x, y), kept on the document like `viewCenter`. Correct at any view
+   * rotation. Throws for non-finite numbers, a zoom of 0 or less, or with no document.
+   */
+  zoomTo(x: number, y: number, zoomPercent: number): void;
+  /**
+   * Zooms so the rect (document pixels, clipped to the document) fits the view area less
+   * `margin` view pixels a side (default 10, as the Zoom tool's marquee), and centers it.
+   * A rotated view fits the rect's on-screen bounding box. Throws for non-finite numbers, a
+   * width or height of 0 or less, a negative margin, a rect that misses the document, or
+   * with no document.
+   */
+  zoomToRect(rect: {x: number; y: number; width: number; height: number}, margin?: number): void;
+  /**
    * The active 32-bit document's preview exposure in stops, the status bar's Exposure box:
    * it scales the linear values the canvas, thumbnails and 8-bit exports show, never the
    * pixels. Not saved and not an undo step. Reads 0 without a 32-bit document; setting

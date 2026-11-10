@@ -4716,6 +4716,65 @@ void ScriptUiObject::set_rotation(double degrees) {
 }
 
 void ScriptUiObject::fitOnScreen() { const ScriptApiCall api_call(host_); host_.fit_view_on_screen(); }
+
+namespace {
+
+// A finite JS number, or nullopt (undefined, strings, NaN, infinities).
+std::optional<double> finite_script_number(const QJSValue& value) {
+  if (!value.isNumber()) {
+    return std::nullopt;
+  }
+  const auto number = value.toNumber();
+  return std::isfinite(number) ? std::optional<double>(number) : std::nullopt;
+}
+
+}  // namespace
+
+QJSValue ScriptUiObject::view_center() const { const ScriptApiCall api_call(host_); return host_.view_center(); }
+void ScriptUiObject::set_view_center(const QJSValue& point) {
+  const ScriptApiCall api_call(host_);
+  const auto x = point.isObject() ? finite_script_number(point.property(QStringLiteral("x"))) : std::nullopt;
+  const auto y = point.isObject() ? finite_script_number(point.property(QStringLiteral("y"))) : std::nullopt;
+  if (!x || !y) {
+    host_.throw_js_error(ScriptEngineHost::tr("viewCenter needs an object with finite x and y numbers."));
+    return;
+  }
+  host_.set_view_center(QPointF(*x, *y));
+}
+
+void ScriptUiObject::zoomTo(const QJSValue& x, const QJSValue& y, const QJSValue& percent) {
+  const ScriptApiCall api_call(host_);
+  const auto x_value = finite_script_number(x);
+  const auto y_value = finite_script_number(y);
+  const auto zoom_value = finite_script_number(percent);
+  if (!x_value || !y_value || !zoom_value || *zoom_value <= 0.0) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("zoomTo needs finite x and y numbers and a zoom greater than 0 (percent)."));
+    return;
+  }
+  host_.zoom_view_to(QPointF(*x_value, *y_value), *zoom_value);
+}
+
+void ScriptUiObject::zoomToRect(const QJSValue& rect, const QJSValue& margin) {
+  const ScriptApiCall api_call(host_);
+  const auto field = [&rect](const char* name) {
+    return rect.isObject() ? finite_script_number(rect.property(QString::fromLatin1(name))) : std::nullopt;
+  };
+  const auto x = field("x");
+  const auto y = field("y");
+  const auto width = field("width");
+  const auto height = field("height");
+  const bool default_margin = margin.isUndefined() || margin.isNull();
+  // NaN asks the canvas for Fit's own margin.
+  const auto margin_value =
+      default_margin ? std::optional<double>(std::numeric_limits<double>::quiet_NaN()) : finite_script_number(margin);
+  if (!x || !y || !width || !height || *width <= 0.0 || *height <= 0.0 || !margin_value || (!default_margin && *margin_value < 0.0)) {
+    host_.throw_js_error(ScriptEngineHost::tr(
+        "zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more."));
+    return;
+  }
+  host_.zoom_view_to_rect(QRectF(*x, *y, *width, *height), *margin_value);
+}
 bool ScriptUiObject::proof_colors() const { const ScriptApiCall api_call(host_); return host_.view_proof_colors(); }
 void ScriptUiObject::set_proof_colors(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_proof_colors(enabled); }
 bool ScriptUiObject::gamut_warning() const { const ScriptApiCall api_call(host_); return host_.view_gamut_warning(); }

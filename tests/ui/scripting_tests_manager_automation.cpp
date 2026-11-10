@@ -1005,6 +1005,155 @@ void ui_script_ui_view_zoom() {
   CHECK(!run_script(connector, QStringLiteral("app.runCommand('view.fit_on_screen');")));
 }
 
+// patchy.ui.viewCenter / zoomTo / zoomToRect (card local-045): a script chooses where the
+// view looks, not only how far it zooms. A red marker sits off center at (620, 140) on an
+// 800 x 600 white document; after zoomTo it is under the view area's center in both the
+// canvas and a --run-script captureWindow, upright and rotated.
+void ui_script_ui_view_zoom_to_point_and_rect() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.setWindowSize(1000, 700);
+    var doc = app.newDocument(800, 600);
+    doc.activeLayer.fill('#ffffff');
+    doc.activeLayer.fillRect(612, 132, 16, 16, '#ff0000');
+    patchy.ui.fitOnScreen();
+  )JS")));
+  const auto near = [](QPointF a, double x, double y) {
+    return std::abs(a.x() - x) < 0.01 && std::abs(a.y() - y) < 0.01;
+  };
+  const auto center_pixel = [](patchy::ui::CanvasWidget& canvas, QPointF offset = QPointF()) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    const auto image = canvas.grab().toImage();
+    const auto point = (canvas.view_content_rect().center() + offset) * image.devicePixelRatio();
+    return image.pixelColor(point.toPoint());
+  };
+  // The pixel grid (on from 600%) tints a cell's first device row and column: red reads 255,63,63
+  // there and white 200,200,200.
+  const auto is_red = [](QColor c) { return c.red() > 200 && c.green() < 100 && c.blue() < 100; };
+  const auto is_white = [](QColor c) { return c.red() > 180 && c.green() > 180 && c.blue() > 180; };
+
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.zoomTo(620, 140, 800);
+    var c = patchy.ui.viewCenter;
+    console.log('zoomToZoom=' + patchy.ui.zoom + ' x=' + Math.round(c.x * 1000) / 1000 + ' y=' + Math.round(c.y * 1000) / 1000);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("zoomToZoom=800 x=620 y=140")));
+  auto* canvas = require_canvas(window);
+  CHECK(near(canvas->view_center_document_point(), 620.0, 140.0));
+  CHECK(is_red(center_pixel(*canvas)));
+  // The 16 px marker is 128 view pixels wide at 800%: 100 pixels off center is white.
+  CHECK(is_white(center_pixel(*canvas, QPointF(100.0, 0.0))));
+
+  // viewCenter pans without zooming and round-trips; a point off the document is kept on it.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.viewCenter = {x: 100.5, y: 500};
+    var c = patchy.ui.viewCenter;
+    console.log('panned=' + patchy.ui.zoom + ' x=' + Math.round(c.x * 1000) / 1000 + ' y=' + Math.round(c.y * 1000) / 1000);
+    patchy.ui.viewCenter = {x: -500, y: 99999};
+    c = patchy.ui.viewCenter;
+    console.log('clamped x=' + Math.round(c.x * 1000) / 1000 + ' y=' + Math.round(c.y * 1000) / 1000);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("panned=800 x=100.5 y=500")));
+  CHECK(backlog_contains(window, QStringLiteral("clamped x=0 y=600")));
+
+  // zoomToRect fits the rect in the view area less the margin a side, centered on it.
+  const auto area = canvas->view_content_rect();
+  CHECK(run_script(window, QStringLiteral("patchy.ui.zoomToRect({x: 600, y: 120, width: 40, height: 40});")));
+  CHECK(near(canvas->view_center_document_point(), 620.0, 140.0));
+  CHECK(std::abs(40.0 * canvas->zoom() - (std::min(area.width(), area.height()) - 20.0)) < 0.5);
+  CHECK(is_red(center_pixel(*canvas)));
+  CHECK(run_script(window, QStringLiteral("patchy.ui.zoomToRect({x: 600, y: 120, width: 40, height: 40}, 100);")));
+  CHECK(std::abs(40.0 * canvas->zoom() - (std::min(area.width(), area.height()) - 200.0)) < 0.5);
+  CHECK(near(canvas->view_center_document_point(), 620.0, 140.0));
+
+  // Bad arguments throw and leave the view alone.
+  CHECK(run_script(window, QStringLiteral("patchy.ui.zoomTo(10, 20, 300);")));
+  const auto kept_zoom = canvas->view_zoom();
+  for (const auto* bad : {"patchy.ui.zoomTo(NaN, 0, 100);", "patchy.ui.zoomTo(1, 2);", "patchy.ui.zoomTo(1, 2, 0);",
+                          "patchy.ui.zoomTo('1', 2, 100);", "patchy.ui.zoomTo(1, Infinity, 100);",
+                          "patchy.ui.viewCenter = 5;", "patchy.ui.viewCenter = {x: 1};",
+                          "patchy.ui.zoomToRect({x: 0, y: 0, width: 0, height: 5});",
+                          "patchy.ui.zoomToRect({x: 5000, y: 5000, width: 10, height: 10});",
+                          "patchy.ui.zoomToRect({x: 0, y: 0, width: 10, height: 10}, -1);",
+                          "patchy.ui.zoomToRect(null);"}) {
+    CHECK(!run_script(window, QString::fromLatin1(bad)));
+  }
+  CHECK(std::abs(canvas->view_zoom() - kept_zoom) < 1e-9);
+  CHECK(near(canvas->view_center_document_point(), 10.0, 20.0));
+  // zoomTo clamps the zoom like patchy.ui.zoom.
+  CHECK(run_script(window, QStringLiteral("patchy.ui.zoomTo(620, 140, 1e9); console.log('maxTo=' + patchy.ui.zoom);")));
+  CHECK(backlog_contains(window, QStringLiteral("maxTo=12800")));
+
+  // Rotated: the same point lands at the center, and zoomToRect still centers its rect.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.rotation = 90;
+    patchy.ui.zoomTo(620, 140, 400);
+  )JS")));
+  CHECK(near(canvas->view_center_document_point(), 620.0, 140.0));
+  CHECK(is_red(center_pixel(*canvas)));
+  CHECK(run_script(window, QStringLiteral("patchy.ui.zoomToRect({x: 600, y: 120, width: 40, height: 40});")));
+  CHECK(near(canvas->view_center_document_point(), 620.0, 140.0));
+  CHECK(run_script(window, QStringLiteral("patchy.ui.rotation = 0;")));
+
+  // The --run-script path: zoomTo, then a window capture with the marker at the canvas center.
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto script_path = temp.filePath(QStringLiteral("zoom-to-point.js"));
+  const auto capture_path = temp.filePath(QStringLiteral("zoom-to-point.png"));
+  {
+    QFile file(script_path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    const auto source = QStringLiteral(
+                            "patchy.ui.zoomTo(620, 140, 600);\n"
+                            "patchy.ui.setStatusMessage('Ready');\n"
+                            "if (!patchy.ui.captureWindow('%1')) { throw new Error('captureWindow returned false'); }\n"
+                            "console.log('cli=' + patchy.ui.zoom);\n")
+                            .arg(QDir::fromNativeSeparators(capture_path));
+    file.write(source.toUtf8());
+  }
+  const auto output_path = script_path + QStringLiteral(".out.txt");
+  window.run_script_command(script_path, output_path);
+  wait_for_run_end(window.script_engine_host());
+  QElapsedTimer timer;
+  timer.start();
+  while (!QFile::exists(output_path) && timer.elapsed() < 5000) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  }
+  QFile output(output_path);
+  CHECK(output.open(QIODevice::ReadOnly | QIODevice::Text));
+  const auto cli = QString::fromUtf8(output.readAll());
+  CHECK(cli.contains(QStringLiteral("cli=600")));
+  CHECK(cli.endsWith(QStringLiteral("[done]\n")));
+  const QImage captured(capture_path);
+  CHECK(!captured.isNull());
+  const auto in_window = QPointF(canvas->mapTo(&window, QPoint(0, 0))) + canvas->view_content_rect().center();
+  CHECK(is_red(captured.pixelColor((in_window * captured.devicePixelRatio()).toPoint())));
+  captured.save(QStringLiteral("test-artifacts/ui_script_ui_view_zoom_to_point.png"));
+
+  // No document: viewCenter reads null and the setters throw (a connector session).
+  patchy::ui::MainWindow connector;
+  show_window(connector);
+  connector.set_cli_automation_mode(true);
+  connector.script_engine_host().set_connector_mode(true);
+  CHECK(run_script(connector, QStringLiteral(R"JS(
+    app.documents.forEach(function (d) { d.close(); });
+    console.log('emptyCenter=' + patchy.ui.viewCenter);
+  )JS")));
+  CHECK(backlog_contains(connector, QStringLiteral("emptyCenter=null")));
+  CHECK(!run_script(connector, QStringLiteral("patchy.ui.zoomTo(1, 1, 100);")));
+  CHECK(!run_script(connector, QStringLiteral("patchy.ui.viewCenter = {x: 1, y: 1};")));
+  CHECK(!run_script(connector, QStringLiteral("patchy.ui.zoomToRect({x: 0, y: 0, width: 8, height: 8});")));
+  CHECK(run_script(connector, QStringLiteral(R"JS(
+    var doc = app.newDocument(64, 64);
+    patchy.ui.zoomTo(48, 16, 800);
+    var c = patchy.ui.viewCenter;
+    console.log('connectorTo=' + patchy.ui.zoom + ' x=' + Math.round(c.x * 1000) / 1000 + ' y=' + Math.round(c.y * 1000) / 1000);
+  )JS")));
+  CHECK(backlog_contains(connector, QStringLiteral("connectorTo=800 x=48 y=16")));
+}
+
 void ui_script_preview_exposure_drives_the_32_bit_view() {
   patchy::set_deep_editing_override(true);
   const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
@@ -1774,6 +1923,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_ai_setup_blurb_reports_missing_and_flatpak_forms", ui_ai_setup_blurb_reports_missing_and_flatpak_forms},
       {"ui_ai_setup_examples_keep_installation_prompt_stable", ui_ai_setup_examples_keep_installation_prompt_stable},
       {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
+      {"ui_script_ui_view_zoom_to_point_and_rect", ui_script_ui_view_zoom_to_point_and_rect},
       {"ui_script_preview_exposure_drives_the_32_bit_view", ui_script_preview_exposure_drives_the_32_bit_view},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_capture_window_omits_its_run_indicator", ui_script_capture_window_omits_its_run_indicator},

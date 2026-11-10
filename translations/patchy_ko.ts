@@ -38658,6 +38658,22 @@ Locked: %1</source>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf pageSize는 &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; 또는 인치 단위의 [width, height]여야 합니다.</translation>
     </message>
+    <message>
+        <source>viewCenter needs an object with finite x and y numbers.</source>
+        <translation>viewCenter에는 유한한 숫자 x와 y가 있는 객체가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>zoomTo needs finite x and y numbers and a zoom greater than 0 (percent).</source>
+        <translation>zoomTo에는 유한한 숫자 x와 y, 그리고 0보다 큰 확대/축소(백분율)가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more.</source>
+        <translation>zoomToRect에는 유한한 숫자와 양수 크기를 가진 {x, y, width, height}와 0 이상의 여백이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs a rectangle that overlaps the document.</source>
+        <translation>zoomToRect에는 문서와 겹치는 사각형이 필요합니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

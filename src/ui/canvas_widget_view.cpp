@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <optional>
 
 namespace patchy::ui {
 
@@ -412,37 +413,61 @@ void CanvasWidget::scroll_view(ViewScroll scroll) {
 }
 
 void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
+  zoom_to_document_rect(QRectF(document_rect.normalized()), kFitMarginPerSide);
+}
+
+bool CanvasWidget::zoom_to_document_rect(QRectF document_rect, double margin_per_side) {
   if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
-    return;
+    return false;
   }
 
-  document_rect = document_rect.normalized().intersected(QRect(0, 0, document_->width(), document_->height()));
+  document_rect = document_rect.normalized().intersected(QRectF(0, 0, document_->width(), document_->height()));
   // Reject only a degenerate point; a thin strip still zooms to fit its longer
-  // axis (the divisions below stay safe since a non-empty rect is at least 1px).
-  if (document_rect.width() <= 1 && document_rect.height() <= 1) {
-    return;
+  // axis (the divisions below stay safe: each span is taken as at least 1px).
+  if (document_rect.isEmpty() || (document_rect.width() <= 1.0 && document_rect.height() <= 1.0)) {
+    return false;
   }
 
+  const auto margin = std::isfinite(margin_per_side) ? std::max(0.0, margin_per_side) : kFitMarginPerSide;
   const auto area = view_content_rect();
-  const auto available_width = std::max(1.0, area.width() - 2.0 * kFitMarginPerSide);
-  const auto available_height = std::max(1.0, area.height() - 2.0 * kFitMarginPerSide);
+  const auto available_width = std::max(1.0, area.width() - 2.0 * margin);
+  const auto available_height = std::max(1.0, area.height() - 2.0 * margin);
   if (view_axis_aligned()) {
-    zoom_ = clamp_logical_zoom(
-        std::min(available_width / std::max(1.0, static_cast<double>(document_rect.width())),
-                 available_height / std::max(1.0, static_cast<double>(document_rect.height()))));
-    pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
-                       static_cast<double>(document_rect.x()) * zoom_,
-                   area.top() + (area.height() - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
-                       static_cast<double>(document_rect.y()) * zoom_);
+    zoom_ = clamp_logical_zoom(std::min(available_width / std::max(1.0, document_rect.width()),
+                                        available_height / std::max(1.0, document_rect.height())));
+    pan_ = QPointF(area.left() + (area.width() - document_rect.width() * zoom_) / 2.0 - document_rect.x() * zoom_,
+                   area.top() + (area.height() - document_rect.height() * zoom_) / 2.0 - document_rect.y() * zoom_);
   } else {
     // Rotated: fit the rect's on-screen bounding box and center the rect.
     const auto unit_bounds =
         CanvasViewTransform(1.0, QPointF(), view_rotation_degrees_, QSizeF(document_->width(), document_->height()))
-            .widget_bounds_of_document_rect(QRectF(document_rect));
+            .widget_bounds_of_document_rect(document_rect);
     zoom_ = clamp_logical_zoom(std::min(available_width / std::max(1.0, unit_bounds.width()),
                                         available_height / std::max(1.0, unit_bounds.height())));
-    pan_ = view_transform().pan_placing(QRectF(document_rect).center(), area.center());
+    pan_ = view_transform().pan_placing(document_rect.center(), area.center());
   }
+  constrain_pan();
+  update_tool_cursor();
+  update();
+  notify_view_changed();
+  return true;
+}
+
+QPointF CanvasWidget::view_center_document_point() const {
+  return view_transform().map_to_document(view_content_rect().center());
+}
+
+void CanvasWidget::center_view_on_document_point(QPointF document_point, std::optional<double> view_zoom) {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
+    return;
+  }
+  if (view_zoom.has_value()) {
+    zoom_ = clamp_logical_zoom(*view_zoom / std::max(0.01, devicePixelRatioF()));
+  }
+  // The point is kept on the document, so the view center never parks in the grey margin.
+  const QPointF anchor(std::clamp(document_point.x(), 0.0, static_cast<double>(document_->width())),
+                       std::clamp(document_point.y(), 0.0, static_cast<double>(document_->height())));
+  pan_ = view_transform().pan_placing(anchor, view_content_rect().center());
   constrain_pan();
   update_tool_cursor();
   update();

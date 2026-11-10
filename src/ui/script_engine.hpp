@@ -605,6 +605,13 @@ public:
   [[nodiscard]] QJSValue tool_palette_state();
   void set_tool_palette_state(const QJSValue& state);
   void fit_view_on_screen();
+  // patchy.ui.viewCenter / zoomTo / zoomToRect: where the active document's view looks, in
+  // document pixels (docs/view-navigation.md, "Scripted view placement"). The getter returns
+  // null with no document; the setters throw then. Arguments are validated by ScriptUiObject.
+  [[nodiscard]] QJSValue view_center();
+  void set_view_center(QPointF document_point);
+  void zoom_view_to(QPointF document_point, double percent);
+  void zoom_view_to_rect(QRectF document_rect, double margin_per_side);
   void present_script_view(int delay_ms = 0, bool slow_hold = false);
   [[nodiscard]] bool slow_mode() const;
   [[nodiscard]] bool slow_mode_available() const;

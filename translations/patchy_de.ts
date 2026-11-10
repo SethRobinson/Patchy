@@ -38765,6 +38765,22 @@ Fixiert: %1</translation>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf: pageSize muss &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; oder [Breite, Höhe] in Zoll sein.</translation>
     </message>
+    <message>
+        <source>viewCenter needs an object with finite x and y numbers.</source>
+        <translation>viewCenter benötigt ein Objekt mit endlichen Zahlen für x und y.</translation>
+    </message>
+    <message>
+        <source>zoomTo needs finite x and y numbers and a zoom greater than 0 (percent).</source>
+        <translation>zoomTo benötigt endliche Zahlen für x und y und einen Zoom größer als 0 (Prozent).</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more.</source>
+        <translation>zoomToRect benötigt {x, y, width, height} mit endlichen Zahlen und einer positiven Größe sowie einen Rand von 0 oder mehr.</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs a rectangle that overlaps the document.</source>
+        <translation>zoomToRect benötigt ein Rechteck, das das Dokument überlappt.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

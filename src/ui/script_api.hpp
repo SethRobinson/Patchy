@@ -708,6 +708,17 @@ public:
   void set_rotation(double degrees);
   // View > Fit on Screen for the active document; throws with no document.
   Q_INVOKABLE void fitOnScreen();
+  // Where the view looks, in document pixels (docs/view-navigation.md, "Scripted view
+  // placement"). viewCenter reads {x, y}, the document point at the view area's center
+  // (null with no document); setting pans there at the current zoom. zoomTo sets the zoom
+  // (percent, clamped like zoom) and centers (x, y). Both keep the point on the document.
+  // zoomToRect fits {x, y, width, height} with an optional margin in view pixels a side
+  // (default 10, Zoom tool marquee). All throw for non-finite numbers or with no document.
+  Q_PROPERTY(QJSValue viewCenter READ view_center WRITE set_view_center)
+  [[nodiscard]] QJSValue view_center() const;
+  void set_view_center(const QJSValue& point);
+  Q_INVOKABLE void zoomTo(const QJSValue& x, const QJSValue& y, const QJSValue& percent);
+  Q_INVOKABLE void zoomToRect(const QJSValue& rect, const QJSValue& margin = QJSValue());
   // The active 32-bit document's preview exposure in stops (the status bar's Exposure
   // box): display only, never saved, no history entry. Reads 0 without a 32-bit document;
   // setting clamps to -20..20 and throws for NaN or without one. Window captures see it.

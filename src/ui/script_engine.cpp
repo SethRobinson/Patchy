@@ -4156,6 +4156,60 @@ void ScriptEngineHost::fit_view_on_screen() {
   canvas->fit_to_view();
 }
 
+QJSValue ScriptEngineHost::view_center() {
+  auto* canvas = session_canvas(active_session_id());
+  if (canvas == nullptr) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  // The view area is read from the canvas size: settle a setWindowSize from this burst first.
+  QCoreApplication::sendPostedEvents();
+  QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  const auto point = canvas->view_center_document_point();
+  auto result = engine()->newObject();
+  result.setProperty(QStringLiteral("x"), point.x());
+  result.setProperty(QStringLiteral("y"), point.y());
+  return result;
+}
+
+void ScriptEngineHost::set_view_center(QPointF document_point) {
+  pump_progress_indicator();
+  auto* canvas = session_canvas(active_session_id());
+  if (canvas == nullptr) {
+    throw_js_error(tr("No document is open to zoom."));
+    return;
+  }
+  QCoreApplication::sendPostedEvents();
+  QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  canvas->center_view_on_document_point(document_point);
+}
+
+void ScriptEngineHost::zoom_view_to(QPointF document_point, double percent) {
+  pump_progress_indicator();
+  auto* canvas = session_canvas(active_session_id());
+  if (canvas == nullptr) {
+    throw_js_error(tr("No document is open to zoom."));
+    return;
+  }
+  QCoreApplication::sendPostedEvents();
+  QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  // Percent is view zoom, as for patchy.ui.zoom; the canvas clamps it to its zoom range.
+  canvas->center_view_on_document_point(document_point, percent / 100.0);
+}
+
+void ScriptEngineHost::zoom_view_to_rect(QRectF document_rect, double margin_per_side) {
+  pump_progress_indicator();
+  auto* canvas = session_canvas(active_session_id());
+  if (canvas == nullptr) {
+    throw_js_error(tr("No document is open to zoom."));
+    return;
+  }
+  QCoreApplication::sendPostedEvents();
+  QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  if (!canvas->zoom_to_document_rect(document_rect, margin_per_side)) {
+    throw_js_error(tr("zoomToRect needs a rectangle that overlaps the document."));
+  }
+}
+
 bool ScriptEngineHost::capture_window_to_file(const QString& path) {
   pump_progress_indicator();
   // grab() renders synchronously but does not run POSTED layout events, so a

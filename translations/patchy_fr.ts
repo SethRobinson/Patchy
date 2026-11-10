@@ -17323,7 +17323,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>Scan the covers first</source>
-        <translation>Numérisez d'abord les couvertures</translation>
+        <translation>Numérisez d&apos;abord les couvertures</translation>
     </message>
     <message>
         <source>Close the book and lay it on the glass with the front cover face down.</source>
@@ -17335,7 +17335,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>In the next step, turn the book over and scan the back cover.</source>
-        <translation>À l'étape suivante, retournez le livre et numérisez la couverture arrière.</translation>
+        <translation>À l&apos;étape suivante, retournez le livre et numérisez la couverture arrière.</translation>
     </message>
     <message>
         <source>The back cover was scanned again.</source>
@@ -38764,6 +38764,22 @@ Verrouillé : %1</translation>
     <message>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf : pageSize doit valoir &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; ou [largeur, hauteur] en pouces.</translation>
+    </message>
+    <message>
+        <source>viewCenter needs an object with finite x and y numbers.</source>
+        <translation>viewCenter nécessite un objet avec des nombres finis x et y.</translation>
+    </message>
+    <message>
+        <source>zoomTo needs finite x and y numbers and a zoom greater than 0 (percent).</source>
+        <translation>zoomTo nécessite des nombres finis x et y et un zoom supérieur à 0 (pourcentage).</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more.</source>
+        <translation>zoomToRect nécessite {x, y, width, height} avec des nombres finis et une taille positive, et une marge de 0 ou plus.</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs a rectangle that overlaps the document.</source>
+        <translation>zoomToRect nécessite un rectangle qui chevauche le document.</translation>
     </message>
 </context>
 <context>

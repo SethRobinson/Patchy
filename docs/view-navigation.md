@@ -67,6 +67,10 @@ GitHub issue 420. `src/ui/view_extras.{hpp,cpp}` (the `ViewExtra` bits, settings
 
 GitHub issue 584. Home and End (`view.scroll_top_left`, `view.scroll_bottom_right`) put the image's corner at the view area's corner; Page Up/Down and Shift+Page Up/Down (`view.scroll_page_*`) move one view-area span, stopping at the image edge. An axis where the image fits stays put (`CanvasWidget::scroll_view`). Window commands with no menu row; they yield to a focused field or list (`canvas_key_command_yields`). Test: `ui_issue_584_home_end_and_page_keys_scroll_the_view`.
 
+## Scripted view placement
+
+Card local-045. `patchy.ui.viewCenter`, `zoomTo` and `zoomToRect` (script_api.cpp, `ScriptEngineHost::view_center`, `zoom_view_to`, `zoom_view_to_rect`) speak document pixels and the view area's center. `CanvasWidget::view_center_document_point` maps that center through `view_transform()`; `center_view_on_document_point` (optionally setting the view zoom first, clamped by `clamp_logical_zoom`) clamps the point into the document and places it there with `pan_placing`, so it holds under rotation, then runs `constrain_pan`, which never moves a point on the document off the center. `zoomToRect` is the Zoom-tool marquee's `zoom_to_document_rect` with a margin argument (the QRect overload passes Fit's 10 px) and returns false for a rect that misses the document. Test: `ui_script_ui_view_zoom_to_point_and_rect` (canvas pixels and a `--run-script` window capture, rotated too).
+
 ## Screen modes
 
 View > Screen Mode, F, Esc and the tool palette's screen mode button: [screen-modes.md](screen-modes.md).

@@ -87,7 +87,7 @@ Preview dimensions default to a 1024 by 1024 bounding box and may be 1 through 4
 
 A mutating script or stroke batch normally makes one undo entry per affected document; Slow mode separates strokes and edits within the batch. Failed or cancelled scripts may leave partial edits; inspect returned state and undo before revising. The connector does not retry edits. `doc.undo()` and `doc.redo()` return whether a history step was restored and must run before new edits in the same script. `doc.modified`, `doc.canUndo`, and `doc.canRedo` expose status. `patchy.setResult(value)` returns a small JSON value independently of logs.
 
-Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs (`patchy.ui.zoom` and `patchy.ui.fitOnScreen()` set the view before a window capture). Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
+Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs (`patchy.ui.zoom`, `patchy.ui.zoomTo`, `patchy.ui.zoomToRect`, `patchy.ui.viewCenter` and `patchy.ui.fitOnScreen()` set the view before a window capture). Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
 
 ## Native shapes, paths, and masks
 
@@ -626,8 +626,22 @@ doc.exportArtboards("out", {format: "png"});
 | `patchy.ui.zoom` | The active document's view zoom in percent (read/write, 0 with no document). Setting clamps to 0.01..12800; throws for NaN, non-positive values, or with no document. Only window captures see it. |
 | `patchy.ui.rotation` | The active document's view rotation in degrees, clockwise, in (-180, 180] (read/write, 0 with no document), the Rotate View tool's angle. Setting wraps any finite angle and turns the view about its center; throws for NaN or with no document. Only the view turns, never the pixels; only window captures see it. |
 | `patchy.ui.fitOnScreen()` | View > Fit on Screen for the active document. Throws with no document. |
+| `patchy.ui.viewCenter` | Where the view looks: `{x, y}`, the document point (document pixels) at the center of the canvas's view area, or null with no document. Setting pans there without changing the zoom or rotation; a point off the document moves onto its nearest edge. Throws for anything but finite `x` and `y`, or with no document. |
+| `patchy.ui.zoomTo(x, y, zoomPercent)` | Sets the zoom (clamped like `patchy.ui.zoom`) and centers the view on document point (x, y), at any view rotation. Throws for non-finite numbers, a zoom of 0 or less, or with no document. |
+| `patchy.ui.zoomToRect(rect, margin)` | Fits `{x, y, width, height}` (document pixels) in the view like the Zoom tool's marquee, centered, with `margin` view pixels a side (default 10). Throws for a rect of no size or one that misses the document, a negative margin, or with no document. |
 | `patchy.ui.previewExposure` | The active 32-bit document's preview exposure in stops (read/write), the status bar's Exposure box. It changes what the canvas, thumbnails and 8-bit exports show, never the pixels; not saved, not an undo step. Reads 0 without a 32-bit document; setting clamps to -20..20 and throws for NaN or without one. |
 | `app.runCommand("view.vector_preview")` | Toggles View > Dynamic Vector Preview, also available in Preferences > Application. Vector shapes and masks stay sharp alongside pixel content; saved/exported pixels keep document resolution. This is a persisted application view option. Connector sessions refuse `runCommand`. |
+
+To show a detail of the document in a window capture, zoom onto it, or fit a region:
+
+```js
+patchy.ui.setWindowSize(1280, 800);
+patchy.ui.zoomTo(1650, 220, 400);           // 400%, document point (1650, 220) at the center
+patchy.ui.captureWindow("detail.png");
+patchy.ui.zoomToRect({x: 0, y: 0, width: 600, height: 400}, 40);
+var c = patchy.ui.viewCenter;               // {x: 300, y: 200}
+patchy.ui.viewCenter = {x: c.x + 200, y: c.y}; // pan right, same zoom
+```
 
 Sound is best-effort per platform: Windows and macOS play through the OS directly, Linux needs `paplay`, `pw-play`, or `aplay` on the PATH (most desktops have one). No sound device just means silence, never an error, and setting the environment variable `PATCHY_NO_SOUND=1` mutes scripts entirely.
 

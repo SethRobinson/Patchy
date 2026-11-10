@@ -309,7 +309,19 @@ public:
   // the image's edge. An axis where the whole image fits does not move.
   enum class ViewScroll { TopLeft, BottomRight, PageUp, PageDown, PageLeft, PageRight };
   void scroll_view(ViewScroll scroll);
+  // The Zoom-tool marquee and layer-thumbnail zoom: fits the rect (clipped to the document)
+  // in the view area less Fit's margin a side, centered.
   void zoom_to_document_rect(QRect document_rect);
+  // The same fit with a margin of `margin_per_side` view pixels (scripting
+  // patchy.ui.zoomToRect). False, with the view unchanged, when the rect misses the document
+  // or is a single point.
+  bool zoom_to_document_rect(QRectF document_rect, double margin_per_side);
+  // The document point at the view area's center (scripting patchy.ui.viewCenter).
+  [[nodiscard]] QPointF view_center_document_point() const;
+  // Places `document_point`, clamped into the document, at the view area's center, at the
+  // current zoom or at `view_zoom` (clamped like set_view_zoom). Correct under rotation;
+  // constrain_pan still applies (scripting patchy.ui.viewCenter and zoomTo).
+  void center_view_on_document_point(QPointF document_point, std::optional<double> view_zoom = std::nullopt);
   void set_spacebar_panning(bool enabled);
   [[nodiscard]] bool begin_pan_at_global_position(QPoint global_position);
   [[nodiscard]] bool pan_to_global_position(QPoint global_position);

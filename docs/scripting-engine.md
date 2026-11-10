@@ -138,7 +138,8 @@ Split from [scripting.md](scripting.md). Script and API identifiers are permanen
   id; false for unknown or disabled commands, `script.` ids (one run at a time), and
   `edit.undo`/`edit.redo`/`file.quit` during a run.
 - **`patchy.ui.zoom` / `patchy.ui.fitOnScreen()`** are the view controls (percent of
-  device pixels, active document); fitting settles posted layout first. Window captures
+  device pixels, active document); fitting settles posted layout first, as do
+  `viewCenter`, `zoomTo` and `zoomToRect` ([view-navigation.md](view-navigation.md#scripted-view-placement)). Window captures
   wait for [Dynamic Vector Preview](vector-preview.md).
 - **`patchy.ui.expandPanel`/`collapsePanel`/`closePanel`/`panelState`** take permanent
   lowercase names that `kScriptSidePanels` (script_engine.cpp) maps to the panel ids of

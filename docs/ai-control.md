@@ -299,7 +299,8 @@ discovery, covered by attached state tokens; layers also report `hasLayerMask` a
   can enlarge sprites. Coordinates map as
   `documentX = rect.x + previewX / scaleX`, similarly for Y. Canvas previews are
   fresh renders; app-window captures report their actual offscreen status. Window
-  captures show the view as staged by `patchy.ui.zoom` (percent) and
+  captures show the view as staged by `patchy.ui.zoom` (percent),
+  `patchy.ui.zoomTo`, `patchy.ui.zoomToRect`, `patchy.ui.viewCenter` and
   `patchy.ui.fitOnScreen()`, which connector sessions allow; canvas previews
   ignore the view.
 - The trusted-script model is unchanged. Scripts can access files with application

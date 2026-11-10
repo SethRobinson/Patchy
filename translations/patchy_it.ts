@@ -17351,7 +17351,7 @@ Sostituirlo?</translation>
     </message>
     <message>
         <source>Check the outline of each cover: drag its edges or the whole box. Show picks the cover.</source>
-        <translation>Controlla il contorno di ogni copertina: trascina i bordi o l'intero riquadro. Mostra sceglie la copertina.</translation>
+        <translation>Controlla il contorno di ogni copertina: trascina i bordi o l&apos;intero riquadro. Mostra sceglie la copertina.</translation>
     </message>
     <message>
         <source>Editing the back cover: drag its outline, or press Rescan Cover.</source>
@@ -38764,6 +38764,22 @@ Bloccato: %1</translation>
     <message>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf: pageSize deve essere &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; o [larghezza, altezza] in pollici.</translation>
+    </message>
+    <message>
+        <source>viewCenter needs an object with finite x and y numbers.</source>
+        <translation>viewCenter richiede un oggetto con numeri finiti x e y.</translation>
+    </message>
+    <message>
+        <source>zoomTo needs finite x and y numbers and a zoom greater than 0 (percent).</source>
+        <translation>zoomTo richiede numeri finiti x e y e uno zoom maggiore di 0 (percentuale).</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs {x, y, width, height} with finite numbers and a positive size, and a margin of 0 or more.</source>
+        <translation>zoomToRect richiede {x, y, width, height} con numeri finiti e una dimensione positiva, e un margine di 0 o più.</translation>
+    </message>
+    <message>
+        <source>zoomToRect needs a rectangle that overlaps the document.</source>
+        <translation>zoomToRect richiede un rettangolo che si sovrapponga al documento.</translation>
     </message>
 </context>
 <context>
