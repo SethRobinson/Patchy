@@ -882,6 +882,65 @@ QJSValue ScriptLayerObject::getSmartObject() const {
   return object;
 }
 
+QJSValue ScriptLayerObject::smart_filters() const {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() == nullptr) {
+    return QJSValue();
+  }
+  return host_.smart_filters_to_js(session_id_, layer_id_);
+}
+
+bool ScriptLayerObject::smart_filters_visible() const {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() == nullptr) {
+    return false;
+  }
+  return host_.smart_filters_visible(session_id_, layer_id_);
+}
+
+void ScriptLayerObject::set_smart_filters_visible(bool visible) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() != nullptr) {
+    host_.set_smart_filters_visible(session_id_, layer_id_, visible);
+  }
+}
+
+int ScriptLayerObject::addSmartFilter(const QString& filterId, const QJSValue& params, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() == nullptr) {
+    return -1;
+  }
+  return host_.add_smart_filter(session_id_, layer_id_, filterId, params, options);
+}
+
+void ScriptLayerObject::setSmartFilter(int index, const QJSValue& changes) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() != nullptr) {
+    host_.set_smart_filter(session_id_, layer_id_, index, changes);
+  }
+}
+
+void ScriptLayerObject::removeSmartFilter(int index) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() != nullptr) {
+    host_.remove_smart_filter(session_id_, layer_id_, index);
+  }
+}
+
+void ScriptLayerObject::moveSmartFilter(int from, int to) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() != nullptr) {
+    host_.move_smart_filter(session_id_, layer_id_, from, to);
+  }
+}
+
+void ScriptLayerObject::clearSmartFilters() {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() != nullptr) {
+    host_.clear_smart_filters(session_id_, layer_id_);
+  }
+}
+
 int ScriptLayerObject::updateSmartObject() {
   const ScriptApiCall api_call(host_);
   if (read_layer() == nullptr) {

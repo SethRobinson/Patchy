@@ -2913,27 +2913,13 @@ bool ScriptEngineHost::layer_is_text_layer(std::int64_t session_id, LayerId laye
 // ---------------------------------------------------------------------------
 // Filters
 
-bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId layer_id,
-                                             const QString& filter_id, const QJSValue& params) {
-  pump_progress_indicator();
-  auto* session = window_.session_with_id(session_id);
-  if (session == nullptr) {
-    throw_js_error(tr("The document is no longer open."));
-    return false;
-  }
-  // GEGL filters (docs/gegl-filters.md) come from their own registry, scanned on first use.
-  std::shared_ptr<const FilterRegistry> gegl_registry;
-#ifndef Q_OS_WASM
-  if (filter_id.startsWith(QLatin1String("gegl."))) {
-    window_.ensure_gegl_filters_scanned();
-    gegl_registry = window_.gegl_filter_registry_for(filter_id);
-  }
-#endif
-  const auto& registry = gegl_registry != nullptr ? *gegl_registry : window_.filters_;
+std::optional<FilterInvocation> ScriptEngineHost::script_filter_invocation(const FilterRegistry& registry,
+                                                                          const QString& filter_id,
+                                                                          const QJSValue& params) {
   const auto* definition = registry.find(filter_id.toStdString());
   if (definition == nullptr) {
     throw_js_error(tr("Unknown filter id: %1").arg(filter_id));
-    return false;
+    return std::nullopt;
   }
   auto invocation = registry.default_invocation(definition->identifier);
   if (params.isObject()) {
@@ -2952,7 +2938,7 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
       if (parameter == nullptr) {
         throw_js_error(tr("Filter %1 has no parameter named %2")
                            .arg(filter_id, QString::fromStdString(key)));
-        return false;
+        return std::nullopt;
       }
       const auto value = it.value();
       switch (parameter->kind) {
@@ -2971,15 +2957,44 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
       }
     }
   }
-  const auto normalized = registry.normalize(invocation);
+  auto normalized = registry.normalize(invocation);
   if (!normalized.has_value()) {
     throw_js_error(tr("Filter %1 rejected those parameters.").arg(filter_id));
+    return std::nullopt;
+  }
+  return normalized;
+}
+
+bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId layer_id,
+                                             const QString& filter_id, const QJSValue& params) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  // GEGL filters (docs/gegl-filters.md) come from their own registry, scanned on first use.
+  std::shared_ptr<const FilterRegistry> gegl_registry;
+#ifndef Q_OS_WASM
+  if (filter_id.startsWith(QLatin1String("gegl."))) {
+    window_.ensure_gegl_filters_scanned();
+    gegl_registry = window_.gegl_filter_registry_for(filter_id);
+  }
+#endif
+  const auto& registry = gegl_registry != nullptr ? *gegl_registry : window_.filters_;
+  const auto normalized = script_filter_invocation(registry, filter_id, params);
+  if (!normalized.has_value()) {
     return false;
   }
   auto* layer = session->document.find_layer(layer_id);
   if (layer == nullptr) {
     throw_js_error(tr("The layer no longer exists."));
     return false;
+  }
+  if (layer_is_smart_object(*layer)) {
+    // The Filter menu's rule: a filter with a native mapping becomes a Smart Filter.
+    return add_smart_filter_invocation(session_id, layer_id, registry, *normalized, "applyFilter",
+                                       SmartFilterEntryChanges{}) >= 0;
   }
   if (layer->kind() != LayerKind::Pixel && layer->kind() != LayerKind::Text) {
     throw_js_error(tr("applyFilter needs a pixel layer."));

@@ -38658,6 +38658,50 @@ Locked: %1</source>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf pageSize 必须是 &quot;median&quot;、&quot;largest&quot;、&quot;cover&quot; 或以英寸为单位的 [width, height]。</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 需要智能对象图层。</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 没有可编辑的智能滤镜对应项。请栅格化智能对象以破坏性地应用它。</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>使用这些设置时，%1 不能成为可编辑的智能滤镜。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1：%2 必须为 true 或 false。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1：%2 必须是数字。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1：智能滤镜不能使用混合模式 %2。</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1：索引 %2 处没有智能滤镜（堆栈中有 %3 个）。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1：%2 必须是对象。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1：智能滤镜 %2 没有脚本可以更改的设置。</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1：智能滤镜 %2 没有名为 %3 的设置（设置：%4）。</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>此智能对象没有智能滤镜。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

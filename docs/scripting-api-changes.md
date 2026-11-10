@@ -23,6 +23,15 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-10 (additive and behavioral): Smart Filters from scripts (local-046). `layer.smartFilters`
+(`{index, filterId, name, params, visible, opacity, blendMode, modeled}` in execution order),
+`layer.smartFiltersVisible`, `layer.addSmartFilter(filterId, params, {visible, opacity, blendMode})`,
+`layer.setSmartFilter(index, {visible, params, opacity, blendMode})`, `layer.removeSmartFilter(index)`,
+`layer.moveSmartFilter(from, to)` and `layer.clearSmartFilters()`; these names, the entry keys, and the
+`patchy.smart_filters.*` ids reported for imported-only filters are permanent identifiers. Behavioral:
+`layer.applyFilter` on a smart object now adds the filter as a Smart Filter (the Filter menu's rule) and
+throws for a filter without a Smart Filter mapping; it used to filter the cached preview, which the next
+re-render discarded. Pinned by `ui_smart_filter_script_*`.
 2026-11-09 (behavioral): `patchy.ui.captureWindow` leaves the running script's own status-bar
 indicator (Running script, Stop, Pause, Slow) out of the capture; it shows again right after. Pinned
 by `ui_script_capture_window_omits_its_run_indicator`.

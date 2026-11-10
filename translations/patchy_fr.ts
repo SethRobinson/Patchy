@@ -17323,7 +17323,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>Scan the covers first</source>
-        <translation>Numérisez d'abord les couvertures</translation>
+        <translation>Numérisez d&apos;abord les couvertures</translation>
     </message>
     <message>
         <source>Close the book and lay it on the glass with the front cover face down.</source>
@@ -17335,7 +17335,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>In the next step, turn the book over and scan the back cover.</source>
-        <translation>À l'étape suivante, retournez le livre et numérisez la couverture arrière.</translation>
+        <translation>À l&apos;étape suivante, retournez le livre et numérisez la couverture arrière.</translation>
     </message>
     <message>
         <source>The back cover was scanned again.</source>
@@ -38764,6 +38764,50 @@ Verrouillé : %1</translation>
     <message>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>buildBookPdf : pageSize doit valoir &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; ou [largeur, hauteur] en pouces.</translation>
+    </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>%1 nécessite un calque d&apos;objet dynamique.</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>%1 n&apos;a pas d&apos;équivalent modifiable en filtre dynamique. Pixellisez l&apos;objet dynamique pour l&apos;appliquer de manière destructive.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>%1 ne peut pas être un filtre dynamique modifiable avec ces réglages.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1 : %2 doit être true ou false.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1 : %2 doit être un nombre.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1 : les filtres dynamiques ne peuvent pas utiliser le mode de fusion %2.</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1 : aucun filtre dynamique à l&apos;index %2 (la pile en contient %3).</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1 : %2 doit être un objet.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1 : le filtre dynamique %2 n&apos;a aucun réglage qu&apos;un script peut modifier.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1 : le filtre dynamique %2 n&apos;a pas de réglage nommé %3 (réglages : %4).</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>Cet objet dynamique n&apos;a pas de filtres dynamiques.</translation>
     </message>
 </context>
 <context>

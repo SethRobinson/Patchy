@@ -8,77 +8,58 @@
 
 namespace patchy {
 
+namespace {
+
+struct NativeSmartFilterCommand {
+  std::string_view filter_id;
+  SmartFilterKind kind;
+};
+
+// The Filter-menu commands that append a native Smart Filter on a Smart Object; the
+// table-described ones (Solarize through Fibers) came with GitHub issue 496.
+constexpr NativeSmartFilterCommand kNativeSmartFilterCommands[] = {
+    {"patchy.filters.gaussian_blur", SmartFilterKind::GaussianBlur},
+    {"patchy.filters.high_pass", SmartFilterKind::HighPass},
+    {"patchy.filters.median", SmartFilterKind::Median},
+    {"patchy.filters.dust_and_scratches", SmartFilterKind::DustAndScratches},
+    {"patchy.filters.surface_blur", SmartFilterKind::SurfaceBlur},
+    {"patchy.filters.unsharp_mask", SmartFilterKind::UnsharpMask},
+    {"patchy.filters.motion_blur", SmartFilterKind::MotionBlur},
+    {"patchy.filters.plastic_wrap", SmartFilterKind::PlasticWrap},
+    {"patchy.filters.pixelate", SmartFilterKind::Mosaic},
+    {"patchy.filters.emboss", SmartFilterKind::Emboss},
+    {"patchy.filters.box_blur", SmartFilterKind::BoxBlur},
+    {"patchy.filters.radial_blur", SmartFilterKind::RadialBlur},
+    {"patchy.filters.add_noise", SmartFilterKind::AddNoise},
+    {"patchy.filters.blur", SmartFilterKind::Blur},
+    {"patchy.filters.blur_more", SmartFilterKind::BlurMore},
+    {"patchy.filters.sharpen_more", SmartFilterKind::SharpenMore},
+    {"patchy.filters.average", SmartFilterKind::Average},
+    {"patchy.filters.sharpen_edges", SmartFilterKind::SharpenEdges},
+    {"patchy.filters.solarize", SmartFilterKind::Solarize},
+    {"patchy.filters.find_edges", SmartFilterKind::FindEdges},
+    {"patchy.filters.trace_contour", SmartFilterKind::TraceContour},
+    {"patchy.filters.diffuse", SmartFilterKind::Diffuse},
+    {"patchy.filters.fibers", SmartFilterKind::Fibers},
+};
+
+}  // namespace
+
 std::optional<SmartFilterKind> native_smart_filter_kind_for(
     std::string_view filter_id) {
-  if (filter_id == "patchy.filters.gaussian_blur") {
-    return SmartFilterKind::GaussianBlur;
+  for (const auto& command : kNativeSmartFilterCommands) {
+    if (command.filter_id == filter_id) {
+      return command.kind;
+    }
   }
-  if (filter_id == "patchy.filters.high_pass") {
-    return SmartFilterKind::HighPass;
-  }
-  if (filter_id == "patchy.filters.median") {
-    return SmartFilterKind::Median;
-  }
-  if (filter_id == "patchy.filters.dust_and_scratches") {
-    return SmartFilterKind::DustAndScratches;
-  }
-  if (filter_id == "patchy.filters.surface_blur") {
-    return SmartFilterKind::SurfaceBlur;
-  }
-  if (filter_id == "patchy.filters.unsharp_mask") {
-    return SmartFilterKind::UnsharpMask;
-  }
-  if (filter_id == "patchy.filters.motion_blur") {
-    return SmartFilterKind::MotionBlur;
-  }
-  if (filter_id == "patchy.filters.plastic_wrap") {
-    return SmartFilterKind::PlasticWrap;
-  }
-  if (filter_id == "patchy.filters.pixelate") {
-    return SmartFilterKind::Mosaic;
-  }
-  if (filter_id == "patchy.filters.emboss") {
-    return SmartFilterKind::Emboss;
-  }
-  if (filter_id == "patchy.filters.box_blur") {
-    return SmartFilterKind::BoxBlur;
-  }
-  if (filter_id == "patchy.filters.radial_blur") {
-    return SmartFilterKind::RadialBlur;
-  }
-  if (filter_id == "patchy.filters.add_noise") {
-    return SmartFilterKind::AddNoise;
-  }
-  if (filter_id == "patchy.filters.blur") {
-    return SmartFilterKind::Blur;
-  }
-  if (filter_id == "patchy.filters.blur_more") {
-    return SmartFilterKind::BlurMore;
-  }
-  if (filter_id == "patchy.filters.sharpen_more") {
-    return SmartFilterKind::SharpenMore;
-  }
-  if (filter_id == "patchy.filters.average") {
-    return SmartFilterKind::Average;
-  }
-  if (filter_id == "patchy.filters.sharpen_edges") {
-    return SmartFilterKind::SharpenEdges;
-  }
-  // Direct commands for table-described native filters (GitHub issue 496).
-  if (filter_id == "patchy.filters.solarize") {
-    return SmartFilterKind::Solarize;
-  }
-  if (filter_id == "patchy.filters.find_edges") {
-    return SmartFilterKind::FindEdges;
-  }
-  if (filter_id == "patchy.filters.trace_contour") {
-    return SmartFilterKind::TraceContour;
-  }
-  if (filter_id == "patchy.filters.diffuse") {
-    return SmartFilterKind::Diffuse;
-  }
-  if (filter_id == "patchy.filters.fibers") {
-    return SmartFilterKind::Fibers;
+  return std::nullopt;
+}
+
+std::optional<std::string_view> native_smart_filter_command_id(SmartFilterKind kind) {
+  for (const auto& command : kNativeSmartFilterCommands) {
+    if (command.kind == kind) {
+      return command.filter_id;
+    }
   }
   return std::nullopt;
 }

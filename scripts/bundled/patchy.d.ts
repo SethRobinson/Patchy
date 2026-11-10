@@ -305,6 +305,37 @@ interface PatchySmartObjectState {
   quad: number[];
 }
 
+/**
+ * One Smart Filter of a smart object (see PatchyLayer.smartFilters), in execution order:
+ * index 0 runs first and is the bottom row under the layer in the Layers panel.
+ */
+interface PatchySmartFilter {
+  /** Position in the stack; the index setSmartFilter, removeSmartFilter and moveSmartFilter take. */
+  index: number;
+  /**
+   * The filter id addSmartFilter and applyFilter take ("patchy.filters.gaussian_blur").
+   * A filter only imported files carry has its settings id instead ("patchy.smart_filters.zigzag"),
+   * and an adjustment or a Filter Gallery entry with several effects has null.
+   */
+  filterId: string | null;
+  /** Photoshop's name for the entry, e.g. "Gaussian Blur" or "Levels". */
+  name: string;
+  /**
+   * The filter's settings, the keys setSmartFilter's params take; null when a script cannot
+   * change them (adjustments, a Filter Gallery entry with several effects, a filter Patchy
+   * does not model). They are applyFilter's keys except Pixel Mosaic (cell_size, not
+   * block_size) and Radial Blur (amount and quality "draft", "good" or "best").
+   */
+  params: Record<string, number | boolean | string> | null;
+  visible: boolean;
+  /** 0..100, whole percent. */
+  opacity: number;
+  /** Blend mode id (see the list above); Smart Filters take every mode except "pass-through" and "dissolve". */
+  blendMode: string;
+  /** false for a filter Patchy keeps from the file but cannot render; it can still be hidden or removed. */
+  modeled: boolean;
+}
+
 /** An artboard's background: "color" paints `color`. */
 type PatchyArtboardBackground = "white" | "black" | "transparent" | "color";
 /** The right column's panels, by permanent name (patchy.ui.expandPanel and friends). */
@@ -385,6 +416,38 @@ interface PatchyLayer {
    * Patchy keeps locked, or contents that cannot be decoded.
    */
   rerenderSmartObject(): number;
+  /**
+   * The smart object's Smart Filters in execution order (index 0 runs first). Empty for a smart
+   * object without filters; throws for any other layer. Each edit below works like its Layers panel
+   * or settings dialog counterpart, re-renders the smart object from its contents, and saves into
+   * PSD as Photoshop's own Smart Filters. A script run is one undo step.
+   */
+  readonly smartFilters: PatchySmartFilter[];
+  /** The stack's own eye: false hides every Smart Filter at once. Reads true without filters; setting it then throws. */
+  smartFiltersVisible: boolean;
+  /**
+   * Appends a Smart Filter, the Filter menu's command on a smart object: applyFilter's filter ids and
+   * params, e.g. addSmartFilter("patchy.filters.gaussian_blur", {radius: 4}, {opacity: 60}).
+   * Returns its index. Throws for a filter with no editable Smart Filter mapping (Image >
+   * Adjustments, GEGL, G'MIC and the like: rasterize first), for settings Photoshop's Smart Filter
+   * cannot hold (Radial Blur off center, Emboss amount 0), and for a stack Patchy only preserves.
+   * With a selection, the first filter's shared mask is the selection.
+   */
+  addSmartFilter(filterId: string, params?: Record<string, number | boolean | string>,
+                 options?: {visible?: boolean; opacity?: number; blendMode?: string}): number;
+  /**
+   * Changes the filter at `index`: absent keys keep their value, numbers in params clamp to the
+   * filter's ranges like its dialog, an unknown key or choice throws.
+   * E.g. setSmartFilter(0, {visible: false}) or setSmartFilter(1, {params: {radius: 8}, blendMode: "screen"}).
+   */
+  setSmartFilter(index: number, changes: {visible?: boolean; opacity?: number; blendMode?: string;
+    params?: Record<string, number | boolean | string>}): void;
+  /** Deletes the filter at `index`; deleting the last one removes the stack. */
+  removeSmartFilter(index: number): void;
+  /** Moves the filter at `from` to position `to` (both execution-order indexes). */
+  moveSmartFilter(from: number, to: number): void;
+  /** Deletes every Smart Filter (Delete All Smart Filters). */
+  clearSmartFilters(): void;
   getShape(): PatchyShapeState | null;
   /** Partial update. geometry and path are mutually exclusive; group targets one existing shape group. */
   updateShape(changes: {geometry?: PatchyVectorGeometry; group?: number; path?: PatchyVectorPath;
@@ -544,7 +607,8 @@ interface PatchyLayer {
    * id from patchy.gegl.filters(), e.g.
    * applyFilter("gegl.cartoon", {"mask-radius": 10}). With a selection only
    * the selected pixels change, a soft edge blended by its coverage (the Filter menu's
-   * rule). Unknown ids or parameters throw.
+   * rule). Unknown ids or parameters throw. On a smart object it adds a Smart Filter like
+   * addSmartFilter, and throws for a filter without one.
    */
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
   /**

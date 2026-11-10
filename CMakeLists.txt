@@ -1454,6 +1454,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_destructive_adjustments.cpp
       src/ui/main_window_docks.cpp
       src/ui/main_window_filters.cpp
+      src/ui/smart_filter_editing.hpp
       src/ui/smart_filter_table_ui.hpp
       src/ui/smart_filter_table_ui.cpp
       src/ui/main_window_smart_filter_adjustments.cpp
@@ -1649,6 +1650,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/script_engine.hpp
       src/ui/script_engine.cpp
       src/ui/script_gegl_filters.cpp
+      src/ui/script_smart_filters.cpp
       src/ui/script_automation.cpp
       src/ui/connector_freshness.hpp
       src/ui/connector_freshness.cpp
@@ -2693,6 +2695,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp
       tests/ui/smart_filter_tests_classic.cpp
+      tests/ui/smart_filter_tests_scripting.cpp
       tests/ui/smart_filter_tests_guards.cpp
       tests/ui/smart_filter_tests_kinds.cpp
       tests/ui/smart_filter_tests_schema.cpp

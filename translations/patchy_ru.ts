@@ -38872,6 +38872,50 @@ Locked: %1</source>
         <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
         <translation>Для buildBookPdf параметр pageSize должен быть &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; или [ширина, высота] в дюймах.</translation>
     </message>
+    <message>
+        <source>%1 needs a Smart Object layer.</source>
+        <translation>Для %1 нужен слой смарт-объекта.</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>У %1 нет редактируемого соответствия смарт-фильтру. Растрируйте смарт-объект, чтобы применить его деструктивно.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be an editable Smart Filter with these settings.</source>
+        <translation>%1 не может быть редактируемым смарт-фильтром с этими параметрами.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be true or false.</source>
+        <translation>%1: %2 должно быть true или false.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number.</source>
+        <translation>%1: %2 должно быть числом.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filters cannot use blend mode %2.</source>
+        <translation>%1: смарт-фильтры не могут использовать режим наложения %2.</translation>
+    </message>
+    <message>
+        <source>%1: no Smart Filter at index %2 (the stack has %3).</source>
+        <translation>%1: нет смарт-фильтра с индексом %2 (в стеке %3).</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be an object.</source>
+        <translation>%1: %2 должно быть объектом.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no settings a script can change.</source>
+        <translation>%1: у смарт-фильтра %2 нет параметров, которые может изменить скрипт.</translation>
+    </message>
+    <message>
+        <source>%1: Smart Filter %2 has no setting named %3 (settings: %4).</source>
+        <translation>%1: у смарт-фильтра %2 нет параметра %3 (параметры: %4).</translation>
+    </message>
+    <message>
+        <source>This Smart Object has no Smart Filters.</source>
+        <translation>У этого смарт-объекта нет смарт-фильтров.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
