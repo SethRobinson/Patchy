@@ -4786,9 +4786,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   auto* recent_history_timer = new QTimer(this);
   recent_history_timer->setInterval(2000);
   connect(recent_history_timer, &QTimer::timeout, this, [this] {
-    // Refresh the idle start panel without deleting a live menu's filter row.
+    // Refresh the idle start panel without deleting a live menu's filter row. The push
+    // is a no-op unless the panel's rows differ from the list, which then heals them.
     if (start_panel_->isVisible() && QApplication::activePopupWidget() == nullptr) {
       refresh_recent_history();
+      start_panel_->set_recent_files(recent_files_);
     }
   });
   recent_history_timer->start();

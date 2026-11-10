@@ -7366,6 +7366,11 @@ void MainWindow::add_recent_file(QString path) {
   set_recent_files_from_stored(update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
       [&path](QStringList& paths) { paths.removeAll(path); paths.prepend(path); }));
   rebuild_recent_files_menu();
+  if (start_panel_ != nullptr) {
+    // The Home screen shows the file first: a PDF opens in its viewer with the panel
+    // still up, perhaps filtered or scrolled down to the row that was clicked.
+    start_panel_->show_newest_recent_file();
+  }
   add_recent_folder(QFileInfo(path).absolutePath());
 }
 
@@ -7390,9 +7395,10 @@ void MainWindow::replace_recent_file(const QString& old_path, const QString& new
 }
 
 void MainWindow::rebuild_recent_files_menu() {
-  // The start panel mirrors the recent list while it is showing (e.g. a recent
-  // entry was cleared from the menu with no document open).
-  if (start_panel_ != nullptr && start_panel_->isVisible()) {
+  // The start panel mirrors the recent list, showing or not: a change made while it
+  // (or the whole window) is hidden must not leave old rows for the next time it
+  // shows. An unchanged list is a no-op there.
+  if (start_panel_ != nullptr) {
     start_panel_->set_recent_files(recent_files_);
   }
   if (recent_files_menu_ == nullptr) {
@@ -7858,7 +7864,7 @@ void MainWindow::remove_recent_path(const QString& path, bool is_folder, bool re
   }
   if (!rebuild_menus) {
     recent_menus_stale_ = true;
-    if (!is_folder && start_panel_ != nullptr && start_panel_->isVisible()) {
+    if (!is_folder && start_panel_ != nullptr) {
       start_panel_->set_recent_files(recent_files_);
     }
     return;

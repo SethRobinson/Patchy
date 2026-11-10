@@ -37,6 +37,7 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <utility>
 
 #include "patchy_version.hpp"
 
@@ -491,20 +492,31 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       border-color: @accent_bright;
     }
   )"));
-  set_recent_files({});
+  rebuild_recent_rows();  // no entries yet: hides the Recent section
 }
 
 void StartPanel::set_recent_files(const QStringList& paths) {
-  recent_paths_.clear();
+  QStringList shown;
   for (const auto& path : paths) {
-    if (recent_paths_.size() >= kMaxRecentEntries) {
+    if (shown.size() >= kMaxRecentEntries) {
       break;
     }
     // No stat here: MainWindow drops missing entries after its background
     // existence check, and a click on one that vanished since reports it.
-    recent_paths_ << QFileInfo(path).absoluteFilePath();
+    shown << QFileInfo(path).absoluteFilePath();
   }
+  if (shown == recent_paths_) {
+    return;
+  }
+  recent_paths_ = std::move(shown);
   rebuild_recent_rows();
+}
+
+void StartPanel::show_newest_recent_file() {
+  recent_filter_edit_->clear();  // rebuilds the rows when a filter was typed
+  // The rows are refilled inside one layout pass, so a list as long as before would
+  // keep its scroll position and leave the newest file out of view.
+  recent_list_->scrollToTop();
 }
 
 void StartPanel::rebuild_recent_rows() {
@@ -565,8 +577,9 @@ void StartPanel::paintEvent(QPaintEvent* event) {
 void StartPanel::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
   // The panel comes back with a clean filter, focused, so the next file can be
-  // found by typing its name without clicking first.
-  recent_filter_edit_->clear();
+  // found by typing its name without clicking first, and at the top of the list,
+  // where the file just closed is.
+  show_newest_recent_file();
   if (!recent_paths_.isEmpty()) {
     recent_filter_edit_->setFocus(Qt::OtherFocusReason);
   }

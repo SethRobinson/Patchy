@@ -15,7 +15,7 @@ Split from [ui-conventions.md](ui-conventions.md): menu-bar and context-menu str
 ## Recent files
 
 - The recent-files filters (home screen and Open Recent) match each space-separated token against the FILE NAME, extension included; `.jpg` or `*.jpg` filters by extension and a token containing a slash matches the folder path (`recent_path_matches`, issue 158).
-- Open Recent File/Folder are each a filter row (`fileOpenRecent[Folder]FilterEdit`) over one list (`fileOpenRecent[Folder]List`, `build_recent_list_menu`, 12 rows, capped width so it opens beside File). Rebuilds recreate both (filter resets); `aboutToShow` focuses the edit; the MainWindow event filter forwards arrow/page keys to the list; Enter and clicks go through `open_recent_list_path`, deferred by `QTimer::singleShot(0)` (opening rebuilds the menu mid-delivery). Native menu bars keep a plain paged menu ([platform-sites.md](platform-sites.md)). Tests read entries via `recent_menu_paths`. The start panel's `startPanelRecentList` (8 rows) shares the rows, delegate, matching rule and `show_recent_path_context_menu`; Enter opens its top row; `StartPanel::showEvent` clears the filter and takes focus. No match leaves one placeholder row with an empty `kRecentPathRole` path, which the delegate, click and context-menu handlers test for; never give a real row an empty path.
+- Open Recent File/Folder are each a filter row (`fileOpenRecent[Folder]FilterEdit`) over one list (`fileOpenRecent[Folder]List`, `build_recent_list_menu`, 12 rows, capped width so it opens beside File). Rebuilds recreate both (filter resets); `aboutToShow` focuses the edit; the MainWindow event filter forwards arrow/page keys to the list; Enter and clicks go through `open_recent_list_path`, deferred by `QTimer::singleShot(0)` (opening rebuilds the menu mid-delivery). Native menu bars keep a plain paged menu ([platform-sites.md](platform-sites.md)). Tests read entries via `recent_menu_paths`. The start panel's `startPanelRecentList` (8 rows) shares the rows, delegate, matching rule and `show_recent_path_context_menu`; Enter opens its top row; `StartPanel::showEvent` clears the filter, scrolls to the top and takes focus. No match leaves one placeholder row with an empty `kRecentPathRole` path, which the delegate, click and context-menu handlers test for; never give a real row an empty path.
 
 Recent files and folders record every successful open and save (interactive, scripted,
 headless and MCP, flat copies included); saving records the containing folder too.
@@ -33,3 +33,15 @@ and missing entries stay stored so an unplugged drive's entries return. A click 
 vanished entry reports "Recent file is missing" and removes it. Rebuilds occur only when the
 displayed list changes, preserving a live start-panel filter. A row's context menu and its
 hover x (both lists) drop one entry and keep the list's place (`remove_recent_path`, issue 157).
+
+The start panel's list always mirrors `recent_files_`: `rebuild_recent_files_menu` and
+`remove_recent_path` push it whether or not the panel (or the window) is showing, and the
+refresh tick pushes again, so rows that differ are repaired; `StartPanel::set_recent_files`
+does nothing for an unchanged list (rows, hover and scroll stay). **A file this window opens
+or saves is the first row in view**: `add_recent_file` calls
+`StartPanel::show_newest_recent_file` (clear the filter, scroll to the top), as `showEvent`
+does. It matters most for a PDF, which opens in its viewer with the panel still up: the rows
+are refilled in one layout pass, so a list as long as before keeps its scroll position and
+the file would sit out of view above it. Another process's additions leave filter and scroll
+alone. Tests: `ui_start_panel_recent_list_follows_open_and_close`,
+`ui_pdf_viewer_open_updates_home_recent_list`.
