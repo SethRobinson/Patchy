@@ -138,13 +138,13 @@ when building a custom desktop version. HEIC/HEIF availability depends on the
 
 ## PSD compatibility, measured
 
-In the [October 29, 2026 Testy v2 run](https://www.rtsoft.com/testy/2026-10-29/),
+In the [November 10, 2026 Testy v2 run](https://www.rtsoft.com/testy/2026-11-10/),
 Patchy opened **all 309 files** of the psd-tools test collection, and Photoshop
 reopened **every Patchy save** with **all 43 text objects, 183 adjustment layers,
 172 Smart Objects, and 181 live effects** kept. Patchy's perceptual render match
-was **98.7%**, with 299 files within 10% of Photoshop's pixels, and its Photoshop
-text score was **97.3%**, both the highest of the six programs tested against
-Photoshop's reference, using a Patchy 1.21 development build (commit `25822a64`).
+was **98.7%**, with 300 files within 10% of Photoshop's pixels, and its Photoshop
+text score was **97.4%**, both the highest of the six programs tested against
+Photoshop's reference, using a Patchy 1.31 development build (commit `d36cc1cf`).
 
 Testy v2 scores each program on what it draws itself: the baked pixels Photoshop
 stores for text, shapes, fills, and Smart Objects are removed first. That is
