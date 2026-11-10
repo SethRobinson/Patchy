@@ -80,10 +80,11 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // Import notes land in the status bar (no popup by default).
+  // An editable smart object asks nothing of the user, so opening the file leaves no import
+  // note about it in the status bar (GitHub issue 669).
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("smart object")));
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("smart object")));
 
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const patchy::Layer* smart_layer = nullptr;

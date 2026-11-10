@@ -392,7 +392,9 @@ std::vector<int> ink_gaps(const patchy::PixelBuffer& pixels, const InkLine& line
 // GitHub issue 683: justified lines of a right-to-left paragraph reach both edges of the box.
 // Qt ends such a line one trailing space short of the right edge (about 6 px at this size);
 // Patchy now spreads the line over its word spaces itself. Under Justify All the last line fills
-// the box too.
+// the box too. The sample has no letter that reaches below the baseline (qof, the final forms):
+// on Linux the lines of a sample with qof left no blank pixel row between them, and the row scan
+// that tells the lines apart read two lines as one.
 void ui_rtl_justified_text_fills_the_box_to_both_edges() {
   register_test_fonts(TestFontRole::UiDefault);
   const auto family = family_for_writing_system(
@@ -405,11 +407,11 @@ void ui_rtl_justified_text_fills_the_box_to_both_edges() {
   window.add_document_session(patchy::Document(420, 420, patchy::PixelFormat::rgb8()), QStringLiteral("RTL justify 683"));
   QApplication::processEvents();
   CHECK(run_script_to_end(window, QStringLiteral(R"JS(
-    const words = 'זהו טקסט עברי לבדיקה ' +
+    const words = 'זהו כתב עברי לדוגמה ' +
         'של יישור מלא בתיבה עם ' +
         'כמה שורות ועם מילים ' +
-        'קצרות וארוכות בכל שורה ' +
-        'כדי לראות את הקצוות שלה.';
+        'זעירות וארוכות בכל שורה ' +
+        'כדי לראות את הגבולות שלה.';
     const doc = app.activeDocument;
     doc.addTextLayer(words, {font: '%1', size: 20, x: 60, y: 20, box: {width: 300, height: 170},
                              align: 'justify', direction: 'rtl'}).name = 'justify';
