@@ -2735,6 +2735,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_mask_editing_tests.cpp
       tests/ui/batch_appearance_tests.cpp
       tests/ui/vector_preview_tests.cpp
+      tests/ui/vector_preview_parity_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
       tests/ui/vector_commands_tests.cpp
       tests/ui/vector_path_edits_tests.cpp

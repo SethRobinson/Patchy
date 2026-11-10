@@ -15857,6 +15857,10 @@ Do you want to replace it?</source>
         <source>Chosen before: %1</source>
         <translation>Выбран ранее: %1</translation>
     </message>
+    <message>
+        <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation>Ниже 100% заливка проявляется и на всём холсте, как в Photoshop.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

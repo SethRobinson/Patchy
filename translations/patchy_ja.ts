@@ -15745,6 +15745,10 @@ Do you want to replace it?</source>
         <source>Chosen before: %1</source>
         <translation>以前の選択: %1</translation>
     </message>
+    <message>
+        <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation>100% 未満では、Photoshop と同じように塗りがキャンバス全体にも透けて見えます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

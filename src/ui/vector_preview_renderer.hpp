@@ -18,6 +18,12 @@ namespace patchy::ui {
 
 inline constexpr std::uint64_t kVectorPreviewRasterBudget = 128ULL * 1024 * 1024;
 inline constexpr int kVectorPreviewTileSize = 256;
+// A shape layer's Feather is blurred at view resolution while its reach (the three box
+// radii of the scaled blur, about three times the feather) stays within this many view
+// pixels: every tile blurs that far past its own edge. A wider feather is so smooth that
+// the shape's document pixels, read bilinearly, show the same picture at a fraction of the
+// cost (docs/vector-preview.md, "Shape Feather and Density").
+inline constexpr int kVectorPreviewNativeFeatherReach = 192;
 
 enum class VectorPreviewFallback { None, Content, Paint, Masks, Blending, Effects, Coordinates, Memory, Failed };
 [[nodiscard]] QString vector_preview_fallback_text(VectorPreviewFallback reason);
@@ -30,6 +36,9 @@ struct VectorPreviewNode {
   Rect source_bounds;
   std::optional<VectorShapeContent> shape;
   bool compound{false};
+  // The shape's Feather is too wide to blur at view resolution: its document pixels (and
+  // effect planes) are read bilinearly instead (kVectorPreviewNativeFeatherReach).
+  bool sampled{false};
   std::optional<QRectF> bounds;  // null = potentially covers the entire canvas
   Rect fill_bounds;
   Rect stroke_bounds;

@@ -96,6 +96,10 @@ void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>
         node.shape->path_inverted = shape->path_inverted;
         node.shape->fill = shape->fill;
         node.shape->stroke = shape->stroke;
+        // The Edge values (local-051 follow-up 2): without them the sharp view drew the
+        // shape unfeathered and without its Density tint.
+        node.shape->feather = shape->feather;
+        node.shape->density = shape->density;
         // Split source planes are shared until the worker determines paint
         // bounds. They never become the enlarged shape's raster cache.
         node.shape->fill_cache = shape->fill_cache;
@@ -104,7 +108,10 @@ void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>
         const auto bounds = shape->path.bounds();
         const bool complement = shape->path_disabled || shape->path_inverted ||
             (!shape->path.subpaths.empty() && shape->path.subpaths.front().op == PathCombineOp::Subtract);
-        if (bounds && !complement) {
+        // Density below 100% shows the fill over the whole canvas (apply_shape_density).
+        const bool tinted = shape->density != 255 && shape->stroke.fill_enabled &&
+                            shape->fill.kind != VectorFillKind::None;
+        if (bounds && !complement && !tinted) {
           const double padding = stroke_padding(shape->stroke);
           node.bounds = QRectF(QPointF(bounds->left - padding, bounds->top - padding),
                                QPointF(bounds->right + padding, bounds->bottom + padding));
@@ -121,6 +128,15 @@ void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>
 // How far smooth sampling carries a layer past its mapped bounds, in device pixels: the
 // bilinear falloff ends half a document pixel outside the last source pixel.
 double smooth_sample_reach(const VectorPreviewView& view) { return view.scale * 0.5; }
+
+// How far a shape's feather of `sigma` view pixels spreads its paint: the three box radii
+// rasterize_vector_shape blurs with.
+int feather_reach(double sigma) {
+  if (!(sigma > 0.05)) { return 0; }
+  if (!safe_number(sigma)) { throw VectorPreviewFallback::Coordinates; }
+  const auto radii = mask_feather_box_radii(sigma);
+  return radii[0] + radii[1] + radii[2];
+}
 
 QRectF mapped_rect(Rect bounds, const VectorPreviewView& view) {
   return {QPointF(bounds.x, bounds.y) * view.scale + view.offset,
@@ -142,7 +158,8 @@ void scale_value(T& value, double scale) {
 }
 
 template <typename T>
-void transform_pattern(T& scale, T& phase_x, T& phase_y, bool linked, const VectorPreviewView& view) {
+void transform_pattern(T& scale, T& phase_x, T& phase_y, bool linked, const VectorPreviewView& view,
+                       double angle_degrees = 0.0) {
   scale_value(scale, view.scale);
   scale_value(phase_x, view.scale);
   scale_value(phase_y, view.scale);
@@ -150,12 +167,23 @@ void transform_pattern(T& scale, T& phase_x, T& phase_y, bool linked, const Vect
     phase_x += static_cast<T>(view.offset.x());
     phase_y += static_cast<T>(view.offset.y());
   }
+  // PatternTileSampler interpolates a magnified (or rotated) tile at whole pixel indices,
+  // src = (x - anchor) / scale. A view pixel's index is not its document position times
+  // the zoom: its center sits at (index + 0.5) / zoom - 0.5 document pixels. Without this
+  // half-pixel term the pattern sat up to half a document pixel off the document render
+  // (local-051 follow-up 2). The nearest and box-filter paths already work on pixel edges.
+  if (static_cast<double>(scale) > 1.0 + 1e-6 || std::abs(angle_degrees) > 1e-9) {
+    const auto shift = static_cast<T>((view.scale - 1.0) / 2.0);
+    phase_x += shift;
+    phase_y += shift;
+  }
   if (!safe_number(phase_x) || !safe_number(phase_y)) { throw VectorPreviewFallback::Coordinates; }
 }
 
 void transform_paint(VectorFill& fill, const VectorPreviewView& view) {
   if (fill.kind == VectorFillKind::Pattern) {
-    transform_pattern(fill.pattern_scale, fill.pattern_phase_x, fill.pattern_phase_y, fill.pattern_linked, view);
+    transform_pattern(fill.pattern_scale, fill.pattern_phase_x, fill.pattern_phase_y, fill.pattern_linked, view,
+                      fill.pattern_angle_degrees);
   }
 }
 
@@ -189,7 +217,8 @@ int transform_style(LayerStyle& style, const VectorPreviewView& view) {
   }
   for (auto& pattern : style.pattern_overlays) {
     if (!pattern.enabled) { continue; }
-    transform_pattern(pattern.scale, pattern.phase_x, pattern.phase_y, pattern.link_with_layer, view);
+    transform_pattern(pattern.scale, pattern.phase_x, pattern.phase_y, pattern.link_with_layer, view,
+                      pattern.angle_degrees);
   }
   if (!safe_number(reach)) { throw VectorPreviewFallback::Coordinates; }
   return style.effects_visible ? static_cast<int>(std::ceil(reach)) : 0;
@@ -246,29 +275,37 @@ Layer native_group_tree(const VectorPreviewNode& node, std::uint64_t& workspace)
   return layer;
 }
 
+// The box a layer-aligned gradient spans in the document render: the bounds of the fill's
+// (or stroke's) coverage as the document bake draws it, inside the bake's own clip. That
+// clip holds a shape that reaches past the canvas and the feather's reach, and Density
+// below 100% covers all of it (local-051 follow-up 2: the ramp ran over the path's box cut
+// at the canvas, so a gradient on a shape with Density under 100%, or on one hanging past
+// the canvas edge, was a different gradient in the sharp view).
 Rect native_gradient_bounds(const VectorShapeContent& shape, Rect canvas, bool stroke, RasterBudget& budget) {
-  if (!stroke && (shape.path_disabled || shape.path.empty())) { return canvas; }
+  if (!safe_number(shape.feather)) { throw VectorPreviewFallback::Coordinates; }
+  const Rect domain = vector_shape_coverage_domain(shape, canvas);
+  if (!stroke && (shape.path_disabled || shape.path.empty() || shape.density != 255)) { return domain; }
   check_path(shape.path, stroke ? stroke_padding(shape.stroke) : 0.0);
   const bool complement = shape.path_disabled || shape.path_inverted || shape.path.empty() ||
       shape.path.subpaths.front().op == PathCombineOp::Subtract;
-  Rect reservation = canvas;
+  Rect reservation = domain;
   if (!complement) {
     if (const auto bounds = shape.path.bounds()) {
       const double padding = stroke ? stroke_padding(shape.stroke) + 2.0 : 2.0;
-      reservation = intersect_rect(canvas, checked_rect(QRectF(
+      reservation = intersect_rect(domain, checked_rect(QRectF(
           QPointF(bounds->left - padding, bounds->top - padding),
           QPointF(bounds->right + padding, bounds->bottom + padding))));
     }
   }
   if (reservation.empty()) { return {}; }
   budget.check_area(reservation, stroke ? 64U : 16U);
-  if (stroke) { return rasterize_vector_stroke(shape.path, shape.stroke, {canvas}).bounds; }
+  if (stroke) { return rasterize_vector_stroke(shape.path, shape.stroke, {domain}).bounds; }
   if (shape.path_inverted) {
     LayerVectorMask mask;
     mask.path = shape.path; mask.inverted = true;
-    return rasterize_vector_mask_coverage(mask, canvas).bounds;
+    return rasterize_vector_mask_coverage(mask, domain).bounds;
   }
-  return rasterize_vector_path(shape.path, {canvas}).bounds;
+  return rasterize_vector_path(shape.path, {domain}).bounds;
 }
 
 int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewView& view, Rect native_canvas,
@@ -316,8 +353,18 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
     const int combined_padding = inherited_padding + own_padding;
     if (combined_padding > kCoordinateLimit) { throw VectorPreviewFallback::Coordinates; }
     padding = std::max(padding, combined_padding);
-    if (node.bounds) {
+    // A shape's own Feather, in view pixels. Past kVectorPreviewNativeFeatherReach the
+    // layer's document pixels stand in for it.
+    const int shape_feather_reach = node.shape ? feather_reach(node.shape->feather * view.scale) : 0;
+    node.sampled = shape_feather_reach > kVectorPreviewNativeFeatherReach && !source.pixels().empty();
+    if (node.sampled) {
+      node.bounds = mapped_rect(node.source_bounds, view);
+      const double reach = smooth_sample_reach(view);
+      node.bounds->adjust(-reach, -reach, reach, reach);
+    } else if (node.bounds) {
       *node.bounds = QRectF(node.bounds->topLeft() * view.scale + view.offset, node.bounds->size() * view.scale);
+      // The feather's halo reaches past the path's box.
+      node.bounds->adjust(-shape_feather_reach, -shape_feather_reach, shape_feather_reach, shape_feather_reach);
     } else if (!node.shape && !node.compound && source.kind() != LayerKind::Group && source.kind() != LayerKind::Adjustment) {
       node.bounds = mapped_rect(node.source_bounds, view);
       if (view.smooth_pixels && !node.source_bounds.empty()) {
@@ -351,7 +398,16 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
     if (source.kind() == LayerKind::Group || node.compound) {
       padding = std::max(padding, transform_nodes(node.children, view, native_canvas, context, budget, patterns, combined_padding));
     }
-    if (node.shape) {
+    if (node.shape && node.sampled) {
+      // Read from the document's own bake: the paint planes stay at document resolution
+      // and the fill's visible bounds come from them, as for a native shape.
+      auto& shape = *node.shape;
+      if (!shape.fill_cache.empty()) {
+        node.fill_bounds = layer_visible_alpha_bounds(shape.fill_cache, node.source_bounds).value_or(node.source_bounds);
+      }
+      context.appearance.at(source.id()).fill_visible_bounds = checked_rect(mapped_rect(node.fill_bounds, view));
+      scale_value(shape.stroke.width, view.scale);
+    } else if (node.shape) {
       auto& shape = *node.shape;
       if (!shape.fill_cache.empty()) {
         node.fill_bounds = layer_visible_alpha_bounds(shape.fill_cache, node.source_bounds).value_or(node.source_bounds);
@@ -374,6 +430,7 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
       shape.fill_cache = {}; shape.stroke_cache = {}; shape.effect_matte_cache = {};
       transform_vector_path(shape.path, {view.scale, 0, 0, view.scale, view.offset.x(), view.offset.y()});
       scale_value(shape.stroke.width, view.scale);
+      scale_value(shape.feather, view.scale);
       if (!safe_number(shape.stroke.dash_offset * shape.stroke.width) ||
           std::any_of(shape.stroke.dashes.begin(), shape.stroke.dashes.end(), [&](double dash) {
             return !safe_number(dash * shape.stroke.width);
@@ -590,9 +647,41 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
     } else if (source.kind() == LayerKind::Group) {
       raster_nodes(node.children, layer.children(), area, view, document, canvas, patterns, budget, depth + 1,
                    cancelled);
+    } else if (node.shape && node.sampled) {
+      // A feather too wide to blur per tile: the document's bake of the shape, read
+      // bilinearly whatever the view's smoothing rule (a blur that wide has no detail a
+      // document pixel cannot hold). Its paint planes follow for the layer's effects.
+      const double reach = smooth_sample_reach(view);
+      const auto clipped = mapped_rect(node.source_bounds, view).adjusted(-reach, -reach, reach, reach)
+                               .intersected(QRectF(area.x, area.y, area.width, area.height));
+      if (!clipped.isEmpty()) {
+        const auto bounds = checked_rect(clipped);
+        const auto read = [&](const PixelBuffer& plane) {
+          return sample_pixels_smooth(plane, node.source_bounds, bounds, view, document, budget);
+        };
+        layer.set_pixels(read(source.pixels()));
+        layer.set_bounds(bounds);
+        const auto& planes = *node.shape;
+        if (styled && (!planes.fill_cache.empty() || !planes.stroke_cache.empty() || !planes.effect_matte_cache.empty())) {
+          VectorShapeContent shape;
+          shape.stroke = planes.stroke;
+          if (!planes.fill_cache.empty()) { shape.fill_cache = read(planes.fill_cache); }
+          if (!planes.stroke_cache.empty()) { shape.stroke_cache = read(planes.stroke_cache); }
+          if (!planes.effect_matte_cache.empty()) { shape.effect_matte_cache = read(planes.effect_matte_cache); }
+          layer.set_vector_shape(std::move(shape));
+        }
+      }
     } else if (node.shape) {
       const VectorPaintBounds paint_bounds{canvas, node.fill_bounds, node.stroke_bounds};
-      auto raster = rasterize_vector_shape(*node.shape, intersect_rect(area, canvas), &patterns, &source, &paint_bounds);
+      const auto clip = intersect_rect(area, canvas);
+      if (node.shape->feather > 0.05) {
+        // rasterize_vector_shape blurs the feather's reach past the clip on every side:
+        // four 16-bit planes and the paints over that domain.
+        const auto reach = static_cast<std::uint64_t>(feather_reach(node.shape->feather));
+        budget.check_workspace((static_cast<std::uint64_t>(clip.width) + 2U * reach) *
+                               (static_cast<std::uint64_t>(clip.height) + 2U * reach) * 48U);
+      }
+      auto raster = rasterize_vector_shape(*node.shape, clip, &patterns, &source, &paint_bounds);
       budget.keep(raster.pixels);
       layer.set_pixels(std::move(raster.pixels));
       layer.set_bounds(raster.bounds);

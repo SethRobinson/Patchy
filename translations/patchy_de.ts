@@ -15801,6 +15801,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Chosen before: %1</source>
         <translation>Zuvor gewählt: %1</translation>
     </message>
+    <message>
+        <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation>Unter 100 % scheint die Füllung auch über die ganze Arbeitsfläche durch, wie in Photoshop.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

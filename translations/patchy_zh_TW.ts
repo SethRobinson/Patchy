@@ -15745,6 +15745,10 @@ Do you want to replace it?</source>
         <source>Chosen before: %1</source>
         <translation>先前選擇：%1</translation>
     </message>
+    <message>
+        <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation>低於 100% 時，填色也會像在 Photoshop 中一樣在整個畫布上透出。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

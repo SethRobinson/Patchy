@@ -8870,26 +8870,38 @@ void ui_shape_appearance_grows_to_fit_gradient_stroke() {
       return;
     }
     auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
     auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"));
     auto* page = dialog->findChild<QWidget*>(QStringLiteral("shapeAppearancePage"));
     auto* opacity = dialog->findChild<QSlider*>(QStringLiteral("shapeLayerOpacitySlider"));
     auto* fill_opacity = dialog->findChild<QSlider*>(QStringLiteral("shapeLayerFillOpacitySlider"));
-    CHECK(stroke_paint != nullptr && scroll != nullptr && page != nullptr && opacity != nullptr &&
-          fill_opacity != nullptr);
-    if (stroke_paint == nullptr || scroll == nullptr || page == nullptr || opacity == nullptr ||
-        fill_opacity == nullptr) {
+    CHECK(stroke_paint != nullptr && fill_kind != nullptr && scroll != nullptr && page != nullptr &&
+          opacity != nullptr && fill_opacity != nullptr);
+    if (stroke_paint == nullptr || fill_kind == nullptr || scroll == nullptr || page == nullptr ||
+        opacity == nullptr || fill_opacity == nullptr) {
       return;
     }
     const int opened_height = dialog->height();
     const int opened_slider_width = opacity->width();
-    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
-    QApplication::processEvents();
-    QApplication::processEvents();
-    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_stroke", *dialog);
     const auto* screen = dialog->screen();
     CHECK(screen != nullptr);
     const int max_height = screen != nullptr ? screen->availableGeometry().height() - 40
                                              : std::numeric_limits<int>::max();
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_stroke", *dialog);
+    // A rectangle's left column, with the room its Density note holds (local-051), is the
+    // taller one at opening, so the stroke's rows may fit as it is: no scroll bar either way.
+    CHECK(dialog->height() >= opened_height);
+    if (dialog->height() < max_height) {
+      CHECK(scroll->verticalScrollBar()->maximum() == 0);
+    }
+    // A gradient fill above it needs more than that.
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_fill_and_stroke", *dialog);
     // The dialog grew for the new rows, up to the screen's height...
     CHECK(dialog->height() > opened_height || dialog->height() >= max_height);
     // ...so the scroll bar stays away unless the screen cap applied.

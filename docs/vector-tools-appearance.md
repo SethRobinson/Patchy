@@ -35,6 +35,14 @@ the four nested gradient and pattern forms share another; the fill-only dialog m
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
+Edge's Density below 100% shows the fill over the whole canvas, not only at the shape
+(Photoshop's vector mask density on a shape layer, and what the file stores). A note
+under the Density row says so while that is the case (`shapeDensityNote`: "Below 100%
+the fill also shows over the whole canvas, as in Photoshop."), built like the Stroke
+note below: no width of its own, a fixed height, and a spacer under the Edge section
+that holds its room while it is hidden. Feather and Density show the same in Dynamic
+Vector Preview ([vector-preview.md](vector-preview.md#shape-feather-and-density)).
+
 With a line among the targets the Stroke form has a note under Align
 (`shapeStrokeInsideLineHint`, local-051), shown while the stroke is on and Align is
 Inside: "Inside keeps the stroke within the line's Weight. Choose Center or Outside to
