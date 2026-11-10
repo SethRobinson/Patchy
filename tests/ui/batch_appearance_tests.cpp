@@ -24,6 +24,7 @@
 #include <QListWidget>
 #include <QMetaObject>
 #include <QMenu>
+#include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -37,6 +38,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <chrono>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -50,6 +52,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -2050,6 +2053,286 @@ void ui_shape_appearance_arrowheads_grow_large() {
   CHECK(line_arrow_size_from_percent(4.0, 200000.0) == 4000.0);
 }
 
+// Whether the layer's pixels are what its own vector content draws: the same bounds and bytes.
+bool raster_matches_vector(const Document& doc, LayerId id) {
+  const auto* layer = std::as_const(doc).find_layer(id);
+  if (layer == nullptr || layer->vector_shape() == nullptr) return false;
+  Layer fresh = *layer;
+  update_vector_shape_raster(fresh, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  const auto& drawn = std::as_const(fresh);
+  return layer->bounds() == drawn.bounds() && std::ranges::equal(layer->pixels().data(), drawn.pixels().data());
+}
+
+bool same_layer_content(const Layer& a, const Layer& b) {
+  return a.bounds() == b.bounds() && std::ranges::equal(a.pixels().data(), b.pixels().data()) &&
+         a.vector_shape() != nullptr && b.vector_shape() != nullptr &&
+         shape_vector_appearance_equal(*a.vector_shape(), *b.vector_shape()) &&
+         a.vector_shape()->path == b.vector_shape()->path;
+}
+
+// One frame strip for the review: the canvas as a repaint draws it from the layers the
+// document holds at that moment, with a caption under each frame.
+void save_frame_strip(const std::string& name, const std::vector<std::pair<QImage, QString>>& frames) {
+  if (frames.empty()) return;
+  constexpr int kWidth = 230, kCaption = 34, kGap = 6;
+  const int frame_height = frames.front().first.height() * kWidth / std::max(1, frames.front().first.width());
+  QImage sheet(static_cast<int>(frames.size()) * (kWidth + kGap) - kGap, frame_height + kCaption,
+               QImage::Format_ARGB32_Premultiplied);
+  sheet.fill(QColor(32, 33, 36));
+  QPainter painter(&sheet);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+  painter.setPen(QColor(230, 230, 230));
+  int x = 0;
+  for (const auto& [image, caption] : frames) {
+    painter.drawImage(QRect(x, 0, kWidth, frame_height), image);
+    painter.drawText(QRect(x, frame_height, kWidth, kCaption), Qt::AlignCenter | Qt::TextWordWrap, caption);
+    x += kWidth + kGap;
+  }
+  painter.end();
+  save_image_artifact(name, sheet);
+}
+
+// local-051 follow-up: while a value is scrubbed in Shape Appearance the canvas must only
+// ever show finished renders, each newer than the last. The preview used to put the shape's
+// new outline into the document at once with the pixels the layer had when the dialog
+// opened, and to drop a finished render whenever a newer value was waiting, so a repaint
+// during a scrub showed the arrow at its old size, then the new one, back and forth.
+void ui_shape_appearance_preview_shows_only_finished_renders() {
+  SettingsValueRestorer arrow_start_setting(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer arrow_end_setting(QStringLiteral("tools/lineArrowEnd"));
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id(), box = doc.allocate_layer_id(), star = doc.allocate_layer_id();
+  doc.add_layer(stroked_line_layer(id, doc, 200, 800, 380, 4, true, 6, VectorStrokeAlignment::Center));
+  doc.add_layer(rectangle(box, 80, 160, {0, 0, 0, 0}, {40, 120, 60}));
+  doc.add_layer(polygon_layer(star, 320, 5, 0));
+  select_batch_layers(window, {id});
+  canvas->zoom_to_document_rect(QRect(520, 190, 320, 380));
+  QApplication::processEvents();
+  const Layer opened = *std::as_const(doc).find_layer(id);
+  CHECK(raster_matches_vector(doc, id) && raster_matches_vector(doc, box) && raster_matches_vector(doc, star));
+  const auto layer_now = [&]() -> const Layer& { return *std::as_const(doc).find_layer(id); };
+  const auto idle = [&] { return !canvas->processing_operation_active(); };
+
+  std::vector<std::pair<QImage, QString>> frames;
+  // What a repaint shows from the layers the document holds right now. No event runs here.
+  const auto frame = [&](const QString& caption) {
+    canvas->document_changed();
+    frames.emplace_back(canvas->grab().toImage(), caption);
+  };
+  std::vector<int> between_heights, landed_heights;
+  bool between_consistent = true, between_was_opened = false;
+  int first_landed_height = 0;
+  double first_landed_width = 0.0;
+  bool first_landed_consistent = false;
+  std::vector<int> scrubbed_values;
+  std::vector<double> scrubbed_widths;
+  const int drag_start = QApplication::startDragDistance();
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    auto* length = field<QSpinBox>(dialog, "shapeArrowLengthSpin");
+    // A real drag on the Width label: the field's values, and the head sizes the document
+    // shows as each render lands, only go up.
+    for (auto* label : dialog.findChildren<QLabel*>()) {
+      if (label->text() != QStringLiteral("Width:") || !inside(label, "shapeArrowheadsGroup")) continue;
+      const auto values = QObject::connect(width, &QSpinBox::valueChanged, &dialog,
+                                           [&](int value) { scrubbed_values.push_back(value); });
+      const auto origin = label->rect().center();
+      send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+      for (int travel = 2; travel <= 12; travel += 2) {
+        send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start + travel, 0), Qt::NoButton, Qt::LeftButton);
+        QApplication::processEvents();
+        scrubbed_widths.push_back(line_params(doc, id).arrow_width);
+        between_consistent = between_consistent && raster_matches_vector(doc, id);
+      }
+      send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 12, 0), Qt::LeftButton, Qt::NoButton);
+      QObject::disconnect(values);
+      (void)process_events_until([&] { return idle() && line_params(doc, id).arrow_width == width->value() * 4 / 100.0; });
+    }
+    // A Length typed first, then Width scrubbed (Seth's order): 240 px long, 40 px wide.
+    length->setValue(6000);
+    width->setValue(1000);
+    (void)process_events_until([&] {
+      return idle() && line_params(doc, id).arrow_width == 40 && line_params(doc, id).arrow_length == 240 &&
+             raster_matches_vector(doc, id);
+    });
+    frame(QStringLiteral("Width 1000%\nshown"));
+    landed_heights.push_back(layer_now().bounds().height);
+    int step = 0;
+    for (const int percent : {2000, 3000, 4000, 5000, 6000}) {
+      // A scrub step arrives; its render is now running on the worker.
+      width->setValue(percent);
+      between_consistent = between_consistent && raster_matches_vector(doc, id);
+      between_was_opened = between_was_opened || layer_now().bounds() == opened.bounds();
+      between_heights.push_back(layer_now().bounds().height);
+      if (step < 3) frame(QStringLiteral("%1% asked,\nnot rendered yet").arg(percent));
+      (void)process_events_until([&] {
+        return idle() && line_params(doc, id).arrow_width == percent * 4 / 100 && raster_matches_vector(doc, id);
+      });
+      landed_heights.push_back(layer_now().bounds().height);
+      if (step < 3) frame(QStringLiteral("Width %1%\nshown").arg(percent));
+      ++step;
+    }
+    // Two steps before the first one's render lands: that render still shows, then the second.
+    const auto held = layer_now().bounds();
+    width->setValue(7000);
+    width->setValue(8000);
+    // The 7000% render finishes on its worker while no event runs here. One delivery of
+    // the queued calls then lands it and starts 8000%, whose own landing cannot be in the
+    // same delivery (Qt sends only what was posted before the call).
+    for (int waited = 0; waited < 250 && layer_now().bounds() == held; ++waited) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+    }
+    first_landed_height = layer_now().bounds().height;
+    first_landed_width = line_params(doc, id).arrow_width;
+    first_landed_consistent = raster_matches_vector(doc, id);
+    (void)process_events_until([&] { return idle() && line_params(doc, id).arrow_width == 320; });
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  (void)process_events_until(idle);
+  save_frame_strip("ui_local_051_scrub_frames", frames);
+
+  // The label drag stepped the field evenly upward from 500% (10% a pixel there), and the
+  // head the document showed never shrank on the way.
+  CHECK(scrubbed_values.size() == 6);
+  for (std::size_t step = 0; step < scrubbed_values.size(); ++step) {
+    CHECK(scrubbed_values[step] == 500 + (drag_start + 2 * (static_cast<int>(step) + 1)) * 10);
+  }
+  CHECK(std::is_sorted(scrubbed_widths.begin(), scrubbed_widths.end()));
+  // Between a step and its render the document held a finished render, never the pixels
+  // from when the dialog opened, and its outline and pixels always agreed.
+  CHECK(between_consistent);
+  CHECK(!between_was_opened);
+  // Each step in between showed the previous step's head; each landing showed its own,
+  // larger one.
+  CHECK(landed_heights.size() == 6 && between_heights.size() == 5);
+  for (std::size_t step = 0; step < between_heights.size() && step + 1 < landed_heights.size(); ++step) {
+    CHECK(between_heights[step] == landed_heights[step]);
+    CHECK(landed_heights[step + 1] > landed_heights[step]);
+  }
+  // A finished render shows even while a newer value waits: 7000% (a 280 px head) landed
+  // before 8000% did.
+  CHECK(first_landed_width == 280 && first_landed_consistent);
+  CHECK(first_landed_height > landed_heights.back());
+
+  // OK committed the last value as one undo step, the same layer a single edit gives.
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  CHECK(line_params(doc, id).arrow_width == 320 && line_params(doc, id).arrow_length == 240);
+  CHECK(raster_matches_vector(doc, id));
+  {
+    Layer direct = opened;
+    auto content = *std::as_const(direct).vector_shape();
+    auto& params = content.origination.front();
+    params.arrow_width = 320; params.arrow_length = 240;
+    content.path.subpaths = generate_live_shape_subpaths(params);
+    CHECK(content.path == layer_now().vector_shape()->path);
+    direct.set_vector_shape(std::move(content));
+    update_vector_shape_raster(direct, Rect::from_size(doc.width(), doc.height()), nullptr);
+    CHECK(direct.bounds() == layer_now().bounds());
+    CHECK(std::ranges::equal(std::as_const(direct).pixels().data(), layer_now().pixels().data()));
+  }
+  MainWindowTestAccess::undo(window);
+  CHECK(same_layer_content(layer_now(), opened));
+
+  // Preview off shows the layer as it was; on again shows the edit; Cancel restores it exactly.
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    auto* preview = field<QCheckBox>(dialog, "shapeAppearancePreviewCheck");
+    width->setValue(3000);
+    CHECK(process_events_until([&] { return idle() && line_params(doc, id).arrow_width == 120; }));
+    width->setValue(4000);  // still rendering when Preview goes off
+    preview->setChecked(false);
+    CHECK(same_layer_content(layer_now(), opened));
+    CHECK(process_events_until(idle));
+    QApplication::processEvents();
+    CHECK(same_layer_content(layer_now(), opened));
+    preview->setChecked(true);
+    CHECK(process_events_until([&] {
+      return idle() && line_params(doc, id).arrow_width == 160 && raster_matches_vector(doc, id);
+    }));
+    width->setValue(5000);
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until(idle));
+  CHECK(same_layer_content(layer_now(), opened));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+
+  // The other live fields share the preview: Weight, Stroke width and an end point of a line,
+  // a rectangle's radius, a polygon's sides. No step leaves outline and pixels apart.
+  const auto steady = [&](LayerId target, const char* spin_name, const std::vector<double>& values) {
+    select_batch_layers(window, {target});
+    bool consistent = true;
+    when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+      auto* spin = dialog.findChild<QAbstractSpinBox*>(QLatin1String(spin_name));
+      CHECK(spin != nullptr);
+      for (const double value : values) {
+        if (auto* decimal = qobject_cast<QDoubleSpinBox*>(spin)) decimal->setValue(value);
+        else if (auto* whole = qobject_cast<QSpinBox*>(spin)) whole->setValue(static_cast<int>(value));
+        consistent = consistent && raster_matches_vector(doc, target);
+        // Let renders land for some steps and pile up for others.
+        if (static_cast<int>(value) % 2 == 0) (void)process_events_until(idle);
+        consistent = consistent && raster_matches_vector(doc, target);
+      }
+      (void)process_events_until(idle);
+      dialog.accept();
+    });
+    MainWindowTestAccess::edit_active_shape_appearance(window);
+    (void)process_events_until(idle);
+    return consistent && raster_matches_vector(doc, target);
+  };
+  CHECK(steady(id, "shapeGeometryLineWeightSpin", {6, 9, 12, 15, 18}));
+  CHECK(line_params(doc, id).line_weight == 18);
+  CHECK(steady(id, "shapeStrokeWidthSpin", {8, 11, 14, 17, 20}));
+  CHECK(std::as_const(doc).find_layer(id)->vector_shape()->stroke.width == 20);
+  CHECK(steady(id, "shapeGeometryLineEndXSpin", {760, 721, 700, 663, 640}));
+  CHECK(line_params(doc, id).line_end_x == 640);
+  CHECK(steady(box, "shapeGeometryRadiusTopLeftSpin", {4, 9, 14, 19, 24}));
+  CHECK(std::as_const(doc).find_layer(box)->vector_shape()->origination.front().corner_radii[0] == 24);
+  CHECK(steady(star, "shapePolygonSidesSpin", {6, 7, 8, 9, 10}));
+  CHECK(std::as_const(doc).find_layer(star)->vector_shape()->origination.front().polygon_sides == 10);
+
+  // Dynamic Vector Preview at a high zoom draws the same finished states: after a scrub
+  // settles, the sharp view shows the committed head, not the one the dialog opened with.
+  // The probe is 150 px behind the tip and 30 px off the axis: inside the 90 px wide head
+  // the line has now, outside the 18 px one the scrub ends on.
+  select_batch_layers(window, {id});
+  const auto tip = line_params(doc, id);
+  CHECK(tip.arrow_width == 90 && tip.arrow_length == 180);
+  const QPoint beside(static_cast<int>(tip.line_end_x) - 150, static_cast<int>(tip.line_end_y) - 30);
+  canvas->set_vector_preview_enabled(true);
+  canvas->zoom_to_document_rect(QRect(beside.x() - 20, beside.y() - 20, 40, 40));
+  QApplication::processEvents();
+  CHECK(canvas->zoom() >= 8.0);
+  CHECK(process_events_until([&] { return canvas->render_settled(); }, 20000));
+  // The middle of the document pixel: at this zoom the pixel grid runs along its edges.
+  CHECK(!color_close(canvas_pixel_center(*canvas, beside), Qt::white, 8));
+  bool sharp_consistent = true;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    for (const int percent : {300, 250, 200, 150, 100}) {
+      width->setValue(percent);
+      sharp_consistent = sharp_consistent && raster_matches_vector(doc, id);
+      if (percent % 100 == 0) (void)process_events_until(idle);
+    }
+    (void)process_events_until(idle);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(sharp_consistent && raster_matches_vector(doc, id));
+  CHECK(process_events_until([&] { return canvas->render_settled(); }, 20000));
+  QApplication::processEvents();
+  CHECK(line_params(doc, id).arrow_width == 18);
+  save_widget_artifact("ui_local_051_scrub_sharp_view", *canvas);
+  CHECK(color_close(canvas_pixel_center(*canvas, beside), Qt::white, 8));
+  canvas->set_vector_preview_enabled(false);
+}
+
 } // namespace
 
 std::vector<patchy::test::TestCase> batch_appearance_tests() {
@@ -2082,5 +2365,6 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_line_tool_new_line_stroke_is_centered", ui_line_tool_new_line_stroke_is_centered},
     {"ui_shape_appearance_inside_stroke_hint_on_lines", ui_shape_appearance_inside_stroke_hint_on_lines},
     {"ui_shape_appearance_arrowheads_grow_large", ui_shape_appearance_arrowheads_grow_large},
+    {"ui_shape_appearance_preview_shows_only_finished_renders", ui_shape_appearance_preview_shows_only_finished_renders},
   };
 }

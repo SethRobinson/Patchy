@@ -2797,12 +2797,14 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
     CHECK(stroke_align->isEnabled());
     stroke_width->setValue(6.0);
     stroke_align->setCurrentIndex(1);  // Center
-    QApplication::processEvents();
-    // Preview applies to the layer immediately: the stroke color defaults to
-    // black over the black fill, so check the model rather than pixels.
-    const auto* preview_layer = document.find_layer(*layer_id);
-    saw_live_preview = preview_layer != nullptr && preview_layer->vector_shape() != nullptr &&
-                       preview_layer->vector_shape()->stroke.enabled;
+    // The preview reaches the layer when its render lands, outline and pixels together
+    // (local-051 follow-up). The stroke color defaults to black over the black fill, so
+    // check the model rather than pixels.
+    saw_live_preview = process_events_until([&] {
+      const auto* preview_layer = std::as_const(document).find_layer(*layer_id);
+      return preview_layer != nullptr && preview_layer->vector_shape() != nullptr &&
+             preview_layer->vector_shape()->stroke.enabled;
+    });
     dialog->accept();
   }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
@@ -2917,6 +2919,12 @@ void ui_shape_appearance_custom_dash_pattern_edits_stroke() {
     CHECK(pattern->isVisibleTo(dialog));
     CHECK(pattern->text() == QStringLiteral("4 2"));
     type_pattern(pattern, QStringLiteral("6 2 1 2"));
+    // The preview reaches the layer when its render lands (local-051 follow-up).
+    (void)process_events_until([&] {
+      const auto* shown = std::as_const(document).find_layer(*layer_id);
+      return shown != nullptr && shown->vector_shape() != nullptr &&
+             shown->vector_shape()->stroke.dashes == std::vector<double>{6, 2, 1, 2};
+    });
     const auto* preview = std::as_const(document).find_layer(*layer_id);
     CHECK(preview != nullptr && preview->vector_shape() != nullptr);
     previewed = preview->vector_shape()->stroke.dashes;

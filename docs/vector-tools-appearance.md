@@ -78,9 +78,17 @@ the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
 
 Edits preview live and restore on cancel or exception; a PSD-read
 gradient/pattern stroke stays untouched unless re-picked. The preview
-rasterizes on a worker: the vector MODEL applies synchronously, baked pixels
-lag, requests coalesce, the pattern anchor rides a scratch layer; accept
-commits the in-flight result (60 s timeout).
+rasterizes on a worker and shows only finished renders (`edit_active_shape_appearance`,
+local-051 follow-up): a request's outline and the pixels baked from it reach the document
+together when its render lands, so the composite, the path outline and Dynamic Vector
+Preview never pair a new outline with older pixels, and between two renders the canvas
+shows the last finished one, never the layer from when the dialog opened. One render runs
+at a time and a finished one lands even while a newer value waits (the adjustment
+previews' rule, GitHub #601), so a scrub shows each size in order; requests coalesce to
+the newest; Preview off restores the originals at once and bumps the generation, so a
+render it overtook never lands. The request's pattern store lands with its layers, the
+pattern anchor rides a scratch layer, and accept commits the in-flight result (60 s
+timeout). Test: `ui_shape_appearance_preview_shows_only_finished_renders`.
 
 Layer > New Fill Layer makes Solid Color, Gradient (FG-to-BG linear) and
 Pattern fill layers: shape layers with an empty path (whole canvas); a
