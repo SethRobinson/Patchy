@@ -119,6 +119,17 @@ class StrokePixelMap {
     Tile* tile_{nullptr};
   };
 
+  // A reserved tile's entries for a hot loop over one tile: values and presence bits, indexed
+  // (y & 63) * 64 + (x & 63). Writing a value without setting its bit leaves it absent.
+  struct TileEntries {
+    T* values;
+    std::bitset<64 * 64>* present;
+  };
+  [[nodiscard]] TileEntries reserved_tile_entries(std::int32_t x, std::int32_t y) {
+    auto* tile = tiles_.at(tile_key(x, y)).get();
+    return {tile->values.data(), &tile->present};
+  }
+
   // A Cursor's band is y >> kTileRowsShift: one row of tiles.
   static constexpr int kTileRowsShift = 6;
 

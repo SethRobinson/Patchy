@@ -5267,7 +5267,9 @@ void ui_hard_round_stroke_skip_keeps_bytes() {
 // compositor's callbacks, on one thread and on several, for the Airbrush, a soft partial-opacity
 // stroke, the soft Eraser, Multiply, a rotated Square, an oval, a feathered selection, 16-bit
 // and the Dissolve paint mode, with folded mouse samples and repeated points. A stroke sent one
-// pixel per move still places one dab per spacing step.
+// pixel per move still places one dab per spacing step. The follow-up (the Airbrush preset at
+// Soft 10% and 100%) paints each move's dabs in one batch (flush_brush_dab_batch); batched and
+// dab-by-dab bytes match core too.
 void ui_brush_banded_dabs_keep_bytes() {
   struct Case {
     const char* name;
@@ -5297,6 +5299,14 @@ void ui_brush_banded_dabs_keep_bytes() {
       {"oval", patchy::ui::CanvasTool::Brush, 221, 35, 90, 25, false, 55, round, std::nullopt, false, false},
       {"feathered", patchy::ui::CanvasTool::Brush, 201, 25, 100, 25, true, 100, round, std::nullopt, true, false},
       {"deep_16", patchy::ui::CanvasTool::Brush, 179, 13, 100, 12, true, 100, round, std::nullopt, false, true},
+      {"airbrush_soft10", patchy::ui::CanvasTool::Brush, 179, 10, 100, 100, true, 100, round, std::nullopt, false,
+       false},
+      {"airbrush_soft100", patchy::ui::CanvasTool::Brush, 179, 100, 100, 100, true, 100, round, std::nullopt, false,
+       false},
+      {"eraser_soft100", patchy::ui::CanvasTool::Eraser, 179, 100, 100, 100, false, 100, round, std::nullopt, false,
+       false},
+      {"deep_16_soft100", patchy::ui::CanvasTool::Brush, 179, 100, 100, 100, true, 100, round, std::nullopt, false,
+       true},
   };
   patchy::set_deep_editing_override(true);
   for (const auto& test_case : cases) {
@@ -5304,7 +5314,7 @@ void ui_brush_banded_dabs_keep_bytes() {
       std::vector<std::uint8_t> bytes;
       int dabs{0};
     };
-    const auto paint = [&test_case](bool banded, bool single_threaded) {
+    const auto paint = [&test_case](bool banded, bool single_threaded, bool batched) {
       if (single_threaded) {
         qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
       }
@@ -5335,6 +5345,7 @@ void ui_brush_banded_dabs_keep_bytes() {
       canvas.set_document(&document);
       canvas.set_zoom(0.5);
       canvas.set_banded_brush_dabs_enabled_for_testing(banded);
+      canvas.set_brush_dab_batching_enabled_for_testing(batched);
       canvas.show();
       QApplication::processEvents();
       const auto widget_point = [&canvas](QPoint document_point) {
@@ -5404,18 +5415,28 @@ void ui_brush_banded_dabs_keep_bytes() {
       return result;
     };
     // Core paint_brush_dab through the compositor's callbacks is the dab as it was before.
-    const auto core = paint(false, true);
-    const auto single = paint(true, true);
-    const auto parallel = paint(true, false);
-    if (single.bytes != core.bytes || parallel.bytes != core.bytes) {
-      std::printf("[INFO] banded dab case %s: one thread %s, bands %s\n", test_case.name,
-                  single.bytes == core.bytes ? "same" : "changed", parallel.bytes == core.bytes ? "same" : "changed");
+    const auto core = paint(false, true, false);
+    const auto single = paint(true, true, false);
+    const auto parallel = paint(true, false, false);
+    const auto batched_single = paint(true, true, true);
+    const auto batched = paint(true, false, true);
+    if (single.bytes != core.bytes || parallel.bytes != core.bytes || batched_single.bytes != core.bytes ||
+        batched.bytes != core.bytes) {
+      std::printf("[INFO] banded dab case %s: one thread %s, bands %s, batched one thread %s, batched %s\n",
+                  test_case.name, single.bytes == core.bytes ? "same" : "changed",
+                  parallel.bytes == core.bytes ? "same" : "changed",
+                  batched_single.bytes == core.bytes ? "same" : "changed",
+                  batched.bytes == core.bytes ? "same" : "changed");
     }
     CHECK(core.dabs > 0);
     CHECK(single.dabs == core.dabs);
     CHECK(parallel.dabs == core.dabs);
+    CHECK(batched_single.dabs == core.dabs);
+    CHECK(batched.dabs == core.dabs);
     CHECK(single.bytes == core.bytes);
     CHECK(parallel.bytes == core.bytes);
+    CHECK(batched_single.bytes == core.bytes);
+    CHECK(batched.bytes == core.bytes);
   }
   patchy::set_deep_editing_override(std::nullopt);
 
@@ -5449,6 +5470,105 @@ void ui_brush_banded_dabs_keep_bytes() {
   std::printf("[INFO] 600 one-pixel moves at 179 px: %d dabs\n", dabs);
   CHECK(dabs >= 26);
   CHECK(dabs <= 30);
+}
+
+// GitHub issue 677 follow-up: a Brush or Eraser stroke's queued moves coalesce per event-loop
+// pass like a Clone stroke's, keeping every position, so a fast pointer's backlog paints its
+// spaced dabs in one batch. Queued and sent strokes give the same bytes (Soft 100%, Flow 100,
+// Airbrush off so no timer tick lands; the soft Eraser too).
+void ui_brush_stroke_coalesces_queued_moves_and_keeps_bytes() {
+  for (const auto tool : {patchy::ui::CanvasTool::Brush, patchy::ui::CanvasTool::Eraser}) {
+    struct Result {
+      std::vector<std::uint8_t> bytes;
+      int coalesced{0};
+      int dabs{0};
+    };
+    const auto paint = [tool](bool queued) {
+      constexpr int kWidth = 900;
+      constexpr int kHeight = 600;
+      auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+        }
+      }
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(520, 400);
+      canvas.set_document(&document);
+      canvas.set_zoom(0.25);
+      canvas.set_drag_move_coalescing_for_testing(queued ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                         : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+      canvas.show();
+      QApplication::processEvents();
+      canvas.set_tool(tool);
+      canvas.set_primary_color(QColor(30, 90, 200));
+      canvas.set_brush_size(179);
+      canvas.set_brush_softness(100);
+      canvas.set_brush_opacity(100);
+      canvas.set_brush_flow(100);
+      canvas.set_brush_build_up(false);
+      const auto widget_point = [&canvas](QPointF document_point) {
+        return QPointF(canvas.widget_position_for_document_point(document_point.toPoint()));
+      };
+      // A zigzag, about 30 image pixels a move.
+      std::vector<QPointF> path;
+      for (int index = 0; index <= 120; ++index) {
+        const auto t = static_cast<double>(index);
+        const auto travel = std::fmod(30.0 * t, 1200.0);
+        path.emplace_back(150.0 + (travel < 600.0 ? travel : 1200.0 - travel), 150.0 + 2.5 * t);
+      }
+      for (int wait = 0; wait < 200 && !canvas.render_settled(); ++wait) {
+        canvas.repaint();
+        QApplication::processEvents();
+      }
+      const auto before = canvas.render_cache_diagnostics();
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(path.front()).toPoint(), Qt::LeftButton,
+                 Qt::LeftButton);
+      if (queued) {
+        // Queued as a window system queues them, in bursts of nine per event-loop pass.
+        for (std::size_t index = 1; index < path.size(); ++index) {
+          const auto position = widget_point(path[index]);
+          QApplication::postEvent(&canvas, new QMouseEvent(QEvent::MouseMove, position, canvas.mapToGlobal(position),
+                                                           Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+          if (index % 9 == 0) {
+            QApplication::processEvents();
+          }
+        }
+        QApplication::processEvents();
+        QApplication::processEvents();
+      } else {
+        for (std::size_t index = 1; index < path.size(); ++index) {
+          const auto position = widget_point(path[index]);
+          QMouseEvent event(QEvent::MouseMove, position, canvas.mapToGlobal(position), Qt::NoButton, Qt::LeftButton,
+                            Qt::NoModifier);
+          QApplication::sendEvent(&canvas, &event);
+        }
+      }
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(path.back()).toPoint(), Qt::LeftButton,
+                 Qt::NoButton);
+      QApplication::processEvents();
+      const auto after = canvas.render_cache_diagnostics();
+      Result result;
+      const auto bytes = std::as_const(*document.find_layer(layer_id)).pixels().data();
+      result.bytes.assign(bytes.begin(), bytes.end());
+      result.coalesced = after.drag_moves_coalesced - before.drag_moves_coalesced;
+      result.dabs = after.brush_dabs - before.brush_dabs;
+      return result;
+    };
+    const auto sent = paint(false);
+    const auto queued = paint(true);
+    std::printf("[INFO] %s stroke: %d dabs sent, %d queued, %d moves coalesced\n",
+                tool == patchy::ui::CanvasTool::Brush ? "Brush" : "Eraser", sent.dabs, queued.dabs, queued.coalesced);
+    CHECK(sent.dabs > 100);
+    CHECK(queued.dabs == sent.dabs);
+    CHECK(queued.coalesced > 0);
+    CHECK(queued.bytes == sent.bytes);
+  }
 }
 
 // GitHub issue 597: a big Clone Stamp segment visits only its capsule's row spans, one
@@ -6196,6 +6316,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_stroke_paints_every_coalesced_mouse_sample},
       {"ui_hard_round_stroke_skip_keeps_bytes", ui_hard_round_stroke_skip_keeps_bytes},
       {"ui_brush_banded_dabs_keep_bytes", ui_brush_banded_dabs_keep_bytes},
+      {"ui_brush_stroke_coalesces_queued_moves_and_keeps_bytes", ui_brush_stroke_coalesces_queued_moves_and_keeps_bytes},
       {"ui_clone_stamp_large_brush_skip_keeps_bytes", ui_clone_stamp_large_brush_skip_keeps_bytes},
       {"ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes",
        ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes},

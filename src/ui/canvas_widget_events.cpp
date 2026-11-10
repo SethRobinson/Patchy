@@ -2427,11 +2427,19 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     // and no speed feeds deposition or Smoothing; adding either needs a new
     // review (docs/legal-constraints.md, "Brush behavior").
     std::vector<QRect> dirty;
-    for (const auto& position : coalesced_stroke_positions(*event)) {
-      dirty.push_back(advance_paint_stroke(document_position(position.toPoint()), stroke_position_f(position),
-                                           event->modifiers(), effective_tool));
+    {
+      // Spaced Brush and Eraser dabs of all these samples are painted together (GitHub
+      // issue 677 follow-up; flush_brush_dab_batch).
+      ++brush_dab_batch_depth_;
+      const auto close_batch = qScopeGuard([this] { --brush_dab_batch_depth_; });
+      for (const auto& position : coalesced_stroke_positions(*event)) {
+        dirty.push_back(advance_paint_stroke(document_position(position.toPoint()), stroke_position_f(position),
+                                             event->modifiers(), effective_tool));
+      }
+      dirty.push_back(advance_paint_stroke(document_point, document_point_f, event->modifiers(), effective_tool));
+      const auto batched = flush_brush_dab_batch();
+      dirty.insert(dirty.end(), batched.begin(), batched.end());
     }
-    dirty.push_back(advance_paint_stroke(document_point, document_point_f, event->modifiers(), effective_tool));
     if (const auto region = stroke_samples_dirty_region(dirty); !region.isEmpty()) {
       active_edit_target_changed_impl(region, DocumentChangeReason::BrushStrokePreview);
     }
