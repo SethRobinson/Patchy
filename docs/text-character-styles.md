@@ -18,7 +18,9 @@ Fractions. Session plumbing is in [text-tool.md](text-tool.md), panel plumbing i
   `noligatures`, `contextualalternates`, `discretionaryligatures`, `swash`,
   `stylisticalternates`, `titlingalternates`, or `-`), plus `language:<n>` for a run's
   Photoshop hyphenation and spelling language (Txt2 numbering, kept from Photoshop files only,
-  no control; [txt2.md](txt2.md#languages)).
+  no control; [txt2.md](txt2.md#languages)), and `digits:<n>`, `diacx:<v>`, `diacy:<v>`,
+  `marky:<v>` and `justalt` for Photoshop's Middle Eastern settings, kept the same way
+  ([txt2.md](txt2.md#settings-patchy-keeps-and-does-not-draw)).
   The tokens are a file-format contract. The column (and the v9 header) is written only when a
   run carries a style, so other text keeps its bytes; a reader skips any `vN` header line.
 - The text keeps its own case and size: All Caps never rewrites the characters, and a

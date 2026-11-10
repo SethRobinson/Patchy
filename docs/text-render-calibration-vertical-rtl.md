@@ -82,6 +82,12 @@ to left, so its right alignment landed on the left and its runs reordered. So:
   character is right to left to `rtl`, in the TySh key and `/33` alike, so Photoshop draws it the
   way Patchy did and a reopen keeps it. `first_strong_text_direction` (psd_text_runs.hpp) is the
   shared bidi default: a table of strong letters, not the full Unicode database.
+- **Justified right-to-left lines fill the frame to both edges** (Photoshop 2026 render of the
+  reporter's Hebrew file: lines span columns 16 to 383 of a box at 16 to 384; Qt's stopped at
+  378 to 380). Patchy spreads them over their word spaces itself, Arabic included
+  ([text-tool.md](text-tool.md#justify-modes)). Kashida insertion, digit sets, Justification
+  Alternates and diacritic positions are kept in the PSD and not drawn
+  ([txt2.md](txt2.md#settings-patchy-keeps-and-does-not-draw)).
 - Tests: `psd_issue_683_direction_reads_txt2_and_photoshop_default`,
   `psd_issue_683_reporter_files_read_direction_if_available` (`local-test-fixtures/psd/issue-683/`:
   the reporter's Photoshop file, his Patchy 1.29 resave with right to left set, his Photon Studio

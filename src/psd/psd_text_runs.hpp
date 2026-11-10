@@ -88,7 +88,21 @@ struct PsdTextStyleRun {
   // kPhotoshopTextDefaultLanguage, as every Patchy save did before; a file's 14 reads back unset.
   // Runs v9 column 16 token `language:<n>`.
   std::optional<int> language;
+  // Photoshop's Middle Eastern character settings (GitHub issue 683), kept so a Photoshop file's
+  // text keeps them through an edit and a save; Patchy draws nothing from them. Txt2 style keys
+  // (docs/txt2.md): /70 the digit set (0 default, 1 Arabic, 2 Hindi, 3 Farsi), /72 and /73 the
+  // diacritic x and y offsets, /87 the mark distance from the baseline (100 by default) and /75
+  // Justification Alternates. Runs v9 column 16 tokens `digits:<n>`, `diacx:<v>`, `diacy:<v>`,
+  // `marky:<v>` and `justalt`, each written only off its default.
+  int digit_set{0};
+  double diacritic_x_offset{0.0};
+  double diacritic_y_offset{0.0};
+  double mark_y_distance{100.0};
+  bool justification_alternates{false};
 };
+
+// True when a run carries a Middle Eastern setting off its default (the fields above).
+[[nodiscard]] bool text_run_has_middle_eastern_settings(const PsdTextStyleRun& run) noexcept;
 
 // The Txt2 language Patchy writes for a run without one (English UK, the authoring template's).
 inline constexpr int kPhotoshopTextDefaultLanguage = 14;
@@ -148,7 +162,33 @@ struct PsdTextParagraphRun {
   // World-Ready aligns a paragraph's last line as if its last glyph kerned with a following
   // space (docs/text-render-calibration.md, "Tracking and alignment"). Paragraph runs v5 column 10.
   int composer{1};
+  // Photoshop's Hyphenate checkbox and its settings (TySh /AutoHyphenate, /HyphenatedWordSize,
+  // /PreHyphen, /PostHyphen, /ConsecutiveHyphens, /Zone; Txt2 paragraph keys /9 to /15), and the
+  // Kashida width of the Middle Eastern composer (Txt2 /40: 0 none, 1 short, 2 medium, 3 long,
+  // 4 stylistic). Patchy neither hyphenates nor inserts kashidas: these are kept so a Photoshop
+  // file's paragraphs keep them through an edit and a save (GitHub issue 683). The defaults are
+  // what Photoshop 2026 writes for a new layer (Hyphenate off). Paragraph runs v6 column 11
+  // (serialize_paragraph_run_settings).
+  bool auto_hyphenate{false};
+  int hyphenated_word_size{6};
+  int pre_hyphen{2};
+  int post_hyphen{2};
+  int consecutive_hyphens{8};
+  double hyphenation_zone{36.0};
+  bool hyphenate_capitalized{true};
+  int kashida_width{2};
 };
+
+// Paragraph runs v6 column 11: the paragraph's kept Photoshop settings as a comma-separated token
+// list, or "-" when all are at their defaults: `hyphenate` (Hyphenate on),
+// `hyphenation:<word>:<before>:<after>:<limit>:<zone>:<capitalized 0|1>` (the hyphenation
+// settings, when any differs from 6:2:2:8:36:1) and `kashida:<n>` (Kashida width, when not 2).
+// The tokens are a file-format contract: never rename one.
+[[nodiscard]] std::string serialize_paragraph_run_settings(const PsdTextParagraphRun& run);
+// Reads a column-11 token list into `run` (unknown tokens are ignored).
+void parse_paragraph_run_settings(std::string_view field, PsdTextParagraphRun& run);
+// Copies the settings column 11 carries from one paragraph run to another.
+void copy_paragraph_run_settings(const PsdTextParagraphRun& from, PsdTextParagraphRun& to) noexcept;
 
 // Vertical (tategaki) text rasters are the cell union plus this bleed on every side, in
 // document pixels, derived from the layer's base size only so the PSD writer (Qt-free) and the

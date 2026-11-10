@@ -14,6 +14,7 @@
 #include <QTextBlock>
 #include <QTextBoundaryFinder>
 #include <QTextCharFormat>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextFragment>
 #include <QTextLayout>
@@ -22,6 +23,8 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -180,11 +183,190 @@ double justified_last_line_shift(const QTextBlock& block, const QTextLine& line)
   return block.textDirection() == Qt::RightToLeft ? -fraction * slack : fraction * slack;
 }
 
+namespace {
+
+// Scripts whose letters Qt justifies before their word spaces (qt_getJustificationOpportunities
+// in qtextengine.cpp): the cursive ones, where slack between letters breaks the joins.
+bool block_has_cursive_script(const QTextBlock& block) {
+  const auto text = block.text();
+  for (qsizetype i = 0; i < text.size(); ++i) {
+    char32_t code = text.at(i).unicode();
+    if (text.at(i).isHighSurrogate() && i + 1 < text.size() && text.at(i + 1).isLowSurrogate()) {
+      code = QChar::surrogateToUcs4(text.at(i), text.at(i + 1));
+      ++i;
+    }
+    switch (QChar::script(code)) {
+      case QChar::Script_Arabic:
+      case QChar::Script_Syriac:
+      case QChar::Script_Nko:
+      case QChar::Script_Mandaic:
+      case QChar::Script_Mongolian:
+      case QChar::Script_PhagsPa:
+      case QChar::Script_Manichaean:
+      case QChar::Script_PsalterPahlavi:
+        return true;
+      default:
+        break;
+    }
+  }
+  return false;
+}
+
+bool block_takes_word_space_justification(const QTextBlock& block) {
+  return (block.blockFormat().alignment() & Qt::AlignJustify) != 0 && block.layout() != nullptr &&
+         (block.textDirection() == Qt::RightToLeft || block_has_cursive_script(block));
+}
+
+// A space Qt's word spacing reaches (QTextEngine::shapeText): any whitespace but a tab or a
+// line or paragraph separator.
+bool is_word_space(QChar ch) {
+  return ch.isSpace() && ch != QLatin1Char('\t') && ch != QLatin1Char('\n') && ch != QChar::LineSeparator &&
+         ch != QChar::ParagraphSeparator;
+}
+
+struct WordSpaceEdit {
+  int position{0};      // document position of the space that takes the extra advance
+  double spacing{0.0};  // the extra advance, a whole number of Qt's 1/64 px
+};
+
+std::vector<int> block_line_starts(const QTextBlock& block) {
+  std::vector<int> starts;
+  if (const auto* layout = block.layout(); layout != nullptr) {
+    for (int i = 0; i < layout->lineCount(); ++i) {
+      starts.push_back(layout->lineAt(i).textStart());
+    }
+  }
+  return starts;
+}
+
+// The extra advance each word space of the block's justified lines takes so the line fills
+// its width. Empty for a block Qt justifies on its own.
+std::vector<WordSpaceEdit> word_space_justification_edits(const QTextBlock& block) {
+  std::vector<WordSpaceEdit> edits;
+  if (!block_takes_word_space_justification(block)) {
+    return edits;
+  }
+  const auto* layout = block.layout();
+  const auto text = block.text();
+  const bool justify_all = text_justify_last_line(block.blockFormat()) == TextJustifyLastLine::All;
+  for (int i = 0; i < layout->lineCount(); ++i) {
+    const auto line = layout->lineAt(i);
+    if (!line.isValid()) {
+      continue;
+    }
+    const int start = line.textStart();
+    const int end = std::min<int>(start + line.textLength(), static_cast<int>(text.size()));
+    const bool last = i == layout->lineCount() - 1;
+    // Like Qt: the paragraph's last line and a line ended by a forced break stay unjustified,
+    // except under Justify All.
+    if (!justify_all && (last || (end > start && text.at(end - 1) == QChar::LineSeparator))) {
+      continue;
+    }
+    int content_end = end;
+    while (content_end > start && text.at(content_end - 1).isSpace()) {
+      --content_end;
+    }
+    int content_start = start;
+    while (content_start < content_end && text.at(content_start).isSpace()) {
+      ++content_start;
+    }
+    // One gap per run of spaces between words; the run's last space takes the advance (Qt adds
+    // word spacing once per run of equally formatted spaces).
+    std::vector<int> gaps;
+    for (int position = content_start; position < content_end; ++position) {
+      if (is_word_space(text.at(position)) && !is_word_space(text.at(position + 1))) {
+        gaps.push_back(position);
+      }
+    }
+    if (gaps.empty()) {
+      continue;
+    }
+    // Qt keeps a word on the line only while the text plus the overhang of its last glyph (a
+    // negative right bearing) fits, so the stretched line stays that much short of the width
+    // or the relayout would move its last word down.
+    double overhang = 0.0;
+    if (const auto format = line_last_char_format(block, line); format.has_value() && content_end > content_start) {
+      const auto bearing = QFontMetricsF(format->font()).rightBearing(text.at(content_end - 1));
+      overhang = std::isfinite(bearing) && bearing < 0.0 ? -bearing : 0.0;
+    }
+    const auto slack = line.width() - line.naturalTextWidth() - overhang;
+    if (!std::isfinite(slack) || slack <= 1.0 / 32.0) {
+      continue;
+    }
+    // Whole 1/64 px, rounded down: Qt's fixed point truncates, and the sum must not pass the slack.
+    const auto spacing = std::floor(slack * 64.0 / static_cast<double>(gaps.size())) / 64.0;
+    if (spacing <= 0.0) {
+      continue;
+    }
+    for (const auto gap : gaps) {
+      edits.push_back(WordSpaceEdit{block.position() + gap, spacing});
+    }
+  }
+  return edits;
+}
+
+void add_word_spacing(QTextDocument& document, const std::vector<WordSpaceEdit>& edits, double sign) {
+  QTextCursor cursor(&document);
+  // One edit block: outside one, every cursor move and format merge lays the document out again
+  // (a re-render of a long paragraph took seconds).
+  cursor.beginEditBlock();
+  for (const auto& edit : edits) {
+    cursor.setPosition(edit.position);
+    cursor.setPosition(edit.position + 1, QTextCursor::KeepAnchor);
+    QTextCharFormat format;
+    format.setFontWordSpacing(cursor.charFormat().fontWordSpacing() + sign * edit.spacing);
+    cursor.mergeCharFormat(format);
+  }
+  cursor.endEditBlock();
+}
+
+}  // namespace
+
 void apply_justify_all_to_document(QTextDocument& document) {
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
-    if (text_justify_last_line(block.blockFormat()) == TextJustifyLastLine::All && block.layout() != nullptr) {
+    if (text_justify_last_line(block.blockFormat()) == TextJustifyLastLine::All && block.layout() != nullptr &&
+        !block_has_cursive_script(block)) {
       block.layout()->setFlags(Qt::TextJustificationForced);
     }
+  }
+}
+
+void apply_word_space_justification_to_document(QTextDocument& document) {
+  const auto* document_layout = document.documentLayout();
+  if (document_layout == nullptr) {
+    return;
+  }
+  (void)document_layout->documentSize();  // lines exist before they are measured
+  struct BlockEdits {
+    int block_position{0};
+    std::vector<int> line_starts;
+    std::vector<WordSpaceEdit> edits;
+  };
+  std::vector<BlockEdits> blocks;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    if (auto edits = word_space_justification_edits(block); !edits.empty()) {
+      blocks.push_back(BlockEdits{block.position(), block_line_starts(block), std::move(edits)});
+    }
+  }
+  if (blocks.empty()) {
+    return;
+  }
+  for (const auto& entry : blocks) {
+    add_word_spacing(document, entry.edits, 1.0);
+  }
+  (void)document_layout->documentSize();
+  // The wider spaces must not move a line break: every stretched line still fits by
+  // construction, and a block whose lines moved anyway (a bearing Qt measured differently)
+  // goes back to Qt's own justification.
+  bool reverted = false;
+  for (const auto& entry : blocks) {
+    if (block_line_starts(document.findBlock(entry.block_position)) != entry.line_starts) {
+      add_word_spacing(document, entry.edits, -1.0);
+      reverted = true;
+    }
+  }
+  if (reverted) {
+    (void)document_layout->documentSize();
   }
 }
 

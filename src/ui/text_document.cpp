@@ -68,7 +68,20 @@ psd::PsdTextStyleRun psd_run_with_styles(const TextCharacterStyles& styles) {
   if (styles.language >= 0) {
     run.language = styles.language;
   }
+  run.digit_set = styles.digit_set;
+  run.diacritic_x_offset = styles.diacritic_x_offset;
+  run.diacritic_y_offset = styles.diacritic_y_offset;
+  run.mark_y_distance = styles.mark_y_distance;
+  run.justification_alternates = styles.justification_alternates;
   return run;
+}
+
+void copy_middle_eastern_settings(const psd::PsdTextStyleRun& run, TextCharacterStyles& styles) {
+  styles.digit_set = run.digit_set;
+  styles.diacritic_x_offset = run.diacritic_x_offset;
+  styles.diacritic_y_offset = run.diacritic_y_offset;
+  styles.mark_y_distance = run.mark_y_distance;
+  styles.justification_alternates = run.justification_alternates;
 }
 
 int format_choice(const QTextCharFormat& format, int property_id) {
@@ -96,6 +109,12 @@ TextCharacterStyles text_character_styles_from_format(const QTextCharFormat& for
     const auto language = format.property(kTextLanguageFormatProperty).toInt();
     styles.language = psd::valid_photoshop_text_language(language) ? language : -1;
   }
+  if (format.hasProperty(kTextMiddleEasternFormatProperty)) {
+    psd::PsdTextStyleRun run;
+    psd::parse_text_run_character_styles(format.property(kTextMiddleEasternFormatProperty).toString().toStdString(),
+                                         run);
+    copy_middle_eastern_settings(run, styles);
+  }
   return styles;
 }
 
@@ -120,6 +139,18 @@ void set_text_character_styles_on_format(QTextCharFormat& format, const TextChar
   } else {
     format.clearProperty(kTextLanguageFormatProperty);
   }
+  // The Middle Eastern settings ride as their own column 16 tokens, one property for the five.
+  TextCharacterStyles middle_eastern;
+  middle_eastern.digit_set = styles.digit_set;
+  middle_eastern.diacritic_x_offset = styles.diacritic_x_offset;
+  middle_eastern.diacritic_y_offset = styles.diacritic_y_offset;
+  middle_eastern.mark_y_distance = styles.mark_y_distance;
+  middle_eastern.justification_alternates = styles.justification_alternates;
+  if (middle_eastern.any()) {
+    format.setProperty(kTextMiddleEasternFormatProperty, serialize_text_character_styles(middle_eastern));
+  } else {
+    format.clearProperty(kTextMiddleEasternFormatProperty);
+  }
 }
 
 QString serialize_text_character_styles(const TextCharacterStyles& styles) {
@@ -143,6 +174,7 @@ TextCharacterStyles parse_text_character_styles(const QString& field) {
   styles.stylistic_alternates = run.stylistic_alternates;
   styles.titling_alternates = run.titling_alternates;
   styles.language = run.language.value_or(-1);
+  copy_middle_eastern_settings(run, styles);
   return styles;
 }
 
@@ -829,6 +861,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     double auto_lead_fraction{1.2};
     QString direction;  // "ltr" / "rtl", empty for auto
     int composer{1};    // Photoshop's paragraph composer; 1 World-Ready (the default)
+    QString settings;   // the kept Photoshop settings (column 11 tokens), empty for none
   };
   const auto normalized_metric = [](double value) {
     return std::isfinite(value) && std::abs(value) >= 0.0001 ? value : 0.0;
@@ -843,6 +876,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
   bool include_fraction = false;
   bool include_direction = false;
   bool include_composer = false;
+  bool include_settings = false;
   const int plain_length = static_cast<int>(document.toPlainText().size());
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     const auto start = std::clamp(block.position(), 0, std::max(0, plain_length));
@@ -878,19 +912,27 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
       run.composer = std::clamp(format.intProperty(kTextBlockComposerProperty), 0, 2);
     }
     include_composer = include_composer || run.composer != 1;
+    run.settings = format.property(kTextBlockPhotoshopSettingsProperty).toString().trimmed();
+    if (run.settings == QStringLiteral("-")) {
+      run.settings.clear();
+    }
+    include_settings = include_settings || !run.settings.isEmpty();
     run_lines.push_back(std::move(run));
   }
+  include_composer = include_composer || include_settings;
   include_direction = include_direction || include_composer;
   include_fraction = include_fraction || include_direction;
   include_layout = include_layout || include_fraction;
 
   QStringList lines;
-  lines << (include_composer
-                ? QStringLiteral("v5")
-                : (include_direction
-                       ? QStringLiteral("v4")
-                       : (include_fraction ? QStringLiteral("v3")
-                                           : (include_layout ? QStringLiteral("v2") : QStringLiteral("v1")))));
+  lines << (include_settings
+                ? QStringLiteral("v6")
+                : (include_composer
+                       ? QStringLiteral("v5")
+                       : (include_direction
+                              ? QStringLiteral("v4")
+                              : (include_fraction ? QStringLiteral("v3")
+                                                  : (include_layout ? QStringLiteral("v2") : QStringLiteral("v1"))))));
   for (const auto& run : run_lines) {
     auto line = QStringLiteral("%1\t%2\t%3").arg(run.start).arg(run.length).arg(run.alignment);
     if (include_layout) {
@@ -910,6 +952,9 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     if (include_composer) {
       line += QStringLiteral("\t%1").arg(run.composer);
     }
+    if (include_settings) {
+      line += QLatin1Char('\t') + (run.settings.isEmpty() ? QStringLiteral("-") : run.settings);
+    }
     lines << line;
   }
   return lines.join(QLatin1Char('\n'));
@@ -928,8 +973,7 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
   };
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
-        line == QStringLiteral("v3") || line == QStringLiteral("v4") || line == QStringLiteral("v5")) {
+    if (line.isEmpty() || is_text_runs_version_line(line)) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -976,6 +1020,15 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
       const auto composer = fields[10].toInt(&composer_ok);
       if (composer_ok && composer != 1) {
         format.setProperty(kTextBlockComposerProperty, std::clamp(composer, 0, 2));
+      }
+    }
+    if (fields.size() >= 12) {
+      // Normalized through the core parser, so only known tokens with valid values are kept.
+      psd::PsdTextParagraphRun settings;
+      psd::parse_paragraph_run_settings(fields[11].trimmed().toStdString(), settings);
+      const auto tokens = psd::serialize_paragraph_run_settings(settings);
+      if (tokens != "-") {
+        format.setProperty(kTextBlockPhotoshopSettingsProperty, QString::fromStdString(tokens));
       }
     }
     cursor.mergeBlockFormat(format);
@@ -1614,6 +1667,10 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
   document.setTextWidth(settings.boxed && !settings.vertical ? static_cast<qreal>(result.text_width) : -1.0);
   if (!paragraph_runs.trimmed().isEmpty()) {
     apply_paragraph_runs_to_document(document, paragraph_runs, layout_scale);
+  }
+  if (settings.boxed && !settings.area.has_value() && !settings.vertical) {
+    // Before the forced flag below: this relays the document out once more.
+    apply_word_space_justification_to_document(document);
   }
   if ((settings.boxed || settings.area.has_value()) && !settings.vertical) {
     apply_justify_all_to_document(document);

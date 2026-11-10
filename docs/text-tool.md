@@ -126,10 +126,27 @@ entries and the script API's `justify`, `justifyCenter`, `justifyRight`, `justif
   `build_text_render_document` on box and area documents); the flag cannot be cleared, so it is
   only ever set on a freshly built document.
 - Vertical text treats every justify mode as Justify (last line left).
+- **Right-to-left and cursive paragraphs are justified by Patchy, over their word spaces**
+  (`apply_word_space_justification_to_document`, box documents, GitHub issue 683). Qt's own
+  justification is wrong for both: a right-to-left line's slack is cut by its trailing space
+  (`QTextEngine::justify` subtracts the leading space width), so the line ended one space short
+  of the frame's right edge, and a cursive script (Arabic, Syriac, N'Ko, Mongolian, ...) gets its
+  slack between letters before its spaces, or all of it in the one space after a Latin word, so
+  Justify All pulled an Arabic last line apart letter by letter. For a justified block that is
+  right to left or holds a cursive script, every justified line (the last one too under Justify
+  All) gets `slack / gaps` as `fontWordSpacing` on the last space of each run of spaces, in
+  whole 1/64 px rounded down and less the last glyph's overhang, so the relayout breaks the same
+  lines; a block whose lines move anyway goes back to Qt's justification. Qt then finds nothing
+  left to spread. `apply_justify_all_to_document` never forces a cursive block. Photoshop
+  justifies both by word spaces (and kashidas, which Patchy does not insert). Area text is not
+  covered: it places its own lines, so a cursive Justify All last line there stays unspread.
 - Tests: `ui_text_justify_last_line_modes_match_photoshop_if_available` (pixel extents against
   the PS captures), `ui_text_paragraph_alignment_names_round_trip`,
   `text_engine_justify_modes_round_trip`, `psd_issue_672_justify_modes_read_if_available`
-  (`local-test-fixtures/psd/issue-672-justify-modes.psd`, the reporter's file).
+  (`local-test-fixtures/psd/issue-672-justify-modes.psd`, the reporter's file),
+  `ui_rtl_justified_text_fills_the_box_to_both_edges`,
+  `ui_arabic_justify_all_spreads_the_last_line_over_word_spaces`,
+  `ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available`.
 
 ## Vertical text and paragraph direction
 

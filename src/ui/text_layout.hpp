@@ -126,6 +126,16 @@ inline constexpr int kTextBlockJustifyLastLineProperty = QTextFormat::UserProper
 // token `language:<n>`), absent when the run has none. Typed text inherits it from the
 // character before it like any other format; nothing renders from it (GitHub issue 682).
 inline constexpr int kTextLanguageFormatProperty = QTextFormat::UserProperty + 60;
+// Photoshop's Middle Eastern character settings of a run (digit set, diacritic offsets, mark
+// distance, Justification Alternates) as their runs v9 column 16 tokens ("digits:2,diacx:-100"),
+// absent when every one is at its default. Kept through edits like the language; nothing
+// renders from them (GitHub issue 683).
+inline constexpr int kTextMiddleEasternFormatProperty = QTextFormat::UserProperty + 61;
+// Block property: the paragraph's kept Photoshop settings (Hyphenate, the hyphenation settings,
+// the Kashida width) as their paragraph runs v6 column 11 tokens ("hyphenate,kashida:0"), absent
+// when every one is at its default. A paragraph split by Return inherits it with the block
+// format; nothing renders from it (GitHub issue 683).
+inline constexpr int kTextBlockPhotoshopSettingsProperty = QTextFormat::UserProperty + 62;
 
 enum class TextJustifyLastLine { Left = 0, Center = 1, Right = 2, All = 3 };
 
@@ -146,8 +156,18 @@ enum class TextJustifyLastLine { Left = 0, Center = 1, Right = 2, All = 3 };
 
 // Justify All spreads the last line too, a lone word letter by letter: QTextLayout's forced
 // justification on each such block. Box and area documents only (point text stays flush left).
-// The flag cannot be cleared again, so call it on a freshly built document.
+// The flag cannot be cleared again, so call it on a freshly built document. A paragraph holding
+// a cursive script (Arabic, Syriac, ...) is never forced: Qt would pull its letters apart.
 void apply_justify_all_to_document(QTextDocument& document);
+
+// Justifies right-to-left paragraphs and paragraphs holding a cursive script by their word
+// spaces alone, as Photoshop does (GitHub issue 683). Qt's own justification falls short there:
+// a right-to-left line ends one trailing space short of the frame's right edge, and a cursive
+// script gets its slack between letters (or all of it in the one space after a Latin word), so
+// Justify All tore an Arabic last line apart. Every justified line of such a paragraph (the last
+// one too under Justify All) gets its slack as extra advance on its word spaces. A laid-out
+// box document only: area text places its own lines, point text is never justified.
+void apply_word_space_justification_to_document(QTextDocument& document);
 
 struct BoxTextLineRenderItem {
   QTextLine line;

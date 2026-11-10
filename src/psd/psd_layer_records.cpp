@@ -681,6 +681,18 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
               for (const auto& entry : text_object->paragraph_composers) {
                 if (paragraph.start < start + entry.length) {
                   paragraph.composer = entry.composer.value_or(paragraph.composer);
+                  // Hyphenate, its settings and the Kashida width: Photoshop trusts the Txt2
+                  // object over the TySh run (GitHub issue 683).
+                  paragraph.auto_hyphenate = entry.auto_hyphenate.value_or(paragraph.auto_hyphenate);
+                  paragraph.kashida_width = entry.kashida_width.value_or(paragraph.kashida_width);
+                  paragraph.hyphenated_word_size =
+                      entry.hyphenated_word_size.value_or(paragraph.hyphenated_word_size);
+                  paragraph.pre_hyphen = entry.pre_hyphen.value_or(paragraph.pre_hyphen);
+                  paragraph.post_hyphen = entry.post_hyphen.value_or(paragraph.post_hyphen);
+                  paragraph.consecutive_hyphens = entry.consecutive_hyphens.value_or(paragraph.consecutive_hyphens);
+                  paragraph.hyphenation_zone = entry.hyphenation_zone.value_or(paragraph.hyphenation_zone);
+                  paragraph.hyphenate_capitalized =
+                      entry.hyphenate_capitalized.value_or(paragraph.hyphenate_capitalized);
                   if (entry.direction == 1) {
                     paragraph.direction = "rtl";
                   } else if (entry.direction == 0 && paragraph.direction == "rtl") {

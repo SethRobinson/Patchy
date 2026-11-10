@@ -8,6 +8,8 @@
 #include "ui/alpha_row_bands.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/text_document.hpp"
+#include "ui/text_layout.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
@@ -17,11 +19,16 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFont>
+#include <QFontDatabase>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRect>
 #include <QString>
 #include <QStringList>
+#include <QTextCharFormat>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QTimer>
 #include <algorithm>
 #include <cstdio>
@@ -342,10 +349,302 @@ void ui_issue_683_arabic_psd_rerenders_right_aligned_if_available() {
   write_psd_artifact(live, "issue_683_arabic_patchy.psd");
 }
 
+// The first of `preferred` the font database has, else any family of the writing system.
+QString family_for_writing_system(QFontDatabase::WritingSystem system, const QStringList& preferred) {
+  const auto families = QFontDatabase::families(system);
+  for (const auto& family : preferred) {
+    if (families.contains(family)) {
+      return family;
+    }
+  }
+  return families.value(0);
+}
+
+// The empty column runs inside a row band, between its first and last inked column.
+std::vector<int> ink_gaps(const patchy::PixelBuffer& pixels, const InkLine& line) {
+  std::vector<int> gaps;
+  const auto channels = pixels.format().channels;
+  if (channels != 1U && channels < 4U) {
+    return gaps;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  const auto stride = pixels.stride_bytes();
+  const auto bytes = pixels.data();
+  int run = 0;
+  for (int x = std::max(0, line.left); x <= std::min(pixels.width() - 1, line.right); ++x) {
+    bool inked = false;
+    for (int y = std::max(0, line.band.top); y < std::min(pixels.height(), line.band.bottom) && !inked; ++y) {
+      const auto offset = static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * channels + alpha_channel;
+      inked = offset < bytes.size() && bytes[offset] >= 12;
+    }
+    if (inked) {
+      if (run > 0) {
+        gaps.push_back(run);
+      }
+      run = 0;
+    } else {
+      ++run;
+    }
+  }
+  return gaps;
+}
+
+// GitHub issue 683: justified lines of a right-to-left paragraph reach both edges of the box.
+// Qt ends such a line one trailing space short of the right edge (about 6 px at this size);
+// Patchy now spreads the line over its word spaces itself. Under Justify All the last line fills
+// the box too.
+void ui_rtl_justified_text_fills_the_box_to_both_edges() {
+  register_test_fonts(TestFontRole::UiDefault);
+  const auto family = family_for_writing_system(
+      QFontDatabase::Hebrew, {QStringLiteral("Arial"), QStringLiteral("Liberation Sans"), QStringLiteral("DejaVu Sans")});
+  if (family.isEmpty()) {
+    patchy::test::skip("no Hebrew-capable font available on this machine");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(patchy::Document(420, 420, patchy::PixelFormat::rgb8()), QStringLiteral("RTL justify 683"));
+  QApplication::processEvents();
+  CHECK(run_script_to_end(window, QStringLiteral(R"JS(
+    const words = 'זהו טקסט עברי לבדיקה ' +
+        'של יישור מלא בתיבה עם ' +
+        'כמה שורות ועם מילים ' +
+        'קצרות וארוכות בכל שורה ' +
+        'כדי לראות את הקצוות שלה.';
+    const doc = app.activeDocument;
+    doc.addTextLayer(words, {font: '%1', size: 20, x: 60, y: 20, box: {width: 300, height: 170},
+                             align: 'justify', direction: 'rtl'}).name = 'justify';
+    doc.addTextLayer(words, {font: '%1', size: 20, x: 60, y: 220, box: {width: 300, height: 170},
+                             align: 'justifyAll', direction: 'rtl'}).name = 'justifyAll';
+  )JS").arg(family)));
+  const auto& live = patchy::ui::MainWindowTestAccess::document(window);
+  save_image_artifact("issue_683_rtl_justify", image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)));
+  constexpr int kBoxLeft = 60;
+  constexpr int kBoxRight = 359;  // the box's last column
+  constexpr int kTolerance = 3;   // side bearings and antialiasing
+  int checked = 0;
+  for (const auto& layer : live.layers()) {
+    if (!patchy::layer_is_text(layer)) {
+      continue;
+    }
+    const bool justify_all = layer.name() == "justifyAll";
+    const auto lines = ink_lines(layer.pixels());
+    print_lines(layer.name().c_str(), lines);
+    CHECK(lines.size() >= 3U);
+    for (std::size_t index = 0; index < lines.size(); ++index) {
+      const auto left = layer.bounds().x + lines[index].left;
+      const auto right = layer.bounds().x + lines[index].right;
+      const bool last = index + 1 == lines.size();
+      // Every line starts at the right edge; every justified line also ends at the left edge.
+      CHECK(std::abs(right - kBoxRight) <= kTolerance);
+      if (!last || justify_all) {
+        CHECK(std::abs(left - kBoxLeft) <= kTolerance);
+      } else {
+        CHECK(left > kBoxLeft + 20);  // Justify leaves the last line at its natural width
+      }
+    }
+    ++checked;
+  }
+  CHECK(checked == 2);
+}
+
+// GitHub issue 683: Justify All's last line in Arabic. Qt gives a cursive script its slack
+// between letters, which pulled the joined letters apart, or all of it to the one space after a
+// Latin word. A lone four-word line now spreads over its three word spaces evenly, like
+// Photoshop's, and the letters stay joined.
+void ui_arabic_justify_all_spreads_the_last_line_over_word_spaces() {
+  register_test_fonts(TestFontRole::UiDefault);
+  const auto family = family_for_writing_system(
+      QFontDatabase::Arabic, {QStringLiteral("Arial"), QStringLiteral("Noto Naskh Arabic"), QStringLiteral("DejaVu Sans")});
+  if (family.isEmpty()) {
+    patchy::test::skip("no Arabic-capable font available on this machine");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(patchy::Document(520, 260, patchy::PixelFormat::rgb8()), QStringLiteral("Arabic justify all 683"));
+  QApplication::processEvents();
+  CHECK(run_script_to_end(window, QStringLiteral(R"JS(
+    const doc = app.activeDocument;
+    // "salam alaykum marhaban bialealam", then the same line with a Latin word in it.
+    doc.addTextLayer('سلام عليكم مرحبا بالعالم',
+        {font: '%1', size: 24, x: 60, y: 20, box: {width: 400, height: 60}, align: 'justifyAll', direction: 'rtl'}).name = 'arabic';
+    doc.addTextLayer('سلام عليكم Latin بالعالم',
+        {font: '%1', size: 24, x: 60, y: 140, box: {width: 400, height: 60}, align: 'justifyAll', direction: 'rtl'}).name = 'mixed';
+  )JS").arg(family)));
+  const auto& live = patchy::ui::MainWindowTestAccess::document(window);
+  save_image_artifact("issue_683_arabic_justify_all", image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)));
+  constexpr int kBoxLeft = 60;
+  constexpr int kBoxRight = 459;
+  int checked = 0;
+  for (const auto& layer : live.layers()) {
+    if (!patchy::layer_is_text(layer)) {
+      continue;
+    }
+    const auto bounds = alpha_pixel_bounds_in_rows(layer.pixels(), 0, layer.pixels().height());
+    CHECK(bounds.has_value());
+    if (!bounds.has_value()) {
+      continue;
+    }
+    // One line: every inked row, marks included.
+    const InkLine line{AlphaRowBand{bounds->top(), bounds->bottom() + 1}, bounds->left(), bounds->right()};
+    CHECK(std::abs(layer.bounds().x + line.left - kBoxLeft) <= 3);
+    CHECK(std::abs(layer.bounds().x + line.right - kBoxRight) <= 3);
+    // Three word gaps of about the same width and nothing else wider than a letter joint: the
+    // letters of each word stay together (spread letter by letter, every gap was about 13 px).
+    std::vector<int> wide;
+    for (const auto gap : ink_gaps(layer.pixels(), line)) {
+      if (gap >= 5) {
+        wide.push_back(gap);
+      }
+    }
+    std::printf("  %s: ink %d-%d, gaps of 5 px or more:", layer.name().c_str(), layer.bounds().x + line.left,
+                layer.bounds().x + line.right);
+    for (const auto gap : wide) {
+      std::printf(" %d", gap);
+    }
+    std::printf("\n");
+    std::fflush(stdout);
+    CHECK(wide.size() == 3U);
+    if (wide.size() == 3U) {
+      const auto [narrowest, widest] = std::minmax_element(wide.begin(), wide.end());
+      CHECK(*narrowest >= 20);
+      CHECK(*widest - *narrowest <= 8);
+    }
+    ++checked;
+  }
+  CHECK(checked == 2);
+}
+
+// GitHub issue 683: the settings Patchy keeps for Photoshop (Hyphenate, the hyphenation
+// settings and the Kashida width per paragraph; digit set, diacritic position and Justification
+// Alternates per run) ride on the editor's blocks and characters, so typing, a style change and
+// a new paragraph keep them.
+void ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits() {
+  register_test_fonts(TestFontRole::UiDefault);
+  const QString columns = QStringLiteral("\t30\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t");
+  const QString runs = QStringLiteral("v9\n0\t6") + columns + QStringLiteral("digits:2,diacx:-100,marky:0,justalt\n6\t5") +
+                       columns + QStringLiteral("-");
+  const QString paragraphs =
+      QStringLiteral("v6\n0\t11\tleft\t0\t0\t0\t0\t0\t1.2\trtl\t1\thyphenate,hyphenation:7:3:4:5:30:0,kashida:0");
+  QTextDocument document;
+  document.setPlainText(QStringLiteral("Hindi plain"));
+  patchy::ui::apply_patchy_text_runs_to_document(document, runs, QFont(QStringLiteral("Arial")), Qt::black, 1.0, 3);
+  patchy::ui::apply_paragraph_runs_to_document(document, paragraphs);
+  patchy::ui::TextToolSettings fallback;
+  fallback.family = QStringLiteral("Arial");
+  fallback.size = 30;
+  const auto column = [](const QString& serialized, int index) {
+    QStringList out;
+    for (const auto& line : serialized.split(QLatin1Char('\n')).mid(1)) {
+      out << line.split(QLatin1Char('\t')).value(index);
+    }
+    return out.join(QLatin1Char('|'));
+  };
+  const auto run_styles = [&] { return column(patchy::ui::rich_text_runs_from_document(document, fallback, Qt::black), 16); };
+  const auto paragraph_settings = [&] { return column(patchy::ui::paragraph_runs_from_document(document), 11); };
+  CHECK(run_styles() == QStringLiteral("digits:2,diacx:-100,marky:0,justalt|-"));
+  CHECK(paragraph_settings() == QStringLiteral("hyphenate,hyphenation:7:3:4:5:30:0,kashida:0"));
+  CHECK(patchy::ui::paragraph_runs_from_document(document).startsWith(QStringLiteral("v6\n")));
+
+  QTextCursor cursor(&document);
+  cursor.setPosition(3);
+  cursor.insertText(QStringLiteral("xx"));  // typed inside the tagged run
+  cursor.select(QTextCursor::Document);
+  QTextCharFormat underline;
+  underline.setProperty(patchy::ui::kTextUnderlineFormatProperty, true);
+  cursor.mergeCharFormat(underline);
+  CHECK(run_styles() == QStringLiteral("underline,digits:2,diacx:-100,marky:0,justalt|underline"));
+  cursor.setPosition(8);
+  cursor.insertBlock();  // Return: both paragraphs keep the settings
+  CHECK(paragraph_settings() ==
+        QStringLiteral("hyphenate,hyphenation:7:3:4:5:30:0,kashida:0|hyphenate,hyphenation:7:3:4:5:30:0,kashida:0"));
+
+  // A new document's paragraphs and runs carry none of it.
+  QTextDocument plain;
+  plain.setPlainText(QStringLiteral("New layer"));
+  CHECK(!patchy::ui::paragraph_runs_from_document(plain).startsWith(QStringLiteral("v6")));
+  CHECK(!patchy::ui::rich_text_runs_from_document(plain, fallback, Qt::black).contains(QStringLiteral("digits")));
+}
+
+// The reporter's justified Hebrew file (GitHub issue 683, local fixture): after a re-render the
+// Alef and Noto layers' justified lines reach the box's right edge like the left one. Skips the
+// edge check for a layer whose font the host lacks (its substitute wraps differently, but still
+// has to fill the box).
+void ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-683/hebrew-rtl-justified-photoshop.psd");
+  patchy::test::skip_unless_exists(path);
+  register_test_fonts(TestFontRole::UiDefault);
+  if (QFontDatabase::families(QFontDatabase::Hebrew).isEmpty()) {
+    patchy::test::skip("no Hebrew-capable font available on this machine");
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  struct Box {
+    patchy::LayerId id;
+    int left;
+    int right;
+  };
+  std::vector<Box> boxes;
+  for (auto& layer : document.layers()) {
+    if (patchy::layer_is_text(layer)) {
+      // The files' fonts (Adobe Hebrew, Alef, Noto Sans Hebrew) are not on every host: a
+      // Photoshop raster preview would ask before substituting them, which blocks the script.
+      layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+      // The box is 368 px wide and its right edge is the last inked column of Photoshop's raster.
+      const auto right = layer.bounds().x + layer.bounds().width - 1;
+      boxes.push_back(Box{layer.id(), right - 367, right});
+    }
+  }
+  CHECK(boxes.size() == 3U);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Hebrew 683"));
+  QApplication::processEvents();
+  CHECK(run_script_to_end(window, QStringLiteral(R"JS(
+    for (const layer of app.activeDocument.layers) {
+      if (layer.isText) {
+        layer.rerenderText();
+        console.log('683 ' + layer.name + ' ' + layer.textDirection + ' ' + layer.textAlign);
+      }
+    }
+  )JS")));
+  const auto& live = patchy::ui::MainWindowTestAccess::document(window);
+  save_image_artifact("issue_683_hebrew_justified_patchy", image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)));
+  for (const auto& box : boxes) {
+    const auto* layer = std::as_const(live).find_layer(box.id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      continue;
+    }
+    const auto runs = QString::fromStdString(layer->metadata().at(patchy::kLayerMetadataTextParagraphRuns));
+    CHECK(runs.split(QLatin1Char('\n')).value(1).split(QLatin1Char('\t')).value(9) == QStringLiteral("rtl"));
+    const auto lines = ink_lines(layer->pixels());
+    CHECK(lines.size() >= 4U);
+    int short_lines = 0;
+    for (std::size_t index = 0; index + 1 < lines.size(); ++index) {
+      const auto left = layer->bounds().x + lines[index].left;
+      const auto right = layer->bounds().x + lines[index].right;
+      if (std::abs(right - box.right) > 3 || std::abs(left - box.left) > 3) {
+        ++short_lines;
+        std::printf("  %s line %d: ink %d-%d, box %d-%d\n", layer->name().c_str(), static_cast<int>(index), left, right,
+                    box.left, box.right);
+      }
+    }
+    std::fflush(stdout);
+    CHECK(short_lines == 0);
+  }
+  write_psd_artifact(live, "issue_683_hebrew_justified_patchy.psd");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_rtl_psd_tests() {
   return {
+      {"ui_rtl_justified_text_fills_the_box_to_both_edges", ui_rtl_justified_text_fills_the_box_to_both_edges},
+      {"ui_arabic_justify_all_spreads_the_last_line_over_word_spaces",
+       ui_arabic_justify_all_spreads_the_last_line_over_word_spaces},
+      {"ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits",
+       ui_text_keeps_photoshop_paragraph_and_middle_eastern_settings_through_edits},
+      {"ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available",
+       ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available},
       {"ui_issue_683_photoshop_leading_survives_patchy_save_and_reedit",
        ui_issue_683_photoshop_leading_survives_patchy_save_and_reedit},
       {"ui_issue_683_overflowing_box_text_reedit_keeps_its_glyphs",

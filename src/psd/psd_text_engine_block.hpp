@@ -62,7 +62,10 @@ struct TextParagraphFontSize {
 // Fractions, /20 Contextual Alternates, /25 Swash, /26 Titling, /28 Stylistic Alternates).
 // Photoshop writes them only here, never into the TySh (GitHub issue 346). `language` is the
 // run's /38 (its sheet, else its parent StyleSheetSet entry, else the document's default sheet),
-// unset for kPhotoshopTextDefaultLanguage (GitHub issue 682).
+// unset for kPhotoshopTextDefaultLanguage (GitHub issue 682). The Middle Eastern settings
+// (GitHub issue 683) resolve the same way and are set only when a sheet names them: /70 the
+// digit set, /72 and /73 the diacritic offsets, /75 Justification Alternates, and /87 the mark
+// distance from the baseline (100, the default, when /88 says it is automatic).
 struct TextStyleRunFeatures {
   int length{0};
   bool ordinals{false};
@@ -72,15 +75,32 @@ struct TextStyleRunFeatures {
   bool titling_alternates{false};
   bool stylistic_alternates{false};
   std::optional<int> language;
+  std::optional<int> digit_set;
+  std::optional<double> diacritic_x_offset;
+  std::optional<double> diacritic_y_offset;
+  std::optional<double> mark_y_distance;
+  std::optional<bool> justification_alternates;
 };
 
 // The composer (paragraph key /35) and direction (/33: 0 left to right, 1 right to left) one
 // paragraph run of a text object resolves to: its own sheet, else its parent ParagraphSheetSet
-// entry, else the document's default paragraph sheet (/1/3).
+// entry, else the document's default paragraph sheet (/1/3). Hyphenate (/9) and the Kashida
+// width (/40) resolve the same way; the hyphenation settings (/10 word size, /11 and /12 letters
+// before and after, /13 limit, /14 zone, /15 capitalized words) come from the run's own sheet
+// only, because Photoshop writes the effective ones into the TySh run and leaves its default
+// sheets at other values (/13 0 beside a TySh /ConsecutiveHyphens 8).
 struct TextParagraphComposer {
   int length{0};
   std::optional<int> composer;
   std::optional<int> direction;
+  std::optional<bool> auto_hyphenate;
+  std::optional<int> kashida_width;
+  std::optional<int> hyphenated_word_size;
+  std::optional<int> pre_hyphen;
+  std::optional<int> post_hyphen;
+  std::optional<int> consecutive_hyphens;
+  std::optional<double> hyphenation_zone;
+  std::optional<bool> hyphenate_capitalized;
 };
 
 struct TextFrameGeometry {
@@ -91,7 +111,7 @@ struct TextFrameGeometry {
   std::vector<TextParagraphFontSize> paragraph_font_sizes{};
   // One entry per style run of the object; empty when no run turns a feature on.
   std::vector<TextStyleRunFeatures> style_features{};
-  // One entry per paragraph run of the object; empty when no sheet names a composer or direction.
+  // One entry per paragraph run of the object; empty when no sheet names any of its settings.
   std::vector<TextParagraphComposer> paragraph_composers{};
 };
 

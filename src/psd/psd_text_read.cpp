@@ -1438,6 +1438,26 @@ double engine_normal_paragraph_auto_leading_fraction(std::string_view resources)
   return 1.2;
 }
 
+// /AutoHyphenate of the normal paragraph sheet inside a ResourceDict, for a paragraph run that
+// leaves the key out; false when the sheet has none (Photoshop 2026's new-layer default).
+bool engine_normal_paragraph_auto_hyphenate(std::string_view resources) {
+  const auto set_range = balanced_range_after(resources, "/ParagraphSheetSet", '[', ']');
+  if (!set_range.has_value()) {
+    return false;
+  }
+  const auto sheets =
+      engine_dictionary_ranges(resources.substr(set_range->first, set_range->second - set_range->first));
+  auto index = 0;
+  if (const auto value = engine_number_after_key(resources, "/TheNormalParagraphSheet");
+      value.has_value() && std::isfinite(*value) && *value >= 0.0 && *value <= 255.0) {
+    index = static_cast<int>(std::lround(*value));
+  }
+  if (sheets.empty() || static_cast<std::size_t>(index) >= sheets.size()) {
+    return false;
+  }
+  return engine_bool_after_key(sheets[static_cast<std::size_t>(index)], "/AutoHyphenate", false);
+}
+
 // Parse the ResourceDict's normal style/paragraph sheets (see PsdTextEngineDefaults). The
 // fallbacks passed in are used when the engine data has no parsable ResourceDict (hand-built
 // engine data in old files and tests).
@@ -1545,11 +1565,22 @@ std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextS
         piece.titling_alternates = features[f].titling_alternates;
         piece.stylistic_alternates = features[f].stylistic_alternates;
         piece.language = features[f].language;
+        // The Middle Eastern settings live in the Txt2 object (Photoshop 2026 writes no TySh
+        // key for them); an older file's TySh /HindiNumbers stays when the sheets say nothing.
+        piece.digit_set = features[f].digit_set.value_or(piece.digit_set);
+        piece.diacritic_x_offset = features[f].diacritic_x_offset.value_or(piece.diacritic_x_offset);
+        piece.diacritic_y_offset = features[f].diacritic_y_offset.value_or(piece.diacritic_y_offset);
+        piece.mark_y_distance = features[f].mark_y_distance.value_or(piece.mark_y_distance);
+        piece.justification_alternates =
+            features[f].justification_alternates.value_or(piece.justification_alternates);
         const auto& last = result.empty() ? piece : result.back();
         if (!result.empty() && last.start + last.length == piece.start && last.ordinals == piece.ordinals &&
             last.fractions == piece.fractions && last.contextual_alternates == piece.contextual_alternates &&
             last.swash == piece.swash && last.titling_alternates == piece.titling_alternates &&
             last.stylistic_alternates == piece.stylistic_alternates && last.language == piece.language &&
+            last.digit_set == piece.digit_set && last.diacritic_x_offset == piece.diacritic_x_offset &&
+            last.diacritic_y_offset == piece.diacritic_y_offset && last.mark_y_distance == piece.mark_y_distance &&
+            last.justification_alternates == piece.justification_alternates &&
             piece.start > run.start) {
           result.back().length += piece.length;
         } else {
@@ -1662,6 +1693,12 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
         }
       }
     }
+    // Older Photoshop versions write /HindiNumbers beside the Txt2 digit set (true for Hindi and
+    // Farsi digits; GitHub issue 683). It only matters for a layer without a Txt2 object, whose
+    // /70 names the exact set and overrides this below.
+    if (engine_bool_after_key(dictionaries[index], "/HindiNumbers", false)) {
+      run.digit_set = 2;
+    }
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1761,11 +1798,10 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
   }
 
   const auto text_utf16_length = static_cast<int>(utf8_to_utf16(text).size());
-  const auto default_auto_leading_fraction = [&engine] {
-    const auto resource_pos = engine.find("/ResourceDict");
-    return engine_normal_paragraph_auto_leading_fraction(
-        resource_pos == std::string_view::npos ? std::string_view{} : engine.substr(resource_pos));
-  }();
+  const auto resource_pos = engine.find("/ResourceDict");
+  const auto resources = resource_pos == std::string_view::npos ? std::string_view{} : engine.substr(resource_pos);
+  const auto default_auto_leading_fraction = engine_normal_paragraph_auto_leading_fraction(resources);
+  const bool default_auto_hyphenate = engine_normal_paragraph_auto_hyphenate(resources);
   std::vector<PsdTextParagraphRun> runs;
   int start = 0;
   for (std::size_t index = 0; index < length_values.size() && index < dictionaries.size(); ++index) {
@@ -1791,6 +1827,24 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
     if (const auto fraction = engine_number_after_key(dictionaries[index], "/AutoLeading");
         fraction.has_value() && std::isfinite(*fraction) && *fraction > 0.01 && *fraction < 10.0) {
       run.auto_leading_fraction = *fraction;
+    }
+    // Hyphenate and its settings (GitHub issue 683): Photoshop writes them on every paragraph
+    // run; one that leaves /AutoHyphenate out takes the normal paragraph sheet's. Kept, never
+    // applied (Patchy does not hyphenate). The Txt2 object's /9 to /15 override these.
+    run.auto_hyphenate = engine_bool_after_key(dictionaries[index], "/AutoHyphenate", default_auto_hyphenate);
+    const auto hyphen_count = [&](std::string_view key, int fallback) {
+      const auto value = engine_number_after_key(dictionaries[index], key);
+      return value.has_value() && std::isfinite(*value) && *value >= 0.0 && *value <= 1000.0
+                 ? static_cast<int>(std::lround(*value))
+                 : fallback;
+    };
+    run.hyphenated_word_size = hyphen_count("/HyphenatedWordSize", run.hyphenated_word_size);
+    run.pre_hyphen = hyphen_count("/PreHyphen", run.pre_hyphen);
+    run.post_hyphen = hyphen_count("/PostHyphen", run.post_hyphen);
+    run.consecutive_hyphens = hyphen_count("/ConsecutiveHyphens", run.consecutive_hyphens);
+    if (const auto zone = engine_number_after_key(dictionaries[index], "/Zone");
+        zone.has_value() && std::isfinite(*zone) && *zone >= 0.0 && *zone <= 100000.0) {
+      run.hyphenation_zone = *zone;
     }
     // An explicit TySh direction (0 = left to right, 1 = right to left): Patchy writes
     // /ParagraphDirection, Photon Studio /Direction (GitHub issue 683). Photoshop writes
@@ -1823,7 +1877,13 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept {
   return run.font_caps != 0 || run.font_baseline != 0 || run.underline || run.strikethrough || run.ordinals ||
          run.fractions || !run.ligatures || run.contextual_alternates || run.discretionary_ligatures || run.swash ||
-         run.stylistic_alternates || run.titling_alternates || run.language.has_value();
+         run.stylistic_alternates || run.titling_alternates || run.language.has_value() ||
+         text_run_has_middle_eastern_settings(run);
+}
+
+bool text_run_has_middle_eastern_settings(const PsdTextStyleRun& run) noexcept {
+  return run.digit_set != 0 || run.diacritic_x_offset != 0.0 || run.diacritic_y_offset != 0.0 ||
+         run.mark_y_distance != 100.0 || run.justification_alternates;
 }
 
 namespace {
@@ -1876,6 +1936,24 @@ int photoshop_txt2_language_from_tysh(int language) noexcept {
   return language;
 }
 
+namespace {
+
+// A whole token as a finite number (strtod: floating-point from_chars is not on every toolchain).
+std::optional<double> run_token_number(std::string_view token) {
+  if (token.empty() || token.size() > 40U) {
+    return std::nullopt;
+  }
+  const std::string copy(token);
+  char* end = nullptr;
+  const auto value = std::strtod(copy.c_str(), &end);
+  if (end != copy.c_str() + copy.size() || !std::isfinite(value)) {
+    return std::nullopt;
+  }
+  return value;
+}
+
+}  // namespace
+
 std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
   std::string tokens;
   const auto add = [&tokens](std::string_view token) {
@@ -1899,6 +1977,11 @@ std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
   if (run.stylistic_alternates) add("stylisticalternates");
   if (run.titling_alternates) add("titlingalternates");
   if (run.language.has_value()) add("language:" + std::to_string(*run.language));
+  if (run.digit_set != 0) add("digits:" + std::to_string(run.digit_set));
+  if (run.diacritic_x_offset != 0.0) add("diacx:" + serialize_paragraph_metric(run.diacritic_x_offset));
+  if (run.diacritic_y_offset != 0.0) add("diacy:" + serialize_paragraph_metric(run.diacritic_y_offset));
+  if (run.mark_y_distance != 100.0) add("marky:" + serialize_paragraph_metric(run.mark_y_distance));
+  if (run.justification_alternates) add("justalt");
   return tokens.empty() ? std::string("-") : tokens;
 }
 
@@ -1916,6 +1999,15 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
   run.stylistic_alternates = false;
   run.titling_alternates = false;
   run.language.reset();
+  run.digit_set = 0;
+  run.diacritic_x_offset = 0.0;
+  run.diacritic_y_offset = 0.0;
+  run.mark_y_distance = 100.0;
+  run.justification_alternates = false;
+  const auto offset_value = [](std::string_view digits) -> std::optional<double> {
+    const auto value = run_token_number(digits);
+    return value.has_value() && std::abs(*value) <= 100000.0 ? value : std::nullopt;
+  };
   while (!field.empty()) {
     const auto comma = field.find(',');
     const auto token = field.substr(0, comma);
@@ -1955,6 +2047,18 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
       if (error == std::errc{} && end == digits.data() + digits.size() && valid_photoshop_text_language(value)) {
         run.language = value;
       }
+    } else if (token.starts_with("digits:")) {
+      if (const auto value = offset_value(token.substr(7)); value && *value >= 0.0 && *value <= 15.0) {
+        run.digit_set = static_cast<int>(std::lround(*value));
+      }
+    } else if (token.starts_with("diacx:")) {
+      run.diacritic_x_offset = offset_value(token.substr(6)).value_or(0.0);
+    } else if (token.starts_with("diacy:")) {
+      run.diacritic_y_offset = offset_value(token.substr(6)).value_or(0.0);
+    } else if (token.starts_with("marky:")) {
+      run.mark_y_distance = offset_value(token.substr(6)).value_or(100.0);
+    } else if (token == "justalt") {
+      run.justification_alternates = true;
     }
   }
 }
@@ -2168,12 +2272,15 @@ std::string first_strong_text_direction(std::span<const std::uint16_t> utf16) {
 
 // v1: start len alignment; v2: + indent/space metrics; v3: + auto-leading fraction;
 // v4: + paragraph direction ("auto", "ltr" or "rtl"); v5: + composer (Txt2 /35, written only
-// when a paragraph is not World-Ready). Every column is read by index and the version token rises
+// when a paragraph is not World-Ready); v6: + the kept Photoshop settings (column 11,
+// serialize_paragraph_run_settings). Every column is read by index and the version token rises
 // only when a run needs the column, so files without an explicit direction stay byte-identical.
 std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs) {
-  const bool include_composer = std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
-    return run.composer != 1;
+  const bool include_settings = std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
+    return serialize_paragraph_run_settings(run) != "-";
   });
+  const bool include_composer = include_settings ||
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) { return run.composer != 1; });
   const bool include_direction = include_composer ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
         return run.direction == "ltr" || run.direction == "rtl";
@@ -2185,9 +2292,11 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
   const bool include_layout =
       include_fraction ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) { return paragraph_run_has_layout(run); });
-  std::string serialized = include_composer
-      ? "v5"
-      : (include_direction ? "v4" : (include_fraction ? "v3" : (include_layout ? "v2" : "v1")));
+  std::string serialized = include_settings
+      ? "v6"
+      : (include_composer
+             ? "v5"
+             : (include_direction ? "v4" : (include_fraction ? "v3" : (include_layout ? "v2" : "v1"))));
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -2219,8 +2328,88 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
       serialized += '\t';
       serialized += std::to_string(run.composer);
     }
+    if (include_settings) {
+      serialized += '\t';
+      serialized += serialize_paragraph_run_settings(run);
+    }
   }
   return serialized;
+}
+
+std::string serialize_paragraph_run_settings(const PsdTextParagraphRun& run) {
+  std::string tokens;
+  const auto add = [&tokens](std::string_view token) {
+    if (!tokens.empty()) {
+      tokens += ',';
+    }
+    tokens += token;
+  };
+  if (run.auto_hyphenate) add("hyphenate");
+  if (run.hyphenated_word_size != 6 || run.pre_hyphen != 2 || run.post_hyphen != 2 || run.consecutive_hyphens != 8 ||
+      run.hyphenation_zone != 36.0 || !run.hyphenate_capitalized) {
+    add("hyphenation:" + std::to_string(run.hyphenated_word_size) + ':' + std::to_string(run.pre_hyphen) + ':' +
+        std::to_string(run.post_hyphen) + ':' + std::to_string(run.consecutive_hyphens) + ':' +
+        serialize_paragraph_metric(run.hyphenation_zone) + ':' + (run.hyphenate_capitalized ? '1' : '0'));
+  }
+  if (run.kashida_width != 2) add("kashida:" + std::to_string(run.kashida_width));
+  return tokens.empty() ? std::string("-") : tokens;
+}
+
+void copy_paragraph_run_settings(const PsdTextParagraphRun& from, PsdTextParagraphRun& to) noexcept {
+  to.auto_hyphenate = from.auto_hyphenate;
+  to.hyphenated_word_size = from.hyphenated_word_size;
+  to.pre_hyphen = from.pre_hyphen;
+  to.post_hyphen = from.post_hyphen;
+  to.consecutive_hyphens = from.consecutive_hyphens;
+  to.hyphenation_zone = from.hyphenation_zone;
+  to.hyphenate_capitalized = from.hyphenate_capitalized;
+  to.kashida_width = from.kashida_width;
+}
+
+void parse_paragraph_run_settings(std::string_view field, PsdTextParagraphRun& run) {
+  copy_paragraph_run_settings(PsdTextParagraphRun{}, run);
+  const auto number = [](std::string_view digits) -> std::optional<double> {
+    const auto value = run_token_number(digits);
+    return value.has_value() && *value >= 0.0 && *value <= 100000.0 ? value : std::nullopt;
+  };
+  while (!field.empty()) {
+    const auto comma = field.find(',');
+    const auto token = field.substr(0, comma);
+    field = comma == std::string_view::npos ? std::string_view{} : field.substr(comma + 1U);
+    if (token == "hyphenate") {
+      run.auto_hyphenate = true;
+    } else if (token.starts_with("hyphenation:")) {
+      // Six colon-separated values; a token with any other shape is ignored whole.
+      std::array<double, 6> values{};
+      auto rest = token.substr(12);
+      std::size_t count = 0;
+      bool valid = true;
+      bool more = true;
+      while (valid && more && count < values.size()) {
+        const auto colon = rest.find(':');
+        const auto value = number(rest.substr(0, colon));
+        valid = value.has_value();
+        if (valid) {
+          values[count++] = *value;
+        }
+        more = colon != std::string_view::npos;
+        rest = more ? rest.substr(colon + 1U) : std::string_view{};
+      }
+      if (valid && !more && count == values.size() && values[0] <= 1000.0 && values[1] <= 1000.0 &&
+          values[2] <= 1000.0 && values[3] <= 1000.0) {
+        run.hyphenated_word_size = static_cast<int>(std::lround(values[0]));
+        run.pre_hyphen = static_cast<int>(std::lround(values[1]));
+        run.post_hyphen = static_cast<int>(std::lround(values[2]));
+        run.consecutive_hyphens = static_cast<int>(std::lround(values[3]));
+        run.hyphenation_zone = values[4];
+        run.hyphenate_capitalized = values[5] != 0.0;
+      }
+    } else if (token.starts_with("kashida:")) {
+      if (const auto value = number(token.substr(8)); value && *value <= 4.0) {
+        run.kashida_width = static_cast<int>(std::lround(*value));
+      }
+    }
+  }
 }
 
 namespace {

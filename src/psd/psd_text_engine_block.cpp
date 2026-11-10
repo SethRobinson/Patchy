@@ -46,13 +46,15 @@ EngineNode paragraph_sheet(const PsdTextParagraphRun& run) {
       {"5", engine_number(run.space_after)},
       {"7", engine_number(fraction)},
       {"8", engine_integer(0)},
-      {"9", engine_bool(true)},
-      {"10", engine_integer(6)},
-      {"11", engine_integer(2)},
-      {"12", engine_integer(2)},
-      {"13", engine_integer(8)},
-      {"14", engine_number(36.0)},
-      {"15", engine_bool(true)},
+      // Hyphenate and its settings, kept from the file (GitHub issue 683): Patchy does not
+      // hyphenate, and a new layer has Hyphenate off like Photoshop 2026's.
+      {"9", engine_bool(run.auto_hyphenate)},
+      {"10", engine_integer(std::clamp(run.hyphenated_word_size, 0, 1000))},
+      {"11", engine_integer(std::clamp(run.pre_hyphen, 0, 1000))},
+      {"12", engine_integer(std::clamp(run.post_hyphen, 0, 1000))},
+      {"13", engine_integer(std::clamp(run.consecutive_hyphens, 0, 1000))},
+      {"14", engine_number(std::isfinite(run.hyphenation_zone) ? run.hyphenation_zone : 36.0)},
+      {"15", engine_bool(run.hyphenate_capitalized)},
       {"17", triple(0.8, 1.0, 1.33)},
       {"18", triple(0.0, 0.0, 0.0)},
       {"19", triple(1.0, 1.0, 1.0)},
@@ -67,7 +69,8 @@ EngineNode paragraph_sheet(const PsdTextParagraphRun& run) {
       {"35", engine_integer(std::clamp(run.composer, 0, 2))},
       {"36", engine_nil()},
       {"37", engine_integer(0)},
-      {"40", engine_integer(2)},
+      // Kashida width (0 none to 4 stylistic, 2 medium by default), kept from the file.
+      {"40", engine_integer(std::clamp(run.kashida_width, 0, 4))},
   });
 }
 
@@ -125,12 +128,15 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"53", paint_node(run.color)},
       {"54", paint_node(RgbColor{0, 0, 0})},
       {"68", engine_integer(0)},
-      {"70", engine_integer(0)},
-      {"72", engine_number(0.0)},
-      {"73", engine_number(0.0)},
-      {"75", engine_bool(false)},
+      // Middle Eastern settings, kept from the file (GitHub issue 683): /70 digit set, /72 and
+      // /73 diacritic offsets, /75 Justification Alternates, /87 the mark distance from the
+      // baseline with /88 false (an explicit distance, as Photoshop 2026 writes every run).
+      {"70", engine_integer(std::clamp(run.digit_set, 0, 15))},
+      {"72", engine_number(std::isfinite(run.diacritic_x_offset) ? run.diacritic_x_offset : 0.0)},
+      {"73", engine_number(std::isfinite(run.diacritic_y_offset) ? run.diacritic_y_offset : 0.0)},
+      {"75", engine_bool(run.justification_alternates)},
       {"85", engine_integer(0)},
-      {"87", engine_number(100.0)},
+      {"87", engine_number(std::isfinite(run.mark_y_distance) ? run.mark_y_distance : 100.0)},
       {"88", engine_bool(false)},
       {"92", engine_number(0.0)},
   });
@@ -353,7 +359,8 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     return std::nullopt;
   };
   const auto* style_sheets = root_.at_path({"0", "5", "0"});
-  const auto document_language = language_of(root_.at_path({"1", "2"}));
+  const auto* document_sheet = root_.at_path({"1", "2"});
+  const auto document_language = language_of(document_sheet);
   bool any = false;
   for (const auto& run : runs->list) {
     TextStyleRunFeatures entry;
@@ -361,16 +368,51 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
     // A run's sparse style sheet is /0/0/6; a key it leaves out is off in every default sheet.
     const auto* sheet = run.at_path({"0", "0", "6"});
-    auto language = language_of(sheet);
-    if (!language && style_sheets != nullptr && style_sheets->is_list()) {
+    const EngineNode* parent_sheet = nullptr;
+    if (style_sheets != nullptr && style_sheets->is_list()) {
       const auto* parent = run.at_path({"0", "0", "5"});
       const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
       if (parent_index && *parent_index >= 0 && static_cast<std::size_t>(*parent_index) < style_sheets->list.size()) {
-        language = language_of(style_sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "6"}));
+        parent_sheet = style_sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "6"});
       }
     }
+    auto language = language_of(sheet);
+    if (!language) language = language_of(parent_sheet);
     if (!language) language = document_language;
     if (language && *language != kPhotoshopTextDefaultLanguage) entry.language = language;
+    // The Middle Eastern settings (GitHub issue 683): the run's sheet, its parent, the document's.
+    const auto resolved = [&](std::string_view key) -> const EngineNode* {
+      for (const auto* candidate : {sheet, parent_sheet, document_sheet}) {
+        if (const auto* node = candidate != nullptr ? candidate->find(key) : nullptr; node != nullptr) {
+          return node;
+        }
+      }
+      return nullptr;
+    };
+    const auto offset_of = [&](std::string_view key) -> std::optional<double> {
+      const auto* node = resolved(key);
+      const auto value = node != nullptr ? node->number() : std::nullopt;
+      if (value && std::isfinite(*value) && std::abs(*value) <= 100000.0) return value;
+      return std::nullopt;
+    };
+    if (const auto* node = resolved("70"); node != nullptr) {
+      if (const auto value = node->integer(); value && *value >= 0 && *value <= 15) {
+        entry.digit_set = static_cast<int>(*value);
+      }
+    }
+    entry.diacritic_x_offset = offset_of("72");
+    entry.diacritic_y_offset = offset_of("73");
+    if (const auto* node = resolved("75"); node != nullptr) {
+      entry.justification_alternates = node->boolean();
+    }
+    // /88 true leaves the mark distance to the font: the same as the default 100.
+    const auto* automatic = resolved("88");
+    entry.mark_y_distance = automatic != nullptr && automatic->boolean().value_or(false) ? std::optional<double>(100.0)
+                                                                                         : offset_of("87");
+    const bool middle_eastern = entry.digit_set.value_or(0) != 0 || entry.diacritic_x_offset.value_or(0.0) != 0.0 ||
+                                entry.diacritic_y_offset.value_or(0.0) != 0.0 ||
+                                entry.mark_y_distance.value_or(100.0) != 100.0 ||
+                                entry.justification_alternates.value_or(false);
     entry.ordinals = flag(sheet, "24");
     entry.fractions = flag(sheet, "23");
     entry.contextual_alternates = flag(sheet, "20");
@@ -378,7 +420,7 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     entry.titling_alternates = flag(sheet, "26");
     entry.stylistic_alternates = flag(sheet, "28");
     any = any || entry.ordinals || entry.fractions || entry.contextual_alternates || entry.swash ||
-          entry.titling_alternates || entry.stylistic_alternates || entry.language.has_value();
+          entry.titling_alternates || entry.stylistic_alternates || entry.language.has_value() || middle_eastern;
     result.push_back(entry);
   }
   if (!any) result.clear();
@@ -420,7 +462,32 @@ std::vector<TextParagraphComposer> TextEngineBlock::object_paragraph_composers(s
     };
     entry.composer = resolve("35", 2);
     entry.direction = resolve("33", 1);
-    any = any || entry.composer.has_value() || entry.direction.has_value();
+    // Hyphenate and the Kashida width resolve like the composer; the hyphenation settings are
+    // the run's own only (GitHub issue 683, see TextParagraphComposer).
+    const auto* own = sheet != nullptr ? sheet->at_path({"5"}) : nullptr;
+    for (const auto* candidate : {own, parent_sheet, document_sheet}) {
+      if (const auto* node = candidate != nullptr ? candidate->find("9") : nullptr; node != nullptr) {
+        entry.auto_hyphenate = node->boolean();
+        break;
+      }
+    }
+    entry.kashida_width = resolve("40", 4);
+    entry.hyphenated_word_size = key_value(own, "10", 1000);
+    entry.pre_hyphen = key_value(own, "11", 1000);
+    entry.post_hyphen = key_value(own, "12", 1000);
+    entry.consecutive_hyphens = key_value(own, "13", 1000);
+    if (const auto* node = own != nullptr ? own->find("14") : nullptr; node != nullptr) {
+      if (const auto value = node->number(); value && std::isfinite(*value) && *value >= 0.0 && *value <= 100000.0) {
+        entry.hyphenation_zone = value;
+      }
+    }
+    if (const auto* node = own != nullptr ? own->find("15") : nullptr; node != nullptr) {
+      entry.hyphenate_capitalized = node->boolean();
+    }
+    any = any || entry.composer.has_value() || entry.direction.has_value() || entry.auto_hyphenate.has_value() ||
+          entry.kashida_width.has_value() || entry.hyphenated_word_size.has_value() || entry.pre_hyphen.has_value() ||
+          entry.post_hyphen.has_value() || entry.consecutive_hyphens.has_value() ||
+          entry.hyphenation_zone.has_value() || entry.hyphenate_capitalized.has_value();
     result.push_back(entry);
   }
   if (!any) result.clear();

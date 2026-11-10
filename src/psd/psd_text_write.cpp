@@ -521,6 +521,9 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
     if (fields.size() >= 11U) {
       run.composer = std::clamp(parse_int_or(fields[10], 1), 0, 2);
     }
+    if (fields.size() >= 12U) {
+      parse_paragraph_run_settings(fields[11], run);
+    }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
     }
@@ -551,6 +554,7 @@ std::vector<PsdTextParagraphRun> paragraph_runs_for_layer(const Layer& layer, st
       auto split = paragraph_runs_from_text_line_breaks(text, run.justification);
       for (auto& paragraph : split) {
         paragraph.composer = run.composer;
+        copy_paragraph_run_settings(run, paragraph);
       }
       return split;
     }
@@ -1524,10 +1528,23 @@ std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
   properties += engine_paragraph_metric(run.space_before);
   properties += " /SpaceAfter ";
   properties += engine_paragraph_metric(run.space_after);
-  properties +=
-      " /AutoHyphenate true /HyphenatedWordSize 6 /PreHyphen 2 /PostHyphen 2 /ConsecutiveHyphens 8"
-      " /Zone 36.0 /WordSpacing [ 0.8 1.0 1.33 ] /LetterSpacing [ 0.0 0.0 0.0 ]"
-      " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading ";
+  // Hyphenate and its settings are the file's own (GitHub issue 683): Patchy does not
+  // hyphenate, and writing "true" here turned Hyphenate on in Photoshop for every paragraph
+  // Patchy rewrote. A new layer has it off, as Photoshop 2026 writes one.
+  properties += " /AutoHyphenate ";
+  properties += run.auto_hyphenate ? "true" : "false";
+  properties += " /HyphenatedWordSize ";
+  properties += std::to_string(std::clamp(run.hyphenated_word_size, 0, 1000));
+  properties += " /PreHyphen ";
+  properties += std::to_string(std::clamp(run.pre_hyphen, 0, 1000));
+  properties += " /PostHyphen ";
+  properties += std::to_string(std::clamp(run.post_hyphen, 0, 1000));
+  properties += " /ConsecutiveHyphens ";
+  properties += std::to_string(std::clamp(run.consecutive_hyphens, 0, 1000));
+  properties += " /Zone ";
+  properties += engine_paragraph_metric(run.hyphenation_zone);
+  properties += " /WordSpacing [ 0.8 1.0 1.33 ] /LetterSpacing [ 0.0 0.0 0.0 ]"
+                " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading ";
   properties += engine_short_fraction(std::isfinite(run.auto_leading_fraction) &&
                                               run.auto_leading_fraction > 0.01 &&
                                               run.auto_leading_fraction < 10.0
@@ -1624,6 +1641,12 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index, 
     style += " /Language ";
     style += std::to_string(photoshop_tysh_language_from_txt2(*run.language));
   }
+  // The digit set's older TySh twin (GitHub issue 683): true for Hindi and Farsi digits, false
+  // for Arabic ones, absent for the default set so other text stays byte-identical. The Txt2
+  // /70 names the exact set; the other Middle Eastern settings have no TySh key.
+  if (run.digit_set != 0) {
+    style += run.digit_set == 1 ? " /HindiNumbers false" : " /HindiNumbers true";
+  }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";
@@ -1652,6 +1675,9 @@ std::string engine_text_resources(std::span<const std::string> fonts, const PsdT
   resources += " /DefaultStyleSheet 0 /Properties ";
   PsdTextParagraphRun normal_paragraph;
   normal_paragraph.justification = normal_justification;
+  // Photoshop's normal paragraph sheet keeps Hyphenate on (2026 captures) while every paragraph
+  // run names its own value.
+  normal_paragraph.auto_hyphenate = true;
   resources += engine_paragraph_properties(normal_paragraph);
   resources += " >> ] /StyleSheetSet [ << /Name ";
   resources += engine_escaped_utf16_string("Normal RGB");
@@ -1814,6 +1840,7 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   normal_style.underline = false;
   normal_style.strikethrough = false;
   normal_style.language.reset();
+  normal_style.digit_set = 0;  // /HindiNumbers belongs to the runs that have a digit set
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
   const auto normal_justification = engine_paragraph_runs.empty() ? 0 : engine_paragraph_runs.front().justification;
   const auto resources =

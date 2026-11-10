@@ -101,10 +101,19 @@ struct TextCharacterStyles {
   // Photoshop's hyphenation and spelling language, Txt2 numbering; -1 unset (GitHub issue 682).
   // Patchy draws nothing from it: it is kept so a Photoshop file's text keeps its tag.
   int language{-1};
+  // Photoshop's Middle Eastern settings (digit set, diacritic x and y offsets, mark distance
+  // from the baseline, Justification Alternates), kept for the file like the language (GitHub
+  // issue 683; psd::PsdTextStyleRun has the values).
+  int digit_set{0};
+  double diacritic_x_offset{0.0};
+  double diacritic_y_offset{0.0};
+  double mark_y_distance{100.0};
+  bool justification_alternates{false};
   [[nodiscard]] bool any() const noexcept {
     return caps != 0 || baseline != 0 || underline || strikethrough || ordinals || fractions || !ligatures ||
            contextual_alternates || discretionary_ligatures || swash || stylistic_alternates || titling_alternates ||
-           language >= 0;
+           language >= 0 || digit_set != 0 || diacritic_x_offset != 0.0 || diacritic_y_offset != 0.0 ||
+           mark_y_distance != 100.0 || justification_alternates;
   }
   // Any OpenType feature request other than Photoshop's defaults (ligatures on, the rest off).
   [[nodiscard]] bool any_features() const noexcept {

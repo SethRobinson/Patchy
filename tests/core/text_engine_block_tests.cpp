@@ -912,6 +912,408 @@ void text_engine_photoshop_languages_survive_an_edit() {
   CHECK(found);
 }
 
+namespace {
+
+// The sparse paragraph (key "5") or style (key "6") sheet of each run of the Txt2 object a
+// layer's TySh points at.
+std::vector<const patchy::psd::EngineNode*> txt2_run_sheets(const patchy::psd::TextEngineBlock& block,
+                                                            std::int32_t object, const char* runs_key) {
+  std::vector<const patchy::psd::EngineNode*> sheets;
+  const auto* runs = block.root().at_path({"1", "1", std::to_string(object), "0", runs_key, "0"});
+  if (runs == nullptr || !runs->is_list()) {
+    return sheets;
+  }
+  for (const auto& run : runs->list) {
+    sheets.push_back(run.at_path({"0", "0", runs_key}));
+  }
+  return sheets;
+}
+
+long long sheet_integer(const patchy::psd::EngineNode* sheet, const char* key) {
+  const auto* node = sheet != nullptr ? sheet->find(key) : nullptr;
+  return node != nullptr ? node->integer().value_or(-1) : -1;
+}
+
+double sheet_number(const patchy::psd::EngineNode* sheet, const char* key) {
+  const auto* node = sheet != nullptr ? sheet->find(key) : nullptr;
+  return node != nullptr ? node->number().value_or(-9999.0) : -9999.0;
+}
+
+// 1 true, 0 false, -1 absent.
+int sheet_flag(const patchy::psd::EngineNode* sheet, const char* key) {
+  const auto* node = sheet != nullptr ? sheet->find(key) : nullptr;
+  const auto value = node != nullptr ? node->boolean() : std::nullopt;
+  return value.has_value() ? (*value ? 1 : 0) : -1;
+}
+
+std::string tysh_text(const std::vector<std::uint8_t>& bytes, int layer_index) {
+  const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, static_cast<std::int16_t>(layer_index)), "TySh");
+  return payload.has_value() ? std::string(reinterpret_cast<const char*>(payload->data()), payload->size())
+                             : std::string();
+}
+
+// The paragraph runs of a TySh ("/ParagraphRun" up to "/StyleRun"), where every run names its
+// own hyphenation; the normal paragraph sheet in the ResourceDict comes later.
+std::string tysh_paragraph_runs(const std::vector<std::uint8_t>& bytes, int layer_index) {
+  const auto text = tysh_text(bytes, layer_index);
+  const auto start = text.find("/ParagraphRun");
+  const auto end = text.find("/StyleRun");
+  return start != std::string::npos && end != std::string::npos && end > start ? text.substr(start, end - start)
+                                                                               : std::string();
+}
+
+std::size_t count_of(std::string_view haystack, std::string_view needle) {
+  std::size_t count = 0;
+  for (auto at = haystack.find(needle); at != std::string_view::npos; at = haystack.find(needle, at + needle.size())) {
+    ++count;
+  }
+  return count;
+}
+
+// One column of every run line of a runs or paragraph-runs metadata value ("" when absent).
+std::vector<std::string> metadata_run_column(const patchy::Layer& layer, const char* key, std::size_t column) {
+  std::vector<std::string> values;
+  const auto found = layer.metadata().find(key);
+  if (found == layer.metadata().end()) {
+    return values;
+  }
+  std::string_view rest = found->second;
+  while (!rest.empty()) {
+    const auto end = rest.find('\n');
+    const auto line = rest.substr(0, end);
+    rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end + 1U);
+    if (line.empty() || line.front() == 'v') {
+      continue;
+    }
+    std::vector<std::string_view> fields;
+    std::size_t start = 0;
+    while (start <= line.size()) {
+      const auto tab = line.find('\t', start);
+      fields.push_back(line.substr(start, tab == std::string_view::npos ? std::string_view::npos : tab - start));
+      if (tab == std::string_view::npos) break;
+      start = tab + 1U;
+    }
+    values.emplace_back(column < fields.size() ? fields[column] : std::string_view{});
+  }
+  return values;
+}
+
+void write_artifact(const char* name, const std::vector<std::uint8_t>& bytes) {
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream(std::string("test-artifacts/") + name, std::ios::binary)
+      .write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
+void mark_text_layers_edited(patchy::Document& document) {
+  for (auto& layer : document.layers()) {
+    if (layer.metadata().contains(patchy::kLayerMetadataText)) {
+      layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    }
+  }
+}
+
+}  // namespace
+
+// GitHub issue 683: a Patchy save wrote "/AutoHyphenate true" into every paragraph it rewrote, so
+// Photoshop showed Hyphenate on. A new layer now writes it off (as Photoshop 2026 writes one),
+// and a paragraph that has Hyphenate on, its own hyphenation settings or a Kashida width keeps
+// them in the TySh and the Txt2 alike, through a reopen and another save.
+void text_engine_hyphenation_round_trips() {
+  patchy::Document document(600, 300, patchy::PixelFormat::rgb8());
+  document.add_layer(patchy_text_layer(document, "New", "A new Patchy layer", false));
+  auto kept = patchy_text_layer(document, "Kept", "Hyphenated paragraph\nPlain paragraph", false);
+  kept.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v6\n0\t21\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\thyphenate,hyphenation:7:3:4:5:30:0,kashida:0\n"
+      "21\t15\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t-";
+  document.add_layer(std::move(kept));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  write_artifact("text-engine-hyphenation.psd", bytes);
+
+  const auto check_written = [](const std::vector<std::uint8_t>& written) {
+    // The new layer: Hyphenate off in its paragraph run, Photoshop's default numbers.
+    const auto plain = tysh_paragraph_runs(written, 0);
+    CHECK(count_of(plain, "/AutoHyphenate false /HyphenatedWordSize 6 /PreHyphen 2 /PostHyphen 2 "
+                          "/ConsecutiveHyphens 8 /Zone 36.0 ") == 1U);
+    CHECK(count_of(plain, "/AutoHyphenate true") == 0U);
+    // The normal paragraph sheet (in the ResourceDict and its DocumentResources twin) keeps
+    // Photoshop's "true".
+    CHECK(count_of(tysh_text(written, 0), "/AutoHyphenate true") == 2U);
+    const auto kept_runs = tysh_paragraph_runs(written, 1);
+    CHECK(count_of(kept_runs, "/AutoHyphenate true /HyphenatedWordSize 7 /PreHyphen 3 /PostHyphen 4 "
+                              "/ConsecutiveHyphens 5 /Zone 30.0 ") == 1U);
+    CHECK(count_of(kept_runs, "/AutoHyphenate false /HyphenatedWordSize 6 ") == 1U);
+
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    const auto plain_index = text_index_of(written, 0);
+    const auto kept_index = text_index_of(written, 1);
+    CHECK(block.has_value() && plain_index.has_value() && kept_index.has_value());
+    if (!block.has_value() || !plain_index.has_value() || !kept_index.has_value()) {
+      return;
+    }
+    const auto plain_sheets = txt2_run_sheets(*block, *plain_index, "5");
+    CHECK(plain_sheets.size() == 1U);
+    if (plain_sheets.size() == 1U) {
+      CHECK(sheet_flag(plain_sheets[0], "9") == 0);
+      CHECK(sheet_integer(plain_sheets[0], "10") == 6 && sheet_integer(plain_sheets[0], "13") == 8);
+      CHECK(sheet_flag(plain_sheets[0], "15") == 1);
+      CHECK(sheet_integer(plain_sheets[0], "40") == 2);
+    }
+    const auto kept_sheets = txt2_run_sheets(*block, *kept_index, "5");
+    CHECK(kept_sheets.size() == 2U);
+    if (kept_sheets.size() == 2U) {
+      CHECK(sheet_flag(kept_sheets[0], "9") == 1);
+      CHECK(sheet_integer(kept_sheets[0], "10") == 7 && sheet_integer(kept_sheets[0], "11") == 3);
+      CHECK(sheet_integer(kept_sheets[0], "12") == 4 && sheet_integer(kept_sheets[0], "13") == 5);
+      CHECK(sheet_number(kept_sheets[0], "14") == 30.0);
+      CHECK(sheet_flag(kept_sheets[0], "15") == 0);
+      CHECK(sheet_integer(kept_sheets[0], "40") == 0);
+      CHECK(sheet_flag(kept_sheets[1], "9") == 0);
+      CHECK(sheet_integer(kept_sheets[1], "40") == 2);
+    }
+  };
+  check_written(bytes);
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2U);
+  if (read.layers().size() != 2U) {
+    return;
+  }
+  // The new layer's paragraph keeps its short form: no settings column.
+  CHECK(read.layers()[0].metadata().at(patchy::kLayerMetadataTextParagraphRuns).rfind("v6", 0) != 0);
+  CHECK((metadata_run_column(read.layers()[1], patchy::kLayerMetadataTextParagraphRuns, 11) ==
+         std::vector<std::string>{"hyphenate,hyphenation:7:3:4:5:30:0,kashida:0", "-"}));
+  mark_text_layers_edited(read);
+  check_written(patchy::psd::DocumentIo::write_layered_rgb8(read));
+
+  // The column's tokens.
+  patchy::psd::PsdTextParagraphRun run;
+  CHECK(patchy::psd::serialize_paragraph_run_settings(run) == "-");
+  patchy::psd::parse_paragraph_run_settings("kashida:4,hyphenate,future-token", run);
+  CHECK(run.auto_hyphenate && run.kashida_width == 4 && run.hyphenated_word_size == 6);
+  CHECK(patchy::psd::serialize_paragraph_run_settings(run) == "hyphenate,kashida:4");
+  patchy::psd::parse_paragraph_run_settings("hyphenation:7:3:4:5:30", run);  // five values: ignored whole
+  CHECK(!run.auto_hyphenate && run.kashida_width == 2 && run.hyphenated_word_size == 6 && run.pre_hyphen == 2);
+  patchy::psd::parse_paragraph_run_settings("hyphenation:9:1:1:0:12.5:1,kashida:9", run);
+  CHECK(run.hyphenated_word_size == 9 && run.consecutive_hyphens == 0 && run.hyphenation_zone == 12.5);
+  CHECK(run.hyphenate_capitalized && run.kashida_width == 2);
+  CHECK(patchy::psd::serialize_paragraph_run_settings(run) == "hyphenation:9:1:1:0:12.5:1");
+}
+
+// GitHub issue 683: Photoshop's Middle Eastern character settings (digit set, diacritic offsets,
+// mark distance, Justification Alternates) are kept per run: Txt2 style keys /70, /72, /73, /87
+// and /75, with the older TySh /HindiNumbers for the digit set. Patchy draws nothing from them.
+void text_engine_middle_eastern_settings_round_trip() {
+  patchy::Document document(600, 300, patchy::PixelFormat::rgb8());
+  auto tagged = patchy_text_layer(document, "Tagged", "Hindi Farsi Arabic plain", false);
+  const std::string columns = "\t30\t0\t0\t#202020\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t";
+  tagged.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v9\n0\t6" + columns + "digits:2,diacx:-100,marky:0,justalt\n6\t6" + columns + "digits:3,diacy:25.5\n12\t7" +
+      columns + "underline,digits:1\n19\t5" + columns + "-";
+  document.add_layer(std::move(tagged));
+  document.add_layer(patchy_text_layer(document, "Plain", "Untagged text", false));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  write_artifact("text-engine-middle-eastern.psd", bytes);
+
+  const auto check_written = [](const std::vector<std::uint8_t>& written) {
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    const auto tagged_index = text_index_of(written, 0);
+    const auto plain_index = text_index_of(written, 1);
+    CHECK(block.has_value() && tagged_index.has_value() && plain_index.has_value());
+    if (!block.has_value() || !tagged_index.has_value() || !plain_index.has_value()) {
+      return;
+    }
+    const auto sheets = txt2_run_sheets(*block, *tagged_index, "6");
+    CHECK(sheets.size() == 4U);
+    if (sheets.size() == 4U) {
+      CHECK(sheet_integer(sheets[0], "70") == 2 && sheet_number(sheets[0], "72") == -100.0);
+      CHECK(sheet_number(sheets[0], "87") == 0.0 && sheet_flag(sheets[0], "75") == 1);
+      CHECK(sheet_flag(sheets[0], "88") == 0);
+      CHECK(sheet_integer(sheets[1], "70") == 3 && sheet_number(sheets[1], "73") == 25.5);
+      CHECK(sheet_number(sheets[1], "87") == 100.0 && sheet_flag(sheets[1], "75") == 0);
+      CHECK(sheet_integer(sheets[2], "70") == 1 && sheet_integer(sheets[2], "16") == 2);
+      CHECK(sheet_integer(sheets[3], "70") == 0 && sheet_number(sheets[3], "72") == 0.0);
+    }
+    const auto plain = txt2_run_sheets(*block, *plain_index, "6");
+    CHECK(plain.size() == 1U);
+    if (plain.size() == 1U) {
+      CHECK(sheet_integer(plain[0], "70") == 0 && sheet_number(plain[0], "87") == 100.0);
+      CHECK(sheet_flag(plain[0], "75") == 0 && sheet_flag(plain[0], "88") == 0);
+    }
+    // The TySh twin: Hindi and Farsi digits true, Arabic false, nothing for the default set.
+    const auto tysh = tysh_text(written, 0);
+    CHECK(count_of(tysh, "/HindiNumbers true") == 2U);
+    CHECK(count_of(tysh, "/HindiNumbers false") == 1U);
+    CHECK(count_of(tysh_text(written, 1), "/HindiNumbers") == 0U);
+  };
+  check_written(bytes);
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2U);
+  if (read.layers().size() != 2U) {
+    return;
+  }
+  CHECK((metadata_run_column(read.layers()[0], patchy::kLayerMetadataTextRuns, 16) ==
+         std::vector<std::string>{"digits:2,diacx:-100,marky:0,justalt", "digits:3,diacy:25.5", "underline,digits:1",
+                                  "-"}));
+  CHECK(read.layers()[1].metadata().at(patchy::kLayerMetadataTextRuns).find("digits") == std::string::npos);
+  mark_text_layers_edited(read);
+  check_written(patchy::psd::DocumentIo::write_layered_rgb8(read));
+
+  patchy::psd::PsdTextStyleRun run;
+  CHECK(!patchy::psd::text_run_has_middle_eastern_settings(run));
+  patchy::psd::parse_text_run_character_styles("justalt,marky:60,digits:99,diacx:nope", run);
+  CHECK(run.justification_alternates && run.mark_y_distance == 60.0 && run.digit_set == 0);
+  CHECK(run.diacritic_x_offset == 0.0);
+  CHECK(patchy::psd::text_run_has_character_styles(run));
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "marky:60,justalt");
+}
+
+// The reporter's Photoshop files (GitHub issue 683, local fixtures): Hebrew boxes with Hyphenate
+// off, and an Arabic file with one layer per Middle Eastern setting. Opened, marked edited and
+// saved by Patchy, every layer keeps Hyphenate, the Kashida width, the digit set, Justification
+// Alternates and the diacritic position in both blocks.
+void text_engine_issue_683_reporter_settings_survive_an_edit_if_available() {
+  const auto hebrew_path = patchy::test::local_psd_fixture_path("issue-683/hebrew-rtl-justified-photoshop.psd");
+  const auto arabic_path = patchy::test::local_psd_fixture_path("issue-683/arabic-rtl-settings-photoshop.psd");
+  patchy::test::skip_unless_exists(hebrew_path);
+  patchy::test::skip_unless_exists(arabic_path);
+
+  struct Saved {
+    std::vector<std::uint8_t> bytes;
+    patchy::Document document;
+  };
+  const auto edit_and_save = [](const std::filesystem::path& path, const char* artifact) {
+    auto document = patchy::psd::DocumentIo::read(read_all(path));
+    mark_text_layers_edited(document);
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    write_artifact(artifact, bytes);
+    return Saved{std::move(bytes), std::move(document)};
+  };
+  const auto layer_index_named = [](const patchy::Document& document, std::string_view prefix) {
+    for (int index = 0; index < static_cast<int>(document.layers().size()); ++index) {
+      if (document.layers()[static_cast<std::size_t>(index)].name().rfind(prefix, 0) == 0) {
+        return index;
+      }
+    }
+    return -1;
+  };
+
+  // Hebrew: three justified right-to-left boxes, Hyphenate off in the file and after the save.
+  const auto hebrew = edit_and_save(hebrew_path, "issue-683-hebrew-justified-edited.psd");
+  const auto hebrew_payload = text_engine_payload(hebrew.bytes);
+  const auto hebrew_block = hebrew_payload.has_value() ? patchy::psd::TextEngineBlock::parse(*hebrew_payload) : std::nullopt;
+  CHECK(hebrew_block.has_value());
+  int hebrew_layers = 0;
+  for (int index = 0; index < static_cast<int>(hebrew.document.layers().size()); ++index) {
+    const auto& layer = hebrew.document.layers()[static_cast<std::size_t>(index)];
+    if (!layer.metadata().contains(patchy::kLayerMetadataText)) {
+      continue;
+    }
+    ++hebrew_layers;
+    const auto& runs = layer.metadata().at(patchy::kLayerMetadataTextParagraphRuns);
+    CHECK(runs.find("hyphenate") == std::string::npos);
+    CHECK((metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 9) == std::vector<std::string>{"rtl"}));
+    const auto paragraph_runs = tysh_paragraph_runs(hebrew.bytes, index);
+    CHECK(count_of(paragraph_runs, "/AutoHyphenate false") == 1U);
+    CHECK(count_of(paragraph_runs, "/AutoHyphenate true") == 0U);
+    const auto object = text_index_of(hebrew.bytes, index);
+    CHECK(object.has_value());
+    if (hebrew_block.has_value() && object.has_value()) {
+      const auto sheets = txt2_run_sheets(*hebrew_block, *object, "5");
+      CHECK(sheets.size() == 1U);
+      for (const auto* sheet : sheets) {
+        CHECK(sheet_flag(sheet, "9") == 0);
+        CHECK(sheet_integer(sheet, "33") == 1);
+      }
+    }
+  }
+  CHECK(hebrew_layers == 3);
+
+  // Arabic: layer names say what each one sets.
+  const auto arabic = edit_and_save(arabic_path, "issue-683-arabic-settings-edited.psd");
+  const auto arabic_payload = text_engine_payload(arabic.bytes);
+  const auto arabic_block = arabic_payload.has_value() ? patchy::psd::TextEngineBlock::parse(*arabic_payload) : std::nullopt;
+  CHECK(arabic_block.has_value());
+  if (!arabic_block.has_value()) {
+    return;
+  }
+  struct Expected {
+    std::string_view layer;
+    int kashida;
+    int digits;
+    int alternates;
+    double diacritic_x;
+    double mark_y;
+    bool hindi_numbers;
+  };
+  const Expected expected[] = {
+      {"Right align, Kashidas medium", 2, 1, 0, 0.0, 100.0, false},
+      {"Justify last right, Arabic digits", 2, 1, 0, 0.0, 100.0, false},
+      {"Justify last center, Hindi digits", 2, 2, 0, 0.0, 100.0, true},
+      {"Justify last left, Farsi digits", 2, 3, 0, 0.0, 100.0, true},
+      {"Justify all, Kashidas none", 0, 1, 1, 0.0, 100.0, false},
+      {"Standard Diacretics", 2, 2, 0, 0.0, 100.0, true},
+      {"Horizontal Diacretics", 2, 2, 0, -100.0, 0.0, true},
+      {"Vertical Diacretics", 2, 2, 0, 0.0, 100.0, true},
+  };
+  for (const auto& entry : expected) {
+    const auto index = layer_index_named(arabic.document, entry.layer);
+    CHECK(index >= 0);
+    if (index < 0) {
+      std::printf("  no layer named %.*s\n", static_cast<int>(entry.layer.size()), entry.layer.data());
+      continue;
+    }
+    const auto object = text_index_of(arabic.bytes, index);
+    CHECK(object.has_value());
+    if (!object.has_value()) {
+      continue;
+    }
+    const auto paragraphs = txt2_run_sheets(*arabic_block, *object, "5");
+    const auto styles = txt2_run_sheets(*arabic_block, *object, "6");
+    CHECK(!paragraphs.empty() && !styles.empty());
+    bool matches = !paragraphs.empty() && !styles.empty();
+    for (const auto* sheet : paragraphs) {
+      matches = matches && sheet_integer(sheet, "40") == entry.kashida && sheet_flag(sheet, "9") == 0;
+    }
+    for (const auto* sheet : styles) {
+      matches = matches && sheet_integer(sheet, "70") == entry.digits && sheet_flag(sheet, "75") == entry.alternates &&
+                sheet_number(sheet, "72") == entry.diacritic_x && sheet_number(sheet, "87") == entry.mark_y;
+    }
+    const auto tysh = tysh_text(arabic.bytes, index);
+    matches = matches && count_of(tysh_paragraph_runs(arabic.bytes, index), "/AutoHyphenate true") == 0U &&
+              count_of(tysh, entry.hindi_numbers ? "/HindiNumbers true" : "/HindiNumbers false") >= 1U &&
+              count_of(tysh, entry.hindi_numbers ? "/HindiNumbers false" : "/HindiNumbers true") == 0U;
+    if (!matches) {
+      std::printf("  %.*s: settings changed by the save\n", static_cast<int>(entry.layer.size()), entry.layer.data());
+    }
+    CHECK(matches);
+  }
+  // A reopen of the saved file reads the same settings back.
+  const auto reread = patchy::psd::DocumentIo::read(arabic.bytes);
+  for (const auto& layer : arabic.document.layers()) {
+    if (!layer.metadata().contains(patchy::kLayerMetadataText)) {
+      continue;
+    }
+    const auto* twin = [&]() -> const patchy::Layer* {
+      for (const auto& candidate : reread.layers()) {
+        if (candidate.name() == layer.name()) {
+          return &candidate;
+        }
+      }
+      return nullptr;
+    }();
+    CHECK(twin != nullptr);
+    if (twin != nullptr) {
+      CHECK(metadata_run_column(*twin, patchy::kLayerMetadataTextRuns, 16) ==
+            metadata_run_column(layer, patchy::kLayerMetadataTextRuns, 16));
+      CHECK(metadata_run_column(*twin, patchy::kLayerMetadataTextParagraphRuns, 11) ==
+            metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 11));
+    }
+  }
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
       {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
@@ -928,6 +1330,10 @@ std::vector<patchy::test::TestCase> text_engine_block_tests() {
       {"text_engine_run_languages_round_trip", text_engine_run_languages_round_trip},
       {"text_engine_language_tables_match_photoshop", text_engine_language_tables_match_photoshop},
       {"text_engine_photoshop_languages_survive_an_edit", text_engine_photoshop_languages_survive_an_edit},
+      {"text_engine_hyphenation_round_trips", text_engine_hyphenation_round_trips},
+      {"text_engine_middle_eastern_settings_round_trip", text_engine_middle_eastern_settings_round_trip},
+      {"text_engine_issue_683_reporter_settings_survive_an_edit_if_available",
+       text_engine_issue_683_reporter_settings_survive_an_edit_if_available},
       {"text_engine_issue341_every_object_keeps_a_cache_key_if_available",
        text_engine_issue341_every_object_keeps_a_cache_key_if_available},
   };
