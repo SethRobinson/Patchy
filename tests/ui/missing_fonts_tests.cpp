@@ -140,18 +140,40 @@ void answer_missing_font_prompt(bool accept, std::shared_ptr<int> answered) {
 // failed check in `act` is recorded and the dialog rejected, never thrown through Qt's event
 // dispatch (macOS aborts there). A dialog that never shows is not a failure here: some callers
 // arm it to prove none opens.
-void handle_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
-  QTimer::singleShot(20, guarded([act = std::move(act), seen, attempts]() mutable {
+//
+// One poller at a time: arming a new one retires every earlier one, and so does
+// retire_missing_fonts_dialog_pollers. A poller armed to prove no dialog opens can outlive its
+// quiet wait (20 ms timers run late on a busy host). It then closed the next step's dialog, and
+// that step's own poller, left without one, closed the first dialog of the test after, whose
+// count stayed 0.
+int& missing_fonts_dialog_poller_generation() {
+  static int generation = 0;
+  return generation;
+}
+
+void retire_missing_fonts_dialog_pollers() { ++missing_fonts_dialog_poller_generation(); }
+
+void poll_for_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts,
+                                   int generation) {
+  QTimer::singleShot(20, guarded([act = std::move(act), seen, attempts, generation]() mutable {
+    if (generation != missing_fonts_dialog_poller_generation()) {
+      return;
+    }
     auto* dialog = find_top_level_dialog(QStringLiteral("missingFontsDialog"));
     if (dialog == nullptr || !dialog->isVisible()) {
       if (attempts > 0) {
-        handle_missing_fonts_dialog(std::move(act), seen, attempts - 1);
+        poll_for_missing_fonts_dialog(std::move(act), seen, attempts - 1, generation);
       }
       return;
     }
     ++*seen;
     act(*dialog);
   }));
+}
+
+void handle_missing_fonts_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
+  retire_missing_fonts_dialog_pollers();
+  poll_for_missing_fonts_dialog(std::move(act), std::move(seen), attempts, missing_fonts_dialog_poller_generation());
 }
 
 // The dialog row whose name label reads `family`: its index, or -1.
@@ -1645,6 +1667,7 @@ void ui_unattended_open_skips_the_missing_fonts_dialog() {
   process_events_for(300);
   CHECK(!host.run_active());
   CHECK(*seen == 0);
+  retire_missing_fonts_dialog_pollers();
   CHECK(MainWindowTestAccess::document_tab_count(window) == tabs_before_script + 1);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
 }
