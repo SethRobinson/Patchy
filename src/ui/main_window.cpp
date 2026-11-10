@@ -6516,7 +6516,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         // the preview can never desync from what the commit will produce.
         // The same content the release commits, so alignment, join and cap
         // cannot drift between the preview and the shape layer (issue 125).
-        const auto content = current_shape_appearance_content();
+        const auto content = current_shape_appearance_content(current_tool_ == CanvasTool::Line);
         CanvasWidget::ShapePreviewAppearance appearance;
         appearance.fill = vector_fill_preview_brush(content.fill);
         appearance.stroke_enabled = content.stroke.enabled;

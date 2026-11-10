@@ -35,6 +35,17 @@ the four nested gradient and pattern forms share another; the fill-only dialog m
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
+With a line among the targets the Stroke form has a note under Align
+(`shapeStrokeInsideLineHint`, local-051), shown while the stroke is on and Align is
+Inside: "Inside keeps the stroke within the line's Weight. Choose Center or Outside to
+make the line thicker." ([why](vector-tools-lines.md#a-lines-stroke)). It takes no width of its
+own (Ignored horizontal policy) and has a fixed height, what the text needs at the form's
+narrowest. QFormLayout drops a hidden row whatever its retain-size policy, so while the
+note is hidden a spacer under the Stroke section (`stroke_hint_room`) holds its height:
+the rows below Align close up, and the page and the dialog keep their size when the note
+comes and goes (`ui_shape_appearance_inside_stroke_hint_on_lines`). Reset gives a line
+Center, the stroke a new line gets.
+
 The left column is Layer, Geometry (`shapeGeometryGroup`), Radius (`shapeRadiusGroup`),
 Arrowheads, Polygon (`shapePolygonGroup`) and Edge. Every section lines its fields up
 (#641): Geometry and Radius are grids (label, link column, field), the others forms whose
@@ -58,7 +69,7 @@ single-layer rows (X, Y, Width, Height, Start, End) are off or absent; Weight
 Weight, Shape, Radius, Arrowheads and Polygon apply per field to the layers they fit. A
 line's arrowheads (a Heads: row with Start and End, `shapeArrowHeadsLabel`; Width, Length,
 Concavity) are its Arrowheads section
-([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). A radius makes a
+([vector-tools-lines.md](vector-tools-lines.md#weight-and-arrowheads)). A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
 on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,

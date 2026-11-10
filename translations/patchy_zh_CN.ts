@@ -15702,6 +15702,10 @@ Do you want to replace it?</source>
         <source>One canvas of %1 x %2 px.</source>
         <translation>一个 %1 x %2 px 的画布。</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>“内部”会将描边限制在线条粗细之内。选择“居中”或“外部”可使线条变粗。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35638,6 +35642,10 @@ Locked: %1</source>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>正在完成第 %1 页，共 %2 页...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>“内部”会将此描边限制在线条粗细之内。在“形状外观”的“对齐”中选择“居中”或“外部”可使线条变粗。</translation>
     </message>
 </context>
 <context>

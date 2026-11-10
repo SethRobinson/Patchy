@@ -15814,6 +15814,10 @@ Czy chcesz go zastąpić?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Jedno płótno o wymiarach %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>Wewnątrz utrzymuje obrys w granicach Grubości linii. Wybierz Środek lub Na zewnątrz, aby pogrubić linię.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35856,6 +35860,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Kończenie strony %1 z %2...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>Wewnątrz utrzymuje ten obrys w granicach Grubości linii. Wybierz Środek lub Na zewnątrz w polu Wyrównanie w oknie Wygląd kształtu, aby pogrubić linię.</translation>
     </message>
 </context>
 <context>

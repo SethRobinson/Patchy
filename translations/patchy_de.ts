@@ -15758,6 +15758,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Eine Arbeitsfläche von %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>Innen hält die Kontur innerhalb der Stärke der Linie. Wählen Sie Mitte oder Außen, um die Linie dicker zu machen.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35747,6 +35751,10 @@ Fixiert: %1</translation>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Seite %1 von %2 wird fertiggestellt...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>Innen hält diese Kontur innerhalb der Stärke der Linie. Wählen Sie unter Ausrichten in der Formdarstellung Mitte oder Außen, um die Linie dicker zu machen.</translation>
     </message>
 </context>
 <context>

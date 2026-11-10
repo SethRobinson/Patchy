@@ -15758,6 +15758,10 @@ Sostituirlo?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Un quadro di %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>Interno mantiene la traccia entro lo Spessore della linea. Scegli Centro o Esterno per rendere la linea più spessa.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35747,6 +35751,10 @@ Bloccato: %1</translation>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Completamento della pagina %1 di %2...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>Interno mantiene questa traccia entro lo Spessore della linea. Scegli Centro o Esterno in Allinea, in Aspetto forma, per rendere la linea più spessa.</translation>
     </message>
 </context>
 <context>

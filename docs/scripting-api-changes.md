@@ -23,6 +23,13 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-10 (behavioral): `addShape` with a `line` geometry centers the line's stroke unless the
+appearance names an `alignment`; it was inside, where the stroke never showed past the line's
+weight (local-051, [vector-tools-lines.md](vector-tools-lines.md#a-lines-stroke)). The other shapes keep
+inside. A line's `arrowWidth` and `arrowLength` keep their 0 to 30000 px range; `updateShape`'s
+weight scaling now stops a head at 30000 px, and a head longer than its line is drawn at its size
+([vector-tools-lines.md](vector-tools-lines.md#a-head-longer-than-its-line)). Pinned by
+`ui_script_vector_line_stroke_centers_and_heads_grow`.
 2026-11-10 (additive): `doc.cssForLayers(layers)` returns the text Layer > Export > Copy CSS copies
 for the listed layers (GitHub issue 688, [web-export-copy-css.md](web-export-copy-css.md)): one CSS class per
 visible layer, `""` when none gave one. It reads only and leaves the clipboard alone. The name and the

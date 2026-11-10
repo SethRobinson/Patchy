@@ -15740,6 +15740,10 @@ Do you want to replace it?</source>
         <source>One canvas of %1 x %2 px.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35664,6 +35668,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Finishing page %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

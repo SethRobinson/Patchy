@@ -141,10 +141,10 @@ void ScriptLayerObject::updateShape(const QJSValue& changes) {
         const double scale = line.line_weight / replaced->line_weight;
         bool regenerate = false;
         if (!geometry_args.contains("arrowWidth") && replaced->arrow_width > 0.0) {
-          line.arrow_width = replaced->arrow_width * scale; regenerate = true;
+          line.arrow_width = std::min(replaced->arrow_width * scale, kLiveLineArrowMaxSize); regenerate = true;
         }
         if (!geometry_args.contains("arrowLength") && replaced->arrow_length > 0.0) {
-          line.arrow_length = replaced->arrow_length * scale; regenerate = true;
+          line.arrow_length = std::min(replaced->arrow_length * scale, kLiveLineArrowMaxSize); regenerate = true;
         }
         if (!geometry_args.contains("arrowConcavity")) {
           line.arrow_concavity = replaced->arrow_concavity; regenerate = true;

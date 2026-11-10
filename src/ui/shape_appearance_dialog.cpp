@@ -1053,10 +1053,15 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       configure_dialog_spinbox(spin, 72);
       return spin;
     };
-    auto* arrow_width = make_percent_spin("shapeArrowWidthSpin", 10, 1000, line_arrow_width_percent(*line),
+    auto* arrow_width = make_percent_spin("shapeArrowWidthSpin", kLineArrowMinPercent, kLineArrowMaxPercent,
+                                          line_arrow_width_percent(*line),
                                           QObject::tr("Arrowhead width, in percent of the line weight"));
-    auto* arrow_length = make_percent_spin("shapeArrowLengthSpin", 10, 5000, line_arrow_length_percent(*line),
+    auto* arrow_length = make_percent_spin("shapeArrowLengthSpin", kLineArrowMinPercent, kLineArrowMaxPercent,
+                                           line_arrow_length_percent(*line),
                                            QObject::tr("Arrowhead length, in percent of the line weight"));
+    // The range runs from a tenth of the weight to a thousand times it (local-051), so a
+    // step is a tenth of the value's size: 1% under 100%, 100% from 1000%.
+    for (auto* spin : {arrow_width, arrow_length}) spin->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
     auto* arrow_concavity = make_percent_spin(
         "shapeArrowConcavitySpin", -50, 50, line->arrow_concavity,
         QObject::tr("How far the back of the arrowhead curves in toward the tip (negative bulges out)"));
@@ -1095,7 +1100,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
                        [edit_live_shape, line, length](int percent) {
         edit_live_shape(line, {length ? "line.arrow_length" : "line.arrow_width"},
                         [length, percent](LiveShapeParams& params) {
-          (length ? params.arrow_length : params.arrow_width) = params.line_weight * percent / 100.0;
+          (length ? params.arrow_length : params.arrow_width) =
+              line_arrow_size_from_percent(params.line_weight, percent);
         });
       });
     }
@@ -1569,6 +1575,41 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_align_combo->addItem(QObject::tr("Outside"),
                               static_cast<int>(VectorStrokeAlignment::Outside));
   stroke_form->addRow(QObject::tr("Align:"), stroke_align_combo);
+  // A line is a filled outline as wide as its Weight (local-051), so an Inside stroke only
+  // recolours it and no Width makes the line thicker: say so under Align while that is the
+  // case. The note never sets a width, and while it is hidden its height is kept as room
+  // under the Stroke section (stroke_hint_room), so the rows close up but the page, and
+  // with it the dialog, keeps its size when the note comes and goes.
+  QLabel* stroke_inside_line_hint = nullptr;
+  QSpacerItem* stroke_hint_room = nullptr;
+  if (line_reference) {
+    stroke_hint_room = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Fixed);
+    stroke_inside_line_hint = new QLabel(
+        QObject::tr("Inside keeps the stroke within the line's Weight. Choose Center or Outside to make the "
+                    "line thicker."),
+        stroke_group);
+    stroke_inside_line_hint->setObjectName(QStringLiteral("shapeStrokeInsideLineHint"));
+    stroke_inside_line_hint->setWordWrap(true);
+    stroke_inside_line_hint->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    auto policy = stroke_inside_line_hint->sizePolicy();
+    policy.setHorizontalPolicy(QSizePolicy::Ignored);
+    stroke_inside_line_hint->setSizePolicy(policy);
+    stroke_form->addRow(stroke_inside_line_hint);
+  }
+  const auto refresh_inside_line_hint = [state, stroke_inside_line_hint, stroke_hint_room, stroke_form, right_column] {
+    if (stroke_inside_line_hint == nullptr) {
+      return;
+    }
+    const bool shown = state->settings.stroke.enabled &&
+                       state->settings.stroke.alignment == VectorStrokeAlignment::Inside;
+    stroke_inside_line_hint->setVisible(shown);
+    // The note's height is fixed once the form is built (below); until then it has no room.
+    const int room = stroke_inside_line_hint->minimumHeight() > 0
+                         ? stroke_inside_line_hint->minimumHeight() + stroke_form->verticalSpacing()
+                         : 0;
+    stroke_hint_room->changeSize(0, shown ? 0 : room, QSizePolicy::Minimum, QSizePolicy::Fixed);
+    right_column->invalidate();
+  };
 
   auto* stroke_cap_combo = new QComboBox(stroke_group);
   stroke_cap_combo->setObjectName(QStringLiteral("shapeStrokeCapCombo"));
@@ -1663,6 +1704,9 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   field_rows[stroke_dash_offset_spin] = stroke_dash_offset_row;
 
   right_column->addWidget(stroke_group);
+  if (stroke_hint_room != nullptr) {
+    right_column->addSpacerItem(stroke_hint_room);
+  }
   // Fill's and Stroke's fields start in one column, and so do the fields of their
   // nested gradient and pattern blocks (GitHub #679). The fill-only dialog hides
   // Stroke, so its labels do not widen Fill's column there.
@@ -1902,6 +1946,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     stroke_dash_pattern_edit->setModified(false);
     QSignalBlocker offset_blocker(stroke_dash_offset_spin);
     stroke_dash_offset_spin->setValue(state->settings.stroke.dash_offset);
+    refresh_inside_line_hint();
   };
 
   // Syncs every control from state->settings (construction and Reset).
@@ -1953,6 +1998,13 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   // a bare QSlider's minimum is a few pixels (issue 552).
   for (auto* slider : page->findChildren<QSlider*>()) {
     slider->setMinimumWidth(std::max(slider->minimumWidth(), 72));
+  }
+  if (stroke_inside_line_hint != nullptr) {
+    // Its height is what the text needs at the Stroke form's narrowest, measured while every
+    // row is there: the note is never cut off, and a wider dialog leaves blank room under it.
+    stroke_inside_line_hint->setFixedHeight(
+        stroke_inside_line_hint->heightForWidth(std::max(120, stroke_form->minimumSize().width())));
+    refresh_inside_line_hint();
   }
   // Measure the page while EVERY per-kind row is still visible, so switching
   // a paint kind later never pushes the columns' minimum past the viewport (a
@@ -2054,6 +2106,9 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     restored.path_box = state->settings.path_box;
     restored.path_shape = state->settings.path_shape;
     restored.preview_enabled = state->settings.preview_enabled;
+    // A line's factory stroke is centered, like a newly drawn line's: an Inside stroke could
+    // not show past its Weight (local-051).
+    if (appearance_has_editable_line(restored)) restored.stroke.alignment = VectorStrokeAlignment::Center;
     // A fill layer's dialog resets only the Fill section it shows.
     const auto keep_hidden_sections = [fill_layer_only](ShapeAppearanceSettings& target,
                                                         const ShapeAppearanceSettings& source) {
@@ -2077,6 +2132,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         target.geometry = original.geometry;
         target.path_box = original.path_box;
         target.path_shape = original.path_shape;
+        if (appearance_has_editable_line(target)) target.stroke.alignment = VectorStrokeAlignment::Center;
         keep_hidden_sections(target, original);
       }});
       *previous = state->settings;
@@ -2215,6 +2271,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     state->settings.stroke.enabled = value > 0.0;
     if (value > 0.0) state->settings.stroke.width = std::clamp(value, 0.1, 1000.0);
     // 0 leaves every shape's own width alone (a batch must not copy this one's).
+    refresh_inside_line_hint();
     notify(value > 0.0 ? std::vector<std::string>{"stroke.enabled", "stroke.width"}
                        : std::vector<std::string>{"stroke.enabled"});
   });
@@ -2249,6 +2306,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   QObject::connect(stroke_align_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     state->settings.stroke.alignment =
         static_cast<VectorStrokeAlignment>(stroke_align_combo->currentData().toInt());
+    refresh_inside_line_hint();
     notify({"stroke.alignment"});
   });
   QObject::connect(stroke_cap_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {

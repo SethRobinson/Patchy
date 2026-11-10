@@ -16,12 +16,18 @@
 //   n = (w/2) * (-dy, dx)/|d|; arrowheads (Patchy-authored; Photoshop renders
 //   the path regardless) wider than the line make one outline with it (start
 //   cap, -n side, end cap, +n side), narrower ones separate head polygons in
-//   the same shape group.
+//   the same shape group. A head longer than the line keeps its size (its back
+//   passes the line's other end); two heads share the line, each at most as long
+//   as lets their backs meet (docs/vector-tools-lines.md, "A head longer than its line").
 // All arithmetic is +,*,sqrt on doubles (no trig), deterministic across
 // toolchains.
 namespace patchy {
 
 inline constexpr double kLiveShapeKappa = 0.5522847498307936;
+
+// The largest arrowhead width or length Patchy sets on a line, in pixels: one ceiling for
+// Shape Appearance, the appearance properties, weight changes and scripts.
+inline constexpr double kLiveLineArrowMaxSize = 30000.0;
 
 // Regenerates the subpaths for one live-shape group. Every returned subpath is
 // closed, op Add, shape_group = params.index. Returns an empty vector for

@@ -24,9 +24,15 @@ void fit_vector_path_to_box(VectorPath& path, const ShapePathBox& box);
 [[nodiscard]] bool vector_path_is_fitted_shape(const VectorPath& outline, const VectorPath& shape);
 // Arrowhead width and length are stored in pixels and shown as a percent of the line
 // weight (GitHub #622 follow-up). Photoshop's default head is 500% wide and 1000% long;
-// its Line tool takes 10% to 1000% for width, 10% to 5000% for length, -50% to 50% concavity.
+// concavity is -50% to 50%. Width and Length take 10% to 100000%, so a 1 px line can carry
+// a 1000 px head, and a head is at most kLiveLineArrowMaxSize pixels whatever the weight.
 inline constexpr double kLineArrowDefaultWidthPercent = 500.0;
 inline constexpr double kLineArrowDefaultLengthPercent = 1000.0;
+inline constexpr int kLineArrowMinPercent = 10;
+inline constexpr int kLineArrowMaxPercent = 100000;
+// `percent` of `weight` as a head size in pixels, inside both limits: the one rule Shape
+// Appearance, a multi-line edit and the appearance properties share.
+[[nodiscard]] double line_arrow_size_from_percent(double weight, double percent);
 // A line with a head switched on but no head size gets the default proportions.
 void give_line_arrowheads_default_size(LiveShapeParams& params);
 // After a weight change from `previous_weight`: the heads scale with the weight, so they

@@ -15702,6 +15702,10 @@ Do you want to replace it?</source>
         <source>One canvas of %1 x %2 px.</source>
         <translation>캔버스 하나, %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>안쪽은 획을 선 두께 안에 유지합니다. 선을 더 두껍게 하려면 중앙 또는 바깥쪽을 선택하세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35638,6 +35642,10 @@ Locked: %1</source>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>페이지 %1/%2 마무리 중...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>안쪽은 이 획을 선 두께 안에 유지합니다. 선을 더 두껍게 하려면 모양 외형의 정렬에서 중앙 또는 바깥쪽을 선택하세요.</translation>
     </message>
 </context>
 <context>

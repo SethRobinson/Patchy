@@ -513,7 +513,14 @@ double scrub_value(const QAbstractSpinBox* spin) {
 // either direction.
 void set_scrub_value(QAbstractSpinBox* spin, double anchor, double steps) {
   if (auto* int_spin = qobject_cast<QSpinBox*>(spin); int_spin != nullptr) {
-    int_spin->setValue(static_cast<int>(anchor + std::trunc(steps) * int_spin->singleStep()));
+    // A field whose arrows step by a tenth of the value's size (the arrowhead percents,
+    // 10 to 100000) scrubs by the step its starting value has, so a drag is useful at both
+    // ends of the range.
+    double step = int_spin->singleStep();
+    if (int_spin->stepType() == QAbstractSpinBox::AdaptiveDecimalStepType && std::abs(anchor) >= 100.0) {
+      step = std::max(step, std::pow(10.0, std::floor(std::log10(std::abs(anchor))) - 1.0));
+    }
+    int_spin->setValue(static_cast<int>(std::lround(anchor + std::trunc(steps) * step)));
   } else if (auto* double_spin = qobject_cast<QDoubleSpinBox*>(spin); double_spin != nullptr) {
     double_spin->setValue(anchor + steps * double_spin->singleStep());
   }
