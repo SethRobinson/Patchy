@@ -236,6 +236,9 @@ void ui_font_picker_recent_section_orders_skips_and_persists() {
 
 void ui_font_picker_style_and_language_filters_persist() {
   register_test_fonts(TestFontRole::Verdana);
+  // A family that is not Sans Serif: without one the Sans Serif filter hides nothing. Run alone,
+  // this file's tests register only sans families on Windows.
+  register_test_fonts(TestFontRole::Wingdings);
   const StandardPathsTestMode standard_paths_test_mode;  // the style cache goes to a test folder
   patchy::ui::FontStyleIndex::instance().clear();
   reset_picker_settings();
@@ -637,6 +640,8 @@ void ui_font_picker_favorite_star_toggles_without_picking() {
 // search and the Style and Language filters still apply inside it; it and the favorites persist.
 void ui_font_picker_favorites_view_filters_and_persists() {
   register_test_fonts(TestFontRole::Verdana);
+  // MS Gothic on Windows: the monospace family this test needs when this file's tests run alone.
+  register_test_fonts(TestFontRole::JapaneseGothic);
   reset_picker_settings();
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1499,11 +1504,6 @@ void ui_preferences_show_font_names_in_english_checkbox() {
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
   return {
-      {"ui_font_english_name_comes_from_the_name_table", ui_font_english_name_comes_from_the_name_table},
-      {"ui_font_english_name_reads_a_system_font_if_available", ui_font_english_name_reads_a_system_font_if_available},
-      {"ui_font_display_names_round_trip_to_the_listed_family", ui_font_display_names_round_trip_to_the_listed_family},
-      {"ui_font_picker_shows_english_names_when_enabled", ui_font_picker_shows_english_names_when_enabled},
-      {"ui_preferences_show_font_names_in_english_checkbox", ui_preferences_show_font_names_in_english_checkbox},
       {"ui_font_family_without_foundry_strips_qt_suffix", ui_font_family_without_foundry_strips_qt_suffix},
       {"ui_font_picker_lists_plain_family_names", ui_font_picker_lists_plain_family_names},
       {"ui_font_picker_foundry_duplicates_review_capture", ui_font_picker_foundry_duplicates_review_capture},
@@ -1517,5 +1517,10 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
       {"ui_font_picker_favorites_view_filters_and_persists", ui_font_picker_favorites_view_filters_and_persists},
       {"ui_font_picker_recent_remove_button_keeps_popup_open", ui_font_picker_recent_remove_button_keeps_popup_open},
       {"ui_font_picker_hidden_matches_hint_counts_and_resets", ui_font_picker_hidden_matches_hint_counts_and_resets},
+      {"ui_font_english_name_comes_from_the_name_table", ui_font_english_name_comes_from_the_name_table},
+      {"ui_font_english_name_reads_a_system_font_if_available", ui_font_english_name_reads_a_system_font_if_available},
+      {"ui_font_display_names_round_trip_to_the_listed_family", ui_font_display_names_round_trip_to_the_listed_family},
+      {"ui_font_picker_shows_english_names_when_enabled", ui_font_picker_shows_english_names_when_enabled},
+      {"ui_preferences_show_font_names_in_english_checkbox", ui_preferences_show_font_names_in_english_checkbox},
   };
 }
