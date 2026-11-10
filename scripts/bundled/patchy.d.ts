@@ -2277,9 +2277,9 @@ type PatchyVectorGeometry =
       radius?: number; /** TL, TR, BR, BL */ radii?: [number, number, number, number]}
   | {type: "ellipse"; x: number; y: number; width: number; height: number}
   | {type: "line"; x1: number; y1: number; x2: number; y2: number; weight?: number;
-      /** Head width and length in px: default 5 and 10 times the weight. In updateShape a line
-       * replacing a line keeps its head proportions (scaled with the weight) and concavity
-       * unless given. */
+      /** Head width and length in px, 0..30000: default 5 and 10 times the weight. In updateShape
+       * a line replacing a line keeps its head proportions (scaled with the weight, up to 30000 px)
+       * and concavity unless given. A head longer than the line keeps its size. */
       arrowStart?: boolean; arrowEnd?: boolean; arrowWidth?: number; arrowLength?: number;
       /** -50..50 percent: positive curves the back of the head in toward the tip. Default 0. */
       arrowConcavity?: number}
@@ -2318,6 +2318,8 @@ interface PatchyVectorGradient {
 }
 interface PatchyVectorStroke {
   enabled?: boolean; fillEnabled?: boolean; width?: number; paint?: PatchyVectorPaint;
+  /** Default "inside"; "center" for a line geometry in addShape, where an inside stroke
+   * could not show past the line's weight. */
   alignment?: "inside" | "center" | "outside";
   cap?: "butt" | "round" | "square"; join?: "miter" | "round" | "bevel";
   /** Dash values and offset are stroke-width multiples; at most 64 values, none negative and at least one above 0 (a 0 dash is a dot with round or square caps). */

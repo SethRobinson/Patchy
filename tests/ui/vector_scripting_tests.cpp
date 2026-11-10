@@ -378,6 +378,31 @@ void ui_script_vector_line_arrowheads_keep_proportions() {
     check(g.arrowWidth===10 && g.arrowLength===20 && g.arrowConcavity===0, 'defaults '+JSON.stringify(g));
   )JS");
 }
+// local-051: a scripted line's stroke is centered unless the style names an alignment (an
+// Inside stroke never shows past the line's weight), the other shapes keep Inside, and a
+// head may be up to 30000 px on any weight.
+void ui_script_vector_line_stroke_centers_and_heads_grow() {
+  MainWindow window; show_window_empty(window);
+  run(window, R"JS(
+    var d=app.newDocument(400,300);
+    var l=d.addShape('Line',{type:'line',x1:20,y1:60,x2:380,y2:60,weight:4},{stroke:{width:20,paint:'#ff0000'}});
+    check(l.getShape().stroke.alignment==='center', 'line '+l.getShape().stroke.alignment);
+    check(l.bounds.height>=23 && l.bounds.height<=25, 'thick '+JSON.stringify(l.bounds));
+    var i=d.addShape('Inside',{type:'line',x1:20,y1:120,x2:380,y2:120,weight:4},{stroke:{width:20,alignment:'inside'}});
+    check(i.getShape().stroke.alignment==='inside', 'named alignment wins');
+    var r=d.addShape('Box',{type:'rectangle',x:20,y:160,width:80,height:60},{stroke:{width:6}});
+    check(r.getShape().stroke.alignment==='inside', 'rectangle '+r.getShape().stroke.alignment);
+    var p=d.addShape('Star',{type:'polygon',cx:200,cy:200,radius:30},{stroke:{width:6}});
+    check(p.getShape().stroke.alignment==='inside', 'polygon '+p.getShape().stroke.alignment);
+    var a=d.addShape('Arrow',{type:'line',x1:20,y1:250,x2:380,y2:250,weight:2,arrowEnd:true,arrowWidth:3000,arrowLength:30000});
+    var g=a.getShape().liveShapes[0].geometry;
+    check(g.arrowWidth===3000 && g.arrowLength===30000, 'large '+JSON.stringify(g));
+    reject(function(){d.addShape('Bad',{type:'line',x1:0,y1:0,x2:10,y2:0,arrowEnd:true,arrowLength:30001});});
+    a.updateShape({geometry:{type:'line',x1:20,y1:250,x2:380,y2:250,weight:200,arrowEnd:true}});
+    g=a.getShape().liveShapes[0].geometry;
+    check(g.weight===200 && g.arrowWidth===30000 && g.arrowLength===30000, 'scaled heads stop at 30000 '+JSON.stringify(g));
+  )JS");
+}
 }  // namespace
 std::vector<patchy::test::TestCase> vector_scripting_tests() {
   return {{"ui_script_vector_native_shapes_and_point_edits", ui_script_vector_native_shapes_and_point_edits},
@@ -388,5 +413,6 @@ std::vector<patchy::test::TestCase> vector_scripting_tests() {
     {"ui_script_vector_path_raster_painting", ui_script_vector_path_raster_painting},
     {"ui_script_vector_stroke_accepts_zero_length_dots", ui_script_vector_stroke_accepts_zero_length_dots},
     {"ui_script_vector_psd_svg_unicode_round_trip", ui_script_vector_psd_svg_unicode_round_trip},
-    {"ui_script_vector_line_arrowheads_keep_proportions", ui_script_vector_line_arrowheads_keep_proportions}};
+    {"ui_script_vector_line_arrowheads_keep_proportions", ui_script_vector_line_arrowheads_keep_proportions},
+    {"ui_script_vector_line_stroke_centers_and_heads_grow", ui_script_vector_line_stroke_centers_and_heads_grow}};
 }

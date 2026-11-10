@@ -152,7 +152,8 @@ captured order (kind-dependent):
   come from the plain line's defaults (not COM-authored); Patchy-authored
   arrows were verified by reopening in PS. ArrWdth/ArrLngth are doubles,
   ArrConc a long percent; PS 2026 reads back what Patchy writes (pixels,
-  flags true; and a hand-patched 500/1000 with flags false) through
+  flags true, up to 30000 px: [limits](vector-tools-lines.md#arrowhead-size-limits);
+  and a hand-patched 500/1000 with flags false) through
   `executeActionGet`. `changePathDetails` over COM did not regenerate a
   line (November 2026), so how PS draws flag-false sizes is unprobed.
 - App-level (`executeActionGet`) path-drawn subpaths report keyActionMode

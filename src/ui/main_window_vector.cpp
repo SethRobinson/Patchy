@@ -494,7 +494,7 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   push_undo_snapshot(tr("New shape layer"));
   Layer layer(doc.allocate_layer_id(), name, PixelBuffer());
   const auto layer_id = layer.id();
-  auto content = current_shape_appearance_content();
+  auto content = current_shape_appearance_content(origination.has_value() && origination->kind == LiveShapeKind::Line);
   content.path.subpaths = std::move(subpaths);
   if (origination.has_value()) {
     content.origination = {std::move(*origination)};
@@ -697,13 +697,16 @@ LiveShapeParams MainWindow::polygon_live_shape_params(QRectF box, double angle_r
   return params;
 }
 
-VectorShapeContent MainWindow::current_shape_appearance_content() const {
+VectorShapeContent MainWindow::current_shape_appearance_content(bool line) const {
   VectorShapeContent content;
   content.fill = current_vector_fill_;
   content.stroke.enabled = current_vector_stroke_enabled_;
   content.stroke.width = current_vector_stroke_width_;
-  // Photoshop's default for new shapes: the stroke hugs the inside of the path.
-  content.stroke.alignment = VectorStrokeAlignment::Inside;
+  // New shapes: the stroke hugs the inside of the path. A line is a filled outline as wide
+  // as its Weight, where an Inside stroke could only recolour it, so a line's stroke is
+  // centered on that outline and its width makes the line thicker (local-051). A saved
+  // stroke preset, below, still sets the alignment it was saved with.
+  content.stroke.alignment = line ? VectorStrokeAlignment::Center : VectorStrokeAlignment::Inside;
   content.stroke.content = current_vector_stroke_paint_;
   apply_stroke_dash_preset(content.stroke, current_vector_stroke_dash_preset_);
   if (current_vector_stroke_style_.has_value()) {
@@ -2745,7 +2748,7 @@ void MainWindow::refresh_vector_stroke_dash_combo() {
       }
     }
   }
-  refresh_vector_stroke_dash_combo(current_shape_appearance_content().stroke);
+  refresh_vector_stroke_dash_combo(current_shape_appearance_content(current_tool_ == CanvasTool::Line).stroke);
 }
 
 void MainWindow::refresh_vector_stroke_dash_combo(const VectorStroke& shown) {
@@ -2941,7 +2944,23 @@ void MainWindow::finish_pending_shape_appearance_edit() {
   if (pending) pending();
 }
 
-void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& settings) {
+void MainWindow::note_inside_stroke_on_selected_lines() {
+  if (!has_active_document()) return;
+  for (const auto id : stroke_target_shape_layer_ids()) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr) continue;
+    const auto settings = shape_appearance_settings(*layer);
+    if (appearance_has_editable_line(settings) && settings.stroke.enabled &&
+        settings.stroke.alignment == VectorStrokeAlignment::Inside) {
+      statusBar()->showMessage(tr("Inside keeps this stroke within the line's Weight. Choose Center or Outside "
+                                  "under Align in Shape Appearance to make the line thicker."));
+      return;
+    }
+  }
+}
+
+void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& settings,
+                                             std::function<void()> after_commit) {
   if (!has_active_document() || !vector_appearance_controls_live()) return;
   const auto property = settings.edits && !settings.edits->operations.empty()
       ? settings.edits->operations.front().key : std::string();
@@ -2958,9 +2977,11 @@ void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& sett
   }
   const auto session_id = session().session_id;
   pending_shape_appearance_property_ = property;
-  pending_shape_appearance_edit_ = [this, session_id, ids, settings] {
-    if (has_active_document() && session().session_id == session_id)
+  pending_shape_appearance_edit_ = [this, session_id, ids, settings, after_commit = std::move(after_commit)] {
+    if (has_active_document() && session().session_id == session_id) {
       commit_shape_appearance_edit(ids, settings);
+      if (after_commit) after_commit();
+    }
   };
   vector_appearance_apply_timer_->start();
 }
@@ -2976,7 +2997,10 @@ void MainWindow::schedule_vector_appearance_apply() {
     if (property.key == "stroke.enabled" || (property.key == "stroke.width" && current_vector_stroke_enabled_))
       edits->append(property.capture(settings));
   settings.edits = std::move(edits);
-  queue_shape_appearance_edit(settings);
+  // A width that cannot thicken an Inside-stroked line says why (local-051).
+  queue_shape_appearance_edit(settings, current_vector_stroke_enabled_
+                                            ? std::function<void()>([this] { note_inside_stroke_on_selected_lines(); })
+                                            : std::function<void()>{});
 }
 
 void MainWindow::apply_selected_shape_corner_radius(double radius) {

@@ -15758,6 +15758,10 @@ Deseja substituí-lo?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Uma tela de %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>Dentro mantém o traçado dentro da Espessura da linha. Escolha Centro ou Fora para deixar a linha mais grossa.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35747,6 +35751,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Finalizando a página %1 de %2...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>Dentro mantém este traçado dentro da Espessura da linha. Escolha Centro ou Fora em Alinhar, em Aparência da forma, para deixar a linha mais grossa.</translation>
     </message>
 </context>
 <context>

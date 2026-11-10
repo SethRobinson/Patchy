@@ -29,7 +29,7 @@ Related documents:
 - **Vector tools**
   - Pen paths and shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, and editable dash and stroke presets with offsets
   - Point edits (add by click, break, join, weld or merge by drag, delete segment), path-edited vector masks, and Merge and Split Shapes
-  - Per-shape cut, copy, paste, color, align and new layer; editable radius, sides, star inset, line weight and arrowheads (width, length and concavity in Shape Appearance)
+  - Per-shape cut, copy, paste, color, align and new layer; editable radius, sides, star inset, line weight and arrowheads (width, length and concavity in Shape Appearance, up to 1000 times the weight, so a thin line can carry a large head); a line's stroke makes the line thicker
   - The shape tools show the active shape's box with eight handles: drag one to resize it without leaving the tool (Shift keeps the proportions, Alt resizes from the center), and drag anywhere else to draw the next shape. A polygon or star shows its center and one vertex instead (drag the vertex to turn and resize it, the center to move it), and a line shows its two ends, so it can be re-aimed and keeps its weight and arrowheads
   - Shape Appearance Geometry (position and size) for every single shape, custom shapes and Pen outlines included, with a picker that swaps a custom shape in its box
   - A Paths panel (fill, stroke, selection) and switchable fill layers (badge or double-click opens settings), all saved in PSDs Photoshop opens

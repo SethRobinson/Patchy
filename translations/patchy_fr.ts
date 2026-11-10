@@ -15758,6 +15758,10 @@ Voulez-vous le remplacer ?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Une zone de travail de %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <translation>Intérieur garde le contour dans l&apos;Épaisseur du trait. Choisissez Centre ou Extérieur pour épaissir le trait.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -35747,6 +35751,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Finishing page %1 of %2...</source>
         <translation>Finalisation de la page %1 sur %2...</translation>
+    </message>
+    <message>
+        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation>Intérieur garde ce contour dans l&apos;Épaisseur du trait. Choisissez Centre ou Extérieur sous Alignement, dans Aspect de la forme, pour épaissir le trait.</translation>
     </message>
 </context>
 <context>

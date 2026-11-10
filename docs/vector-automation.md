@@ -37,7 +37,9 @@ and group references after geometry replacement or Undo. Reads never bump revisi
 `addShape(name,geometry,appearance)` authors rectangle, roundedRectangle, ellipse,
 line with arrowheads, polygon/star, custom resource, or explicit path geometry.
 Defaults are black fill and no outline, independent of the toolbar. Supplying a
-stroke enables it unless `enabled:false` is explicit; alignment defaults inside.
+stroke enables it unless `enabled:false` is explicit; alignment defaults inside
+(center for a line, whose inside stroke could not show past its weight). A line's
+`arrowWidth` and `arrowLength` take 0 to 30000 px.
 `addFillLayer` explicitly authors the empty-path full-canvas fill model. Empty
 shape geometry is rejected; empty saved/work paths are allowed.
 
