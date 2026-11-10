@@ -80,8 +80,11 @@ bool CanvasWidget::vector_preview_available_for_view() const noexcept {
 
 VectorPreviewView CanvasWidget::vector_preview_view() const noexcept {
   const double dpr = devicePixelRatioF();
+  // The frame covers the composite, so its pixel layers follow the composite's smoothing
+  // rule: without this a photo turned from smooth to blocks at a fractional zoom as soon
+  // as the document held a shape.
   return {QSize(static_cast<int>(std::ceil(width() * dpr)), static_cast<int>(std::ceil(height() * dpr))),
-          zoom_ * dpr, pan_ * dpr};
+          zoom_ * dpr, pan_ * dpr, uses_smooth_display_scaling(view_zoom(), deep_zoom_pixels_active())};
 }
 
 bool CanvasWidget::vector_preview_settled() const noexcept {

@@ -97,8 +97,9 @@ The worker maps paths, stroke dimensions, pattern phases, masks and effect sizes
 into physical viewport coordinates. Conservative geometry bounds cull shapes.
 Empty/complement paths retain full coverage. Temporary tiles include effect and
 feather halos so neighboring pixels contribute to the visible tile's result.
-Raster layers and raster masks sample their original pixels; vector masks
-regenerate their coverage at the display scale.
+Raster layers and raster masks sample their original pixels
+([Raster content sampling](#raster-content-sampling)); vector masks regenerate
+their coverage at the display scale.
 
 Merged vector layers expand their independent paints into temporary native vector
 nodes when a scene is built. Parts retain their own paint anchors, stroke sizes
@@ -138,6 +139,45 @@ may be mapped to its document location during view changes. QPointer protects
 closed canvases, tracked workers participate in shutdown, and `render_settled()`
 includes pending preview work. Unchanged repaints only reuse cached results.
 Builds without background threads keep the normal view.
+
+## Raster content sampling
+
+The frame covers the composite, so its raster content (pixel layers, text, Smart
+Objects, anything else kept as pixels, and raster masks) follows the canvas's one
+display smoothing rule, `uses_smooth_display_scaling`
+([view-navigation.md](view-navigation.md#display-interpolation)). Otherwise a photo
+shown smooth at a fractional zoom turns into blocks the moment the document holds
+a shape. `vector_preview_view()` reads the rule into `VectorPreviewView::smooth_pixels`;
+the flag is part of the view's identity, so a change of it (a zoom, the pixel grid)
+is a new frame. Vector geometry is sharp at screen resolution either way.
+
+- Flag off (whole zooms, 400% and up, the pixel grid, deep zoom): `sample_pixels`,
+  the exact blocks, device pixel center to the document pixel under it.
+- Flag on (fractional zooms between 100% and 400%): `sample_pixels_smooth`,
+  bilinear at the position Qt's smooth blit of the composite reads,
+  (device + 0.5) / scale - 0.5. Color is weighted by alpha (no fringe at a layer
+  edge); document pixels outside the layer are transparent, outside a mask its
+  default color; the sampled rect and the cull bounds grow by half a document
+  pixel (`smooth_sample_reach`) for that falloff.
+- At the document edge the read position is clamped to the document, as the
+  composite's blit clamps instead of fading into the backdrop. The clamp also
+  covers device pixels up to one past the exact edge, which the composite's
+  pixel-aligned rect can show. Farther out (clipped by the canvas) the exact read
+  stays, so a layer that ends at the document edge keeps that silhouette for its
+  effects.
+- Each output pixel depends only on its own device position and the source, never
+  on the tile, so tiles and a full render agree.
+- Smoothing each layer before compositing equals smoothing the composite for
+  Normal layers over an even backdrop. Where two layers both vary inside one
+  document pixel (a layer edge over a busy photo, non-Normal blend modes,
+  adjustments) the two differ slightly; that is accepted.
+
+Tests: `ui_vector_preview_raster_content_follows_display_smoothing_rule` (canvas
+with the preview on against off at 150%, 250% and 338.9%, exact blocks at 200%,
+300%, 400% and 550%, a sharp shape edge; device pixel ratio 1, and 2 in a
+`QT_SCALE_FACTOR=2` child run) and
+`ui_vector_preview_smooth_pixels_match_bilinear_composite` (alpha, layer bounds,
+mask default, document edge, tile/crop equality).
 
 ## Clipped flattening
 

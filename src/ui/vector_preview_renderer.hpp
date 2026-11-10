@@ -48,6 +48,11 @@ struct VectorPreviewView {
   QSize pixels;                  // physical viewport pixels
   double scale{1.0};             // physical pixels per document pixel
   QPointF offset;                // document origin in the physical viewport
+  // The canvas's display smoothing rule for this view (uses_smooth_display_scaling,
+  // docs/view-navigation.md "Display interpolation"): pixel layers and raster masks are
+  // read bilinearly, as the composite is drawn, instead of as exact blocks. Vector
+  // geometry is sharp either way.
+  bool smooth_pixels{false};
   friend bool operator==(const VectorPreviewView&, const VectorPreviewView&) = default;
 };
 

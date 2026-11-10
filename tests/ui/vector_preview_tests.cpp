@@ -14,7 +14,10 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QImage>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QTimer>
 #include <QVariant>
 #include <algorithm>
@@ -1025,6 +1028,412 @@ void ui_vector_preview_stays_sharp_through_free_transform() { check_free_transfo
 
 void ui_vector_preview_stays_sharp_through_free_transform_on_artboard() { check_free_transform_stays_sharp(true); }
 
+// Gray noise, different in every pixel: nearest-neighbor and bilinear scaling of it disagree
+// nearly everywhere, and every blend of it stays gray.
+int smoothing_noise(int x, int y) {
+  auto z = ((static_cast<std::uint64_t>(static_cast<std::uint32_t>(y)) << 32) | static_cast<std::uint32_t>(x)) +
+           0x9e3779b97f4a7c15ULL;
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return 64 + static_cast<int>((z ^ (z >> 31)) % 129U);
+}
+
+// The preview frame follows the display smoothing rule (docs/view-navigation.md, "Display
+// interpolation"): with a shape in the document, a photo looks the same as it does without
+// the preview. At fractional zooms between 100% and 400% the frame's raster content matches
+// the smoothed composite; at whole zooms and from 400% up it is the exact blocks. Runs at
+// device pixel ratio 1 here and 2 in a child run of this test (QT_SCALE_FACTOR=2).
+void ui_vector_preview_raster_content_follows_display_smoothing_rule() {
+  const bool child = qEnvironmentVariableIsSet("PATCHY_VECTOR_PREVIEW_DPR_CHILD");
+  // 2000 px maps to whole device pixels at every zoom below, at ratio 1 and 2, so the
+  // composite's pixel-aligned rect and the frame's exact view share one geometry.
+  constexpr int kSide = 2000;
+  Document doc(kSide, kSide, PixelFormat::rgba8());
+  {
+    PixelBuffer photo(kSide, kSide, PixelFormat::rgba8());
+    for (int y = 0; y < kSide; ++y) {
+      for (int x = 0; x < kSide; ++x) {
+        auto* p = photo.pixel(x, y);
+        p[0] = p[1] = p[2] = static_cast<std::uint8_t>(smoothing_noise(x, y));
+        p[3] = 255;
+      }
+    }
+    Layer layer(doc.allocate_layer_id(), "Photo", std::move(photo));
+    layer.set_bounds({0, 0, kSide, kSide});
+    doc.add_layer(std::move(layer));
+  }
+  const QRect shape_rect(24, 16, 16, 12);
+  {
+    LiveShapeParams params;
+    params.kind = LiveShapeKind::Rectangle;
+    params.left = shape_rect.left(); params.top = shape_rect.top();
+    params.right = shape_rect.left() + shape_rect.width(); params.bottom = shape_rect.top() + shape_rect.height();
+    VectorShapeContent box;
+    box.path.subpaths = generate_live_shape_subpaths(params);
+    box.fill.color = {255, 0, 255};
+    doc.add_layer(shape_layer(doc, box));
+  }
+  const auto fill = qRgb(255, 0, 255);
+
+  CanvasWidget canvas;
+  canvas.resize(300, 220);
+  canvas.set_document(&doc);
+  canvas.show();
+  canvas.set_tool(CanvasTool::Pan);
+  canvas.set_pixel_grid_visible(false);
+  QApplication::processEvents();
+  const double ratio = canvas.devicePixelRatioF();
+  std::cout << "vector preview smoothing device pixel ratio " << ratio << '\n';
+  CHECK(std::abs(ratio - (child ? 2.0 : 1.0)) < 0.001);
+
+  struct View {
+    QImage off;
+    QImage on;
+    QPointF origin;  // the document origin in device pixels
+    double scale{};  // device pixels per document pixel
+    QRect area;      // the canvas content in device pixels
+    QRectF shape;    // the shape in device pixels
+  };
+  const auto capture = [&](double zoom) {
+    View view;
+    canvas.set_vector_preview_enabled(false);
+    // Park the document's corner at a whole widget pixel near the view's corner, so the
+    // document edge is on screen and both paths place the same pixels.
+    canvas.center_view_on_document_point(QPointF(0, 0), zoom);
+    const auto center = canvas.view_transform().map_to_widget(QPointF(0, 0));
+    canvas.center_view_on_document_point(QPointF((center.x() - 10.0) / canvas.zoom(), (center.y() - 8.0) / canvas.zoom()));
+    settle(canvas);
+    view.off = canvas.grab().toImage().convertToFormat(QImage::Format_RGB32);
+    const auto renders = canvas.render_cache_diagnostics().vector_preview_renders;
+    canvas.set_vector_preview_enabled(true);
+    settle(canvas);
+    CHECK(canvas.vector_preview_status().contains(QStringLiteral("sharp vector view")));
+    CHECK(canvas.render_cache_diagnostics().vector_preview_renders > renders);
+    view.on = canvas.grab().toImage().convertToFormat(QImage::Format_RGB32);
+    view.scale = canvas.view_zoom();
+    view.origin = canvas.view_transform().map_to_widget(QPointF(0, 0)) * ratio;
+    CHECK(std::abs(view.scale - zoom) < 1e-9);
+    CHECK(std::abs(view.origin.x() - std::round(view.origin.x())) < 1e-6);
+    CHECK(std::abs(view.origin.y() - std::round(view.origin.y())) < 1e-6);
+    const auto content = canvas_content_rect(canvas);
+    view.area = QRect(QPointF(content.topLeft() * ratio).toPoint(), (QSizeF(content.size()) * ratio).toSize())
+                    .intersected(view.on.rect());
+    view.shape = QRectF(view.origin + QPointF(shape_rect.topLeft()) * view.scale, QSizeF(shape_rect.size()) * view.scale);
+    CHECK(view.on.size() == view.off.size());
+    CHECK(view.area.width() > 200 && view.area.height() > 150);
+    CHECK(QRectF(view.area).contains(view.shape));
+    return view;
+  };
+  const auto name = [&](const char* what, double zoom) {
+    return std::string("ui_vector_preview_smoothing_") + what + "_" + std::to_string(std::lround(zoom * 1000)) +
+           (child ? "_ratio2" : "");
+  };
+
+  // Fractional zooms: the frame's photo is the smoothed composite's, document edge included.
+  constexpr int kTolerance = 6;
+  for (const double zoom : {1.5, 2.5, 3.389}) {
+    const auto view = capture(zoom);
+    // The composite blends the shape's edge half a document pixel each way; the frame keeps it sharp.
+    const auto reach = std::ceil(view.scale * 0.5) + 2.0;
+    const auto skip = view.shape.adjusted(-reach, -reach, reach, reach);
+    int worst = 0;
+    int over = 0;
+    int compared = 0;
+    for (int y = view.area.top(); y <= view.area.bottom(); ++y) {
+      for (int x = view.area.left(); x <= view.area.right(); ++x) {
+        if (skip.contains(QPointF(x + 0.5, y + 0.5))) {
+          continue;
+        }
+        const auto a = view.on.pixel(x, y);
+        const auto b = view.off.pixel(x, y);
+        const int difference = std::max({std::abs(qRed(a) - qRed(b)), std::abs(qGreen(a) - qGreen(b)),
+                                         std::abs(qBlue(a) - qBlue(b))});
+        worst = std::max(worst, difference);
+        over += difference > kTolerance ? 1 : 0;
+        ++compared;
+      }
+    }
+    std::cout << "vector preview smoothing at " << zoom << " ratio " << ratio << ": worst difference " << worst
+              << ", " << over << " of " << compared << " pixels over " << kTolerance << '\n';
+    if (over != 0 || compared < 20000) {
+      save_image_artifact(name("preview_off", zoom), view.off);
+      save_image_artifact(name("preview_on", zoom), view.on);
+      CHECK(false);
+    }
+    // The shape itself stays sharp: one device pixel inside its left edge is pure fill, and
+    // one outside is photo (gray), where the smoothed composite has a blend.
+    const int row = static_cast<int>(std::floor(view.shape.center().y()));
+    const int inside = static_cast<int>(std::ceil(view.shape.left())) + 1;
+    const int outside = static_cast<int>(std::floor(view.shape.left())) - 2;
+    const auto outside_pixel = view.on.pixel(outside, row);
+    const bool sharp = view.on.pixel(inside, row) == fill && qRed(outside_pixel) == qGreen(outside_pixel) &&
+                       qGreen(outside_pixel) == qBlue(outside_pixel);
+    if (!sharp) {
+      save_image_artifact(name("soft_shape_edge", zoom), view.on);
+    }
+    CHECK(sharp);
+  }
+
+  // Whole zooms and 400% and up: exact blocks, each device pixel one document pixel's value.
+  for (const double zoom : {2.0, 3.0, 4.0, 5.5}) {
+    const auto view = capture(zoom);
+    const auto skip = view.shape.adjusted(-2, -2, 2, 2);
+    int wrong = 0;
+    int compared = 0;
+    for (int y = view.area.top(); y <= view.area.bottom(); ++y) {
+      for (int x = view.area.left(); x <= view.area.right(); ++x) {
+        if (skip.contains(QPointF(x + 0.5, y + 0.5))) {
+          continue;
+        }
+        const int source_x = static_cast<int>(std::floor((x + 0.5 - view.origin.x()) / view.scale));
+        const int source_y = static_cast<int>(std::floor((y + 0.5 - view.origin.y()) / view.scale));
+        // The pasteboard beside the document, and the document border drawn over its edge.
+        if (x < view.origin.x() + 2 * ratio || y < view.origin.y() + 2 * ratio) {
+          continue;
+        }
+        const int value = smoothing_noise(source_x, source_y);
+        wrong += view.on.pixel(x, y) != qRgb(value, value, value) ? 1 : 0;
+        ++compared;
+      }
+    }
+    std::cout << "vector preview blocks at " << zoom << " ratio " << ratio << ": " << wrong << " of " << compared
+              << " pixels off their document pixel\n";
+    if (wrong != 0 || compared < 20000) {
+      save_image_artifact(name("blocks", zoom), view.on);
+      CHECK(false);
+    }
+  }
+
+  if (child) {
+    return;
+  }
+  QProcess scaled;
+  auto environment = QProcessEnvironment::systemEnvironment();
+  environment.insert(QStringLiteral("QT_SCALE_FACTOR"), QStringLiteral("2"));
+  environment.insert(QStringLiteral("PATCHY_VECTOR_PREVIEW_DPR_CHILD"), QStringLiteral("1"));
+  environment.remove(QStringLiteral("PATCHY_UI_TEST_FILTER"));
+  scaled.setProcessEnvironment(environment);
+  scaled.setProcessChannelMode(QProcess::MergedChannels);
+  scaled.setProgram(QCoreApplication::applicationFilePath());
+  scaled.setArguments({QStringLiteral("ui_vector_preview_raster_content_follows_display_smoothing_rule")});
+  scaled.start();
+  CHECK(scaled.waitForStarted(30000));
+  CHECK(scaled.waitForFinished(180000));
+  const auto output = QString::fromUtf8(scaled.readAll());
+  const bool passed = scaled.exitStatus() == QProcess::NormalExit && scaled.exitCode() == 0 &&
+                      output.contains(QStringLiteral("vector preview smoothing device pixel ratio 2")) &&
+                      output.contains(QStringLiteral("[PASS] ui_vector_preview_raster_content_follows_display_smoothing_rule")) &&
+                      !output.contains(QStringLiteral("[FAIL]"));
+  if (!passed) {
+    std::cerr << "device pixel ratio 2 child run:\n" << output.toStdString() << '\n';
+  }
+  CHECK(passed);
+}
+
+// Color noise for the smooth-sampling documents: every pixel and channel its own value.
+int sampling_noise(int x, int y, int channel) {
+  return (smoothing_noise(x + 977 * channel, y + 131 * channel) - 64) * 255 / 128;
+}
+
+Layer sampling_marker_shape(Document& doc) {
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Rectangle;
+  params.left = doc.width() - 12; params.top = doc.height() - 10;
+  params.right = doc.width() - 2; params.bottom = doc.height() - 2;
+  VectorShapeContent box;
+  box.path.subpaths = generate_live_shape_subpaths(params);
+  box.fill.color = {255, 0, 255};
+  return shape_layer(doc, box);
+}
+
+// The frame's raster content in a smoothed view (VectorPreviewView::smooth_pixels) is the
+// bilinear reading Qt's smooth blit gives the composite: alpha-weighted, transparent past a
+// layer's bounds, a mask's default past the mask, clamped at the document edge. Without the
+// flag it stays the exact blocks.
+void ui_vector_preview_smooth_pixels_match_bilinear_composite() {
+  constexpr int kWidth = 96;
+  constexpr int kHeight = 80;
+  const auto blank = [] { return Document(kWidth, kHeight, PixelFormat::rgba8()); };
+
+  // A layer inside the canvas with opaque, half-transparent, noisy-alpha and empty parts.
+  auto sprite = blank();
+  {
+    PixelBuffer pixels(60, 48, PixelFormat::rgba8());
+    for (int y = 0; y < pixels.height(); ++y) {
+      for (int x = 0; x < pixels.width(); ++x) {
+        auto* p = pixels.pixel(x, y);
+        for (int channel = 0; channel < 3; ++channel) {
+          p[channel] = static_cast<std::uint8_t>(sampling_noise(x, y, channel));
+        }
+        p[3] = x < 20 ? 255 : x < 40 ? 128 : static_cast<std::uint8_t>(sampling_noise(x, y, 3));
+        if ((x / 7 + y / 5) % 4 == 0) {
+          p[3] = 0;
+        }
+      }
+    }
+    Layer layer(sprite.allocate_layer_id(), "Sprite", std::move(pixels));
+    layer.set_bounds({9, 7, 60, 48});
+    sprite.add_layer(std::move(layer));
+    sprite.add_layer(sampling_marker_shape(sprite));
+  }
+  // An opaque layer over the whole canvas: the photo case, with the document edge.
+  auto photo = blank();
+  {
+    PixelBuffer pixels(kWidth, kHeight, PixelFormat::rgba8());
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        auto* p = pixels.pixel(x, y);
+        for (int channel = 0; channel < 3; ++channel) {
+          p[channel] = static_cast<std::uint8_t>(sampling_noise(x, y, channel));
+        }
+        p[3] = 255;
+      }
+    }
+    Layer layer(photo.allocate_layer_id(), "Photo", std::move(pixels));
+    layer.set_bounds({0, 0, kWidth, kHeight});
+    photo.add_layer(std::move(layer));
+    photo.add_layer(sampling_marker_shape(photo));
+  }
+  // A flat color under a noisy raster mask that shows everything outside its own rect.
+  auto masked = blank();
+  {
+    PixelBuffer pixels(kWidth, kHeight, PixelFormat::rgba8());
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        auto* p = pixels.pixel(x, y);
+        p[0] = 200; p[1] = 90; p[2] = 30; p[3] = 255;
+      }
+    }
+    Layer layer(masked.allocate_layer_id(), "Masked", std::move(pixels));
+    layer.set_bounds({0, 0, kWidth, kHeight});
+    PixelBuffer mask(50, 36, PixelFormat::gray8());
+    for (int y = 0; y < mask.height(); ++y) {
+      for (int x = 0; x < mask.width(); ++x) {
+        mask.pixel(x, y)[0] = static_cast<std::uint8_t>(sampling_noise(x, y, 4));
+      }
+    }
+    layer.set_mask(LayerMask{{14, 11, 50, 36}, std::move(mask), 255, false});
+    masked.add_layer(std::move(layer));
+    masked.add_layer(sampling_marker_shape(masked));
+  }
+
+  const QRectF marker(kWidth - 12, kHeight - 10, 10, 8);
+  struct Case {
+    const char* name;
+    const Document* document;
+  };
+  const Case cases[] = {{"sprite", &sprite}, {"photo", &photo}, {"masked", &masked}};
+  for (const auto& item : cases) {
+    const auto& doc = *item.document;
+    const auto scene = build_vector_preview_scene(doc);
+    CHECK(scene.fallback == VectorPreviewFallback::None);
+    CHECK(scene.has_vectors);
+    const auto composite = qimage_from_document(doc, true).convertToFormat(QImage::Format_RGBA8888);
+    CHECK(composite.size() == QSize(kWidth, kHeight));
+    const auto source = [&](int x, int y) { return composite.constScanLine(y) + x * 4; };
+
+    for (const double scale : {1.5, 2.5, 3.389}) {
+      const VectorPreviewView view{{static_cast<int>(std::ceil(kWidth * scale)) + 30,
+                                    static_cast<int>(std::ceil(kHeight * scale)) + 26},
+                                   scale, {11.25, 9.625}, true};
+      const auto result = render_vector_preview(scene, view);
+      CHECK(result.fallback == VectorPreviewFallback::None);
+      const auto frame = result.image.convertToFormat(QImage::Format_RGBA8888);
+      CHECK(frame.size() == view.pixels);
+      const auto skip = QRectF(marker.topLeft() * scale + view.offset, marker.size() * scale)
+                            .adjusted(-scale - 2, -scale - 2, scale + 2, scale + 2);
+      double worst = 0.0;
+      int compared = 0;
+      for (int y = 0; y < frame.height(); ++y) {
+        const double center_y = (y + 0.5 - view.offset.y()) / scale;
+        if (center_y < 0.0 || center_y >= kHeight) {
+          continue;  // off the document: the canvas clips it
+        }
+        const double sy = std::clamp(center_y - 0.5, 0.0, kHeight - 1.0);
+        const int y0 = static_cast<int>(std::floor(sy));
+        const int y1 = std::min(y0 + 1, kHeight - 1);
+        const double fy = sy - y0;
+        for (int x = 0; x < frame.width(); ++x) {
+          const double center_x = (x + 0.5 - view.offset.x()) / scale;
+          if (center_x < 0.0 || center_x >= kWidth || skip.contains(QPointF(x + 0.5, y + 0.5))) {
+            continue;
+          }
+          const double sx = std::clamp(center_x - 0.5, 0.0, kWidth - 1.0);
+          const int x0 = static_cast<int>(std::floor(sx));
+          const int x1 = std::min(x0 + 1, kWidth - 1);
+          const double fx = sx - x0;
+          // Premultiplied, as Qt interpolates the composite.
+          double expected[4] = {0, 0, 0, 0};
+          const auto add = [&](const uchar* p, double weight) {
+            const double alpha = p[3] / 255.0;
+            expected[0] += weight * alpha * p[0];
+            expected[1] += weight * alpha * p[1];
+            expected[2] += weight * alpha * p[2];
+            expected[3] += weight * p[3];
+          };
+          add(source(x0, y0), (1 - fx) * (1 - fy));
+          add(source(x1, y0), fx * (1 - fy));
+          add(source(x0, y1), (1 - fx) * fy);
+          add(source(x1, y1), fx * fy);
+          const auto* actual = frame.constScanLine(y) + x * 4;
+          const double alpha = actual[3] / 255.0;
+          for (int channel = 0; channel < 3; ++channel) {
+            worst = std::max(worst, std::abs(actual[channel] * alpha - expected[channel]));
+          }
+          worst = std::max(worst, std::abs(actual[3] - expected[3]));
+          ++compared;
+        }
+      }
+      std::cout << "smooth frame " << item.name << " at " << scale << ": worst difference " << worst << " over "
+                << compared << " pixels\n";
+      if (worst > 2.5 || compared < 10000) {
+        save_image_artifact(std::string("ui_vector_preview_smooth_") + item.name + "_" +
+                                std::to_string(std::lround(scale * 1000)),
+                            frame);
+        CHECK(false);
+      }
+      // One phase across tiles: a viewport crop at a whole device offset equals the full view.
+      const auto crop = render_vector_preview(
+          scene, {view.pixels - QSize(97, 61), scale, view.offset - QPointF(97, 61), true});
+      CHECK(crop.fallback == VectorPreviewFallback::None);
+      CHECK(crop.image == result.image.copy(97, 61, view.pixels.width() - 97, view.pixels.height() - 61));
+      // The same view without the flag is the exact blocks, so the two differ.
+      CHECK(render_vector_preview(scene, {view.pixels, scale, view.offset}).image != result.image);
+    }
+
+    // Unsmoothed views read exact blocks: each device pixel is one composite pixel.
+    for (const double scale : {2.0, 3.0, 4.0, 5.5}) {
+      const VectorPreviewView view{{static_cast<int>(std::ceil(kWidth * scale)) + 30,
+                                    static_cast<int>(std::ceil(kHeight * scale)) + 26},
+                                   scale, {11, 9}};
+      CHECK(!view.smooth_pixels);
+      const auto result = render_vector_preview(scene, view);
+      CHECK(result.fallback == VectorPreviewFallback::None);
+      const auto frame = result.image.convertToFormat(QImage::Format_RGBA8888);
+      const auto skip = QRectF(marker.topLeft() * scale + view.offset, marker.size() * scale).adjusted(-2, -2, 2, 2);
+      int wrong = 0;
+      int compared = 0;
+      for (int y = 0; y < frame.height(); ++y) {
+        const int source_y = static_cast<int>(std::floor((y + 0.5 - view.offset.y()) / scale));
+        for (int x = 0; x < frame.width(); ++x) {
+          const int source_x = static_cast<int>(std::floor((x + 0.5 - view.offset.x()) / scale));
+          if (source_x < 0 || source_y < 0 || source_x >= kWidth || source_y >= kHeight ||
+              skip.contains(QPointF(x + 0.5, y + 0.5))) {
+            continue;
+          }
+          wrong += std::memcmp(frame.constScanLine(y) + x * 4, source(source_x, source_y), 4) != 0 ? 1 : 0;
+          ++compared;
+        }
+      }
+      if (wrong != 0 || compared < 10000) {
+        std::cerr << "exact frame " << item.name << " at " << scale << ": " << wrong << " of " << compared
+                  << " pixels off their document pixel\n";
+        CHECK(false);
+      }
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_preview_tests() {
@@ -1044,5 +1453,8 @@ std::vector<patchy::test::TestCase> vector_preview_tests() {
       {"ui_vector_preview_stays_sharp_through_free_transform", ui_vector_preview_stays_sharp_through_free_transform},
       {"ui_vector_preview_stays_sharp_through_free_transform_on_artboard",
        ui_vector_preview_stays_sharp_through_free_transform_on_artboard},
+      {"ui_vector_preview_raster_content_follows_display_smoothing_rule",
+       ui_vector_preview_raster_content_follows_display_smoothing_rule},
+      {"ui_vector_preview_smooth_pixels_match_bilinear_composite", ui_vector_preview_smooth_pixels_match_bilinear_composite},
   };
 }

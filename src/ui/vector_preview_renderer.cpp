@@ -118,6 +118,10 @@ void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>
   }
 }
 
+// How far smooth sampling carries a layer past its mapped bounds, in device pixels: the
+// bilinear falloff ends half a document pixel outside the last source pixel.
+double smooth_sample_reach(const VectorPreviewView& view) { return view.scale * 0.5; }
+
 QRectF mapped_rect(Rect bounds, const VectorPreviewView& view) {
   return {QPointF(bounds.x, bounds.y) * view.scale + view.offset,
           QSizeF(bounds.width, bounds.height) * view.scale};
@@ -316,6 +320,10 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
       *node.bounds = QRectF(node.bounds->topLeft() * view.scale + view.offset, node.bounds->size() * view.scale);
     } else if (!node.shape && !node.compound && source.kind() != LayerKind::Group && source.kind() != LayerKind::Adjustment) {
       node.bounds = mapped_rect(node.source_bounds, view);
+      if (view.smooth_pixels && !node.source_bounds.empty()) {
+        const double reach = smooth_sample_reach(view);
+        node.bounds->adjust(-reach, -reach, reach, reach);
+      }
     }
     if (node.bounds && !node.bounds->adjusted(-combined_padding - 2, -combined_padding - 2,
                                              combined_padding + 2, combined_padding + 2)
@@ -406,8 +414,142 @@ PixelBuffer sample_pixels(const PixelBuffer& source, Rect bounds, Rect clip, con
   return output;
 }
 
+// One axis of smooth sampling. Per device pixel: the first of two neighboring document
+// pixels and the weight of the second, out of 256 (0 reads the first alone).
+struct SmoothAxis {
+  std::vector<std::int32_t> first;
+  std::vector<std::uint16_t> second_weight;
+};
+
+SmoothAxis smooth_axis(int start, int count, double offset, double scale, int document_extent) {
+  SmoothAxis axis;
+  axis.first.resize(static_cast<std::size_t>(count));
+  axis.second_weight.resize(static_cast<std::size_t>(count));
+  // The composite clamps at the document edge instead of fading into the backdrop, and
+  // its pixel-aligned rect can show a device pixel whose center is just past the exact
+  // edge. So a device pixel within one device pixel of the document reads clamped.
+  const double edge = 1.0 / scale;
+  for (int i = 0; i < count; ++i) {
+    const double center = (start + i + 0.5 - offset) / scale;
+    const auto index = static_cast<std::size_t>(i);
+    if (document_extent <= 0 || !(center >= -edge && center <= document_extent + edge)) {
+      // Off the document (clipped by the canvas): the pixel under it, as the exact view
+      // reads it, so a layer that ends at the document edge keeps that edge.
+      axis.first[index] = static_cast<std::int32_t>(std::clamp(std::floor(center), -kCoordinateLimit * 2.0,
+                                                               kCoordinateLimit * 2.0));
+      continue;
+    }
+    // Qt's smooth blit of the composite samples at (device + 0.5) / scale - 0.5.
+    const double position = std::clamp(center - 0.5, 0.0, document_extent - 1.0);
+    const double base = std::floor(position);
+    axis.first[index] = static_cast<std::int32_t>(base);
+    axis.second_weight[index] = static_cast<std::uint16_t>(std::lround((position - base) * 256.0));
+  }
+  return axis;
+}
+
+// sample_pixels for a view the canvas smooths: bilinear, with color weighted by alpha so
+// a layer's edge does not fringe. Document pixels outside the layer are transparent (a
+// mask's are its default color). Each output pixel depends only on its own device
+// position, so tiles and a full render agree.
+PixelBuffer sample_pixels_smooth(const PixelBuffer& source, Rect bounds, Rect clip, const VectorPreviewView& view,
+                                 QSize document, RasterBudget& budget, bool mask = false,
+                                 std::uint8_t default_color = 0) {
+  const auto channels = mask ? 1U : 4U;
+  budget.check_workspace(static_cast<std::uint64_t>(clip.width) * clip.height * channels);
+  PixelBuffer output(clip.width, clip.height, mask ? PixelFormat::gray8() : PixelFormat::rgba8());
+  const bool readable = !source.empty() &&
+      (mask || (source.format().bit_depth == BitDepth::UInt8 && source.format().channels >= 3));
+  if (!readable) {
+    if (mask) { output.clear(default_color); }
+    budget.keep(output);
+    return output;
+  }
+  const auto columns = smooth_axis(clip.x, clip.width, view.offset.x(), view.scale, document.width());
+  const auto rows = smooth_axis(clip.y, clip.height, view.offset.y(), view.scale, document.height());
+  const auto stride = bytes_per_pixel(source.format());
+  const bool has_alpha = !mask && source.format().channels >= 4;
+  const auto source_row = [&](std::int32_t y) -> const std::uint8_t* {
+    return y >= 0 && y < source.height() ? source.row(y).data() : nullptr;
+  };
+  for (int y = 0; y < clip.height; ++y) {
+    auto* pixel = output.row(y).data();
+    const auto y0 = rows.first[static_cast<std::size_t>(y)] - bounds.y;
+    const std::uint32_t wy = rows.second_weight[static_cast<std::size_t>(y)];
+    const std::uint8_t* const row0 = source_row(y0);
+    const std::uint8_t* const row1 = wy != 0 ? source_row(y0 + 1) : nullptr;
+    for (int x = 0; x < clip.width; ++x, pixel += channels) {
+      const auto x0 = columns.first[static_cast<std::size_t>(x)] - bounds.x;
+      const std::uint32_t wx = columns.second_weight[static_cast<std::size_t>(x)];
+      const bool in0 = x0 >= 0 && x0 < source.width();
+      const bool in1 = wx != 0 && x0 + 1 >= 0 && x0 + 1 < source.width();
+      if (!mask && row0 != nullptr && in0 && (wx == 0 || in1) && (wy == 0 || row1 != nullptr)) {
+        // Every tap is on the layer. With no alpha in play (the usual photo) the result is a
+        // plain weighted sum, the same value the alpha-weighted path below gives.
+        const auto* p00 = row0 + static_cast<std::size_t>(x0) * stride;
+        const auto* p10 = wx != 0 ? p00 + stride : p00;
+        const auto* p01 = wy != 0 ? row1 + static_cast<std::size_t>(x0) * stride : p00;
+        const auto* p11 = wy != 0 ? (wx != 0 ? p01 + stride : p01) : p10;
+        if (!has_alpha || (p00[3] & p10[3] & p01[3] & p11[3]) == 255) {
+          const std::uint32_t w00 = (256U - wx) * (256U - wy);
+          const std::uint32_t w10 = wx * (256U - wy);
+          const std::uint32_t w01 = (256U - wx) * wy;
+          const std::uint32_t w11 = wx * wy;
+          for (int channel = 0; channel < 3; ++channel) {
+            pixel[channel] = static_cast<std::uint8_t>(
+                (w00 * p00[channel] + w10 * p10[channel] + w01 * p01[channel] + w11 * p11[channel] + 32768U) >> 16);
+          }
+          pixel[3] = 255;
+          continue;
+        }
+      }
+      const std::uint8_t* taps[4];
+      std::uint32_t weights[4];
+      int count = 0;
+      const auto add = [&](const std::uint8_t* row, bool inside, std::int32_t column, std::uint32_t weight) {
+        if (row != nullptr && inside && weight != 0) {
+          taps[count] = row + static_cast<std::size_t>(column) * stride;
+          weights[count++] = weight;
+        }
+      };
+      add(row0, in0, x0, (256U - wx) * (256U - wy));
+      add(row0, in1, x0 + 1, wx * (256U - wy));
+      add(row1, in0, x0, (256U - wx) * wy);
+      add(row1, in1, x0 + 1, wx * wy);
+      if (mask) {
+        std::uint32_t value = 0;
+        std::uint32_t covered = 0;
+        for (int tap = 0; tap < count; ++tap) {
+          value += weights[tap] * taps[tap][0];
+          covered += weights[tap];
+        }
+        pixel[0] = static_cast<std::uint8_t>((value + (65536U - covered) * default_color + 32768U) >> 16);
+        continue;
+      }
+      if (count == 0) { continue; }
+      std::uint64_t alpha = 0;
+      std::uint64_t color[3] = {0, 0, 0};
+      for (int tap = 0; tap < count; ++tap) {
+        const std::uint64_t weighted = static_cast<std::uint64_t>(weights[tap]) * (has_alpha ? taps[tap][3] : 255U);
+        alpha += weighted;
+        color[0] += weighted * taps[tap][0];
+        color[1] += weighted * taps[tap][1];
+        color[2] += weighted * taps[tap][2];
+      }
+      const auto out_alpha = static_cast<std::uint8_t>((alpha + 32768U) >> 16);
+      if (out_alpha == 0) { continue; }
+      pixel[0] = static_cast<std::uint8_t>((color[0] + alpha / 2U) / alpha);
+      pixel[1] = static_cast<std::uint8_t>((color[1] + alpha / 2U) / alpha);
+      pixel[2] = static_cast<std::uint8_t>((color[2] + alpha / 2U) / alpha);
+      pixel[3] = out_alpha;
+    }
+  }
+  budget.keep(output);
+  return output;
+}
+
 void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer>& layers, Rect area,
-                  const VectorPreviewView& view, Rect canvas, const PatternStore& patterns,
+                  const VectorPreviewView& view, QSize document, Rect canvas, const PatternStore& patterns,
                   RasterBudget& budget, int depth, const std::atomic_bool* cancelled) {
   const auto area_pixels = static_cast<std::uint64_t>(area.width) * area.height;
   for (const auto& node : nodes) {
@@ -434,7 +576,8 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
       PixelBuffer combined;
       {
         Layer parts(0, {}, LayerKind::Group);
-        raster_nodes(node.children, parts.children(), area, view, canvas, patterns, budget, depth + 1, cancelled);
+        raster_nodes(node.children, parts.children(), area, view, document, canvas, patterns, budget, depth + 1,
+                     cancelled);
         // Keep the entire padded area, including silhouettes outside the viewport
         // whose effects reach into it. A document render clips that area to its
         // canvas, leaving a smaller pixel buffer paired with the original bounds.
@@ -445,7 +588,8 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
       layer.set_pixels(std::move(combined));
       layer.set_bounds(area);
     } else if (source.kind() == LayerKind::Group) {
-      raster_nodes(node.children, layer.children(), area, view, canvas, patterns, budget, depth + 1, cancelled);
+      raster_nodes(node.children, layer.children(), area, view, document, canvas, patterns, budget, depth + 1,
+                   cancelled);
     } else if (node.shape) {
       const VectorPaintBounds paint_bounds{canvas, node.fill_bounds, node.stroke_bounds};
       auto raster = rasterize_vector_shape(*node.shape, intersect_rect(area, canvas), &patterns, &source, &paint_bounds);
@@ -464,10 +608,17 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
         layer.set_vector_shape(std::move(shape));
       }
     } else if (source.kind() == LayerKind::Pixel) {
-      const auto clipped = mapped_rect(node.source_bounds, view).intersected(QRectF(area.x, area.y, area.width, area.height));
+      auto mapped = mapped_rect(node.source_bounds, view);
+      if (view.smooth_pixels && !node.source_bounds.empty()) {
+        const double reach = smooth_sample_reach(view);
+        mapped.adjust(-reach, -reach, reach, reach);
+      }
+      const auto clipped = mapped.intersected(QRectF(area.x, area.y, area.width, area.height));
       if (!clipped.isEmpty()) {
         const auto bounds = checked_rect(clipped);
-        auto pixels = sample_pixels(source.pixels(), node.source_bounds, bounds, view, budget);
+        auto pixels = view.smooth_pixels
+            ? sample_pixels_smooth(source.pixels(), node.source_bounds, bounds, view, document, budget)
+            : sample_pixels(source.pixels(), node.source_bounds, bounds, view, budget);
         layer.set_pixels(std::move(pixels));
         layer.set_bounds(bounds);
       }
@@ -475,7 +626,9 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
       layer.set_bounds(checked_rect(mapped_rect(node.source_bounds, view)));
     }
     if (const auto& mask = source.mask(); mask && !mask->disabled) {
-      auto pixels = sample_pixels(mask->pixels, mask->bounds, area, view, budget, true, mask->default_color);
+      auto pixels = view.smooth_pixels
+          ? sample_pixels_smooth(mask->pixels, mask->bounds, area, view, document, budget, true, mask->default_color)
+          : sample_pixels(mask->pixels, mask->bounds, area, view, budget, true, mask->default_color);
       LayerMask preview_mask{area, std::move(pixels), mask->default_color, false};
       preview_mask.density = mask->density;
       preview_mask.feather = mask->feather;
@@ -561,7 +714,7 @@ VectorPreviewResult render_vector_preview(const VectorPreviewScene& scene, const
         budget.check_workspace(static_cast<std::uint64_t>(area.width) * area.height * 64U);
         Document scratch(view.pixels.width(), view.pixels.height(), PixelFormat::rgba8());
         scratch.metadata().patterns = scene.patterns;
-        raster_nodes(nodes, scratch.layers(), area, view, canvas, scene.patterns, budget, 0, cancelled);
+        raster_nodes(nodes, scratch.layers(), area, view, scene.canvas, canvas, scene.patterns, budget, 0, cancelled);
         if (cancelled && cancelled->load(std::memory_order_relaxed)) { return result; }
         const auto rendered = qimage_from_document_rect(scratch, QRect(x, y, tile.width, tile.height), true);
         if (rendered.isNull()) { throw VectorPreviewFallback::Memory; }
