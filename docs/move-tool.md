@@ -28,7 +28,7 @@ GitHub issue 176. `CanvasWidget::transform_handle_at(..., TransformHitZones)` (c
 - **Corner rotate band:** outside the box and within 28.8 px of a corner (24 px grown 20 percent so it is easier to grab), a press rotates. Farther out is None.
 - **Move core:** the inner band shrinks to a third of the half-extent, and the core inside it is tested first, so a small box keeps a Move area its handle squares used to cover entirely. From 42 px up the core ends exactly where the squares begin, so large boxes keep the old handle hits.
 
-`ResizeHandles` is the eight handle squares alone, the nearest one where they overlap, with no Rotate and no Move: the shape tools' resize box ([vector-tools.md](vector-tools.md#resize-handles-on-the-shape-tools-github-690)), where every other press draws.
+`ResizeHandles` is the eight handle squares alone, the nearest one where they overlap, with no Rotate and no Move: the shape tools' resize box ([vector-tools.md](vector-tools-shape-handles.md#resize-handles-on-the-shape-tools)), where every other press draws.
 
 Callers: the passive Move box (press and hover) and the Free Transform session use `EdgesAndCorners`; Crop uses it too with Rotate mapped to None (off the box already rotates, crop-tool.md); artboard handles, marquee resize handles and the text double-click inside a session keep `HandlesOnly`. The path transform session (`path_transform_handle_at`, canvas_widget_vector_tools.cpp) has its own test with the same edge band (6 px outside, inside at most a sixth of the shorter side); outside it rotates everywhere, as before.
 

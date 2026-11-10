@@ -2118,6 +2118,11 @@ std::vector<LayerId> CanvasWidget::free_transform_snap_exclude_ids() const {
     ids.push_back(shape_resize_drag_->layer_id);
     return ids;
   }
+  if (shape_point_drag_.has_value()) {
+    // So is a drag of a live Polygon's vertex or a Line's end.
+    ids.push_back(shape_point_drag_->layer_id);
+    return ids;
+  }
   if (!transforming_layer_) {
     return ids;
   }

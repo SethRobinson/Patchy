@@ -2361,8 +2361,9 @@ bool MainWindow::transform_path_component_target(const PathComponentTarget& targ
   return true;
 }
 
-void MainWindow::handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to,
-                                          ShapeResizePhase phase, std::uint64_t serial) {
+void MainWindow::run_shape_handle_edit(LayerId layer_id, ShapeResizePhase phase, std::uint64_t serial,
+                                       bool editable, const std::function<void(QRect covered)>& preview,
+                                       const std::function<void()>& commit) {
   if (canvas_ == nullptr || !has_active_document()) {
     shape_resize_preview_.reset();
     return;
@@ -2395,26 +2396,14 @@ void MainWindow::handle_shape_resize_edit(LayerId layer_id, const QRectF& from, 
       sync_vector_shape_size_spins();
     }
   };
-  if (phase == ShapeResizePhase::Cancel) {
+  if (phase == ShapeResizePhase::Cancel || !editable) {
     restore_and_repaint();
     return;
   }
-  // The handles size what the W / H fields size: this layer, whole or the components Path
-  // Select picked, through the same scale (apply_path_component_geometry).
-  const auto target = path_component_target();
-  if (!target.has_value() || target->shape_layer != layer_id || preview_dialog_edit_locked() ||
-      from.width() <= 0.0 || from.height() <= 0.0 || to.width() <= 0.0 || to.height() <= 0.0) {
-    restore_and_repaint();
-    return;
-  }
-  const double scale_x = to.width() / from.width();
-  const double scale_y = to.height() / from.height();
-  const double translate_x = to.left() - from.left() * scale_x;
-  const double translate_y = to.top() - from.top() * scale_y;
   if (phase == ShapeResizePhase::Preview) {
     QRect covered;
     if (previewing) {
-      // Every preview scales the layer as it was at the press, so nothing accumulates.
+      // Every preview edits the layer as it was at the press, so nothing accumulates.
       if (auto* layer = doc.find_layer(layer_id); layer != nullptr) {
         covered = effect_rect(std::as_const(*layer));
         *layer = shape_resize_preview_->original;
@@ -2431,16 +2420,100 @@ void MainWindow::handle_shape_resize_edit(LayerId layer_id, const QRectF& from, 
       }
       shape_resize_preview_ = ShapeResizePreview{session_id, layer_id, serial, *layer};
     }
-    transform_path_component_target(*target, scale_x, scale_y, translate_x, translate_y, covered);
+    preview(covered);
     sync_vector_shape_size_spins();
     return;
   }
   // Commit: the history snapshot must hold the layer as it was before the drag.
   const auto covered = restore();
-  apply_path_component_geometry(*target, scale_x, scale_y, translate_x, translate_y);
+  commit();
   if (covered.has_value()) {
     canvas_->document_changed_effect_bounds(*covered);
   }
+}
+
+void MainWindow::handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to,
+                                          ShapeResizePhase phase, std::uint64_t serial) {
+  // The handles size what the W / H fields size: this layer, whole or the components Path
+  // Select picked, through the same scale (apply_path_component_geometry).
+  std::optional<PathComponentTarget> target;
+  if (canvas_ != nullptr && has_active_document() && phase != ShapeResizePhase::Cancel) {
+    target = path_component_target();
+  }
+  const bool editable = target.has_value() && target->shape_layer == layer_id && !preview_dialog_edit_locked() &&
+                        from.width() > 0.0 && from.height() > 0.0 && to.width() > 0.0 && to.height() > 0.0;
+  const double scale_x = editable ? to.width() / from.width() : 1.0;
+  const double scale_y = editable ? to.height() / from.height() : 1.0;
+  const double translate_x = to.left() - from.left() * scale_x;
+  const double translate_y = to.top() - from.top() * scale_y;
+  run_shape_handle_edit(
+      layer_id, phase, serial, editable,
+      [&](QRect covered) {
+        transform_path_component_target(*target, scale_x, scale_y, translate_x, translate_y, covered);
+      },
+      [&] { apply_path_component_geometry(*target, scale_x, scale_y, translate_x, translate_y); });
+}
+
+bool MainWindow::replace_shape_layer_live_component(LayerId layer_id, const LiveShapeParams& params,
+                                                    QRect also_changed) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return false;
+  }
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  if (layer == nullptr || std::as_const(*layer).vector_shape() == nullptr) {
+    return false;
+  }
+  auto content = *std::as_const(*layer).vector_shape();
+  // Only a component that is live now, of the same kind, is regenerated: the points never
+  // turn a plain path into a live shape or one kind into another.
+  const auto live = resolve_live_shape_group(content.path, content.origination, params.index);
+  if (!live.has_value() || live->kind != params.kind || !replace_live_shape_group(content.path, params)) {
+    return false;
+  }
+  const auto old_effect_rect =
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds())).united(also_changed);
+  std::erase_if(content.origination, [&params](const LiveShapeParams& entry) { return entry.index == params.index; });
+  content.origination.push_back(params);
+  layer->set_vector_shape(std::move(content));
+  layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+  mark_layer_vector_block_dirty(*layer);
+  update_vector_shape_raster(*layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  canvas_->document_changed_effect_bounds(old_effect_rect.united(
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+  return true;
+}
+
+void MainWindow::handle_shape_point_edit(LayerId layer_id, const LiveShapeParams& to, ShapeResizePhase phase,
+                                         std::uint64_t serial) {
+  // The points edit the one live component the canvas showed them for, on the layer the
+  // W / H fields act on.
+  std::optional<PathComponentTarget> target;
+  if (canvas_ != nullptr && has_active_document() && phase != ShapeResizePhase::Cancel) {
+    target = path_component_target();
+  }
+  const bool editable = target.has_value() && target->shape_layer == layer_id && !preview_dialog_edit_locked() &&
+                        (to.kind == LiveShapeKind::Polygon || to.kind == LiveShapeKind::Line);
+  run_shape_handle_edit(
+      layer_id, phase, serial, editable,
+      [&](QRect covered) { replace_shape_layer_live_component(layer_id, to, covered); },
+      [&] {
+        const auto* layer = std::as_const(document()).find_layer(layer_id);
+        const auto* content = layer != nullptr ? layer->vector_shape() : nullptr;
+        const auto live = content != nullptr
+                              ? resolve_live_shape_group(content->path, content->origination, to.index)
+                              : std::nullopt;
+        if (!live.has_value() || live->kind != to.kind || *live == to || generate_live_shape_subpaths(to).empty()) {
+          return;  // nothing to edit, or nothing changed: no history step
+        }
+        push_undo_snapshot(tr("Edit shape"));
+        if (!replace_shape_layer_live_component(layer_id, to)) {
+          return;
+        }
+        refresh_layer_thumbnails();
+        refresh_paths_panel();
+        sync_vector_shape_size_spins();
+      });
 }
 
 bool MainWindow::apply_live_shape_component_edit(const std::function<void(LiveShapeParams&)>& edit) {

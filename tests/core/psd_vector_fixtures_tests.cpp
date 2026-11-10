@@ -1299,6 +1299,127 @@ void live_polygon_regenerates_resolves_and_writes_a_plain_path() {
   CHECK(!patchy::layer_vector_block_dirty(reread.layers()[1]));
 }
 
+// GitHub #690 follow-up: the two drag points of a live Polygon (center, first vertex) and of
+// a live Line (its ends) edit the parameters the way the drawing drag sets them, the shape
+// regenerates from them, and both reopen from a PSD as live shapes.
+void live_shape_drag_points_edit_polygon_and_line_parameters() {
+  patchy::LiveShapeParams polygon;
+  polygon.kind = patchy::LiveShapeKind::Polygon;
+  polygon.left = 40;
+  polygon.top = 40;
+  polygon.right = 160;
+  polygon.bottom = 160;
+  polygon.polygon_sides = 5;
+  polygon.polygon_star_inset = 30;
+  polygon.polygon_angle = -std::numbers::pi / 2.0;
+  CHECK(patchy::live_polygon_is_regular(polygon));
+  const auto center = patchy::live_polygon_center(polygon);
+  CHECK(std::fabs(center.x - 100.0) < 1e-9 && std::fabs(center.y - 100.0) < 1e-9);
+  auto vertex = patchy::live_polygon_first_vertex(polygon);
+  CHECK(std::fabs(vertex.x - 100.0) < 1e-9 && std::fabs(vertex.y - 40.0) < 1e-9);
+  const auto first_anchor = [](const patchy::LiveShapeParams& params) {
+    return patchy::generate_live_shape_subpaths(params).front().anchors.front();
+  };
+  CHECK(std::fabs(first_anchor(polygon).anchor_x - vertex.x) < 1e-9 &&
+        std::fabs(first_anchor(polygon).anchor_y - vertex.y) < 1e-9);
+
+  // The vertex dragged to the right of the center: radius 80, angle 0, the same star.
+  auto turned = polygon;
+  CHECK(patchy::set_live_polygon_first_vertex(turned, 180.0, 100.0));
+  CHECK(std::fabs(turned.left - 20.0) < 1e-9 && std::fabs(turned.right - 180.0) < 1e-9);
+  CHECK(std::fabs(turned.top - 20.0) < 1e-9 && std::fabs(turned.bottom - 180.0) < 1e-9);
+  CHECK(std::fabs(turned.polygon_angle) < 1e-12);
+  CHECK(turned.polygon_sides == 5 && turned.polygon_star_inset == 30);
+  CHECK(std::fabs(turned.box_corners[0] - 20.0) < 1e-9 && std::fabs(turned.box_corners[4] - 180.0) < 1e-9);
+  CHECK(std::fabs(first_anchor(turned).anchor_x - 180.0) < 1e-9 &&
+        std::fabs(first_anchor(turned).anchor_y - 100.0) < 1e-9);
+  CHECK(patchy::generate_live_shape_subpaths(turned).front().anchors.size() == 10);
+  CHECK(patchy::live_polygon_is_regular(turned));
+  // A point under a pixel from the center leaves the polygon alone.
+  auto untouched = polygon;
+  CHECK(!patchy::set_live_polygon_first_vertex(untouched, 100.5, 100.0));
+  CHECK(untouched == polygon);
+  // A stretched box, or another kind, is not the drawing drag's polygon.
+  auto stretched = polygon;
+  stretched.right += 30.0;
+  CHECK(!patchy::live_polygon_is_regular(stretched));
+  auto rectangle = polygon;
+  rectangle.kind = patchy::LiveShapeKind::Rectangle;
+  CHECK(!patchy::live_polygon_is_regular(rectangle));
+
+  patchy::LiveShapeParams line;
+  line.kind = patchy::LiveShapeKind::Line;
+  line.line_start_x = 20;
+  line.line_start_y = 60;
+  line.line_end_x = 180;
+  line.line_end_y = 60;
+  line.line_weight = 6;
+  line.arrow_end = true;
+  line.arrow_width = 30;
+  line.arrow_length = 60;
+  auto aimed = line;
+  CHECK(patchy::set_live_line_point(aimed, true, 160.0, 150.0));
+  CHECK(aimed.line_start_x == 20 && aimed.line_start_y == 60);
+  CHECK(aimed.line_end_x == 160.0 && aimed.line_end_y == 150.0);
+  CHECK(aimed.line_weight == 6 && aimed.arrow_end && !aimed.arrow_start);
+  CHECK(aimed.arrow_width == 30 && aimed.arrow_length == 60);
+  patchy::VectorPath aimed_path;
+  aimed_path.subpaths = patchy::generate_live_shape_subpaths(aimed);
+  const auto hull = aimed_path.bounds();
+  CHECK(hull.has_value() && aimed.left == hull->left && aimed.top == hull->top && aimed.right == hull->right &&
+        aimed.bottom == hull->bottom);
+  CHECK(aimed.left <= 20.0 && aimed.right >= 160.0 && aimed.top <= 60.0 && aimed.bottom >= 150.0);
+  CHECK(patchy::resolve_live_shape_group(aimed_path, {aimed}, 0).has_value());
+  auto start_moved = aimed;
+  CHECK(patchy::set_live_line_point(start_moved, false, 40.0, 30.0));
+  CHECK(start_moved.line_start_x == 40.0 && start_moved.line_start_y == 30.0 && start_moved.line_end_x == 160.0);
+  // An end within a pixel of the other end would leave no line.
+  auto collapsed = aimed;
+  CHECK(!patchy::set_live_line_point(collapsed, true, 20.5, 60.0));
+  CHECK(collapsed == aimed);
+
+  // Both reopen from a PSD as live shapes with the edited parameters.
+  patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(200, 200, 255, 255, 255, 255));
+  const auto add_shape = [&document](const std::string& name, const patchy::LiveShapeParams& params) {
+    patchy::Layer shape(document.allocate_layer_id(), name, patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination = {params};
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(200, 200), nullptr);
+    document.add_layer(std::move(shape));
+  };
+  add_shape("Polygon 1", turned);
+  add_shape("Line 1", aimed);
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document), {});
+  CHECK(reread.layers().size() == 3);
+  if (reread.layers().size() == 3) {
+    const auto* polygon_back = reread.layers()[1].vector_shape();
+    CHECK(polygon_back != nullptr && polygon_back->origination.size() == 1);
+    if (polygon_back != nullptr && polygon_back->origination.size() == 1) {
+      const auto& found = polygon_back->origination.front();
+      CHECK(found.kind == patchy::LiveShapeKind::Polygon);
+      CHECK(found.polygon_sides == 5 && found.polygon_star_inset == 30);
+      CHECK(std::fabs(found.left - 20.0) < 0.01 && std::fabs(found.right - 180.0) < 0.01);
+      CHECK(std::fabs(std::remainder(found.polygon_angle, 2.0 * std::numbers::pi)) < 1e-4);
+      CHECK(patchy::live_polygon_is_regular(found));
+    }
+    const auto* line_back = reread.layers()[2].vector_shape();
+    CHECK(line_back != nullptr && line_back->origination.size() == 1);
+    if (line_back != nullptr && line_back->origination.size() == 1) {
+      const auto found =
+          patchy::resolve_live_shape_group(line_back->path, line_back->origination, line_back->origination[0].index);
+      CHECK(found.has_value() && found->kind == patchy::LiveShapeKind::Line);
+      CHECK(found.has_value() && std::fabs(found->line_end_x - 160.0) < 0.01 &&
+            std::fabs(found->line_end_y - 150.0) < 0.01 && std::fabs(found->line_start_x - 20.0) < 0.01);
+      CHECK(found.has_value() && found->arrow_end && std::fabs(found->line_weight - 6.0) < 1e-9);
+    }
+  }
+}
+
 // GitHub #643 follow-up: polygons drawn in Patchy (any angle, a stretched box, stars) reopen
 // from a PSD as live polygons, recognized from their single outline; anything that is not
 // exactly a generated polygon (a rectangle, a curve, an uneven outline, two outlines, a shape
@@ -3356,6 +3477,8 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
        live_polygon_regenerates_resolves_and_writes_a_plain_path},
       {"psd_reopened_polygons_are_recognized_as_live", psd_reopened_polygons_are_recognized_as_live},
+      {"live_shape_drag_points_edit_polygon_and_line_parameters",
+       live_shape_drag_points_edit_polygon_and_line_parameters},
       {"psd_compound_group_writes_continuation_records_and_round_trips",
        psd_compound_group_writes_continuation_records_and_round_trips},
       {"psd_compound_group_fixture_matches_photoshop_flatten", psd_compound_group_fixture_matches_photoshop_flatten},

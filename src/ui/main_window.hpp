@@ -2306,6 +2306,22 @@ private:
   // it as one "Shape size" step (the scale the W / H fields apply), Cancel restores it.
   void handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to, ShapeResizePhase phase,
                                 std::uint64_t serial);
+  // A drag of one of a live Polygon's or Line's two points (GitHub issue 690 follow-up):
+  // `to` holds the component's parameters now. Preview regenerates the component from them
+  // without history, Commit lands it as one "Edit shape" step, Cancel restores the layer.
+  void handle_shape_point_edit(LayerId layer_id, const patchy::LiveShapeParams& to, ShapeResizePhase phase,
+                               std::uint64_t serial);
+  // The bookkeeping both share: every preview starts from the layer as it was at the press
+  // (`preview` gets what the last preview covered, for its repaint), Commit restores that
+  // layer and runs `commit`, which pushes its own undo step; Cancel, or an edit that is not
+  // `editable`, only restores.
+  void run_shape_handle_edit(LayerId layer_id, ShapeResizePhase phase, std::uint64_t serial, bool editable,
+                             const std::function<void(QRect covered)>& preview,
+                             const std::function<void()>& commit);
+  // Regenerates one live component of a shape layer from `params` (no history, no panel
+  // refresh). False when the layer has no live component of that kind and index.
+  bool replace_shape_layer_live_component(LayerId layer_id, const patchy::LiveShapeParams& params,
+                                          QRect also_changed = {});
   // Rewrites the target's live parameters and regenerates its component; one undo step.
   bool apply_live_shape_component_edit(const std::function<void(patchy::LiveShapeParams&)>& edit);
   void refresh_properties_live_shape_panel();

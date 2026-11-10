@@ -478,6 +478,67 @@ bool replace_live_shape_group(VectorPath& path, const LiveShapeParams& params) {
   return true;
 }
 
+bool live_polygon_is_regular(const LiveShapeParams& params) noexcept {
+  if (params.kind != LiveShapeKind::Polygon) {
+    return false;
+  }
+  const double width = params.right - params.left;
+  const double height = params.bottom - params.top;
+  // A hundredth of a pixel: a proportional W / H edit keeps the box square to rounding.
+  return width >= 1.0 && height >= 1.0 && std::abs(width - height) <= 0.01;
+}
+
+LiveShapePoint live_polygon_center(const LiveShapeParams& params) noexcept {
+  return {(params.left + params.right) / 2.0, (params.top + params.bottom) / 2.0};
+}
+
+LiveShapePoint live_polygon_first_vertex(const LiveShapeParams& params) noexcept {
+  const auto center = live_polygon_center(params);
+  return {center.x + (params.right - params.left) / 2.0 * std::cos(params.polygon_angle),
+          center.y + (params.bottom - params.top) / 2.0 * std::sin(params.polygon_angle)};
+}
+
+bool set_live_polygon_first_vertex(LiveShapeParams& params, double x, double y) noexcept {
+  const auto center = live_polygon_center(params);
+  const double dx = x - center.x;
+  const double dy = y - center.y;
+  const double radius = std::hypot(dx, dy);
+  if (!(radius >= 1.0)) {
+    return false;
+  }
+  // CanvasWidget::commit_polygon_drag's parameters for a drag from the center to (x, y).
+  params.left = center.x - radius;
+  params.top = center.y - radius;
+  params.right = center.x + radius;
+  params.bottom = center.y + radius;
+  params.polygon_angle = std::atan2(dy, dx);
+  populate_live_shape_box_corners(params);
+  return true;
+}
+
+bool set_live_line_point(LiveShapeParams& params, bool end, double x, double y) {
+  auto moved = params;
+  (end ? moved.line_end_x : moved.line_start_x) = x;
+  (end ? moved.line_end_y : moved.line_start_y) = y;
+  if (!(std::hypot(moved.line_end_x - moved.line_start_x, moved.line_end_y - moved.line_start_y) >= 1.0)) {
+    return false;
+  }
+  // The box of a live line is the hull of what it generates (the ends sit on the
+  // centerline, half a weight inside it), as when the line is drawn.
+  VectorPath generated;
+  generated.subpaths = line_subpaths(moved);
+  const auto hull = generated.bounds();
+  if (!hull.has_value()) {
+    return false;
+  }
+  moved.left = hull->left;
+  moved.top = hull->top;
+  moved.right = hull->right;
+  moved.bottom = hull->bottom;
+  params = std::move(moved);
+  return true;
+}
+
 PathSubpath generate_polygon_subpath(double cx, double cy, double radius, double angle_radians,
                                       int requested_sides, int star_inset) {
   PathSubpath subpath;
