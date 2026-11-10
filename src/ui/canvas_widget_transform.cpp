@@ -2112,6 +2112,12 @@ std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
 
 std::vector<LayerId> CanvasWidget::free_transform_snap_exclude_ids() const {
   std::vector<LayerId> ids;
+  if (shape_resize_drag_.has_value()) {
+    // A shape tool's resize-handle drag (GitHub issue 690) re-renders the layer on every
+    // move: its own edges are never a snap target.
+    ids.push_back(shape_resize_drag_->layer_id);
+    return ids;
+  }
   if (!transforming_layer_) {
     return ids;
   }
@@ -4533,6 +4539,12 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
 }
 
 void CanvasWidget::draw_transform_controls(QPainter& painter, QRectF document_rect, double angle_degrees) const {
+  draw_transform_frame(painter, document_rect, angle_degrees, /*include_rotate=*/true);
+  draw_transform_handle_squares(painter, document_rect, angle_degrees, /*include_rotate=*/true);
+}
+
+void CanvasWidget::draw_transform_frame(QPainter& painter, QRectF document_rect, double angle_degrees,
+                                        bool include_rotate) const {
   const auto rect = widget_rect_for_document_rect(document_rect);
   if (rect.isEmpty()) {
     return;
@@ -4545,11 +4557,11 @@ void CanvasWidget::draw_transform_controls(QPainter& painter, QRectF document_re
   painter.setBrush(Qt::NoBrush);
   painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0, Qt::DashLine));
   painter.drawRect(local_rect);
-  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0));
-  painter.drawLine(QPointF(0.0, -rect.height() / 2.0), QPointF(0.0, -rect.height() / 2.0 - 32.0));
+  if (include_rotate) {
+    painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0));
+    painter.drawLine(QPointF(0.0, -rect.height() / 2.0), QPointF(0.0, -rect.height() / 2.0 - 32.0));
+  }
   painter.restore();
-
-  draw_transform_handle_squares(painter, document_rect, angle_degrees, /*include_rotate=*/true);
 }
 
 void CanvasWidget::draw_transform_handle_squares(QPainter& painter, QRectF document_rect, double angle_degrees,
@@ -4631,6 +4643,7 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   constexpr double kEdgeGrabOutside = 6.0;
   constexpr double kCornerRotateReach = 28.8;  // 24 px plus 20 percent: the band was hard to grab
   const bool forgiving = zones == TransformHitZones::EdgesAndCorners;
+  const bool resize_only = zones == TransformHitZones::ResizeHandles;
   QPointF local;
   double half_width = 0.0;
   double half_height = 0.0;
@@ -4656,12 +4669,15 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   auto nearest = TransformHandle::None;
   auto nearest_distance = 0.0;
   for (const auto handle : handles) {
+    if (resize_only && handle == TransformHandle::Rotate) {
+      continue;
+    }
     const auto point = transform_handle_position(handle, document_rect, angle_degrees);
     const QRectF hit_rect(point.x() - kHandleHit / 2.0, point.y() - kHandleHit / 2.0, kHandleHit, kHandleHit);
     if (!hit_rect.contains(widget_point)) {
       continue;
     }
-    if (!forgiving || handle == TransformHandle::Rotate) {
+    if (!resize_only && (!forgiving || handle == TransformHandle::Rotate)) {
       return handle;
     }
     const auto distance = std::hypot(point.x() - widget_point.x(), point.y() - widget_point.y());
@@ -4670,7 +4686,7 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
       nearest_distance = distance;
     }
   }
-  if (nearest != TransformHandle::None) {
+  if (nearest != TransformHandle::None || resize_only) {
     return nearest;
   }
 

@@ -29,6 +29,7 @@ Related documents:
   - Pen paths and shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, and editable dash and stroke presets with offsets
   - Point edits (add by click, break, join, weld or merge by drag, delete segment), path-edited vector masks, and Merge and Split Shapes
   - Per-shape cut, copy, paste, color, align and new layer; editable radius, sides, star inset, line weight and arrowheads (width, length and concavity in Shape Appearance)
+  - The shape tools show the active shape's box with eight handles: drag one to resize it without leaving the tool (Shift keeps the proportions, Alt resizes from the center), and drag anywhere else to draw the next shape
   - Shape Appearance Geometry (position and size) for every single shape, custom shapes and Pen outlines included, with a picker that swaps a custom shape in its box
   - A Paths panel (fill, stroke, selection) and switchable fill layers (badge or double-click opens settings), all saved in PSDs Photoshop opens
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects

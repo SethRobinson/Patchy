@@ -639,6 +639,8 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   } else {
     clear_transform_commit_hold();
   }
+  // A W / H edit, an undo or any other change may have moved the shape tools' box.
+  refresh_shape_resize_box();
   if (move_commit_job_.has_value()) {
     // The pending accurate patches would land on top of this change: drop the
     // job and let this invalidation cover its stale region as well.
@@ -1166,10 +1168,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_spot_heal_stroke_overlay(painter);
   upright_overlays.emplace(*this, &painter);
   draw_red_eye_overlay(painter);
+  draw_shape_resize_frame(painter);  // under the path overlay; its handle squares follow it
   upright_overlays.reset();
   draw_pen_overlay(painter);
   draw_path_edit_overlay(painter);
   upright_overlays.emplace(*this, &painter);
+  draw_shape_resize_handles(painter);
   draw_shape_preview(painter, exposed_rect);
   draw_crop_overlay(painter);
   upright_overlays.reset();
