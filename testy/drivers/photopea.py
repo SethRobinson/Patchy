@@ -207,6 +207,31 @@ def render_text_afresh(base_url: str, testy_root: Path, source: Path, render_png
             "fonts": result.get("fonts") or {}}
 
 
+def save_text_afresh(base_url: str, testy_root: Path, source: Path, save_psd: Path,
+                     text_fonts: list[str] | None = None) -> dict:
+    """Save `source` as a .psd after the same scripted edit of every text layer
+    render_text_afresh makes, for the text-save leg: the file then carries the text
+    data Photopea writes after an edit. Returns {"ok", "done", "failed", "error"}; an
+    "error" with ok True means the edit as a whole did not run (no layer was reached)."""
+    try:
+        result = _run_host_page(
+            base_url,
+            {
+                "file": _file_url(base_url, testy_root, source),
+                "upload": f"{base_url}/testy-upload?name=",
+                "resave": _rel_url(testy_root, save_psd),
+                "nudge": "1",
+                **_fonts_query(base_url, testy_root, text_fonts),
+            },
+            [save_psd],
+        )
+    except PhotopeaError as error:
+        return {"ok": False, "done": [], "failed": [], "error": str(error)}
+    report = result.get("nudge") or {}
+    return {"ok": True, "done": list(report.get("done") or []),
+            "failed": list(report.get("failed") or []), "error": str(report.get("error") or "")}
+
+
 def cleanup() -> None:
     global _driver
     if _driver is not None:

@@ -210,6 +210,105 @@ _PROBE_JSX = r"""
     try { return d.hasKey(t) ? d.getBoolean(t) : false; } catch (e) { return false; }
   }
 
+  // The settings of a type layer a save can silently change while the layer stays text:
+  // each paragraph's justification, Hyphenate, direction and composer, and the layer's
+  // orientation, anti-aliasing and kind (point or box), for the text-save leg
+  // (manifest.py text_setting_changes). The layer's textKey descriptor names a value only
+  // where the layer states it: a paragraph that leaves Hyphenate or the composer to the
+  // document's default sheet has no such key, and no getter resolves it. Photoshop does
+  // write the whole paragraph sheet out once a paragraph property is set, even to the
+  // value it has, so resolveTextSettings does exactly that on a throwaway duplicate
+  // (never the document, never the duplicate that is rendered) and textSettings takes
+  // from it the values the layer itself leaves out. What stays unknown is null, and
+  // manifest.py compares only values both files give.
+  function enumOrNull(d, sid) {
+    var t = stringIDToTypeID(sid);
+    try { return d.hasKey(t) ? q(typeIDToStringID(d.getEnumerationValue(t))) : 'null'; } catch (e) { return 'null'; }
+  }
+  function boolOrNull(d, sid) {
+    var t = stringIDToTypeID(sid);
+    try { return d.hasKey(t) ? (d.getBoolean(t) ? 'true' : 'false') : 'null'; } catch (e) { return 'null'; }
+  }
+  function paragraphRows(textKey) {
+    var ranges = textKey.getList(stringIDToTypeID('paragraphStyleRange'));
+    var rows = [];
+    for (var r = 0; r < ranges.count; r++) {
+      var range = ranges.getObjectValue(r);
+      var style = range.getObjectValue(stringIDToTypeID('paragraphStyle'));
+      rows.push({from: range.getInteger(stringIDToTypeID('from')), to: range.getInteger(stringIDToTypeID('to')),
+                 align: enumOrNull(style, 'align'), hyphenate: boolOrNull(style, 'hyphenate'),
+                 direction: enumOrNull(style, 'directionType'),
+                 everyLineComposer: boolOrNull(style, 'textEveryLineComposer')});
+    }
+    return rows;
+  }
+  var resolvedText = {};  // layer path -> paragraphRows() after the write
+  function resolveTextSettings(doc) {
+    var dup = null;
+    var started = (new Date()).getTime();
+    function visit(layers, path) {
+      for (var i = 0; i < layers.length; i++) {
+        var L = layers[i];
+        var p = path === '' ? String(i) : path + '/' + i;
+        if (L.typename == 'LayerSet') { visit(L.layers, p); continue; }
+        var kind = '';
+        try { kind = String(L.kind); } catch (e) {}
+        if (kind != 'LayerKind.TEXT') { continue; }
+        // (Well inside the probe's hang watchdog; the layers left over stay unresolved.)
+        if ((new Date()).getTime() - started > 20000) { return; }
+        try {
+          if (L.allLocked) { continue; }
+          // Changes nothing about one paragraph; in a layer whose paragraphs differ it
+          // would level their justification, which is why only the values the layer
+          // itself leaves out are read from this duplicate.
+          L.textItem.justification = L.textItem.justification;
+          resolvedText[p] = paragraphRows(layerDescriptor(L.id).getObjectValue(stringIDToTypeID('textKey')));
+        } catch (e) {}
+      }
+    }
+    function hasText(layers) {
+      for (var i = 0; i < layers.length; i++) {
+        if (layers[i].typename == 'LayerSet') { if (hasText(layers[i].layers)) { return true; } continue; }
+        try { if (String(layers[i].kind) == 'LayerKind.TEXT') { return true; } } catch (e) {}
+      }
+      return false;
+    }
+    try {
+      if (!hasText(doc.layers)) { return; }
+      dup = doc.duplicate();
+      visit(dup.layers, '');
+    } catch (e) {}
+    try { if (dup !== null) { dup.close(SaveOptions.DONOTSAVECHANGES); } } catch (e2) {}
+    try { app.activeDocument = doc; } catch (e3) {}
+  }
+  // Appended to a type layer's manifest entry as ',"key":...' pairs; '' when the
+  // descriptor cannot be read.
+  function textSettings(id, path) {
+    function pick(row, filled, key) {
+      return (row[key] == 'null' && filled !== null) ? filled[key] : row[key];
+    }
+    try {
+      var textKey = layerDescriptor(id).getObjectValue(stringIDToTypeID('textKey'));
+      var found = ',"orientation":' + enumOrNull(textKey, 'orientation') +
+                  ',"antiAlias":' + enumOrNull(textKey, 'antiAlias');
+      var shapes = textKey.getList(stringIDToTypeID('textShape'));
+      found += ',"textKind":' + (shapes.count > 0 ? enumOrNull(shapes.getObjectValue(0), 'char') : 'null');
+      var stated = paragraphRows(textKey);
+      var resolved = resolvedText[path];
+      var rows = [];
+      for (var r = 0; r < stated.length; r++) {
+        var row = stated[r];
+        var filled = (resolved && resolved.length == stated.length &&
+                      resolved[r].from == row.from && resolved[r].to == row.to) ? resolved[r] : null;
+        rows.push('{"from":' + row.from + ',"to":' + row.to + ',"align":' + row.align +
+                  ',"hyphenate":' + pick(row, filled, 'hyphenate') +
+                  ',"direction":' + pick(row, filled, 'direction') +
+                  ',"everyLineComposer":' + pick(row, filled, 'everyLineComposer') + '}');
+      }
+      return found + ',"paragraphs":[' + rows.join(',') + ']';
+    } catch (e) { return ''; }
+  }
+
   function walk(layers, path, out) {
     for (var i = 0; i < layers.length; i++) {
       var L = layers[i];
@@ -263,7 +362,15 @@ _PROBE_JSX = r"""
           var styleRanges = layerDescriptor(L.id).getObjectValue(stringIDToTypeID('textKey'))
                                                  .getList(stringIDToTypeID('textStyleRange'));
           for (var r = 0; r < styleRanges.count; r++) {
-            var rangeStyle = styleRanges.getObjectValue(r).getObjectValue(stringIDToTypeID('textStyle'));
+            var styleRange = styleRanges.getObjectValue(r);
+            // (A range without characters draws nothing; its face is not one the text uses.)
+            var rangeFrom = 0, rangeTo = 1;
+            try {
+              rangeFrom = styleRange.getInteger(stringIDToTypeID('from'));
+              rangeTo = styleRange.getInteger(stringIDToTypeID('to'));
+            } catch (eRange) {}
+            if (rangeTo <= rangeFrom && styleRanges.count > 1) { continue; }
+            var rangeStyle = styleRange.getObjectValue(stringIDToTypeID('textStyle'));
             if (!rangeStyle.hasKey(stringIDToTypeID('fontPostScriptName'))) { continue; }
             var face = q(rangeStyle.getString(stringIDToTypeID('fontPostScriptName')));
             var known = false;
@@ -272,6 +379,7 @@ _PROBE_JSX = r"""
           }
         } catch (e) {}
         entry += ',"fonts":[' + faces.join(',') + ']';
+        entry += textSettings(L.id, p);
       }
       entry += '}';
       out.push(entry);
@@ -500,13 +608,16 @@ _PROBE_JSX = r"""
     return '{"ok":false,"error":' + q(e) + '}';
   }
   try {
-    var entries = [];
-    walk(opened.layers, '', entries);
-    var renderStatus = 'skipped';
     // The reference render re-renders text, unless a font the text needs is missing:
     // then Photoshop cannot draw it faithfully either and the cache is the reference.
     var freshText = {n: 0, errors: 0}, freshFonts = [];
     textFontProblems(opened.layers, freshFonts);
+    // (With a font missing a write to the text would have Photoshop substitute it, so
+    // the paragraph settings a layer leaves out stay unresolved then.)
+    if (!freshFonts.length) { resolveTextSettings(opened); }
+    var entries = [];
+    walk(opened.layers, '', entries);
+    var renderStatus = 'skipped';
     var freshSmart = {n: 0, errors: 0, skipped: 0, seen: {}, started: (new Date()).getTime()};
     if (RENDER_PNG !== null) {
       renderStatus = renderTo(opened, RENDER_PNG, freshFonts.length ? null : freshText, freshSmart);

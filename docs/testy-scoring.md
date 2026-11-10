@@ -57,6 +57,10 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   rejects is a bad save ([testy-photoshop-versions.md](testy-photoshop-versions.md)).
 - **Round-trip render** - Photoshop's render of the editor's resave vs the
   original's render.
+- **Text kept after a text update** (Patchy, PhotoCraft, Photopea; files with type
+  layers) - a second save made after the editor re-lays out its text, reopened in
+  Photoshop: each type layer still text, drawn the same, settings unchanged. See
+  [The save after a text update](#the-save-after-a-text-update).
 - **Missing fonts** - Photoshop checks every text layer's style ranges against its
   installed fonts (`textFontProblems`). If a font the text needs is missing or cannot
   be inspected, Photoshop cannot draw that text faithfully either: the reference keeps
@@ -233,6 +237,74 @@ vector-masked solid fills; Photopea redraws shapes, fills and smart objects, and
 text after the scripted edit; PhotoCraft redraws shapes and fills, and text after
 Update All Text Layers; psd-tools redraws shapes and fills only; GIMP and
 PhotoDemon draw nothing. Cell cache keys carry `-nocache11`.
+
+## The save after a text update
+
+The save test above saves each file as the editor opened it. An editor that, like
+Photoshop, keeps a type layer as the file had it until the text is edited can pass the
+layer's data through untouched (Patchy does), so that save says little about the text
+data the editor writes itself. Two Patchy bugs showed only after an edit: justified
+paragraphs saved as justify left (GitHub issue 672) and Hyphenate turned on (issue 683).
+So for files with type layers three editors get a second save (`_text_save_leg`,
+`cell.textSave`):
+
+- **Editors**: Patchy, PhotoCraft and Photopea (`TEXT_SAVE_EDITORS`), the ones whose
+  text render score already rests on a scripted text update. Krita and Affinity lay text
+  out on open and save their own on a plain save; GIMP and PhotoDemon have no text
+  engine; psd-tools is not an editor.
+- **Steps**: the editor opens the ORIGINAL staged file again (not a cache-stripped copy),
+  runs its text update and saves `textsave.psd`. Photoshop opens that save through the
+  probe every resave goes through, which lays the text out afresh as the reference does,
+  and writes `textsave.png` and `textsave_manifest.json`.
+- **Per type layer of the original** (`score_text_save`, `manifest.compare_text_layers`):
+  *lost* when it is no longer a type layer; *changed* when it is still text but Photoshop
+  draws it differently or reports a changed setting; otherwise *same*. The cell shows
+  `same`/`measured`, and the summary card adds the layers up as "text kept after a text
+  update".
+- **Drawn the same**: the original layer's box (grown 2 px) in Photoshop's render of the
+  save against the reference render, so a difference elsewhere in the picture, already in
+  the round-trip render score, is not counted twice. Both pictures are Photoshop's own,
+  so the measure is `analyze.compare_boxes`' `movedFraction`: the share of pixels showing
+  something with no counterpart within 2 px in the other render, after a light blur. On
+  a 12 px justified paragraph of six lines it reads 0.2% for the same text laid out a
+  fraction of a pixel differently (24% of the pixels change), 3.8% for one line set flush
+  left instead of centered and 16% for different line breaks; over 1%
+  (`TEXT_SAVE_BOX_LIMIT`) counts as drawn differently. A box that the as-opened save's
+  render differs in too, the same way, reads "differs as opened too" and is not counted.
+- **Settings**: each paragraph's justification, Hyphenate, direction and line composer
+  (every-line or single-line), the layer's orientation, anti-aliasing and kind (point or
+  paragraph text), the text itself and the fonts it names, from Photoshop's manifest of
+  both files. The layer's descriptor names a value only where the layer states it, so
+  the probe also reads the values a layer leaves to the document's default sheet:
+  `resolveTextSettings` sets a paragraph property to the value it has on a throwaway
+  duplicate, after which Photoshop writes the whole sheet out. A value Photoshop still
+  cannot give (a locked layer, a file with a font missing) is never read as a change.
+- **Missing fonts**: when Photoshop lacks a font the original's text needs, the leg is
+  not measured, as with the text render score. A save in which Photoshop finds a font
+  missing that the original had keeps the editor's pixels, so its render is not
+  compared; the changed font is reported as a setting.
+- **Not measured, never a failure**: a layer the editor's update did not reach
+  (`notMeasured`, with the reason: Patchy's script or Photopea's edit failed on it, or
+  Patchy lacks a font Photoshop has, a layer Type > Update All Text Layers skips too);
+  an editor that wrote no save; a Photoshop that did not start (the cell is then not
+  cached). `state` is then "not measured" with `reason`.
+- **A save Photoshop refuses** has `state: "rejected"`, and dialogs Photoshop shows while
+  opening the save are in `textSave.dialogs`, as `resaveRejected` and `resaveDialogs` are
+  for the as-opened save.
+- Nothing is folded into `nativeScore`, `roundtripRender` or an existing history key.
+  The run summary and `history.jsonl` gain `textSave` `{same, measured, files, rejected}`
+  per editor that has the leg. Cells of the three editors carry `-textsave1` on text
+  files, and the ground truth of text files `-textattrs1` (its manifest lists the
+  settings), which leaves the other editors' cells cached.
+
+Acceptance (November 10, 2026, Photoshop 2026): the four justified paragraphs of the
+issue 672 file, saved after the text update by three Patchy builds. Patchy 1.29 (both
+bugs): justification changed on three layers and Hyphenate turned on in all four, three
+drawn differently. Patchy 1.31 (672 fixed): Hyphenate on in all four. The build with
+both fixes: justification and Hyphenate unchanged; what it still reports there is the
+line composer (every-line saved as single-line, which re-breaks the Justify All
+paragraph). PhotoCraft 0.22.0 and Photopea: all four the same. Tests:
+`tests/testy_text_save_tests.py`.
 
 ## The two text rules that score 0%
 
