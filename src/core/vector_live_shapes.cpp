@@ -436,6 +436,28 @@ std::optional<LiveShapeParams> resolve_live_shape_group(const VectorPath& path,
   return result;
 }
 
+void keep_or_drop_live_shapes_after_path_edit(VectorShapeContent& content,
+                                              const std::vector<int>& touched_groups) {
+  std::vector<int> invalidated = touched_groups;
+  for (auto& params : content.origination) {
+    if (params.kind == LiveShapeKind::None || !params.raw_descriptor.empty()) {
+      continue;
+    }
+    auto moved = resolve_live_shape_group(content.path, {params}, params.index);
+    if (!moved.has_value()) {
+      continue;
+    }
+    std::erase(invalidated, params.index);
+    // An untouched group that did not move keeps its parameters bit for bit.
+    if (std::abs(moved->left - params.left) > 1e-9 || std::abs(moved->top - params.top) > 1e-9 ||
+        std::abs(moved->line_start_x - params.line_start_x) > 1e-9 ||
+        std::abs(moved->line_start_y - params.line_start_y) > 1e-9) {
+      params = std::move(*moved);
+    }
+  }
+  drop_live_shape_origination(content, invalidated);
+}
+
 bool replace_live_shape_group(VectorPath& path, const LiveShapeParams& params) {
   auto generated = generate_live_shape_subpaths(params);
   const auto first = std::find_if(path.subpaths.begin(), path.subpaths.end(), [&params](const PathSubpath& subpath) {

@@ -56,6 +56,14 @@ void translate_live_shape_params(LiveShapeParams& params, double dx, double dy) 
 [[nodiscard]] std::optional<LiveShapeParams> resolve_live_shape_group(
     const VectorPath& path, const std::vector<LiveShapeParams>& origination, std::int32_t group);
 
+// After a direct edit of a shape layer's path: each live-shape annotation whose group is
+// still the shape it generates, up to a translation (a Path Select or Ctrl+shape-tool drag,
+// a nudge, an align), moves with it; a touched group that no longer matches loses its
+// annotation (drop_live_shape_origination, Photoshop's keyShapeInvalidated). A moved polygon
+// stays a live polygon this way (GitHub #643).
+void keep_or_drop_live_shapes_after_path_edit(VectorShapeContent& content,
+                                              const std::vector<int>& touched_groups);
+
 // Regenerates `params.index`'s subpaths from `params` in place: the first subpath's
 // position and combine op are kept. False when the group is missing or nothing generates.
 bool replace_live_shape_group(VectorPath& path, const LiveShapeParams& params);

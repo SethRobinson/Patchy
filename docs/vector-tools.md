@@ -174,8 +174,11 @@ anchors (subpaths under two anchors disappear;
 [emptied shape layers go](vector-commands-selection.md#deleting-the-last-shape)), Escape deselects. With a
 selection, the options-bar Combine box rewrites the selected shapes' op in
 place. The Pen doubles as the point editor (insert by exact de Casteljau
-split, delete, Alt+click converts). Any direct edit drops the touched groups' live-shape
-annotations (PS's keyShapeInvalidated rule) and re-rasterizes; the target is
+split, delete, Alt+click converts). A direct edit drops the touched groups' live-shape
+annotations (PS's keyShapeInvalidated rule) and re-rasterizes, except where a group is
+still exactly what it generates up to a translation: a Path Select or Ctrl+shape-tool move,
+a nudge or an align moves the annotation with it, so the shape stays live
+(`keep_or_drop_live_shapes_after_path_edit`, #643; `ui_shape_appearance_polygon_moved_after_drawing`). The target is
 the active shape layer (a press picks another), else the work path. A layer,
 selection, path or edit-target change cancels a path transform.
 
