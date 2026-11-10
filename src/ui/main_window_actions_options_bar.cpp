@@ -4025,7 +4025,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     register_document_action(action);
   }
   // Fixed steps for the size and the tool's opacity (GitHub issue 645): by 1 and by 10 pixels or
-  // percent. No default keys; the GIMP-style set may bind them (docs/hotkey-sets.md).
+  // percent. No default keys; the GIMP-style set binds them to GIMP's (docs/hotkey-sets.md).
   for (const auto& [object_name, text, hotkey_id, step, opacity] :
        {std::tuple{"brushSizeMinus1Action", QT_TR_NOOP("Brush Size -1"), "brush.size_minus_1", -1, false},
         std::tuple{"brushSizePlus1Action", QT_TR_NOOP("Brush Size +1"), "brush.size_plus_1", 1, false},

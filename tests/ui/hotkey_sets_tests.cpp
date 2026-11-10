@@ -844,7 +844,8 @@ void ui_hotkey_editor_set_applies_tool_modifiers() {
 
 // GIMP-style follows GIMP 3.0's manual (GitHub issue 645 follow-up): N, K and A pick the Brush
 // with the Pencil, Ink and Airbrush presets; no tool group cycles; Ctrl+2 to Ctrl+6 and plain
-// , and . are free.
+// , and . are free. Follow-up 2 (GIMP 3's shortcut dialog): [ ] { } step the size, < > and
+// Ctrl+< Ctrl+> the opacity, and Patchy's own keys there are cleared.
 void ui_hotkey_gimp_set_follows_gimp_manual() {
   HotkeyGroupRestorer restore;
   patchy::ui::MainWindow window;
@@ -860,10 +861,25 @@ void ui_hotkey_gimp_set_follows_gimp_manual() {
   CHECK(keys_of("brush.preset_pencil") == QList<QKeySequence>{QKeySequence(Qt::Key_N)});
   CHECK(keys_of("brush.preset_ink") == QList<QKeySequence>{QKeySequence(Qt::Key_K)});
   CHECK(keys_of("brush.preset_airbrush") == QList<QKeySequence>{QKeySequence(Qt::Key_A)});
+  for (const auto& [id, key] :
+       {std::pair{"brush.size_minus_1", QKeySequence(Qt::Key_BracketLeft)},
+        std::pair{"brush.size_plus_1", QKeySequence(Qt::Key_BracketRight)},
+        std::pair{"brush.size_minus_10", QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft)},
+        std::pair{"brush.size_plus_10", QKeySequence(Qt::SHIFT | Qt::Key_BracketRight)},
+        std::pair{"brush.opacity_minus_1", QKeySequence(Qt::SHIFT | Qt::Key_Comma)},
+        std::pair{"brush.opacity_plus_1", QKeySequence(Qt::SHIFT | Qt::Key_Period)},
+        std::pair{"brush.opacity_minus_10", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Comma)},
+        std::pair{"brush.opacity_plus_10", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Period)}}) {
+    if (keys_of(id) != QList<QKeySequence>{key}) {
+      std::fprintf(stderr, "GIMP-style gives %s the wrong key\n", id);
+      CHECK(false);
+    }
+  }
   for (const char* id : {"tools.cycle.move", "tools.cycle.wand", "tools.cycle.healing", "tools.cycle.path_select",
                          "tools.cycle.pick", "tools.path_select", "brush.preset_previous", "brush.preset_next",
                          "channel.view_composite", "channel.view_first", "channel.view_second", "channel.view_third",
-                         "channel.view_fourth"}) {
+                         "channel.view_fourth", "brush.smaller", "brush.larger", "brush.softer", "brush.harder",
+                         "brush.preset_first", "brush.preset_last"}) {
     if (!keys_of(id).isEmpty()) {
       std::fprintf(stderr, "GIMP-style still binds %s\n", id);
       CHECK(false);
@@ -877,6 +893,63 @@ void ui_hotkey_gimp_set_follows_gimp_manual() {
     CHECK(command != nullptr);
     CHECK(command->default_shortcuts.isEmpty());
   }
+}
+
+// The GIMP-style size and opacity keys fire from real key presses on the canvas (GitHub issue 645
+// follow-up 2); { } < > arrive as Shift+[ Shift+] Shift+, Shift+. on a US layout.
+void ui_hotkey_gimp_set_size_and_opacity_keys_fire() {
+  HotkeyGroupRestorer restore;
+  SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
+  {
+    // The window reads the set's overrides from settings, as after OK in Preferences.
+    patchy::ui::MainWindow probe;
+    const auto* gimp = patchy::ui::find_builtin_hotkey_set(u"gimp");
+    CHECK(gimp != nullptr);
+    const auto overrides = patchy::ui::hotkey_set_overrides(*gimp, probe.hotkey_registry().commands());
+    auto settings = patchy::ui::app_settings();
+    settings.beginGroup(QStringLiteral("hotkeys"));
+    for (auto it = overrides.constBegin(); it != overrides.constEnd(); ++it) {
+      settings.setValue(it.key(), patchy::ui::hotkey_shortcuts_to_storage(it.value()));
+    }
+    settings.endGroup();
+    settings.sync();
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  CHECK(first_shortcut(window, "brush.size_minus_10") == QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft));
+  CHECK(first_shortcut(window, "brush.softer").isEmpty());
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(size_spin != nullptr && opacity_spin != nullptr && combo != nullptr);
+  size_spin->setValue(40);
+  opacity_spin->setValue(50);
+  const int preset_index = combo->currentIndex();
+  canvas->setFocus();
+  QApplication::processEvents();
+  const auto press = [&](Qt::Key key, Qt::KeyboardModifiers modifiers) {
+    QTest::keyClick(canvas, key, modifiers);
+    QApplication::processEvents();
+  };
+  press(Qt::Key_BracketRight, Qt::NoModifier);
+  CHECK(canvas->brush_size() == 41);
+  press(Qt::Key_BracketLeft, Qt::NoModifier);
+  CHECK(canvas->brush_size() == 40);
+  press(Qt::Key_BracketRight, Qt::ShiftModifier);
+  CHECK(canvas->brush_size() == 50);
+  press(Qt::Key_BracketLeft, Qt::ShiftModifier);
+  CHECK(canvas->brush_size() == 40);
+  press(Qt::Key_Period, Qt::ShiftModifier);
+  CHECK(canvas->brush_opacity() == 51);
+  press(Qt::Key_Comma, Qt::ShiftModifier);
+  CHECK(canvas->brush_opacity() == 50);
+  press(Qt::Key_Period, Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(canvas->brush_opacity() == 60);
+  press(Qt::Key_Comma, Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(canvas->brush_opacity() == 50);
+  // First/Last Preset gave up < and >.
+  CHECK(combo->currentIndex() == preset_index);
 }
 
 // Brush Tool: Pencil/Ink/Airbrush Preset select the Brush tool and the built-in preset; run again
@@ -999,6 +1072,7 @@ std::vector<patchy::test::TestCase> hotkey_sets_tests() {
        ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries},
       {"ui_hotkey_editor_set_applies_tool_modifiers", ui_hotkey_editor_set_applies_tool_modifiers},
       {"ui_hotkey_gimp_set_follows_gimp_manual", ui_hotkey_gimp_set_follows_gimp_manual},
+      {"ui_hotkey_gimp_set_size_and_opacity_keys_fire", ui_hotkey_gimp_set_size_and_opacity_keys_fire},
       {"ui_brush_preset_tool_commands_pick_brush_and_preset", ui_brush_preset_tool_commands_pick_brush_and_preset},
       {"ui_brush_size_and_opacity_step_commands", ui_brush_size_and_opacity_step_commands},
   };
