@@ -1773,7 +1773,7 @@ void CanvasWidget::write_shape_layer_path(Layer& layer, VectorPath path,
       to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()));
   auto content = *std::as_const(layer).vector_shape();
   content.path = std::move(path);
-  drop_live_shape_origination(content, touched_groups);
+  keep_or_drop_live_shapes_after_path_edit(content, touched_groups);
   // A merged shape paints only the groups its parts list (GitHub issue 312).
   copy_vector_part_groups(content, group_copies);
   // Paint anchored to the canvas (a pattern's phase, a gradient not aligned with the

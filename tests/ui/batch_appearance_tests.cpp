@@ -1408,6 +1408,100 @@ void ui_shape_appearance_polygon_drawn_with_tool() {
   CHECK(settings.geometry && settings.geometry->polygon_sides == 6 && settings.geometry->polygon_star_inset == 30);
 }
 
+// GitHub #643 follow-up 2: philipzae's route. A fresh document, the Polygon tool on its
+// default settings, a drag that turns the polygon while it grows, then a Ctrl+drag (the
+// shape tool's temporary Path Select) that moves it: the polygon stays live and Shape
+// Appearance still shows its Polygon section, at the moved position. A star moved with a
+// nudge stays live too; a point edit still ends it.
+void ui_shape_appearance_polygon_moved_after_drawing() {
+  VectorSettingsGuard guard;
+  SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
+  {
+    auto settings = app_settings();
+    settings.remove(QStringLiteral("tools/polygonSides"));
+    settings.remove(QStringLiteral("tools/polygonStarInset"));
+    settings.sync();
+  }
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(CanvasTool::Polygon);
+  canvas->setFocus();
+  const int sides = canvas->polygon_sides();
+  // Center (200, 200); the cursor sweeps round while it moves out, turning the polygon.
+  drag_document_path(*canvas, {QPoint(200, 200), QPoint(230, 215), QPoint(250, 240), QPoint(255, 265)}, 4);
+  QApplication::processEvents();
+  const auto id = doc.active_layer_id();
+  CHECK(id.has_value());
+  if (!id) return;
+  const auto drawn = shape_appearance_settings(*std::as_const(doc).find_layer(*id));
+  CHECK(appearance_has_editable_polygon(drawn));
+  if (!drawn.geometry) return;
+
+  // Ctrl+drag inside the polygon moves it by (30, -20).
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+       canvas->widget_position_for_document_point(QPoint(230, 180)), Qt::ControlModifier);
+  QApplication::processEvents();
+  const auto& moved_content = shape_content(doc, *id);
+  CHECK(std::abs(moved_content.path.subpaths.front().anchors.front().anchor_x -
+                 generate_live_shape_subpaths(*drawn.geometry).front().anchors.front().anchor_x - 30.0) < 0.5);
+  // Shape Appearance from the moved polygon: the Polygon section, no Shape picker.
+  bool has_polygon_section = false, has_shape_picker = true;
+  int dialog_sides = 0;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    save_widget_artifact("ui_shape_appearance_polygon_moved_after_drawing", dialog);
+    has_polygon_section = dialog.findChild<QWidget*>(QStringLiteral("shapePolygonGroup")) != nullptr;
+    has_shape_picker = dialog.findChild<QWidget*>(QStringLiteral("shapeGeometryCustomShapeCombo")) != nullptr;
+    if (auto* spin = dialog.findChild<QSpinBox*>(QStringLiteral("shapePolygonSidesSpin"))) dialog_sides = spin->value();
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(has_polygon_section);
+  CHECK(!has_shape_picker);
+  CHECK(dialog_sides == sides);
+  const auto moved = shape_appearance_settings(*std::as_const(doc).find_layer(*id));
+  CHECK(appearance_has_editable_polygon(moved));
+  CHECK(!moved.path_box.has_value());
+  CHECK(moved.geometry && std::abs(moved.geometry->left - drawn.geometry->left - 30.0) < 0.5 &&
+        std::abs(moved.geometry->top - drawn.geometry->top + 20.0) < 0.5);
+
+  // A star, moved with an arrow-key nudge under Path Select.
+  auto* inset = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+  CHECK(inset != nullptr);
+  if (inset == nullptr) return;
+  inset->setValue(40);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(450, 220)),
+       canvas->widget_position_for_document_point(QPoint(500, 250)));
+  QApplication::processEvents();
+  const auto star_id = doc.active_layer_id();
+  CHECK(star_id.has_value() && star_id != id);
+  if (!star_id || star_id == id) return;
+  const auto star = shape_appearance_settings(*std::as_const(doc).find_layer(*star_id));
+  CHECK(appearance_has_editable_polygon(star) && star.geometry->polygon_star_inset == 40);
+  canvas->set_tool(CanvasTool::PathSelect);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(450, 220)),
+       canvas->widget_position_for_document_point(QPoint(450, 220)));
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_has_selection());
+  send_key(*canvas, Qt::Key_Right);
+  QApplication::processEvents();
+  const auto nudged = shape_appearance_settings(*std::as_const(doc).find_layer(*star_id));
+  CHECK(appearance_has_editable_polygon(nudged));
+  CHECK(nudged.geometry && std::abs(nudged.geometry->left - star.geometry->left - 1.0) < 0.01 &&
+        nudged.geometry->polygon_star_inset == 40);
+
+  // A point edit (Direct Select drags one corner) ends the live polygon, as before.
+  const auto corner = shape_content(doc, *star_id).path.subpaths.front().anchors.front();
+  canvas->set_tool(CanvasTool::DirectSelect);
+  drag(*canvas, canvas->widget_position_for_document_point(
+                    QPoint(static_cast<int>(std::lround(corner.anchor_x)), static_cast<int>(std::lround(corner.anchor_y)))),
+       canvas->widget_position_for_document_point(QPoint(static_cast<int>(std::lround(corner.anchor_x)) + 15,
+                                                         static_cast<int>(std::lround(corner.anchor_y)) + 25)));
+  QApplication::processEvents();
+  CHECK(!appearance_has_editable_polygon(shape_appearance_settings(*std::as_const(doc).find_layer(*star_id))));
+}
+
 // GitHub #644 follow-up: a custom shape stamped with the Custom Shape tool opens Shape
 // Appearance with that shape chosen in the picker; a pick there is shown next time (and undo
 // brings back the stamped one); once the outline is no longer that shape (a point edit) the
@@ -1586,6 +1680,7 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_shape_appearance_custom_path_geometry", ui_shape_appearance_custom_path_geometry},
     {"ui_shape_appearance_custom_shape_picker", ui_shape_appearance_custom_shape_picker},
     {"ui_shape_appearance_polygon_drawn_with_tool", ui_shape_appearance_polygon_drawn_with_tool},
+    {"ui_shape_appearance_polygon_moved_after_drawing", ui_shape_appearance_polygon_moved_after_drawing},
     {"ui_shape_appearance_picker_shows_stamped_shape", ui_shape_appearance_picker_shows_stamped_shape},
     {"ui_shape_appearance_radius_section_layout", ui_shape_appearance_radius_section_layout},
     {"ui_shape_appearance_line_weight_in_geometry", ui_shape_appearance_line_weight_in_geometry},
