@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.32" date="2026-11-11">
+      <description>
+        <ul>
+          <li>Shape tools: resize handles, and drag points on polygons and lines</li>
+          <li>Copy CSS for layers; Levels shows clipping on Alt+drag</li>
+          <li>Missing Fonts remembers replacements; fonts can be listed by English name</li>
+          <li>Right-to-left text justifies; faster PDF import and vector preview</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.31" date="2026-11-10">
       <description>
         <ul>
