@@ -87,7 +87,7 @@ to left, so its right alignment landed on the left and its runs reordered. So:
   378 to 380). Patchy spreads them over their word spaces itself, Arabic included
   ([text-tool.md](text-tool.md#justify-modes)). Kashida insertion, digit sets, Justification
   Alternates and diacritic positions are kept in the PSD and not drawn
-  ([txt2.md](txt2.md#settings-patchy-keeps-and-does-not-draw)).
+  ([txt2-kept-settings.md](txt2-kept-settings.md)).
 - Tests: `psd_issue_683_direction_reads_txt2_and_photoshop_default`,
   `psd_issue_683_reporter_files_read_direction_if_available` (`local-test-fixtures/psd/issue-683/`:
   the reporter's Photoshop file, his Patchy 1.29 resave with right to left set, his Photon Studio

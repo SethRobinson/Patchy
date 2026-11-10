@@ -1552,7 +1552,11 @@ std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
                                           : 1.2);
   properties += " /LeadingType 0 /Hanging ";
   properties += run.first_line_indent < 0.0 && run.start_indent > 0.0 ? "true" : "false";
-  properties += " /Burasagari false /KinsokuOrder 0 /EveryLineComposer false";
+  // The line composer is the file's own: Patchy breaks lines one at a time, and writing
+  // "false" here turned Adobe Every-line Composer off in Photoshop for every paragraph Patchy
+  // rewrote. A new layer has it off, as Photoshop 2026 writes one.
+  properties += " /Burasagari false /KinsokuOrder 0 /EveryLineComposer ";
+  properties += run.every_line_composer ? "true" : "false";
   if (run.direction == "ltr" || run.direction == "rtl") {
     // Photoshop's Middle Eastern composer key; the Latin composer ignores it. Written only for
     // an explicit direction so ordinary paragraphs stay byte-identical.

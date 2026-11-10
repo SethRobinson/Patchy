@@ -84,8 +84,8 @@ struct TextStyleRunFeatures {
 
 // The composer (paragraph key /35) and direction (/33: 0 left to right, 1 right to left) one
 // paragraph run of a text object resolves to: its own sheet, else its parent ParagraphSheetSet
-// entry, else the document's default paragraph sheet (/1/3). Hyphenate (/9) and the Kashida
-// width (/40) resolve the same way; the hyphenation settings (/10 word size, /11 and /12 letters
+// entry, else the document's default paragraph sheet (/1/3). Hyphenate (/9), the Kashida
+// width (/40) and the line composer (/29: true Every-line) resolve the same way; the hyphenation settings (/10 word size, /11 and /12 letters
 // before and after, /13 limit, /14 zone, /15 capitalized words) come from the run's own sheet
 // only, because Photoshop writes the effective ones into the TySh run and leaves its default
 // sheets at other values (/13 0 beside a TySh /ConsecutiveHyphens 8).
@@ -101,6 +101,7 @@ struct TextParagraphComposer {
   std::optional<int> consecutive_hyphens;
   std::optional<double> hyphenation_zone;
   std::optional<bool> hyphenate_capitalized;
+  std::optional<bool> every_line_composer;
 };
 
 struct TextFrameGeometry {

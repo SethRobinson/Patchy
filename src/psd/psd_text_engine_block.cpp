@@ -64,7 +64,8 @@ EngineNode paragraph_sheet(const PsdTextParagraphRun& run) {
       {"25", engine_integer(0)},
       {"27", engine_nil()},
       {"28", engine_nil()},
-      {"29", engine_bool(false)},
+      // The line composer (true Every-line, false Single-line), kept from the file.
+      {"29", engine_bool(run.every_line_composer)},
       {"33", engine_integer(run.direction == "rtl" ? 1 : 0)},
       {"35", engine_integer(std::clamp(run.composer, 0, 2))},
       {"36", engine_nil()},
@@ -472,6 +473,14 @@ std::vector<TextParagraphComposer> TextEngineBlock::object_paragraph_composers(s
       }
     }
     entry.kashida_width = resolve("40", 4);
+    // The line composer (/29) resolves the same way: a run that leaves it out takes its parent
+    // sheet's (Photoshop 2026 render probes: the parent's value decides, not the TySh run's).
+    for (const auto* candidate : {own, parent_sheet, document_sheet}) {
+      if (const auto* node = candidate != nullptr ? candidate->find("29") : nullptr; node != nullptr) {
+        entry.every_line_composer = node->boolean();
+        break;
+      }
+    }
     entry.hyphenated_word_size = key_value(own, "10", 1000);
     entry.pre_hyphen = key_value(own, "11", 1000);
     entry.post_hyphen = key_value(own, "12", 1000);
@@ -487,7 +496,8 @@ std::vector<TextParagraphComposer> TextEngineBlock::object_paragraph_composers(s
     any = any || entry.composer.has_value() || entry.direction.has_value() || entry.auto_hyphenate.has_value() ||
           entry.kashida_width.has_value() || entry.hyphenated_word_size.has_value() || entry.pre_hyphen.has_value() ||
           entry.post_hyphen.has_value() || entry.consecutive_hyphens.has_value() ||
-          entry.hyphenation_zone.has_value() || entry.hyphenate_capitalized.has_value();
+          entry.hyphenation_zone.has_value() || entry.hyphenate_capitalized.has_value() ||
+          entry.every_line_composer.has_value();
     result.push_back(entry);
   }
   if (!any) result.clear();

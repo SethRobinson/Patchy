@@ -177,13 +177,19 @@ struct PsdTextParagraphRun {
   double hyphenation_zone{36.0};
   bool hyphenate_capitalized{true};
   int kashida_width{2};
+  // Photoshop's line composer (Paragraph panel menu): true is Adobe Every-line Composer, false
+  // Adobe Single-line Composer. TySh /EveryLineComposer, Txt2 paragraph key /29. Patchy breaks
+  // lines one at a time and draws nothing from it: it is kept so a Photoshop paragraph that has
+  // the Every-line composer keeps it through an edit and a save. A new layer has it off, as
+  // Photoshop 2026 writes one. Paragraph runs v6 column 11 token `everyline`.
+  bool every_line_composer{false};
 };
 
 // Paragraph runs v6 column 11: the paragraph's kept Photoshop settings as a comma-separated token
 // list, or "-" when all are at their defaults: `hyphenate` (Hyphenate on),
 // `hyphenation:<word>:<before>:<after>:<limit>:<zone>:<capitalized 0|1>` (the hyphenation
-// settings, when any differs from 6:2:2:8:36:1) and `kashida:<n>` (Kashida width, when not 2).
-// The tokens are a file-format contract: never rename one.
+// settings, when any differs from 6:2:2:8:36:1), `kashida:<n>` (Kashida width, when not 2) and
+// `everyline` (Adobe Every-line Composer). The tokens are a file-format contract: never rename one.
 [[nodiscard]] std::string serialize_paragraph_run_settings(const PsdTextParagraphRun& run);
 // Reads a column-11 token list into `run` (unknown tokens are ignored).
 void parse_paragraph_run_settings(std::string_view field, PsdTextParagraphRun& run);

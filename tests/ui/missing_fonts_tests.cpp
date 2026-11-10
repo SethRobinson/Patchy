@@ -37,6 +37,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QStringList>
 #include <QTest>
 #include <QTextEdit>
 #include <QTimer>
@@ -52,6 +53,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -1052,6 +1054,165 @@ void ui_update_all_text_layers_rewrites_photoshop_text() {
     }
   }
   CHECK(rewritten == imported.size());
+}
+
+// Column 11 of a layer's paragraph runs (the kept Photoshop settings), one entry per paragraph
+// joined with "|"; a paragraph without the column gives "".
+QString paragraph_settings_column(const patchy::Layer& layer) {
+  const auto found = layer.metadata().find(patchy::kLayerMetadataTextParagraphRuns);
+  if (found == layer.metadata().end()) {
+    return QStringLiteral("(no paragraph runs)");
+  }
+  QStringList settings;
+  for (const auto& line : QString::fromStdString(found->second).split(QLatin1Char('\n')).mid(1)) {
+    settings << line.split(QLatin1Char('\t')).value(11);
+  }
+  return settings.join(QLatin1Char('|'));
+}
+
+// How many paragraph runs of a layer's saved TySh say /EveryLineComposer true (the normal
+// paragraph sheets always say false).
+int saved_every_line_paragraphs(const patchy::Layer& layer) {
+  static constexpr std::string_view kKey = "/EveryLineComposer true";
+  int count = 0;
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key != "TySh") {
+      continue;
+    }
+    for (auto at = std::search(block.payload.begin(), block.payload.end(), kKey.begin(), kKey.end());
+         at != block.payload.end();
+         at = std::search(at + 1, block.payload.end(), kKey.begin(), kKey.end())) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+// Type > Update All Text Layers and a save keep each paragraph's Photoshop line composer: an
+// Adobe Every-line Composer paragraph stays Every-line, a Single-line one stays Single-line, and
+// a layer with one of each keeps both. Patchy saved every paragraph it re-rendered as Single-line.
+void ui_update_all_text_layers_keeps_the_line_composer() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed = patchy::test::visual_test_font().family();
+  auto document = white_document();
+  const auto two_paragraphs = [&](const std::string& name, int top, const char* first, const char* second) {
+    auto layer = missing_font_text_layer(document, name, installed, top);
+    layer.metadata()[patchy::kLayerMetadataText] = "First paragraph\nSecond paragraph";
+    layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+        std::string("v6\n0\t16\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t") + first +
+        "\n16\t16\tleft\t0\t0\t0\t0\t0\t1.2\tauto\t1\t" + second;
+    return layer;
+  };
+  const auto every_id = document.add_layer(two_paragraphs("Every", 20, "everyline", "everyline")).id();
+  const auto single_id = document.add_layer(missing_font_text_layer(document, "Single", installed, 100)).id();
+  const auto mixed_id = document.add_layer(two_paragraphs("Mixed", 150, "everyline", "-")).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Line Composer"));
+  QApplication::processEvents();
+  trigger_type_action(window, "typeUpdateAllTextLayersAction");
+  for (const auto id : {every_id, single_id, mixed_id}) {
+    CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+  }
+  const auto check = [&](const patchy::Document& checked, bool saved) {
+    int found = 0;
+    for (const auto& layer : checked.layers()) {
+      if (layer.name() == "Every") {
+        ++found;
+        CHECK(paragraph_settings_column(layer) == QStringLiteral("everyline|everyline"));
+        CHECK(!saved || saved_every_line_paragraphs(layer) == 2);
+      } else if (layer.name() == "Single") {
+        ++found;
+        CHECK(!paragraph_settings_column(layer).contains(QStringLiteral("everyline")));
+        CHECK(!saved || saved_every_line_paragraphs(layer) == 0);
+      } else if (layer.name() == "Mixed") {
+        ++found;
+        CHECK(paragraph_settings_column(layer) == QStringLiteral("everyline|-"));
+        CHECK(!saved || saved_every_line_paragraphs(layer) == 1);
+      }
+    }
+    CHECK(found == 3);
+  };
+  check(std::as_const(MainWindowTestAccess::document(window)), false);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  // Kept for the Photoshop open check (docs/photoshop-com.md).
+  ensure_artifact_dir();
+  if (QFile out(QStringLiteral("test-artifacts/line-composer-update-all.psd")); out.open(QIODevice::WriteOnly)) {
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  check(patchy::psd::DocumentIo::read(bytes), true);
+}
+
+// The same on Photoshop 2026 files (local fixtures, README.txt beside them): the #672
+// justify-modes file with Adobe Every-line Composer on its four layers, a layer whose first
+// paragraph is Every-line and whose second is Single-line, and the #672 file itself, whose four
+// paragraphs are Single-line and stay so.
+void ui_update_all_text_layers_keeps_the_line_composer_if_available() {
+  struct Fixture {
+    const char* file;
+    const char* artifact;
+    int layers;
+    const char* settings;
+    int every_line_paragraphs;
+  };
+  const Fixture fixtures[] = {
+      {"every-line-composer/justify-modes-every-line-photoshop.psd",
+       "test-artifacts/line-composer-update-all-every-line.psd", 4, "everyline", 1},
+      {"every-line-composer/two-paragraphs-every-then-single-photoshop.psd",
+       "test-artifacts/line-composer-update-all-mixed.psd", 1, "everyline|-", 1},
+      {"issue-672-justify-modes.psd", "test-artifacts/line-composer-update-all-single-line.psd", 4, "", 0},
+  };
+  for (const auto& fixture : fixtures) {
+    patchy::test::skip_unless_exists(patchy::test::local_psd_fixture_path(fixture.file));
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  for (const auto& fixture : fixtures) {
+    auto document = patchy::psd::DocumentIo::read_file(patchy::test::local_psd_fixture_path(fixture.file));
+    std::vector<patchy::LayerId> text_ids;
+    for (const auto& layer : document.layers()) {
+      if (!patchy::layer_is_text(layer)) {
+        continue;
+      }
+      const auto problems = patchy::ui::text_font_problems_for_layer(layer);
+      if (!problems.not_installed.isEmpty() || !problems.no_glyphs.isEmpty()) {
+        patchy::test::skip("the fixtures' font (Arial) is not installed on this host");
+      }
+      text_ids.push_back(layer.id());
+      CHECK(paragraph_settings_column(layer) == QLatin1String(fixture.settings));
+    }
+    CHECK(static_cast<int>(text_ids.size()) == fixture.layers);
+
+    MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Photoshop Line Composer"));
+    QApplication::processEvents();
+    trigger_type_action(window, "typeUpdateAllTextLayersAction");
+    for (const auto id : text_ids) {
+      CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+    }
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+    ensure_artifact_dir();
+    if (QFile out(QString::fromLatin1(fixture.artifact)); out.open(QIODevice::WriteOnly)) {
+      out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+    }
+    const auto reopened = patchy::psd::DocumentIo::read(bytes);
+    int checked = 0;
+    for (const auto& layer : reopened.layers()) {
+      if (!patchy::layer_is_text(layer)) {
+        continue;
+      }
+      ++checked;
+      const auto settings = paragraph_settings_column(layer);
+      if (settings != QLatin1String(fixture.settings)) {
+        std::fprintf(stderr, "%s [%s]: saved \"%s\"\n", fixture.file, layer.name().c_str(),
+                     settings.toUtf8().constData());
+      }
+      CHECK(settings == QLatin1String(fixture.settings));
+      CHECK(saved_every_line_paragraphs(layer) == fixture.every_line_paragraphs);
+    }
+    CHECK(checked == fixture.layers);
+  }
 }
 
 // Type > Replace All Missing Fonts: no dialog; each missing family takes the dialog's
@@ -2067,6 +2228,9 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_update_all_text_layers_rerenders_installed_font_layers",
        ui_update_all_text_layers_rerenders_installed_font_layers},
       {"ui_update_all_text_layers_rewrites_photoshop_text", ui_update_all_text_layers_rewrites_photoshop_text},
+      {"ui_update_all_text_layers_keeps_the_line_composer", ui_update_all_text_layers_keeps_the_line_composer},
+      {"ui_update_all_text_layers_keeps_the_line_composer_if_available",
+       ui_update_all_text_layers_keeps_the_line_composer_if_available},
       {"ui_replace_all_missing_fonts_uses_recommendations_then_the_default",
        ui_replace_all_missing_fonts_uses_recommendations_then_the_default},
       {"ui_missing_fonts_dialog_shows_family_and_style_apart", ui_missing_fonts_dialog_shows_family_and_style_apart},

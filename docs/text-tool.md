@@ -115,6 +115,14 @@ entries and the script API's `justify`, `justifyCenter`, `justifyRight`, `justif
   Txt2 paragraph sheet store EngineData `/Justification` 3, 5, 4, 6 ([txt2.md](txt2.md)). A
   justified block is `Qt::AlignJustify` plus `kTextBlockJustifyLastLineProperty`; alignment edits
   merge both (`apply_text_alignment_to_editor`), never `QTextEdit::setAlignment`.
+- **A block format is merged over the block's own positions only.** `mergeBlockFormat` reaches
+  every block the selection touches, and the position after a paragraph break is the next
+  block: `apply_paragraph_runs_to_document`, `copy_text_document_formats` and
+  `scale_document_font_sizes` select up to the break. One position further gave the next
+  paragraph whatever its own format leaves unset (the kept Photoshop settings, a composer, an
+  explicit direction; in the commit's copy every property of the paragraph before it, so an
+  alignment set at a bare caret also reached the paragraph after the caret's). Test:
+  `ui_text_paragraph_runs_stay_on_their_own_paragraphs`.
 - **Box and area text only** (PS 2026 probes: Arial 20 px in a 300 px box). A lone line is the
   last line, so Justify last centered and right place it like Center and Right, and Justify all
   spreads even a single word across the box letter by letter. Point text sets every justify mode
@@ -126,6 +134,10 @@ entries and the script API's `justify`, `justifyCenter`, `justifyRight`, `justif
   `build_text_render_document` on box and area documents); the flag cannot be cleared, so it is
   only ever set on a freshly built document.
 - Vertical text treats every justify mode as Justify (last line left).
+- Patchy breaks lines one at a time, like Adobe Single-line Composer. A Photoshop paragraph set
+  to Adobe Every-line Composer keeps that setting through an edit and a save
+  ([txt2-kept-settings.md](txt2-kept-settings.md#line-composer)), but Patchy's own line breaks for it can differ from
+  Photoshop's.
 - **Right-to-left and cursive paragraphs are justified by Patchy, over their word spaces**
   (`apply_word_space_justification_to_document`, box documents, GitHub issue 683). Qt's own
   justification is wrong for both: a right-to-left line's slack is cut by its trailing space
