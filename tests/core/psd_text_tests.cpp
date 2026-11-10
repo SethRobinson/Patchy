@@ -2165,14 +2165,15 @@ void psd_text_character_styles_import_photoshop_sample_if_available() {
     for (std::size_t index = 1; index < lines.size(); ++index) {
       const auto fields = split_tabs(lines[index]);
       auto value = fields.size() >= 17U ? fields[16] : std::string("-");
-      // The sample's Photoshop wrote English USA (Txt2 /38 0) on every run; Patchy keeps it as
-      // the run's language token (GitHub issue 682), the last token of the list.
-      static constexpr std::string_view kLanguage = "language:0";
-      CHECK(value.ends_with(kLanguage));
-      if (value == kLanguage) {
+      // The sample's Photoshop wrote English USA (Txt2 /38 0) and a mark distance of 24 (/87)
+      // on every run; Patchy keeps them as the run's language (GitHub issue 682) and marky
+      // (issue 683) tokens, the last two of the list.
+      static constexpr std::string_view kKept = "language:0,marky:24";
+      CHECK(value.ends_with(kKept));
+      if (value == kKept) {
         value = "-";
-      } else if (value.ends_with(std::string(",") + std::string(kLanguage))) {
-        value.resize(value.size() - kLanguage.size() - 1U);
+      } else if (value.ends_with(std::string(",") + std::string(kKept))) {
+        value.resize(value.size() - kKept.size() - 1U);
       }
       tokens.push_back(value);
     }

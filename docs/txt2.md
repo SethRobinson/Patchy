@@ -173,7 +173,7 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/70` | digit set (`digitSet`) | 0 default, 1 Arabic, 2 Hindi, 3 Farsi; kept |
 | `/72`, `/73` | diacritic x and y offsets (`diacXOffset`, `diacYOffset`) | 0.0; kept |
 | `/75` | Justification Alternates | bool; kept |
-| `/87`, `/88` | mark distance from the baseline (`markYDistFromBaseline`) and whether it is automatic | 100.0 with `/88 false` on every run Photoshop 2026 writes, `/88 true` in the default sheets; `/87` kept |
+| `/87`, `/88` | mark distance from the baseline (`markYDistFromBaseline`) and whether it is automatic | 100.0 with `/88 false` on every run Photoshop 2026 writes, `/88 true` in the default sheets; a CC 2018 file has 24.0 on every run of 24 px Latin text; `/87` kept |
 
 Everything else in the sheets was constant across captures; author it by copying a
 Photoshop 2026 default sheet.
@@ -248,6 +248,15 @@ Model: `PsdTextParagraphRun` (`auto_hyphenate`, the five numbers, `hyphenate_cap
 only off its default, so other text keeps its metadata. Hyphenate, the Kashida width and the
 style keys resolve through the run's sheet, its parent sheet and the document's default sheet,
 as the composer does.
+
+Acceptance (Photoshop 2026 over COM, `photoshop-open-check.ps1` and a `textKey` readback): the
+reporter's Hebrew and Arabic files re-rendered and saved by Patchy, a Patchy-born file with
+Latin, Hebrew and Arabic boxes, and the two round-trip tests' files all open clean
+(`textWarningLevel 0`, no `oldText`). Hyphenate reads off on every layer that had it off and on
+new layers (the same Hebrew file saved by the build before this fix read on), and the
+hyphenation numbers, `kashidaWidthNone`, `hindiDigits` / `farsiDigits` / `arabicDigits`,
+`diacXOffset -100`, `diacYOffset 25.5`, `markYDistFromBaseline 0` and Justification Alternates
+read back on the paragraphs and runs that carry them.
 
 Tests: `text_engine_hyphenation_round_trips`, `text_engine_middle_eastern_settings_round_trip`,
 `text_engine_issue_683_reporter_settings_survive_an_edit_if_available`
