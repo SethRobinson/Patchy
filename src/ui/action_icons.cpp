@@ -923,7 +923,8 @@ QIcon distribute_mode_icon(DistributeMode mode) {
 QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
   // Drawn in a 22-unit square: four ragged lines of text, the word-processor convention.
   // Long and short lines alternate so the shared edge (or center) reads at 18 px.
-  // Justify (GitHub issue 673): three full lines over a short last one, flush to the start.
+  // Justify (GitHub issue 673 follow-up): four full lines, the last one too, since the bar's
+  // Justify is a toggle whose last line follows L / C / R rather than "justify, last line left".
   const int mode = (alignment & Qt::AlignHCenter) != 0  ? 1
                    : (alignment & Qt::AlignRight) != 0  ? 2
                    : (alignment & Qt::AlignJustify) != 0 ? 3
@@ -933,12 +934,11 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
     painter.setPen(Qt::NoPen);
     painter.setBrush(ink);
     constexpr double kLengths[] = {16.0, 10.0, 16.0, 8.0};
-    constexpr double kJustifiedLengths[] = {16.0, 16.0, 16.0, 9.0};
     constexpr double kStart = 3.0;
     constexpr double kSpan = 16.0;
     constexpr double kThickness = 2.0;
     for (int line = 0; line < 4; ++line) {
-      const double length = mode == 3 ? kJustifiedLengths[line] : kLengths[line];
+      const double length = mode == 3 ? kSpan : kLengths[line];
       const double offset = mode == 0 || mode == 3 ? kStart
                             : mode == 1           ? kStart + (kSpan - length) / 2.0
                                                   : kStart + kSpan - length;
@@ -952,6 +952,39 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
     }
   };
   return themed_glyph_icon(QStringLiteral("text-align-%1-%2").arg(mode).arg(vertical ? 1 : 0), 22.0,
+                           &ThemePalette::icon_ink, std::move(glyph));
+}
+
+QIcon text_flow_toggle_icon(bool vertical) {
+  // Drawn in a 22-unit square (GitHub issue 673 follow-up): a serifed capital T and an arrow
+  // for the way the text runs. Vertical: the arrow points down beside the T. Right to left: the
+  // arrow points left under it. Filled bars like text_alignment_icon, in the same ink.
+  auto glyph = [vertical](QPainter& painter, const QColor& ink) {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(ink);
+    const auto letter_t = [&painter](double left, double top, double width, double height) {
+      const double stem = 2.4;
+      const double middle = left + width / 2.0;
+      painter.drawRect(QRectF(left, top, width, 2.2));                        // crossbar
+      painter.drawRect(QRectF(left, top, 1.6, 3.6));                          // left serif
+      painter.drawRect(QRectF(left + width - 1.6, top, 1.6, 3.6));            // right serif
+      painter.drawRect(QRectF(middle - stem / 2.0, top, stem, height));       // stem
+      painter.drawRect(QRectF(middle - 2.8, top + height - 1.8, 5.6, 1.8));   // foot
+    };
+    if (vertical) {
+      letter_t(9.0, 3.0, 11.0, 15.0);
+      painter.drawRect(QRectF(3.4, 2.5, 2.0, 12.5));
+      const QPointF head[] = {QPointF(4.4, 19.5), QPointF(0.9, 14.0), QPointF(7.9, 14.0)};
+      painter.drawPolygon(head, 3);
+    } else {
+      letter_t(5.5, 1.5, 11.0, 12.5);
+      painter.drawRect(QRectF(7.0, 17.0, 12.5, 2.0));
+      const QPointF head[] = {QPointF(2.0, 18.0), QPointF(7.5, 14.5), QPointF(7.5, 21.5)};
+      painter.drawPolygon(head, 3);
+    }
+  };
+  return themed_glyph_icon(vertical ? QStringLiteral("text-flow-vertical") : QStringLiteral("text-flow-rtl"), 22.0,
                            &ThemePalette::icon_ink, std::move(glyph));
 }
 
