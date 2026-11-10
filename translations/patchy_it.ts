@@ -15758,6 +15758,45 @@ Sostituirlo?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Un quadro di %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>stesse larghezze dei caratteri</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>design simile</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>anch&apos;esso un font con grazie</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>anch&apos;esso un font senza grazie</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>anch&apos;esso un font a spaziatura fissa</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>Scelti in precedenza</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>Suggeriti</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>Scelto in precedenza: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

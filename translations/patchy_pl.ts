@@ -15814,6 +15814,45 @@ Czy chcesz go zastąpić?</translation>
         <source>One canvas of %1 x %2 px.</source>
         <translation>Jedno płótno o wymiarach %1 x %2 px.</translation>
     </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>te same szerokości znaków</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>podobny krój</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>również krój szeryfowy</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>również krój bezszeryfowy</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>również krój o stałej szerokości</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>Wybrane wcześniej</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>Sugerowane</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>Wybrana wcześniej: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

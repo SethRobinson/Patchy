@@ -27,7 +27,8 @@ inline constexpr char kFontPickerPopupObjectName[] = "textFontPickerPopup";
 
 // The popup list's rows: families, plus the two section headers when the Recent section shows
 // (GitHub issue 569), or the Favorites header and, when no favorite passes, a one-line note
-// (GitHub issue 630). Only family rows are selectable; the row-kind role tells them apart.
+// (GitHub issue 630), and the header of each extra section a caller handed the picker (GitHub
+// issue 692). Only family rows are selectable; the row-kind role tells them apart.
 inline constexpr int kFontPickerRowKindRole = Qt::UserRole + 1;
 inline constexpr int kFontPickerRecentRowRole = Qt::UserRole + 2;    // bool: a row of the Recent section
 inline constexpr int kFontPickerFavoriteRole = Qt::UserRole + 3;     // bool: the family is a favorite
@@ -35,7 +36,29 @@ inline constexpr int kFontPickerFavoriteRole = Qt::UserRole + 3;     // bool: th
 // it (the key picks, Recent and Favorites use); this is its English name while "Show font names in
 // English" is on and the family has one (GitHub issue 691), else the same family.
 inline constexpr int kFontPickerShownNameRole = Qt::UserRole + 4;
-enum class FontPickerRowKind { family = 0, recent_header = 1, all_header = 2, favorites_header = 3, empty_note = 4 };
+// A family row of an extra section (FontPickerCombo::set_extra_sections): the section's index
+// (int; -1 for every other row) and the dim note drawn beside the name (QString, may be empty).
+inline constexpr int kFontPickerExtraSectionRole = Qt::UserRole + 5;
+inline constexpr int kFontPickerRowNoteRole = Qt::UserRole + 6;
+enum class FontPickerRowKind {
+  family = 0,
+  recent_header = 1,
+  all_header = 2,
+  favorites_header = 3,
+  empty_note = 4,
+  extra_section_header = 5,
+};
+
+// A short section a caller puts above the popup's normal list (GitHub issue 692: the Missing
+// Fonts dialog's "Chosen before" and "Suggested"). `title` and each `note` arrive translated.
+struct FontPickerSectionRow {
+  QString family;  // as the font database lists it; a family that is not installed is left out
+  QString note;    // drawn dim beside the name ("same character widths"); may be empty
+};
+struct FontPickerSection {
+  QString title;
+  std::vector<FontPickerSectionRow> rows;
+};
 
 // The small buttons at the right of a family row (GitHub issues 630 and 569): the favorite star on
 // every family row, and the remove button on Recent rows, rightmost, with the star just left of it.
@@ -118,6 +141,14 @@ public:
   // Equals currentText() unless a missing family or the row's English name is shown.
   [[nodiscard]] QString row_family() const;
 
+  // Extra sections for the top of the popup's list, above Recent (GitHub issue 692). They follow
+  // the Recent section's rules: hidden while the search box has text and in the Favorites view,
+  // and their rows pass the Style and Language filters like any other; a section with no row to
+  // show has no header. Takes effect the next time the popup opens. The options bar's picker
+  // sets none. docs/font-picker.md, "Extra sections".
+  void set_extra_sections(std::vector<FontPickerSection> sections);
+  [[nodiscard]] const std::vector<FontPickerSection>& extra_sections() const noexcept { return extra_sections_; }
+
 protected:
   void focusOutEvent(QFocusEvent* event) override;
   void changeEvent(QEvent* event) override;
@@ -138,6 +169,7 @@ private:
 
   QString missing_family_;
   QPointer<QAction> missing_badge_;
+  std::vector<FontPickerSection> extra_sections_;
 
   QPointer<QFrame> popup_;
   // Toggle guard: the click that dismisses the Qt::Popup is replayed onto the combo (or lands

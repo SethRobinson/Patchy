@@ -3,16 +3,17 @@
 The text bar's font family control (`FontPickerCombo`, `src/ui/font_picker.*`) is a `QFontComboBox`
 whose popup is Patchy's own: a search box, Style and Language filters, the Favorites toggle, the
 family list (a Recent section on top, or only the Favorites) and a hover/keyboard preview pane. The Resolve Missing Fonts dialog uses the same
-control. Text-session rules for the popup (its objectName, picks that must apply) are in
+control, with two sections of its own above Recent ("Extra sections" below). Text-session rules for the popup (its objectName, picks that must apply) are in
 [text-tool.md](text-tool.md#options-bar-while-an-editor-is-open).
 
 ## Rows
 
 - The popup's model (`FontListModel`) is rebuilt on every search keystroke and filter change from
   the combo's own family model. Rows carry `kFontPickerRowKindRole` (`FontPickerRowKind`: family,
-  Recent header, All Fonts header) and `kFontPickerRecentRowRole`. Headers have no item flags, so
-  they cannot be selected or picked; Up/Down from the search box step over them, and a Page Up/Down
-  that lands on one moves to the next family. The All Fonts header draws the separator rule in
+  Recent header, All Fonts header, an extra section's header) and `kFontPickerRecentRowRole`.
+  Headers have no item flags, so they cannot be selected or picked; Up/Down from the search box
+  step over them, and a Page Up/Down that lands on one moves to the next family. The All Fonts
+  header, and any other header below the first row, draws the separator rule in
   `field_border` (`field_inset_border`, the list frame's color, sits a shade off the list
   background in Dark and the rule vanished; `menu_separator` is too faint in Light; issue 569
   follow-up).
@@ -34,6 +35,26 @@ control. Text-session rules for the popup (its objectName, picks that must apply
   keyboard shortcut for the buttons.
 - The popup opens on the current family's Recent row with the list at the top, so the section is in
   view; a current family that is not recent opens centered in the full list.
+
+## Extra sections (issue 692)
+
+`FontPickerCombo::set_extra_sections` takes short sections (`FontPickerSection`: a translated
+title and rows of a family with an optional note) that the popup lists above Recent. The Missing
+Fonts dialog's rows use it for "Chosen before" and "Suggested"
+([font-resolution-missing-fonts.md](font-resolution-missing-fonts.md#remembered-replacements));
+the options bar's picker sets none and is unchanged.
+
+- They follow the Recent section's rules: hidden while the search box has text and in the
+  Favorites view, and their rows pass the Style and Language filters like any other. A family
+  that is not installed is left out, and a section with no row to show has no header. "All Fonts"
+  heads the full list whenever a section shows above it.
+- A row is an ordinary family row (same pick, hover preview and favorite star) that also carries
+  `kFontPickerExtraSectionRole` (the section's index, -1 elsewhere) and `kFontPickerRowNoteRole`:
+  the note is drawn dim in the UI font at the right of the row and takes at most three fifths of
+  the name's width.
+- A popup with an extra section opens with the list at the top, on the current family's topmost
+  row. A rebuild puts the selection back in the section it was in (`row_zone`).
+- Test: `ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules`.
 
 ## English names (issue 691)
 
