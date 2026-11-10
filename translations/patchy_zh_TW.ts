@@ -15686,6 +15686,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>騎馬釘小冊子（對折釘裝）</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>顯示「填滿」欄位</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>圖層清單上方、不透明度旁的「填滿」欄位。隱藏後，混合模式和不透明度在較窄的面板中可排成一列。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

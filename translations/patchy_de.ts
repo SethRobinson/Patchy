@@ -15742,6 +15742,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Rückstichgeheftetes Heft (falten und heften)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Feld „Fläche“ anzeigen</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Das Feld „Fläche“ neben der Deckkraft, über der Ebenenliste. Ohne das Feld passen Füllmethode und Deckkraft in einem schmalen Bedienfeld auf eine Zeile.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

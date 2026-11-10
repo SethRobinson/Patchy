@@ -15798,6 +15798,14 @@ Czy chcesz go zastąpić?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Broszura szyta zeszytowo (złożyć i zszyć)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Pokazuj pole Wypełnienie</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Pole Wypełnienie obok Krycia, nad listą warstw. Bez niego tryb mieszania i krycie mieszczą się w jednym wierszu w wąskim panelu.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

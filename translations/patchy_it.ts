@@ -15742,6 +15742,14 @@ Sostituirlo?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Fascicolo con cucitura a sella (piega e pinza)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Mostra il campo Riempimento</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Il campo Riempimento accanto a Opacità, sopra l&apos;elenco dei livelli. Senza il campo, metodo di fusione e opacità stanno su una riga in un pannello stretto.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

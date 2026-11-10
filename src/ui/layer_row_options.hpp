@@ -3,6 +3,8 @@
 // How the Layers panel draws its rows (GitHub issue 680; docs/layer-panel-row-options.md),
 // set on Customize Tool Palette's Layers Panel tab: compact rows without the blend mode and
 // opacity line, the row tooltip, and a color label as the 4 px strip or a tint of the whole row.
+// The same tab's "Show Fill field" (issue 680 follow-up) rides along: it hides the Fill field
+// beside Opacity above the list, so the blend mode and Opacity fit one line in a narrow panel.
 // The settings keys and the tokens are persisted identifiers: never rename them. Defaults are
 // stored as no key.
 
@@ -17,6 +19,7 @@ enum class LayerRowColorStyle { Strip, WholeRow };
 inline constexpr const char* kLayerCompactRowsSettingsKey = "layersPanel/compactRows";
 inline constexpr const char* kLayerRowTooltipsSettingsKey = "layersPanel/rowTooltips";
 inline constexpr const char* kLayerRowColorSettingsKey = "layersPanel/rowColor";
+inline constexpr const char* kLayerShowFillSettingsKey = "layersPanel/showFill";
 
 struct LayerRowOptions {
   // Hides the blend mode and opacity line under the layer name; the main row gets shorter.
@@ -24,6 +27,9 @@ struct LayerRowOptions {
   // The row's tooltip (name, opacity, locks); badge and control tooltips stay.
   bool tooltips{true};
   LayerRowColorStyle color_style{LayerRowColorStyle::Strip};
+  // The Fill field in the panel's blend mode and Opacity line. Display only: a hidden field
+  // changes no layer's fill opacity, and Layer Styles' Fill Opacity still edits it.
+  bool show_fill{true};
 
   bool operator==(const LayerRowOptions&) const = default;
 };
@@ -44,6 +50,7 @@ struct LayerRowOptions {
   options.tooltips = settings.value(QLatin1String(kLayerRowTooltipsSettingsKey), true).toBool();
   options.color_style =
       layer_row_color_style_from_token(settings.value(QLatin1String(kLayerRowColorSettingsKey)).toString());
+  options.show_fill = settings.value(QLatin1String(kLayerShowFillSettingsKey), true).toBool();
   return options;
 }
 
@@ -63,6 +70,11 @@ inline void set_stored_layer_row_options(const LayerRowOptions& options) {
     settings.remove(QLatin1String(kLayerRowColorSettingsKey));
   } else {
     settings.setValue(QLatin1String(kLayerRowColorSettingsKey), layer_row_color_style_token(options.color_style));
+  }
+  if (options.show_fill) {
+    settings.remove(QLatin1String(kLayerShowFillSettingsKey));
+  } else {
+    settings.setValue(QLatin1String(kLayerShowFillSettingsKey), false);
   }
 }
 

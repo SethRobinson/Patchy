@@ -2573,6 +2573,9 @@ private:
   // Customize Layers Panel's row options (GitHub issue 680; layer_row_options.hpp): stores them
   // and rebuilds the rows when they changed.
   void apply_layer_row_options(const LayerRowOptions& options);
+  // Shows or hides the Layers panel's Fill field for layer_row_options_.show_fill (issue 680
+  // follow-up). Display only: no layer's fill opacity changes.
+  void apply_layer_fill_field_visibility();
   // Ends a thumbnail's own right-click menu (pixel, layer mask and vector mask thumbnails) with the
   // Thumbnail Size and Thumbnail Display submenus, after a separator (#481).
   void add_layer_thumbnail_view_menus(QMenu* menu);
@@ -4525,7 +4528,7 @@ private:
   std::array<QAction*, 4> layer_thumbnail_size_actions_{};
   // layerThumbnailBoundsLayerAction, layerThumbnailBoundsDocumentAction (#481).
   std::array<QAction*, 2> layer_thumbnail_bounds_actions_{};
-  // layersPanel/compactRows, rowTooltips, rowColor (GitHub issue 680). Persisted identifiers.
+  // layersPanel/compactRows, rowTooltips, rowColor, showFill (GitHub issue 680). Persisted identifiers.
   LayerRowOptions layer_row_options_{};
   // The rows were built with the folder-arrow slot reserved (#386 follow-up).
   bool layer_list_arrow_column_{false};
