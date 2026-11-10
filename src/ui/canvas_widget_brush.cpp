@@ -1449,6 +1449,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   healing_stroke_original_pixels_.reset();
   healing_stroke_footprint_ = QRect();
   brush_stroke_accumulated_alpha_.clear();
+  brush_dab_batch_.reset();
   brush_stroke_union_coverage_.clear();
   brush_stroke_wet_edge_primary_.clear();
   brush_stroke_wet_edge_pending_rect_ = {};
@@ -1867,14 +1868,27 @@ QRect CanvasWidget::draw_brush_dab(QPointF point, bool erase, EditOptions& optio
     return {};
   }
   const auto started = std::chrono::steady_clock::now();
+  const auto count_dab = [&] {
+    ++render_cache_diagnostics_.brush_dabs;
+    render_cache_diagnostics_.brush_dab_ms +=
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  };
+  if (queue_batched_brush_dab(point, erase, options)) {
+    count_dab();
+    return {};  // painted, and reported, by flush_brush_dab_batch
+  }
+  // Dabs queued before this one land first.
+  QRect dirty;
+  for (const auto& rect : flush_brush_dab_batch()) {
+    dirty = united_dirty_rect(dirty, rect);
+  }
   const auto banded = draw_banded_brush_dab(point, erase, options);
-  const auto dirty = banded.has_value()
-                         ? *banded
-                         : to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(), point.x(),
-                                                            point.y(), options, erase));
-  ++render_cache_diagnostics_.brush_dabs;
-  render_cache_diagnostics_.brush_dab_ms +=
-      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  dirty = united_dirty_rect(
+      dirty, banded.has_value()
+                 ? *banded
+                 : to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(), point.x(), point.y(),
+                                                    options, erase)));
+  count_dab();
   return finalize_pending_wet_edges(dirty);
 }
 
@@ -1968,15 +1982,17 @@ std::optional<QRect> CanvasWidget::draw_banded_brush_dab(QPointF point, bool era
       auto changed_last = std::numeric_limits<std::int32_t>::min();
       const auto end = std::min(span.end, column_end);
       for (auto x = std::max(span.first, column_begin); x < end; ++x) {
+        // The gate first: a pixel at the Opacity cap is skipped whatever its coverage, and
+        // the coverage (a square root and a division) is the walk's dearest step.
+        if (const auto* found = cursor.find(x, span.y); found != nullptr && !(*found < gate_alpha)) {
+          continue;
+        }
         const auto selected = patchy::edit_selection_coverage(options, x, span.y);
         if (selected <= 0.0F) {
           continue;
         }
         const auto coverage = walk->coverage(x, span.y, options) * selected;
         if (coverage <= 0.0F) {
-          continue;
-        }
-        if (const auto* found = cursor.find(x, span.y); found != nullptr && !(*found < gate_alpha)) {
           continue;
         }
         auto* const pixel = row + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
@@ -2076,6 +2092,370 @@ std::optional<QRect> CanvasWidget::draw_banded_brush_dab(QPointF point, bool era
   }
   if (options.progress_callback) {
     options.progress_callback();
+  }
+  return dirty;
+}
+
+bool CanvasWidget::queue_batched_brush_dab(QPointF point, bool erase, const EditOptions& options) {
+  // draw_banded_brush_dab's conditions, plus no selection lookup (it rasterizes lazily, on one
+  // thread).
+  if (brush_dab_batch_depth_ <= 0 || !brush_dab_batching_enabled_ || !banded_brush_dabs_enabled_ ||
+      !brush_stroke_plain_writer_installed_ || document_ == nullptr || !document_->active_layer_id().has_value() ||
+      options.brush_tip != nullptr || !options.stroke_pixel_writer || !options.stroke_pixel_gate ||
+      options.stroke_coverage_observer || options.dab_primary_provider || options.stroke_progress ||
+      options.palette_snap != nullptr || options.selection_coverage || options.selection_mask ||
+      !brush_stroke_layer_snapshot_.has_value() ||
+      brush_stroke_layer_snapshot_->layer_id != *document_->active_layer_id()) {
+    return false;
+  }
+  if (brush_dab_batch_.has_value()) {
+    // Only the footprint may change between queued dabs (pen pressure on Size).
+    const auto& queued = brush_dab_batch_->options;
+    const auto same_color = [](EditColor a, EditColor b) {
+      return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+    };
+    if (brush_dab_batch_->erase != erase || !same_color(queued.primary, options.primary) ||
+        !same_color(queued.secondary, options.secondary) ||
+        queued.lock_transparent_pixels != options.lock_transparent_pixels ||
+        queued.brush_shape != options.brush_shape || queued.brush_roundness != options.brush_roundness ||
+        queued.brush_angle_degrees != options.brush_angle_degrees ||
+        queued.brush_softness != options.brush_softness || queued.selection != options.selection) {
+      return false;
+    }
+  }
+  // The walk grows the layer to the dab now, in stroke order, as painting it would.
+  auto walk = patchy::begin_brush_dab_walk(*document_, *document_->active_layer_id(), point.x(), point.y(), options,
+                                           erase);
+  if (!brush_dab_batch_.has_value()) {
+    brush_dab_batch_ = BrushDabBatch{{}, options, erase};
+  }
+  if (walk.has_value()) {
+    brush_dab_batch_->dabs.push_back(*walk);
+  }
+  return true;
+}
+
+// GitHub issue 677 follow-up: at about 13% zoom a fast Airbrush stroke (Size 179, Flow 100)
+// places about a thousand dabs a second, each over about 25,000 pixels, and about eight of them
+// overlap every pixel. Painting them one by one blended every pixel from the snapshot once per
+// dab; at Soft 100% no pixel reaches the Opacity cap, so the gate never skipped one and the paint
+// trailed the cursor. Here a pixel's accumulated alpha steps through the queued dabs in order
+// (blend_brush_stroke_pixel_from_snapshot's gate and accumulation, unchanged) and the pixel is
+// blended once with the final alpha, which is the byte the last of those blends wrote: every
+// blend reads only the stroke-start snapshot and its alpha. The work cells are the stroke map's
+// 64x64 tiles, each with every dab that reaches it, fanned out over threads like the per-dab walk.
+std::vector<QRect> CanvasWidget::flush_brush_dab_batch() {
+  if (!brush_dab_batch_.has_value()) {
+    return {};
+  }
+  const auto started = std::chrono::steady_clock::now();
+  auto batch = std::move(*brush_dab_batch_);
+  brush_dab_batch_.reset();
+  const auto finish = qScopeGuard([&] {
+    render_cache_diagnostics_.brush_dab_ms +=
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  });
+  if (batch.dabs.empty() || document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+  const auto& options = batch.options;
+  const auto erase = batch.erase;
+  const auto primary = options.primary;
+  const auto secondary = options.secondary;
+  const auto lock_transparent_pixels = options.lock_transparent_pixels;
+  // blend_brush_stroke_pixel_from_snapshot's early outs that hold for every pixel: no entry is
+  // made and nothing is written.
+  const auto source_alpha = static_cast<float>(primary.a) / 255.0F;
+  const auto raw_flow = static_cast<float>(tool_ == CanvasTool::MixerBrush ? mixer_flow_ : brush_flow_) / 100.0F;
+  if (source_alpha <= 0.0F || raw_flow <= 0.0F) {
+    return {};
+  }
+  const auto flow = std::clamp(raw_flow, 0.01F, 1.0F);
+  // draw_banded_brush_dab's gate: an entry at the Opacity cap is skipped.
+  const auto gate_alpha =
+      std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F) - 0.0005F;
+
+  auto* layer = document_->find_layer(*document_->active_layer_id());
+  if (layer == nullptr) {
+    return {};
+  }
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  // Each dab's rows and columns inside the layer.
+  struct DabRows {
+    std::int32_t top{0};
+    std::int32_t bottom{0};
+    std::int32_t left{0};
+    std::int32_t right{0};
+  };
+  std::vector<DabRows> extents(batch.dabs.size());
+  auto union_left = std::numeric_limits<std::int32_t>::max();
+  auto union_right = std::numeric_limits<std::int32_t>::min();
+  auto union_top = std::numeric_limits<std::int32_t>::max();
+  auto union_bottom = std::numeric_limits<std::int32_t>::min();
+  for (std::size_t index = 0; index < batch.dabs.size(); ++index) {
+    const auto& walk = batch.dabs[index];
+    auto& extent = extents[index];
+    extent.top = std::max(walk.rect.y, bounds.y);
+    extent.bottom = std::min(walk.rect.y + walk.rect.height, bounds.y + pixels.height());
+    extent.left = std::max(walk.rect.x, bounds.x);
+    extent.right = std::min(walk.rect.x + walk.rect.width, bounds.x + pixels.width());
+    if (extent.top >= extent.bottom || extent.left >= extent.right) {
+      extent = {};
+      continue;
+    }
+    union_left = std::min(union_left, extent.left);
+    union_right = std::max(union_right, extent.right);
+    union_top = std::min(union_top, extent.top);
+    union_bottom = std::max(union_bottom, extent.bottom);
+  }
+  if (union_left >= union_right || union_top >= union_bottom) {
+    return {};
+  }
+
+  // The mutable access detaches the layer's bytes here, on the launching thread.
+  auto* const layer_bytes = pixels.data().data();
+  const auto stride = pixels.stride_bytes();
+  const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  const auto locked_alpha = lock_transparent_pixels && channels >= 4;
+
+  auto& accumulated = brush_stroke_accumulated_alpha_;
+  constexpr auto kTileShift = StrokePixelMap<float>::kTileRowsShift;
+  constexpr std::int32_t kTileSize = 1 << kTileShift;
+  accumulated.reserve_tiles(union_left, union_top, union_right, union_bottom);
+
+  // One cell per stroke-map tile, listing the dabs that reach it in stroke order.
+  const auto tile_left = union_left >> kTileShift;
+  const auto tile_top = union_top >> kTileShift;
+  const auto tiles_wide = ((union_right - 1) >> kTileShift) - tile_left + 1;
+  const auto tiles_high = ((union_bottom - 1) >> kTileShift) - tile_top + 1;
+  struct Cell {
+    std::int32_t x{0};
+    std::int32_t y{0};
+    std::vector<std::uint32_t> dabs;
+    std::int64_t pixels{0};
+  };
+  std::vector<Cell> grid(static_cast<std::size_t>(tiles_wide) * static_cast<std::size_t>(tiles_high));
+  for (std::size_t index = 0; index < batch.dabs.size(); ++index) {
+    const auto& extent = extents[index];
+    if (extent.top >= extent.bottom) {
+      continue;
+    }
+    for (auto tile_y = extent.top >> kTileShift; tile_y <= (extent.bottom - 1) >> kTileShift; ++tile_y) {
+      for (auto tile_x = extent.left >> kTileShift; tile_x <= (extent.right - 1) >> kTileShift; ++tile_x) {
+        auto& cell = grid[static_cast<std::size_t>(tile_y - tile_top) * static_cast<std::size_t>(tiles_wide) +
+                          static_cast<std::size_t>(tile_x - tile_left)];
+        cell.x = tile_x * kTileSize;
+        cell.y = tile_y * kTileSize;
+        cell.dabs.push_back(static_cast<std::uint32_t>(index));
+        const auto width = std::min(extent.right, cell.x + kTileSize) - std::max(extent.left, cell.x);
+        const auto height = std::min(extent.bottom, cell.y + kTileSize) - std::max(extent.top, cell.y);
+        cell.pixels += static_cast<std::int64_t>(width) * height;
+      }
+    }
+  }
+  std::vector<const Cell*> cells;
+  std::int64_t total_pixels = 0;
+  for (const auto& cell : grid) {
+    if (!cell.dabs.empty()) {
+      cells.push_back(&cell);
+      total_pixels += cell.pixels;
+    }
+  }
+
+  // A round dab's coverage is core brush_coverage of the squared distance (brush_shape_coverage);
+  // the same statements here, with the per-dab terms worked out once, skip a call per pixel.
+  const auto round_footprint = options.brush_shape == patchy::BrushShape::Round &&
+                               std::clamp(options.brush_roundness, 1, 100) >= 99;
+  const auto softness = std::clamp(options.brush_softness, 0, 100);
+  struct RoundTerms {
+    double radius_squared{0.0};
+    double edge_width{1.0};
+    double inner_radius{0.0};
+    // Below this squared distance sqrt(distance_squared) <= inner_radius surely holds.
+    double surely_inner_squared{-1.0};
+  };
+  std::vector<RoundTerms> round_terms(round_footprint ? batch.dabs.size() : 0);
+  for (std::size_t index = 0; index < round_terms.size(); ++index) {
+    const auto radius = batch.dabs[index].radius;
+    auto& terms = round_terms[index];
+    terms.radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+    if (softness > 0) {
+      terms.edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
+      terms.inner_radius = std::max(0.0, static_cast<double>(radius) - terms.edge_width);
+      terms.surely_inner_squared = terms.inner_radius * terms.inner_radius * (1.0 - 1.0e-9);
+    }
+  }
+  const auto dab_coverage = [&](std::size_t dab_index, std::int32_t x, std::int32_t y, double distance_y) -> float {
+    const auto& walk = batch.dabs[dab_index];
+    if (!round_footprint || walk.radius <= 0) {
+      return walk.coverage(x, y, options);
+    }
+    const auto& terms = round_terms[dab_index];
+    const auto distance_x = static_cast<double>(x) - walk.x;
+    const auto distance_squared = distance_x * distance_x + distance_y * distance_y;
+    if (distance_squared > terms.radius_squared) {
+      return 0.0F;
+    }
+    if (softness <= 0 || distance_squared < terms.surely_inner_squared) {
+      return 1.0F;
+    }
+    const auto distance = std::sqrt(distance_squared);
+    if (distance <= terms.inner_radius) {
+      return 1.0F;
+    }
+    const auto t = std::clamp((distance - terms.inner_radius) / terms.edge_width, 0.0, 1.0);
+    const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+    return static_cast<float>(1.0 - smooth);
+  };
+
+  // Paints one cell; returns the bounds of the pixels whose bytes changed.
+  const auto paint_cell = [&](const Cell& cell) {
+    const auto entries = accumulated.reserved_tile_entries(cell.x, cell.y);
+    std::array<std::uint8_t, static_cast<std::size_t>(kTileSize) * kTileSize> touched{};
+    auto touched_top = kTileSize;
+    auto touched_bottom = -1;
+    const auto cell_right = cell.x + kTileSize;
+    const auto cell_bottom = cell.y + kTileSize;
+    for (const auto dab_index : cell.dabs) {
+      const auto& walk = batch.dabs[dab_index];
+      const auto& extent = extents[dab_index];
+      const auto row_end = std::min(extent.bottom, cell_bottom);
+      for (auto y = std::max(extent.top, cell.y); y < row_end; ++y) {
+        auto [first, end] = walk.row_span(y);
+        // Pixels outside the layer are skipped by paint_brush_dab too.
+        first = std::max({first, bounds.x, cell.x});
+        end = std::min({end, bounds.x + pixels.width(), cell_right});
+        const auto row_index = static_cast<std::size_t>(y - cell.y) * kTileSize;
+        const auto distance_y = static_cast<double>(y) - walk.y;
+        for (auto x = first; x < end; ++x) {
+          // The gate first, as in draw_banded_brush_dab: the skip does not depend on coverage.
+          const auto index = row_index + static_cast<std::size_t>(x - cell.x);
+          const auto present = entries.present->test(index);
+          if (present && !(entries.values[index] < gate_alpha)) {
+            continue;
+          }
+          const auto selected = patchy::edit_selection_coverage(options, x, y);
+          if (selected <= 0.0F) {
+            continue;
+          }
+          const auto coverage = std::clamp(dab_coverage(dab_index, x, y, distance_y) * selected, 0.0F, 1.0F);
+          if (coverage <= 0.0F) {
+            continue;
+          }
+          if (locked_alpha && brush_stroke_original_pixel(x, y)[3] == 0) {
+            continue;
+          }
+          const auto dab_alpha = std::clamp(source_alpha * flow * coverage, 0.0F, source_alpha);
+          if (!present) {
+            entries.present->set(index);
+            entries.values[index] = 0.0F;
+          }
+          const auto accumulated_alpha = entries.values[index];
+          const auto target_alpha = std::min(source_alpha, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
+          if (target_alpha <= accumulated_alpha + 0.0005F) {
+            continue;
+          }
+          entries.values[index] = target_alpha;
+          touched[index] = 1;
+          touched_top = std::min(touched_top, y - cell.y);
+          touched_bottom = std::max(touched_bottom, y - cell.y);
+        }
+      }
+    }
+    QRect dirty;
+    for (auto row = touched_top; row <= touched_bottom; ++row) {
+      const auto y = cell.y + row;
+      auto* const layer_row = layer_bytes + static_cast<std::size_t>(y - bounds.y) * stride;
+      auto changed_first = std::numeric_limits<std::int32_t>::max();
+      auto changed_last = std::numeric_limits<std::int32_t>::min();
+      for (std::int32_t column = 0; column < kTileSize; ++column) {
+        const auto index = static_cast<std::size_t>(row) * kTileSize + static_cast<std::size_t>(column);
+        if (touched[index] == 0) {
+          continue;
+        }
+        const auto x = cell.x + column;
+        auto* const pixel = layer_row + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
+        if (render_brush_stroke_pixel_from_snapshot_target(x, y, pixel, channels, primary, secondary,
+                                                           lock_transparent_pixels, entries.values[index], erase)) {
+          changed_first = std::min(changed_first, x);
+          changed_last = x;
+        }
+      }
+      if (changed_first <= changed_last) {
+        dirty = dirty.united(QRect(changed_first, y, changed_last - changed_first + 1, 1));
+      }
+    }
+    return dirty;
+  };
+
+  constexpr std::int64_t kParallelPixels = 8192;
+  const auto parallel = total_pixels >= kParallelPixels && cells.size() >= 2 &&
+                        !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+  const auto workers =
+      parallel ? patchy::max_blocking_fanout_workers(std::clamp(
+                     std::min(static_cast<int>(cells.size()), patchy::hardware_worker_threads()), 1, 16))
+               : 1;
+  QRect changed;
+  if (workers < 2) {
+    for (const auto* cell : cells) {
+      changed = changed.united(paint_cell(*cell));
+    }
+  } else {
+    // Biggest cells first, each to the least loaded worker.
+    // A cell's pixels count every dab's pixels in it.
+    std::sort(cells.begin(), cells.end(), [](const Cell* a, const Cell* b) { return a->pixels > b->pixels; });
+    std::vector<std::vector<const Cell*>> shares(static_cast<std::size_t>(workers));
+    std::vector<std::int64_t> loads(static_cast<std::size_t>(workers), 0);
+    for (const auto* cell : cells) {
+      const auto lightest = static_cast<std::size_t>(std::min_element(loads.begin(), loads.end()) - loads.begin());
+      shares[lightest].push_back(cell);
+      loads[lightest] += cell->pixels;
+    }
+    const auto paint_share = [&](const std::vector<const Cell*>& share) {
+      QRect share_dirty;
+      for (const auto* cell : share) {
+        share_dirty = share_dirty.united(paint_cell(*cell));
+      }
+      return share_dirty;
+    };
+    std::vector<std::future<QRect>> futures;
+    futures.reserve(shares.size());
+    for (std::size_t share = 1; share < shares.size(); ++share) {
+      if (!shares[share].empty()) {
+        futures.push_back(std::async(std::launch::async, [&paint_share, &shares, share] {
+          return paint_share(shares[share]);
+        }));
+      }
+    }
+    changed = paint_share(shares.front());
+    for (auto& future : futures) {
+      changed = changed.united(future.get());
+    }
+  }
+  if (options.progress_callback) {
+    // Once per dab, as each dab painted alone reports (the processing overlay's tick).
+    for (std::size_t index = 0; index < batch.dabs.size(); ++index) {
+      options.progress_callback();
+    }
+  }
+  if (changed.isEmpty()) {
+    return {};
+  }
+  // Each dab's footprint inside what changed, in stroke order, so the repaint groups follow the
+  // stroke (stroke_samples_dirty_region) instead of one box around a zigzag.
+  std::vector<QRect> dirty;
+  dirty.reserve(batch.dabs.size());
+  for (const auto& extent : extents) {
+    if (extent.top >= extent.bottom) {
+      continue;
+    }
+    const auto rect =
+        QRect(extent.left, extent.top, extent.right - extent.left, extent.bottom - extent.top).intersected(changed);
+    if (!rect.isEmpty()) {
+      dirty.push_back(rect);
+    }
   }
   return dirty;
 }

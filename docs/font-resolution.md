@@ -141,7 +141,10 @@ Font lookup, style matching, fallback coverage and system-font registration live
   and typographic) in every locale: the writer turns such a family into its PostScript name, the
   reader resolves it (after the registry) to the en-us names it always stores, and
   `platform_installed_family_style_match` maps a stored en-us family onto whichever localized
-  name the database lists (`installed_font_family_names`).
+  name the database lists (`installed_font_family_names`). The font picker can show such a
+  family under its English name ("Show font names in English",
+  [font-picker.md](font-picker.md#english-names-issue-691)); that changes the text shown only,
+  never the family a document, Recent or Favorites stores.
 - **Only Regular (400) and Bold (700) survive being flattened into a family plus a bold flag.**
   The PSD reader keeps the real face for every other weight (`psd_text_read.cpp`): DirectWrite
   on Windows, the font database elsewhere (`src/ui/psd_font_resolver.hpp`), the suffix

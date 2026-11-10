@@ -141,7 +141,11 @@ int CanvasWidget::shape_corner_radius() const noexcept {
 }
 
 void CanvasWidget::set_vector_tool_mode(VectorToolMode mode) noexcept {
+  if (vector_tool_mode_ == mode) {
+    return;
+  }
   vector_tool_mode_ = mode;
+  update();  // the shape tools' resize box shows in Shape mode only (GitHub issue 690)
 }
 
 VectorToolMode CanvasWidget::vector_tool_mode() const noexcept {

@@ -170,6 +170,15 @@ enum class GradientFillEditPhase {
   Cancel
 };
 
+// A shape tool's drag of a bounding-box resize handle on the active shape layer (GitHub
+// issue 690): live previews while it drags, then one Commit (one undo step) or a Cancel
+// that restores the layer.
+enum class ShapeResizePhase {
+  Preview,
+  Commit,
+  Cancel
+};
+
 // Action that can be bound to a pen barrel/side button. These are the actions
 // that are useful to trigger directly from the pen while painting. Tablet pad
 // "express keys" are intentionally not represented here: no desktop tablet

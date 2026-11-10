@@ -1263,6 +1263,128 @@ void stroke_golden_digests_are_stable() {
   CHECK(all_match);
 }
 
+bool same_coverage(const CoverageBuffer& a, const CoverageBuffer& b) {
+  if (a.bounds != b.bounds) {
+    return false;
+  }
+  for (std::int32_t y = a.bounds.y; y < a.bounds.y + a.bounds.height; ++y) {
+    for (std::int32_t x = a.bounds.x; x < a.bounds.x + a.bounds.width; ++x) {
+      if (coverage_pixel(a, x, y) != coverage_pixel(b, x, y)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// A clip that sees a small part of a large curved shape (a zoomed shape in one
+// Dynamic Vector Preview tile) flattens the curves outside it to their chords, and a
+// combined path's stroke finds its crossings by a sweep. The coverage must be
+// byte-identical to the reference: every curve flattened, every segment pair tested.
+void raster_clipped_flattening_matches_full_flattening() {
+  const double radius = 600.0;
+  PathSubpath wave;
+  wave.closed = true;
+  wave.anchors = {
+      PathAnchor{-300, 100, -470, 300, -130, -100, true},
+      PathAnchor{230, -170, 30, -430, 430, 100, true},
+      PathAnchor{300, 300, 500, 200, 100, 400, false},
+  };
+  PathSubpath open_wave = wave;
+  open_wave.closed = false;
+  VectorPath circle;
+  circle.subpaths = {circle_subpath(0.0, 0.0, radius)};
+  VectorPath waves;
+  waves.subpaths = {wave};
+  VectorPath open_path;
+  open_path.subpaths = {open_wave};
+  // Combined paths (one shape group per subpath, as SVG import makes them): their
+  // stroke follows the Boolean outline.
+  VectorPath donut;
+  donut.subpaths = {circle_subpath(0.0, 0.0, 100.0), circle_subpath(15.0, -10.0, 60.0)};
+  donut.subpaths[1].op = PathCombineOp::Subtract;
+  donut.subpaths[1].shape_group = 1;
+  VectorPath trio;
+  trio.subpaths = {circle_subpath(0.0, 0.0, 100.0), circle_subpath(80.0, 25.0, 100.0),
+                   circle_subpath(25.0, 85.0, 100.0)};
+  trio.subpaths[1].shape_group = 1;
+  trio.subpaths[2].shape_group = 2;
+  trio.subpaths[2].op = PathCombineOp::Xor;
+
+  std::vector<Rect> ring_clips;
+  for (int degrees = 0; degrees < 360; degrees += 30) {
+    const double radians = degrees * 3.14159265358979323846 / 180.0;
+    for (const double distance : {-25.0, 0.0, 25.0}) {
+      const auto x = static_cast<std::int32_t>(std::lround((radius + distance) * std::cos(radians)));
+      const auto y = static_cast<std::int32_t>(std::lround((radius + distance) * std::sin(radians)));
+      ring_clips.push_back(Rect{x - 20, y - 17, 48, 40});
+    }
+  }
+  for (const auto& corner_clip : {Rect{-60, -60, 120, 120}, Rect{225, -185, 40, 40}, Rect{290, 290, 64, 64},
+                                  Rect{-320, 80, 60, 60}, Rect{1000, 1000, 32, 32}}) {
+    ring_clips.push_back(corner_clip);
+  }
+  std::vector<Rect> grid_clips;
+  for (int y = -125; y < 200; y += 55) {
+    for (int x = -125; x < 200; x += 55) {
+      grid_clips.push_back(Rect{x, y, 36, 30});
+    }
+  }
+
+  std::vector<patchy::VectorStroke> strokes;
+  for (const auto alignment : {patchy::VectorStrokeAlignment::Center, patchy::VectorStrokeAlignment::Inside,
+                               patchy::VectorStrokeAlignment::Outside}) {
+    for (const auto join : {patchy::VectorStrokeJoin::Miter, patchy::VectorStrokeJoin::Round,
+                            patchy::VectorStrokeJoin::Bevel}) {
+      patchy::VectorStroke stroke;
+      stroke.enabled = true;
+      stroke.width = join == patchy::VectorStrokeJoin::Round ? 13.0 : 5.5;
+      stroke.alignment = alignment;
+      stroke.join = join;
+      stroke.cap = join == patchy::VectorStrokeJoin::Miter ? patchy::VectorStrokeCap::Square
+                                                           : patchy::VectorStrokeCap::Round;
+      strokes.push_back(stroke);
+    }
+  }
+  auto dashed = strokes[1];
+  dashed.dashes = {2.0, 1.5};
+  strokes.push_back(dashed);
+
+  std::size_t compared = 0;
+  std::size_t nonempty = 0;
+  // The reference Boolean outline tests every segment pair per call, so the combined
+  // paths take three of the strokes.
+  const std::vector<patchy::VectorStroke> combined_strokes{strokes[0], strokes[4], strokes.back()};
+  const auto compare = [&](const VectorPath& path, const std::vector<Rect>& clips, bool fills,
+                           const std::vector<patchy::VectorStroke>& path_strokes) {
+    for (const auto& clip : clips) {
+      VectorRasterOptions fast{clip};
+      VectorRasterOptions full{clip};
+      full.reference_geometry = true;
+      if (fills) {
+        const auto culled = patchy::rasterize_vector_path(path, fast);
+        CHECK(same_coverage(culled, patchy::rasterize_vector_path(path, full)));
+        nonempty += culled.bounds.empty() ? 0U : 1U;
+        ++compared;
+      }
+      for (const auto& stroke : path_strokes) {
+        const auto culled = patchy::rasterize_vector_stroke(path, stroke, fast);
+        CHECK(same_coverage(culled, patchy::rasterize_vector_stroke(path, stroke, full)));
+        nonempty += culled.bounds.empty() ? 0U : 1U;
+        ++compared;
+      }
+    }
+  };
+  compare(circle, ring_clips, true, strokes);
+  compare(waves, ring_clips, true, strokes);
+  compare(open_path, ring_clips, false, strokes);
+  compare(donut, grid_clips, true, combined_strokes);
+  compare(trio, grid_clips, true, combined_strokes);
+  // Most clips straddle an edge, so the comparisons are not all of empty buffers.
+  CHECK(compared > 1400U);
+  CHECK(nonempty > compared / 4U);
+}
+
 void stroke_bezier_circle_is_translation_stable() {
   // Regression (July 2026): anchors off the 1/256 flattener lattice left a
   // sub-quantum micro-segment at each anchor whose direction was rounding
@@ -2430,6 +2552,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_open_path_alignment_dashes_follow_the_path", stroke_open_path_alignment_dashes_follow_the_path},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},
+      {"raster_clipped_flattening_matches_full_flattening", raster_clipped_flattening_matches_full_flattening},
       {"stroke_miter_spike_stays_in_bounds", stroke_miter_spike_stays_in_bounds},
       {"stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter",
        stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter},

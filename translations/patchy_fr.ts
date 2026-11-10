@@ -15742,6 +15742,14 @@ Voulez-vous le remplacer ?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Livret en piqûre à cheval (plier et agrafer)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Afficher le champ Fond</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Le champ Fond à côté de l&apos;opacité, au-dessus de la liste des calques. Sans lui, le mode de fusion et l&apos;opacité tiennent sur une ligne dans un panneau étroit.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21648,6 +21656,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>Insérer un texte de remplissage provisoire</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Placer la position, la taille, les couleurs et les polices des calques dans le presse-papiers sous forme de feuille de style pour une page web</translation>
     </message>
 </context>
 <context>
@@ -35682,6 +35694,40 @@ Verrouillé : %1</translation>
             <numerusform>(%n calques verrouillés ignorés)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copier le CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copier les calques sélectionnés dans le presse-papiers sous forme de classes CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Sélectionnez un calque visible avec du contenu à copier en CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n calque copié en CSS</numerusform>
+            <numerusform>%n calques copiés en CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n calque masqué ou vide ignoré)</numerusform>
+            <numerusform>(%n calques masqués ou vides ignorés)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Afficher les noms des polices en anglais</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Lorsque cette option est activée, la liste des polices affiche sous leur nom anglais les polices nommées dans une autre écriture, comme le chinois, le japonais ou le coréen. La recherche trouve l&apos;un ou l&apos;autre nom.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38880,6 +38926,10 @@ Verrouillé : %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Cet objet dynamique n&apos;a pas de filtres dynamiques.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers nécessite un tableau de calques de ce document.</translation>
     </message>
 </context>
 <context>

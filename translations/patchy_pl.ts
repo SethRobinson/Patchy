@@ -15798,6 +15798,14 @@ Czy chcesz go zastąpić?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Broszura szyta zeszytowo (złożyć i zszyć)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Pokazuj pole Wypełnienie</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Pole Wypełnienie obok Krycia, nad listą warstw. Bez niego tryb mieszania i krycie mieszczą się w jednym wierszu w wąskim panelu.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21710,6 +21718,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>Wstaw tymczasowy tekst wypełniający</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Umieść w schowku położenie, rozmiar, kolory i czcionki warstw jako tekst arkusza stylów dla strony internetowej</translation>
     </message>
 </context>
 <context>
@@ -35789,6 +35801,42 @@ Zablokowano: %1</translation>
             <numerusform>(pominięto %n zablokowanych warstw)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Kopiuj CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Skopiuj wybrane warstwy do schowka jako klasy CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Wybierz widoczną warstwę z zawartością, aby skopiować ją jako CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>Skopiowano %n warstwę jako CSS</numerusform>
+            <numerusform>Skopiowano %n warstwy jako CSS</numerusform>
+            <numerusform>Skopiowano %n warstw jako CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(pominięto %n ukrytą lub pustą warstwę)</numerusform>
+            <numerusform>(pominięto %n ukryte lub puste warstwy)</numerusform>
+            <numerusform>(pominięto %n ukrytych lub pustych warstw)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Pokazuj nazwy czcionek po angielsku</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Po włączeniu lista czcionek pokazuje czcionki nazwane w innym piśmie, na przykład chińskim, japońskim lub koreańskim, pod ich angielskimi nazwami. Wyszukiwanie znajduje obie nazwy.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38991,6 +39039,10 @@ Zablokowano: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Ten obiekt inteligentny nie ma filtrów inteligentnych.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers wymaga tablicy warstw tego dokumentu.</translation>
     </message>
 </context>
 <context>

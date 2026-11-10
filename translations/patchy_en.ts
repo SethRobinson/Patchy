@@ -15724,6 +15724,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21629,6 +21637,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Insert placeholder filler text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -35600,6 +35612,40 @@ Locked: %1</source>
             <numerusform></numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38797,6 +38843,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

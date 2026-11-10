@@ -23,6 +23,10 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-10 (additive): `doc.cssForLayers(layers)` returns the text Layer > Export > Copy CSS copies
+for the listed layers (GitHub issue 688, [web-export-copy-css.md](web-export-copy-css.md)): one CSS class per
+visible layer, `""` when none gave one. It reads only and leaves the clipboard alone. The name and the
+command id `layer.copy_css` are permanent identifiers. Pinned by `ui_copy_css_copies_selected_layers_as_classes`.
 2026-11-10 (additive): `patchy.ui.viewCenter` (read/write `{x, y}` in document pixels, null with
 no document), `patchy.ui.zoomTo(x, y, zoomPercent)` and `patchy.ui.zoomToRect(rect, margin)` choose
 where the view looks, not only how far it zooms (card local-045, [view-navigation.md](view-navigation.md#scripted-view-placement)).

@@ -15742,6 +15742,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Cuadernillo grapado a caballete (doblar y grapar)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Mostrar el campo Relleno</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>El campo Relleno junto a Opacidad, sobre la lista de capas. Sin él, el modo de fusión y la opacidad caben en una línea en un panel estrecho.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21648,6 +21656,10 @@ Do you want to replace it?</source>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>Insertar texto de relleno provisional</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Poner en el portapapeles la posición, el tamaño, los colores y las fuentes de las capas como texto de hoja de estilos para una página web</translation>
     </message>
 </context>
 <context>
@@ -35682,6 +35694,40 @@ Bloqueada: %1</translation>
             <numerusform>(%n capas bloqueadas omitidas)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copiar CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copia las capas seleccionadas al portapapeles como clases CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Seleccione una capa visible con contenido para copiarla como CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n capa copiada como CSS</numerusform>
+            <numerusform>%n capas copiadas como CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n capa oculta o vacía omitida)</numerusform>
+            <numerusform>(%n capas ocultas o vacías omitidas)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Mostrar nombres de fuentes en inglés</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Si está activado, la lista de fuentes muestra con su nombre en inglés las fuentes cuyo nombre está en otra escritura, como chino, japonés o coreano. La búsqueda encuentra cualquiera de los dos nombres.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38880,6 +38926,10 @@ Bloqueada: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Este objeto inteligente no tiene filtros inteligentes.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers necesita una matriz de capas de este documento.</translation>
     </message>
 </context>
 <context>

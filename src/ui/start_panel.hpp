@@ -27,8 +27,14 @@ class StartPanel final : public QWidget {
   // Replaces the recent list with the first files from paths (capped; the caller
   // has already dropped missing ones, and this never touches the disk). The
   // whole Recent section hides when the list is empty. The typed name filter,
-  // if any, is reapplied to the new list.
+  // if any, is reapplied to the new list. A list equal to the one shown changes
+  // nothing (rows, hover and scroll position stay), so MainWindow pushes freely,
+  // whether or not the panel is showing.
   void set_recent_files(const QStringList& paths);
+
+  // The window just recorded an open or save: clears the filter and scrolls the
+  // list to its top, so that file is the first row in view.
+  void show_newest_recent_file();
 
   // Footer update-check line; an empty text hides it. MainWindow pushes the
   // startup check result here even while the panel is hidden, so the cached

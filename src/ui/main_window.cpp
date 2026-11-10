@@ -4786,9 +4786,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   auto* recent_history_timer = new QTimer(this);
   recent_history_timer->setInterval(2000);
   connect(recent_history_timer, &QTimer::timeout, this, [this] {
-    // Refresh the idle start panel without deleting a live menu's filter row.
+    // Refresh the idle start panel without deleting a live menu's filter row. The push
+    // is a no-op unless the panel's rows differ from the list, which then heals them.
     if (start_panel_->isVisible() && QApplication::activePopupWidget() == nullptr) {
       refresh_recent_history();
+      start_panel_->set_recent_files(recent_files_);
     }
   });
   recent_history_timer->start();
@@ -6415,6 +6417,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       return;
     }
     handle_gradient_fill_handle_edit(layer_id, gradient, phase, serial, undo_label);
+  });
+  canvas->set_shape_resize_callback([this, canvas](LayerId layer_id, const QRectF& from, const QRectF& to,
+                                                   ShapeResizePhase phase, std::uint64_t serial) {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_shape_resize_edit(layer_id, from, to, phase, serial);
   });
   canvas->set_gradient_fill_stop_color_requested_callback([this, canvas](LayerId layer_id, int stop_index) {
     if (canvas != canvas_) {

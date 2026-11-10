@@ -15686,6 +15686,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>중철 소책자(접어서 스테이플러)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>칠 필드 표시</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>레이어 목록 위, 불투명도 옆의 칠 필드입니다. 숨기면 좁은 패널에서도 혼합 모드와 불투명도가 한 줄에 들어갑니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21586,6 +21594,10 @@ Do you want to replace it?</source>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>임시 채우기 텍스트 삽입</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>레이어의 위치, 크기, 색상, 글꼴을 웹 페이지용 스타일 시트 텍스트로 클립보드에 넣기</translation>
     </message>
 </context>
 <context>
@@ -35575,6 +35587,38 @@ Locked: %1</source>
             <numerusform>(잠긴 레이어 %n개를 건너뛰었습니다)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>CSS 복사</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>선택한 레이어를 클립보드에 CSS 클래스로 복사합니다.</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>CSS로 복사하려면 내용이 있는 보이는 레이어를 선택하세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n개의 레이어를 CSS로 복사했습니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(숨겨졌거나 비어 있는 레이어 %n개 제외)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>글꼴 이름을 영어로 표시</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>활성화하면 중국어, 일본어, 한국어 등 다른 문자로 이름이 지정된 글꼴이 글꼴 목록에 영어 이름으로 표시됩니다. 검색은 두 이름 모두로 찾습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38769,6 +38813,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>이 스마트 개체에는 스마트 필터가 없습니다.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers에는 이 문서의 레이어 배열이 필요합니다.</translation>
     </message>
 </context>
 <context>

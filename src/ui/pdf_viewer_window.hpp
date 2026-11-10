@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QPointer>
 #include <QString>
 #include <QWidget>
 
@@ -60,6 +61,10 @@ public:
   using FileDropHandler = std::function<bool(QDropEvent* event)>;
   void set_file_drop_handlers(FileDropHandler accept, FileDropHandler drop);
 
+  // The viewer also closes on the shortcuts `action` has at the time a key is typed: the
+  // main window's File > Close, whose key the user can change. The viewer's own keys win.
+  void set_close_key_source(QAction* action);
+
 protected:
   void closeEvent(QCloseEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
@@ -84,6 +89,7 @@ private:
   void update_title();
   // This window's own command for a key typed in it, or nullptr.
   [[nodiscard]] QAction* window_key_action(const QKeyEvent& event) const;
+  [[nodiscard]] bool is_close_source_key(const QKeyEvent& event) const;
 
   QString path_;
   QString password_;
@@ -106,6 +112,8 @@ private:
   QAction* continuous_action_{nullptr};
   QAction* right_to_left_action_{nullptr};
   QAction* full_screen_action_{nullptr};
+  QAction* close_action_{nullptr};
+  QPointer<QAction> close_key_source_;
   bool full_screen_{false};
   bool was_maximized_{false};
   bool syncing_{false};

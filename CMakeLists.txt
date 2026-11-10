@@ -728,6 +728,7 @@ add_library(patchy_formats
   src/formats/raw_white_balance.cpp
   src/formats/rttex_document_io.cpp
   src/formats/dds_document_io.cpp
+  src/formats/css_layer_export.cpp
   src/formats/svg_document_read.cpp
   src/formats/svg_document_write.cpp
   src/formats/svg_xml.cpp
@@ -1289,6 +1290,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   src/ui/canvas_widget_perspective_crop.cpp
   src/ui/canvas_widget_ruler.cpp
   src/ui/canvas_widget_gradient_handles.cpp
+  src/ui/canvas_widget_shape_resize.cpp
       src/ui/ruler_tool.hpp
       src/ui/ruler_tool.cpp
       src/ui/canvas_widget_cursors.cpp
@@ -1375,6 +1377,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/font_picker.cpp
       src/ui/font_family_filters.hpp
       src/ui/font_family_filters.cpp
+      src/ui/font_display_names.hpp
+      src/ui/font_display_names.cpp
       src/ui/blend_if_range_editor.hpp
       src/ui/blend_if_range_editor.cpp
       src/ui/gradient_stops_editor.hpp
@@ -2555,6 +2559,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pdf_tests.cpp
     tests/core/artboard_tests.cpp
     tests/core/svg_tests.cpp
+    tests/core/css_layer_export_tests.cpp
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
     tests/core/path_edits_tests.cpp
@@ -2651,6 +2656,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_effect_rows_tests.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/move_transform_zones_tests.cpp
+      tests/ui/shape_resize_handles_tests.cpp
       tests/ui/free_transform_distort_tests.cpp
       tests/ui/free_transform_selection_tests.cpp
       tests/ui/move_selected_pixels_tests.cpp

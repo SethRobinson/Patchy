@@ -15686,6 +15686,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>騎馬釘小冊子（對折釘裝）</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>顯示「填滿」欄位</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>圖層清單上方、不透明度旁的「填滿」欄位。隱藏後，混合模式和不透明度在較窄的面板中可排成一列。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21586,6 +21594,10 @@ Do you want to replace it?</source>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>插入預留位置填充文字</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>將圖層的位置、大小、顏色和字型作為網頁樣式表文字放到剪貼簿</translation>
     </message>
 </context>
 <context>
@@ -35575,6 +35587,38 @@ Locked: %1</source>
             <numerusform>（已略過 %n 個鎖定的圖層）</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>拷貝 CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>將選取的圖層以 CSS 類別的形式拷貝到剪貼簿</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>請選取有內容的可見圖層以拷貝為 CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>已將 %n 個圖層複製為 CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(已略過 %n 個隱藏或空白的圖層)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>以英文顯示字體名稱</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>啟用時，字體清單會以英文名稱顯示以其他文字（例如中文、日文或韓文）命名的字體。以任一名稱都能搜尋到。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38769,6 +38813,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>此智慧型物件沒有智慧型濾鏡。</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers 需要由此文件的圖層組成的陣列。</translation>
     </message>
 </context>
 <context>

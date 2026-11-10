@@ -94,6 +94,7 @@
 #include "core/rect_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "formats/css_layer_export.hpp"
 #include "formats/gif_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "ui/action_icons.hpp"
@@ -701,6 +702,29 @@ void MainWindow::copy_as_svg() {
   auto message = tr("Copied %n layer(s) as SVG", nullptr, static_cast<int>(layers.size()));
   if (!notices.empty()) {
     message += QStringLiteral(" (") + translate_data_text(notices.front()) + QStringLiteral(")");
+  }
+  statusBar()->showMessage(message);
+}
+
+void MainWindow::copy_as_css() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  canvas_->finish_free_transform();
+  finish_active_text_editor();
+  select_only_layer_if_none_active();
+  const auto ids = selected_or_active_layer_ids();
+  const auto css = css::layers_to_css(std::as_const(document()), ids, session().title.toStdString());
+  if (css.classes == 0) {
+    show_status_error(tr("Select a visible layer with content to copy as CSS"));
+    return;
+  }
+  auto* mime = new QMimeData();
+  mime->setText(QString::fromStdString(css.text));
+  set_system_clipboard_mime(mime);
+  auto message = tr("Copied %n layer(s) as CSS", nullptr, css.classes);
+  if (const auto skipped = css.hidden_skipped + css.empty_skipped; skipped > 0) {
+    message += QLatin1Char(' ') + tr("(%n hidden or empty layer(s) left out)", nullptr, skipped);
   }
   statusBar()->showMessage(message);
 }
@@ -4681,7 +4705,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
       chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
       chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_ ||
       chosen == layer_trace_image_action_ || chosen == layer_clipping_mask_action_ ||
-      chosen == layer_quick_export_png_action_ || chosen == layer_export_as_action_) {
+      chosen == layer_quick_export_png_action_ || chosen == layer_export_as_action_ ||
+      chosen == layer_copy_css_action_) {
     return;
   }
   if (chosen == edit_adjustment_action) {
@@ -4946,11 +4971,30 @@ void MainWindow::apply_layer_row_options(const LayerRowOptions& options) {
   if (options == layer_row_options_) {
     return;
   }
+  // The Fill field sits above the list: showing or hiding it rebuilds no row.
+  auto rows_before = layer_row_options_;
+  rows_before.show_fill = options.show_fill;
+  const bool rows_changed = rows_before != options;
   layer_row_options_ = options;
   set_stored_layer_row_options(options);
-  if (has_active_document()) {
+  apply_layer_fill_field_visibility();
+  if (rows_changed && has_active_document()) {
     refresh_layer_list();
   }
+}
+
+void MainWindow::apply_layer_fill_field_visibility() {
+  if (fill_opacity_spin_ == nullptr || fill_opacity_spin_->isHidden() != layer_row_options_.show_fill) {
+    return;
+  }
+  if (!layer_row_options_.show_fill) {
+    // A value still on its way to the layers lands before the field goes.
+    finish_pending_layer_fill_opacity_edit();
+  }
+  // A hidden widget is an empty layout item, so the wrapping blend row drops it from its lines
+  // and its widths; the column's content-fit and compact widths follow.
+  fill_opacity_spin_->setVisible(layer_row_options_.show_fill);
+  update_right_dock_minimum_width();
 }
 
 QAction* MainWindow::add_layer_context_export_menu(QMenu* menu, bool group_target) {
@@ -4965,6 +5009,12 @@ QAction* MainWindow::add_layer_context_export_menu(QMenu* menu, bool group_targe
       export_menu->addAction(simple_icon(QStringLiteral("dup")),
                              group_target ? tr("Duplicate Group to Document...") : tr("Duplicate Layer to Document..."));
   duplicate_to_document_action->setObjectName(QStringLiteral("layerContextDuplicateToDocumentAction"));
+  // Copy CSS (GitHub issue 688): the Layer > Export command itself, so it runs from its own
+  // triggered signal.
+  if (layer_copy_css_action_ != nullptr) {
+    export_menu->addSeparator();
+    export_menu->addAction(layer_copy_css_action_);
+  }
   return duplicate_to_document_action;
 }
 

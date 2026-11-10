@@ -12,6 +12,10 @@ Code: `src/ui/web_export.{hpp,cpp}` (settings, preview engine, panes, dialog),
 `MainWindow::export_for_web` in `src/ui/main_window_files.cpp` (file name and write), the writer
 hooks in `src/ui/image_document_io.cpp`.
 
+Related documents:
+
+- [web-export-copy-css.md](web-export-copy-css.md): Layer > Export > Copy CSS, the selected layers as CSS classes on the clipboard.
+
 ## Layers as Animated exports
 
 File > Export > Layers as Animated GIF, WebP and PNG (`file.export_animated_gif`, `_webp`, `_png`;

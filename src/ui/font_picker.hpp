@@ -31,6 +31,10 @@ inline constexpr char kFontPickerPopupObjectName[] = "textFontPickerPopup";
 inline constexpr int kFontPickerRowKindRole = Qt::UserRole + 1;
 inline constexpr int kFontPickerRecentRowRole = Qt::UserRole + 2;    // bool: a row of the Recent section
 inline constexpr int kFontPickerFavoriteRole = Qt::UserRole + 3;     // bool: the family is a favorite
+// The text a row draws. A family row's Qt::DisplayRole stays the family as the font database lists
+// it (the key picks, Recent and Favorites use); this is its English name while "Show font names in
+// English" is on and the family has one (GitHub issue 691), else the same family.
+inline constexpr int kFontPickerShownNameRole = Qt::UserRole + 4;
 enum class FontPickerRowKind { family = 0, recent_header = 1, all_header = 2, favorites_header = 3, empty_note = 4 };
 
 // The small buttons at the right of a family row (GitHub issues 630 and 569): the favorite star on
@@ -111,12 +115,14 @@ public:
   void set_missing_family(const QString& family, const QString& shown = QString());
   [[nodiscard]] const QString& missing_family() const { return missing_family_; }
   // The installed row the control is parked on: the family new type and the popup start from.
-  // Equals currentText() unless a missing family is shown.
+  // Equals currentText() unless a missing family or the row's English name is shown.
   [[nodiscard]] QString row_family() const;
 
 protected:
   void focusOutEvent(QFocusEvent* event) override;
   void changeEvent(QEvent* event) override;
+  // Enter on an English name typed (or shown) in the closed control picks the family it stands for.
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
   // Scroll the closed control's text back to the start of the family name (GitHub issue 416):
@@ -124,6 +130,11 @@ private:
   void show_name_from_start();
   // Restyles the line edit for missing_family_ (italic, badge action, tooltip) or back to plain.
   void refresh_missing_family_decoration();
+  // "Show font names in English" (GitHub issue 691): shows the current row under its English
+  // name in the closed control, with the combo's signals blocked so currentFont() keeps the
+  // family the database lists. Replaces the row's own name; with `replace_shown_name` also a
+  // name set by code earlier (the option or the name table changed).
+  void show_row_display_name(bool replace_shown_name);
 
   QString missing_family_;
   QPointer<QAction> missing_badge_;

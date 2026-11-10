@@ -1751,6 +1751,9 @@ void MainWindow::create_docks() {
   connect(fill_opacity_spin_, &QSpinBox::editingFinished, this,
           [this] { finish_pending_layer_fill_opacity_edit(); });
   register_document_widget(fill_opacity_spin_);
+  // Customize Layers Panel's "Show Fill field" (issue 680 follow-up): hidden, it is no part of
+  // the row, so the blend mode and Opacity share a line in a narrower panel.
+  fill_opacity_spin_->setVisible(layer_row_options_.show_fill);
   register_retranslation([this] {
     if (opacity_spin_ == nullptr || fill_opacity_spin_ == nullptr) {
       return;

@@ -857,7 +857,8 @@ std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
         preview(settings);
       };
       // The eyedroppers read the layers below an adjustment layer, as Curves does; a
-      // clipped layer or an adjustment Smart Filter gets none.
+      // clipped layer or an adjustment Smart Filter gets none. The Alt+drag clipping view
+      // (#687) reads the canvas itself, so every Levels dialog has it.
       CurvesDialogHooks hooks;
       if (const auto* context = adjustment_layer_id.has_value()
                                     ? std::as_const(document()).find_layer(*adjustment_layer_id)
@@ -867,7 +868,10 @@ std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
         hooks = curves_canvas_hooks(canvas_, [this, layer_id](QPoint point) {
           return curves_sample_before_layer(std::as_const(document()), layer_id, point);
         });
-        hooks.clipping_changed = {};
+      } else if (canvas_ != nullptr) {
+        hooks.clipping_changed = [canvas = canvas_](std::optional<CurvesClippingMode> mode, CurvesChannel channel) {
+          canvas->set_curves_clipping_preview(mode, channel);
+        };
       }
       const auto result = request_levels_settings(this, preview_changed,
                                                   LevelsSettings{original.levels.black_input,

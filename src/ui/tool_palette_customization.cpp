@@ -936,6 +936,13 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   row_tooltips->setToolTip(QObject::tr("The tip that names the layer, its opacity and its locks when the pointer "
                                        "rests on a row."));
   rows_column->addWidget(row_tooltips);
+  // The Fill field above the list (issue 680 follow-up): off, the blend mode and Opacity fit one
+  // line in a panel as narrow as its footer buttons.
+  auto* show_fill = new QCheckBox(QObject::tr("Show Fill field"), layers_page);
+  show_fill->setObjectName(QStringLiteral("layerRowsShowFillCheck"));
+  show_fill->setToolTip(QObject::tr("The Fill field beside Opacity, above the layer list. Without it the blend "
+                                    "mode and Opacity fit on one line in a narrow panel."));
+  rows_column->addWidget(show_fill);
   auto* rows_form = new QFormLayout();
   rows_form->setContentsMargins(0, 4, 0, 0);
   auto* row_color = new QComboBox(layers_page);
@@ -1089,6 +1096,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     choice.layer_icon_size = toolbar_icon_size_from_token(layer_icon_size->currentData().toString());
     choice.layer_rows.compact = compact_rows->isChecked();
     choice.layer_rows.tooltips = row_tooltips->isChecked();
+    choice.layer_rows.show_fill = show_fill->isChecked();
     choice.layer_rows.color_style = layer_row_color_style_from_token(row_color->currentData().toString());
     choice.layer_thumbnail_size = layer_thumbnail_size_from_token(thumbnail_size->currentData().toString());
     choice.zoom_layer_thumbnails_to_content = thumbnail_display->currentData().toBool();
@@ -1176,6 +1184,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
         std::max(0, layer_icon_size->findData(toolbar_icon_size_token(choice.layer_icon_size))));
     compact_rows->setChecked(choice.layer_rows.compact);
     row_tooltips->setChecked(choice.layer_rows.tooltips);
+    show_fill->setChecked(choice.layer_rows.show_fill);
     row_color->setCurrentIndex(
         std::max(0, row_color->findData(layer_row_color_style_token(choice.layer_rows.color_style))));
     thumbnail_size->setCurrentIndex(

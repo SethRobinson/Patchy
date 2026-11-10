@@ -15686,6 +15686,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>中とじ冊子(折ってホチキス留め)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>「塗りつぶし」フィールドを表示</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>レイヤー一覧の上、不透明度の横にある「塗りつぶし」フィールドです。非表示にすると、幅の狭いパネルでも描画モードと不透明度が 1 行に収まります。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21586,6 +21594,10 @@ Do you want to replace it?</source>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>仮のダミーテキストを挿入</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>レイヤーの位置、サイズ、色、フォントをウェブページ用のスタイルシートのテキストとしてクリップボードに入れる</translation>
     </message>
 </context>
 <context>
@@ -35575,6 +35587,38 @@ Locked: %1</source>
             <numerusform>(ロックされた %n 個のレイヤーをスキップしました)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>CSSをコピー</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>選択したレイヤーをCSSクラスとしてクリップボードにコピーします</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>CSSとしてコピーするには、内容のある表示中のレイヤーを選択してください</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n 個のレイヤーをCSSとしてコピーしました</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(非表示または空のレイヤー %n 個を除外)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>フォント名を英語で表示</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>有効にすると、中国語、日本語、韓国語など別の文字で名前が付けられたフォントが、フォントリストに英語名で表示されます。検索ではどちらの名前でも見つかります。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38769,6 +38813,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>このスマートオブジェクトにはスマートフィルターがありません。</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers にはこのドキュメントのレイヤーの配列が必要です。</translation>
     </message>
 </context>
 <context>

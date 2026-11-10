@@ -414,6 +414,7 @@ int main(int argc, char* argv[]) {
            layer_effect_rows_tests,
            move_tool_processing_overlay_tests,
            move_transform_zones_tests,
+           shape_resize_handles_tests,
            free_transform_distort_tests,
            free_transform_selection_tests,
            move_selected_pixels_tests,

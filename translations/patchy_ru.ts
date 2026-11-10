@@ -15798,6 +15798,14 @@ Do you want to replace it?</source>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Брошюра на скобе (сложить и скрепить)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Показывать поле «Заливка»</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Поле «Заливка» рядом с непрозрачностью, над списком слоёв. Без него режим наложения и непрозрачность помещаются в одну строку в узкой панели.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21710,6 +21718,10 @@ Do you want to replace it?</source>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>Вставить временный текст-заполнитель</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Поместить положение, размер, цвета и шрифты слоёв в буфер обмена как текст таблицы стилей для веб-страницы</translation>
     </message>
 </context>
 <context>
@@ -35789,6 +35801,42 @@ Locked: %1</source>
             <numerusform>(пропущено %n заблокированных слоёв)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Скопировать CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Скопировать выбранные слои в буфер обмена как классы CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Выберите видимый слой с содержимым, чтобы скопировать его как CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n слой скопирован как CSS</numerusform>
+            <numerusform>%n слоя скопированы как CSS</numerusform>
+            <numerusform>%n слоёв скопировано как CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(пропущен %n скрытый или пустой слой)</numerusform>
+            <numerusform>(пропущено %n скрытых или пустых слоя)</numerusform>
+            <numerusform>(пропущено %n скрытых или пустых слоёв)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Показывать названия шрифтов на английском</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Если этот параметр включен, шрифты, названные в другой письменности, например китайской, японской или корейской, показываются в списке шрифтов под английскими названиями. Поиск находит шрифт по любому из названий.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38991,6 +39039,10 @@ Locked: %1</source>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>У этого смарт-объекта нет смарт-фильтров.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers требует массив слоёв этого документа.</translation>
     </message>
 </context>
 <context>

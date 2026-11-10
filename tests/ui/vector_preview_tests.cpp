@@ -5,6 +5,7 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
+#include "formats/svg_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
@@ -18,6 +19,7 @@
 #include <QVariant>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <array>
 #include <cstdint>
 #include <cmath>
@@ -927,6 +929,98 @@ void check_free_transform_stays_sharp(bool on_artboard) {
   }
 }
 
+// The hot-air-balloon SVG at a 1920x1080 viewport centered on the canvas. A render's cost
+// must follow the viewport, not the zoomed size of the shapes.
+Document balloon_document() {
+  const auto path = patchy::test::committed_format_fixture_path("svg", "hot_air_balloons_cc0.svg");
+  std::ifstream in(path, std::ios::binary);
+  CHECK(in.good());
+  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  return svg::DocumentIo::read(bytes);
+}
+
+VectorPreviewView balloon_view(const Document& doc, double scale) {
+  const QSize viewport(1920, 1080);
+  return {viewport, scale, QPointF(viewport.width() / 2.0 - doc.width() / 2.0 * scale,
+                                   viewport.height() / 2.0 - doc.height() / 2.0 * scale)};
+}
+
+void collect_shapes(const std::vector<Layer>& layers, std::vector<const VectorShapeContent*>& out) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) { collect_shapes(layer.children(), out); }
+    else if (const auto* shape = layer.vector_shape()) { out.push_back(shape); }
+  }
+}
+
+void ui_vector_preview_cost_follows_viewport_not_zoom() {
+  const auto doc = balloon_document();
+  const auto scene = build_vector_preview_scene(doc);
+  CHECK(scene.fallback == VectorPreviewFallback::None && scene.has_vectors);
+  std::vector<const VectorShapeContent*> shapes;
+  collect_shapes(doc.layers(), shapes);
+  CHECK(shapes.size() > 100U);
+  // The viewport is the same size at every zoom; before the fix 800% cost 35x 100% and
+  // 1600% did not finish in 10 minutes. A loaded or throttling machine (a laptop that moves
+  // the test to slower cores a few seconds in) slows every render alike for a while, so a
+  // zoomed render is compared with the slower of the two 100% renders around it in the same
+  // round, and the better of two rounds counts.
+  const auto timed = [&](double scale) {
+    const auto result = render_vector_preview(scene, balloon_view(doc, scale));
+    CHECK(result.fallback == VectorPreviewFallback::None);
+    CHECK(!result.image.isNull());
+    // Many times the slowest render seen on a throttled laptop (3.4 s); the old code took
+    // 110 s at 400%.
+    CHECK(result.elapsed_ms < 60000.0);
+    std::cout << "  balloons " << scale * 100.0 << "%: " << result.elapsed_ms << " ms\n";
+    return result.elapsed_ms;
+  };
+  double ratio_800 = std::numeric_limits<double>::infinity();
+  double ratio_1600 = ratio_800;
+  for (int round = 0; round < 2; ++round) {
+    const double before = timed(1.0);
+    timed(2.0);
+    timed(4.0);
+    const double at_800 = timed(8.0);
+    const double at_1600 = timed(16.0);
+    const double reference = std::max({before, timed(1.0), 100.0});
+    ratio_800 = std::min(ratio_800, at_800 / reference);
+    ratio_1600 = std::min(ratio_1600, at_1600 / reference);
+  }
+  std::cout << "  balloons 800% / 100%: " << ratio_800 << ", 1600% / 100%: " << ratio_1600 << "\n";
+  CHECK(ratio_800 <= 4.0);
+  CHECK(ratio_1600 <= 5.0);
+
+  // What a tile rasterizes is byte-identical to the reference geometry (every curve
+  // flattened, every segment pair of a combined stroke tested; slow, hence 200%).
+  const auto view = balloon_view(doc, 2.0);
+  const int tile = kVectorPreviewTileSize;
+  int painted_strokes = 0;
+  for (const auto& clip : {Rect{3 * tile, 2 * tile, tile, tile}, Rect{1920 - tile, 0, tile, tile},
+                           Rect{5 * tile, 3 * tile, tile, tile}}) {
+    VectorRasterOptions fast{clip};
+    VectorRasterOptions full{clip};
+    full.reference_geometry = true;
+    for (const auto* source : shapes) {
+      auto shape = *source;
+      transform_vector_path(shape.path, {view.scale, 0, 0, view.scale, view.offset.x(), view.offset.y()});
+      shape.stroke.width *= view.scale;
+      const auto a = rasterize_vector_path(shape.path, fast);
+      const auto b = rasterize_vector_path(shape.path, full);
+      CHECK(a.bounds == b.bounds && a.pixels.data().size() == b.pixels.data().size() &&
+            std::equal(a.pixels.data().begin(), a.pixels.data().end(), b.pixels.data().begin()));
+      if (shape.stroke.enabled) {
+        const auto c = rasterize_vector_stroke(shape.path, shape.stroke, fast);
+        const auto d = rasterize_vector_stroke(shape.path, shape.stroke, full);
+        CHECK(c.bounds == d.bounds && c.pixels.data().size() == d.pixels.data().size() &&
+              std::equal(c.pixels.data().begin(), c.pixels.data().end(), d.pixels.data().begin()));
+        painted_strokes += c.bounds.empty() ? 0 : 1;
+      }
+    }
+  }
+  std::cout << "  balloons 200% tiles: " << painted_strokes << " painted strokes compared\n";
+  CHECK(painted_strokes >= 5);
+}
+
 void ui_vector_preview_stays_sharp_through_free_transform() { check_free_transform_stays_sharp(false); }
 
 void ui_vector_preview_stays_sharp_through_free_transform_on_artboard() { check_free_transform_stays_sharp(true); }
@@ -946,6 +1040,7 @@ std::vector<patchy::test::TestCase> vector_preview_tests() {
       {"ui_vector_preview_little_everywhere_if_available", ui_vector_preview_little_everywhere_if_available},
       {"ui_vector_preview_keeps_pixel_grid_and_overlays_above", ui_vector_preview_keeps_pixel_grid_and_overlays_above},
       {"ui_vector_preview_renders_artboards", ui_vector_preview_renders_artboards},
+      {"ui_vector_preview_cost_follows_viewport_not_zoom", ui_vector_preview_cost_follows_viewport_not_zoom},
       {"ui_vector_preview_stays_sharp_through_free_transform", ui_vector_preview_stays_sharp_through_free_transform},
       {"ui_vector_preview_stays_sharp_through_free_transform_on_artboard",
        ui_vector_preview_stays_sharp_through_free_transform_on_artboard},

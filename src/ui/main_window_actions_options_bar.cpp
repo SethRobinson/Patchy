@@ -4408,8 +4408,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [this] { show_vector_paint_menu(false); });
   // Fill | Stroke [width] [swatch] (GitHub issue 311). There is no Stroke checkbox: the
   // width is the switch, 0 px for no stroke (set_vector_stroke_width_from_field).
-  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                        CanvasTool::Polygon, CanvasTool::CustomShape});
+  // The separators between these groups serve the path-select tools too (GitHub issue 689);
+  // with no editable shape layer there the groups hide and stray_option_separators drops them.
+  add_option_separator(vector_appearance_tools);
   // A thickness has no percent basis: the document extent means nothing to it.
   const auto thickness_context = [this]() -> UnitConversionContext {
     auto context = document_unit_context(true);
@@ -4502,8 +4503,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     vector_shape_size_option_widgets_.push_back(spin);
     return spin;
   };
-  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                        CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_separator(vector_shape_size_tools);
   vector_shape_size_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("W:"), vector_shape_size_tools));
   vector_shape_width_spin_ =
@@ -4548,8 +4548,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     handle_vector_shape_size_value_changed(false, value);
   });
 
-  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                        CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_separator(vector_appearance_tools);
   vector_vector_mode_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
                        CanvasTool::Polygon, CanvasTool::CustomShape,
@@ -4583,6 +4582,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // "Apply operation"). A button, not a mode: the live combine stays the default and one click bakes it.
   // A framed push button like the bar's other text buttons: a text QToolButton takes the generic
   // 26 px content minimum and made the Path Select bar 34 px tall (issue 91 height test).
+  // Combine | Merge Shapes, Split Shapes: the two buttons are the bar's actions (issue 689).
+  add_option_separator({CanvasTool::PathSelect, CanvasTool::DirectSelect});
   path_merge_shapes_button_ = new QPushButton(toolbar);
   path_merge_shapes_button_->setObjectName(QStringLiteral("vectorMergeShapesButton"));
   path_merge_shapes_button_->setText(tr("Merge Shapes"));
@@ -4889,8 +4890,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
     });
   }
-  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                        CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_separator(vector_appearance_tools);
   add_option_widget(vector_appearance_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_appearance_button_);
   connect(vector_appearance_button_, &QToolButton::clicked, this, [this] { edit_active_shape_appearance(); });

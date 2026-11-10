@@ -15742,6 +15742,14 @@ Sostituirlo?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Fascicolo con cucitura a sella (piega e pinza)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Mostra il campo Riempimento</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>Il campo Riempimento accanto a Opacità, sopra l&apos;elenco dei livelli. Senza il campo, metodo di fusione e opacità stanno su una riga in un pannello stretto.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21648,6 +21656,10 @@ Sostituirlo?</translation>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>Inserisci testo segnaposto di riempimento</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Mette negli appunti posizione, dimensioni, colori e font dei livelli come testo di foglio di stile per una pagina web</translation>
     </message>
 </context>
 <context>
@@ -35682,6 +35694,40 @@ Bloccato: %1</translation>
             <numerusform>(%n livelli bloccati ignorati)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copia CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copia i livelli selezionati negli appunti come classi CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Seleziona un livello visibile con contenuto da copiare come CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>Copiato %n livello come CSS</numerusform>
+            <numerusform>Copiati %n livelli come CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n livello nascosto o vuoto escluso)</numerusform>
+            <numerusform>(%n livelli nascosti o vuoti esclusi)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Mostra i nomi dei font in inglese</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Se attivata, l&apos;elenco dei font mostra con il nome inglese i font il cui nome è in un&apos;altra scrittura, come cinese, giapponese o coreano. La ricerca trova entrambi i nomi.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38880,6 +38926,10 @@ Bloccato: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Questo oggetto avanzato non ha filtri avanzati.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers richiede un array di livelli di questo documento.</translation>
     </message>
 </context>
 <context>

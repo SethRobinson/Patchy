@@ -1604,6 +1604,8 @@ private:
   void set_system_clipboard_mime(QMimeData* mime);
   // Edit > Copy as SVG: the selected layers as image/svg+xml plus text.
   void copy_as_svg();
+  // Layer > Export > Copy CSS (GitHub issue 688): the selected layers as CSS classes, as text.
+  void copy_as_css();
   // Layer > New > Ungroup Layers (docs/vector-commands-shapes.md).
   void ungroup_selected_layers();
   void clear_internal_clipboard_on_external_change();
@@ -2227,6 +2229,15 @@ private:
   // Scales (about the origin, then translates) the target's components; one undo step.
   bool apply_path_component_geometry(const PathComponentTarget& target, double scale_x, double scale_y,
                                      double translate_x, double translate_y);
+  // The same scale without history or panel refreshes (a live preview); `also_changed` joins
+  // a shape layer's repaint (what an earlier preview covered).
+  bool transform_path_component_target(const PathComponentTarget& target, double scale_x, double scale_y,
+                                       double translate_x, double translate_y, QRect also_changed = {});
+  // A shape tool's resize-handle drag (GitHub issue 690): the box of the active shape
+  // layer went from `from` to `to`. Preview scales the shape without history, Commit lands
+  // it as one "Shape size" step (the scale the W / H fields apply), Cancel restores it.
+  void handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to, ShapeResizePhase phase,
+                                std::uint64_t serial);
   // Rewrites the target's live parameters and regenerates its component; one undo step.
   bool apply_live_shape_component_edit(const std::function<void(patchy::LiveShapeParams&)>& edit);
   void refresh_properties_live_shape_panel();
@@ -2573,6 +2584,9 @@ private:
   // Customize Layers Panel's row options (GitHub issue 680; layer_row_options.hpp): stores them
   // and rebuilds the rows when they changed.
   void apply_layer_row_options(const LayerRowOptions& options);
+  // Shows or hides the Layers panel's Fill field for layer_row_options_.show_fill (issue 680
+  // follow-up). Display only: no layer's fill opacity changes.
+  void apply_layer_fill_field_visibility();
   // Ends a thumbnail's own right-click menu (pixel, layer mask and vector mask thumbnails) with the
   // Thumbnail Size and Thumbnail Display submenus, after a separator (#481).
   void add_layer_thumbnail_view_menus(QMenu* menu);
@@ -4091,6 +4105,7 @@ private:
   QAction* duplicate_layer_to_document_action_{nullptr};
   QAction* layer_quick_export_png_action_{nullptr};
   QAction* layer_export_as_action_{nullptr};
+  QAction* layer_copy_css_action_{nullptr};
   QAction* dock_document_action_{nullptr};
   QAction* consolidate_tabs_action_{nullptr};
   QAction* float_all_action_{nullptr};
@@ -4468,6 +4483,15 @@ private:
     Rect gradient_bounds;
   };
   std::optional<GradientFillHandlePreview> gradient_fill_handle_preview_;
+  // The layer as it was before a live resize-handle drag (GitHub issue 690), for the
+  // drag's serial in its session; every preview, Commit and Cancel start from it.
+  struct ShapeResizePreview {
+    std::int64_t session_id{0};
+    LayerId layer_id{0};
+    std::uint64_t serial{0};
+    Layer original;
+  };
+  std::optional<ShapeResizePreview> shape_resize_preview_;
   std::uint64_t gradient_fill_stop_color_serial_{0};
   std::string pending_shape_appearance_property_;
   UnitSpinBox* vector_shape_width_spin_{nullptr};
@@ -4547,7 +4571,7 @@ private:
   std::array<QAction*, 4> layer_thumbnail_size_actions_{};
   // layerThumbnailBoundsLayerAction, layerThumbnailBoundsDocumentAction (#481).
   std::array<QAction*, 2> layer_thumbnail_bounds_actions_{};
-  // layersPanel/compactRows, rowTooltips, rowColor (GitHub issue 680). Persisted identifiers.
+  // layersPanel/compactRows, rowTooltips, rowColor, showFill (GitHub issue 680). Persisted identifiers.
   LayerRowOptions layer_row_options_{};
   // The rows were built with the folder-arrow slot reserved (#386 follow-up).
   bool layer_list_arrow_column_{false};

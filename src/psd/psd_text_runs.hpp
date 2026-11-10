@@ -205,6 +205,13 @@ void copy_paragraph_run_settings(const PsdTextParagraphRun& from, PsdTextParagra
 // ranges, not the full bidi database: digits, punctuation, symbols and marks are skipped.
 std::string first_strong_text_direction(std::span<const std::uint16_t> utf16);
 
+// A text layer's style runs and paragraph runs as its metadata describes them (patchy.text.runs
+// and patchy.text.paragraph_runs, with the layer's single-value font keys as the fallback run),
+// in text order: what the PSD writer itself reads. Empty for a layer that is not text; the style
+// runs are also empty for text with no characters.
+std::vector<PsdTextStyleRun> text_style_runs_from_layer(const Layer& layer);
+std::vector<PsdTextParagraphRun> text_paragraph_runs_from_layer(const Layer& layer);
+
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs);
 std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs);
 std::string html_from_text_runs(std::string_view text, std::span<const PsdTextStyleRun> runs,

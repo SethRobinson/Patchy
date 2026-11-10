@@ -7,7 +7,7 @@ Related documents:
 - [layer-panel-selection.md](layer-panel-selection.md): row click, modifier and range selection, thumbnail Ctrl-click selection loads with the thumbnail and badge menus, canvas-requested selection, the deselected state and the selected count.
 - [layer-panel-row-controls.md](layer-panel-row-controls.md): the folder disclosure arrow, row and thumbnail double-clicks with inline rename, the visibility eye and its sweep, and the Layer Styles and Smart Filters rows listed under a layer.
 - [layer-panel-filter.md](layer-panel-filter.md): the filter menu beside the name field (issue 671): criteria, how they combine, Selected Only, session state.
-- [layer-panel-row-options.md](layer-panel-row-options.md): Customize Layers Panel's Rows column (issue 680): compact rows, the row tooltip switch, the whole-row color tint, and the thumbnail combos kept in step with the menus.
+- [layer-panel-row-options.md](layer-panel-row-options.md): Customize Layers Panel's Rows column (issue 680): compact rows, the row tooltip switch, the whole-row color tint, Show Fill field, and the thumbnail combos kept in step with the menus.
 - [layer-drag-duplicate.md](layer-drag-duplicate.md): drags to another document, Duplicate Layer, and layer export (Quick Export as PNG, Export As...).
 
 ## Row styling
@@ -112,7 +112,7 @@ The footer's `layerAddMaskButton` runs `MainWindow::add_layer_mask` (reveal-all,
 
 ## Row context menu
 
-`show_layer_context_menu` (main_window_layer_ops.cpp) fits 1366x768 (#461): Edit Layer Styles... first, the kind-only entries, Create/Release Clipping Mask, Layer Style; New, Duplicate, Rename, Delete, Color; Merge Down and the `layerContextMergeMenu`, `layerContextRasterizeMenu` (Trace Image to Shapes last) and Smart Objects submenus; Lock, Load Layer Transparency, Layer and Vector Mask; `layerContextExportMenu` (Thumbnail Size only at None, #481). Visibility is the eye's. New entries go in submenus: `ui_layer_context_menu_fits_short_screens` caps rows (18 pixel, 20 text) and height (680 px). Export (#462) holds `layerQuickExportPngAction` and `layerExportAsAction`, then Duplicate Layer to Document... (`layerContextDuplicateToDocumentAction`); `add_layer_context_export_menu` builds it for this menu and the Background's (#657) ([layer-drag-duplicate.md](layer-drag-duplicate.md#layer-export-quick-export-as-png-export-as)).
+`show_layer_context_menu` (main_window_layer_ops.cpp) fits 1366x768 (#461): Edit Layer Styles... first, the kind-only entries, Create/Release Clipping Mask, Layer Style; New, Duplicate, Rename, Delete, Color; Merge Down and the `layerContextMergeMenu`, `layerContextRasterizeMenu` (Trace Image to Shapes last) and Smart Objects submenus; Lock, Load Layer Transparency, Layer and Vector Mask; `layerContextExportMenu` (Thumbnail Size only at None, #481). Visibility is the eye's. New entries go in submenus: `ui_layer_context_menu_fits_short_screens` caps rows (18 pixel, 20 text) and height (680 px). Export (#462) holds `layerQuickExportPngAction` and `layerExportAsAction`, then Duplicate Layer to Document... (`layerContextDuplicateToDocumentAction`), then Copy CSS (`layerCopyCssAction`, #688); `add_layer_context_export_menu` builds it for this menu and the Background's (#657) ([layer-drag-duplicate.md](layer-drag-duplicate.md#layer-export-quick-export-as-png-export-as)).
 
 ## Footer menus
 

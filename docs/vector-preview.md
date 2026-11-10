@@ -139,6 +139,39 @@ closed canvases, tracked workers participate in shutdown, and `render_settled()`
 includes pending preview work. Unchanged repaints only reuse cached results.
 Builds without background threads keep the normal view.
 
+## Clipped flattening
+
+Render cost follows the viewport, not the zoomed size of the shapes. Every
+256 px tile rasterizes each shape that reaches it with its tile as the clip, so
+nothing in the core rasterizer (`core/vector_raster.cpp`) may cost more than
+linear in the zoomed path per tile, and its output must stay byte-identical:
+
+- A curve (or a de Casteljau half of one) whose control box lies wholly outside
+  the clip is emitted as its chord. The curve and its chord share endpoints and
+  stay inside that box; `rasterize_edges` drops edges above, below and right of
+  its buffer and gives one left of it only the per-row cover, which depends on
+  the endpoints alone. Strokes grow the clip by the outline reach (half width
+  times the miter limit, at least 1.5, plus 4 px) and keep every curve for
+  dashes (arc length), Align Edges (its rectilinear test) and multi-group paths.
+- Stroke outline pieces (segment quads, joins, caps: small convex loops) whose
+  box misses the clip plus 2 px are not emitted; such a loop adds nothing inside
+  the band buffer.
+- A multi-group path's stroke follows its Boolean outline
+  (`fill_boundary_contours`). Its crossings come from a sweep over segment boxes
+  and its inside tests read only the edges in the query's horizontal band: the
+  same pairs and edges all-pairs loops would. The outline does not depend on the
+  clip, so the last outlines (up to 2 million points) stay cached per thread for
+  the following tiles. SVG import gives every subpath its own group, so most
+  imported strokes take this path.
+
+`VectorRasterOptions::reference_geometry` turns all of this off (full
+flattening, every loop, the all-pairs walk, no cache) as the tests' reference
+(`raster_clipped_flattening_matches_full_flattening`,
+`ui_vector_preview_cost_follows_viewport_not_zoom`, which also times
+`test-fixtures/svg/hot_air_balloons_cc0.svg` from 100% to 1600%). New per-tile
+work follows the same rule: clip to the tile plus its halo before doing anything
+proportional to the zoomed geometry.
+
 ## Document shape bake past the canvas
 
 The document bake (`update_vector_shape_raster`) is not clipped to the canvas

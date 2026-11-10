@@ -15742,6 +15742,14 @@ Deseja substituí-lo?</translation>
         <source>Saddle-stitched booklet (fold and staple)</source>
         <translation>Livreto grampeado a cavalo (dobrar e grampear)</translation>
     </message>
+    <message>
+        <source>Show Fill field</source>
+        <translation>Mostrar o campo Preenchimento</translation>
+    </message>
+    <message>
+        <source>The Fill field beside Opacity, above the layer list. Without it the blend mode and Opacity fit on one line in a narrow panel.</source>
+        <translation>O campo Preenchimento ao lado de Opacidade, acima da lista de camadas. Sem ele, o modo de mesclagem e a opacidade cabem em uma linha em um painel estreito.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21648,6 +21656,10 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Insert placeholder filler text</source>
         <translation>Inserir texto de preenchimento provisório</translation>
+    </message>
+    <message>
+        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation>Colocar na área de transferência a posição, o tamanho, as cores e as fontes das camadas como texto de folha de estilos para uma página da web</translation>
     </message>
 </context>
 <context>
@@ -35682,6 +35694,40 @@ Bloqueado: %1</translation>
             <numerusform>(%n camadas bloqueadas ignoradas)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Copy CSS</source>
+        <translation>Copiar CSS</translation>
+    </message>
+    <message>
+        <source>Copy the selected layers to the clipboard as CSS classes</source>
+        <translation>Copia as camadas selecionadas para a área de transferência como classes CSS</translation>
+    </message>
+    <message>
+        <source>Select a visible layer with content to copy as CSS</source>
+        <translation>Selecione uma camada visível com conteúdo para copiar como CSS</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n layer(s) as CSS</source>
+        <translation>
+            <numerusform>%n camada copiada como CSS</numerusform>
+            <numerusform>%n camadas copiadas como CSS</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n hidden or empty layer(s) left out)</source>
+        <translation>
+            <numerusform>(%n camada oculta ou vazia omitida)</numerusform>
+            <numerusform>(%n camadas ocultas ou vazias omitidas)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Mostrar nomes de fontes em inglês</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Quando ativado, a lista de fontes mostra com o nome em inglês as fontes cujo nome está em outra escrita, como chinês, japonês ou coreano. A pesquisa encontra qualquer um dos nomes.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38880,6 +38926,10 @@ Bloqueado: %1</translation>
     <message>
         <source>This Smart Object has no Smart Filters.</source>
         <translation>Este Objeto Inteligente não tem Filtros Inteligentes.</translation>
+    </message>
+    <message>
+        <source>cssForLayers needs an array of layers of this document.</source>
+        <translation>cssForLayers precisa de uma matriz de camadas deste documento.</translation>
     </message>
 </context>
 <context>

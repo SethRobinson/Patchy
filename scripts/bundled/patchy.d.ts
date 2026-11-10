@@ -1288,6 +1288,15 @@ interface PatchyDocument {
    */
   combineShapes(layers: PatchyLayer[], op: "unite" | "subtract" | "intersect" | "exclude"): PatchyLayer;
   /**
+   * The text Layer > Export > Copy CSS copies for these layers: one CSS class per
+   * visible layer, top of the Layers panel first, with its position and size in
+   * document pixels, opacity and blend mode, a shape's fill, border and corner
+   * radius, a text layer's font properties, and drop shadows. Hidden and empty
+   * layers are left out; "" when no layer gave a class. Reads only: the clipboard
+   * is not touched.
+   */
+  cssForLayers(layers: PatchyLayer[]): string;
+  /**
    * Merges exactly the supplied layers and selected groups' contents. Returns
    * surviving selected leaf layers in bottom-to-top paint order. keepVectors and separateVectorTypes
    * default true; withinGroups defaults false. Vector parts preserve their individual appearances.

@@ -4,6 +4,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "psd/psd_text_runs.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
@@ -12,10 +13,12 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
@@ -37,6 +40,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include "scripting_test_support.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -232,6 +236,226 @@ void ui_layer_context_menu_fits_short_screens() {
   CHECK(folder.height > 0 && folder.height < kLayerMenuMaxHeight);
   CHECK(folder.texts.contains(QStringLiteral("Ungroup Layers")));
   CHECK(folder.export_texts.value(3) == QStringLiteral("Duplicate Group to Document..."));
+}
+
+// Layer > Export > Copy CSS (GitHub issue 688): the selected layers as CSS classes on the
+// clipboard, from the Layer menu's command, which the row menu's Export submenu shares, and
+// the same text from doc.cssForLayers.
+void ui_copy_css_copies_selected_layers_as_classes() {
+  patchy::ui::MainWindow window;
+  window.resize(1366, 728);
+  patchy::Document built(200, 120, patchy::PixelFormat::rgba8());
+  built.add_layer(solid_layer(built, "Paper", QRect(0, 0, 200, 120), QColor(Qt::white)));
+  auto sun = solid_layer(built, "Sun", QRect(40, 20, 50, 50), QColor(240, 180, 40));
+  sun.set_opacity(0.5F);
+  const auto sun_id = sun.id();
+  built.add_layer(std::move(sun));
+  window.add_document_session(std::move(built), QStringLiteral("Poster.psd"));
+  show_window(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  auto* copy_css = require_action(window, "layerCopyCssAction");
+  const QString sun_class = QStringLiteral(".sun {\n"
+                                           "  position: absolute;\n"
+                                           "  left: 40px;\n"
+                                           "  top: 20px;\n"
+                                           "  width: 50px;\n"
+                                           "  height: 50px;\n"
+                                           "  opacity: 0.5;\n"
+                                           "}\n");
+  const QString paper_class = QStringLiteral(".paper {\n"
+                                             "  position: absolute;\n"
+                                             "  left: 0px;\n"
+                                             "  top: 0px;\n"
+                                             "  width: 200px;\n"
+                                             "  height: 120px;\n"
+                                             "}\n");
+  const QString header = QStringLiteral("/* Patchy: Poster.psd */\n\n");
+
+  // One selected layer.
+  QApplication::clipboard()->clear();
+  layers->clearSelection();
+  layers->setCurrentItem(require_layer_item(*layers, QStringLiteral("Sun")));
+  QApplication::processEvents();
+  copy_css->trigger();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() == header + sun_class);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Copied 1 layer")));
+
+  // Two selected layers come in panel order, whichever was picked first.
+  layers->clearSelection();
+  layers->setCurrentItem(require_layer_item(*layers, QStringLiteral("Paper")));
+  require_layer_item(*layers, QStringLiteral("Sun"))->setSelected(true);
+  QApplication::processEvents();
+  copy_css->trigger();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() == header + sun_class + QStringLiteral("\n") + paper_class);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Copied 2 layer")));
+
+  // The row menu's Export submenu ends with the same command.
+  const auto menu = read_row_menu(window, *layers, QStringLiteral("Sun"));
+  CHECK(menu.shown);
+  CHECK(menu.export_entries == (QStringList{QStringLiteral("layerQuickExportPngAction"),
+                                            QStringLiteral("layerExportAsAction"), QStringLiteral("-"),
+                                            QStringLiteral("layerContextDuplicateToDocumentAction"),
+                                            QStringLiteral("-"), QStringLiteral("layerCopyCssAction")}));
+  CHECK(menu.export_texts.value(5) == QStringLiteral("Copy CSS"));
+
+  // Scripts read the same text without the clipboard.
+  QApplication::clipboard()->clear();
+  namespace script = patchy::test::ui::scripting_support;
+  CHECK(script::run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    console.log('css=' + JSON.stringify(doc.cssForLayers([doc.findLayer('Sun')])));
+    console.log('none=' + JSON.stringify(doc.cssForLayers([])));
+    try {
+      doc.cssForLayers('Sun');
+      console.log('no-throw');
+    } catch (error) {
+      console.log('threw:' + error.message);
+    }
+  )JS")));
+  CHECK(script::backlog_contains(
+      window, QStringLiteral("css=\"/* Patchy: Poster.psd */\\n\\n.sun {\\n  position: absolute;")));
+  CHECK(script::backlog_contains(window, QStringLiteral("none=\"\"")));
+  CHECK(script::backlog_contains(window, QStringLiteral("threw:cssForLayers needs")));
+  CHECK(QApplication::clipboard()->text().isEmpty());
+
+  // A hidden layer gives nothing: the clipboard keeps what it had and the status line says why.
+  patchy::ui::MainWindowTestAccess::document(window).find_layer(sun_id)->set_visible(false);
+  QApplication::clipboard()->setText(QStringLiteral("kept"));
+  layers->clearSelection();
+  layers->setCurrentItem(require_layer_item(*layers, QStringLiteral("Sun")));
+  QApplication::processEvents();
+  copy_css->trigger();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() == QStringLiteral("kept"));
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Select a visible layer with content to copy as CSS"));
+  QApplication::clipboard()->clear();
+}
+
+// Copy CSS on layers the real tools made (GitHub issue 688): a rounded rectangle with an inside
+// stroke, bold point text and a painted layer, the first two with a drop shadow. Saves the
+// document, its CSS and the row menu with Export open for review.
+void ui_copy_css_describes_shape_text_and_pixel_layers() {
+  namespace script = patchy::test::ui::scripting_support;
+  patchy::ui::MainWindow window;
+  window.resize(1366, 728);
+  patchy::Document built(400, 300, patchy::PixelFormat::rgba8());
+  built.add_layer(solid_layer(built, "Paper", QRect(0, 0, 400, 300), QColor(Qt::white)));
+  window.add_document_session(std::move(built), QStringLiteral("Card.psd"));
+  show_window(window);
+  CHECK(script::run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var photo = doc.addLayer('Photo');
+    photo.fillRect(250, 40, 100, 80, '#3c78d8');
+    doc.addShape('Card', {type: 'roundedRectangle', x: 20, y: 20, width: 200, height: 120, radius: 12},
+                 {fill: '#ffcc00', stroke: {enabled: true, width: 4, paint: '#102030', alignment: 'inside'}});
+    var title = doc.addTextLayer('Hello CSS', {size: 32, x: 40, y: 180, color: '#c04000', bold: true});
+    title.name = 'Title';
+  )JS")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.5F;
+  shadow.angle_degrees = 135.0F;
+  shadow.distance = 4.2426407F;  // 3 px right, 3 px down
+  shadow.size = 4.0F;
+  for (const char* name : {"Card", "Title"}) {
+    const auto* found = script::layer_named(std::as_const(document), name);
+    CHECK(found != nullptr);
+    if (found == nullptr) {
+      return;
+    }
+    document.find_layer(found->id())->layer_style().drop_shadows.push_back(shadow);
+  }
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  layers->clearSelection();
+  layers->setCurrentItem(require_layer_item(*layers, QStringLiteral("Card")));
+  require_layer_item(*layers, QStringLiteral("Title"))->setSelected(true);
+  require_layer_item(*layers, QStringLiteral("Photo"))->setSelected(true);
+  QApplication::processEvents();
+
+  QApplication::clipboard()->clear();
+  require_action(window, "layerCopyCssAction")->trigger();
+  QApplication::processEvents();
+  const auto css = QApplication::clipboard()->text();
+  QApplication::clipboard()->clear();
+  std::printf("[INFO] Copy CSS sample:\n%s\n", css.toUtf8().constData());
+
+  // Panel order: the text on top, then the shape, then the painted layer.
+  CHECK(css.startsWith(QStringLiteral("/* Patchy: Card.psd */\n\n.title {\n  position: absolute;\n")));
+  const auto* title = script::layer_named(std::as_const(document), "Title");
+  const auto runs = title != nullptr ? patchy::psd::text_style_runs_from_layer(*title)
+                                     : std::vector<patchy::psd::PsdTextStyleRun>();
+  CHECK(!runs.empty());
+  if (!runs.empty()) {
+    CHECK(css.contains(QStringLiteral("  font-family: \"%1\";\n").arg(QString::fromStdString(runs.front().family))));
+  }
+  for (const auto* line : {"  font-size: 32px;\n", "  font-weight: bold;\n", "  color: #c04000;\n",
+                           "  text-align: left;\n", "  white-space: nowrap;\n",
+                           "  text-shadow: 3px 3px 4px rgba(0, 0, 0, 0.5);\n"}) {
+    CHECK(css.contains(QLatin1String(line)));
+  }
+  CHECK(css.contains(QStringLiteral("\n.card {\n"
+                                    "  position: absolute;\n"
+                                    "  left: 20px;\n"
+                                    "  top: 20px;\n"
+                                    "  width: 200px;\n"
+                                    "  height: 120px;\n"
+                                    "  box-sizing: border-box;\n"
+                                    "  background-color: #ffcc00;\n"
+                                    "  border: 4px solid #102030;\n"
+                                    "  border-radius: 12px;\n"
+                                    "  box-shadow: 3px 3px 4px rgba(0, 0, 0, 0.5);\n"
+                                    "}\n")));
+  CHECK(css.endsWith(QStringLiteral("\n.photo {\n"
+                                    "  position: absolute;\n"
+                                    "  left: 250px;\n"
+                                    "  top: 40px;\n"
+                                    "  width: 100px;\n"
+                                    "  height: 80px;\n"
+                                    "}\n")));
+  CHECK(css.indexOf(QStringLiteral("\n.card {")) < css.indexOf(QStringLiteral("\n.photo {")));
+
+  // For review: the CSS, the document it came from, and the row menu with Export open.
+  QDir().mkpath(QStringLiteral("test-artifacts"));
+  const auto base = QDir::current().absoluteFilePath(QStringLiteral("test-artifacts/issue688_copy_css_sample"));
+  QFile css_file(base + QStringLiteral(".css"));
+  CHECK(css_file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  css_file.write(css.toUtf8());
+  css_file.close();
+  const auto menu = read_row_menu(window, *layers, QStringLiteral("Card"), "issue688_copy_css");
+  CHECK(menu.shown);
+  CHECK(menu.export_texts.value(5) == QStringLiteral("Copy CSS"));
+
+  // A PSD copy of the document, reopened, gives the same classes: the shape's live box, its
+  // stroke, the text runs and the shadows all come back from the file.
+  CHECK(script::run_script(window, QStringLiteral(R"JS(
+    function classes(d) {
+      var text = d.cssForLayers([d.findLayer('Title'), d.findLayer('Card'), d.findLayer('Photo')]);
+      return text.split('\n').slice(1).join('\n');  // without the line naming the document
+    }
+    var first = app.activeDocument;
+    if (!first.exportAs('%1.psd')) throw Error('export');
+    var before = classes(first);
+    var opened = app.open('%1.psd');
+    var after = classes(opened);
+    console.log('reopened-same=' + (after === before && after.indexOf('.card {') > 0));
+    if (after !== before) console.log('reopened=' + JSON.stringify(after));
+    opened.close();
+  )JS").arg(base)));
+  CHECK(script::backlog_contains(window, QStringLiteral("reopened-same=true")));
 }
 
 struct ThumbnailMenuSeen {
@@ -859,6 +1083,8 @@ std::vector<patchy::test::TestCase> layer_export_tests() {
   return {
       {"ui_layer_context_menu_fits_short_screens", ui_layer_context_menu_fits_short_screens},
       {"ui_layer_thumbnail_menu_offers_layer_export", ui_layer_thumbnail_menu_offers_layer_export},
+      {"ui_copy_css_copies_selected_layers_as_classes", ui_copy_css_copies_selected_layers_as_classes},
+      {"ui_copy_css_describes_shape_text_and_pixel_layers", ui_copy_css_describes_shape_text_and_pixel_layers},
       {"ui_layer_quick_export_png_writes_trimmed_named_files", ui_layer_quick_export_png_writes_trimmed_named_files},
       {"ui_layer_export_as_uses_chosen_format_and_options", ui_layer_export_as_uses_chosen_format_and_options},
       {"ui_layer_mask_thumbnail_export_writes_the_mask", ui_layer_mask_thumbnail_export_writes_the_mask},
