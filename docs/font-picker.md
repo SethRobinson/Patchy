@@ -35,6 +35,46 @@ control. Text-session rules for the popup (its objectName, picks that must apply
 - The popup opens on the current family's Recent row with the list at the top, so the section is in
   view; a current family that is not recent opens centered in the full list.
 
+## English names (issue 691)
+
+Preferences > Application, "Show font names in English" (`ui/showFontNamesInEnglish`, a persisted
+identifier, off by default) shows a family the font database lists in another script under its
+English name. Font databases name a face for the user's locale
+([font-resolution.md](font-resolution.md)), and some fonts carry only a native name on top of a
+Latin PostScript name. Code: `src/ui/font_display_names.{hpp,cpp}`.
+
+- **Display only.** The listed family stays the key: the combo's model, `currentFont()`, a row's
+  `Qt::DisplayRole`, Recent, Favorites, the text engine and the PSD reader and writer never see the
+  shown name. A family row draws `kFontPickerShownNameRole`; the preview pane's specimen line and
+  the closed control show the same name. Hovering a renamed row gives the listed name as a tooltip.
+- **The name comes from the face's own `name` table** (`english_family_name_from_name_table`, read
+  through `QRawFont`, so every platform's font engine answers): the family record of the kind the
+  database listed (GDI family id 1, or typographic family id 16) in Windows en-US, any Windows
+  English, Macintosh English, then any record in Latin script; the other kind next; the
+  PostScript name (id 6) last. A candidate must be Latin script whatever language it is filed
+  under, and a family already named in Latin script (`font_name_is_latin`) is never opened.
+- **One table per font database load** (`font_display_names()`): built on first use, one font
+  engine load per family listed in another script, answers kept by family and style list so a
+  later `fontDatabaseChanged` reopens nothing. Empty while the option is off. Nothing is read per
+  repaint. A load measured 2 to 6 ms per family on Windows (154 system families, November 2026),
+  paid once per launch when the options bar is built; there is no disk cache, so a machine with
+  hundreds of such families is where one would be worth adding.
+- **A shown name is unique** (`FontDisplayNames::build`): a name another family is listed or
+  already shown under is dropped and that family keeps its listed name, so
+  `family_for_display_name` always leads back to one family.
+- **Search** matches the listed and the shown name. The rows are ordered by shown name
+  (case-insensitive) when any family has one; otherwise Qt's order stands.
+- **Closed control.** `show_row_display_name` sets the line edit to the shown name with the combo's
+  signals blocked, like a missing family's name: unblocked, the text would reach `QFontComboBox`
+  through `currentTextChanged` and become `currentFont()`'s family. `row_family()` answers the
+  listed family. Enter on a shown name typed into the control is taken by the combo's event
+  filter, which selects the family's row: the stock handling would add the English name as a new
+  row. The control's inline completion still completes listed names only.
+- **Toggling** emits `FontDisplayNamesNotifier::changed`; every `FontPickerCombo` refreshes its
+  closed control, and the next popup lists the new names. No restart.
+- Tests inject names with `ScopedFontDisplayNameLookup`, because the offscreen font database
+  lists every family in English.
+
 ## Recent section (issue 569)
 
 - Every user pick (`QComboBox::activated`: a popup pick, or a name typed into the closed control
@@ -129,5 +169,8 @@ signature changed is read again.
 bundled web fonts) and `tests/ui/font_picker_filter_tests.cpp` (`ui_font_picker_*`: Recent order,
 cap, missing families, header skipping, filters, persistence, the rule's color in both schemes,
 list height, Enter in an open list, Other, the favorite star, the Favorites view with filters and
-persistence, the Recent x, the hidden-matches hint, plain names for foundry duplicates); the popup's older cases are
+persistence, the Recent x, the hidden-matches hint, plain names for foundry duplicates; English
+names: `ui_font_english_name_*`, `ui_font_display_names_round_trip_to_the_listed_family`,
+`ui_font_picker_shows_english_names_when_enabled`,
+`ui_preferences_show_font_names_in_english_checkbox`); the popup's older cases are
 `ui_text_font_picker_*` in `tests/ui/text_editor_font_picker_tests.cpp`.

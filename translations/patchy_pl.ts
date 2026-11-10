@@ -35797,6 +35797,14 @@ Zablokowano: %1</translation>
             <numerusform>(pominięto %n zablokowanych warstw)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Pokazuj nazwy czcionek po angielsku</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Po włączeniu lista czcionek pokazuje czcionki nazwane w innym piśmie, na przykład chińskim, japońskim lub koreańskim, pod ich angielskimi nazwami. Wyszukiwanie znajduje obie nazwy.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

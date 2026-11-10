@@ -35690,6 +35690,14 @@ Bloqueado: %1</translation>
             <numerusform>(%n camadas bloqueadas ignoradas)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Mostrar nomes de fontes em inglês</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Quando ativado, a lista de fontes mostra com o nome em inglês as fontes cujo nome está em outra escrita, como chinês, japonês ou coreano. A pesquisa encontra qualquer um dos nomes.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

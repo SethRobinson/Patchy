@@ -35690,6 +35690,14 @@ Verrouillé : %1</translation>
             <numerusform>(%n calques verrouillés ignorés)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Afficher les noms des polices en anglais</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Lorsque cette option est activée, la liste des polices affiche sous leur nom anglais les polices nommées dans une autre écriture, comme le chinois, le japonais ou le coréen. La recherche trouve l&apos;un ou l&apos;autre nom.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

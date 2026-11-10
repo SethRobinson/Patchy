@@ -3,6 +3,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/font_display_names.hpp"
 #include "ui/font_face_name_index.hpp"
 #include "ui/font_family_filters.hpp"
 #include "ui/theme_palette.hpp"
@@ -357,6 +358,7 @@ public:
   }
 
   void set_favorites(const QSet<QString>* favorites) noexcept { favorites_ = favorites; }
+  void set_display_names(const FontDisplayNames* names) noexcept { names_ = names; }
 
   // Repaints `family`'s rows after its favorite state changed.
   void favorite_changed(const QString& family) {
@@ -381,6 +383,8 @@ public:
     switch (role) {
       case Qt::DisplayRole:
         return row.text;
+      case kFontPickerShownNameRole:
+        return row.kind == FontPickerRowKind::family && names_ != nullptr ? names_->display_name(row.text) : row.text;
       case kFontPickerRowKindRole:
         return static_cast<int>(row.kind);
       case kFontPickerRecentRowRole:
@@ -404,6 +408,7 @@ public:
 private:
   std::vector<FontListRow> rows_;
   const QSet<QString>* favorites_{nullptr};
+  const FontDisplayNames* names_{nullptr};
 };
 
 class FontListDelegate : public QStyledItemDelegate {
@@ -474,7 +479,8 @@ public:
     painter->setPen(selected ? theme().list_selection_text : theme().text_primary);
     const QFontMetrics metrics(info.display_font);
     painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                      metrics.elidedText(family, Qt::ElideRight, text_rect.width()));
+                      metrics.elidedText(index.data(kFontPickerShownNameRole).toString(), Qt::ElideRight,
+                                         text_rect.width()));
     painter->restore();
   }
 
@@ -565,7 +571,8 @@ public:
         style_(style),
         language_(language),
         status_(status),
-        hidden_matches_(hidden_matches) {
+        hidden_matches_(hidden_matches),
+        names_(font_display_names()) {
     model_ = new FontListModel(this);
     auto* source = combo.model();
     // One row per family: the combo's model holds a row per foundry copy (GitHub issue 646).
@@ -574,7 +581,8 @@ public:
     for (int row = 0; row < source->rowCount(); ++row) {
       listed.append(source->index(row, 0).data(Qt::DisplayRole).toString());
     }
-    families_ = font_families_without_foundries(listed);
+    // Ordered by the names the rows show (GitHub issue 691); Qt's order when none differs.
+    families_ = names_.sorted(font_families_without_foundries(listed));
     const QSet<QString> installed(families_.cbegin(), families_.cend());
     for (const auto& family : stored_recent_font_families()) {
       if (installed.contains(family)) {
@@ -587,6 +595,7 @@ public:
       }
     }
     model_->set_favorites(&favorites_);
+    model_->set_display_names(&names_);
     slice_timer_.setInterval(0);
     connect(&slice_timer_, &QTimer::timeout, this, [this] { classify_slice(); });
   }
@@ -658,8 +667,9 @@ public:
       }
       return index.matches(filter, family, *traits);
     };
+    // The search reads the listed name and the shown one (GitHub issue 691).
     const auto accepts = [&](const QString& family) {
-      return (text.isEmpty() || family.contains(text, Qt::CaseInsensitive)) && passes_filters(family);
+      return (text.isEmpty() || names_.matches_search(family, text)) && passes_filters(family);
     };
 
     std::vector<FontListRow> rows;
@@ -702,7 +712,7 @@ public:
         if (favorites_only_ && !favorites_.contains(family)) {
           continue;
         }
-        if (!family.contains(text, Qt::CaseInsensitive)) {
+        if (!names_.matches_search(family, text)) {
           continue;
         }
         const qsizetype pending_before = pending_.size();
@@ -816,6 +826,8 @@ private:
   QComboBox& language_;
   QLabel& status_;
   QToolButton& hidden_matches_;
+  // A copy for the popup's life: the shared table is rebuilt when the font database changes.
+  const FontDisplayNames names_;
   FontListModel* model_{nullptr};
   QStringList families_;
   QStringList recent_;
@@ -893,6 +905,15 @@ protected:
                                       : FontPickerCombo::tr("Add to favorites"),
                              list_.viewport());
           return true;
+        }
+        // A row shown under its English name tells the name the font database lists (GitHub
+        // issue 691).
+        if (const auto index = list_.indexAt(help->pos()); is_family_row(index)) {
+          const auto family = index.data(Qt::DisplayRole).toString();
+          if (index.data(kFontPickerShownNameRole).toString() != family) {
+            QToolTip::showText(help->globalPos(), family, list_.viewport());
+            return true;
+          }
         }
         break;
       }
@@ -1008,7 +1029,7 @@ void FontPreviewPane::rebuild_lines() {
     // stays complete even when the face misses the odd character).
     QFont name_font(family_);
     apply_font_size(name_font, scaled_font(combo_.font(), 1.9));
-    lines_.push_back({name_font, family_, QString()});
+    lines_.push_back({name_font, font_display_names().display_name(family_), QString()});
   }
   int script_lines = 0;
   QStringList footer_names;
@@ -1054,7 +1075,7 @@ void FontPreviewPane::rebuild_lines() {
   }
   if (lines_.empty()) {
     // Nothing verifiable to sample: at least show the family name in the UI font.
-    lines_.push_back({font(), family_, QString()});
+    lines_.push_back({font(), font_display_names().display_name(family_), QString()});
   }
 }
 
@@ -1186,9 +1207,11 @@ FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
   if (auto* edit = lineEdit(); edit != nullptr) {
     connect(edit, &QLineEdit::textChanged, this, [this, edit] {
       if (!edit->isModified()) {
+        show_row_display_name(false);
         show_name_from_start();
       }
     });
+    edit->installEventFilter(this);
     // Typing over a missing family's name starts a new choice: drop the missing styling.
     connect(edit, &QLineEdit::textEdited, this, [this] {
       if (!missing_family_.isEmpty()) {
@@ -1197,22 +1220,76 @@ FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
       }
     });
   }
+  show_row_display_name(false);
   show_name_from_start();
+  connect(&FontDisplayNamesNotifier::instance(), &FontDisplayNamesNotifier::changed, this,
+          [this] { show_row_display_name(true); });
   // Any pick replaces a missing family (GitHub issue 652). Connected before the Recent recorder
-  // so currentText() there is the picked row, not the missing name.
+  // so row_family() there is the picked row, not the missing name.
   connect(this, &QFontComboBox::currentFontChanged, this, [this] { set_missing_family(QString()); });
-  connect(this, &QComboBox::activated, this, [this] { set_missing_family(QString()); });
+  connect(this, &QComboBox::activated, this, [this] {
+    set_missing_family(QString());
+    show_row_display_name(false);  // a family name typed in full leaves the edit modified
+  });
   // Every user pick (the popup's and a name typed into the closed control) feeds the popup's
   // Recent section (GitHub issue 569).
   connect(this, &QComboBox::activated, this, [this] {
-    if (const auto family = currentText(); findText(family, Qt::MatchExactly | Qt::MatchCaseSensitive) >= 0) {
+    if (const auto family = row_family(); findText(family, Qt::MatchExactly | Qt::MatchCaseSensitive) >= 0) {
       record_recent_font_family(family);
     }
   });
 }
 
 QString FontPickerCombo::row_family() const {
-  return missing_family_.isEmpty() ? currentText() : itemText(currentIndex());
+  const auto row = itemText(currentIndex());
+  if (!missing_family_.isEmpty()) {
+    return row;
+  }
+  const auto text = currentText();
+  return !row.isEmpty() && text == font_display_names().display_name(row) ? row : text;
+}
+
+void FontPickerCombo::show_row_display_name(bool replace_shown_name) {
+  auto* edit = lineEdit();
+  if (edit == nullptr || !missing_family_.isEmpty()) {
+    return;
+  }
+  const auto family = itemText(currentIndex());
+  if (family.isEmpty()) {
+    return;
+  }
+  const auto shown = font_display_names().display_name(family);
+  const auto text = edit->text();
+  if (text == shown || (text != family && (!replace_shown_name || edit->isModified()))) {
+    return;
+  }
+  // Blocked like a missing family's name: the text would reach QFontComboBox through
+  // currentTextChanged and become currentFont()'s family.
+  const QSignalBlocker blocker(this);
+  edit->setText(shown);
+  edit->setModified(false);
+  show_name_from_start();
+}
+
+bool FontPickerCombo::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == lineEdit() && event->type() == QEvent::KeyPress && missing_family_.isEmpty()) {
+    const auto key = static_cast<const QKeyEvent*>(event)->key();
+    if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+      // The stock handling looks the text up among the rows, which hold the listed names: an
+      // English name would be added as a row of its own and become the font's family.
+      const auto typed = lineEdit()->text();
+      const auto family = font_display_names().family_for_display_name(typed);
+      if (family != typed) {
+        if (const int row = findText(family, Qt::MatchExactly | Qt::MatchCaseSensitive); row >= 0) {
+          setCurrentIndex(row);
+          show_row_display_name(true);
+          emit activated(row);
+          return true;
+        }
+      }
+    }
+  }
+  return QFontComboBox::eventFilter(watched, event);
 }
 
 void FontPickerCombo::set_missing_family(const QString& family, const QString& shown) {

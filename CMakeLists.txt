@@ -1375,6 +1375,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/font_picker.cpp
       src/ui/font_family_filters.hpp
       src/ui/font_family_filters.cpp
+      src/ui/font_display_names.hpp
+      src/ui/font_display_names.cpp
       src/ui/blend_if_range_editor.hpp
       src/ui/blend_if_range_editor.cpp
       src/ui/gradient_stops_editor.hpp

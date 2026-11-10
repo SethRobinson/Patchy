@@ -35690,6 +35690,14 @@ Fixiert: %1</translation>
             <numerusform>(%n gesperrte Ebenen übersprungen)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Schriftnamen auf Englisch anzeigen</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Wenn aktiviert, zeigt die Schriftliste Schriften, deren Name in einer anderen Schrift steht, etwa Chinesisch, Japanisch oder Koreanisch, unter ihrem englischen Namen. Die Suche findet beide Namen.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

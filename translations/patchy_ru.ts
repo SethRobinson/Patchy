@@ -35797,6 +35797,14 @@ Locked: %1</source>
             <numerusform>(пропущено %n заблокированных слоёв)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>Показывать названия шрифтов на английском</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>Если этот параметр включен, шрифты, названные в другой письменности, например китайской, японской или корейской, показываются в списке шрифтов под английскими названиями. Поиск находит шрифт по любому из названий.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

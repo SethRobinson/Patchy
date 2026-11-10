@@ -35583,6 +35583,14 @@ Locked: %1</source>
             <numerusform>（已略過 %n 個鎖定的圖層）</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>以英文顯示字體名稱</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>啟用時，字體清單會以英文名稱顯示以其他文字（例如中文、日文或韓文）命名的字體。以任一名稱都能搜尋到。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

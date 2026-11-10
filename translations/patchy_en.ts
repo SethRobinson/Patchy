@@ -35608,6 +35608,14 @@ Locked: %1</source>
             <numerusform></numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -35583,6 +35583,14 @@ Locked: %1</source>
             <numerusform>(잠긴 레이어 %n개를 건너뛰었습니다)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>글꼴 이름을 영어로 표시</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>활성화하면 중국어, 일본어, 한국어 등 다른 문자로 이름이 지정된 글꼴이 글꼴 목록에 영어 이름으로 표시됩니다. 검색은 두 이름 모두로 찾습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

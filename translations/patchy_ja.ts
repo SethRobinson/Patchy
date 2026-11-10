@@ -35583,6 +35583,14 @@ Locked: %1</source>
             <numerusform>(ロックされた %n 個のレイヤーをスキップしました)</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Show font names in English</source>
+        <translation>フォント名を英語で表示</translation>
+    </message>
+    <message>
+        <source>When enabled, the font list shows fonts named in another script, such as Chinese, Japanese or Korean, under their English names. Search finds either name.</source>
+        <translation>有効にすると、中国語、日本語、韓国語など別の文字で名前が付けられたフォントが、フォントリストに英語名で表示されます。検索ではどちらの名前でも見つかります。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

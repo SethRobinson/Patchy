@@ -1,8 +1,10 @@
 // The text bar font picker's Recent section (GitHub issue 569), its Favorites (GitHub issue 630),
 // its Style and Language filters (GitHub issue 570), the hidden-matches hint (GitHub issue 647) and
-// plain family names without Qt's foundry suffix (GitHub issue 646 follow-up). See docs/font-picker.md.
+// plain family names without Qt's foundry suffix (GitHub issue 646 follow-up) and English names
+// for families listed in another script (GitHub issue 691). See docs/font-picker.md.
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/font_display_names.hpp"
 #include "ui/font_face_name_index.hpp"
 #include "ui/font_family_filters.hpp"
 #include "ui/font_picker.hpp"
@@ -15,6 +17,7 @@
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
@@ -26,17 +29,20 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QPainter>
+#include <QRawFont>
 #include <QScrollBar>
 #include <QSet>
 #include <QStandardPaths>
 #include <QStringListModel>
 #include <QSignalBlocker>
 #include <QTest>
+#include <QTimer>
 #include <QToolButton>
 
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <vector>
 
 using namespace patchy::test::ui;
 
@@ -1090,10 +1096,414 @@ void ui_font_picker_foundry_duplicates_review_capture() {
   reset_picker_settings();
 }
 
+// "Show font names in English" (GitHub issue 691). Turns the option off again however a test
+// ends: the shared name table is cached per process.
+struct EnglishFontNamesOff {
+  EnglishFontNamesOff() { patchy::ui::set_stored_show_font_names_in_english(false); }
+  ~EnglishFontNamesOff() {
+    patchy::ui::set_stored_show_font_names_in_english(false);
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QString::fromLatin1(patchy::ui::kShowFontNamesInEnglishKey));
+    settings.sync();
+  }
+};
+
+struct NameRecord {
+  quint16 platform;
+  quint16 encoding;
+  quint16 language;
+  quint16 name_id;
+  QString text;
+};
+
+// An OpenType `name` table holding `records` (Macintosh strings as Latin-1, the rest UTF-16BE).
+QByteArray name_table_with(const std::vector<NameRecord>& records) {
+  QByteArray strings;
+  QByteArray table;
+  const auto put_u16 = [](QByteArray& out, quint16 value) {
+    out.append(static_cast<char>(value >> 8));
+    out.append(static_cast<char>(value & 0xff));
+  };
+  put_u16(table, 0);
+  put_u16(table, static_cast<quint16>(records.size()));
+  put_u16(table, static_cast<quint16>(6 + 12 * records.size()));
+  for (const auto& record : records) {
+    QByteArray encoded;
+    if (record.platform == 1) {
+      encoded = record.text.toLatin1();
+    } else {
+      for (const auto ch : record.text) {
+        put_u16(encoded, ch.unicode());
+      }
+    }
+    put_u16(table, record.platform);
+    put_u16(table, record.encoding);
+    put_u16(table, record.language);
+    put_u16(table, record.name_id);
+    put_u16(table, static_cast<quint16>(encoded.size()));
+    put_u16(table, static_cast<quint16>(strings.size()));
+    strings.append(encoded);
+  }
+  return table + strings;
+}
+
+// The English name a face's own name table gives for the family the database lists: the record
+// kind the family was listed under answers first, native names filed as English are passed over,
+// and the PostScript name is the last resort.
+void ui_font_english_name_comes_from_the_name_table() {
+  using patchy::ui::english_family_name_from_name_table;
+  using patchy::ui::font_name_is_latin;
+  const auto yahei = QStringLiteral("\u5fae\u8f6f\u96c5\u9ed1");                    // Microsoft YaHei, zh-CN
+  const auto yu_gothic = QStringLiteral("\u6e38\u30b4\u30b7\u30c3\u30af");          // Yu Gothic, ja
+  const auto yu_gothic_medium = yu_gothic + QStringLiteral(" Medium");
+  const auto lanting = QStringLiteral("\u65b9\u6b63\u5170\u4ead\u9ed1");
+  const auto hiragino = QStringLiteral("\u30d2\u30e9\u30ae\u30ce\u89d2\u30b4\u30b7\u30c3\u30af");
+
+  CHECK(font_name_is_latin(QString()));
+  CHECK(font_name_is_latin(QStringLiteral("Arial")));
+  CHECK(font_name_is_latin(QStringLiteral("Noto Sans CJK JP")));
+  CHECK(font_name_is_latin(QStringLiteral("\u010ce\u0161tina Sans 2.0")));
+  CHECK(!font_name_is_latin(yahei));
+  CHECK(!font_name_is_latin(yu_gothic_medium));
+  CHECK(!font_name_is_latin(QStringLiteral("\u0420\u0443\u0441\u0441\u043a\u0438\u0439 Sans")));
+
+  // The Windows en-US family record.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0804, 1, yahei},
+            {3, 1, 0x0409, 1, QStringLiteral("Microsoft YaHei")},
+            {3, 1, 0x0409, 6, QStringLiteral("MicrosoftYaHei")},
+        }), yahei) == QStringLiteral("Microsoft YaHei"));
+
+  // A family listed by its GDI family (id 1) keeps that level; the typographic family (id 16)
+  // answers for a family listed by it.
+  const auto yu_table = name_table_with({
+      {3, 1, 0x0411, 1, yu_gothic_medium},
+      {3, 1, 0x0409, 1, QStringLiteral("Yu Gothic Medium")},
+      {3, 1, 0x0411, 16, yu_gothic},
+      {3, 1, 0x0409, 16, QStringLiteral("Yu Gothic")},
+      {3, 1, 0x0409, 6, QStringLiteral("YuGothic-Medium")},
+  });
+  CHECK(english_family_name_from_name_table(yu_table, yu_gothic_medium) == QStringLiteral("Yu Gothic Medium"));
+  CHECK(english_family_name_from_name_table(yu_table, yu_gothic) == QStringLiteral("Yu Gothic"));
+
+  // No family record in Latin script: the PostScript name.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0804, 1, lanting},
+            {3, 1, 0x0409, 6, QStringLiteral("FZLTHK--GBK1-0")},
+        }), lanting) == QStringLiteral("FZLTHK--GBK1-0"));
+
+  // A native name filed under en-US is no English name.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0409, 1, lanting},
+            {3, 1, 0x0804, 1, lanting},
+            {3, 1, 0x0409, 6, QStringLiteral("FZLanTingHei")},
+        }), lanting) == QStringLiteral("FZLanTingHei"));
+
+  // A Latin name under another language, and a Macintosh English record.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0804, 1, lanting},
+            {3, 1, 0x0407, 1, QStringLiteral("FZ LanTing Hei")},
+        }), lanting) == QStringLiteral("FZ LanTing Hei"));
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0411, 1, hiragino},
+            {1, 0, 0, 1, QStringLiteral("Hiragino Sans")},
+        }), hiragino) == QStringLiteral("Hiragino Sans"));
+  // A Macintosh record in a Japanese encoding is not read as Latin-1.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0411, 1, hiragino},
+            {1, 1, 11, 1, QStringLiteral("\u00e3\u00e9\u00ee")},
+        }), hiragino).isEmpty());
+
+  // A Windows record in a legacy code page (PRC here) is not UTF-16 and is passed over.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0804, 1, yahei},
+            {3, 3, 0x0409, 1, QStringLiteral("Wrong Bytes")},
+        }), yahei).isEmpty());
+
+  // Nothing to offer: only the listed name, or no table at all.
+  CHECK(english_family_name_from_name_table(name_table_with({{3, 1, 0x0804, 1, yahei}}), yahei).isEmpty());
+  CHECK(english_family_name_from_name_table(QByteArray(), yahei).isEmpty());
+  CHECK(english_family_name_from_name_table(QByteArray("\x00\x00\x00\x09", 4), yahei).isEmpty());
+}
+
+// The same on a real font: a Japanese system face lists its family in Japanese and in English.
+void ui_font_english_name_reads_a_system_font_if_available() {
+  register_test_fonts(TestFontRole::JapaneseGothic);
+  for (const auto& family : QFontDatabase::families(QFontDatabase::Japanese)) {
+    const auto raw = QRawFont::fromFont(QFont(family));
+    if (!raw.isValid()) {
+      continue;
+    }
+    const auto table = raw.fontTable("name");
+    QString native;
+    QString english;
+    for (const auto& record : patchy::ui::opentype_name_records(table)) {
+      if (record.platform != 3 || record.name_id != 1) {
+        continue;
+      }
+      if (record.language == 0x0409) {
+        english = record.text;
+      } else if (!patchy::ui::font_name_is_latin(record.text)) {
+        native = record.text;
+      }
+    }
+    if (native.isEmpty() || english.isEmpty() || !patchy::ui::font_name_is_latin(english)) {
+      continue;
+    }
+    CHECK(patchy::ui::english_family_name_from_name_table(table, native) == english);
+    std::cout << "  note: " << family.toStdString() << " lists a native family name and \"" << english.toStdString()
+              << "\"\n";
+    return;
+  }
+  patchy::test::skip("no registered font carries a family name in two scripts");
+}
+
+// The table behind the option: a shown name leads back to exactly one listed family, a name
+// another family goes by is not used, search reads both names, and the list is ordered by the
+// names shown.
+void ui_font_display_names_round_trip_to_the_listed_family() {
+  const auto yahei = QStringLiteral("\u5fae\u8f6f\u96c5\u9ed1");
+  const auto simsun = QStringLiteral("\u5b8b\u4f53");
+  const auto simhei = QStringLiteral("\u9ed1\u4f53");
+  const auto yu_medium = QStringLiteral("\u6e38\u30b4\u30b7\u30c3\u30af Medium");
+  const QStringList families{QStringLiteral("Arial"), QStringLiteral("Tahoma"), QStringLiteral("Yu Gothic"),
+                             simsun, yahei, yu_medium, simhei};
+  const QHash<QString, QString> english{
+      {QStringLiteral("Arial"), QStringLiteral("Arial")},  // its own name: nothing to show
+      {yahei, QStringLiteral("Microsoft YaHei")},
+      {simsun, QStringLiteral("SimSun")},
+      {yu_medium, QStringLiteral("yu gothic")},             // a listed family already has that name
+      {simhei, QStringLiteral("SIMSUN")},                   // another family is already shown as that
+  };
+  const auto names = patchy::ui::FontDisplayNames::build(
+      families, [&english](const QString& family) { return english.value(family); });
+  CHECK(!names.empty());
+  CHECK(names.display_name(yahei) == QStringLiteral("Microsoft YaHei"));
+  CHECK(names.display_name(simsun) == QStringLiteral("SimSun"));
+  CHECK(names.display_name(QStringLiteral("Arial")) == QStringLiteral("Arial"));
+  CHECK(names.display_name(yu_medium) == yu_medium);
+  CHECK(names.display_name(simhei) == simhei);
+  CHECK(names.display_name(QStringLiteral("Not Listed")) == QStringLiteral("Not Listed"));
+
+  // Every shown name maps back to the family the database lists, whatever its case.
+  for (const auto& family : families) {
+    CHECK(names.family_for_display_name(names.display_name(family)) == family);
+  }
+  CHECK(names.family_for_display_name(QStringLiteral("microsoft  yahei ")) == yahei);
+  CHECK(names.family_for_display_name(QStringLiteral("SIMSUN")) == simsun);
+  CHECK(names.family_for_display_name(QStringLiteral("Yu Gothic")) == QStringLiteral("Yu Gothic"));
+  CHECK(names.family_for_display_name(QStringLiteral("Unknown")) == QStringLiteral("Unknown"));
+
+  CHECK(names.matches_search(yahei, QStringLiteral("yahei")));
+  CHECK(names.matches_search(yahei, yahei.left(2)));
+  CHECK(!names.matches_search(yahei, QStringLiteral("simsun")));
+  CHECK(names.matches_search(QStringLiteral("Tahoma"), QStringLiteral("aho")));
+  CHECK(!names.matches_search(simhei, QStringLiteral("simsun")));  // the name it did not get
+
+  CHECK(names.sorted(families) == (QStringList{QStringLiteral("Arial"), yahei, simsun, QStringLiteral("Tahoma"),
+                                               QStringLiteral("Yu Gothic"), yu_medium, simhei}));
+
+  // Nothing to show: every answer is the family itself and the order is untouched.
+  const patchy::ui::FontDisplayNames none;
+  CHECK(none.empty());
+  CHECK(none.display_name(yahei) == yahei);
+  CHECK(none.family_for_display_name(QStringLiteral("Microsoft YaHei")) == QStringLiteral("Microsoft YaHei"));
+  CHECK(none.sorted(families) == families);
+  CHECK(!none.matches_search(yahei, QStringLiteral("yahei")));
+}
+
+// The picker with the option off and on: off changes nothing; on, the closed control, the row and
+// the preview show the English name while currentFont(), Recent and the row's own data keep the
+// listed family; search finds the family by either name; an English name typed into the closed
+// control picks its family; and toggling refreshes an open control with no restart.
+void ui_font_picker_shows_english_names_when_enabled() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  const EnglishFontNamesOff option_off;
+  QWidget host;
+  auto* picker = new patchy::ui::FontPickerCombo(&host);
+  // Away from the pointer: a popup closed with the pointer over the combo swallows the next open.
+  host.setGeometry(320, 240, 300, 60);
+  host.show();
+  QApplication::processEvents();
+  const auto families = listed_families(*picker);
+  if (families.size() < 3) {
+    patchy::test::skip("fewer than three font families on this machine");
+  }
+  // Any listed family stands in for one the database names in another script.
+  const auto family = families.at(0);
+  const auto other = families.at(1);
+  const auto english = QStringLiteral("Zz Patchy English 691");
+  const patchy::ui::ScopedFontDisplayNameLookup lookup(
+      [family, english](const QString& listed) { return listed == family ? english : QString(); });
+  const int rows_before = picker->count();
+  const auto shown_rows = [](const QListView& list) {
+    QStringList out;
+    for (int row = 0; row < list.model()->rowCount(); ++row) {
+      const auto index = list.model()->index(row, 0);
+      if (row_kind(index) == FontPickerRowKind::family) {
+        out.append(index.data(patchy::ui::kFontPickerShownNameRole).toString());
+      }
+    }
+    return out;
+  };
+
+  // Off (the default): names as the database lists them, and the English name finds nothing.
+  CHECK(!patchy::ui::stored_show_font_names_in_english());
+  picker->setCurrentFont(QFont(family));
+  CHECK(picker->currentText() == family);
+  {
+    auto* popup = open_picker_popup(*picker);
+    CHECK(popup != nullptr);
+    auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+    CHECK(list != nullptr && search != nullptr);
+    CHECK(family_rows(*list, false) == families);
+    CHECK(shown_rows(*list) == families);
+    QTest::keyClicks(search, QStringLiteral("patchy english"));
+    QApplication::processEvents();
+    CHECK(family_rows(*list, false).isEmpty());
+    popup->close();
+    QApplication::processEvents();
+  }
+
+  // On: the open control changes at once; the font it reports does not.
+  patchy::ui::set_stored_show_font_names_in_english(true);
+  CHECK(picker->currentText() == english);
+  CHECK(picker->row_family() == family);
+  CHECK(picker->currentFont().families().value(0) == family);
+  CHECK(picker->count() == rows_before);
+  {
+    auto* popup = open_picker_popup(*picker);
+    CHECK(popup != nullptr);
+    auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+    auto* preview = popup->findChild<patchy::ui::FontPreviewPane*>(QStringLiteral("textFontPickerPreview"));
+    CHECK(list != nullptr && search != nullptr && preview != nullptr);
+    // Ordered by the shown names; each row still carries the listed family.
+    const auto ordered = patchy::ui::font_display_names().sorted(families);
+    CHECK(ordered != families);
+    CHECK(family_rows(*list, false) == ordered);
+    CHECK(shown_rows(*list).count(english) == 1);
+    CHECK(!shown_rows(*list).contains(family));
+    CHECK(list->currentIndex().data(Qt::DisplayRole).toString() == family);  // opens on the current family
+    CHECK(preview->family() == family);
+    CHECK(preview->line_texts().contains(english));
+    save_widget_artifact("issue691_font_picker_english_name", *popup);
+
+    // Search by the English name, then by the listed one.
+    QTest::keyClicks(search, QStringLiteral("PATCHY english"));
+    QApplication::processEvents();
+    CHECK(family_rows(*list, false) == QStringList{family});
+    search->clear();
+    QTest::keyClicks(search, family);
+    QApplication::processEvents();
+    CHECK(family_rows(*list, false).contains(family));
+    popup->close();
+    QApplication::processEvents();
+  }
+
+  // A popup pick of the English row reports and records the listed family.
+  picker->setCurrentFont(QFont(other));
+  CHECK(picker->currentText() == other);
+  {
+    auto* popup = open_picker_popup(*picker);
+    CHECK(popup != nullptr);
+    auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+    CHECK(list != nullptr && search != nullptr);
+    QTest::keyClicks(search, english);
+    QApplication::processEvents();
+    CHECK(list->currentIndex().data(Qt::DisplayRole).toString() == family);
+    QTest::keyClick(search, Qt::Key_Return);
+    QApplication::processEvents();
+  }
+  CHECK(picker->currentText() == english);
+  CHECK(picker->currentFont().families().value(0) == family);
+  CHECK(patchy::ui::stored_recent_font_families() == QStringList{family});
+
+  // The English name typed into the closed control, in any case, picks the same family and adds
+  // no row of its own.
+  picker->setCurrentFont(QFont(other));
+  CHECK(picker->currentFont().families().value(0) == other);
+  CHECK(picker->lineEdit() != nullptr);
+  picker->lineEdit()->selectAll();
+  QTest::keyClicks(picker->lineEdit(), english.toLower());
+  QTest::keyClick(picker->lineEdit(), Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(picker->count() == rows_before);
+  CHECK(picker->currentFont().families().value(0) == family);
+  CHECK(picker->row_family() == family);
+  CHECK(picker->currentText() == english);
+
+  // A family with no English name is shown as listed.
+  picker->setCurrentFont(QFont(other));
+  CHECK(picker->currentText() == other);
+  CHECK(picker->row_family() == other);
+
+  // Off again: the listed name returns at once.
+  picker->setCurrentFont(QFont(family));
+  CHECK(picker->currentText() == english);
+  patchy::ui::set_stored_show_font_names_in_english(false);
+  CHECK(picker->currentText() == family);
+  CHECK(picker->currentFont().families().value(0) == family);
+  reset_picker_settings();
+}
+
+// The Preferences checkbox: off by default, and OK stores ui/showFontNamesInEnglish. Saves a crop
+// of the Application page around it for the issue card.
+void ui_preferences_show_font_names_in_english_checkbox() {
+  ensure_artifact_dir();
+  const EnglishFontNamesOff option_off;
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QString::fromLatin1(patchy::ui::kShowFontNamesInEnglishKey));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowFontNamesInEnglishCheck"));
+    CHECK(check != nullptr);
+    if (check != nullptr) {
+      CHECK(!check->isChecked());
+      CHECK(check->text() == QStringLiteral("Show font names in English"));
+      CHECK(!check->toolTip().isEmpty());
+      check->setChecked(true);
+      QApplication::processEvents();
+      if (auto* group = check->parentWidget(); group != nullptr) {
+        const auto whole = capture_widget_artifact("issue691_preferences_application_group", *group);
+        const qreal ratio = whole.devicePixelRatio();
+        const auto area = check->geometry().adjusted(-8, -54, 8, 54).intersected(group->rect());
+        const QRect pixels(qRound(area.x() * ratio), qRound(area.y() * ratio), qRound(area.width() * ratio),
+                           qRound(area.height() * ratio));
+        if (!whole.isNull()) {
+          save_image_artifact("issue691_preferences_show_font_names_in_english", whole.copy(pixels));
+        }
+      }
+    }
+    saw_dialog = true;
+    dialog->accept();
+  }));
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(patchy::ui::stored_show_font_names_in_english());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("ui/showFontNamesInEnglish"), false).toBool());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
   return {
+      {"ui_font_english_name_comes_from_the_name_table", ui_font_english_name_comes_from_the_name_table},
+      {"ui_font_english_name_reads_a_system_font_if_available", ui_font_english_name_reads_a_system_font_if_available},
+      {"ui_font_display_names_round_trip_to_the_listed_family", ui_font_display_names_round_trip_to_the_listed_family},
+      {"ui_font_picker_shows_english_names_when_enabled", ui_font_picker_shows_english_names_when_enabled},
+      {"ui_preferences_show_font_names_in_english_checkbox", ui_preferences_show_font_names_in_english_checkbox},
       {"ui_font_family_without_foundry_strips_qt_suffix", ui_font_family_without_foundry_strips_qt_suffix},
       {"ui_font_picker_lists_plain_family_names", ui_font_picker_lists_plain_family_names},
       {"ui_font_picker_foundry_duplicates_review_capture", ui_font_picker_foundry_duplicates_review_capture},
