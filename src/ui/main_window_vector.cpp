@@ -907,17 +907,28 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
     }
     return true;
   };
+  // The live preview shows only finished renders (local-051 follow-up). A request's layers,
+  // the new outline with the pixels baked from it, reach the document together when their
+  // render lands. Until then the document keeps the last finished render, so nothing a
+  // repaint reads (the composite, the path outline, Dynamic Vector Preview) can pair a new
+  // outline with older pixels: assigning the request's layers at once put the pixels from
+  // when the dialog opened back for the length of every render, and a scrubbed arrowhead
+  // flipped between that size and the new one. A finished render also lands while a newer
+  // value waits, as in the adjustment previews (GitHub #601): one render runs at a time, so
+  // results arrive in request order and a scrub shows every size it passes.
   preview_state->start = [this, preview_state, latest, render_failed, prepare, render, target_canvas, request_serial](
                              const ShapeAppearanceSettings& settings) {
+    // prepare() adopts the request's patterns into the document's store. The store goes
+    // back to what the shown layers use, and the request's store lands with its layers.
+    auto shown_patterns = document().metadata().patterns;
     auto result = prepare(settings);
     const auto patterns = std::make_shared<PatternStore>(document().metadata().patterns);
+    document().metadata().patterns = std::move(shown_patterns);
     const auto bounds = Rect::from_size(document().width(), document().height());
     const auto generation = ++preview_state->generation;
     const auto serial = request_serial->load();
     preview_state->in_flight = true;
     *render_failed = false;
-    for (const auto& layer : *result)
-      if (auto* target = document().find_layer(layer.id())) *target = layer;
     canvas_->begin_processing_operation(tr("Updating shapes..."));
     const QPointer<MainWindow> window(this);
     auto* app = QCoreApplication::instance();
@@ -926,16 +937,17 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
       bool failed = false;
       try { failed = !render(*result, bounds, *patterns, serial); } catch (...) { failed = true; }
       if (!app) return;
-      QMetaObject::invokeMethod(app, [window, preview_state, latest, render_failed, result,
+      QMetaObject::invokeMethod(app, [window, preview_state, latest, render_failed, result, patterns,
                                      generation, failed, target_canvas] {
         preview_state->in_flight = false;
         if (target_canvas) target_canvas->end_processing_operation();
+        // Preview off bumps the generation, so a render it overtook never lands.
         if (window && target_canvas && window->canvas_ == target_canvas &&
-            !preview_state->closed && !preview_state->pending &&
-            generation == preview_state->generation) {
+            !preview_state->closed && generation == preview_state->generation) {
           *render_failed = failed;
           if (!failed) {
             *latest = *result;
+            window->document().metadata().patterns = *patterns;
             for (const auto& layer : *result)
               if (auto* target = window->document().find_layer(layer.id())) *target = layer;
             window->canvas_->document_changed();
@@ -967,8 +979,14 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
   defaults.stroke.width = 3.0;
   defaults.stroke.alignment = VectorStrokeAlignment::Inside;
   const auto preview_changed = [preview_state, restore, request_serial](const ShapeAppearanceSettings& value) {
-    ++*request_serial;
-    if (!value.preview_enabled) restore();
+    if (!value.preview_enabled) {
+      // Preview off shows the layers as they were, at once: a render still running is
+      // abandoned (the serial) and never lands (the generation). An ordinary change lets the
+      // running render finish and land, then renders the newest value.
+      ++*request_serial;
+      ++preview_state->generation;
+      restore();
+    }
     enqueue_async_pixel_preview(preview_state, value);
   };
   const auto accepted = editor ? editor(context.originals.front(), preview_changed) : request_shape_appearance_settings(

@@ -302,7 +302,25 @@ struct FontListRow {
   FontPickerRowKind kind{FontPickerRowKind::family};
   QString text;  // the family, or the header's or note's text
   bool recent{false};
+  int extra_section{-1};  // a family row of FontPickerCombo::extra_sections()[n]
+  QString note{};         // that row's dim note beside the name
 };
+
+// Where a family row sits, so a rebuild can put the selection back in the same place: the full
+// list, the Recent section, or extra section n (kFirstExtraSectionZone + n).
+constexpr int kFullListZone = -1;
+constexpr int kRecentZone = 0;
+constexpr int kFirstExtraSectionZone = 1;
+
+[[nodiscard]] int row_zone(const QModelIndex& index) {
+  if (!index.isValid()) {
+    return kFullListZone;
+  }
+  if (const int section = index.data(kFontPickerExtraSectionRole).toInt(); section >= 0) {
+    return kFirstExtraSectionZone + section;
+  }
+  return index.data(kFontPickerRecentRowRole).toBool() ? kRecentZone : kFullListZone;
+}
 
 // A five-pointed star centered on `center`, its points on a circle of `radius`.
 [[nodiscard]] QPainterPath star_path(const QPointF& center, qreal radius) {
@@ -389,6 +407,10 @@ public:
         return static_cast<int>(row.kind);
       case kFontPickerRecentRowRole:
         return row.recent;
+      case kFontPickerExtraSectionRole:
+        return row.kind == FontPickerRowKind::family ? row.extra_section : -1;
+      case kFontPickerRowNoteRole:
+        return row.note;
       case kFontPickerFavoriteRole:
         return row.kind == FontPickerRowKind::family && favorites_ != nullptr && favorites_->contains(row.text);
       default:
@@ -462,7 +484,19 @@ public:
       painter->drawLine(glyph.topRight(), glyph.bottomLeft());
       painter->setRenderHint(QPainter::Antialiasing, false);
     }
-    if (!info.row_sample.isEmpty()) {
+    if (const auto note = index.data(kFontPickerRowNoteRole).toString(); !note.isEmpty()) {
+      // An extra section's note (GitHub issue 692: why a font is suggested), dim in the UI font at
+      // the right of the row; the name keeps at least two fifths of the width.
+      const QFont note_font = scaled_font(combo_.font(), 0.9);
+      const QFontMetrics note_metrics(note_font);
+      const auto shown = note_metrics.elidedText(note, Qt::ElideRight, text_rect.width() * 3 / 5);
+      const auto note_width = note_metrics.horizontalAdvance(shown);
+      painter->setFont(note_font);
+      painter->setPen(selected ? theme().list_selection_text : theme().text_secondary);
+      painter->drawText(QRect(text_rect.right() - note_width, text_rect.top(), note_width, text_rect.height()),
+                        Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, shown);
+      text_rect.setWidth(text_rect.width() - note_width - 12);
+    } else if (!info.row_sample.isEmpty()) {
       // Symbol-class family: readable name in the UI font, its actual glyphs beside it.
       const QFontMetrics sample_metrics(info.sample_font);
       const auto sample =
@@ -496,8 +530,9 @@ public:
   }
 
 private:
-  // A section header: a small dim label; "All Fonts" also draws the rule that separates it from
-  // the Recent rows above. The Favorites view's empty note is a dim line in the UI font.
+  // A section header: a small dim label; "All Fonts", and every other header below the first row,
+  // also draws the rule that separates it from the section above. The Favorites view's empty note
+  // is a dim line in the UI font.
   void paint_header(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     painter->save();
     const auto rect = option.rect;
@@ -510,7 +545,8 @@ private:
       painter->restore();
       return;
     }
-    if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::all_header)) {
+    if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::all_header) ||
+        index.row() > 0) {
       // field_border (the gray around fields and combos), not the list frame's
       // field_inset_border: in Dark that one sits a shade off the list background and the rule
       // vanished (GitHub issue 569 follow-up). menu_separator is too faint in Light.
@@ -594,6 +630,18 @@ public:
         favorites_.insert(family);
       }
     }
+    // The caller's extra sections (GitHub issue 692), installed families only, each once a section.
+    for (const auto& section : combo.extra_sections()) {
+      FontPickerSection kept{section.title, {}};
+      for (const auto& row : section.rows) {
+        if (installed.contains(row.family) &&
+            std::ranges::none_of(kept.rows,
+                                 [&row](const FontPickerSectionRow& other) { return other.family == row.family; })) {
+          kept.rows.push_back(row);
+        }
+      }
+      extra_sections_.push_back(std::move(kept));
+    }
     model_->set_favorites(&favorites_);
     model_->set_display_names(&names_);
     slice_timer_.setInterval(0);
@@ -641,7 +689,7 @@ public:
     const int scroll = list_.verticalScrollBar()->value();
     const auto previous = list_.currentIndex();
     const auto previous_family = is_family_row(previous) ? previous.data(Qt::DisplayRole).toString() : QString();
-    const bool previous_recent = previous.data(kFontPickerRecentRowRole).toBool();
+    const int previous_zone = row_zone(previous);
 
     const auto filter = font_style_filter_from_token(style_.currentData().toString());
     const auto system = writing_system_from_token(language_.currentData().toString());
@@ -690,7 +738,22 @@ public:
                         false});
       }
     } else if (text.isEmpty()) {
-      // While searching the Recent section hides: the matches are the list.
+      // While searching the top sections hide: the matches are the list. The caller's extra
+      // sections come first (GitHub issue 692), then Recent; a section with no row that passes the
+      // filters has no header, and "All Fonts" heads the full list only below a section.
+      for (int section = 0; section < static_cast<int>(extra_sections_.size()); ++section) {
+        const auto& extra = extra_sections_[static_cast<std::size_t>(section)];
+        std::vector<FontListRow> section_rows;
+        for (const auto& row : extra.rows) {
+          if (accepts(row.family)) {
+            section_rows.push_back({FontPickerRowKind::family, row.family, false, section, row.note});
+          }
+        }
+        if (!section_rows.empty()) {
+          rows.push_back({FontPickerRowKind::extra_section_header, extra.title, false});
+          rows.insert(rows.end(), section_rows.begin(), section_rows.end());
+        }
+      }
       std::vector<FontListRow> recent_rows;
       for (const auto& family : recent_) {
         if (accepts(family)) {
@@ -700,6 +763,8 @@ public:
       if (!recent_rows.empty()) {
         rows.push_back({FontPickerRowKind::recent_header, FontPickerCombo::tr("Recent"), true});
         rows.insert(rows.end(), recent_rows.begin(), recent_rows.end());
+      }
+      if (!rows.empty()) {
         rows.push_back({FontPickerRowKind::all_header, FontPickerCombo::tr("All Fonts"), false});
       }
     }
@@ -739,7 +804,7 @@ public:
         FontPickerCombo::tr("More matches with All Styles and All Languages: %n", nullptr, hidden_matches));
     hidden_matches_.setVisible(hidden_matches > 0);
 
-    if (!previous_family.isEmpty() && select_family(previous_family, previous_recent)) {
+    if (!previous_family.isEmpty() && select_family(previous_family, previous_zone)) {
       if (!keep_scroll) {
         list_.scrollTo(list_.currentIndex());
       }
@@ -752,15 +817,16 @@ public:
     update_classification();
   }
 
-  // Selects `family`'s row, in the Recent section when `recent` and it is there.
-  bool select_family(const QString& family, bool recent) {
+  // Selects `family`'s row in `zone` (the full list, Recent or an extra section) when it has one
+  // there, else its topmost row.
+  bool select_family(const QString& family, int zone) {
     QModelIndex fallback;
     for (int row = 0; row < model_->rowCount(); ++row) {
       const auto index = model_->index(row, 0);
       if (!is_family_row(index) || index.data(Qt::DisplayRole).toString() != family) {
         continue;
       }
-      if (index.data(kFontPickerRecentRowRole).toBool() == recent) {
+      if (row_zone(index) == zone) {
         list_.setCurrentIndex(index);
         return true;
       }
@@ -771,6 +837,29 @@ public:
     if (fallback.isValid()) {
       list_.setCurrentIndex(fallback);
       return true;
+    }
+    return false;
+  }
+
+  // Selects `family`'s topmost row: in an extra section, else in Recent, else in the full list.
+  bool select_topmost_family(const QString& family) {
+    for (int row = 0; row < model_->rowCount(); ++row) {
+      const auto index = model_->index(row, 0);
+      if (is_family_row(index) && index.data(Qt::DisplayRole).toString() == family) {
+        list_.setCurrentIndex(index);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Whether an extra section has a row in the list right now.
+  [[nodiscard]] bool shows_extra_section() const {
+    for (int row = 0; row < model_->rowCount(); ++row) {
+      if (model_->index(row, 0).data(kFontPickerRowKindRole).toInt() ==
+          static_cast<int>(FontPickerRowKind::extra_section_header)) {
+        return true;
+      }
     }
     return false;
   }
@@ -831,6 +920,7 @@ private:
   FontListModel* model_{nullptr};
   QStringList families_;
   QStringList recent_;
+  std::vector<FontPickerSection> extra_sections_;  // installed families only
   QSet<QString> favorites_;  // installed favorites only
   bool favorites_only_{false};
   QSet<QString> language_families_;
@@ -1357,6 +1447,10 @@ void FontPickerCombo::changeEvent(QEvent* event) {
   }
 }
 
+void FontPickerCombo::set_extra_sections(std::vector<FontPickerSection> sections) {
+  extra_sections_ = std::move(sections);
+}
+
 void FontPickerCombo::show_name_from_start() {
   if (auto* edit = lineEdit(); edit != nullptr) {
     edit->setCursorPosition(0);
@@ -1660,15 +1754,17 @@ void FontPickerCombo::showPopup() {
   connect(list, &QListView::clicked, popup, commit);
   connect(search, &QLineEdit::returnPressed, popup, [list, commit] { commit(list->currentIndex()); });
 
-  // Start on the current family, previewed: its Recent row with the list at the top when it has
-  // one (so the Recent section is in view), else its place in the full list, centered.
+  // Start on the current family, previewed: its row in an extra section or in Recent with the list
+  // at the top when it has one (so the section is in view), else its place in the full list,
+  // centered. A list with extra sections always opens at the top: they are what the caller wants
+  // seen first (GitHub issue 692).
   rows->set_favorites_only(favorites_button->isChecked());
   rows->rebuild();
   list->clearSelection();
   list->setCurrentIndex(QModelIndex());
   const auto start_family = row_family();
-  if (rows->select_family(start_family, true)) {
-    if (list->currentIndex().data(kFontPickerRecentRowRole).toBool()) {
+  if (rows->select_topmost_family(start_family)) {
+    if (row_zone(list->currentIndex()) != kFullListZone || rows->shows_extra_section()) {
       list->scrollToTop();
     } else {
       list->scrollTo(list->currentIndex(), QAbstractItemView::PositionAtCenter);

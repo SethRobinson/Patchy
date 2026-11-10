@@ -1,7 +1,8 @@
 // The text bar font picker's Recent section (GitHub issue 569), its Favorites (GitHub issue 630),
 // its Style and Language filters (GitHub issue 570), the hidden-matches hint (GitHub issue 647) and
-// plain family names without Qt's foundry suffix (GitHub issue 646 follow-up) and English names
-// for families listed in another script (GitHub issue 691). See docs/font-picker.md.
+// plain family names without Qt's foundry suffix (GitHub issue 646 follow-up), English names
+// for families listed in another script (GitHub issue 691) and the extra sections a caller puts
+// above Recent (GitHub issue 692). See docs/font-picker.md.
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/font_display_names.hpp"
@@ -1500,6 +1501,149 @@ void ui_preferences_show_font_names_in_english_checkbox() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("ui/showFontNamesInEnglish"), false).toBool());
 }
 
+// GitHub issue 692: sections a caller hands the picker (the Missing Fonts dialog's "Chosen before"
+// and "Suggested") sit above Recent with their notes, leave out families that are not installed
+// and sections left empty, and follow the Recent section's rules: hidden while searching and in
+// the Favorites view. Their rows pick like any other; a picker with no sections is unchanged.
+void ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  const auto families = listed_families(*picker);
+  if (families.size() < 3) {
+    patchy::test::skip("fewer than three font families on this machine");
+  }
+  const auto first = families.at(0);
+  const auto second = families.at(1);
+  const auto third = families.at(2);
+  const auto missing = QStringLiteral("Patchy Missing Section Font 692");
+  const auto reason = QStringLiteral("same character widths");
+  patchy::ui::record_recent_font_family(second);
+  CHECK(picker->extra_sections().empty());
+  picker->set_extra_sections({
+      {QStringLiteral("Chosen before"), {{second, QString()}, {missing, QString()}, {second, QStringLiteral("twice")}}},
+      {QStringLiteral("Nothing installed"), {{missing, QStringLiteral("never shown")}}},
+      {QStringLiteral("Suggested"), {{first, reason}, {third, QString()}}},
+  });
+  {
+    const QSignalBlocker blocker(picker);
+    picker->setCurrentFont(QFont(third));
+  }
+
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* favorites = popup->findChild<QToolButton*>(QStringLiteral("textFontPickerFavoritesButton"));
+  CHECK(search != nullptr && list != nullptr && favorites != nullptr);
+  auto* model = list->model();
+  const auto text_at = [model](int row) { return model->index(row, 0).data(Qt::DisplayRole).toString(); };
+  const auto section_at = [model](int row) {
+    return model->index(row, 0).data(patchy::ui::kFontPickerExtraSectionRole).toInt();
+  };
+  const auto note_at = [model](int row) {
+    return model->index(row, 0).data(patchy::ui::kFontPickerRowNoteRole).toString();
+  };
+  const auto extra_rows = [model, &section_at] {
+    int rows = 0;
+    for (int row = 0; row < model->rowCount(); ++row) {
+      rows += section_at(row) >= 0 || row_kind(model->index(row, 0)) == FontPickerRowKind::extra_section_header ? 1 : 0;
+    }
+    return rows;
+  };
+  // Chosen before (the installed family once), Suggested, Recent, All Fonts, then every family.
+  CHECK(model->rowCount() > 8);
+  CHECK(row_kind(model->index(0, 0)) == FontPickerRowKind::extra_section_header);
+  CHECK(text_at(0) == QStringLiteral("Chosen before"));
+  CHECK(text_at(1) == second && section_at(1) == 0 && note_at(1).isEmpty());
+  CHECK(row_kind(model->index(2, 0)) == FontPickerRowKind::extra_section_header);
+  CHECK(text_at(2) == QStringLiteral("Suggested"));  // the section with nothing installed has no header
+  CHECK(text_at(3) == first && section_at(3) == 2 && note_at(3) == reason);
+  CHECK(text_at(4) == third && section_at(4) == 2 && note_at(4).isEmpty());
+  CHECK(row_kind(model->index(5, 0)) == FontPickerRowKind::recent_header);
+  CHECK(text_at(6) == second && section_at(6) == -1);
+  CHECK(model->index(6, 0).data(patchy::ui::kFontPickerRecentRowRole).toBool());
+  CHECK(row_kind(model->index(7, 0)) == FontPickerRowKind::all_header);
+  CHECK(section_at(0) == -1 && section_at(8) == -1);
+  CHECK(extra_rows() == 5);
+  for (const int header : {0, 2}) {
+    CHECK((model->flags(model->index(header, 0)) & Qt::ItemIsSelectable) == 0);
+  }
+  CHECK(row_kind(model->index(3, 0)) == FontPickerRowKind::family);
+  CHECK((model->flags(model->index(3, 0)) & Qt::ItemIsSelectable) != 0);
+  // Opens on the current family's topmost row, with the sections in view.
+  CHECK(list->currentIndex().row() == 4);
+  CHECK(list->verticalScrollBar()->value() == 0);
+  hover_list(*list, list->visualRect(model->index(3, 0)).center());
+  save_widget_artifact("issue692_font_picker_extra_sections", *popup);
+
+  // The arrow keys step over every header.
+  QTest::keyClick(search, Qt::Key_Up);
+  CHECK(list->currentIndex().row() == 3);
+  QTest::keyClick(search, Qt::Key_Up);
+  CHECK(list->currentIndex().row() == 1);
+  QTest::keyClick(search, Qt::Key_Up);
+  CHECK(list->currentIndex().row() == 1);
+  QTest::keyClick(search, Qt::Key_Down);
+  QTest::keyClick(search, Qt::Key_Down);
+  QTest::keyClick(search, Qt::Key_Down);
+  CHECK(list->currentIndex().row() == 6);
+  QTest::keyClick(search, Qt::Key_Down);
+  CHECK(list->currentIndex().row() == 8);
+
+  // Searching hides the sections like Recent; an empty box brings them back.
+  QTest::keyClicks(search, first.left(2));
+  QApplication::processEvents();
+  CHECK(header_rows(*list) == 0);
+  CHECK(extra_rows() == 0);
+  search->clear();
+  QApplication::processEvents();
+  CHECK(header_rows(*list) == 4);
+  CHECK(extra_rows() == 5);
+
+  // The Favorites view replaces them too.
+  favorites->click();
+  QApplication::processEvents();
+  CHECK(row_kind(model->index(0, 0)) == FontPickerRowKind::favorites_header);
+  CHECK(extra_rows() == 0);
+  favorites->click();
+  QApplication::processEvents();
+  CHECK(extra_rows() == 5);
+
+  // A click on a section row picks the font and closes the popup.
+  CHECK(text_at(3) == first);
+  const auto row_rect = list->visualRect(model->index(3, 0));
+  const QPoint name_point(row_rect.left() + 12, row_rect.center().y());
+  hover_list(*list, name_point);
+  QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, name_point);
+  QApplication::processEvents();
+  CHECK(picker->currentText() == first);
+  CHECK(!popup_visible());
+
+  // No sections: the list is the plain one again (Recent, All Fonts and the families).
+  picker->set_extra_sections({});
+  QTest::qWait(350);  // past the reopen guard of a popup that just closed
+  auto* plain = open_picker_popup(*picker);
+  CHECK(plain != nullptr);
+  if (plain != nullptr) {
+    auto* plain_list = plain->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    CHECK(plain_list != nullptr);
+    if (plain_list != nullptr) {
+      CHECK(row_kind(plain_list->model()->index(0, 0)) == FontPickerRowKind::recent_header);
+      CHECK(header_rows(*plain_list) == 2);
+      for (int row = 0; row < plain_list->model()->rowCount(); ++row) {
+        CHECK(plain_list->model()->index(row, 0).data(patchy::ui::kFontPickerExtraSectionRole).toInt() == -1);
+      }
+    }
+    plain->close();
+    QApplication::processEvents();
+  }
+  reset_picker_settings();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
@@ -1517,6 +1661,8 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
       {"ui_font_picker_favorites_view_filters_and_persists", ui_font_picker_favorites_view_filters_and_persists},
       {"ui_font_picker_recent_remove_button_keeps_popup_open", ui_font_picker_recent_remove_button_keeps_popup_open},
       {"ui_font_picker_hidden_matches_hint_counts_and_resets", ui_font_picker_hidden_matches_hint_counts_and_resets},
+      {"ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules",
+       ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules},
       {"ui_font_english_name_comes_from_the_name_table", ui_font_english_name_comes_from_the_name_table},
       {"ui_font_english_name_reads_a_system_font_if_available", ui_font_english_name_reads_a_system_font_if_available},
       {"ui_font_display_names_round_trip_to_the_listed_family", ui_font_display_names_round_trip_to_the_listed_family},

@@ -4,6 +4,7 @@
 
 #include <QHash>
 #include <QString>
+#include <QStringList>
 
 #include <optional>
 #include <vector>
@@ -24,13 +25,30 @@ namespace patchy::ui {
 // turn its pictures into letters.
 enum class MissingFontSuggestion { fallback, metric, lookalike, same_type, no_symbol_match };
 
+// One installed stand-in the built-in rules offer for a missing font (a table pair or the
+// same-type default), listed with its reason in the "Suggested" section of the row's picker
+// (GitHub issue 692).
+struct MissingFontCandidate {
+  QString family;
+  MissingFontSuggestion kind{MissingFontSuggestion::lookalike};  // metric, lookalike or same_type
+  FontClass font_type{FontClass::unknown};                       // the missing font's type, for same_type
+};
+
 struct MissingFontEntry {
   QString family;          // as the text layers name it
   bool no_glyphs{false};   // installed, but draws none of the text it is asked for
   int layer_count{0};      // text layers that use it
   QString suggested;       // the installed family the picker starts on
+  // Where the built-in recommendation comes from (`recommended`), whatever the picker starts on.
   MissingFontSuggestion suggestion{MissingFontSuggestion::fallback};
   FontClass font_type{FontClass::unknown};  // the missing font's type, for same_type
+  // Remembered replacements (GitHub issue 692, ui/font_replacement_memory.hpp). chosen_before:
+  // `suggested` is the font chosen for this missing font the last time, so the row says "Chosen
+  // before" in place of its "Suggested" line and starts ticked even for a symbol font.
+  bool chosen_before{false};
+  QString recommended{};                 // the built-in recommendation: `suggested` with nothing remembered
+  QStringList chosen_before_families{};  // every remembered family still installed, most often chosen first
+  std::vector<MissingFontCandidate> candidates{};  // every installed built-in candidate, best first
 };
 
 struct MissingFontsDialogResult {
@@ -41,8 +59,8 @@ struct MissingFontsDialogResult {
   bool show_on_open{true};
 };
 
-// Each row's name label (missingFontName<N>) shows the family part of a name with a style
-// ("Museo Sans Rounded", the style in missingFontStyle<N>); this property holds the whole name.
+// Each row's name label (missingFontName<N>) shows a name with a style as the family and the style
+// in brackets ("Museo Sans Rounded (500)"); this property holds the whole name.
 inline constexpr const char* kMissingFontFullNameProperty = "patchyMissingFontFullName";
 
 // nullopt when cancelled. `show_on_open` seeds the "Don't show" box; a cancel still reports it

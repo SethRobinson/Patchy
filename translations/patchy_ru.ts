@@ -15818,6 +15818,45 @@ Do you want to replace it?</source>
         <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
         <translation>«Внутри» удерживает обводку в пределах толщины линии. Выберите «По центру» или «Снаружи», чтобы сделать линию толще.</translation>
     </message>
+    <message>
+        <source>same character widths</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>та же ширина символов</translation>
+    </message>
+    <message>
+        <source>similar design</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>похожий рисунок</translation>
+    </message>
+    <message>
+        <source>also a serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>тоже шрифт с засечками</translation>
+    </message>
+    <message>
+        <source>also a sans-serif font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>тоже шрифт без засечек</translation>
+    </message>
+    <message>
+        <source>also a monospaced font</source>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <translation>тоже моноширинный шрифт</translation>
+    </message>
+    <message>
+        <source>Chosen before</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <translation>Выбранные ранее</translation>
+    </message>
+    <message>
+        <source>Suggested</source>
+        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <translation>Предлагаемые</translation>
+    </message>
+    <message>
+        <source>Chosen before: %1</source>
+        <translation>Выбран ранее: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
