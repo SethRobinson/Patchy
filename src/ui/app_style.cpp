@@ -1,11 +1,16 @@
 #include "ui/app_style.hpp"
 
 #include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
 
+#include <QComboBox>
 #include <QFormLayout>
 #include <QIcon>
+#include <QPainter>
 #include <QStyleOptionSpinBox>
 #include <QWidget>
+
+#include <algorithm>
 
 namespace patchy::ui {
 
@@ -74,6 +79,23 @@ QIcon AppStyle::standardIcon(StandardPixmap standard_icon, const QStyleOption* o
 
 void AppStyle::drawPrimitive(PrimitiveElement element, const QStyleOption* option, QPainter* painter,
                              const QWidget* widget) const {
+  // A separator row of a combo box's list (QComboBox::insertSeparator). Qt's list delegate
+  // paints it as the base style's toolbar separator from a default option, so in that
+  // style's shape and the application palette's window color, neither of which the theme
+  // sets: a faint dark line on a Windows desktop in dark mode, two gray pixels in light
+  // mode, and a two pixel near-white bar on Fusion with a light palette (Linux, and every
+  // offscreen capture) over the Dark scheme's list (GitHub issue 696 follow-up). One line in
+  // the theme's menu separator color, with the menus' side margins, in the row Qt gives it
+  // (one frame width tall).
+  if (element == PE_IndicatorToolBarSeparator && option != nullptr && painter != nullptr &&
+      qobject_cast<const QComboBox*>(widget) != nullptr) {
+    constexpr int kSideMargin = 6;
+    const QRect row = option->rect;
+    painter->fillRect(QRect(row.left() + kSideMargin, row.top() + (row.height() - 1) / 2,
+                            std::max(0, row.width() - 2 * kSideMargin), 1),
+                      theme().menu_separator);
+    return;
+  }
   // A spin box framed by the app stylesheet (the Color panel's number boxes) gets its step
   // arrows from the base style. Fusion, the Linux desktop style and the style of every
   // offscreen run (Qt's offscreen platform names no other), receives an arrow rect one frame

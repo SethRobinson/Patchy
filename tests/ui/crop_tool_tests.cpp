@@ -54,7 +54,10 @@
 #include <QScopeGuard>
 #include <QRadioButton>
 #include <QTimer>
+#include <QStyle>
 #include <QToolBar>
+#include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include <QToolButton>
 #include "ui/color_panel.hpp"
 #include "ui/crop_presets.hpp"
@@ -3767,6 +3770,124 @@ void ui_crop_keys_yield_to_reassigned_letters() {
   send_key(*canvas, Qt::Key_Escape);
 }
 
+// GitHub issue 696 follow-up: a combo list's separator rows (QComboBox::insertSeparator) are
+// one line in the theme's menu separator color, between 6 px side margins, in a row one frame
+// width tall. Qt's list delegate hands the row to the style as a toolbar separator with a
+// default option, so the base style drew it in the application palette: on Fusion with its
+// light palette, the style of every offscreen run and of Linux, a two pixel near-white bar
+// over the Dark scheme's list that spilled into the row below. AppStyle draws the row now.
+// Checked on the Crop bar's Preset list, the Brush bar's Preset list and the shape bars'
+// stroke list, in both schemes; the Crop list is captured open (ui_combo_list_separators_*).
+void ui_combo_list_separators_are_one_themed_line() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  SettingsValueRestorer saved_presets(QStringLiteral("tools/cropUserPresets"));
+  for (const auto* key :
+       {"tools/cropStyle", "tools/cropRatioWidth", "tools/cropRatioHeight", "tools/cropUserPresets"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  struct ListCase {
+    const char* tool;
+    const char* combo;
+  };
+  const std::array<ListCase, 3> cases{{{"toolCropAction", "cropPresetCombo"},
+                                       {"toolBrushAction", "brushPresetCombo"},
+                                       {"toolRectAction", "vectorStrokeDashCombo"}}};
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    // Compared as 8-bit RGB: a role built from floats is not bit-equal to a grabbed pixel.
+    const QRgb line = patchy::ui::theme().menu_separator.rgb();
+    constexpr int kSideMargin = 6;
+    for (const auto& entry : cases) {
+      require_action(window, entry.tool)->trigger();
+      QApplication::processEvents();
+      process_events_for(20);
+      const std::string name = std::string(entry.combo) + suffix;
+      const auto problem = [&](const std::string& what) { problems.push_back(name + ": " + what); };
+      auto* combo = window.findChild<QComboBox*>(QLatin1String(entry.combo));
+      if (combo == nullptr || !combo->isVisible()) {
+        problem("the list is not on the bar");
+        continue;
+      }
+      combo->showPopup();
+      QApplication::processEvents();
+      process_events_for(30);
+      auto* view = combo->view();
+      int separators = 0;
+      for (int row = 0; row < combo->count(); ++row) {
+        const auto index = combo->model()->index(row, combo->modelColumn(), combo->rootModelIndex());
+        if (index.data(Qt::AccessibleDescriptionRole).toString() != QStringLiteral("separator")) {
+          continue;
+        }
+        // A long list scrolls: bring the row to the middle of the open list first.
+        view->scrollTo(index, QAbstractItemView::PositionAtCenter);
+        QApplication::processEvents();
+        const QImage image = view->viewport()->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+        const int width = image.width();
+        const QRect rect = view->visualRect(index);
+        if (rect.isEmpty() || !image.rect().contains(rect.adjusted(0, -2, 0, 2))) {
+          problem("separator row " + std::to_string(row) + " is not inside the open list");
+          continue;
+        }
+        ++separators;
+        const std::string where = "separator row " + std::to_string(row);
+        if (rect.height() > 2) {
+          problem(where + " is " + std::to_string(rect.height()) + " px tall");
+        }
+        // The line itself: every pixel between the side margins, and none inside them.
+        const int y = rect.top() + (rect.height() - 1) / 2;
+        int on_line = 0;
+        for (int x = kSideMargin; x < width - kSideMargin; ++x) {
+          on_line += image.pixel(x, y) == line ? 1 : 0;
+        }
+        if (on_line != width - 2 * kSideMargin) {
+          problem(where + ": " + std::to_string(on_line) + " of " + std::to_string(width - 2 * kSideMargin) +
+                  " pixels carry the menu separator color " + QColor(line).name().toStdString() + " (found " +
+                  image.pixelColor(width / 2, y).name().toStdString() + ")");
+        }
+        if (image.pixel(1, y) == line || image.pixel(width - 2, y) == line) {
+          problem(where + ": the line runs into the side margins");
+        }
+        // One pixel only: the scanline under the row is the next entry's own top edge (the same
+        // as the scanline below it), and the one above it the previous entry's bottom edge. The
+        // stock two-line bar spilled its second line into the row below.
+        const auto same_columns = [&](int a, int b) {
+          int same = 0;
+          for (int x = 0; x < width; ++x) {
+            same += image.pixelColor(x, a) == image.pixelColor(x, b) ? 1 : 0;
+          }
+          return same;
+        };
+        if (same_columns(rect.bottom() + 1, rect.bottom() + 2) < width * 9 / 10) {
+          problem(where + ": something is drawn under the line");
+        }
+        if (same_columns(rect.top() - 1, rect.top() - 2) < width * 9 / 10) {
+          problem(where + ": something is drawn above the line");
+        }
+        std::printf("  %s row %d: %d px tall, line %s, %d px wide in a %d px list\n", name.c_str(), row, rect.height(),
+                    qPrintable(image.pixelColor(width / 2, y).name()), on_line, width);
+      }
+      if (separators == 0) {
+        problem("no separator row in the open list");
+      }
+      combo->hidePopup();
+      QApplication::processEvents();
+      if (std::string(entry.combo) == "cropPresetCombo") {
+        save_crop_list_artifact("ui_combo_list_separators" + suffix, window, *combo);
+      }
+    }
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
 // ---------------------------------------------------------------------------------------
 // Move Image Under Crop Box (GitHub issue 699): the crop box keeps its place on screen and
 // the view pans and turns behind it. The limits these tests pin are the "Crop interaction"
@@ -4654,6 +4775,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_keys_step_overlay_and_cropped_area_while_box_pending",
        ui_crop_keys_step_overlay_and_cropped_area_while_box_pending},
       {"ui_crop_keys_yield_to_reassigned_letters", ui_crop_keys_yield_to_reassigned_letters},
+      {"ui_combo_list_separators_are_one_themed_line", ui_combo_list_separators_are_one_themed_line},
       {"ui_crop_handles_resize_move_and_nudge", ui_crop_handles_resize_move_and_nudge},
       {"ui_crop_size_link_keeps_proportion_on_handle_drags", ui_crop_size_link_keeps_proportion_on_handle_drags},
       {"ui_crop_alt_handle_drag_resizes_about_center", ui_crop_alt_handle_drag_resizes_about_center},
