@@ -5105,7 +5105,12 @@ void ui_layer_fill_opacity_control_updates_active_layer() {
 }
 
 // The width a layout gives a widget it does not stretch: its hint within its own limits.
+// A blend row item's natural width as the row counts it: Opacity and Fill (grow widgets, issue
+// 680 follow-up) at their minimum width, the rest at their layout hints.
 int layout_item_width(QWidget& widget) {
+  if (qobject_cast<QAbstractSpinBox*>(&widget) != nullptr) {
+    return widget.minimumWidth();
+  }
   return QWidgetItem(&widget).sizeHint().width();
 }
 
@@ -5420,7 +5425,7 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
     const auto shrink_minimum = combo->minimumSizeHint().width();
     CHECK(shrink_minimum < natural);
     CHECK(patchy::ui::combo_box_text_room(*combo, shrink_minimum) >= combo->fontMetrics().horizontalAdvance(normal_name));
-    // Opacity and Fill as the row lays them out (their fixed widths, not the bare hints).
+    // Opacity and Fill as the row counts them (their measured minimum widths, not the bare hints).
     const auto opacity_width = layout_item_width(*opacity);
     const auto fill_width = layout_item_width(*fill);
     const auto one_line_minimum = shrink_minimum + opacity_width + fill_width + 12;
@@ -5445,10 +5450,10 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
       }
 #endif
       CHECK(!overflow->horizontalScrollBar()->isVisible());
-      // Opacity and Fill are never narrowed, clipped or hidden.
+      // Opacity and Fill are never narrowed, clipped or hidden; spare width widens them.
       CHECK(opacity->isVisible() && fill->isVisible());
-      CHECK(opacity->width() == opacity_width);
-      CHECK(fill->width() == fill_width);
+      CHECK(opacity->width() >= opacity_width);
+      CHECK(fill->width() >= fill_width);
       CHECK(fill->geometry().right() <= content_right);
       CHECK(combo->geometry().right() <= content_right);
       CHECK(combo->width() >= shrink_minimum);
@@ -5459,6 +5464,8 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
         CHECK(opacity->x() == combo->geometry().right() + 1 + 6);
         CHECK(fill->x() == opacity->geometry().right() + 1 + 6);
         CHECK(combo->width() == std::min(natural, content_width - opacity->width() - fill->width() - 12));
+        // The row ends where the filter row does (issue 680 follow-up).
+        CHECK(fill->geometry().right() == content_right);
         CHECK(combo->displayed_text() == normal_name);
       } else {
         // Too narrow even for the smallest box: the row wraps as before (#96, #199).
