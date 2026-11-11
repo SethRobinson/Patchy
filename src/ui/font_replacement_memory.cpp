@@ -137,6 +137,29 @@ void record_font_replacement(const QString& missing_family, const QString& chose
   save_remembered_fonts(fonts);
 }
 
+void forget_font_replacement(const QString& missing_family, const QString& chosen_family) {
+  const auto key = text_font_replacement_key(missing_family);
+  const auto family = chosen_family.trimmed();
+  if (key.isEmpty() || family.isEmpty()) {
+    return;
+  }
+  auto fonts = load_remembered_fonts();
+  const auto found = std::ranges::find_if(fonts, [&key](const RememberedFont& font) { return font.key == key; });
+  if (found == fonts.end()) {
+    return;
+  }
+  const auto removed = std::erase_if(found->picks, [&family](const RememberedFontReplacement& pick) {
+    return pick.family.compare(family, Qt::CaseInsensitive) == 0;
+  });
+  if (removed == 0) {
+    return;
+  }
+  if (found->picks.empty()) {
+    fonts.erase(found);
+  }
+  save_remembered_fonts(fonts);
+}
+
 void clear_remembered_font_replacements() {
   auto settings = app_settings();
   settings.remove(QString::fromLatin1(kMissingFontReplacementsKey));

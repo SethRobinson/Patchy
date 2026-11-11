@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QWidget>
 
+#include <functional>
 #include <vector>
 
 class QAction;
@@ -40,6 +41,9 @@ inline constexpr int kFontPickerShownNameRole = Qt::UserRole + 4;
 // (int; -1 for every other row) and the dim note drawn beside the name (QString, may be empty).
 inline constexpr int kFontPickerExtraSectionRole = Qt::UserRole + 5;
 inline constexpr int kFontPickerRowNoteRole = Qt::UserRole + 6;
+// bool: the family row has the remove button (a Recent row, or a row of an extra section with a
+// `remove` action).
+inline constexpr int kFontPickerRowRemovableRole = Qt::UserRole + 7;
 enum class FontPickerRowKind {
   family = 0,
   recent_header = 1,
@@ -58,14 +62,21 @@ struct FontPickerSectionRow {
 struct FontPickerSection {
   QString title;
   std::vector<FontPickerSectionRow> rows;
+  // Set: every row gets the remove button the Recent rows have (issue 692 follow-up: "Chosen
+  // before"). A click calls it with the row's family and drops the row from this popup and the
+  // next; the family stays in the rest of the list. `remove_tooltip` arrives translated.
+  std::function<void(const QString& family)> remove{};
+  QString remove_tooltip{};
 };
 
 // The small buttons at the right of a family row (GitHub issues 630 and 569): the favorite star on
-// every family row, and the remove button on Recent rows, rightmost, with the star just left of it.
+// every family row, and the remove button on Recent rows and on the rows of an extra section with a
+// `remove` action (kFontPickerRowRemovableRole), rightmost, with the star just left of it.
 enum class FontPickerRowButton { none, favorite, remove_recent };
-// The button's rectangle inside a row's visual rect; empty for the remove button of a row outside
-// the Recent section.
-[[nodiscard]] QRect font_picker_row_button_rect(const QRect& row_rect, FontPickerRowButton button, bool recent_row);
+// The button's rectangle inside a row's visual rect; empty for the remove button of a row that has
+// none.
+[[nodiscard]] QRect font_picker_row_button_rect(const QRect& row_rect, FontPickerRowButton button,
+                                                bool removable_row);
 
 // Per-family info for list rows and previews, computed lazily the first time a family is
 // painted or hovered (never precomputed across the whole database -- hundreds of families).
@@ -148,6 +159,9 @@ public:
   // sets none. docs/font-picker.md, "Extra sections".
   void set_extra_sections(std::vector<FontPickerSection> sections);
   [[nodiscard]] const std::vector<FontPickerSection>& extra_sections() const noexcept { return extra_sections_; }
+  // The remove button of extra section `section`'s row for `family`: drops the row and runs the
+  // section's `remove` action. The open popup updates its own list.
+  void remove_extra_section_row(int section, const QString& family);
 
 protected:
   void focusOutEvent(QFocusEvent* event) override;
