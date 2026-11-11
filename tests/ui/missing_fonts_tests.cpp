@@ -1242,8 +1242,7 @@ void ui_script_rerender_text_rebuilds_the_layers_panel_a_fixed_number_of_times_p
   CHECK(*eight - *four <= 4U * 2U);
 }
 
-// Photoshop draws point text with its first baseline on the TySh anchor's y (rounded like a
-// line start). The re-render used to match the top rows of ink instead, and a faint antialiased
+// Photoshop draws point text with its first baseline on a whole-pixel TySh anchor's y. The re-render used to match the top rows of ink instead, and a faint antialiased
 // row above Patchy's glyphs counted as ink: 16 of the 25 words of the reporter's file came out a
 // pixel low (GitHub issue 686). The re-render now puts its first baseline on the anchor when the
 // two agree to within a pixel and a half, and keeps the ink pin when the anchor is further off
@@ -1292,9 +1291,10 @@ void ui_update_all_text_layers_puts_photoshop_baselines_on_the_anchor() {
   std::fprintf(stderr, "ink pin baseline %.3f; anchor %.1f -> %.3f; anchor %.1f -> %.3f\n", *pinned, near,
                on_anchor.value_or(-1.0), std::round(*pinned) + 3.0, too_far.value_or(-1.0));
   CHECK(on_anchor.has_value() && std::abs(*on_anchor - near) < 0.01);
-  // A half-pixel anchor rounds like Photoshop's line start, halves up.
-  const auto half = document_baseline_after_update(near - 0.5);
-  CHECK(half.has_value() && std::abs(*half - near) < 0.01);
+  // A fractional anchor keeps the ink pin: Photoshop's own baseline for one is not a fixed
+  // rounding of it (psd-tools clip-adjustment.psd).
+  const auto fractional = document_baseline_after_update(near - 0.3);
+  CHECK(fractional.has_value() && std::abs(*fractional - *pinned) < 0.01);
   CHECK(too_far.has_value() && std::abs(*too_far - *pinned) < 0.01);
 }
 

@@ -304,7 +304,7 @@ constexpr auto kTextEditorSourceLineStartFractionProperty = "patchy.sourceLineSt
 // elsewhere (a superscript, faux bold's stroke) leaves the rest of the line where it was.
 constexpr auto kTextEditorSourceInkOffsetProperty = "patchy.sourceInkOffset";
 constexpr auto kTextEditorSourceFirstBaselineProperty = "patchy.sourceFirstBaseline";
-// Photoshop's first baseline in document pixels (the TySh anchor's y, rounded like a line start)
+// Photoshop's first baseline in document pixels (the TySh anchor's y, when it is a whole pixel)
 // for a horizontal point-text layer that still shows Photoshop's raster. The session-start pin
 // puts this baseline there instead of matching ink tops: a faint antialiased row above Patchy's
 // glyphs counted as ink and dropped most re-rendered words a pixel (GitHub issue 686).
@@ -7282,13 +7282,16 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
             if (std::isfinite(line_start)) {
               editing_layer_source_line_start_fraction = line_start - snap_to_pixel_grid(line_start);
             }
-            // Photoshop's raster: its first baseline sits on the anchor's y, rounded like a line
-            // start (docs/text-render-calibration-pixel-grid.md).
+            // Photoshop's raster of a whole-pixel anchor: its first baseline sits exactly on the
+            // anchor's y. A fractional y keeps the ink pin: Photoshop's small hinted sizes put that
+            // baseline a row off either rounding (psd-tools clip-adjustment.psd, ty 21.19, draws
+            // its "a" down to row 21; docs/text-render-calibration-pixel-grid.md).
             if (const auto status = layer->metadata().find(kLayerMetadataTextRasterStatus);
                 status != layer->metadata().end() && status->second == "psd_raster_preview" &&
                 layer->metadata().contains(kLayerMetadataPsdTextTransform) &&
-                std::isfinite((*text_affine_transform)[5])) {
-              editing_layer_source_document_baseline = snap_to_pixel_grid((*text_affine_transform)[5]);
+                std::isfinite((*text_affine_transform)[5]) &&
+                std::abs((*text_affine_transform)[5] - std::round((*text_affine_transform)[5])) <= 1e-6) {
+              editing_layer_source_document_baseline = std::round((*text_affine_transform)[5]);
             }
           }
           document_point = QPoint(snapped_pixel_coordinate(psd_visible_rect->left()),
