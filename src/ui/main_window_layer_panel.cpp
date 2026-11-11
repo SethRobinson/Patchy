@@ -5581,6 +5581,7 @@ void MainWindow::refresh_layer_controls() {
                                                                 : std::vector<LayerId>{});
   }
   sync_vector_shape_size_spins();  // the W / H readouts follow the active shape
+  sync_layer_size_fields();  // and the layer rows the selected layers (GitHub issue 693)
   if (paths_panel_ != nullptr) {
     paths_panel_->refresh_action_states();  // Fill/Stroke Path follow the active layer
   }
@@ -5990,6 +5991,7 @@ void MainWindow::refresh_document_info() {
   refresh_ruler_unit_field_metrics();  // the PPI is per document
   refresh_ruler_readout();  // the ruler unit, the PPI and the line are per document
   sync_vector_shape_size_spins();
+  sync_layer_size_fields();
   sync_artboard_controls();
   refresh_palette_panel();
   schedule_palette_compliance_check();

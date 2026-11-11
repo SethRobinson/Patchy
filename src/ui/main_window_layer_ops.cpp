@@ -1423,6 +1423,162 @@ void MainWindow::transform_active_layer_dialog() {
   }
 }
 
+std::vector<std::int64_t> MainWindow::layer_size_target_key() const {
+  std::vector<std::int64_t> key;
+  if (!has_active_document()) {
+    return key;
+  }
+  key.push_back(session().session_id);
+  auto ids = selected_or_active_layer_ids();
+  std::sort(ids.begin(), ids.end());
+  for (const auto id : ids) {
+    key.push_back(static_cast<std::int64_t>(id));
+  }
+  return key;
+}
+
+bool MainWindow::layer_size_fields_take_edits() const {
+  // Layers transform in the layer view only, as they align there (a channel or a single
+  // component on screen is not the layer the fields describe).
+  if (canvas_ == nullptr) {
+    return false;
+  }
+  const auto target = canvas_->layer_edit_target();
+  return target != CanvasWidget::LayerEditTarget::DocumentChannel && !CanvasWidget::is_component_preview(target);
+}
+
+void MainWindow::sync_layer_size_fields() {
+  if (properties_layer_size_panel_ == nullptr) {
+    return;
+  }
+  // A pending debounced edit outranks a passive sync, while it still belongs to these layers.
+  if (layer_size_apply_timer_ != nullptr && layer_size_apply_timer_->isActive()) {
+    if (layer_size_pending_key_ == layer_size_target_key()) {
+      return;
+    }
+    layer_size_apply_timer_->stop();  // the selection moved on: the typed value goes nowhere
+    layer_size_pending_size_ = false;
+    layer_size_pending_position_ = false;
+  }
+  // The frame reads each layer's alpha bounds: cached per pixel revision, a scan of the
+  // layer after every edit to it. A collapsed or closed Properties panel (how it starts)
+  // pays none of that; its Show event syncs (handle_right_dock_resize_event).
+  if (const auto* body = properties_layer_size_panel_->parentWidget(); body != nullptr && !body->isVisible()) {
+    return;
+  }
+  std::optional<CanvasWidget::LayerFrameState> state;
+  if (canvas_ != nullptr && has_active_document()) {
+    state = canvas_->layer_frame_state();
+  }
+  const bool shown = state.has_value();
+  const bool editable = shown && state->editable && !preview_dialog_edit_locked() && layer_size_fields_take_edits();
+  const auto frame = shown ? state->rect : QRectF();
+  const auto show_value = [editable](UnitSpinBox* spin, double value) {
+    if (spin == nullptr) {
+      return;
+    }
+    const QSignalBlocker blocker(spin);
+    spin->setValue(value);
+    spin->setEnabled(editable);
+  };
+  show_value(properties_layer_width_spin_, shown ? frame.width() : 0.0);
+  show_value(properties_layer_height_spin_, shown ? frame.height() : 0.0);
+  show_value(properties_layer_x_spin_, frame.left());
+  show_value(properties_layer_y_spin_, frame.top());
+  if (properties_layer_link_size_button_ != nullptr) {
+    properties_layer_link_size_button_->setEnabled(editable);
+  }
+  properties_layer_size_panel_->setVisible(shown);
+  properties_layer_size_panel_->setEnabled(editable);
+  layer_size_ratio_ = shown && frame.height() > 1e-9 ? frame.width() / frame.height() : 1.0;
+}
+
+void MainWindow::handle_layer_size_value_changed(bool width_changed, double value) {
+  if (properties_layer_width_spin_ == nullptr || properties_layer_height_spin_ == nullptr) {
+    return;
+  }
+  const bool linked =
+      properties_layer_link_size_button_ != nullptr && properties_layer_link_size_button_->isChecked();
+  if (linked && layer_size_ratio_ > 0.0) {
+    auto* other = width_changed ? properties_layer_height_spin_ : properties_layer_width_spin_;
+    const QSignalBlocker blocker(other);
+    other->setValue(width_changed ? value / layer_size_ratio_ : value * layer_size_ratio_);
+  }
+  schedule_layer_size_apply(true);
+}
+
+void MainWindow::schedule_layer_size_apply(bool size_edit) {
+  // Only fields the user can see hold the selection's values (sync_layer_size_fields).
+  if (properties_layer_size_panel_ == nullptr || !properties_layer_size_panel_->isEnabled() ||
+      !properties_layer_size_panel_->isVisible()) {
+    return;
+  }
+  if (layer_size_apply_timer_ == nullptr) {
+    layer_size_apply_timer_ = new QTimer(this);
+    layer_size_apply_timer_->setSingleShot(true);
+    layer_size_apply_timer_->setInterval(250);
+    connect(layer_size_apply_timer_, &QTimer::timeout, this, [this] {
+      // A label or field scrub still under the pointer: each apply resamples a pixel layer
+      // and is an undo step, so the edit lands once, when the drag ends.
+      for (auto* spin : {properties_layer_width_spin_, properties_layer_height_spin_, properties_layer_x_spin_,
+                         properties_layer_y_spin_}) {
+        if (spin != nullptr && spin_box_scrub_active(spin)) {
+          layer_size_apply_timer_->start();
+          return;
+        }
+      }
+      apply_layer_size_fields();
+    });
+  }
+  (size_edit ? layer_size_pending_size_ : layer_size_pending_position_) = true;
+  layer_size_pending_key_ = layer_size_target_key();
+  layer_size_apply_timer_->start();
+}
+
+bool MainWindow::apply_layer_size_fields() {
+  if (layer_size_apply_timer_ != nullptr) {
+    layer_size_apply_timer_->stop();
+  }
+  const bool size_edit = std::exchange(layer_size_pending_size_, false);
+  const bool position_edit = std::exchange(layer_size_pending_position_, false);
+  if (canvas_ == nullptr || !has_active_document() || properties_layer_width_spin_ == nullptr ||
+      properties_layer_height_spin_ == nullptr || properties_layer_x_spin_ == nullptr ||
+      properties_layer_y_spin_ == nullptr) {
+    return false;
+  }
+  // The values were typed for one set of layers; anything else just rereads the fields.
+  const bool same_target = layer_size_pending_key_ == layer_size_target_key();
+  const auto state = canvas_->layer_frame_state();
+  if (!same_target || !state.has_value() || !state->editable || preview_dialog_edit_locked() ||
+      !layer_size_fields_take_edits() || canvas_->pointer_gesture_active()) {
+    sync_layer_size_fields();
+    return false;
+  }
+  // Only the pair that was edited is read back: the fields show the frame rounded, and a
+  // rounded size must not turn a move into a resize.
+  const auto& frame = state->rect;
+  const QRectF wanted(position_edit ? properties_layer_x_spin_->value() : frame.left(),
+                      position_edit ? properties_layer_y_spin_->value() : frame.top(),
+                      size_edit ? properties_layer_width_spin_->value() : frame.width(),
+                      size_edit ? properties_layer_height_spin_->value() : frame.height());
+  constexpr double kUnchanged = 0.05;
+  if (std::abs(wanted.left() - frame.left()) < kUnchanged && std::abs(wanted.top() - frame.top()) < kUnchanged &&
+      std::abs(wanted.width() - frame.width()) < kUnchanged &&
+      std::abs(wanted.height() - frame.height()) < kUnchanged) {
+    return false;  // no-op; also keeps stale debounced applies harmless
+  }
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    finish_active_text_editor();
+  }
+  const bool changed = canvas_->set_layer_frame(wanted);
+  if (changed) {
+    refresh_layer_controls();
+    refresh_document_info();
+  }
+  sync_layer_size_fields();  // what was applied (snapped to whole pixels), or the truth after a refusal
+  return changed;
+}
+
 void MainWindow::transform_selection() {
   if (canvas_ == nullptr) {
     return;

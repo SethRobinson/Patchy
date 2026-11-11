@@ -77,6 +77,100 @@ constexpr double kPathHitRadiusPx = 7.0;       // half of the 14 px hit rect
 // overlay rings the target this wide (GitHub #555).
 constexpr double kWeldSnapPx = 8.0;
 
+// One axis of a cubic segment folded into [lo, hi]: its two ends and the points
+// between them where the curve turns back (the roots of its derivative).
+void include_cubic_extent(double p0, double p1, double p2, double p3, double& lo, double& hi) {
+  const auto include = [&lo, &hi](double value) {
+    lo = std::min(lo, value);
+    hi = std::max(hi, value);
+  };
+  include(p0);
+  include(p3);
+  const auto [end_lo, end_hi] = std::minmax(p0, p3);
+  if (p1 >= end_lo && p1 <= end_hi && p2 >= end_lo && p2 <= end_hi) {
+    return;  // a straight side, or handles that never pass the ends
+  }
+  const auto at = [&](double t) {
+    const auto u = 1.0 - t;
+    return u * u * u * p0 + 3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t * p3;
+  };
+  const auto include_at = [&](double t) {
+    if (t > 0.0 && t < 1.0) {
+      include(at(t));
+    }
+  };
+  // B'(t) / 3 = a t^2 + b t + c
+  const auto a = -p0 + 3.0 * p1 - 3.0 * p2 + p3;
+  const auto b = 2.0 * (p0 - 2.0 * p1 + p2);
+  const auto c = p1 - p0;
+  if (std::abs(a) < 1e-12) {
+    if (std::abs(b) > 1e-12) {
+      include_at(-c / b);
+    }
+    return;
+  }
+  const auto discriminant = b * b - 4.0 * a * c;
+  if (discriminant < 0.0) {
+    return;
+  }
+  const auto root = std::sqrt(discriminant);
+  include_at((-b + root) / (2.0 * a));
+  include_at((-b - root) / (2.0 * a));
+}
+
+// The tight bounds (curve extents, not the control hull) of each shape group of
+// `path` that `keys` selects, appended to `rects` shifted by `-applied`. False when
+// a selected group is only partly selected: that drag moves points, not shapes.
+bool append_selected_shape_bounds(const VectorPath& path, const std::set<std::pair<int, int>>& keys,
+                                  QPointF applied, std::vector<QRectF>& rects) {
+  struct Extent {
+    double left{std::numeric_limits<double>::max()};
+    double top{std::numeric_limits<double>::max()};
+    double right{std::numeric_limits<double>::lowest()};
+    double bottom{std::numeric_limits<double>::lowest()};
+  };
+  std::map<int, Extent> groups;
+  for (const auto& key : keys) {
+    if (key.first >= 0 && key.first < static_cast<int>(path.subpaths.size())) {
+      groups.try_emplace(path.subpaths[static_cast<std::size_t>(key.first)].shape_group);
+    }
+  }
+  for (int s = 0; s < static_cast<int>(path.subpaths.size()); ++s) {
+    const auto& subpath = path.subpaths[static_cast<std::size_t>(s)];
+    const auto group = groups.find(subpath.shape_group);
+    if (group == groups.end()) {
+      continue;
+    }
+    auto& extent = group->second;
+    const auto count = static_cast<int>(subpath.anchors.size());
+    for (int a = 0; a < count; ++a) {
+      if (!keys.contains({s, a})) {
+        return false;
+      }
+      const auto& from = subpath.anchors[static_cast<std::size_t>(a)];
+      if (a + 1 == count && (!subpath.closed || count == 1)) {
+        // The last point of an open subpath (or a lone point) starts no segment.
+        extent.left = std::min(extent.left, from.anchor_x);
+        extent.right = std::max(extent.right, from.anchor_x);
+        extent.top = std::min(extent.top, from.anchor_y);
+        extent.bottom = std::max(extent.bottom, from.anchor_y);
+        continue;
+      }
+      const auto& to = subpath.anchors[static_cast<std::size_t>((a + 1) % count)];
+      include_cubic_extent(from.anchor_x, from.out_x, to.in_x, to.anchor_x, extent.left, extent.right);
+      include_cubic_extent(from.anchor_y, from.out_y, to.in_y, to.anchor_y, extent.top, extent.bottom);
+    }
+  }
+  for (const auto& [group, extent] : groups) {
+    if (extent.right < extent.left || extent.bottom < extent.top) {
+      continue;  // a group with no points
+    }
+    rects.push_back(QRectF(extent.left - applied.x(), extent.top - applied.y(), extent.right - extent.left,
+                           extent.bottom - extent.top));
+  }
+  return true;
+}
+
 // The curve parameter of the point on segment (a, b) nearest `point` (document space), searched
 // finely around `t`, the hit test's coarse answer: a click adds its point where it was made.
 double nearest_segment_t(const PathAnchor& a, const PathAnchor& b, double t, QPointF point) {
@@ -570,6 +664,8 @@ bool CanvasWidget::handle_move_vector_mask_press(QMouseEvent* event, QPointF doc
   path_drag_origin_document_ = document_point;
   path_drag_raw_document_ = document_point;
   path_drag_applied_delta_ = QPointF(0.0, 0.0);
+  path_drag_snap_sources_ready_ = false;
+  path_drag_snap_armed_ = false;
   path_weld_target_.reset();
   path_drag_mode_ = PathEditDrag::Anchors;
   path_drag_anchor_ = {0, 0};
@@ -2111,6 +2207,8 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_drag_origin_document_ = document_point;
   path_drag_raw_document_ = document_point;
   path_drag_applied_delta_ = QPointF(0.0, 0.0);
+  path_drag_snap_sources_ready_ = false;
+  path_drag_snap_armed_ = false;
   path_weld_target_.reset();
   path_segment_click_.reset();
   const auto selection_before = path_selected_anchors_;
@@ -2453,6 +2551,84 @@ QPointF CanvasWidget::constrain_drag_to_axes(QPointF total_delta) noexcept {
   return QPointF(direction.x() * t, direction.y() * t);
 }
 
+void CanvasWidget::collect_shape_drag_snap_sources(const VectorPath& path) {
+  path_drag_snap_sources_.clear();
+  path_drag_snap_exclude_ids_.clear();
+  path_drag_snap_sources_ready_ = true;
+  // Gathered on the first snapping move: the shapes are where the press found them
+  // plus what the drag has applied so far, which comes back out here.
+  bool whole_shapes = append_selected_shape_bounds(path, path_selected_anchors_, path_drag_applied_delta_,
+                                                   path_drag_snap_sources_);
+  // The layer a moved shape lives in is never its own target: its edges follow the
+  // drag one move behind and would hold the shape back. A vector mask and a Paths
+  // panel path move no layer, so they leave none out.
+  if (const auto owner = path_edit_target_owner_key(); (owner.first == 3 || owner.first == 4) && owner.second != 0) {
+    path_drag_snap_exclude_ids_.push_back(static_cast<LayerId>(owner.second));
+  }
+  for (const auto& [id, keys] : extra_selected_anchors_) {
+    const auto* extra_layer = extra_edit_shape_layer(id);
+    if (extra_layer == nullptr || keys.empty()) {
+      continue;
+    }
+    whole_shapes = append_selected_shape_bounds(extra_layer->vector_shape()->path, keys, path_drag_applied_delta_,
+                                                path_drag_snap_sources_) &&
+                   whole_shapes;
+    path_drag_snap_exclude_ids_.push_back(id);
+  }
+  if (!whole_shapes) {
+    path_drag_snap_sources_.clear();  // part of a shape is moving: no bounds to snap
+  }
+}
+
+QPointF CanvasWidget::snapped_shape_drag_total(const VectorPath& path, QPointF raw_total,
+                                               Qt::KeyboardModifiers modifiers) {
+  const bool shift = (modifiers & Qt::ShiftModifier) != 0;
+  const auto constrained = shift ? constrain_drag_to_axes(raw_total) : raw_total;
+  auto total = constrained;
+  std::optional<SnapMatch> match_x;
+  std::optional<SnapMatch> match_y;
+  // Snapping starts once the press has become a drag, as the Move tool's does, and
+  // stays on for the rest of it.
+  if (!path_drag_snap_armed_ &&
+      (std::abs(raw_total.x()) + std::abs(raw_total.y())) * zoom_ >= QApplication::startDragDistance()) {
+    path_drag_snap_armed_ = true;
+  }
+  // constrain_drag_to_axes leaves an exact 0.0 on the axis it pins; on a diagonal
+  // the two axes hold each other, so neither is free to snap.
+  const bool pinned_x = shift && constrained.x() == 0.0;
+  const bool pinned_y = shift && constrained.y() == 0.0;
+  const bool diagonal = shift && !pinned_x && !pinned_y;
+  if (path_drag_snap_armed_ && snap_enabled_ && !diagonal && document_ != nullptr) {
+    if (!path_drag_snap_sources_ready_) {
+      collect_shape_drag_snap_sources(path);
+    }
+    // Every edge and the center of every moved shape is a source, whatever point
+    // was grabbed (docs/legal-constraints.md, alignment guides): the Move tool's scan.
+    const auto snap = snapped_rects_delta_with_matches(path_drag_snap_sources_, path_drag_snap_exclude_ids_,
+                                                       constrained, false);
+    // Constrain, snap, constrain again: the pinned axis takes no correction and
+    // shows no guide (docs/alignment.md).
+    total = QPointF(pinned_x ? constrained.x() : snap.delta.x(), pinned_y ? constrained.y() : snap.delta.y());
+    const auto dropped = total - snap.delta;  // the correction the pinned axis gave back
+    const auto keep = [dropped](std::optional<SnapMatch> match) {
+      if (match.has_value()) {
+        match->source_span.translate(dropped);
+      }
+      return match;
+    };
+    if (!pinned_x) {
+      match_x = keep(snap.x);
+    }
+    if (!pinned_y) {
+      match_y = keep(snap.y);
+    }
+  }
+  move_snap_x_ = std::move(match_x);
+  move_snap_y_ = std::move(match_y);
+  update_move_snap_guides_region();
+  return total;
+}
+
 bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
   // Every caller passes the latest pointer position, so a queued apply is covered.
   path_drag_apply_pending_ = false;
@@ -2514,9 +2690,13 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
     // Anchor drags track the total delta from the press so Shift can constrain
     // (and un-constrain) against it; each frame still applies an increment.
     const auto raw_total = document_point - path_drag_origin_document_;
-    auto effective_total = (modifiers & Qt::ShiftModifier) != 0
-                               ? constrain_drag_to_axes(raw_total)
-                               : raw_total;
+    // A whole-shape drag (Path Select, Ctrl in a shape tool, the Move tool on an
+    // unlinked vector mask) snaps the shapes' bounds like the Move tool snaps a
+    // layer (GitHub issue 695); a Direct Select point drag keeps its own rules.
+    auto effective_total = edit_tool == CanvasTool::PathSelect
+                               ? snapped_shape_drag_total(*path, raw_total, modifiers)
+                               : (modifiers & Qt::ShiftModifier) != 0 ? constrain_drag_to_axes(raw_total)
+                                                                      : raw_total;
     // One point dragged with Direct Select snaps onto another point of the path; dropped on an
     // end point it welds there (GitHub #555). Alt held turns the snap off.
     const auto previous_weld = path_weld_target_;
@@ -2723,6 +2903,7 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
   }
   finish_path_drag_rasters();
   path_weld_target_.reset();
+  clear_move_snap_guides();  // a whole-shape drag's alignment guides end with it
   if (path_segment_click_.has_value()) {
     // A click on a segment adds a point there (the Pen's Add anchor edit) and selects it.
     const auto add = *path_segment_click_;
@@ -3430,6 +3611,12 @@ void CanvasWidget::set_selected_subpaths_combine_op(PathCombineOp op) {
 }
 
 void CanvasWidget::clear_path_edit_selection() {
+  if (path_drag_mode_ == PathEditDrag::Anchors) {
+    // Escape mid-drag drops what was moving: its alignment guides go with it.
+    clear_move_snap_guides();
+    path_drag_snap_sources_.clear();
+    path_drag_snap_sources_ready_ = true;
+  }
   if (!path_selected_anchors_.empty() || !extra_selected_anchors_.empty()) {
     path_selected_anchors_.clear();
     extra_selected_anchors_.clear();

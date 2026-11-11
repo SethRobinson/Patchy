@@ -781,45 +781,73 @@ CanvasWidget::MoveSnapResult CanvasWidget::snapped_move_delta_with_matches(QPoin
     return result;
   }
 
-  const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
-  auto adjusted_x = static_cast<double>(raw_delta.x());
-  auto adjusted_y = static_cast<double>(raw_delta.y());
-  double best_x = tolerance + 0.0001;
-  double best_y = tolerance + 0.0001;
-
   // Every feature of every moving layer is a snap source regardless of where
   // the drag was grabbed (docs/legal-constraints.md, alignment guides): the
   // moving set itself is excluded from the targets so a layer never snaps back
   // to its own start position.
   std::vector<LayerId> moving_ids;
+  std::vector<QRectF> source_rects;
   moving_ids.reserve(moving_layers_.size());
+  source_rects.reserve(moving_layers_.size());
   for (const auto& moving_layer : moving_layers_) {
     moving_ids.push_back(moving_layer.id);
+    const auto rect = moving_layer_outline_rect(moving_layer, QPoint());
+    if (!rect.isEmpty()) {
+      source_rects.push_back(QRectF(rect));
+    }
   }
+  // Layers sit on whole pixels, so the snapped delta is rounded to them.
+  const auto snap = snapped_rects_delta_with_matches(source_rects, moving_ids, QPointF(raw_delta), true);
+  result.delta = QPoint(static_cast<int>(std::lround(snap.delta.x())), static_cast<int>(std::lround(snap.delta.y())));
+  result.x = snap.x;
+  result.y = snap.y;
+  return result;
+}
+
+CanvasWidget::RectSnapResult CanvasWidget::snapped_rects_delta_with_matches(const std::vector<QRectF>& source_rects,
+                                                                           const std::vector<LayerId>& exclude_ids,
+                                                                           QPointF raw_delta,
+                                                                           bool whole_pixel_delta) const {
+  RectSnapResult result;
+  result.delta = raw_delta;
+  if (document_ == nullptr || !snap_enabled_ || source_rects.empty()) {
+    return result;
+  }
+
+  const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
+  auto adjusted_x = raw_delta.x();
+  auto adjusted_y = raw_delta.y();
+  double best_x = tolerance + 0.0001;
+  double best_y = tolerance + 0.0001;
+
+  // The shared scan of the Move tool and the whole-shape drag (docs/alignment.md):
+  // both edges and the center of every source rect against every target line, a
+  // plain linear comparison, whatever point the drag was grabbed by
+  // (docs/legal-constraints.md, alignment guides).
   std::vector<SnapCandidate> target_x;
   std::vector<SnapCandidate> target_y;
-  collect_snap_candidates(moving_ids, target_x, target_y);
+  collect_snap_candidates(exclude_ids, target_x, target_y);
 
   // The winning source feature per axis, so the guide can span every moving
   // rect that shares it.
   std::optional<double> matched_source_x;
   std::optional<double> matched_source_y;
   const auto consider_x = [&](double source, const SnapCandidate& target, QRectF source_span) {
-    const auto correction = target.position - (source + static_cast<double>(raw_delta.x()));
+    const auto correction = target.position - (source + raw_delta.x());
     const auto distance = std::abs(correction);
     if (distance <= best_x) {
       best_x = distance;
-      adjusted_x = static_cast<double>(raw_delta.x()) + correction;
+      adjusted_x = raw_delta.x() + correction;
       result.x = SnapMatch{target.kind, target.position, source_span, target.span};
       matched_source_x = source;
     }
   };
   const auto consider_y = [&](double source, const SnapCandidate& target, QRectF source_span) {
-    const auto correction = target.position - (source + static_cast<double>(raw_delta.y()));
+    const auto correction = target.position - (source + raw_delta.y());
     const auto distance = std::abs(correction);
     if (distance <= best_y) {
       best_y = distance;
-      adjusted_y = static_cast<double>(raw_delta.y()) + correction;
+      adjusted_y = raw_delta.y() + correction;
       result.y = SnapMatch{target.kind, target.position, source_span, target.span};
       matched_source_y = source;
     }
@@ -833,7 +861,7 @@ CanvasWidget::MoveSnapResult CanvasWidget::snapped_move_delta_with_matches(QPoin
     if (step <= 0.0) {
       return;
     }
-    const auto position = std::round((source + static_cast<double>(raw_delta.x())) / step) * step;
+    const auto position = std::round((source + raw_delta.x()) / step) * step;
     consider_x(source, SnapCandidate{position, QRectF(), SnapKind::Grid}, source_span);
   };
   const auto consider_grid_y = [&](double source, QRectF source_span) {
@@ -845,42 +873,35 @@ CanvasWidget::MoveSnapResult CanvasWidget::snapped_move_delta_with_matches(QPoin
     if (step <= 0.0) {
       return;
     }
-    const auto position = std::round((source + static_cast<double>(raw_delta.y())) / step) * step;
+    const auto position = std::round((source + raw_delta.y()) / step) * step;
     consider_y(source, SnapCandidate{position, QRectF(), SnapKind::Grid}, source_span);
   };
 
-  const auto source_span_of = [](QRect rect) {
-    return QRectF(static_cast<double>(rect.left()), static_cast<double>(rect.top()),
-                  static_cast<double>(rect.width()), static_cast<double>(rect.height()));
+  const auto features_x = [](const QRectF& rect) {
+    return std::array<double, 3>{rect.left(), rect.left() + rect.width() / 2.0, rect.left() + rect.width()};
   };
-  for (const auto& moving_layer : moving_layers_) {
-    const auto rect = moving_layer_outline_rect(moving_layer, QPoint());
-    if (rect.isEmpty()) {
-      continue;
-    }
-    const auto span = source_span_of(rect);
-    const std::array<double, 3> source_x{static_cast<double>(rect.left()),
-                                         static_cast<double>(rect.left() + rect.width() / 2.0),
-                                         static_cast<double>(rect.right() + 1)};
-    const std::array<double, 3> source_y{static_cast<double>(rect.top()),
-                                         static_cast<double>(rect.top() + rect.height() / 2.0),
-                                         static_cast<double>(rect.bottom() + 1)};
-    for (const auto source : source_x) {
+  const auto features_y = [](const QRectF& rect) {
+    return std::array<double, 3>{rect.top(), rect.top() + rect.height() / 2.0, rect.top() + rect.height()};
+  };
+  for (const auto& rect : source_rects) {
+    for (const auto source : features_x(rect)) {
       for (const auto& target : target_x) {
-        consider_x(source, target, span);
+        consider_x(source, target, rect);
       }
-      consider_grid_x(source, span);
+      consider_grid_x(source, rect);
     }
-    for (const auto source : source_y) {
+    for (const auto source : features_y(rect)) {
       for (const auto& target : target_y) {
-        consider_y(source, target, span);
+        consider_y(source, target, rect);
       }
-      consider_grid_y(source, span);
+      consider_grid_y(source, rect);
     }
   }
 
-  result.delta = QPoint(static_cast<int>(std::lround(adjusted_x)), static_cast<int>(std::lround(adjusted_y)));
-  // Report the matched lines where the set actually lands (the rounded delta),
+  result.delta = whole_pixel_delta ? QPointF(static_cast<double>(std::lround(adjusted_x)),
+                                             static_cast<double>(std::lround(adjusted_y)))
+                                   : QPointF(adjusted_x, adjusted_y);
+  // Report the matched lines where the set actually lands (the final delta),
   // spanning every moving rect that carries the winning feature.
   const auto finish_match = [&](std::optional<SnapMatch>& match, const std::optional<double>& matched_source,
                                 bool horizontal) {
@@ -888,28 +909,17 @@ CanvasWidget::MoveSnapResult CanvasWidget::snapped_move_delta_with_matches(QPoin
       return;
     }
     QRectF span;
-    for (const auto& moving_layer : moving_layers_) {
-      const auto rect = moving_layer_outline_rect(moving_layer, result.delta);
-      if (rect.isEmpty()) {
-        continue;
-      }
-      const auto zero_rect = moving_layer_outline_rect(moving_layer, QPoint());
-      const auto width = static_cast<double>(zero_rect.width());
-      const auto height = static_cast<double>(zero_rect.height());
-      const std::array<double, 3> features =
-          horizontal ? std::array<double, 3>{static_cast<double>(zero_rect.left()),
-                                             static_cast<double>(zero_rect.left()) + width / 2.0,
-                                             static_cast<double>(zero_rect.right() + 1)}
-                     : std::array<double, 3>{static_cast<double>(zero_rect.top()),
-                                             static_cast<double>(zero_rect.top()) + height / 2.0,
-                                             static_cast<double>(zero_rect.bottom() + 1)};
+    bool any = false;  // a hairline's rect is empty, so a flag says whether `span` holds one yet
+    for (const auto& rect : source_rects) {
+      const auto features = horizontal ? features_x(rect) : features_y(rect);
       if (std::any_of(features.begin(), features.end(),
                       [&](double feature) { return std::abs(feature - *matched_source) < 1e-6; })) {
-        const auto moved = source_span_of(rect);
-        span = span.isNull() ? moved : span.united(moved);
+        const auto moved = rect.translated(result.delta);
+        span = any ? span.united(moved) : moved;
+        any = true;
       }
     }
-    if (!span.isNull()) {
+    if (any) {
       match->source_span = span;
     }
   };

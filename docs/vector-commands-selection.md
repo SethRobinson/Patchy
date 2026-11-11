@@ -68,6 +68,12 @@ replays the drag at the last raw pointer position. Shift at press keeps its
 additive meaning. Handle drags and the Pen's in-session Ctrl anchor drag stay
 unconstrained.
 
+A whole-shape drag (Path Select, Ctrl in a shape tool, their copy drags) also
+snaps the moved shapes' edges and centers to the Move tool's targets and shows
+its alignment guide (GitHub issue 695): `snapped_shape_drag_total`, after the
+Shift constraint and before the per-move increment. Rules and tests:
+[alignment.md](alignment.md#whole-shape-drags). Point drags do not.
+
 The marquee drag takes Space and Shift like the selection marquee: Space held
 repositions the whole rect (its keyRelease branch deliberately skips
 `set_tool`, which would drop the Pen's Ctrl latch mid-drag), and Shift during

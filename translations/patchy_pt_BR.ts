@@ -19238,6 +19238,14 @@ Deseja substituí-lo?</translation>
         <source>Smudge strength: %1%</source>
         <translation>Intensidade do borrar: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>Redimensionar camadas</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>Redimensionar camada</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35806,6 +35814,26 @@ Bloqueado: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Dentro mantém este traçado dentro da Espessura da linha. Escolha Centro ou Fora em Alinhar, em Aparência da forma, para deixar a linha mais grossa.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>Largura da camada</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>Manter a largura e a altura da camada em proporção</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>Altura da camada</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>Borda esquerda da camada</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>Borda superior da camada</translation>
     </message>
 </context>
 <context>

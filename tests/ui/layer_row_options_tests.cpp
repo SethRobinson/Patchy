@@ -23,6 +23,7 @@
 #include <QDialogButtonBox>
 #include <QImage>
 #include <QLabel>
+#include <QLayoutItem>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
@@ -580,7 +581,9 @@ void ui_layer_rows_thumbnail_combos_follow_the_menus() {
 }
 
 // The column width of a Layers panel narrowed to its footer buttons in the report (issue 680
-// follow-up): under the opening width, so the blend row with Fill wraps there.
+// follow-up): under the opening width. The blend row with Fill wrapped there until the
+// blend mode box learned to narrow (issue 693): it now holds one line by narrowing the box
+// (ui_layer_blend_row_stays_on_one_line_in_narrow_panel), where its narrowest form fits.
 constexpr int kFooterWidthColumn = 293;
 
 void set_column_width(patchy::ui::MainWindow& window, int width) {
@@ -611,6 +614,13 @@ struct BlendRowWidgets {
     return combo != nullptr && opacity != nullptr && fill != nullptr && filter != nullptr &&
            filter_button != nullptr && lock_all != nullptr;
   }
+  // Whether the row with Fill fits one line here, the blend mode box at its narrowest.
+  [[nodiscard]] bool row_with_fill_fits_one_line() const {
+    const auto room = filter_button->geometry().right() + 1 - combo->x();
+    return combo->minimumSizeHint().width() + QWidgetItem(opacity).sizeHint().width() +
+               QWidgetItem(fill).sizeHint().width() + 12 <=
+           room;
+  }
   // Opacity beside the blend mode, inside the panel's right inset (the filter row's end).
   [[nodiscard]] bool opacity_shares_the_combo_line() const {
     return std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1 &&
@@ -622,7 +632,8 @@ struct BlendRowWidgets {
 
 // "Show Fill field" (issue 680 follow-up): on by default. Off, the Fill field is hidden and out
 // of the blend row, so at the width of the footer buttons the blend mode and Opacity share one
-// line and the rows below move up; the layer's fill opacity is untouched. Stored as false only, a
+// line with the blend mode box wider than beside Fill (where the row with Fill wraps, the rows
+// below move up instead); the layer's fill opacity is untouched. Stored as false only, a
 // new window starts without the field, and ticking it again brings the field and the wrap back.
 void ui_layer_rows_show_fill_option_hides_the_fill_field() {
   RowOptionSettingsGuard settings_guard;
@@ -653,11 +664,20 @@ void ui_layer_rows_show_fill_option_hides_the_fill_field() {
     const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
     CHECK(kFooterWidthColumn < opening);
 
-    // With Fill, the row does not fit the footer's width: Opacity and Fill go under the combo.
+    // With Fill, the row fits the footer's width only with the blend mode box narrowed
+    // (issue 693); where even that does not fit, Opacity and Fill go under the combo.
     set_column_width(window, kFooterWidthColumn);
     CHECK(column->width() == kFooterWidthColumn);
-    CHECK(row.opacity_is_under_the_combo());
-    CHECK(row.fill->y() == row.opacity->y());
+    const bool with_fill_on_one_line = row.row_with_fill_fits_one_line();
+    if (with_fill_on_one_line) {
+      CHECK(row.opacity_shares_the_combo_line());
+      CHECK(row.combo->width() < row.combo->sizeHint().width());
+      CHECK(row.fill->geometry().right() <= row.filter_button->geometry().right());
+    } else {
+      CHECK(row.opacity_is_under_the_combo());
+    }
+    CHECK(row.fill->geometry().center().y() == row.opacity->geometry().center().y());
+    const auto with_fill_combo_width = row.combo->width();
     const auto wrapped_filter_y = row.filter->y();
     const auto wrapped_lock_y = row.lock_all->y();
     save_widget_artifact("issue680_fu_layers_fill_shown", *layers_dock);
@@ -687,8 +707,15 @@ void ui_layer_rows_show_fill_option_hides_the_fill_field() {
                   row.opacity->y(), row.filter_button->geometry().right());
     }
     CHECK(row.opacity_shares_the_combo_line());
-    CHECK(row.filter->y() < wrapped_filter_y);
-    CHECK(row.lock_all->y() < wrapped_lock_y);
+    if (with_fill_on_one_line) {
+      // Already one line: the room Fill took goes to the blend mode box, nothing moves.
+      CHECK(row.combo->width() > with_fill_combo_width);
+      CHECK(row.filter->y() == wrapped_filter_y);
+      CHECK(row.lock_all->y() == wrapped_lock_y);
+    } else {
+      CHECK(row.filter->y() < wrapped_filter_y);
+      CHECK(row.lock_all->y() < wrapped_lock_y);
+    }
     CHECK(row.filter->y() > row.combo->geometry().bottom());
     // Display only: the layer keeps its fill opacity, and the hidden field still follows it.
     CHECK(std::abs(active_fill(window) - 0.4F) < 0.001F);
@@ -726,8 +753,13 @@ void ui_layer_rows_show_fill_option_hides_the_fill_field() {
   settle();
   CHECK(!patchy::ui::app_settings().contains(QLatin1String(patchy::ui::kLayerShowFillSettingsKey)));
   CHECK(row.fill->isVisible() && row.fill->value() == 40);
-  CHECK(row.opacity_is_under_the_combo());
-  CHECK(row.fill->y() == row.opacity->y());
+  if (row.row_with_fill_fits_one_line()) {
+    CHECK(row.opacity_shares_the_combo_line());
+    CHECK(row.combo->width() < row.combo->sizeHint().width());
+  } else {
+    CHECK(row.opacity_is_under_the_combo());
+  }
+  CHECK(row.fill->geometry().center().y() == row.opacity->geometry().center().y());
   CHECK(row.fill->geometry().right() <= row.filter_button->geometry().right());
 }
 

@@ -19238,6 +19238,14 @@ Sostituirlo?</translation>
         <source>Smudge strength: %1%</source>
         <translation>Intensità sfumino: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>Ridimensiona livelli</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>Ridimensiona livello</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35806,6 +35814,26 @@ Bloccato: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Interno mantiene questa traccia entro lo Spessore della linea. Scegli Centro o Esterno in Allinea, in Aspetto forma, per rendere la linea più spessa.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>Larghezza del livello</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>Mantieni proporzionali larghezza e altezza del livello</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>Altezza del livello</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>Bordo sinistro del livello</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>Bordo superiore del livello</translation>
     </message>
 </context>
 <context>

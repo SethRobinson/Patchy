@@ -18,6 +18,8 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/blend_mode_ui.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/localization.hpp"
@@ -38,6 +40,7 @@
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QLayoutItem>
 #include <QLineEdit>
 #include <QToolButton>
 #include <QListWidget>
@@ -5101,9 +5104,16 @@ void ui_layer_fill_opacity_control_updates_active_layer() {
   CHECK(std::abs(layer->fill_opacity() - 0.37F) < 0.001F);
 }
 
+// The width a layout gives a widget it does not stretch: its hint within its own limits.
+int layout_item_width(QWidget& widget) {
+  return QWidgetItem(&widget).sizeHint().width();
+}
+
 // GitHub issue 96: until the user picks a width, the right column opens at
 // the narrowest width its panels fit without scrolling, so a long translated
-// row leaves no gap beside the footer buttons. Polish wraps the blend row.
+// row leaves no gap beside the footer buttons. Polish wrapped the blend row
+// there; since GitHub issue 693 the blend mode box narrows and the row holds
+// one line whenever its narrowest form fits.
 void ui_right_dock_opens_at_content_width_without_gap() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
@@ -5120,12 +5130,23 @@ void ui_right_dock_opens_at_content_width_without_gap() {
   auto* layers_page = window.findChild<QWidget*>(QStringLiteral("layersDock"));
   auto* overflow =
       layers_page != nullptr ? layers_page->findChild<QScrollArea*>(QStringLiteral("rightDockOverflowScroll")) : nullptr;
-  CHECK(dock != nullptr && palette_dock != nullptr && combo != nullptr && opacity != nullptr);
+  auto* fill = window.findChild<QSpinBox*>(QStringLiteral("layerFillOpacitySpin"));
+  CHECK(dock != nullptr && palette_dock != nullptr && combo != nullptr && opacity != nullptr && fill != nullptr);
   CHECK(filter_button != nullptr && delete_button != nullptr && overflow != nullptr);
   CHECK(dock->width() == patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window));
   CHECK(palette_dock->width() == dock->width());
   CHECK(!overflow->horizontalScrollBar()->isVisible());
-  CHECK(opacity->y() > combo->geometry().bottom());
+  const auto row_room = filter_button->geometry().right() + 1 - combo->x();
+  const auto one_line_minimum =
+      combo->minimumSizeHint().width() + layout_item_width(*opacity) + layout_item_width(*fill) + 12;
+  if (one_line_minimum <= row_room) {
+    CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+    CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
+  } else {
+    CHECK(opacity->y() > combo->geometry().bottom());
+  }
+  CHECK(combo->width() >= combo->minimumSizeHint().width());
+  CHECK(fill->geometry().right() <= filter_button->geometry().right());
   // The footer buttons reach the panel's right inset (the right edge of the
   // filter menu button that ends the name filter row), with no dead strip after them.
   CHECK(std::abs(delete_button->geometry().right() - filter_button->geometry().right()) <= 8);
@@ -5135,7 +5156,9 @@ void ui_right_dock_opens_at_content_width_without_gap() {
 // GitHub issue 96: Opacity and Fill wrap under the blend combo when the stack
 // is narrower than the one-line row, so long translated prefixes (Russian
 // "Непрозрачность:", Polish "Wypełnienie:") no longer hold the right dock
-// wider than the rest of the panel needs.
+// wider than the rest of the panel needs. Since GitHub issue 693 the blend mode
+// box narrows first, so the row wraps only where its narrowest form does not fit:
+// at the opening width that is still Russian, no longer Polish.
 void ui_layer_blend_row_wraps_in_narrow_panel() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
@@ -5151,7 +5174,10 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     auto* filter_button = window.findChild<QToolButton*>(QStringLiteral("layerFilterButton"));
     CHECK(dock != nullptr && combo != nullptr && opacity != nullptr && fill != nullptr && filter != nullptr);
     CHECK(filter_button != nullptr);
-    const auto one_line_width = combo->width() + opacity->width() + fill->width() + 12;
+    // The row at its natural widths, and with the blend mode box at its narrowest.
+    const auto one_line_width = layout_item_width(*combo) + layout_item_width(*opacity) + layout_item_width(*fill) + 12;
+    const auto one_line_minimum =
+        combo->minimumSizeHint().width() + layout_item_width(*opacity) + layout_item_width(*fill) + 12;
 
     const auto content_minimum = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
     patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, content_minimum);
@@ -5162,19 +5188,50 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     // stretches to the panel's right inset, the edge every row must stay inside.
     const auto content_right = filter_button->geometry().right();
     const auto content_width = content_right + 1 - combo->x();
-    const auto wrapped = one_line_width > content_width;
-    if (code != QStringLiteral("en")) {
+    const auto wrapped = one_line_minimum > content_width;
+    std::cout << "[INFO] " << code.toStdString() << ": blend row " << one_line_width << " px, narrowest "
+              << one_line_minimum << " px, room " << content_width << " px at the opening width\n";
+#ifdef Q_OS_WIN
+    // Russian misses one line by a few pixels: pinned where the release fonts are.
+    if (code == QStringLiteral("ru")) {
       CHECK(wrapped);
     }
+#endif
     if (wrapped) {
       CHECK(opacity->y() > combo->geometry().bottom());
       CHECK(opacity->x() == combo->x());
       CHECK(fill->y() == opacity->y());
+    } else {
+      CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+      CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
+      CHECK(opacity->x() > combo->geometry().right());
     }
     CHECK(combo->geometry().right() <= content_right);
     CHECK(fill->geometry().right() <= content_right);
     CHECK(filter->y() > fill->geometry().bottom());
     save_widget_artifact("ui_layer_blend_row_wraps_" + code.toStdString(), *dock);
+
+    // The panel's compact width: the long prefixes wrap there in every font, Opacity
+    // under the blend mode box at its full width, Fill beside or under Opacity.
+    patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
+        window, patchy::ui::MainWindowTestAccess::right_dock_compact_width(window));
+    for (int pass = 0; pass < 3; ++pass) {
+      QApplication::processEvents();
+    }
+    const auto compact_right = filter_button->geometry().right();
+    const auto compact_wrapped = one_line_minimum > compact_right + 1 - combo->x();
+    if (code != QStringLiteral("en")) {
+      CHECK(compact_wrapped);
+    }
+    if (compact_wrapped) {
+      CHECK(opacity->y() > combo->geometry().bottom());
+      CHECK(opacity->x() == combo->x());
+      CHECK(fill->y() >= opacity->y());
+      CHECK(combo->width() == std::min(layout_item_width(*combo), compact_right + 1 - combo->x()));
+    }
+    CHECK(combo->geometry().right() <= compact_right);
+    CHECK(fill->geometry().right() <= compact_right);
+    CHECK(filter->y() > fill->geometry().bottom());
 
     // Wide enough for the whole row: back on one line.
     patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
@@ -5300,6 +5357,146 @@ void ui_layer_panel_compact_width_keeps_controls_whole() {
     auto* lock_all = panel->findChild<QWidget*>(QStringLiteral("layerLockAllButton"));
     CHECK(lock_all != nullptr);
     CHECK(std::abs(filter->geometry().center().y() - lock_all->geometry().center().y()) <= 1);
+  }
+}
+
+// GitHub issue 693: in a column narrower than the one-line row the blend mode box gives up
+// width before Opacity and Fill wrap under it, so the three share a line at the reporter's
+// 346 px column and at the 293 px of #680's screenshot. The box never gets narrower than
+// the default mode's name needs; a longer name ends in "..." there, its tooltip gives the
+// whole name, and the open list keeps every name whole. At the opening width the row is
+// what it was: the box as wide as its longest name.
+void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
+  for (const auto& code : {QStringLiteral("en"), QStringLiteral("de")}) {
+    CHECK(manager.set_language(code, false));
+    auto&& [window, canvas] = ShownWindowFixture{};
+    patchy::Document document(320, 240, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(320, 240, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    document.add_pixel_layer("Sky", solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(90, 150, 220)));
+    document.add_pixel_layer("Hills", solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(70, 140, 60)));
+    window.add_document_session(std::move(document), QStringLiteral("Narrow Layers"));
+    QApplication::processEvents();
+    auto* layers_page = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+    auto* overflow =
+        layers_page != nullptr ? layers_page->findChild<QScrollArea*>(QStringLiteral("rightDockOverflowScroll")) : nullptr;
+    auto* combo = dynamic_cast<patchy::ui::PopupAwareComboBox*>(
+        window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo")));
+    auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
+    auto* fill = window.findChild<QSpinBox*>(QStringLiteral("layerFillOpacitySpin"));
+    auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+    auto* filter_button = window.findChild<QToolButton*>(QStringLiteral("layerFilterButton"));
+    CHECK(panel != nullptr && overflow != nullptr && combo != nullptr && opacity != nullptr && fill != nullptr);
+    CHECK(filter != nullptr && filter_button != nullptr);
+    const auto settle = [] {
+      for (int pass = 0; pass < 3; ++pass) {
+        QApplication::processEvents();
+      }
+    };
+    const auto normal_name = patchy::ui::blend_mode_name(patchy::BlendMode::Normal);
+    const auto long_name = patchy::ui::blend_mode_name(patchy::BlendMode::LinearDodge);
+
+    // The opening width: the box is as wide as before the row could narrow, its longest
+    // name plus the slack of a scroll bar and 8 px, and shows every name whole.
+    const auto opening = Access::right_dock_content_minimum_width(window);
+    Access::set_right_dock_stack_width(window, opening + 80);
+    settle();
+    const auto natural = combo->width();
+    const auto scroll_extent = combo->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, combo);
+    CHECK(natural == combo->longest_entry_box_width() + scroll_extent + 8);
+    CHECK(natural == combo->sizeHint().width());
+    combo->setCurrentIndex(combo->findData(static_cast<int>(patchy::BlendMode::LinearDodge)));
+    QApplication::processEvents();
+    CHECK(combo->displayed_text() == long_name);
+    CHECK(combo->hover_text() == combo->toolTip());
+    CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+    CHECK(opacity->x() == combo->geometry().right() + 1 + 6);
+    combo->setCurrentIndex(combo->findData(static_cast<int>(patchy::BlendMode::Normal)));
+    QApplication::processEvents();
+
+    const auto shrink_minimum = combo->minimumSizeHint().width();
+    CHECK(shrink_minimum < natural);
+    CHECK(patchy::ui::combo_box_text_room(*combo, shrink_minimum) >= combo->fontMetrics().horizontalAdvance(normal_name));
+    // Opacity and Fill as the row lays them out (their fixed widths, not the bare hints).
+    const auto opacity_width = layout_item_width(*opacity);
+    const auto fill_width = layout_item_width(*fill);
+    const auto one_line_minimum = shrink_minimum + opacity_width + fill_width + 12;
+
+    for (const int width : {346, 293}) {
+      Access::set_right_dock_stack_width(window, width);
+      settle();
+      const auto content_right = filter_button->mapTo(panel, QPoint(filter_button->width() - 1, 0)).x();
+      const auto content_width = content_right + 1 - combo->x();
+      const bool fits = one_line_minimum <= content_width;
+      std::cout << "[INFO] " << code.toStdString() << " column " << width << ": row room " << content_width
+                << " px, narrowest one-line row " << one_line_minimum << " px (blend box at least "
+                << shrink_minimum << " px), blend box " << combo->width() << " of " << natural << " px\n";
+      // English keeps one line at both of the issue's widths. The 293 px one has only a
+      // few pixels to spare, so it is pinned where the release fonts are (Windows).
+      if (code == QStringLiteral("en") && width == 346) {
+        CHECK(fits);
+      }
+#ifdef Q_OS_WIN
+      if (code == QStringLiteral("en")) {
+        CHECK(fits);
+      }
+#endif
+      CHECK(!overflow->horizontalScrollBar()->isVisible());
+      // Opacity and Fill are never narrowed, clipped or hidden.
+      CHECK(opacity->isVisible() && fill->isVisible());
+      CHECK(opacity->width() == opacity_width);
+      CHECK(fill->width() == fill_width);
+      CHECK(fill->geometry().right() <= content_right);
+      CHECK(combo->geometry().right() <= content_right);
+      CHECK(combo->width() >= shrink_minimum);
+      CHECK(filter->y() > fill->geometry().bottom());
+      if (fits) {
+        CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+        CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
+        CHECK(opacity->x() == combo->geometry().right() + 1 + 6);
+        CHECK(fill->x() == opacity->geometry().right() + 1 + 6);
+        CHECK(combo->width() == std::min(natural, content_width - opacity->width() - fill->width() - 12));
+        CHECK(combo->displayed_text() == normal_name);
+      } else {
+        // Too narrow even for the smallest box: the row wraps as before (#96, #199).
+        CHECK(opacity->y() > combo->geometry().bottom());
+        CHECK(opacity->x() == combo->x());
+      }
+      if (code == QStringLiteral("en") && width == 293 && fits) {
+        // A long mode name in the narrowed box.
+        combo->setCurrentIndex(combo->findData(static_cast<int>(patchy::BlendMode::LinearDodge)));
+        QApplication::processEvents();
+        const auto shown = combo->displayed_text();
+        CHECK(shown != long_name);
+        CHECK(shown.endsWith(QChar(0x2026)));
+        CHECK(combo->fontMetrics().horizontalAdvance(shown) <= patchy::ui::combo_box_text_room(*combo));
+        CHECK(combo->currentText() == long_name);
+        CHECK(combo->hover_text() == combo->toolTip() + QLatin1Char('\n') + long_name);
+        // The open list is wider than the box: every entry shows whole.
+        combo->showPopup();
+        QApplication::processEvents();
+        auto* list = combo->view();
+        CHECK(list->isVisible());
+        CHECK(list->window()->width() > combo->width());
+        for (int row = 0; row < combo->count(); ++row) {
+          CHECK(patchy::ui::combo_list_entry_width(*combo, row) <= list->viewport()->width());
+        }
+        combo->hidePopup();
+        QApplication::processEvents();
+      }
+      save_widget_artifact("ui_layer_blend_row_one_line_" + code.toStdString() + "_" + std::to_string(width), *panel);
+      combo->setCurrentIndex(combo->findData(static_cast<int>(patchy::BlendMode::Normal)));
+      QApplication::processEvents();
+    }
+
+    // Wide again: the box takes its full width back.
+    Access::set_right_dock_stack_width(window, opening + 80);
+    settle();
+    CHECK(combo->width() == natural);
+    CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
   }
 }
 
@@ -7348,6 +7545,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_fill_opacity_control_updates_active_layer",
        ui_layer_fill_opacity_control_updates_active_layer},
       {"ui_layer_blend_row_wraps_in_narrow_panel", ui_layer_blend_row_wraps_in_narrow_panel},
+      {"ui_layer_blend_row_stays_on_one_line_in_narrow_panel",
+       ui_layer_blend_row_stays_on_one_line_in_narrow_panel},
       {"ui_layer_panel_compact_width_keeps_controls_whole", ui_layer_panel_compact_width_keeps_controls_whole},
       {"ui_right_dock_opens_at_content_width_without_gap", ui_right_dock_opens_at_content_width_without_gap},
       {"ui_layer_filter_shows_matching_rows_and_ancestor_folders",
