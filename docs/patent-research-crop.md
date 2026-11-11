@@ -175,7 +175,7 @@ turns and crops the image by a drawn line in one step.
 | Apple US 9158455, US 9767535 (priority 2011-07-12) | In force, to 2033-09-21 and 2031-07-12 | A rotation followed by a zoom (an edge test, or an amount set by the rotation). | Absent while the turn changes neither the zoom nor the box size and nothing tests for canvas edges. |
 | Ancestry.com US 8249391 (filed 2007-08-24) | Lapsed 2024-08-21 (12th-year fee unpaid) | Two points of a skew line from the user, the skew angle's sine and cosine from them, and the image transformed, updated with every move of the input device. | Expired. |
 | Sony US 9215374 (priority 2008-08-18) | Lapsed 2023-12-15 (8th-year fee unpaid) | A drag longer than a fixed non-zero distance; a line approximating it; a region bounded by two lines parallel to it and two orthogonal to it is cut out and rotated to correct the tilt. | Expired; CN 101656832 B is listed as expired for fees too. |
-| Sony JP 4640470 B2 (filed 2008-08-18, granted 2011-03-02) | Listed as active; anticipated end 2028-08-18 | Claim 1 (machine translation): an image shown on a screen that takes operation input; detection of that input; a first approximate straight line derived from the input's trajectory as the reference for correcting the image's inclination; and correction of the displayed image's inclination from that line and a predetermined reference line. Claims 6, 7 and 8 are the method, program and camera forms; claim 9 derives the line from feature points of a subject the user points at. | Every element present: the line comes from the drag and the commit turns the image so the line matches level or upright. The Ruler's Straighten Image has every element too. No step can be left out without losing the feature. |
+| Sony JP 4640470 B2 (filed 2008-08-18, registered 2010-12-10, published 2011-03-02) | In force. Japanese register (J-PlatPat 経過情報, read 2026-11-11; register updated 2025-12-03): 本権利は抹消されていない (not erased), owner Sony Corporation, 最終納付年分 16 (fees paid to 2026-12-10, one receipt each year since 2013, the last on 2025-12-02), 存続期間満了日 2028-08-18 | Claim 1 (machine translation): an image shown on a screen that takes operation input; detection of that input; a first approximate straight line derived from the input's trajectory as the reference for correcting the image's inclination; and correction of the displayed image's inclination from that line and a predetermined reference line. Claims 6, 7 and 8 are the method, program and camera forms; claim 9 derives the line from feature points of a subject the user points at. | Every element present: the line comes from the drag and the commit turns the image so the line matches level or upright. The Ruler's Straighten Image has every element too. No step can be left out without losing the feature. |
 
 USPTO full-text claim searches (filed from 2006: straighten, skew, tilt or inclination with a
 drawn, dragged or user-specified line, and with crop, rotate, angle, horizontal or vertical)
@@ -203,8 +203,10 @@ and US 7679625 both turn during the input); no zoom and no box resize follow the
 edge test (US 9158455, US 9767535); no detected line and no dial (Apple's 2012 family). Not
 separated by design: claim 1 of JP 4640470 B2, which applies in Japan only and also describes
 the Ruler's Straighten Image as it ships. A build rests, for that patent, on E5 and E6 being
-earlier than its filing date, which is a judgment this record does not make. Re-check date
-2028-08-18 (the JP member's anticipated end).
+earlier than its filing date, which is a judgment this record does not make. The register read
+on 2026-11-11 confirms the patent in force. Watch items: 2026-12-10, when the 17th year's fee
+falls due (late payment with a surcharge is accepted for six months after it), and 2028-08-18,
+the end of the term.
 
 ## Not verified
 
@@ -218,9 +220,10 @@ earlier than its filing date, which is a judgment this record does not make. Re-
   were not transcribed.
 - No search of Japanese, Chinese, Korean or European patents beyond this family's own members,
   and no search of pending applications by title after 2024.
-- JP 4640470 B2: its claims were read in Google's machine translation, and its annual-fee
-  receipts are listed through 2020-12-04 only; the Japanese register (J-PlatPat) was not read,
-  so its current status is Google's. No search of Japanese patents beyond the Sony family.
+- JP 4640470 B2: its 10 claims were read in Google's machine translation; the Japanese text was
+  not compared line by line. Its status is from the register (above), which Google's copy lags:
+  Google listed fee receipts through 2020-12-04 only. No search of Japanese patents beyond the
+  Sony family.
 - The fee lapses of US 8249391 and US 9215374 are from Google Patents' copy of the USPTO
   events (codes EXP and LAPS); a petition to revive was not looked for.
 - The #702 tutorial (Artose, "Crop Tool Part- 2") was not watched; its chapter list puts
