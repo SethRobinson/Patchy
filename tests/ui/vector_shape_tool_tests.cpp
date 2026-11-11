@@ -8564,15 +8564,21 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   CHECK(content->density == 153);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == history_before + 1);
   // The Layers panel mirrors the new opacity, and the edge is soft: partial
-  // alpha on the path edge, and the density floor far from the shape.
+  // alpha on the path edge, and the Density wash far from the shape. The shape has a
+  // stroke, so the wash is the stroke's paint (docs/vector-tools-appearance.md, "Density
+  // with a stroke"): 40% of the stroke's own 30% far away, and 60% of the feathered edge
+  // plus that wash on the path.
   auto* panel_opacity = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
   CHECK(panel_opacity != nullptr && panel_opacity->value() == 50);
   const auto bounds = layer->bounds();
-  CHECK(bounds.x == 0 && bounds.width == document.width());  // density floors the whole canvas
+  CHECK(bounds.x == 0 && bounds.width == document.width());  // the wash covers the whole canvas
+  const auto far_pixel = layer->pixels().pixel(20 - bounds.x, 20 - bounds.y);
+  const auto far_alpha = static_cast<int>(far_pixel[3]);
+  CHECK(far_alpha >= 28 && far_alpha <= 34);
+  const auto& stroke_color = content->stroke.content.color;
+  CHECK(far_pixel[0] == stroke_color.red && far_pixel[1] == stroke_color.green && far_pixel[2] == stroke_color.blue);
   const auto edge_alpha = static_cast<int>(layer->pixels().pixel(100 - bounds.x, 160 - bounds.y)[3]);
-  CHECK(edge_alpha > 130 && edge_alpha < 230);  // half coverage over the 40% floor
-  const auto far_alpha = static_cast<int>(layer->pixels().pixel(20 - bounds.x, 20 - bounds.y)[3]);
-  CHECK(far_alpha >= 95 && far_alpha <= 110);
+  CHECK(edge_alpha > far_alpha + 40 && edge_alpha < 160);
 
   // Cancel restores everything, including the layer opacity.
   QTimer::singleShot(0, guarded([&] {
