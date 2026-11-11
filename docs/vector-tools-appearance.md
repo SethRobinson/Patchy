@@ -178,9 +178,11 @@ the stroke's. Values of 255; ellipse / rectangle.
 - The split planes for interior overlays (`fill_cache`, `stroke_cache`) are unchanged:
   the compositor still stamps the stroke over the overlays with "over", on a base pass
   that no longer has the seam.
-- A PSD keeps the pixels its file carried until the shape is edited
-  (`finalize_vector_layers`), so a shape saved by an older Patchy shows its seam until
-  then; Dynamic Vector Preview draws it from the path, without one.
+- Existing files, measured: a PSD Patchy saved before the change opens redrawn, with no
+  seam (11 probe files equal the new render unedited, the gradient and Density ones
+  too). A PSD Photoshop saved opens with Photoshop's stored pixels (2 probe files
+  re-saved by Photoshop equal its own render on every pixel; `finalize_vector_layers`
+  keeps them), and an edit of the shape redraws it.
 
 Tests: `stroke_shape_fill_and_stroke_share_edge_pixels` (Outside, Inside, half opacity,
 Density, on an ellipse and a slanted quadrilateral), the Inside and Outside cases of
@@ -208,3 +210,9 @@ canvas with the stroke's paint, not the fill's. At 50% a green square with a 10 
 gradient stroke shows the stroke's ramp alone at alpha 127 outside the shape, and inside
 it the fill under a 50% wash of the stroke (as if Density blended the layer toward its
 unmasked top paint). Patchy spreads the fill and leaves the stroke as drawn.
+
+Open observation (one probe, not investigated): the aligned-gradient square at Density
+50%, saved by Patchy and re-saved by Photoshop 27.11, opens in Patchy without the tint
+outside the square (Density reads back as 50; the same in the build before this change),
+while the Photoshop-authored `photoshop-shape-feather.psd` opens with its tint
+(`psd_shape_layer_feather_and_density_match_photoshop`).
