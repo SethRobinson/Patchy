@@ -346,6 +346,81 @@ void ui_rotated_psd_box_text_edit_keeps_transform() {
   check_edit_keeps_transform(session, *id, "rotated box", false, false);
 }
 
+// The #684 follow-up on a Photoshop paragraph box: its unturned frame edits on the PSD-frame
+// path, which holds only a scale, so a turn from a corner rotate zone moves the session to the
+// transformed path (GitHub issue 373: the frame path stored the bounding box corner as the
+// turned origin). The text survives, the commit stores the turn, later edits keep it, and the
+// turn undoes with the session's commit.
+void ui_psd_frame_box_text_turns_off_the_frame_path() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  auto document =
+      patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-text-box-auto-leading.psd"));
+  const auto id = find_layer_id(document, [](const patchy::Layer& layer) {
+    return patchy::layer_is_text(layer) && layer.metadata().contains(patchy::kLayerMetadataPsdTextBoxBounds);
+  });
+  CHECK(id.has_value());
+  if (!id.has_value()) {
+    return;
+  }
+  SessionWindow session;
+  open_document(session, std::move(document), QStringLiteral("Frame Box Turn"));
+  auto& doc = patchy::ui::MainWindowTestAccess::document(session.window);
+  const auto original = effective_text_transform(*std::as_const(doc).find_layer(*id));
+  auto* editor = open_session(session.window, *session.canvas, *id);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.usesPsdTextFrame").toBool());
+  CHECK(editor->property("patchy.textBoxRotateZones").toBool());
+  const auto text = editor->toPlainText();
+  const auto frame = editor->geometry();
+  const QPoint bottom_right(frame.right() + 1, frame.bottom() + 1);
+  const auto press = bottom_right + QPoint(14, 14);
+  auto* zone = session.canvas->childAt(press);
+  CHECK(zone != nullptr && zone->objectName() == QStringLiteral("textBoxRotateZoneBottomRight"));
+  const QPointF center(frame.left() + frame.width() / 2.0, frame.top() + frame.height() / 2.0);
+  const auto turned_point = [&](double degrees) {
+    const auto radians = degrees * 3.14159265358979323846 / 180.0;
+    const auto offset = QPointF(press) - center;
+    return (center + QPointF(offset.x() * std::cos(radians) - offset.y() * std::sin(radians),
+                             offset.x() * std::sin(radians) + offset.y() * std::cos(radians)))
+        .toPoint();
+  };
+  send_mouse(*session.canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*session.canvas, QEvent::MouseMove, turned_point(-10.0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*session.canvas, QEvent::MouseMove, turned_point(-20.0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*session.canvas, QEvent::MouseButtonRelease, turned_point(-20.0), Qt::LeftButton, Qt::NoButton);
+  process_events_for(250);
+  CHECK(live_editor(*session.canvas) == editor);
+  CHECK(!editor->property("patchy.usesPsdTextFrame").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(editor->toPlainText() == text);
+  save_widget_artifact("tcs_frame_box_turned_session", *session.canvas);
+  commit_session(*session.canvas);
+  const auto* layer = std::as_const(doc).find_layer(*id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  print_transform("turned frame box", *layer);
+  const auto turned = effective_text_transform(*layer);
+  CHECK(turned.has_value() && std::abs(std::atan2((*turned)[1], (*turned)[0]) * 180.0 / 3.14159265358979323846 + 20.0) < 2.0);
+  // It re-edits and commits turned, three times (the issue 373 check).
+  check_edit_keeps_transform(session, *id, "turned frame box", false, false);
+  // The typed edit and the turn are one step each: two undos give the file's box back.
+  patchy::ui::MainWindowTestAccess::undo(session.window);
+  patchy::ui::MainWindowTestAccess::undo(session.window);
+  process_events_for(100);
+  layer = std::as_const(doc).find_layer(*id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr || !original.has_value()) {
+    return;
+  }
+  const auto restored = effective_text_transform(*layer);
+  CHECK(restored.has_value() && same_transform(*restored, *original, 0.0001));
+}
+
 void ui_text_rotate_sample_edits_keep_transform_if_available() {
   // The issue 373 sample: a rotated paragraph box (Arial) and rotated point text.
   const auto path = patchy::test::local_psd_fixture_path("text-rotate-issue373.psd");
@@ -1341,6 +1416,7 @@ std::vector<patchy::test::TestCase> text_canvas_session_tests() {
       {"ui_text_size_points_round_trip_at_common_resolutions", ui_text_size_points_round_trip_at_common_resolutions},
       {"ui_text_size_field_keeps_typed_points", ui_text_size_field_keeps_typed_points},
       {"ui_rotated_psd_box_text_edit_keeps_transform", ui_rotated_psd_box_text_edit_keeps_transform},
+      {"ui_psd_frame_box_text_turns_off_the_frame_path", ui_psd_frame_box_text_turns_off_the_frame_path},
       {"ui_text_rotate_sample_edits_keep_transform_if_available",
        ui_text_rotate_sample_edits_keep_transform_if_available},
       {"ui_text_rotate_sample_session_captures_if_available", ui_text_rotate_sample_session_captures_if_available},

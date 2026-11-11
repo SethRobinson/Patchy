@@ -3,6 +3,7 @@
 // queued moves. The drags the November 2026 audit fixed (Path Select's transform box, Mixer
 // Brush and Pattern Stamp strokes, the Type tool's box handles) and the guard that makes a new
 // canvas drag branch name its coalescing.
+#include "core/layer_metadata.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/main_window.hpp"
@@ -310,6 +311,85 @@ void ui_text_box_resize_drag_coalesces_queued_moves() {
   CHECK(sent.width_after_release > sent.width_after_burst + 20);
 }
 
+// The Type box's corner rotate zones (#684 follow-up) re-render the turned preview per move: a
+// burst of moves turns once, at the latest position, the release applies a move recorded right
+// before it, and the box ends at the angle the same moves applied one by one leave it.
+void ui_text_box_rotate_drag_coalesces_queued_moves() {
+  struct Result {
+    int coalesced{0};
+    double turn_after_burst{0.0};
+    double turn_after_release{0.0};
+  };
+  const auto turn_of = [](QTextEdit& editor) {
+    const auto transform =
+        patchy::parse_layer_affine_transform(editor.property("patchy.textTransformOverride").toString().toStdString());
+    return transform.has_value() ? std::atan2((*transform)[1], (*transform)[0]) * 180.0 / 3.14159265358979323846
+                                 : 0.0;
+  };
+  const auto run = [&](bool queued) {
+    Result result;
+    patchy::ui::MainWindow window;
+    show_window(window);  // a 1024 x 768 document
+    window.set_cli_automation_mode(true);
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    QApplication::processEvents();
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    QApplication::processEvents();
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+         canvas->widget_position_for_document_point(QPoint(560, 400)));
+    process_events_for(150);
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return result;
+    }
+    editor->setPlainText(QStringLiteral("The quick brown fox jumps over the lazy dog. ").repeated(6));
+    process_events_for(150);
+    editor->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    const auto frame = editor->geometry();
+    const QPointF center(frame.left() + frame.width() / 2.0, frame.top() + frame.height() / 2.0);
+    const QPoint start = QPoint(frame.right() + 1, frame.bottom() + 1) + QPoint(14, 14);
+    const auto at = [&](double degrees) {
+      const auto radians = degrees * 3.14159265358979323846 / 180.0;
+      const auto offset = QPointF(start) - center;
+      return (center + QPointF(offset.x() * std::cos(radians) - offset.y() * std::sin(radians),
+                               offset.x() * std::sin(radians) + offset.y() * std::cos(radians)))
+          .toPoint();
+    };
+    patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(queued);
+    const auto restore = qScopeGuard([] { patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(false); });
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    const auto before = patchy::ui::slider_drag_moves_coalesced_for_testing();
+    for (int move = 1; move <= 30; ++move) {
+      const auto position = at(move * 1.0);
+      deliver_move(*canvas, position, canvas->mapToGlobal(position));
+    }
+    process_events_for(150);
+    result.turn_after_burst = turn_of(*editor);
+    deliver_move(*canvas, at(38.0), canvas->mapToGlobal(at(38.0)));  // applied, opens a pass
+    deliver_move(*canvas, at(40.0), canvas->mapToGlobal(at(40.0)));  // recorded when queued
+    result.coalesced = patchy::ui::slider_drag_moves_coalesced_for_testing() - before;
+    send_mouse(*canvas, QEvent::MouseButtonRelease, at(40.0), Qt::LeftButton, Qt::NoButton);
+    process_events_for(50);
+    result.turn_after_release = turn_of(*editor);
+    return result;
+  };
+  const auto sent = run(false);
+  const auto queued = run(true);
+  std::printf("[INFO] text box turn: %.2f/%.2f after the burst sent/queued, %.2f/%.2f after the release, "
+              "%d coalesced\n",
+              sent.turn_after_burst, queued.turn_after_burst, sent.turn_after_release, queued.turn_after_release,
+              queued.coalesced);
+  CHECK(sent.coalesced == 0);
+  CHECK(queued.coalesced == 30);  // 29 of the burst, and the move right before the release
+  CHECK(std::abs(sent.turn_after_burst - 30.0) < 2.0);
+  CHECK(std::abs(queued.turn_after_burst - sent.turn_after_burst) < 0.01);
+  CHECK(std::abs(queued.turn_after_release - sent.turn_after_release) < 0.01);
+  CHECK(std::abs(sent.turn_after_release - 40.0) < 2.0);
+}
+
 // A marquee drag (it rebuilds the selection per move), the Magnetic Lasso's hover trace (an edge
 // search per move), panning, view rotation and the scrubby zoom (each re-lays out the view) apply
 // only the newest move of each event-loop pass, and stand where the same moves sent one by one
@@ -548,6 +628,7 @@ std::vector<patchy::test::TestCase> drag_coalescing_tests() {
       {"ui_mixer_and_pattern_stamp_strokes_coalesce_queued_moves_and_keep_bytes",
        ui_mixer_and_pattern_stamp_strokes_coalesce_queued_moves_and_keep_bytes},
       {"ui_text_box_resize_drag_coalesces_queued_moves", ui_text_box_resize_drag_coalesces_queued_moves},
+      {"ui_text_box_rotate_drag_coalesces_queued_moves", ui_text_box_rotate_drag_coalesces_queued_moves},
       {"ui_view_and_selection_drags_coalesce_queued_moves", ui_view_and_selection_drags_coalesce_queued_moves},
       {"ui_canvas_drag_branches_follow_the_wayland_drag_rule", ui_canvas_drag_branches_follow_the_wayland_drag_rule},
   };

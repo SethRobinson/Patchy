@@ -16,6 +16,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDoubleSpinBox>
+#include <QKeyEvent>
 #include <QTextEdit>
 #include <QPainter>
 #include <QToolTip>
@@ -1569,6 +1570,225 @@ void ui_text_box_edge_bands_resize_one_edge() {
   send_key(*editor, Qt::Key_Escape);
   process_events_for(100);
 }
+
+// The session's turn (its transform override), in degrees.
+std::optional<double> text_session_turn_degrees(const QTextEdit& editor) {
+  const auto value = editor.property("patchy.textTransformOverride").toString();
+  const auto transform = parse_layer_affine_transform(value.toStdString());
+  if (!transform.has_value()) {
+    return std::nullopt;
+  }
+  return std::atan2((*transform)[1], (*transform)[0]) * 180.0 / 3.14159265358979323846;
+}
+
+std::optional<double> text_layer_turn_degrees(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataTextTransform);
+  if (found == layer.metadata().end()) {
+    return std::nullopt;
+  }
+  const auto transform = parse_layer_affine_transform(found->second);
+  if (!transform.has_value()) {
+    return std::nullopt;
+  }
+  return std::atan2((*transform)[1], (*transform)[0]) * 180.0 / 3.14159265358979323846;
+}
+
+const Layer* text_layer_with_text(const Document& document, const std::string& text) {
+  for (const auto& layer : document.layers()) {
+    if (const auto found = layer.metadata().find(kLayerMetadataText);
+        found != layer.metadata().end() && found->second == text) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+QPointF turned_about(QPointF point, QPointF center, double degrees) {
+  const auto radians = degrees * 3.14159265358979323846 / 180.0;
+  const auto offset = point - center;
+  return center + QPointF(offset.x() * std::cos(radians) - offset.y() * std::sin(radians),
+                          offset.x() * std::sin(radians) + offset.y() * std::cos(radians));
+}
+
+// The #684 follow-up's corner rotate zones (#176's green zones): beside each corner of a box
+// session, outside the box and its resize zones, the pointer shows the corner rotate cursor and
+// a drag turns the box about its center. A flat session becomes a transformed one without losing
+// its text or focus, keeps taking keys, and commits the turn into the layer's transform; the
+// turned layer reopens on the overlay, whose zones turn it further (Shift snaps the box's angle
+// to 15 degrees). The commit is the session's one undo step, so Ctrl+Z restores the old turn.
+void ui_text_box_corner_rotate_zones_turn_the_box() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, "app.newDocument(640,480);");
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(170, 160)),
+       canvas->widget_position_for_document_point(QPoint(470, 300)));
+  process_events_for(150);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  editor->setPlainText(QStringLiteral("Turn me"));
+  process_events_for(150);
+  auto frame = editor->geometry();
+  const QPoint top_right(frame.right() + 1, frame.top());
+  const auto zone_point = top_right + QPoint(14, -14);
+  {
+    auto* hit = canvas->childAt(zone_point);
+    CHECK(hit != nullptr && hit->objectName() == QStringLiteral("textBoxRotateZoneTopRight"));
+    CHECK(hit != nullptr && hit->cursor().shape() == Qt::BitmapCursor);
+    for (const auto& elsewhere : {top_right + QPoint(40, -40), top_right + QPoint(-30, 20), top_right + QPoint(3, -3)}) {
+      hit = canvas->childAt(elsewhere);
+      CHECK(hit == nullptr || !hit->property("patchy.textRotateZone").toBool());
+    }
+  }
+  // The zone map: orange where a press resizes, green where it rotates.
+  {
+    const auto area = frame.adjusted(-40, -40, 40, 40).intersected(canvas->rect());
+    QImage map = canvas->grab(area).toImage().convertToFormat(QImage::Format_ARGB32);
+    QPainter painter(&map);
+    const auto handles = canvas->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+    for (int y = area.top(); y <= area.bottom(); ++y) {
+      for (int x = area.left(); x <= area.right(); ++x) {
+        const QPoint point(x, y);
+        auto* hit = canvas->childAt(point);
+        bool resize = hit != nullptr && hit->property("patchy.textResizeHandle").toBool();
+        const bool rotate = hit != nullptr && hit->property("patchy.textRotateZone").toBool();
+        if (hit == nullptr) {
+          for (auto* handle : handles) {
+            if (handle->isVisible() && handle->property("patchy.textResizeHandle").toBool() &&
+                !handle->property("patchy.textResizeBand").toBool() &&
+                handle->geometry().adjusted(-8, -8, 8, 8).contains(point)) {
+              resize = true;
+            }
+          }
+        }
+        if (resize || rotate) {
+          painter.fillRect(QRect(point - area.topLeft(), QSize(1, 1)),
+                           resize ? QColor(255, 140, 0, 150) : QColor(40, 190, 60, 150));
+        }
+      }
+    }
+    painter.end();
+    save_image_artifact("ui_text_box_zone_map", map);
+  }
+
+  // Turn the flat box 30 degrees from its top right zone.
+  const QPointF center(frame.left() + frame.width() / 2.0, frame.top() + frame.height() / 2.0);
+  const auto press = QPointF(zone_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, zone_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, turned_about(press, center, 15.0).toPoint(), Qt::NoButton, Qt::LeftButton);
+  const auto end = turned_about(press, center, 30.0).toPoint();
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  process_events_for(200);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->toPlainText() == QStringLiteral("Turn me"));
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  auto turn = text_session_turn_degrees(*editor);
+  CHECK(turn.has_value() && std::abs(*turn - 30.0) < 2.0);
+  CHECK(QApplication::focusWidget() == editor);
+  // The flat handles went with the flat session.
+  CHECK(canvas->findChild<QWidget*>(QStringLiteral("textBoxRotateZoneTopRight"), Qt::FindDirectChildrenOnly) ==
+            nullptr ||
+        !canvas->findChild<QWidget*>(QStringLiteral("textBoxRotateZoneTopRight"), Qt::FindDirectChildrenOnly)
+             ->isVisible());
+  // Typing goes on in the turned session.
+  {
+    auto cursor = editor->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor->setTextCursor(cursor);
+    QKeyEvent key_press(QEvent::KeyPress, Qt::Key_S, Qt::NoModifier, QStringLiteral("s"));
+    QApplication::sendEvent(editor, &key_press);
+    QKeyEvent key_release(QEvent::KeyRelease, Qt::Key_S, Qt::NoModifier, QStringLiteral("s"));
+    QApplication::sendEvent(editor, &key_release);
+    process_events_for(200);
+  }
+  CHECK(editor->toPlainText() == QStringLiteral("Turn mes"));
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"), Qt::FindDirectChildrenOnly);
+  CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
+  {
+    // Mid-edit, with the rotate cursor drawn where the pointer would be over a zone.
+    const auto corners = overlay->property("patchy.transformedTextResizeHandleCenters").toList();
+    QImage shot = canvas->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+    if (corners.size() == 4) {
+      QPointF box_center;
+      for (const auto& point : corners) box_center += point.toPointF() / 4.0;
+      auto outward = corners[1].toPointF() - box_center;
+      outward /= std::max(1e-6, std::hypot(outward.x(), outward.y()));
+      const auto hover = corners[1].toPointF() + outward * 16.0;
+      send_mouse(*overlay, QEvent::MouseMove, (hover - QPointF(overlay->pos())).toPoint(), Qt::NoButton, Qt::NoButton);
+      CHECK(overlay->cursor().shape() == Qt::BitmapCursor);
+      shot = canvas->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+      const auto cursor = overlay->cursor();
+      const auto pixmap = cursor.pixmap();
+      if (!pixmap.isNull()) {
+        QPainter painter(&shot);
+        painter.drawPixmap(hover.toPoint() - cursor.hotSpot(), pixmap);
+      }
+    }
+    save_image_artifact("ui_text_box_turned_mid_edit",
+                        shot.copy(overlay->geometry().adjusted(-10, -10, 10, 10).intersected(shot.rect())));
+  }
+  send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+  process_events_for(200);
+  auto& document = MainWindowTestAccess::document(window);
+  const auto* layer = text_layer_with_text(std::as_const(document), "Turn mes");
+  CHECK(layer != nullptr); if (!layer) return;
+  const auto layer_id = layer->id();
+  const auto first_turn = text_layer_turn_degrees(*layer);
+  CHECK(first_turn.has_value() && std::abs(*first_turn - 30.0) < 2.0);
+  CHECK(layer->metadata().contains(kLayerMetadataTextBoxWidth) &&
+        std::abs(std::atoi(layer->metadata().at(kLayerMetadataTextBoxWidth).c_str()) - 300) <= 1);
+  if (!first_turn) return;
+
+  // Reopen the turned layer: it edits on the overlay, whose top right zone turns it on, Shift
+  // snapping the box to 45 degrees.
+  const auto turned = canvas->active_layer_document_rect();
+  CHECK(turned.has_value()); if (!turned) return;
+  const auto edit_point = canvas->widget_position_for_document_point(turned->center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, edit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, edit_point, Qt::LeftButton, Qt::NoButton);
+  process_events_for(200);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"), Qt::FindDirectChildrenOnly);
+  CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
+  const auto corners = overlay->property("patchy.transformedTextResizeHandleCenters").toList();
+  CHECK(corners.size() == 4); if (corners.size() != 4) return;
+  QPointF box_center;
+  for (const auto& point : corners) box_center += point.toPointF() / 4.0;
+  auto outward = corners[1].toPointF() - box_center;
+  outward /= std::max(1e-6, std::hypot(outward.x(), outward.y()));
+  const auto overlay_zone = corners[1].toPointF() + outward * 16.0;
+  send_mouse(*canvas, QEvent::MouseButtonPress, overlay_zone.toPoint(), Qt::LeftButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  const auto snapped_end = turned_about(overlay_zone, box_center, 17.0).toPoint();
+  send_mouse(*canvas, QEvent::MouseMove, turned_about(overlay_zone, box_center, 8.0).toPoint(), Qt::NoButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, snapped_end, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, snapped_end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  process_events_for(200);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  turn = text_session_turn_degrees(*editor);
+  CHECK(turn.has_value() && std::abs(*turn - 45.0) < 0.01);
+  send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+  process_events_for(200);
+  layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr); if (!layer) return;
+  auto second_turn = text_layer_turn_degrees(*layer);
+  CHECK(second_turn.has_value() && std::abs(*second_turn - 45.0) < 0.01);
+  // One Ctrl+Z: the session's commit, the old turn back.
+  MainWindowTestAccess::undo(window);
+  process_events_for(100);
+  layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr); if (!layer) return;
+  second_turn = text_layer_turn_degrees(*layer);
+  CHECK(second_turn.has_value() && std::abs(*second_turn - *first_turn) < 0.01);
+  CHECK(layer->metadata().at(kLayerMetadataText) == "Turn mes");
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_area_tests() {
@@ -1593,5 +1813,6 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_box_text_overflow_marker_tooltip", ui_box_text_overflow_marker_tooltip},
           {"ui_box_text_side_handles_move_one_edge", ui_box_text_side_handles_move_one_edge},
           {"ui_transformed_text_side_handles_follow_rotation", ui_transformed_text_side_handles_follow_rotation},
-          {"ui_text_box_edge_bands_resize_one_edge", ui_text_box_edge_bands_resize_one_edge}};
+          {"ui_text_box_edge_bands_resize_one_edge", ui_text_box_edge_bands_resize_one_edge},
+          {"ui_text_box_corner_rotate_zones_turn_the_box", ui_text_box_corner_rotate_zones_turn_the_box}};
 }

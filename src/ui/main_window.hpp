@@ -56,6 +56,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QTransform>
 #include <span>
 #include <array>
 #include <cstdint>
@@ -3291,6 +3292,16 @@ private:
   QWidget* text_editor_resize_handle_at(QPoint canvas_position) const;
   bool handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event);
   bool handle_text_editor_transform_overlay_event(QTextEdit* editor, QEvent* event);
+  // The corner rotate zones of a box session (#684 follow-up): offered for horizontal box text
+  // that is not area, Type Mask or warped text, and on the PSD-frame path only for an unscaled
+  // frame.
+  bool text_editor_box_rotatable(const QTextEdit& editor) const;
+  // The rotate zone under a canvas point: its corner's outward direction on screen (degrees).
+  std::optional<double> text_box_rotate_zone_at(QTextEdit& editor, QPointF canvas_point) const;
+  // Press in a rotate zone, then the drag (any canvas widget's events): turns the box about its
+  // center through the session's transform override; Shift snaps to 15 degrees.
+  bool handle_text_box_rotate_event(QTextEdit* editor, QEvent* event);
+  void apply_text_box_rotate_drag(QPointF global_position, Qt::KeyboardModifiers modifiers);
   // Resolves left-button clicks and drags inside a flat inline editor through the shared
   // TextLineGeometry instead of QTextEdit's own (zoom-scaled, different) layout.
   bool handle_text_editor_viewport_mouse_event(QTextEdit* editor, QEvent* event);
@@ -3637,6 +3648,16 @@ private:
   QPixmap quick_mask_thumbnail_;
   bool swallow_next_canvas_left_press_{false};
   QPointer<QTextEdit> text_entry_selection_editor_;
+  // A corner rotate drag on a box session (handle_text_box_rotate_event).
+  struct TextBoxRotateDrag {
+    QPointer<QTextEdit> editor;
+    QTransform start_transform;
+    QPointF center;  // document
+    double start_pointer_degrees{0.0};
+    double start_box_degrees{0.0};
+    bool turned{false};  // the session was readied for a transform (the first move that turns)
+  };
+  std::optional<TextBoxRotateDrag> text_box_rotate_drag_;
   int text_entry_selection_anchor_{0};
   QListWidget* layer_list_{nullptr};
   QPointer<QWidget> layer_drop_hint_;
