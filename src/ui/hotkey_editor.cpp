@@ -1061,8 +1061,17 @@ HotkeyEditorPanel::Row& HotkeyEditorPanel::add_command_row(QFrame* panel, const 
     });
   });
 
-  rows_.push_back({command, container, name_label, chips_host, chips_layout, reset_button, note_label, panel, label,
-                   QString()});
+  // Designated, so a member added to Row later needs no change here (clang and GCC warn
+  // when a positional list stops before a member without a default initializer).
+  rows_.push_back(Row{.command = command,
+                      .container = container,
+                      .name_label = name_label,
+                      .chips_host = chips_host,
+                      .chips_layout = chips_layout,
+                      .reset_button = reset_button,
+                      .note_label = note_label,
+                      .panel = panel,
+                      .label = label});
   return rows_.back();
 }
 

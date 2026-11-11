@@ -1099,7 +1099,7 @@ void tool_fill_bucket_grows_a_layer_smaller_than_the_canvas() {
   };
   for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
     for (const bool contiguous : {true, false}) {
-      for (const auto [click_x, click_y] : {std::pair{2, 2}, std::pair{21, 11}}) {
+      for (const auto& [click_x, click_y] : {std::pair{2, 2}, std::pair{21, 11}}) {
         auto [document, id] = make(depth);
         auto options = tool_options(0, 180, 210);
         options.flood_tolerance = 0;
@@ -1110,7 +1110,7 @@ void tool_fill_bucket_grows_a_layer_smaller_than_the_canvas() {
         CHECK(layer.bounds().x == 0 && layer.bounds().y == 0 && layer.bounds().width == 64 &&
               layer.bounds().height == 48);
         CHECK(layer.pixels().format().bit_depth == depth);
-        for (const auto [x, y] : {std::pair{0, 0}, std::pair{63, 47}, std::pair{21, 11}, std::pair{35, 21},
+        for (const auto& [x, y] : {std::pair{0, 0}, std::pair{63, 47}, std::pair{21, 11}, std::pair{35, 21},
                                   std::pair{50, 5}}) {
           CHECK(alpha_at(document, id, x, y) >= 254.0F);
         }

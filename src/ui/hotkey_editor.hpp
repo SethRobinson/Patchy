@@ -84,11 +84,11 @@ private:
     QToolButton* reset_button{nullptr};
     QLabel* note_label{nullptr};
     QFrame* panel{nullptr};
-    QString label;
-    QString search_haystack;
+    QString label{};
+    QString search_haystack{};
     RowSource source{RowSource::BuiltIn};
     // The row's keys for the shortcut-only search: one token list per chord (GitHub issue 676).
-    QList<QStringList> key_chords;
+    QList<QStringList> key_chords{};
   };
 
   QWidget* build_set_row(QWidget* parent);

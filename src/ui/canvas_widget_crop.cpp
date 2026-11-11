@@ -1158,9 +1158,10 @@ void CanvasWidget::draw_crop_straighten_line(QPainter& painter) const {
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.setBrush(Qt::NoBrush);
+  const QPen dark_ink(QColor(10, 14, 20), 3.0, Qt::SolidLine, Qt::RoundCap);    // color-literal-ok: cursor ink
+  const QPen light_ink(QColor(245, 248, 252), 1.0, Qt::SolidLine, Qt::FlatCap);  // color-literal-ok: cursor ink
   for (int pass = 0; pass < 2; ++pass) {
-    painter.setPen(pass == 0 ? QPen(QColor(10, 14, 20), 3.0, Qt::SolidLine, Qt::RoundCap)
-                             : QPen(QColor(245, 248, 252), 1.0, Qt::SolidLine, Qt::FlatCap));
+    painter.setPen(pass == 0 ? dark_ink : light_ink);
     painter.drawLine(QLineF(start, end));
     painter.drawLine(QLineF(start - normal * kTick, start + normal * kTick));
     painter.drawLine(QLineF(end - normal * kTick, end + normal * kTick));

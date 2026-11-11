@@ -3408,9 +3408,18 @@ void ui_missing_fonts_dialog_remembers_a_hand_pick_of_the_suggestion() {
   const auto first_id = add_document(QStringLiteral("Hand Pick"));
   QString recommended;
   bool picked = false;
+  bool starts_on_private_face = false;
   run_dialog([&](QDialog& dialog, const MissingFontRow& row) {
     CHECK(row.chosen_before == nullptr);
     recommended = row.picker->currentFont().family();
+    // With no stand-in to suggest, the row starts on the face drawing the text now. On macOS
+    // that is the private system face (".AppleSystemUIFont"), which the picker leaves out of
+    // its list, so there is no row to pick by hand.
+    if (QFontDatabase::isPrivateFamily(recommended)) {
+      starts_on_private_face = true;
+      dialog.reject();
+      return;
+    }
     const auto [popup, list] = open_missing_font_picker(*row.picker);
     if (popup == nullptr || list == nullptr) {
       dialog.reject();
@@ -3433,6 +3442,10 @@ void ui_missing_fonts_dialog_remembers_a_hand_pick_of_the_suggestion() {
     row.resolve->click();
   });
   std::fprintf(stderr, "  recommended '%s', picked by hand: %d\n", qPrintable(recommended), picked ? 1 : 0);
+  if (starts_on_private_face) {
+    patchy::test::skip(patchy::test::SkipKind::platform,
+                       "the row starts on a private system font face the font picker does not list");
+  }
   CHECK(picked);
   CHECK(!recommended.isEmpty() && layer_font(window, first_id) == recommended);
   const auto remembered = patchy::ui::remembered_font_replacements(kMissing);

@@ -2396,10 +2396,13 @@ CoverageBuffer rasterize_vector_mask_coverage(const LayerVectorMask& mask, Rect 
 
 namespace {
 
-// Paints a coverage buffer with a VectorFill into straight-alpha RGBA8.
+// Paints a coverage buffer with a VectorFill into straight-alpha RGBA8. aligned_bounds is
+// the box an aligned gradient spans, null for the coverage's own bounds. A pointer, not an
+// optional: GCC 12 reports -Wmaybe-uninitialized when a possibly empty optional<Rect> is
+// copied into a parameter.
 PixelBuffer paint_coverage(const CoverageBuffer& coverage, const VectorFill& fill, Rect canvas,
                            const PatternStore* patterns, const Layer* layer_for_pattern_anchor,
-                           std::optional<Rect> aligned_bounds) {
+                           const Rect* aligned_bounds) {
   PixelBuffer pixels(coverage.bounds.width, coverage.bounds.height, PixelFormat::rgba8());
   auto* out = pixels.data().data();
   const auto out_stride = pixels.stride_bytes();
@@ -2426,7 +2429,8 @@ PixelBuffer paint_coverage(const CoverageBuffer& coverage, const VectorFill& fil
     // Fill layers render Photoshop's GdFl geometry: the linear span is the
     // center chord of the aligned bounds and a Classic 2-stop ramp eases by
     // the clamped catmull-rom scaled by smoothness (probe5c/5d, PS 27.8).
-    const Rect gradient_bounds = fill.gradient.align_with_layer ? aligned_bounds.value_or(coverage.bounds) : canvas;
+    const Rect layer_bounds = aligned_bounds != nullptr ? *aligned_bounds : coverage.bounds;
+    const Rect gradient_bounds = fill.gradient.align_with_layer ? layer_bounds : canvas;
     const auto paint_rows = [&](std::int32_t row_begin, std::int32_t row_end) {
       for (std::int32_t y = row_begin; y < row_end; ++y) {
         auto* row = out + static_cast<std::size_t>(y) * out_stride;
@@ -2741,9 +2745,9 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
     if (canvas.empty()) {
       return;
     }
-    auto alignment = paint_bounds ? paint_bounds->stroke : std::nullopt;
-    if (!alignment.has_value() && !stroke_coverage.bounds.empty()) {
-      alignment = stroke_coverage.bounds;
+    const Rect* alignment = paint_bounds && paint_bounds->stroke.has_value() ? &*paint_bounds->stroke : nullptr;
+    if (alignment == nullptr && !stroke_coverage.bounds.empty()) {
+      alignment = &stroke_coverage.bounds;
     }
     auto wash = paint_coverage(full_coverage(canvas), content.stroke.content, paint_bounds ? paint_bounds->canvas : canvas,
                                patterns, layer_for_pattern_anchor, alignment);
@@ -2775,9 +2779,9 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
                             content.stroke.blend_mode == BlendMode::Normal;
 
   if (!fill_coverage.bounds.empty()) {
-    auto fill_alignment = paint_bounds ? paint_bounds->fill : std::nullopt;
-    if (!fill_alignment.has_value() && !fill_alignment_bounds.empty()) {
-      fill_alignment = fill_alignment_bounds;
+    const Rect* fill_alignment = paint_bounds && paint_bounds->fill.has_value() ? &*paint_bounds->fill : nullptr;
+    if (fill_alignment == nullptr && !fill_alignment_bounds.empty()) {
+      fill_alignment = &fill_alignment_bounds;
     }
     const auto fill_pixels =
         paint_coverage(fill_coverage, content.fill, paint_bounds ? paint_bounds->canvas : canvas, patterns,
@@ -2809,7 +2813,8 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
     // result.
     const auto stroke_pixels =
         paint_coverage(stroke_coverage, content.stroke.content, paint_bounds ? paint_bounds->canvas : canvas, patterns,
-                       layer_for_pattern_anchor, paint_bounds ? paint_bounds->stroke : std::nullopt);
+                       layer_for_pattern_anchor,
+                       paint_bounds && paint_bounds->stroke.has_value() ? &*paint_bounds->stroke : nullptr);
     const auto* src = stroke_pixels.data().data();
     const auto src_stride = stroke_pixels.stride_bytes();
     if (split_planes) {

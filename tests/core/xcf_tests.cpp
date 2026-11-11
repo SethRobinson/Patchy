@@ -272,7 +272,7 @@ void check_structure_document(const Document& document) {
   CHECK(patchy::layer_locks_transparent_pixels(top));
   CHECK(document.active_layer_id() == top.id());
   // A pixel in each of the tiles of the 70 x 66 layer (it spans four).
-  for (const auto [x, y] : {std::pair{0, 0}, std::pair{65, 3}, std::pair{2, 65}, std::pair{69, 65}}) {
+  for (const auto& [x, y] : {std::pair{0, 0}, std::pair{65, 3}, std::pair{2, 65}, std::pair{69, 65}}) {
     const auto px = rgba_at(top, x, y);
     if (px[0] != static_cast<std::uint8_t>(x * 3) || px[1] != static_cast<std::uint8_t>(y * 5)) {
       std::cout << "  Top at " << x << "," << y << ": " << int(px[0]) << " " << int(px[1]) << " " << int(px[2]) << " "
@@ -306,7 +306,7 @@ void xcf_alpha_less_bottom_layer_keeps_only_gimps_locks() {
           (locked ? patchy::kLayerLockPosition | patchy::kLayerLockImagePixels : patchy::kLayerLockNone));
     CHECK(patchy::background_layer(layers, document.width(), document.height()) == nullptr);
     CHECK(layers[0].bounds() == (patchy::Rect{0, 0, 16, 12}));
-    for (const auto [x, y] : {std::pair{0, 0}, std::pair{15, 11}, std::pair{7, 5}}) {
+    for (const auto& [x, y] : {std::pair{0, 0}, std::pair{15, 11}, std::pair{7, 5}}) {
       CHECK(rgba_at(layers[0], x, y) == (std::array<std::uint8_t, 4>{static_cast<std::uint8_t>(x * 3),
                                                                      static_cast<std::uint8_t>(y * 5),
                                                                      static_cast<std::uint8_t>((x + y) * 2), 255}));
@@ -1461,7 +1461,7 @@ void xcf_reads_channels_selection_paths_guides_and_metadata() {
   paths.u32(3);   // version
   paths.u32(1);
   paths.u32(7);   // tattoo
-  for (const auto [type, x, y] : {std::tuple{1, 1.0F, 20.0F}, std::tuple{2, 6.0F, 10.0F}, std::tuple{2, 12.0F, 16.0F},
+  for (const auto& [type, x, y] : {std::tuple{1, 1.0F, 20.0F}, std::tuple{2, 6.0F, 10.0F}, std::tuple{2, 12.0F, 16.0F},
                                   std::tuple{1, 19.0F, 12.0F}, std::tuple{2, 19.0F, 12.0F}}) {
     paths.i32(type);
     paths.f32(x);
