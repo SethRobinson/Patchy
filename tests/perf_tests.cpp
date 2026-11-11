@@ -2130,6 +2130,7 @@ void text_layer_live_drag_perf() {
 //             shape over it, viewed fit to the window, dragged with Path Select
 //   gradient  a 1280x720 document with a Gradient Fill layer made by a Gradient tool drag in
 //             Fill Layer mode, its end handle dragged with the Gradient tool
+//   pathtransform  the shape document, the pentagon moved inside Path Select's transform box
 // Writes the press point to PATCHY_PERF_LIVE_READY like textdrag_live and measures each
 // window-system move's queueing delay, each repaint's lag behind the newest move, and on
 // each repaint how far the dragged thing sits from the pointer (lag_px).
@@ -2249,6 +2250,12 @@ void canvas_live_drag_perf() {
       }
     }
     canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+    if (kind == QStringLiteral("pathtransform")) {
+      // The transform box (Ctrl+T with a path tool): a press inside it moves the shape, and
+      // every step re-rasterizes the layer.
+      QApplication::processEvents();
+      CHECK(canvas->begin_path_transform());
+    }
     const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
     press_document = QPointF(document.width() * 0.4, document.height() * 0.55);
     press = QPointF(canvas->widget_position_for_document_point(press_document.toPoint()));
@@ -6197,6 +6204,482 @@ void tool_budgets_perf() {
   }
 }
 
+// Per-move cost of every canvas drag and the Type tool's box handles (the Wayland drag rule's
+// audit, docs/interactive-previews-drag-coalescing.md "The November 2026 audit"). Wayland
+// delivers every pointer motion, so a drag whose move does real work queues moves on Linux
+// unless it coalesces. Each case presses (or clicks, for the hover-driven lassos), sends 40
+// moves one by one (sent moves never coalesce, so this is the uncoalesced cost) and prints the
+// handler time per move and the repaint after it, on a 3600x5400 noisy photo with a pentagon
+// shape layer. `burst` lines post 60 moves at once and time the drain with the coalescing off
+// and on. PATCHY_PERF_DRAGAUDIT_CASES=name,name runs only those cases ("bursts" is one).
+void drag_audit_perf() {
+  constexpr int kWidth = 3600;
+  constexpr int kHeight = 5400;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer photo(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  std::uint64_t state = 0x2056;
+  for (int y = 0; y < kHeight; ++y) {
+    auto* row = photo.pixel(0, y);
+    for (int x = 0; x < kWidth; ++x) {
+      state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+      const auto noise = static_cast<int>((state >> 59U) & 31U);
+      // Soft blobs give the edge-snapping tools something to follow.
+      const auto blob = ((x / 300 + y / 300) % 2) * 70;
+      row[x * 4 + 0] = static_cast<std::uint8_t>(std::min(255, 60 + blob + x * 60 / kWidth + noise));
+      row[x * 4 + 1] = static_cast<std::uint8_t>(std::min(255, 50 + blob + y * 60 / kHeight + noise));
+      row[x * 4 + 2] = static_cast<std::uint8_t>(std::min(255, 40 + noise));
+      row[x * 4 + 3] = 255;
+    }
+  }
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Background", std::move(photo)));
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Polygon;
+  params.left = kWidth * 0.2;
+  params.top = kHeight * 0.25;
+  params.right = kWidth * 0.75;
+  params.bottom = kHeight * 0.75;
+  params.polygon_sides = 5;
+  patchy::populate_live_shape_box_corners(params);
+  patchy::VectorShapeContent shape;
+  shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  shape.origination.push_back(params);
+  shape.fill.kind = patchy::VectorFillKind::Solid;
+  shape.fill.color = {140, 128, 128};
+  patchy::Layer shape_layer(document.allocate_layer_id(), "Polygon 1", patchy::LayerKind::Pixel);
+  shape_layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  shape_layer.set_vector_shape(std::move(shape));
+  patchy::update_vector_shape_raster(shape_layer, patchy::Rect::from_size(kWidth, kHeight),
+                                     &std::as_const(document).metadata().patterns);
+  const auto shape_id = shape_layer.id();
+  const auto background_id = document.layers().front().id();
+  document.add_layer(std::move(shape_layer));
+
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  window.show();
+  QApplication::processEvents();
+  window.add_document_session(std::move(document), QStringLiteral("Drag audit"));
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->fit_to_view();
+  const auto settle = [canvas] {
+    QApplication::processEvents();
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  const auto select_layer = [&window](patchy::LayerId id) {
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    if (layer_list == nullptr) {
+      return;
+    }
+    for (int row = 0; row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == id) {
+        layer_list->clearSelection();
+        layer_list->setCurrentItem(item);
+        item->setSelected(true);
+      }
+    }
+    QApplication::processEvents();
+  };
+  settle();
+  std::cout << "[PERF] dragaudit zoom=" << std::fixed << std::setprecision(3) << canvas->zoom()
+            << " threads=" << patchy::hardware_worker_threads() << '\n';
+
+  const auto only = qEnvironmentVariable("PATCHY_PERF_DRAGAUDIT_CASES").split(QLatin1Char(','), Qt::SkipEmptyParts);
+  const auto wanted = [&only](const char* name) { return only.isEmpty() || only.contains(QLatin1String(name)); };
+  const auto widget_at = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto click = [canvas](QPoint widget_point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto drag_and_release = [canvas](QPoint from, QPoint to) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    for (int step = 1; step <= 8; ++step) {
+      send_mouse(*canvas, QEvent::MouseMove, from + (to - from) * step / 8, Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto report = [](const char* name, std::vector<double> handler, std::vector<double> paint) {
+    if (handler.empty()) {
+      std::cout << "[PERF] dragaudit case=" << name << " skipped\n";
+      return;
+    }
+    const auto total = std::accumulate(handler.begin(), handler.end(), 0.0);
+    std::sort(handler.begin(), handler.end());
+    std::sort(paint.begin(), paint.end());
+    std::cout << std::fixed << std::setprecision(2) << "[PERF] dragaudit case=" << name
+              << " move_median_ms=" << handler[handler.size() / 2]
+              << " move_p90_ms=" << handler[handler.size() * 9 / 10] << " move_max_ms=" << handler.back()
+              << " move_total_ms=" << total << " paint_median_ms=" << (paint.empty() ? 0.0 : paint[paint.size() / 2])
+              << '\n';
+  };
+  constexpr int kMoves = 40;
+  // Presses at `from` (unless `pressed` is false: a hover-driven gesture already started),
+  // sends kMoves moves toward `to` and times each, then Escape and the release.
+  const auto measure = [&](const char* name, QPoint from, QPoint to, bool pressed,
+                           Qt::KeyboardModifiers modifiers = Qt::NoModifier, bool escape = true) {
+    if (pressed) {
+      send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, modifiers);
+    }
+    QApplication::processEvents();
+    std::vector<double> handler;
+    std::vector<double> paint;
+    for (int move = 1; move <= kMoves; ++move) {
+      const auto point = from + (to - from) * move / kMoves;
+      handler.push_back(elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, pressed ? Qt::LeftButton : Qt::NoButton,
+                   modifiers);
+      }));
+      paint.push_back(elapsed_ms([&] { canvas->repaint(); }));
+      QApplication::processEvents();
+    }
+    if (escape) {
+      send_key(*canvas, Qt::Key_Escape);
+    }
+    if (pressed) {
+      send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton, modifiers);
+    }
+    report(name, std::move(handler), std::move(paint));
+    settle();
+    canvas->clear_selection();
+    QApplication::processEvents();
+  };
+  // A burst of kBurst moves posted at once, as Wayland queues a fast pointer, drained with the
+  // drag move coalescing off (every move applied, the cost before the audit's fixes) and on.
+  // `prepare` starts the gesture's session (a path transform box, a lasso's first click).
+  constexpr int kBurst = 60;
+  const auto measure_burst = [&](const char* name, QPoint from, QPoint to, bool pressed,
+                                 const std::function<bool()>& prepare) {
+    double drained[2] = {0.0, 0.0};
+    int coalesced = 0;
+    for (const auto on : {false, true}) {
+      canvas->set_drag_move_coalescing_for_testing(on ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                      : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+      if (prepare && !prepare()) {
+        std::cout << "[PERF] dragaudit burst=" << name << " skipped\n";
+        return;
+      }
+      if (pressed) {
+        send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+      }
+      QApplication::processEvents();
+      const auto before = canvas->render_cache_diagnostics().drag_moves_coalesced;
+      for (int move = 1; move <= kBurst; ++move) {
+        const auto point = from + (to - from) * move / kBurst;
+        QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(point),
+                                                        QPointF(canvas->mapToGlobal(point)), Qt::NoButton,
+                                                        pressed ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier));
+      }
+      drained[on ? 1 : 0] = elapsed_ms([&] {
+        for (int pass = 0; pass < 4; ++pass) {
+          QApplication::processEvents();
+        }
+        canvas->repaint();
+      });
+      if (on) {
+        coalesced = canvas->render_cache_diagnostics().drag_moves_coalesced - before;
+      }
+      send_key(*canvas, Qt::Key_Escape);
+      if (pressed) {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+      }
+      settle();
+      canvas->clear_selection();
+    }
+    canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::Default);
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] dragaudit burst=" << name << " moves=" << kBurst
+              << " every_move_ms=" << drained[0] << " coalesced_ms=" << drained[1] << " coalesced=" << coalesced
+              << '\n';
+  };
+  using patchy::ui::CanvasTool;
+  const auto use_tool = [&](CanvasTool tool) {
+    canvas->set_tool(tool);
+    QApplication::processEvents();
+  };
+  const auto a = widget_at(QPoint(500, 600));
+  const auto b = widget_at(QPoint(3000, 4800));
+
+  select_layer(background_id);
+  if (wanted("marquee")) {
+    use_tool(CanvasTool::Marquee);
+    measure("marquee", a, b, true);
+  }
+  if (wanted("ellipse_marquee")) {
+    use_tool(CanvasTool::EllipticalMarquee);
+    measure("ellipse_marquee", a, b, true);
+  }
+  if (wanted("marquee_resize")) {
+    use_tool(CanvasTool::Marquee);
+    drag_and_release(widget_at(QPoint(600, 600)), widget_at(QPoint(2400, 3600)));
+    measure("marquee_resize", widget_at(QPoint(2400, 3600)), b, true, Qt::NoModifier, false);
+  }
+  if (wanted("selection_move")) {
+    use_tool(CanvasTool::Marquee);
+    drag_and_release(widget_at(QPoint(600, 600)), widget_at(QPoint(2400, 3600)));
+    measure("selection_move", widget_at(QPoint(1500, 2100)), widget_at(QPoint(2300, 3300)), true,
+            Qt::NoModifier, false);
+  }
+  if (wanted("ellipse_selection_move")) {
+    use_tool(CanvasTool::EllipticalMarquee);
+    drag_and_release(widget_at(QPoint(600, 600)), widget_at(QPoint(2400, 3600)));
+    use_tool(CanvasTool::Marquee);
+    measure("ellipse_selection_move", widget_at(QPoint(1500, 2100)), widget_at(QPoint(2300, 3300)), true,
+            Qt::NoModifier, false);
+  }
+  if (wanted("lasso")) {
+    use_tool(CanvasTool::Lasso);
+    measure("lasso", a, b, true);
+  }
+  if (wanted("polygon_lasso_hover")) {
+    use_tool(CanvasTool::PolygonLasso);
+    click(a);
+    measure("polygon_lasso_hover", a, b, false);
+  }
+  if (wanted("magnetic_lasso_hover")) {
+    use_tool(CanvasTool::MagneticLasso);
+    click(a);
+    measure("magnetic_lasso_hover", a, widget_at(QPoint(1700, 1800)), false);
+  }
+  if (wanted("quick_select")) {
+    use_tool(CanvasTool::QuickSelect);
+    canvas->set_quick_select_size(120);
+    measure("quick_select", a, b, true);
+  }
+  if (wanted("red_eye")) {
+    use_tool(CanvasTool::RedEye);
+    measure("red_eye", a, widget_at(QPoint(1500, 1600)), true);
+  }
+  if (wanted("patch")) {
+    use_tool(CanvasTool::Marquee);
+    drag_and_release(widget_at(QPoint(600, 600)), widget_at(QPoint(1400, 1400)));
+    use_tool(CanvasTool::PatchTool);
+    measure("patch", widget_at(QPoint(1000, 1000)), widget_at(QPoint(2000, 2600)), true);
+  }
+  if (wanted("spot_heal")) {
+    use_tool(CanvasTool::SpotHealing);
+    canvas->set_brush_size(300);
+    measure("spot_heal", a, b, true);
+  }
+  for (const auto& [name, tool] : {std::pair{"brush", CanvasTool::Brush}, std::pair{"mixer", CanvasTool::MixerBrush},
+                                   std::pair{"pattern_stamp", CanvasTool::PatternStamp},
+                                   std::pair{"clone", CanvasTool::Clone}}) {
+    if (!wanted(name)) {
+      continue;
+    }
+    use_tool(tool);
+    canvas->set_brush_size(300);
+    if (tool == CanvasTool::Clone) {
+      // The source: an Alt click.
+      send_mouse(*canvas, QEvent::MouseButtonPress, widget_at(QPoint(300, 300)), Qt::LeftButton, Qt::LeftButton,
+                 Qt::AltModifier);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, widget_at(QPoint(300, 300)), Qt::LeftButton, Qt::NoButton,
+                 Qt::AltModifier);
+      QApplication::processEvents();
+    }
+    measure(name, a, b, true, Qt::NoModifier, false);
+  }
+  if (wanted("gradient_pixels")) {
+    use_tool(CanvasTool::Gradient);
+    canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::Pixels);
+    measure("gradient_pixels", a, b, true);
+  }
+  if (wanted("gradient_fill_layer")) {
+    use_tool(CanvasTool::Gradient);
+    canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::FillLayer);
+    measure("gradient_fill_layer", a, b, true);
+    canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::Pixels);
+  }
+  if (wanted("rectangle_shape")) {
+    use_tool(CanvasTool::Rectangle);
+    canvas->set_vector_tool_mode(patchy::ui::VectorToolMode::Shape);
+    measure("rectangle_shape", a, b, true);
+  }
+  if (wanted("pen_handle")) {
+    use_tool(CanvasTool::Pen);
+    canvas->set_vector_tool_mode(patchy::ui::VectorToolMode::Shape);
+    click(a);
+    measure("pen_handle", widget_at(QPoint(1500, 1500)), widget_at(QPoint(2500, 2200)), true);
+  }
+  if (wanted("path_transform")) {
+    select_layer(shape_id);
+    use_tool(CanvasTool::PathSelect);
+    if (canvas->begin_path_transform()) {
+      QApplication::processEvents();
+      measure("path_transform", widget_at(QPoint(kWidth / 2, kHeight / 2)),
+              widget_at(QPoint(kWidth / 2 + 600, kHeight / 2 + 500)), true);
+      canvas->cancel_path_transform();
+    } else {
+      report("path_transform", {}, {});
+    }
+    measure_burst("path_transform", widget_at(QPoint(kWidth / 2, kHeight / 2)),
+                  widget_at(QPoint(kWidth / 2 + 600, kHeight / 2 + 500)), true, [&] {
+                    canvas->cancel_path_transform();
+                    QApplication::processEvents();
+                    return canvas->begin_path_transform();
+                  });
+    canvas->cancel_path_transform();
+    select_layer(background_id);
+  }
+  if (wanted("bursts")) {
+    use_tool(CanvasTool::EllipticalMarquee);
+    measure_burst("ellipse_marquee", a, b, true, {});
+    use_tool(CanvasTool::MagneticLasso);
+    measure_burst("magnetic_lasso_hover", a, widget_at(QPoint(1700, 1800)), false, [&] {
+      click(a);
+      return true;
+    });
+    use_tool(CanvasTool::MixerBrush);
+    canvas->set_brush_size(300);
+    measure_burst("mixer", a, b, true, {});
+    use_tool(CanvasTool::PatternStamp);
+    measure_burst("pattern_stamp", a, b, true, {});
+    use_tool(CanvasTool::Pan);
+    measure_burst("pan", widget_at(QPoint(1800, 2700)), widget_at(QPoint(1800, 2700)) + QPoint(200, 160), true, {});
+    canvas->fit_to_view();
+    settle();
+    use_tool(CanvasTool::RotateView);
+    measure_burst("rotate_view", widget_at(QPoint(2600, 2700)), widget_at(QPoint(1800, 3700)), true, {});
+    canvas->set_view_rotation(0.0);
+    settle();
+    use_tool(CanvasTool::Zoom);
+    canvas->set_zoom_scrubby(true);
+    measure_burst("zoom_scrub", widget_at(QPoint(1800, 2700)), widget_at(QPoint(1800, 2700)) + QPoint(200, 0), true,
+                  [&] {
+                    canvas->fit_to_view();
+                    settle();
+                    return true;
+                  });
+    canvas->set_zoom_scrubby(false);
+    canvas->fit_to_view();
+    settle();
+  }
+  if (wanted("rotate_view")) {
+    use_tool(CanvasTool::RotateView);
+    measure("rotate_view", widget_at(QPoint(2600, 2700)), widget_at(QPoint(1800, 3700)), true, Qt::NoModifier,
+            false);
+    canvas->set_view_rotation(0.0);
+    settle();
+  }
+  if (wanted("spot_heal_900")) {
+    use_tool(CanvasTool::SpotHealing);
+    canvas->set_brush_size(900);
+    measure("spot_heal_900", a, b, true);
+  }
+  if (wanted("text_create")) {
+    patchy::ui::MainWindowTestAccess::select_type_tool(window);
+    QApplication::processEvents();
+    measure("text_create", a, widget_at(QPoint(3000, 2000)), true);
+    send_key(*canvas, Qt::Key_Escape);
+    settle();
+  }
+  if (wanted("text_box_resize")) {
+    patchy::ui::MainWindowTestAccess::select_type_tool(window);
+    QApplication::processEvents();
+    drag_and_release(a, widget_at(QPoint(2400, 1800)));
+    settle();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (editor != nullptr) {
+      QString story;
+      for (int sentence = 0; sentence < 40; ++sentence) {
+        story += QStringLiteral("The quick brown fox jumps over the lazy dog near the river bank. ");
+      }
+      editor->setPlainText(story);
+      settle();
+    }
+    auto* handle =
+        canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight"), Qt::FindDirectChildrenOnly);
+    if (editor == nullptr || handle == nullptr || !handle->isVisible()) {
+      report("text_box_resize", {}, {});
+    } else {
+      const auto start_global = handle->mapToGlobal(handle->rect().center());
+      const auto send_handle = [handle](QEvent::Type type, QPoint global, Qt::MouseButton button,
+                                        Qt::MouseButtons buttons) {
+        QMouseEvent event(type, QPointF(handle->mapFromGlobal(global)), QPointF(global), button, buttons,
+                          Qt::NoModifier);
+        QApplication::sendEvent(handle, &event);
+      };
+      send_handle(QEvent::MouseButtonPress, start_global, Qt::LeftButton, Qt::LeftButton);
+      std::vector<double> handler;
+      std::vector<double> paint;
+      for (int move = 1; move <= kMoves; ++move) {
+        const auto global = start_global + QPoint(-move * 4, move * 3);
+        handler.push_back(
+            elapsed_ms([&] { send_handle(QEvent::MouseMove, global, Qt::NoButton, Qt::LeftButton); }));
+        paint.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        QApplication::processEvents();
+      }
+      send_handle(QEvent::MouseButtonRelease, start_global + QPoint(-kMoves * 4, kMoves * 3), Qt::LeftButton,
+                  Qt::NoButton);
+      report("text_box_resize", std::move(handler), std::move(paint));
+      double drained[2] = {0.0, 0.0};
+      for (const auto on : {false, true}) {
+        patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(on);
+        const auto begin = handle->mapToGlobal(handle->rect().center());
+        send_handle(QEvent::MouseButtonPress, begin, Qt::LeftButton, Qt::LeftButton);
+        // Sent in one go, as a queue drains in one pass: with the switch on, the coalescing
+        // records sent moves too (a move posted behind the box's first preview finds the
+        // session re-laid out in this offscreen harness).
+        drained[on ? 1 : 0] = elapsed_ms([&] {
+          for (int move = 1; move <= kBurst; ++move) {
+            send_handle(QEvent::MouseMove, begin + QPoint(on ? move * 3 : -move * 3, move * 2), Qt::NoButton,
+                        Qt::LeftButton);
+          }
+          for (int pass = 0; pass < 4; ++pass) {
+            QApplication::processEvents();
+          }
+          canvas->repaint();
+        });
+        send_handle(QEvent::MouseButtonRelease, begin + QPoint(on ? kBurst * 3 : -kBurst * 3, kBurst * 2),
+                    Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+      }
+      patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(false);
+      std::cout << std::fixed << std::setprecision(1) << "[PERF] dragaudit burst=text_box_resize moves=" << kBurst
+                << " every_move_ms=" << drained[0] << " coalesced_ms=" << drained[1] << '\n';
+    }
+    send_key(*canvas, Qt::Key_Escape);
+    settle();
+  }
+  if (wanted("ruler")) {
+    use_tool(CanvasTool::Ruler);
+    measure("ruler", a, b, true, Qt::NoModifier, false);
+  }
+  if (wanted("pan")) {
+    use_tool(CanvasTool::Pan);
+    measure("pan", widget_at(QPoint(1800, 2700)), widget_at(QPoint(1800, 2700)) + QPoint(200, 160), true,
+            Qt::NoModifier, false);
+    canvas->fit_to_view();
+    settle();
+  }
+  if (wanted("zoom_scrub")) {
+    use_tool(CanvasTool::Zoom);
+    canvas->set_zoom_scrubby(true);
+    measure("zoom_scrub", widget_at(QPoint(1800, 2700)), widget_at(QPoint(1800, 2700)) + QPoint(200, 0), true,
+            Qt::NoModifier, false);
+    canvas->set_zoom_scrubby(false);
+    canvas->fit_to_view();
+    settle();
+  }
+  if (wanted("guide")) {
+    use_tool(CanvasTool::Move);
+    canvas->add_guide(patchy::GuideOrientation::Vertical, 1800 * 32);
+    settle();
+    measure("guide", widget_at(QPoint(1800, 2700)), widget_at(QPoint(2600, 2700)), true, Qt::NoModifier, false);
+  }
+}
+
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
 #ifdef Q_OS_WIN
@@ -6304,6 +6787,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "canvasdrag_live") {
       run_scenario("canvasdrag_live", canvas_live_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "dragaudit") {
+      run_scenario("dragaudit", drag_audit_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "pickdrag") {

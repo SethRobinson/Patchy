@@ -426,6 +426,7 @@ int main(int argc, char* argv[]) {
            crop_tool_tests,
            ruler_tool_tests,
            gradient_fill_handles_tests,
+           drag_coalescing_tests,
            view_shortcut_keys_tests,
            tool_palette_customize_tests,
            layer_row_options_tests,

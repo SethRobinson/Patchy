@@ -518,6 +518,8 @@ struct CanvasRenderCacheDiagnostics {
   // been applied in the current event-loop pass, so only their latest position is
   // applied when the pass ends (GitHub #207, #443, #444).
   int drag_moves_coalesced{0};
+  // Recorded drag moves a pass end, press, release or key applied (flush_pending_drag_move).
+  int drag_moves_replayed{0};
   // Retouch presses (Clone, Healing, Spot Healing, Patch) whose All Layers snapshot
   // shared the settled render cache instead of rendering the document again (GitHub #597).
   int retouch_snapshot_cache_reuses{0};

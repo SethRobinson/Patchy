@@ -5251,6 +5251,7 @@ void CanvasWidget::flush_pending_drag_move() {
   if (coalescing_retouch_stroke()) {
     replay_stroke_positions_ = std::move(stroke_positions);
   }
+  ++render_cache_diagnostics_.drag_moves_replayed;
   mouseMoveEvent(&replay);
   replay_stroke_positions_.reset();
 }

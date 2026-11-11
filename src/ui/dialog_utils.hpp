@@ -409,6 +409,21 @@ int run_non_modal_dialog(QDialog& dialog);
 // the testing switch says otherwise. exec_dialog, run_non_modal_dialog and the
 // MainWindow constructor install it; idempotent.
 void ensure_slider_drag_coalescing();
+// A custom widget whose drag does real work per move (re-lays out text, renders a preview)
+// opts in with this: while a button is held, its moves coalesce through the same filter as
+// a slider's (the newest move of each event-loop pass; a press, release or key applies the
+// recorded one first). Sets kCoalesceDragMovesProperty and installs the filter
+// (docs/interactive-previews-drag-coalescing.md, "Rule for new drags").
+inline constexpr char kCoalesceDragMovesProperty[] = "patchy.coalesceDragMoves";
+void coalesce_widget_drag_moves(QWidget& widget);
+// A widget whose drag an event filter handles instead (the Type tool's box handles: MainWindow's
+// filter sees their moves, on the handle or on the canvas, before this one would) skips the
+// property: that filter calls defer_widget_drag_move(widget, event) at the top of its move
+// handling and returns at once when it is true (the move was recorded; the replay is sent to
+// `widget` and comes back through the filter), and flush_widget_drag_move() before it handles
+// the release, so the drop is where the pointer is.
+bool defer_widget_drag_move(QWidget& widget, const QMouseEvent& event);
+void flush_widget_drag_move();
 // Tests: also coalesce posted (non-spontaneous) moves; returns the number of
 // moves coalesced so far.
 void set_slider_drag_coalescing_all_moves_for_testing(bool all_moves);
