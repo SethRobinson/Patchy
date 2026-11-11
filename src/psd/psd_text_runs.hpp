@@ -104,7 +104,7 @@ struct PsdTextStyleRun {
   // pair kerning whatever this says. kerning_mode: 0 manual (`kerning` is the number, in 1/1000
   // em; 0 is "no kerning"), 1 Metrics (what a new layer has), 2 Optical. Txt2 style keys /11 (the
   // mode) and /10 (the number); the TySh has /AutoKerning false and /Kerning for manual only
-  // (docs/txt2.md, "Kerning"). Runs v9 column 16 tokens `kern:optical` and `kern:<number>`
+  // (docs/txt2-kept-settings.md, "Kerning"). Runs v9 column 16 tokens `kern:optical` and `kern:<number>`
   // (manual), written only off Metrics.
   int kerning_mode{1};
   double kerning{0.0};

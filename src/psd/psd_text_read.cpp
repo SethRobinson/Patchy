@@ -1772,7 +1772,7 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     // Kerning: a TySh run is manual when it says /AutoKerning false, with the number in /Kerning
     // (0 = no kerning). Photoshop 2026 writes true and 0 here whatever the setting is and keeps
     // the real one (Metrics, Optical, manual) in the Txt2 object, which overrides this below when
-    // the layer has one (docs/txt2.md, "Kerning").
+    // the layer has one (docs/txt2-kept-settings.md, "Kerning").
     if (!engine_bool_after_key(dictionaries[index], "/AutoKerning", defaults.auto_kerning)) {
       run.kerning_mode = kTextKerningManual;
       const auto kerning = engine_number_after_key(dictionaries[index], "/Kerning").value_or(defaults.kerning);

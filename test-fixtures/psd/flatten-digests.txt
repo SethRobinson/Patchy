@@ -134,6 +134,7 @@ a7930a707a89be19 photoshop-text-anchor-center90-whole.psd
 d04a366077fb616d photoshop-text-anchor-whole.psd
 96d7bbc80513c3a1 photoshop-text-box-auto-leading.psd
 05f817208a548c31 photoshop-text-hv-scale.psd
+4bf5676db6606dc1 photoshop-text-point-anchors.psd
 0aae12782dc13be1 photoshop-text-point-auto-leading.psd
 f0bc2cd0203e62a1 photoshop-text-point-fixed-leading.psd
 70d3b3aea07a5ee5 photoshop-text-point-transformed.psd

@@ -1741,7 +1741,7 @@ void text_engine_kerning_round_trips() {
 }
 
 // Where Photoshop takes a run's kerning from (Photoshop 2026 captures and the psd-tools files,
-// docs/txt2.md "Kerning"): the Txt2 style run's own /11 (0 manual, 1 Metrics, 2 Optical), else the
+// docs/txt2-kept-settings.md "Kerning"): the Txt2 style run's own /11 (0 manual, 1 Metrics, 2 Optical), else the
 // character style (/32) of its paragraph's parent sheet ("Basic Paragraph" says manual 0 in files
 // Photoshop CC wrote, which is why a run that states nothing is unkerned there), else the
 // document's default style sheet; the TySh /AutoKerning only for a layer with no Txt2 object.

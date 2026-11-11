@@ -11,7 +11,7 @@ contour encoding and measured flow rules are in [area-text.md](area-text.md).
 
 Related documents:
 
-- [txt2-kept-settings.md](txt2-kept-settings.md): the settings Patchy keeps and does not draw (Hyphenate and its numbers, the Kashida width, the line composer, the Middle Eastern character settings), where Photoshop takes each from, and the Action Manager `set` that changes a layer's line composer.
+- [txt2-kept-settings.md](txt2-kept-settings.md): the settings Patchy keeps and does not draw (Hyphenate and its numbers, the Kashida width, the line composer, kerning, the Middle Eastern character settings), where Photoshop takes each from, and the Action Manager `set` that changes a layer's line composer.
 
 Probe files live in `local-test-fixtures/psd/txt2-probes/` (gitignored). The tooling is in
 `scripts/dev/txt2/`: `txt2tool.py` (PSD section walker, byte-exact EngineData tokenizer and
@@ -20,8 +20,15 @@ serializer, `dump`/`roundtrip`/`diff`/`variant` commands), `variants.py` (the V1
 `textKey` back through Action Manager, renders a PNG, resaves; logs any `PSDialogBox` text),
 `ps-capture-p2b.ps1` (single-setting captures through Action Manager, list styles
 included), `ps-relayout.ps1` (makes Photoshop lay text out again without touching the paragraph
-style and saves the render, for layout comparisons) and `make_template.py` (generates the
-authoring template).
+style and saves the render, for layout comparisons), `ps-text-readback.ps1` with
+`ps-text-readback-compare.py` (what Photoshop reads from every type layer of an original and of
+a save of it: anchor, kerning, anti-aliasing, old text, warning level, box baseline rule, and the
+render after Photoshop lays the text out again; groups are walked), `ps-capture-point-anchors.ps1`
+(the committed `photoshop-text-point-anchors.psd` fixture) and `make_template.py` (generates the
+authoring template). The readback opens files with dialogs off; `scripts/dev/photoshop-open-check.ps1`
+is the one that shows prompts, and it parks on Photoshop's "text layers might need to be updated"
+dialog, which a file with old text or a warped layer whose box Photoshop lays out differently
+raises (the original usually does too): do not run it unattended on such files.
 
 ## The writer
 
@@ -175,7 +182,7 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/6`, `/7` | HorizontalScale, VerticalScale | 1.0 |
 | `/8` | Tracking | integer (200 in the tracking fixture) |
 | `/9` | BaselineShift | Engine pixels; positive raises glyphs, runs v8 column 15 |
-| `/10` | Kerning (the manual number) | 1/1000 em; 0.0 in the default sheets; see [Kerning](#kerning) |
+| `/10` | Kerning (the manual number) | 1/1000 em; 0.0 in the default sheets; see [Kerning](txt2-kept-settings.md#kerning) |
 | `/11` | AutoKerning (`autoKern`) | 0 manual, 1 Metrics, 2 Optical |
 | `/12` | FontCaps | 0, 1 Small Caps, 2 All Caps |
 | `/13` | FontBaseline | 0, 1 superscript, 2 subscript |
@@ -230,36 +237,6 @@ language. There is no UI for it: Patchy has no hyphenation or spell check. Accep
 2026 over COM): a Patchy-born file with English UK, German and Arabic runs, and the Photoshop
 fixture (`local-test-fixtures/psd/issue-682/`) edited and saved by Patchy, both open clean
 (`textWarningLevel 0`, no `oldText`) and read those languages back on the same runs.
-
-## Kerning
-
-Photoshop's kerning setting (the Character panel's V/A field; Action Manager `textStyle` key
-`autoKern`: `metricsKern`, `opticalKern`, `manual`) is the Txt2 style key `/11`: 0 manual, 1
-Metrics, 2 Optical, with the manual number in `/10` (1/1000 em). Photoshop 2026 writes `/AutoKerning
-true /Kerning 0` into the TySh run whatever the setting is (COM captures on This PC, November
-2026: one layer per setting, "AV To Wa" in Arial 40 px is 172 px wide with Metrics, 173 with
-Optical and 182 with manual 0), and a manual 0 run carries `/11 0` with no `/10`. Older files do
-use the TySh: `/AutoKerning false` with `/Kerning` for a manual run.
-
-Where Photoshop takes it from, for a layer with a Txt2 object: the style run's own `/11`; a run
-that leaves it out takes the character style (`/32`) of its paragraph's parent ParagraphSheetSet
-entry, ahead of the run's parent style sheet, like the type size above. "Basic Paragraph" says
-`/11 0` in files Photoshop CC wrote and `/11 1` in Photoshop 2026's, so a run that states
-nothing is UNKERNED in such an older file (the psd-tools `effect-stroke-gradient.psd`: 85.8 px
-wide, 82.3 px once a save stated Metrics). The reader (`object_style_kerning`) goes run, the
-paragraph run's own `/32`, the parent paragraph sheet's `/32`, the parent StyleSheetSet entry,
-`/1/2`; the result overrides the TySh run (`runs_with_text_object_kerning`), which serves a
-layer without an object (and a file whose block is the old named-key engine).
-
-Patchy keeps it as `PsdTextStyleRun::kerning_mode` and `kerning`, runs v9 column 16 tokens
-`kern:optical` and `kern:<number>` (manual), written only off Metrics; the editor carries them
-with the Middle Eastern settings (`kTextMiddleEasternFormatProperty`). Patchy draws with the
-font's own pair kerning whatever the setting is, so a manual 0 run is a little narrower in
-Patchy than in Photoshop. The writer puts the mode into `/11` (and a non-zero number into `/10`)
-and, for manual only, `/AutoKerning false /Kerning <n>` into the TySh run; the normal sheets stay
-Metrics. Patchy used to write Metrics into every run it rewrote. Tests:
-`text_engine_kerning_round_trips`, `text_engine_kerning_reads_photoshop_sheets`,
-`ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing`.
 
 ## Box first baseline
 

@@ -91,7 +91,7 @@ struct TextStyleRunFeatures {
 // style of the paragraph its first character sits in (the paragraph run's own /32, then its
 // parent ParagraphSheetSet entry's: "Basic Paragraph" says manual 0 in files Photoshop CC wrote),
 // else the run's parent StyleSheetSet entry, else the document's default style sheet (/1/2).
-// Photoshop reads the kerning here and not from the TySh (docs/txt2.md, "Kerning").
+// Photoshop reads the kerning here and not from the TySh (docs/txt2-kept-settings.md, "Kerning").
 struct TextStyleRunKerning {
   int length{0};
   std::optional<int> mode;
