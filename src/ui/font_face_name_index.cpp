@@ -1,4 +1,5 @@
 #include "ui/font_face_name_index.hpp"
+#include "ui/text_language_font.hpp"
 
 #include <QFile>
 #include <QFont>
@@ -57,8 +58,8 @@ QStringList font_families_without_foundries(const QStringList& families) {
   seen.reserve(families.size());
   for (const auto& family : families) {
     auto name = font_family_without_foundry(family);
-    if (name.isEmpty()) {
-      continue;
+    if (name.isEmpty() || is_text_language_font_family(name)) {
+      continue;  // a language copy Patchy registered for shaping (text_language_font.hpp)
     }
     const auto key = name.toCaseFolded();
     if (seen.contains(key)) {

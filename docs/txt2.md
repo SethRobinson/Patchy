@@ -233,7 +233,8 @@ run's Txt2 `/38` (its sheet, its parent StyleSheetSet entry, the document's `/1/
 as unset. The writer puts `run.language` or 14 into `/38` and, only for a run that has one, the
 mapped `/Language` into the TySh run (never the normal sheet), so untagged text keeps its bytes.
 The editor carries it as `kTextLanguageFormatProperty`, so typed text takes its neighbour's
-language. There is no UI for it: Patchy has no hyphenation or spell check. Acceptance (Photoshop
+language. There is no UI for it: Patchy has no hyphenation or spell check. Rendering shapes each
+run with it ([text-character-styles.md](text-character-styles.md), "Run language"). Acceptance (Photoshop
 2026 over COM): a Patchy-born file with English UK, German and Arabic runs, and the Photoshop
 fixture (`local-test-fixtures/psd/issue-682/`) edited and saved by Patchy, both open clean
 (`textWarningLevel 0`, no `oldText`) and read those languages back on the same runs.

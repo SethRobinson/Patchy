@@ -1724,6 +1724,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/text_layout.hpp
       src/ui/text_layout.cpp
       src/ui/text_font_service.cpp
+      src/ui/text_language_font.cpp
+      src/ui/text_language_font.hpp
       src/ui/text_font_service.hpp
       src/ui/text_document.cpp
       src/ui/text_document.hpp
@@ -2705,6 +2707,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_canvas_session_tests.cpp
       tests/ui/text_color_targets_tests.cpp
       tests/ui/text_character_styles_tests.cpp
+      tests/ui/text_run_language_tests.cpp
       tests/ui/text_options_bar_toggles_tests.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp

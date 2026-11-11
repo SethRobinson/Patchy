@@ -74,13 +74,33 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
   `contextualalternates`, so those runs keep drawing with `calt`. Arabic text is unaffected by
   `calt` off in Amiri, Noto Naskh, Noto Sans, Noto Kufi Arabic and Adobe Arabic (HarfBuzz shaping
   of the issue 683 file's text is glyph-identical either way).
-- **The Allah ligature (U+FDF2) is a Discretionary Ligature** in Adobe Arabic 2.007, Noto Naskh
-  Arabic and Noto Kufi Arabic (`dlig` only). Photoshop 2026 re-renders
-  the issue 683 Diacritics layers (Adobe Arabic, `/19 false`) with lam, lam and heh apart and draws
-  the ligature only with Discretionary Ligatures on (COM, November 2026), as Patchy does; that
-  file's own raster shows the ligature, so it came from another font build or setting. Test:
-  `ui_text_arabic_allah_ligature_follows_discretionary_ligatures_if_available` (Noto Kufi Arabic
-  in `local-test-fixtures/fonts/`).
+- **The Allah ligature (U+FDF2)** is a Discretionary Ligature only in Adobe Arabic 2.007, Noto
+  Naskh Arabic and Noto Kufi Arabic (`dlig`). Adobe Arabic 3.005 (Photoshop 2018's, Illustrator
+  2026's) also forms it through a `calt` rule of its `ARA ` language system, so an Arabic run draws
+  it with Discretionary Ligatures off and an English one does not (philipzae's Photoshop 2018 video,
+  issue 683; the Diacritics layers' raster, whose runs leave Contextual Alternates at the default,
+  off). So an Arabic or Farsi run shaped in its language copy keeps `calt` on
+  (`text_language_keeps_contextual_alternates`). Photoshop 2026 on This PC lists no Adobe Arabic and draws
+  those layers in Myriad Arabic. Tests:
+  `ui_text_arabic_allah_ligature_follows_discretionary_ligatures_if_available` (Noto Kufi Arabic),
+  `ui_text_run_language_forms_the_allah_ligature_if_available` and
+  `ui_issue_683_diacritics_layers_form_the_allah_ligature_if_available` (Adobe Arabic 3.005 in
+  `local-test-fixtures/fonts/adobe-arabic-3.005/`, local only: Adobe's font, never committed).
+- **Run language.** A run is shaped with its Photoshop language (Txt2 `/38`, [txt2.md](txt2.md#languages)):
+  Photoshop 2026 does (COM, November 2026: Noto Kufi Arabic draws a comma-below s for Romanian and
+  a cedilla for English; Noto Naskh Arabic's Farsi decimal separator for Farsi only). Qt 6.8 shapes
+  every run with `hb_language_get_default()` (the process locale) and has no per-run language, so
+  `text_language_font_families` (src/ui/text_language_font.hpp) registers, once per face and
+  language, a copy of the face whose GSUB and GPOS script lists make that language system the
+  default one and list no others (glyph ids and every other table unchanged), under a private
+  family `PatchyLang <TAG> <n>` that `font_families_without_foundries` hides from every font list.
+  `apply_text_character_styles_to_document` keeps it only where it changes the fragment's glyphs and
+  draws the fragment through the feature path below (`kTextRenderLanguageFamiliesFormatProperty`);
+  the features are tried in the language. English, no language and Chinese (Photoshop does not say
+  which) shape as before; the language map follows HarfBuzz's tags (`opentype_language_tags_for_photoshop_language`).
+  Horizontal text only; variable fonts are left alone. Tests: `ui_text_language_layout_table_uses_the_language_system`,
+  `ui_text_run_language_reaches_the_shaper` (bundled Noto Naskh Arabic, Farsi),
+  `ui_text_run_language_renders_romanian_forms_if_available` (Noto Kufi Arabic).
 - **OpenType features per run.** QTextCharFormat cannot carry font features in Qt 6.8, so a
   fragment whose features change its glyphs gets `kTextRenderFeaturesFormatProperty` and extra
   letter spacing equal to (featured advance - plain advance) / characters, so the layout reserves
