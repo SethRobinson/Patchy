@@ -21666,6 +21666,10 @@ Do you want to replace it?</source>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>추가 흐림, 왜곡, 조명 및 예술 효과</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>자르기 도구: 상자를 제자리에 두고 그 뒤의 이미지를 밀거나 회전</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22375,6 +22379,10 @@ Do you want to replace it?</source>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>자르기 도구에서 자르기 상자를 변경한 뒤: 다음 오버레이 / 오버레이 방향 바꾸기 / 잘린 영역 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>자르기 도구에서 자르기 상자를 변경한 뒤: 자르기 상자 아래에서 이미지를 이동하거나 이미지 위에서 상자를 이동</translation>
     </message>
 </context>
 <context>
@@ -35733,6 +35741,18 @@ Locked: %1</source>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>자르기 상자를 변경한 뒤에는 %1 키로 다음 오버레이를 고릅니다</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>자르기 상자 아래에서 이미지 이동</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>자르기: 이미지가 자르기 상자 아래에서 움직입니다</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>자르기: 자르기 상자가 이미지 위에서 움직입니다</translation>
     </message>
 </context>
 <context>

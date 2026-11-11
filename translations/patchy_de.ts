@@ -21728,6 +21728,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>Zusätzliche Weichzeichner-, Verzerrungs-, Licht- und Kunsteffekte</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>Freistellungswerkzeug: Rahmen an seinem Platz halten und das Bild dahinter verschieben oder drehen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22439,6 +22443,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>Freistellungswerkzeug, sobald der Zuschneiderahmen geändert wurde: nächste Überlagerung / Überlagerung drehen / freigestellten Bereich ein- oder ausblenden</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>Freistellungswerkzeug, sobald der Zuschneiderahmen geändert wurde: das Bild unter dem Zuschneiderahmen bewegen oder den Rahmen über dem Bild</translation>
     </message>
 </context>
 <context>
@@ -35842,6 +35850,18 @@ Fixiert: %1</translation>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>%1 wählt die nächste Überlagerung, sobald der Zuschneiderahmen geändert wurde</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>Bild unter dem Zuschneiderahmen bewegen</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>Freistellen: Das Bild bewegt sich unter dem Zuschneiderahmen</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>Freistellen: Der Zuschneiderahmen bewegt sich über dem Bild</translation>
     </message>
 </context>
 <context>

@@ -150,11 +150,17 @@ QRect CanvasWidget::overlay_exposed_rect(QRect exposed_rect) const {
 }
 
 double CanvasWidget::view_rotation() const noexcept {
-  return view_rotation_degrees_;
+  // The user's angle: without the turn a Crop session adds to keep its box upright
+  // (GitHub issue 699). The two are the same number whenever no such session runs.
+  return view_user_rotation_degrees_;
 }
 
 void CanvasWidget::set_view_rotation(double degrees) {
-  const auto angle = CanvasViewTransform::normalized_angle(degrees);
+  view_user_rotation_degrees_ = CanvasViewTransform::normalized_angle(degrees);
+  const auto angle =
+      crop_view_turn_degrees_ == 0.0
+          ? view_user_rotation_degrees_
+          : CanvasViewTransform::normalized_angle(view_user_rotation_degrees_ + crop_view_turn_degrees_);
   if (angle == view_rotation_degrees_) {
     return;
   }

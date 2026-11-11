@@ -390,7 +390,112 @@ void CanvasWidget::notify_crop_session_changed() {
   }
 }
 
+bool CanvasWidget::crop_view_follows_box() const noexcept {
+  return crop_overlay_options_.move_image && crop_session_active_ && tool_ == CanvasTool::Crop;
+}
+
+QPointF CanvasWidget::crop_box_center_document() const noexcept {
+  return QPointF(static_cast<double>(crop_rect_.x()) + crop_rect_.width() / 2.0,
+                 static_cast<double>(crop_rect_.y()) + crop_rect_.height() / 2.0);
+}
+
+// Move Image Under Crop Box (GitHub issue 699). The view's angle is the user's own plus
+// this session's turn, which is minus the box's angle while the view follows the box:
+// the box then shows as upright as the document did before, and the image is what turns.
+// Only the angle and the pan change here. The zoom is never touched: a rotation that set
+// the zoom, or tested whether a canvas edge shows inside the box, is outside the limits
+// in docs/legal-constraints.md ("Crop interaction").
+bool CanvasWidget::sync_crop_view_turn(QPointF anchor_document, QPointF anchor_widget) {
+  crop_view_turn_degrees_ = crop_view_follows_box() && crop_angle_ != 0.0 ? -crop_angle_ : 0.0;
+  view_rotation_degrees_ =
+      crop_view_turn_degrees_ == 0.0
+          ? view_user_rotation_degrees_
+          : CanvasViewTransform::normalized_angle(view_user_rotation_degrees_ + crop_view_turn_degrees_);
+  const auto placed = view_transform().pan_placing(anchor_document, anchor_widget);
+  pan_ = placed;
+  constrain_pan();
+  return pan_ == placed;
+}
+
+bool CanvasWidget::place_crop_box(QRect rect, double angle, QPointF center_widget) {
+  const auto old_rect = crop_rect_;
+  const auto old_angle = crop_angle_;
+  const auto old_pan = pan_;
+  const auto old_rotation = view_rotation_degrees_;
+  const auto old_turn = crop_view_turn_degrees_;
+  crop_rect_ = rect;
+  crop_angle_ = angle;
+  if (!sync_crop_view_turn(crop_box_center_document(), center_widget)) {
+    // The pan limits keep part of the document in view; the box does not give way.
+    crop_rect_ = old_rect;
+    crop_angle_ = old_angle;
+    pan_ = old_pan;
+    view_rotation_degrees_ = old_rotation;
+    crop_view_turn_degrees_ = old_turn;
+    return false;
+  }
+  if (pan_ != old_pan || view_rotation_degrees_ != old_rotation) {
+    notify_view_changed();
+  }
+  update();
+  return true;
+}
+
+void CanvasWidget::set_crop_handle_cursor(TransformHandle handle, bool dragging) {
+  if (handle == TransformHandle::Move && crop_view_follows_box()) {
+    // Inside the box a drag slides the image, as the Hand does.
+    setCursor(dragging ? Qt::ClosedHandCursor : Qt::OpenHandCursor);
+    return;
+  }
+  set_transform_cursor_for_handle(handle, crop_angle_);
+}
+
+void CanvasWidget::center_crop_box_in_view() {
+  if (!crop_session_active_ || crop_rect_.isEmpty() || document_ == nullptr || width() <= 0 || height() <= 0) {
+    return;
+  }
+  // A pan and nothing else: the zoom stays the user's (docs/legal-constraints.md,
+  // "Crop interaction": no zoom follows a box change by itself).
+  const auto old_pan = pan_;
+  pan_ = view_transform().pan_placing(crop_box_center_document(), view_content_rect().center());
+  constrain_pan();
+  if (pan_ != old_pan) {
+    update();
+    notify_view_changed();
+  }
+}
+
+void CanvasWidget::apply_crop_move_image_change() {
+  if (!crop_session_active_ || tool_ != CanvasTool::Crop) {
+    return;
+  }
+  // A drag in flight was measured for the other mode: it ends here, as on focus loss.
+  crop_dragging_out_ = false;
+  crop_rotating_ = false;
+  crop_drag_handle_ = TransformHandle::None;
+  spacebar_repositioning_drag_rect_ = false;
+  const auto wanted = crop_view_follows_box() && crop_angle_ != 0.0 ? -crop_angle_ : 0.0;
+  if (wanted != crop_view_turn_degrees_) {
+    // The image turns about the box's center, which stays where it is.
+    const auto center = crop_box_center_document();
+    sync_crop_view_turn(center, view_transform().map_to_widget(center));
+    update_tool_cursor();
+    update();
+    notify_view_changed();
+  }
+  // Switching the option on with a box the user made centers that box.
+  if (crop_view_follows_box() && crop_session_can_reset()) {
+    center_crop_box_in_view();
+  }
+  update_tool_cursor();
+}
+
 void CanvasWidget::reset_crop_session_state() {
+  // A session that turned the view gives the turn back: the image turns about the
+  // box's center to the angle the user had (Move Image Under Crop Box).
+  const auto had_turn = crop_view_turn_degrees_ != 0.0;
+  const auto turn_anchor = crop_box_center_document();
+  const auto turn_anchor_widget = had_turn ? view_transform().map_to_widget(turn_anchor) : QPointF();
   crop_session_active_ = false;
   crop_box_is_default_ = false;
   crop_box_from_selection_ = false;
@@ -408,6 +513,12 @@ void CanvasWidget::reset_crop_session_state() {
   crop_rotate_start_vector_degrees_ = 0.0;
   crop_square_constrained_ = false;
   crop_from_center_ = false;
+  crop_hold_center_widget_ = QPointF();
+  if (had_turn) {
+    sync_crop_view_turn(turn_anchor, turn_anchor_widget);
+    update();
+    notify_view_changed();
+  }
 }
 
 void CanvasWidget::commit_crop_session() {
@@ -514,6 +625,10 @@ void CanvasWidget::reset_crop_session_to_canvas() {
   crop_session_active_ = true;
   crop_box_is_default_ = true;
   crop_rect_ = ratio_fitted_crop_rect(canvas_document_rect());
+  if (had_changes && crop_view_follows_box()) {
+    // The gestures moved the view; the frame goes back to the middle of it (a pan only).
+    center_crop_box_in_view();
+  }
   update_tool_cursor();
   update();
   if (had_changes && status_callback_) {
@@ -626,6 +741,14 @@ void CanvasWidget::handle_crop_session_press(QMouseEvent* event) {
     crop_press_widget_point_ = event->pos();
     crop_rotate_start_angle_ = crop_angle_;
     setCursor(transform_rotate_cursor_at(event->pos(), QRectF(crop_rect_), crop_angle_, false));
+    if (crop_view_follows_box()) {
+      // The view turns during this drag, so the pointer's angle is taken on screen, about
+      // the point the box's center holds.
+      crop_hold_center_widget_ = view_transform().map_to_widget(crop_box_center_document());
+      const auto vector = event->position() - crop_hold_center_widget_;
+      crop_rotate_start_vector_degrees_ = std::atan2(vector.y(), vector.x()) * kDegreesPerRadian;
+      return;
+    }
     const auto document_point = document_position_f(event->position());
     const auto center_x = static_cast<double>(crop_rect_.x()) + crop_rect_.width() / 2.0;
     const auto center_y = static_cast<double>(crop_rect_.y()) + crop_rect_.height() / 2.0;
@@ -635,15 +758,36 @@ void CanvasWidget::handle_crop_session_press(QMouseEvent* event) {
   }
   crop_drag_handle_ = handle;
   crop_drag_start_rect_ = crop_rect_;
+  crop_press_widget_point_ = event->pos();
+  crop_hold_center_widget_ = view_transform().map_to_widget(crop_box_center_document());
+  if (handle == TransformHandle::Move && crop_view_follows_box()) {
+    set_crop_handle_cursor(handle, true);
+  }
   crop_drag_start_point_ = document_position_f(event->position());
   crop_drag_grab_offset_ =
       transform_handle_grab_offset(handle, QRectF(crop_rect_), crop_angle_, crop_drag_start_point_);
 }
 
-void CanvasWidget::update_crop_rotate_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+void CanvasWidget::update_crop_rotate_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers) {
   if (!crop_rotating_) {
     return;
   }
+  if (crop_view_follows_box()) {
+    // The image follows the pointer around the box's center, so the box's angle over
+    // the document goes the other way and the view takes the difference: the box stays
+    // upright where it is. The box keeps its size and nothing looks at the canvas
+    // edges (docs/legal-constraints.md, "Crop interaction").
+    const auto vector = widget_point - crop_hold_center_widget_;
+    const auto vector_degrees = std::atan2(vector.y(), vector.x()) * kDegreesPerRadian;
+    auto degrees =
+        normalized_degrees(crop_rotate_start_angle_ - (vector_degrees - crop_rotate_start_vector_degrees_));
+    if ((modifiers & Qt::ShiftModifier) != 0) {
+      degrees = normalized_degrees(std::round(degrees / 15.0) * 15.0);
+    }
+    place_crop_box(crop_rect_, degrees, crop_hold_center_widget_);
+    return;
+  }
+  const auto document_point = document_position_f(widget_point);
   const auto center_x = static_cast<double>(crop_rect_.x()) + crop_rect_.width() / 2.0;
   const auto center_y = static_cast<double>(crop_rect_.y()) + crop_rect_.height() / 2.0;
   const auto vector_degrees =
@@ -672,12 +816,43 @@ void CanvasWidget::update_crop_drag_out(QPoint document_point, Qt::KeyboardModif
   update();
 }
 
-void CanvasWidget::update_crop_adjust_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+void CanvasWidget::update_crop_adjust_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers) {
   if (crop_drag_handle_ == TransformHandle::None) {
     return;
   }
 
+  auto document_point = document_position_f(widget_point);
   const auto rotated = crop_angle_ != 0.0;
+  if (crop_drag_handle_ == TransformHandle::Move && crop_view_follows_box() &&
+      !spacebar_repositioning_drag_rect_) {
+    // Move Image Under Crop Box: the image follows the pointer, so the box travels the
+    // other way over the document, in whole pixels, and the view pans to hold the box
+    // where it is on screen.
+    const auto travel =
+        view_transform().map_vector_to_document(widget_point - QPointF(crop_press_widget_point_));
+    const QPoint raw_delta(static_cast<int>(std::lround(-travel.x())), static_cast<int>(std::lround(-travel.y())));
+    const auto delta = rotated ? raw_delta : snapped_rect_delta(crop_drag_start_rect_, raw_delta);
+    const auto target = crop_drag_start_rect_.translated(delta);
+    if (target != crop_rect_ && !place_crop_box(target, crop_angle_, crop_hold_center_widget_)) {
+      // Past the pan limits: as far toward the target as they allow.
+      const auto from = crop_rect_.topLeft();
+      const QPointF step = target.topLeft() - from;
+      double low = 0.0;
+      double high = 1.0;
+      for (int i = 0; i < 16; ++i) {
+        const auto middle = (low + high) / 2.0;
+        const QPoint candidate(from.x() + static_cast<int>(std::lround(step.x() * middle)),
+                               from.y() + static_cast<int>(std::lround(step.y() * middle)));
+        if (candidate == crop_rect_.topLeft() ||
+            place_crop_box(QRect(candidate, crop_rect_.size()), crop_angle_, crop_hold_center_widget_)) {
+          low = middle;
+        } else {
+          high = middle;
+        }
+      }
+    }
+    return;
+  }
   if (spacebar_repositioning_drag_rect_) {
     // Space held mid-drag slides the whole box (the marquee handle rule). The
     // drag-start rect follows so releasing Space resumes the resize where the
@@ -830,6 +1005,9 @@ void CanvasWidget::finish_crop_mouse_release(QMouseEvent* event) {
       crop_session_active_ = true;
       crop_box_is_default_ = false;
       crop_box_from_selection_ = false;
+      if (crop_view_follows_box()) {
+        center_crop_box_in_view();
+      }
       notify_crop_session_changed();
     }
     // A plain click leaves any pending rect (and the session) untouched.
@@ -841,7 +1019,7 @@ void CanvasWidget::finish_crop_mouse_release(QMouseEvent* event) {
   }
 
   if (crop_rotating_) {
-    update_crop_rotate_drag(document_position_f(event->position()), event->modifiers());
+    update_crop_rotate_drag(event->position(), event->modifiers());
     crop_rotating_ = false;
     if (crop_angle_ != 0.0) {
       crop_box_is_default_ = false;
@@ -853,10 +1031,20 @@ void CanvasWidget::finish_crop_mouse_release(QMouseEvent* event) {
   }
 
   if (crop_drag_handle_ != TransformHandle::None) {
-    update_crop_adjust_drag(document_position_f(event->position()), event->modifiers());
+    update_crop_adjust_drag(event->position(), event->modifiers());
+    // A handle drag moved the box on screen: with the image moving under the box, the
+    // view pans so the box is centered again. A pan only, at the zoom the user has
+    // (docs/legal-constraints.md, "Crop interaction"). The inside drag held the box in
+    // place already.
+    const auto recenter =
+        crop_view_follows_box() &&
+        QLineF(view_transform().map_to_widget(crop_box_center_document()), crop_hold_center_widget_).length() > 0.5;
     crop_drag_handle_ = TransformHandle::None;
     spacebar_repositioning_drag_rect_ = false;
     crop_box_is_default_ = false;
+    if (recenter) {
+      center_crop_box_in_view();
+    }
     update_tool_cursor();
     update();
     notify_crop_session_changed();
@@ -867,7 +1055,16 @@ void CanvasWidget::nudge_crop_rect(QPoint delta) {
   if (!crop_session_active_ || delta.isNull()) {
     return;
   }
-  crop_rect_.translate(delta);
+  if (crop_view_follows_box()) {
+    // The arrows nudge the image under the box, along the document's axes: the box
+    // goes the other way over the document and keeps its place on screen.
+    const auto center_widget = view_transform().map_to_widget(crop_box_center_document());
+    if (!place_crop_box(crop_rect_.translated(-delta), crop_angle_, center_widget)) {
+      return;
+    }
+  } else {
+    crop_rect_.translate(delta);
+  }
   crop_box_is_default_ = false;
   update();
   notify_crop_session_changed();
@@ -883,7 +1080,11 @@ void CanvasWidget::set_crop_overlay_options(const CropOverlayOptions& options) {
   if (clamped == crop_overlay_options_) {
     return;
   }
+  const auto move_image_changed = clamped.move_image != crop_overlay_options_.move_image;
   crop_overlay_options_ = clamped;
+  if (move_image_changed) {
+    apply_crop_move_image_change();
+  }
   if (crop_session_active_ || crop_dragging_out_) {
     update();
   }
@@ -909,7 +1110,21 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
   // Exact widget-space box (the +1 doc-rect convention is internal to the
   // QRectF overload); rotation happens about its center in widget space.
   const auto widget_rect = widget_rect_for_document_rect(QRectF(*document_rect));
-  const auto center = widget_rect.center();
+  auto center = widget_rect.center();
+  // Move Image Under Crop Box: the view has taken the box's angle, so on screen the two
+  // turns cancel. Drawing through both would antialias an upright box and leave rounding
+  // dust that shifts its lines between frames, so the box is drawn straight in widget
+  // space, its center on a 1/64 pixel grid. The overlay itself is the same one, drawn
+  // the same way, in every gesture and after it (docs/legal-constraints.md, "Crop
+  // interaction").
+  const bool straight = crop_view_turn_degrees_ != 0.0 && upright_overlay_depth_ > 0 && !crop_dragging_out_;
+  if (straight) {
+    center = upright_overlay_to_widget().map(center);
+    center = QPointF(std::round(center.x() * 64.0) / 64.0, std::round(center.y() * 64.0) / 64.0);
+    angle = CanvasViewTransform::normalized_angle(angle + view_rotation_degrees_);
+    painter.save();
+    painter.setWorldTransform(QTransform());
+  }
   QTransform box_to_widget;
   box_to_widget.translate(center.x(), center.y());
   box_to_widget.rotate(angle);
@@ -934,7 +1149,7 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, false);
     QPainterPath shield;
-    shield.addRect(QRectF(overlay_view_rect()));
+    shield.addRect(straight ? QRectF(rect()) : QRectF(overlay_view_rect()));
     QPainterPath box_path;
     box_path.addPolygon(corners);
     box_path.closeSubpath();
@@ -1007,11 +1222,20 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
     painter.setRenderHint(QPainter::Antialiasing, angle != 0.0);
     painter.setPen(QPen(QColor(10, 14, 20), 1.0));
     painter.setBrush(QColor(245, 248, 252));
-    for (const auto handle : handles) {
-      const auto point = transform_handle_position(handle, QRectF(*document_rect), angle);
+    // The same eight points in the straight frame: the box's corners and edge middles.
+    const std::array<QPointF, 8> straight_points = {
+        local_rect.topLeft(),     QPointF(0.0, local_rect.top()),    local_rect.topRight(),
+        QPointF(local_rect.right(), 0.0), local_rect.bottomRight(), QPointF(0.0, local_rect.bottom()),
+        local_rect.bottomLeft(),  QPointF(local_rect.left(), 0.0)};
+    for (std::size_t i = 0; i < handles.size(); ++i) {
+      const auto point = straight ? box_to_widget.map(straight_points[i])
+                                  : transform_handle_position(handles[i], QRectF(*document_rect), angle);
       painter.drawRect(
           QRectF(point.x() - kHandleSize / 2.0, point.y() - kHandleSize / 2.0, kHandleSize, kHandleSize));
     }
+    painter.restore();
+  }
+  if (straight) {
     painter.restore();
   }
 }

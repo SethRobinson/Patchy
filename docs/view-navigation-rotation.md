@@ -11,6 +11,7 @@ The view can turn to any angle, the way a painter turns a sheet of paper. Only t
 - **Angle 0 is bit-identical to the code before rotation.** Every mapping has an explicit upright branch with the old per-axis arithmetic, so pixel-aligned placement, deep-zoom snapping and all byte and visual tests stay valid. Right angles use exact 0/1/-1 cosines.
 - `widget_rect_for_document_rect` returns the on-screen bounding box under rotation. That is right for repaint and clip rects; an outline that must follow the turn maps the corners (`map_document_rect`) or draws in the upright frame (below).
 - `set_view_rotation(degrees)` pivots on `view_content_rect()`'s center, keeping the document point there in place, then constrains the pan and notifies view listeners (the options bar's angle, the text editor overlay).
+- `view_rotation()` and `set_view_rotation` speak of the user's angle. A Crop session with Move Image Under Crop Box on adds a turn of its own on top (`crop_view_turn_degrees_`, minus the crop box's angle, so the box shows upright), which those two leave out and the session gives back when it ends ([crop-tool.md](crop-tool.md#move-image-under-crop-box)). `view_transform()` and everything that draws use the whole angle. `patchy.ui.rotation` reads and sets the user's angle.
 
 ## Navigation under rotation
 

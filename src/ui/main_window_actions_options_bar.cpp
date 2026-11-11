@@ -2195,6 +2195,33 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       crop_menu->close();
       QTimer::singleShot(0, this, [this] { choose_crop_shield_color(); });
     });
+    // Move Image Under Crop Box (GitHub issue 699): the box keeps its place on screen and
+    // the view pans and turns behind it. Off by default; the limits it keeps are in
+    // docs/legal-constraints.md ("Crop interaction"). Last in the menu.
+    crop_menu->addSeparator();
+    crop_move_image_action_ = crop_menu->addAction(tr("Move Image Under Crop Box"));
+    crop_move_image_action_->setObjectName(QStringLiteral("cropMoveImageAction"));
+    bind_action_text(crop_move_image_action_, QT_TR_NOOP("Move Image Under Crop Box"));
+    crop_move_image_action_->setCheckable(true);
+    connect(crop_move_image_action_, &QAction::toggled, this, [this](bool on) {
+      auto options = current_crop_overlay_options_;
+      options.move_image = on;
+      apply_crop_overlay_options(options);
+      statusBar()->showMessage(on ? tr("Crop: the image moves under the crop box")
+                                  : tr("Crop: the crop box moves over the image"));
+    });
+    // The command (Search Commands, Keyboard Shortcuts) is its own action: the menu
+    // entry's text carries the built-in P key while that applies.
+    auto* crop_move_image_command = new QAction(tr("Move Image Under Crop Box"), this);
+    crop_move_image_command->setObjectName(QStringLiteral("cropMoveImageCommand"));
+    bind_action_text(crop_move_image_command, QT_TR_NOOP("Move Image Under Crop Box"));
+    register_hotkey(crop_move_image_command, "crop.move_image_under_box");
+    addAction(crop_move_image_command);
+    connect(crop_move_image_command, &QAction::triggered, this, [this] {
+      if (crop_move_image_action_ != nullptr) {
+        crop_move_image_action_->toggle();
+      }
+    });
     crop_options_button_->setMenu(crop_menu);
   }
   sync_crop_overlay_controls();

@@ -1,6 +1,6 @@
 // MainWindow's Crop bar (docs/crop-tool.md): the Preset list that replaced the Style and
 // Ratio lists (GitHub issue 696; rows and matching in ui/crop_presets.hpp) and the crop
-// option keys taken while a changed crop box is pending (GitHub issue 698).
+// option keys taken while a changed crop box is pending (GitHub issues 698 and 699).
 
 #include "ui/main_window.hpp"
 
@@ -241,9 +241,9 @@ void MainWindow::apply_crop_preset_row(int combo_index) {
   sync_crop_preset_combo();
 }
 
-// O, Shift+O and H belong to tools (the Dodge group, its cycle, the Hand). A crop takes
-// them only while one of those still holds the key: a key the user or the shortcut set
-// gave to another command keeps running that command (docs/hotkey-sets.md).
+// O, Shift+O, H and P belong to tools (the Dodge group, its cycle, the Hand, the Pen). A
+// crop takes them only while one of those still holds the key: a key the user or the
+// shortcut set gave to another command keeps running that command (docs/hotkey-sets.md).
 bool MainWindow::crop_option_key_available(const QKeySequence& key) const {
   for (const auto& command : hotkey_registry_.commands()) {
     if (command.action == nullptr || !sequence_in(command.action->shortcuts(), key)) {
@@ -270,6 +270,9 @@ bool MainWindow::handle_crop_option_key_event(QObject* watched, QEvent* event) {
     action = crop_overlay_turn_action_;
   } else if (key_event->key() == Qt::Key_H && modifiers == Qt::NoModifier) {
     action = crop_show_cropped_area_action_;
+  } else if (key_event->key() == Qt::Key_P && modifiers == Qt::NoModifier) {
+    // Move Image Under Crop Box (GitHub issue 699).
+    action = crop_move_image_action_;
   }
   // Only a box the user could lose (the X button's rule): with the automatic frame the
   // letters switch tools as on any other tool.
@@ -320,6 +323,7 @@ void MainWindow::refresh_crop_key_hints(bool menu_opening) {
     show(crop_overlay_next_action_, tr("Next Overlay"), next_key);
     show(crop_overlay_turn_action_, tr("Turn Overlay"), key_text(QKeySequence(Qt::SHIFT | Qt::Key_O)));
     show(crop_show_cropped_area_action_, tr("Show Cropped Area"), key_text(QKeySequence(Qt::Key_H)));
+    show(crop_move_image_action_, tr("Move Image Under Crop Box"), key_text(QKeySequence(Qt::Key_P)));
   }
   if (crop_overlay_combo_ != nullptr) {
     auto tip = tr("Composition guides drawn inside the crop box");
