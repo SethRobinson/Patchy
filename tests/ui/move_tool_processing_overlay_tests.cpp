@@ -2211,6 +2211,100 @@ void ui_move_auto_select_group_picks_outermost_group() {
   scene.expect({nested_id});
 }
 
+// GitHub issue 703: with Auto-Select Group, a layer the user selected in the
+// Layers panel moves on its own when a plain press lands on it (a deliberate
+// difference from Photoshop); an unselected layer still picks its outermost
+// group, a selected group still beats its selected child, and Ctrl+click
+// still picks the group.
+void ui_move_auto_select_group_moves_selected_child_alone() {
+  MoveSelectionScene scene;
+  const auto leaf = [&](const char* name, QRect bounds, QColor color) {
+    patchy::Layer layer(scene.document.allocate_layer_id(), name,
+                        solid_pixels(bounds.width(), bounds.height(), patchy::PixelFormat::rgba8(), color));
+    layer.set_bounds({bounds.x(), bounds.y(), bounds.width(), bounds.height()});
+    return layer;
+  };
+  patchy::Layer outer(scene.document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  patchy::Layer inner(scene.document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  auto deep = leaf("Deep", QRect(20, 95, 14, 14), QColor(200, 120, 20));
+  auto first = leaf("First", QRect(50, 95, 14, 14), QColor(120, 20, 200));
+  auto second = leaf("Second", QRect(90, 95, 14, 14), QColor(20, 160, 160));
+  const auto outer_id = outer.id();
+  const auto deep_id = deep.id();
+  const auto first_id = first.id();
+  const auto second_id = second.id();
+  inner.add_child(std::move(deep));
+  outer.add_child(std::move(inner));
+  outer.add_child(std::move(first));
+  outer.add_child(std::move(second));
+  scene.document.add_layer(std::move(outer));
+  scene.canvas.set_auto_select_target(patchy::ui::MoveAutoSelectTarget::Group);
+  scene.canvas.force_refresh();
+  QApplication::processEvents();
+  const auto x_of = [&](patchy::LayerId id) { return std::as_const(scene.document).find_layer(id)->bounds().x; };
+  const auto drag_on = [&](QPoint from, QPoint to) {
+    drag(scene.canvas, scene.point(from), scene.point(to));
+    QApplication::processEvents();
+  };
+
+  // The hover outline frames the selected child alone, and the group for an unselected one.
+  scene.select({first_id}, first_id);
+  send_mouse(scene.canvas, QEvent::MouseMove, scene.point(QPoint(56, 101)), Qt::NoButton, Qt::NoButton);
+  auto image = scene.canvas.grab().toImage();
+  CHECK(move_outline_top_edge_pixels(image, scene.canvas, QRect(50, 95, 14, 1)) > 6);
+  CHECK(move_outline_top_edge_pixels(image, scene.canvas, QRect(70, 95, 14, 1)) < 3);
+  save_widget_artifact("ui_issue_703_selected_child_hover", scene.canvas);
+  send_mouse(scene.canvas, QEvent::MouseMove, scene.point(QPoint(96, 101)), Qt::NoButton, Qt::NoButton);
+  image = scene.canvas.grab().toImage();
+  CHECK(move_outline_top_edge_pixels(image, scene.canvas, QRect(70, 95, 14, 1)) > 6);
+
+  // A selected child moves alone and stays the selection.
+  drag_on(QPoint(56, 101), QPoint(61, 101));
+  CHECK(x_of(first_id) == 55);
+  CHECK(x_of(second_id) == 90);
+  CHECK(x_of(deep_id) == 20);
+  scene.expect({first_id});
+  CHECK(scene.document.active_layer_id() == first_id);
+
+  // An unselected sibling still selects and drags the whole group.
+  drag_on(QPoint(96, 101), QPoint(101, 101));
+  scene.expect({outer_id});
+  CHECK(scene.document.active_layer_id() == outer_id);
+  CHECK(x_of(first_id) == 60);
+  CHECK(x_of(second_id) == 95);
+  CHECK(x_of(deep_id) == 25);
+
+  // Two selected children of the group drag as the selection.
+  scene.select({first_id, second_id}, first_id);
+  drag_on(QPoint(66, 101), QPoint(71, 101));
+  CHECK(x_of(first_id) == 65);
+  CHECK(x_of(second_id) == 100);
+  CHECK(x_of(deep_id) == 25);
+  scene.expect({first_id, second_id});
+
+  // A selected layer two groups deep moves alone.
+  scene.select({deep_id}, deep_id);
+  drag_on(QPoint(31, 101), QPoint(36, 101));
+  CHECK(x_of(deep_id) == 30);
+  CHECK(x_of(first_id) == 65);
+  CHECK(x_of(second_id) == 100);
+
+  // With the group selected too, the press keeps the group: the drag moves all of it
+  // and a plain click collapses the selection to the group, not the child.
+  scene.select({outer_id, first_id}, first_id);
+  drag_on(QPoint(71, 101), QPoint(76, 101));
+  CHECK(x_of(deep_id) == 35);
+  CHECK(x_of(first_id) == 70);
+  CHECK(x_of(second_id) == 105);
+  scene.click(QPoint(76, 101), Qt::NoModifier);
+  scene.expect({outer_id});
+
+  // Ctrl+click on a selected child still picks the group.
+  scene.select({first_id}, first_id);
+  scene.click(QPoint(76, 101), Qt::ControlModifier);
+  scene.expect({outer_id});
+}
+
 // The Layer/Group choice is a combo on the Move options bar, remembered across
 // runs as tools/moveAutoSelectTarget ("layer" or "group", permanent tokens).
 void ui_move_auto_select_target_persists_across_windows() {
@@ -5485,6 +5579,7 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_transform_controls_survive_new_document", ui_move_transform_controls_survive_new_document},
       {"ui_move_auto_select_target_persists_across_windows", ui_move_auto_select_target_persists_across_windows},
       {"ui_move_auto_select_group_picks_outermost_group", ui_move_auto_select_group_picks_outermost_group},
+      {"ui_move_auto_select_group_moves_selected_child_alone", ui_move_auto_select_group_moves_selected_child_alone},
       {"ui_move_rectangle_outlines_layers_before_release", ui_move_rectangle_outlines_layers_before_release},
       {"ui_move_ctrl_drag_selects_rectangle_without_moving", ui_move_ctrl_drag_selects_rectangle_without_moving},
       {"ui_move_ctrl_click_selects_layer_inside_collapsed_folder",

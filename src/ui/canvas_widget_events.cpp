@@ -1380,7 +1380,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       // Auto-Select Group (GitHub issue 168): a click picks the outermost group
       // holding the artwork. Only clicks that select read it; with Auto-Select
       // off the press drags the selection and never looks at clicked_layer.
-      clicked_layer = const_cast<Layer*>(auto_select_target_layer(clicked_layer));
+      // A plain press on a layer that is itself selected keeps that layer
+      // (GitHub issue 703); Ctrl and Shift clicks still pick the group.
+      const bool favor_selected =
+          !event->modifiers().testFlag(Qt::ControlModifier) && !event->modifiers().testFlag(Qt::ShiftModifier);
+      clicked_layer = const_cast<Layer*>(auto_select_target_layer(clicked_layer, favor_selected));
     }
     const auto passive_transform_rect = move_transform_controls_rect();
     auto passive_handle = TransformHandle::None;

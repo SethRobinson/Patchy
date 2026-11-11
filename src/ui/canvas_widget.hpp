@@ -2412,7 +2412,10 @@ private:
   [[nodiscard]] double clamp_logical_zoom(double logical_zoom) const noexcept;
   void begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer, bool rectangle_allowed);
   // The layer a Move-tool click on `leaf` selects under the Auto-Select target.
-  [[nodiscard]] const Layer* auto_select_target_layer(const Layer* leaf) const;
+  // `favor_selected` (plain presses, the hover outline): under Group, a layer
+  // on the way from the outermost group down to `leaf` that is itself selected
+  // is the target, the outermost such one (GitHub issue 703).
+  [[nodiscard]] const Layer* auto_select_target_layer(const Layer* leaf, bool favor_selected = false) const;
   struct MoveSelectionCandidate {
     LayerId target{};
     QRectF bounds;  // the leaf's Move rect
