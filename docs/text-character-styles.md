@@ -71,7 +71,16 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
   run like `vert`. Arial, Calibri, Times New Roman and Segoe UI draw Latin text the same either
   way; connecting script faces change. No face shipped with Windows has `titl`. Photoshop files
   can turn it on per run: every run of `restaurant-menu-inside.psd` has `/20 true`, read as
-  `contextualalternates`, so those runs keep drawing with `calt`.
+  `contextualalternates`, so those runs keep drawing with `calt`. Arabic text is unaffected by
+  `calt` off in Amiri, Noto Naskh, Noto Sans, Noto Kufi Arabic and Adobe Arabic (HarfBuzz shaping
+  of the issue 683 file's text is glyph-identical either way).
+- **The Allah ligature (U+FDF2) is a Discretionary Ligature** in Adobe Arabic 2.007, Noto Naskh
+  Arabic and Noto Kufi Arabic (`dlig` only). Photoshop 2026 re-renders
+  the issue 683 Diacritics layers (Adobe Arabic, `/19 false`) with lam, lam and heh apart and draws
+  the ligature only with Discretionary Ligatures on (COM, November 2026), as Patchy does; that
+  file's own raster shows the ligature, so it came from another font build or setting. Test:
+  `ui_text_arabic_allah_ligature_follows_discretionary_ligatures_if_available` (Noto Kufi Arabic
+  in `local-test-fixtures/fonts/`).
 - **OpenType features per run.** QTextCharFormat cannot carry font features in Qt 6.8, so a
   fragment whose features change its glyphs gets `kTextRenderFeaturesFormatProperty` and extra
   letter spacing equal to (featured advance - plain advance) / characters, so the layout reserves

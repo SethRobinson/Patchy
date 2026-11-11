@@ -41,6 +41,7 @@
 #include <functional>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -480,6 +481,76 @@ void ui_text_opentype_features_use_the_font_features_if_available() {
     doc.saveAs('%1');
   )JS").arg(saved)));
   save_widget_artifact("ui_text_opentype_features", window);
+}
+
+// GitHub issue 683 (follow-up 3): Adobe Arabic (and Noto Naskh and Noto Kufi Arabic) build the
+// Allah ligature only through Discretionary Ligatures. Photoshop 2026 re-renders the reporter's
+// Diacritics layers (Adobe Arabic 2.007, Discretionary Ligatures off, the file's setting) with lam,
+// lam and heh apart and draws the ligature only with the toggle on (COM captures, November 2026),
+// and Patchy does the same: calt has nothing to do with it. Noto Kufi Arabic (OFL) stands in for
+// Adobe Arabic, which only Photoshop ships: local-test-fixtures/fonts/NotoKufiArabic-Regular.ttf.
+// Not the bundled Noto Naskh Arabic: its runs lead with a Latin fallback face
+// (render_text_families_for_display_family), which draws the Arabic too where it has the glyphs.
+void ui_text_arabic_allah_ligature_follows_discretionary_ligatures_if_available() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto font_path = patchy::test::local_fixtures_root() / "fonts" / "NotoKufiArabic-Regular.ttf";
+  patchy::test::skip_unless_exists(font_path);
+  const auto font_id = QFontDatabase::addApplicationFont(patchy::ui::to_qstring(font_path));
+  const auto family = QFontDatabase::applicationFontFamilies(font_id).value(0);
+  CHECK(!family.isEmpty());
+  if (family.isEmpty()) {
+    return;
+  }
+  const auto family_bytes = family.toLatin1();
+  // "Allah" with alef wasla, shadda, fatha and kasra, as the reporter's layers spell it.
+  const auto word = QStringLiteral("\u0671\u0644\u0644\u0651\u064e\u0647\u0650");
+  QFont font(family);
+  font.setPixelSize(static_cast<int>(kSize));
+  font.setFeature(QFont::Tag("calt"), 0);
+  const auto glyph_count = [&word](const QFont& shaped) {
+    QTextLayout layout(word, shaped);
+    layout.beginLayout();
+    auto line = layout.createLine();
+    layout.endLayout();
+    qsizetype count = 0;
+    if (line.isValid()) {
+      for (const auto& run : line.glyphRuns()) {
+        count += run.glyphIndexes().size();
+      }
+    }
+    return count;
+  };
+  auto ligated = font;
+  ligated.setFeature(QFont::Tag("dlig"), 1);
+  auto contextual = font;
+  contextual.setFeature(QFont::Tag("calt"), 1);
+  const auto apart = glyph_count(font);
+  std::printf("  %s: %d glyphs, %d with dlig, %d with calt\n", family_bytes.constData(), static_cast<int>(apart),
+              static_cast<int>(glyph_count(ligated)), static_cast<int>(glyph_count(contextual)));
+  std::fflush(stdout);
+  // The ligature takes lam, lam and heh into one glyph; calt alone does not.
+  CHECK(glyph_count(ligated) < apart);
+  CHECK(glyph_count(contextual) == apart);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto js_word = QStringLiteral("\\u0671\\u0644\\u0644\\u0651\\u064e\\u0647\\u0650");
+  const auto plain = add_runs_layer(window, QStringLiteral("[{text: '%1'}]").arg(js_word), family_bytes.constData(), false);
+  const auto featured = add_runs_layer(window, QStringLiteral("[{text: '%1', discretionaryLigatures: true}]").arg(js_word),
+                                       family_bytes.constData(), false);
+  CHECK(plain && featured);
+  if (!plain || !featured) {
+    QFontDatabase::removeApplicationFont(font_id);
+    return;
+  }
+  CHECK(plain->metadata().at(patchy::kLayerMetadataText) == featured->metadata().at(patchy::kLayerMetadataText));
+  const bool same = plain->bounds().width == featured->bounds().width &&
+                    plain->bounds().height == featured->bounds().height &&
+                    std::ranges::equal(plain->pixels().data(), featured->pixels().data());
+  CHECK(!same);
+  save_image_artifact("ui_text_arabic_allah_ligature_plain", image_from_pixels_for_visuals(plain->pixels()));
+  save_image_artifact("ui_text_arabic_allah_ligature_dlig", image_from_pixels_for_visuals(featured->pixels()));
+  QFontDatabase::removeApplicationFont(font_id);
 }
 
 // The style toggles stand in two rows of eight with no "Style:" label, each row centred and split
@@ -1197,6 +1268,8 @@ std::vector<patchy::test::TestCase> text_character_styles_tests() {
        ui_text_ordinals_and_fractions_use_the_font_features_if_available},
       {"ui_text_opentype_features_use_the_font_features_if_available",
        ui_text_opentype_features_use_the_font_features_if_available},
+      {"ui_text_arabic_allah_ligature_follows_discretionary_ligatures_if_available",
+       ui_text_arabic_allah_ligature_follows_discretionary_ligatures_if_available},
       {"ui_text_character_style_rows_are_centred", ui_text_character_style_rows_are_centred},
       {"ui_text_character_style_buttons_toggle_run_styles", ui_text_character_style_buttons_toggle_run_styles},
       {"ui_text_character_styles_apply_only_to_the_selection", ui_text_character_styles_apply_only_to_the_selection},
