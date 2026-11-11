@@ -242,7 +242,10 @@ private:
 // stretch item (the name filter) takes the rest of its line and counts as
 // stretch_minimum wide when the row decides what fits. A shrink widget (the
 // blend combo, GitHub issue 693) narrows down to its minimum width first, so
-// the row wraps only once even that does not fit one line.
+// the row wraps only once even that does not fit one line. Grow widgets (Opacity
+// and Fill, the issue 680 follow-up) count at their minimum width and share
+// their line's spare width equally, so a line holding one ends at the row's
+// right edge, the edge the name filter row and the layer list reach.
 class WrappingControlRowLayout final : public WrappingPanelRowLayout {
 public:
   explicit WrappingControlRowLayout(int spacing) { setSpacing(spacing); }
@@ -260,6 +263,9 @@ public:
   }
   // `widget` gives up width, down to its minimum size, to keep the row on one line.
   void set_shrink_widget(QWidget* widget) { shrink_widget_ = widget; }
+  // `widget` lays out at least at its minimum width and takes an equal share of its
+  // line's spare width with the other grow widgets there.
+  void add_grow_widget(QWidget* widget) { grow_widgets_.push_back(widget); }
 
   [[nodiscard]] int heightForWidth(int width) const override {
     return lines_height(line_starts(width - horizontal_margins())) + vertical_margins();
@@ -301,12 +307,30 @@ public:
       const auto first = starts[line];
       const auto last = line + 1 < starts.size() ? starts[line + 1] : visible.size();
       const auto height = line_height(visible, first, last);
+      // The line's width left over after its items at their natural widths goes to its
+      // grow widgets, unless a stretch item takes it.
+      int used = static_cast<int>(last - first - 1) * spacing();
+      int growers = 0;
+      bool stretches = false;
+      for (auto position = first; position < last; ++position) {
+        auto* line_item = item(visible[position]);
+        used += item_width(visible[position]) - (is_shrink(line_item) ? squeeze : 0);
+        growers += is_grow(line_item) ? 1 : 0;
+        stretches = stretches || is_stretch(line_item);
+      }
+      const auto spare = growers > 0 && !stretches ? std::max(0, area.width() - used) : 0;
+      int grown = 0;
       auto x = area.x();
       for (auto position = first; position < last; ++position) {
         auto* line_item = item(visible[position]);
         const auto hint = line_item->sizeHint();
         const auto remaining = std::max(0, area.right() + 1 - x);
-        const auto natural = hint.width() - (is_shrink(line_item) ? squeeze : 0);
+        auto natural = item_width(visible[position]) - (is_shrink(line_item) ? squeeze : 0);
+        if (is_grow(line_item)) {
+          // Equal shares; the last grow widget takes the rounding remainder.
+          ++grown;
+          natural += spare / growers + (grown == growers ? spare % growers : 0);
+        }
         const auto width = is_stretch(line_item) ? remaining : std::min(natural, remaining);
         line_item->setGeometry(QRect(x, y + (height - hint.height()) / 2, width, hint.height()));
         x += width + spacing();
@@ -323,6 +347,10 @@ private:
   }
   [[nodiscard]] bool is_shrink(QLayoutItem* candidate) const {
     return shrink_widget_ != nullptr && candidate->widget() == shrink_widget_;
+  }
+  [[nodiscard]] bool is_grow(QLayoutItem* candidate) const {
+    return candidate->widget() != nullptr &&
+           std::find(grow_widgets_.begin(), grow_widgets_.end(), candidate->widget()) != grow_widgets_.end();
   }
   // How much narrower than their natural widths the visible items can get on one line.
   [[nodiscard]] int shrink_room(const std::vector<int>& visible) const {
@@ -350,6 +378,9 @@ private:
         ++shown;
       }
       return width + std::max(0, shown - 1) * stretch_layout_->spacing();
+    }
+    if (is_grow(candidate)) {
+      return candidate->widget()->minimumWidth();
     }
     return is_stretch(candidate) ? std::max(stretch_minimum_, candidate->minimumSize().width())
                                  : candidate->sizeHint().width();
@@ -417,6 +448,7 @@ private:
   QWidget* stretch_widget_{nullptr};
   QLayout* stretch_layout_{nullptr};
   QWidget* shrink_widget_{nullptr};
+  std::vector<QWidget*> grow_widgets_;
   int stretch_minimum_{0};
 };
 
@@ -1837,9 +1869,13 @@ void MainWindow::create_docks() {
   opacity_spin_->setValue(100);
   opacity_spin_->setPrefix(tr("Opacity: "));
   opacity_spin_->setSuffix(percent_suffix());
+  // Opacity and Fill share the line's spare width, so the row ends at the panel's right
+  // edge (issue 680 follow-up): their measured width is a minimum here, not fixed.
+  opacity_spin_->setProperty(kToolbarSpinboxStretchProperty, true);
   configure_toolbar_spinbox(opacity_spin_, 52);
   install_prefix_scrub(opacity_spin_);  // drag "Opacity:" to scrub (GitHub issue 46)
   blend_opacity_row->addWidget(opacity_spin_);
+  blend_opacity_row->add_grow_widget(opacity_spin_);
   connect(opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) { set_active_layer_opacity(value); });
   connect(opacity_spin_, &QSpinBox::editingFinished, this, [this] { finish_pending_layer_opacity_edit(); });
   register_document_widget(opacity_spin_);
@@ -1850,9 +1886,11 @@ void MainWindow::create_docks() {
   fill_opacity_spin_->setValue(100);
   fill_opacity_spin_->setPrefix(tr("Fill: "));
   fill_opacity_spin_->setSuffix(percent_suffix());
+  fill_opacity_spin_->setProperty(kToolbarSpinboxStretchProperty, true);
   configure_toolbar_spinbox(fill_opacity_spin_, 52);
   install_prefix_scrub(fill_opacity_spin_);
   blend_opacity_row->addWidget(fill_opacity_spin_);
+  blend_opacity_row->add_grow_widget(fill_opacity_spin_);
   connect(fill_opacity_spin_, &QSpinBox::valueChanged, this,
           [this](int value) { set_active_layer_fill_opacity(value); });
   connect(fill_opacity_spin_, &QSpinBox::editingFinished, this,
@@ -1867,7 +1905,7 @@ void MainWindow::create_docks() {
     }
     opacity_spin_->setPrefix(tr("Opacity: "));
     fill_opacity_spin_->setPrefix(tr("Fill: "));
-    // Re-measures the fixed width for the translated prefixes; the popup
+    // Re-measures the minimum width for the translated prefixes; the popup
     // install inside is a guarded no-op on repeat calls.
     configure_toolbar_spinbox(opacity_spin_, 52);
     configure_toolbar_spinbox(fill_opacity_spin_, 52);

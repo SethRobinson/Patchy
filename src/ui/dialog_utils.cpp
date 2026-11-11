@@ -1928,18 +1928,27 @@ QString spinbox_value_text(const QDoubleSpinBox* spin, double value) {
 }
 
 template <typename SpinBox>
-void refresh_toolbar_spinbox_width(SpinBox* spin) {
+int fitted_toolbar_spinbox_width(SpinBox* spin) {
   const int width = spin->property(kToolbarSpinboxMinWidthProperty).toInt();
   if constexpr (std::is_same_v<SpinBox, QDoubleSpinBox>) {
     if (const auto sample = spin->property(kToolbarSpinboxWidthSampleProperty); sample.isValid()) {
       const auto text = spinbox_value_text(spin, sample.toDouble());
-      spin->setFixedWidth(toolbar_spinbox_width(width, spin->fontMetrics(), text, text));
-      return;
+      return toolbar_spinbox_width(width, spin->fontMetrics(), text, text);
     }
   }
-  spin->setFixedWidth(toolbar_spinbox_width(width, spin->fontMetrics(),
-                                            spinbox_value_text(spin, spin->minimum()),
-                                            spinbox_value_text(spin, spin->maximum())));
+  return toolbar_spinbox_width(width, spin->fontMetrics(), spinbox_value_text(spin, spin->minimum()),
+                               spinbox_value_text(spin, spin->maximum()));
+}
+
+template <typename SpinBox>
+void refresh_toolbar_spinbox_width(SpinBox* spin) {
+  const int width = fitted_toolbar_spinbox_width(spin);
+  if (spin->property(kToolbarSpinboxStretchProperty).toBool()) {
+    spin->setMinimumWidth(width);
+    spin->setMaximumWidth(QWIDGETSIZE_MAX);
+  } else {
+    spin->setFixedWidth(width);
+  }
 }
 
 // The width is measured from the box's font, and the theme stylesheet (or a

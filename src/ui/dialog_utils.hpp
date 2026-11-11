@@ -81,6 +81,10 @@ inline constexpr char kToolbarSpinboxSliderMaxProperty[] = "patchy.popupSliderMa
 // drops trailing zeros (UnitSpinBox::set_trim_trailing_zeros) so the max text is not
 // its widest realistic value.
 inline constexpr char kToolbarSpinboxWidthSampleProperty[] = "patchy.toolbarSpinboxWidthSample";
+// Set this bool property on a toolbar spin box (before configure_toolbar_spinbox) to make the
+// measured width a minimum instead of a fixed width, so its layout can widen the box (the
+// Layers panel's Opacity and Fill fields reach the panel's right edge, issue 680 follow-up).
+inline constexpr char kToolbarSpinboxStretchProperty[] = "patchy.toolbarSpinboxStretch";
 // Set this bool property on an integer toolbar spin box to give its popup slider the
 // SliderCurve::FineLowEnd response (curved_slider.hpp) for size-like ranges.
 inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSliderCurved";

@@ -617,9 +617,7 @@ struct BlendRowWidgets {
   // Whether the row with Fill fits one line here, the blend mode box at its narrowest.
   [[nodiscard]] bool row_with_fill_fits_one_line() const {
     const auto room = filter_button->geometry().right() + 1 - combo->x();
-    return combo->minimumSizeHint().width() + QWidgetItem(opacity).sizeHint().width() +
-               QWidgetItem(fill).sizeHint().width() + 12 <=
-           room;
+    return combo->minimumSizeHint().width() + opacity->minimumWidth() + fill->minimumWidth() + 12 <= room;
   }
   // Opacity beside the blend mode, inside the panel's right inset (the filter row's end).
   [[nodiscard]] bool opacity_shares_the_combo_line() const {
@@ -763,6 +761,97 @@ void ui_layer_rows_show_fill_option_hides_the_fill_field() {
   CHECK(row.fill->geometry().right() <= row.filter_button->geometry().right());
 }
 
+// Issue 680 follow-up 2: the blend row's Opacity and Fill fields take the spare width of their
+// line, so each line holding one ends at the right edge of the filter row and the layer list,
+// Fill shown or hidden, on one line or wrapped. Both fields share it equally; the blend mode
+// box keeps its natural width (narrowed only to hold one line, issue 693), and neither field
+// gets narrower than its measured width.
+void ui_layer_blend_row_fields_reach_the_panel_edge() {
+  RowOptionSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(labeled_document(), QStringLiteral("Blend Row Edge"));
+  settle();
+  QWidget* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  const BlendRowWidgets row(window);
+  CHECK(column != nullptr && layers_dock != nullptr && list != nullptr && row.complete());
+  if (column == nullptr || layers_dock == nullptr || list == nullptr || !row.complete()) {
+    return;
+  }
+  const auto combo_natural = row.combo->sizeHint().width();
+  const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
+  const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
+  const auto check_widths = [&](bool fill_shown, const char* label) {
+    // 341 px: the reporter's column with Fill hidden.
+    for (const int width : {compact, kFooterWidthColumn, 341, opening, opening + 120}) {
+      set_column_width(window, width);
+      const auto edge = row.filter_button->geometry().right();
+      const auto list_edge = list->geometry().right();
+      std::printf("[INFO] %s, column %d: combo %d..%d, opacity %d..%d y %d, fill %d..%d y %d (shown %d), edge %d, "
+                  "list %d\n",
+                  label, width, row.combo->x(), row.combo->geometry().right(), row.opacity->x(),
+                  row.opacity->geometry().right(), row.opacity->y(), row.fill->x(), row.fill->geometry().right(),
+                  row.fill->y(), fill_shown ? 1 : 0, edge, list_edge);
+      CHECK(std::abs(edge - list_edge) <= 2);
+      CHECK(row.opacity->width() >= row.opacity->minimumWidth());
+      CHECK(row.combo->width() <= combo_natural);
+      const bool fill_beside_opacity = fill_shown && row.fill->y() == row.opacity->y();
+      // The last field of each line ends at the edge.
+      if (fill_shown) {
+        CHECK(row.fill->isVisible());
+        CHECK(row.fill->width() >= row.fill->minimumWidth());
+        CHECK(row.fill->geometry().right() == edge);
+        if (!fill_beside_opacity) {
+          // Fill on a line of its own under Opacity: Opacity's line ends at the edge too.
+          CHECK(row.fill->y() > row.opacity->geometry().bottom());
+          CHECK(row.opacity->geometry().right() == edge);
+        } else {
+          CHECK(row.fill->x() == row.opacity->geometry().right() + 1 + 6);
+          // An equal share of the spare width each, the remainder pixel on Fill.
+          const auto opacity_extra = row.opacity->width() - row.opacity->minimumWidth();
+          const auto fill_extra = row.fill->width() - row.fill->minimumWidth();
+          CHECK(fill_extra - opacity_extra >= 0 && fill_extra - opacity_extra <= 1);
+        }
+      } else {
+        CHECK(row.fill->isHidden());
+        CHECK(row.opacity->geometry().right() == edge);
+      }
+      if (row.opacity_shares_the_combo_line()) {
+        CHECK(row.opacity->x() == row.combo->geometry().right() + 1 + 6);
+        // Spare width goes to the fields only once the box is back at its natural width.
+        if (row.opacity->width() > row.opacity->minimumWidth()) {
+          CHECK(row.combo->width() == combo_natural);
+        }
+      } else {
+        // Wrapped: the blend mode box keeps its own width on its line, Opacity starts the next.
+        CHECK(row.opacity_is_under_the_combo());
+        CHECK(row.opacity->x() == row.combo->x());
+        CHECK(row.combo->width() == std::min(combo_natural, edge + 1 - row.combo->x()));
+      }
+      CHECK(row.filter->y() > std::max(row.opacity->geometry().bottom(),
+                                       fill_shown ? row.fill->geometry().bottom() : 0));
+      if (width == kFooterWidthColumn || width == 341) {
+        save_widget_artifact(std::string("issue680_fu2_blend_row_") + label + "_" + std::to_string(width),
+                             *layers_dock);
+      }
+    }
+  };
+  check_widths(true, "fill_shown");
+  customize_rows(window, [](QDialog& dialog) {
+    auto* show_fill = require_child<QCheckBox>(dialog, "layerRowsShowFillCheck");
+    CHECK(show_fill != nullptr);
+    if (show_fill != nullptr) {
+      show_fill->setChecked(false);
+    }
+  });
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();
+  }
+  settle();
+  check_widths(false, "fill_hidden");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_row_options_tests() {
@@ -773,5 +862,6 @@ std::vector<patchy::test::TestCase> layer_row_options_tests() {
       {"ui_layer_rows_whole_row_color_tints_rows", ui_layer_rows_whole_row_color_tints_rows},
       {"ui_layer_rows_thumbnail_combos_follow_the_menus", ui_layer_rows_thumbnail_combos_follow_the_menus},
       {"ui_layer_rows_show_fill_option_hides_the_fill_field", ui_layer_rows_show_fill_option_hides_the_fill_field},
+      {"ui_layer_blend_row_fields_reach_the_panel_edge", ui_layer_blend_row_fields_reach_the_panel_edge},
   };
 }
