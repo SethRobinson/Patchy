@@ -2949,6 +2949,12 @@ private:
   // and options-bar controls. Does nothing for a tool without those options.
   void apply_selection_edge_settings_for_tool(CanvasTool tool);
   void refresh_layer_list(bool retire_automation_rows = false, const std::function<void()>& progress = {});
+  // See panel_refresh_deferral_depth_. Pairs must nest; the outermost end runs what was asked
+  // for, the Layers panel first (retiring its old rows when `retire_automation_rows` or a
+  // deferred call asked to).
+  void begin_deferred_panel_refreshes();
+  void end_deferred_panel_refreshes(bool retire_automation_rows = false);
+  [[nodiscard]] std::uint64_t layer_list_rebuild_count() const { return layer_list_rebuild_count_; }
   // One Layers panel row's inputs, shared by the rebuild and the incremental insert.
   struct LayerListRowSpec {
     QListWidgetItem* item{nullptr};
@@ -4051,6 +4057,18 @@ private:
   // the commits refresh the bar); the widget slots must not start a nested layer edit from
   // those writes.
   bool applying_text_options_to_layers_{false};
+  // While above zero, refresh_layer_list, refresh_layer_controls and refresh_options_bar only
+  // note that they were asked for; the outermost end_deferred_panel_refreshes runs each one
+  // once. Multi-layer hidden-session passes (Update All Text Layers, Resolve Missing Fonts,
+  // the scripted text edits) use it: a rebuild per commit cost O(layers) each, and the
+  // rebuilt rows a long event delivery cannot delete yet piled up (GitHub issue 686).
+  int panel_refresh_deferral_depth_{0};
+  bool deferred_layer_list_refresh_{false};
+  bool deferred_layer_list_retire_rows_{false};
+  bool deferred_layer_controls_refresh_{false};
+  bool deferred_options_bar_refresh_{false};
+  // How many Layers panel rebuilds ran; tests pin that a batch pass rebuilds once.
+  std::uint64_t layer_list_rebuild_count_{0};
   // Skips the layer-to-widgets sync when nothing it shows has changed (it runs from every
   // layer-controls refresh).
   QString text_options_layer_sync_key_;

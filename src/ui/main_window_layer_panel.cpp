@@ -4774,10 +4774,39 @@ void MainWindow::sync_layer_row_visibility_indicators() {
   restyle_layer_rows(layer_list_);
 }
 
+void MainWindow::begin_deferred_panel_refreshes() {
+  ++panel_refresh_deferral_depth_;
+}
+
+void MainWindow::end_deferred_panel_refreshes(bool retire_automation_rows) {
+  if (panel_refresh_deferral_depth_ <= 0 || --panel_refresh_deferral_depth_ > 0) {
+    return;
+  }
+  const bool layer_list = std::exchange(deferred_layer_list_refresh_, false);
+  const bool retire = std::exchange(deferred_layer_list_retire_rows_, false) || retire_automation_rows;
+  const bool layer_controls = std::exchange(deferred_layer_controls_refresh_, false);
+  const bool options_bar = std::exchange(deferred_options_bar_refresh_, false);
+  if (layer_list) {
+    refresh_layer_list(retire);
+  }
+  if (layer_controls) {
+    refresh_layer_controls();
+  }
+  if (options_bar) {
+    refresh_options_bar();
+  }
+}
+
 void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::function<void()>& progress) {
   if (layer_list_ == nullptr || updating_layer_list_) {
     return;
   }
+  if (panel_refresh_deferral_depth_ > 0) {
+    deferred_layer_list_refresh_ = true;
+    deferred_layer_list_retire_rows_ = deferred_layer_list_retire_rows_ || retire_automation_rows;
+    return;
+  }
+  ++layer_list_rebuild_count_;
   const auto started = std::chrono::steady_clock::now();
   const auto phase_ms = [](std::chrono::steady_clock::time_point from) {
     return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
@@ -5564,6 +5593,10 @@ void MainWindow::refresh_layer_thumbnails() {
 }
 
 void MainWindow::refresh_layer_controls() {
+  if (panel_refresh_deferral_depth_ > 0) {
+    deferred_layer_controls_refresh_ = true;
+    return;
+  }
   const UiProfileScope profile_scope("refresh_layer_controls");
   refresh_merge_visible_action_state();
   refresh_layer_visibility_action_text();

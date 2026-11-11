@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -351,6 +352,8 @@ public:
   static std::ptrdiff_t undo_depth_for_canvas(MainWindow& window, CanvasWidget* canvas);
 
   static std::size_t active_session_undo_depth(MainWindow& window);
+  // How many full Layers panel rebuilds the window has run (refresh_layer_list).
+  static std::uint64_t layer_list_rebuild_count(const MainWindow& window);
 
   static void push_undo_snapshot(MainWindow& window, const QString& label);
 

@@ -37,6 +37,20 @@ PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
   session entry) rounds the same way. Pinned by `ui_text_transform_rerender_rounds_anchor_like_photoshop`,
   `ui_box_text_edit_keeps_fractional_anchor`, `psd_text_anchor_captures_keep_fractional_transform`
   and `ui_psd_centered_text_commit_rounds_line_start_like_photoshop`.
+- **A whole-pixel anchor's first baseline lands on its y.** Photoshop draws horizontal point text
+  with a whole-pixel TySh ty so its glyph bottoms end exactly on that row boundary (all 25 words
+  of the issue 686 file, 16 px). A translation-only layer still showing Photoshop's raster
+  (`psd_raster_preview`) re-renders through the ink-top pin (`anchored_text_transform_for_pixels`),
+  and that pin counted Patchy's faint antialiased top row as ink: 16 of the 25 words came out
+  1 px low. The session start now records that ty (`kTextEditorSourceDocumentBaselineProperty`)
+  and `capture_text_editor_source_ink_offset` moves the reference so the first baseline sits
+  there, when the ink pin lands within 1.5 px of it; a larger gap (a transform that no longer
+  describes the raster) keeps the ink pin. A fractional ty keeps the ink pin too: psd-tools
+  `clip-adjustment.psd` (Arial 12 px Strong "a", ty 21.19) has ink down to row 21, a row below
+  round(ty), which the baseline rule moved off Photoshop's pixels
+  (`ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available`). What remains is each
+  engine's own antialiasing (Photoshop's edges are crisper; about 0.2 px of centroid).
+  Pinned by `ui_update_all_text_layers_puts_photoshop_baselines_on_the_anchor`.
 - **Glyph ink outside the advance box is kept, and the buffer grows around the origin.**
   Qt's line rect is the advance box; a negative left side bearing (script and italic faces: the
   Balmoral LET "é" starts 9 px left of the pen at 1011 px), ink past the last advance, or a swash

@@ -51,6 +51,51 @@ bool text_family_uses_photoshop_latin_fallback(const QString& family) {
 
 // compact_text_family_key lives in ui/font_face_name_index.hpp (shared with the name-table index).
 
+namespace {
+
+// The installed families without foundries, looked up by case-folded name and by compact key.
+// Rebuilt whenever QFontDatabase::families() lists anything else (a font added at run time).
+// The Layers panel asks for every text row's fonts on each rebuild, and folding and keying the
+// whole family list per question made that the main cost of a text commit (GitHub issue 686).
+struct AvailableTextFamilyIndex {
+  QStringList source;
+  QStringList plain;
+  QHash<QString, QString> by_folded;   // the first plain name with this case fold
+  QHash<QString, QString> by_compact;  // the first plain name with this compact key
+};
+
+std::optional<QString> indexed_text_family_match(const QStringList& families, const QString& requested) {
+  static QMutex mutex;
+  static AvailableTextFamilyIndex index;
+  const QMutexLocker locker(&mutex);
+  if (index.plain.isEmpty() || index.source != families) {
+    index = AvailableTextFamilyIndex{};
+    index.source = families;
+    index.plain = font_families_without_foundries(families);
+    index.by_folded.reserve(index.plain.size());
+    index.by_compact.reserve(index.plain.size());
+    for (const auto& candidate : index.plain) {
+      index.by_folded.insert(candidate.toCaseFolded(), candidate);  // names are unique per fold
+      if (const auto key = compact_text_family_key(candidate); !key.isEmpty() && !index.by_compact.contains(key)) {
+        index.by_compact.insert(key, candidate);
+      }
+    }
+  }
+  if (const auto found = index.by_folded.constFind(requested.toCaseFolded()); found != index.by_folded.cend()) {
+    return *found;
+  }
+  const auto requested_key = compact_text_family_key(requested);
+  if (requested_key.isEmpty()) {
+    return std::nullopt;
+  }
+  if (const auto found = index.by_compact.constFind(requested_key); found != index.by_compact.cend()) {
+    return *found;
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 std::optional<QString> available_text_family_match(const QString& family) {
   // Matched and answered without Qt's " [Foundry]" suffix (GitHub issue 646): the picker lists
   // plain names, and a layer or preset saved with "Arial [TMC ]" resolves to "Arial".
@@ -59,23 +104,16 @@ std::optional<QString> available_text_family_match(const QString& family) {
     return std::nullopt;
   }
 
-  const auto available = font_families_without_foundries(QFontDatabase::families());
-  for (const auto& candidate : available) {
-    if (candidate.compare(requested, Qt::CaseInsensitive) == 0) {
-      return candidate;
-    }
+  const auto families = QFontDatabase::families();
+  if (auto match = indexed_text_family_match(families, requested); match.has_value()) {
+    return match;
   }
-
-  const auto requested_key = compact_text_family_key(requested);
-  if (requested_key.isEmpty()) {
+  if (compact_text_family_key(requested).isEmpty()) {
     return std::nullopt;
   }
-  for (const auto& candidate : available) {
-    if (compact_text_family_key(candidate) == requested_key) {
-      return candidate;
-    }
-  }
 #ifdef Q_OS_WASM
+  const auto requested_key = compact_text_family_key(requested);
+  const auto available = font_families_without_foundries(families);
   // The browser has no system fonts, so common system families resolve to
   // their bundled metric-compatible stand-ins instead of raising the
   // missing-font prompt. Only offer an alias whose target family actually

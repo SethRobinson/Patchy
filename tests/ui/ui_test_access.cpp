@@ -553,6 +553,10 @@ std::size_t MainWindowTestAccess::active_session_undo_depth(MainWindow& window) 
   return window.session().history.undo_stack().size();
 }
 
+std::uint64_t MainWindowTestAccess::layer_list_rebuild_count(const MainWindow& window) {
+  return window.layer_list_rebuild_count();
+}
+
 void MainWindowTestAccess::push_undo_snapshot(MainWindow& window, const QString& label) {
   window.push_undo_snapshot(label);
 }
