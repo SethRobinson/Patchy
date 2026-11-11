@@ -168,16 +168,54 @@ shows:
   mirrors both; before it did, a gradient on such a shape was a different gradient in
   the sharp view.
 
-## Pattern phase
+## Pattern sampling
 
-`PatternTileSampler` interpolates a magnified or rotated tile at whole pixel indices,
-`src = (x - anchor) / scale`. A view pixel's index is not its document position times
-the zoom: its center sits at `(index + 0.5) / zoom - 0.5` document pixels. So
-`transform_pattern` adds `(zoom - 1) / 2` to the scaled phase when the scaled tile is
-magnified or rotated; without it a pattern fill, stroke or overlay sat up to half a
-document pixel off the document render. The nearest (100%) and box-filter (minified)
-paths work on pixel edges and take no shift. The sharp view still interpolates a
-pattern's texels where the pixel view shows them as blocks.
+A pattern is raster content: inside a shape the sharp view shows it as the pixel view
+does, so turning the preview on changes only the edges. Above 100% a shape's pattern
+fill, its pattern stroke and a Pattern Overlay (on a shape, a pixel layer or a group)
+are drawn in two steps per tile:
+
+- `defer_pattern` (in `transform_nodes`) keeps the paint as the document holds it
+  (`VectorPreviewNode::view_patterns`, with the layer's effects reference point in
+  document space) and points the paint at a per-tile pattern read at 100%, unrotated,
+  unlinked, with no phase.
+- `add_view_pattern` (in `raster_nodes`) builds that pattern for the tile's area, grown
+  by a shape's feather reach: `PatternTileSampler` with the document's own scale, angle,
+  link and phase gives the document pixels the area reads, exactly as the document
+  render computes them (nearest at 100%, linear when the pattern is enlarged or rotated
+  in the document, box when reduced), and `sample_pixels` or `sample_pixels_smooth`
+  enlarges them by the view's rule ([Raster content sampling](#raster-content-sampling)),
+  document edge clamp included. The texels are stored rolled so view pixel (x, y) is
+  texel (x mod width, y mod height), whichever tile is drawn: one phase across tiles, no
+  seam.
+
+The per-tile patterns live in the tile's scratch pattern store, are reserved in the
+raster budget and end with the tile (a merged vector layer's parts: with its flattening).
+Nothing in `src/core` or the document render changes. Scaling the paint with the view
+instead samples the tile's texels at view resolution, which interpolates between them:
+a small pattern looked soft where the pixel view shows blocks.
+
+Still scaled with the view (`transform_pattern`):
+
+- Views at 100% and below. At 100% the scaled paint is the document's own sampling, and
+  below it the canvas shows its pixel view, so the frame is never drawn there.
+- A Bevel texture. It is a height field: its shading comes from the slope between
+  neighboring pixels, so blocks would be flat inside each texel with a ridge around it.
+- A pattern on a layer that is neither pixels nor a group, or one whose tile is missing.
+
+There `PatternTileSampler` interpolates a magnified or rotated tile at whole pixel
+indices, `src = (x - anchor) / scale`, and a view pixel's index is not its document
+position times the zoom (its center sits at `(index + 0.5) / zoom - 0.5` document
+pixels), so `transform_pattern` adds `(zoom - 1) / 2` to the scaled phase when the scaled
+tile is magnified or rotated. The nearest and box-filter paths work on pixel edges and
+take no shift.
+
+Tests: `ui_vector_preview_patterns_follow_display_smoothing_rule` (fill, stroke and
+overlay on a shape, a pixel layer and a group; linked, phased, scaled, rotated and
+reduced patterns and transparent texels; exact blocks at 800%, 400%, 550% and 338.9%,
+bilinear at 150%, 250% and 338.9%; tile/crop equality; a sharp shape edge) and
+`ui_vector_preview_pattern_matches_pixel_view_on_canvas` (preview on against off at 800%
+and 250%).
 
 ## Raster content sampling
 
@@ -276,17 +314,18 @@ gradients follow the whole shape, as in Photoshop
 
 `tests/ui/vector_preview_parity_tests.cpp` holds the sharp view to the document render:
 
-- `ui_vector_preview_matches_document_render_for_shape_layers`: 60 documents (every
+- `ui_vector_preview_matches_document_render_for_shape_layers`: 64 documents (every
   shape kind, fill, stroke alignment, dash, cap and join, Feather and Density alone and
   together, inverted and disabled paths, masks, effects, shapes past the canvas edge,
-  combine ops, a merged vector layer), each rendered at 100%, 400% and 250%. The frame,
+  combine ops, merged vector layers), each rendered at 100%, 400% and 250% (pattern
+  paints at the whole zooms: blocks average back to document pixels only there). The frame,
   averaged down to document pixels, is compared with the composite; a reduced view counts
   how far a pixel lies outside the range of the other image's 3 x 3 neighborhood, so an
   antialiased edge costs nothing and a flat area, a missing feature or an extra one costs
   in full. A panned 400% view must equal the same pixels of the full one. The report is
   `test-artifacts/vector-preview-parity.txt`; a failing view saves its images beside it.
-  Two classes are looser on purpose: an Outside stroke leaves a one-pixel seam along the
-  path's edge in the document render, and a pattern is interpolated in the sharp view.
+  One class is looser on purpose: an Outside stroke leaves a one-pixel seam along the
+  path's edge in the document render. A pattern is held as strictly as a flat fill.
 - `ui_vector_preview_shows_shape_feather_and_density_at_every_zoom`: on the canvas at
   50%, 100%, 300% and 1600%, preview on and off, live in Shape Appearance, after OK, Undo
   and Cancel.

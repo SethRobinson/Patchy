@@ -28,7 +28,7 @@ A canvas resize (the window maximized or restored, the panel column opening or c
 
 ## Display interpolation
 
-`uses_smooth_display_scaling(view_zoom, deep_pixel_renderer)` (canvas_widget_shared.cpp) is the one rule for whether the canvas interpolates (`QPainter::SmoothPixmapTransform`); the composite, move/transform/warp bases and patches, the mask overlay, tiling ghosts and the shape-preview base all read it, and so does the Dynamic Vector Preview frame for its pixel layers and raster masks (`VectorPreviewView::smooth_pixels`, [vector-preview.md](vector-preview.md#raster-content-sampling)). Change the product rule there and nowhere else.
+`uses_smooth_display_scaling(view_zoom, deep_pixel_renderer)` (canvas_widget_shared.cpp) is the one rule for whether the canvas interpolates (`QPainter::SmoothPixmapTransform`); the composite, move/transform/warp bases and patches, the mask overlay, tiling ghosts and the shape-preview base all read it, and so does the Dynamic Vector Preview frame for its pixel layers, raster masks and patterns (`VectorPreviewView::smooth_pixels`, [vector-preview.md](vector-preview.md#raster-content-sampling)). Change the product rule there and nowhere else.
 
 - Below 100%: smooth, from the display mip chain.
 - 100% to 400%: smooth only at fractional zooms (`kSmoothMagnificationLimit`). Nearest-neighbor there makes document pixels alternate between two screen sizes (1 and 2 screen pixels at 150%), which draws edges as irregular stairs (GitHub issue 210). Whole zooms (100%, 200%, 300%, within `kWholeZoomTolerance`, which absorbs device-ratio drift) stay exact blocks. Every ladder rung above 100% is whole, so only wheel, pinch, Scrubby, Fit/Fill and typed zooms interpolate.

@@ -9,9 +9,11 @@
 #include <QSize>
 #include <QString>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace patchy::ui {
@@ -28,6 +30,23 @@ inline constexpr int kVectorPreviewNativeFeatherReach = 192;
 enum class VectorPreviewFallback { None, Content, Paint, Masks, Blending, Effects, Coordinates, Memory, Failed };
 [[nodiscard]] QString vector_preview_fallback_text(VectorPreviewFallback reason);
 
+// A pattern paint of a magnified view (a shape's pattern fill or stroke, a Pattern
+// Overlay), kept as the document holds it. Each tile draws it as the pixel view shows it:
+// sampled at document pixels the way the document render samples it, then enlarged by the
+// view's display rule into a tile-sized pattern the paint reads one texel per view pixel
+// (docs/vector-preview.md, "Pattern sampling").
+struct VectorPreviewPattern {
+  std::string id;         // the view tile, in the pattern store of the tile being drawn
+  std::string source_id;  // the document's pattern
+  float scale{1.0F};
+  float angle_degrees{0.0F};
+  bool linked{false};
+  float phase_x{0.0F};
+  float phase_y{0.0F};
+  // A shape's own paint is read as far past the tile's area as its Feather blurs.
+  bool shape_paint{false};
+};
+
 // Immutable render properties and shared, copy-on-write source pixels. No
 // mutable document references or duplicated source rasters. Temporary copies
 // replace their pixels/masks with viewport-sized surfaces on the worker.
@@ -42,6 +61,10 @@ struct VectorPreviewNode {
   std::optional<QRectF> bounds;  // null = potentially covers the entire canvas
   Rect fill_bounds;
   Rect stroke_bounds;
+  // Filled per render for a magnified view: the layer's pattern paints and the document
+  // position of its effects reference point, which anchors the linked ones.
+  std::vector<VectorPreviewPattern> view_patterns;
+  std::array<double, 2> pattern_reference{};
   std::vector<VectorPreviewNode> children;
 };
 
@@ -58,9 +81,9 @@ struct VectorPreviewView {
   double scale{1.0};             // physical pixels per document pixel
   QPointF offset;                // document origin in the physical viewport
   // The canvas's display smoothing rule for this view (uses_smooth_display_scaling,
-  // docs/view-navigation.md "Display interpolation"): pixel layers and raster masks are
-  // read bilinearly, as the composite is drawn, instead of as exact blocks. Vector
-  // geometry is sharp either way.
+  // docs/view-navigation.md "Display interpolation"): pixel layers, raster masks and
+  // pattern paints are read bilinearly, as the composite is drawn, instead of as exact
+  // blocks. Vector geometry is sharp either way.
   bool smooth_pixels{false};
   friend bool operator==(const VectorPreviewView&, const VectorPreviewView&) = default;
 };

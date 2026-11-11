@@ -210,14 +210,15 @@ Layer& add_shape(Document& doc, VectorShapeContent shape, const char* name = "Sh
 // effects) are built from box passes whose sizes round differently at each zoom. An Outside
 // stroke leaves a one-pixel seam along the path's edge in the document render (its band is
 // cut by the fill's antialiased coverage), which a view at a higher zoom draws thinner.
-// A pattern is interpolated between its texels in the sharp view.
-enum class Kind { Crisp, Soft, Seam, Pattern };
+// A pattern is as strict as a flat fill: the sharp view draws it as the pixel view does.
+enum class Kind { Crisp, Soft, Seam };
 
 struct ParityCase {
   std::string name;
   Kind kind{Kind::Crisp};
   std::function<void(Document&)> build;
-  // Paints sampled per pixel (patterns) reduce cleanly only at whole zooms.
+  // A pattern is enlarged as blocks, which average back to document pixels only at whole
+  // zooms. Fractional zooms: ui_vector_preview_patterns_follow_display_smoothing_rule.
   bool whole_zooms_only{false};
 };
 
@@ -301,7 +302,7 @@ std::vector<ParityCase> parity_cases() {
       add_shape(doc, std::move(shape));
     });
   }
-  cases.push_back({"pattern fill", Kind::Pattern, [](Document& doc) {
+  cases.push_back({"pattern fill", Kind::Crisp, [](Document& doc) {
     add_pattern(doc);
     auto shape = ellipse_shape(22, 16, 116, 88);
     shape.fill.kind = VectorFillKind::Pattern;
@@ -350,13 +351,23 @@ std::vector<ParityCase> parity_cases() {
     shape.stroke.content.gradient = gradient(true);
     add_shape(doc, std::move(shape));
   });
-  cases.push_back({"pattern stroke", Kind::Pattern, [](Document& doc) {
+  cases.push_back({"pattern stroke", Kind::Crisp, [](Document& doc) {
     add_pattern(doc);
     auto shape = ellipse_shape(30, 24, 100, 72, {245, 245, 245});
     stroke(shape, 10, Align::Center);
     shape.stroke.content.kind = VectorFillKind::Pattern;
     shape.stroke.content.pattern_id = "parity-pattern";
     shape.stroke.content.pattern_scale = 1;
+    add_shape(doc, std::move(shape));
+  }, true});
+  cases.push_back({"pattern fill rotated past the canvas edge", Kind::Crisp, [](Document& doc) {
+    add_pattern(doc);
+    auto shape = ellipse_shape(-28, 30, 110, 120);
+    shape.fill.kind = VectorFillKind::Pattern;
+    shape.fill.pattern_id = "parity-pattern";
+    shape.fill.pattern_scale = 1.5;
+    shape.fill.pattern_angle_degrees = 25;
+    shape.fill.pattern_phase_x = 3.5;
     add_shape(doc, std::move(shape));
   }, true});
   crisp("stroke opacity", [](Document& doc) {
@@ -394,6 +405,15 @@ std::vector<ParityCase> parity_cases() {
     shape.feather = 9.0;
     add_shape(doc, std::move(shape));
   });
+  cases.push_back({"feather pattern fill", Kind::Soft, [](Document& doc) {
+    add_pattern(doc);
+    auto shape = rect_shape(34, 26, 92, 68, 8);
+    shape.fill.kind = VectorFillKind::Pattern;
+    shape.fill.pattern_id = "parity-pattern";
+    shape.fill.pattern_linked = false;
+    shape.feather = 2.0;
+    add_shape(doc, std::move(shape));
+  }, true});
   crisp("density gradient stroke", [](Document& doc) {
     auto shape = ellipse_shape(36, 26, 88, 68);
     shape.fill.kind = VectorFillKind::Gradient;
@@ -536,6 +556,19 @@ std::vector<ParityCase> parity_cases() {
     layer.layer_style().outer_glows.push_back(glow);
   });
 
+  cases.push_back({"pattern overlay", Kind::Crisp, [](Document& doc) {
+    add_pattern(doc);
+    auto shape = rect_shape(30, 24, 100, 72, 10);
+    stroke(shape, 4, Align::Center);
+    auto& layer = add_shape(doc, std::move(shape));
+    LayerPatternOverlay overlay;
+    overlay.enabled = true;
+    overlay.pattern_id = "parity-pattern";
+    overlay.scale = 1.5F;
+    overlay.phase_x = 2.0F;
+    layer.layer_style().pattern_overlays.push_back(overlay);
+  }, true});
+
   // --- canvas edge, combine ops, merged vectors ---
   seam("shapes past the canvas edge", [](Document& doc) {
     auto first = ellipse_shape(-30, -20, 90, 70);
@@ -568,6 +601,24 @@ std::vector<ParityCase> parity_cases() {
     CHECK(plan.blockers.empty());
     doc = render_layer_merge(doc, plan);
   });
+  cases.push_back({"merged vector layer pattern paints", Kind::Crisp, [](Document& doc) {
+    add_pattern(doc);
+    auto first_shape = rect_shape(26, 24, 70, 56, 6);
+    first_shape.fill.kind = VectorFillKind::Pattern;
+    first_shape.fill.pattern_id = "parity-pattern";
+    const auto first = add_shape(doc, std::move(first_shape)).id();
+    auto second_shape = ellipse_shape(70, 46, 66, 50);
+    stroke(second_shape, 8, Align::Center);
+    second_shape.stroke.content.kind = VectorFillKind::Pattern;
+    second_shape.stroke.content.pattern_id = "parity-pattern";
+    second_shape.stroke.content.pattern_scale = 2;
+    const auto second = add_shape(doc, std::move(second_shape)).id();
+    LayerMergeOptions options;
+    options.single_vector = true;
+    const auto plan = plan_layer_merge(doc, {first, second}, options);
+    CHECK(plan.blockers.empty());
+    doc = render_layer_merge(doc, plan);
+  }, true});
   return cases;
 }
 
@@ -685,7 +736,6 @@ bool differs(const Difference& difference, double zoom, Kind kind) {
   switch (kind) {
     case Kind::Soft: return difference.mean > 0.6 || difference.over_32 > 0.0005 || difference.over_8 > 0.01;
     case Kind::Seam: return difference.mean > 0.5 || difference.over_32 > 0.008 || difference.over_8 > 0.015;
-    case Kind::Pattern: return difference.mean > 0.8 || difference.over_32 > 0.0005 || difference.over_8 > 0.003;
     case Kind::Crisp: break;
   }
   // A thin shape falls between view pixels at a fractional zoom.
@@ -1035,7 +1085,7 @@ std::string state_problems(CanvasWidget& canvas, const Document& doc, LayerId id
   } else {
     const auto expected = rgba(qimage_from_document(doc, true));
     const auto difference = compare(expected, reduce_to_document(rgba(frame.image), 2.0, expected.size()), true);
-    // Loose enough for an Outside stroke's seam and an interpolated pattern (see Kind).
+    // Loose enough for an Outside stroke's seam (see Kind).
     if (difference.mean > 0.8 || difference.over_32 > 0.008 || difference.over_8 > 0.015) {
       char text[160];
       std::snprintf(text, sizeof(text), " the sharp view differs from the render (max %d, mean %.3f, over 8: %.2f%%, over 32: %.2f%%);",

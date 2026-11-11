@@ -4,6 +4,7 @@
 #include "core/artboard.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pattern_sampler.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_raster.hpp"
 #include "render/raster_view_context.hpp"
@@ -16,6 +17,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <string>
 #include <utility>
 
 namespace patchy::ui {
@@ -180,14 +182,56 @@ void transform_pattern(T& scale, T& phase_x, T& phase_y, bool linked, const Vect
   if (!safe_number(phase_x) || !safe_number(phase_y)) { throw VectorPreviewFallback::Coordinates; }
 }
 
-void transform_paint(VectorFill& fill, const VectorPreviewView& view) {
-  if (fill.kind == VectorFillKind::Pattern) {
-    transform_pattern(fill.pattern_scale, fill.pattern_phase_x, fill.pattern_phase_y, fill.pattern_linked, view,
-                      fill.pattern_angle_degrees);
-  }
+// A magnified view draws a pattern paint the way it draws pixel layers: the pattern as the
+// document render samples it at document pixels, enlarged by the display rule. So the paint
+// is kept as the document holds it (`out`, for add_view_pattern) and pointed at a per-tile
+// pattern that the samplers read one texel per view pixel: 100%, unrotated, unlinked, no
+// phase. Scaling the paint with the view instead (transform_pattern) samples the tile at
+// view resolution, which interpolates between the texels of a small pattern where the
+// pixel view shows blocks. False, with the paint left alone, when the document has no
+// such pattern (it paints nothing).
+template <typename Scale, typename Angle, typename Phase>
+bool defer_pattern(std::vector<VectorPreviewPattern>& out, LayerId layer, const std::string& slot, bool shape_paint,
+                   const PatternStore& patterns, std::string& id, Scale& scale, Angle& angle_degrees, bool& linked,
+                   Phase& phase_x, Phase& phase_y) {
+  const auto* resource = patterns.find(id);
+  if (resource == nullptr || resource->tile.empty() || resource->tile.format().bit_depth != BitDepth::UInt8 ||
+      resource->tile.format().channels < 3) { return false; }
+  VectorPreviewPattern pattern;
+  pattern.id = "patchy-view-pattern:" + std::to_string(layer) + ":" + slot;
+  pattern.source_id = id;
+  pattern.scale = static_cast<float>(scale);
+  pattern.angle_degrees = static_cast<float>(angle_degrees);
+  pattern.linked = linked;
+  pattern.phase_x = static_cast<float>(phase_x);
+  pattern.phase_y = static_cast<float>(phase_y);
+  pattern.shape_paint = shape_paint;
+  id = pattern.id;
+  scale = 1;
+  angle_degrees = 0;
+  linked = false;
+  phase_x = 0;
+  phase_y = 0;
+  out.push_back(std::move(pattern));
+  return true;
 }
 
-int transform_style(LayerStyle& style, const VectorPreviewView& view) {
+// `deferred` is null where the pattern scales with the view instead: at 100% and below,
+// where the two are the same picture or the canvas shows its pixel view anyway.
+void transform_paint(VectorFill& fill, const VectorPreviewView& view, std::vector<VectorPreviewPattern>* deferred,
+                     LayerId layer, const char* slot, const PatternStore& patterns) {
+  if (fill.kind != VectorFillKind::Pattern) { return; }
+  if (deferred != nullptr &&
+      defer_pattern(*deferred, layer, slot, true, patterns, fill.pattern_id, fill.pattern_scale,
+                    fill.pattern_angle_degrees, fill.pattern_linked, fill.pattern_phase_x, fill.pattern_phase_y)) {
+    return;
+  }
+  transform_pattern(fill.pattern_scale, fill.pattern_phase_x, fill.pattern_phase_y, fill.pattern_linked, view,
+                    fill.pattern_angle_degrees);
+}
+
+int transform_style(LayerStyle& style, const VectorPreviewView& view, std::vector<VectorPreviewPattern>* deferred,
+                    LayerId layer, const PatternStore& patterns) {
   if (!style.effects_visible) { return 0; }
   double reach = 0.0;
   const auto soft = [&](auto& effect) {
@@ -212,11 +256,21 @@ int transform_style(LayerStyle& style, const VectorPreviewView& view) {
     scale_value(effect.size, view.scale);
     scale_value(effect.soften, view.scale);
     if (effect.enabled) { reach = std::max(reach, 2.0 * (effect.size + effect.soften) + 4.0); }
+    // The texture is a height field, not a paint: its shading comes from the slope between
+    // neighboring pixels, so it keeps scaling with the view. Enlarged as blocks it would be
+    // flat inside each texel with a ridge around it.
     auto& texture = effect.texture;
     transform_pattern(texture.scale, texture.phase_x, texture.phase_y, texture.link_with_layer, view);
   }
+  int overlay_index = 0;
   for (auto& pattern : style.pattern_overlays) {
+    const int index = overlay_index++;
     if (!pattern.enabled) { continue; }
+    if (deferred != nullptr &&
+        defer_pattern(*deferred, layer, "overlay" + std::to_string(index), false, patterns, pattern.pattern_id,
+                      pattern.scale, pattern.angle_degrees, pattern.link_with_layer, pattern.phase_x, pattern.phase_y)) {
+      continue;
+    }
     transform_pattern(pattern.scale, pattern.phase_x, pattern.phase_y, pattern.link_with_layer, view,
                       pattern.angle_degrees);
   }
@@ -340,7 +394,12 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
     const double reference_y = reference[1] * view.scale + view.offset.y();
     if (!safe_number(reference_x) || !safe_number(reference_y)) { throw VectorPreviewFallback::Coordinates; }
     set_layer_effects_reference_point(node.layer, reference_x, reference_y);
-    int own_padding = transform_style(node.layer.layer_style(), view);
+    // Magnified, a pattern paint follows the display rule of pixel layers (defer_pattern)
+    // on the layers whose paint is read inside the tile being drawn.
+    node.pattern_reference = reference;
+    auto* const deferred = view.scale > 1.0 && (source.kind() == LayerKind::Pixel || source.kind() == LayerKind::Group)
+                               ? &node.view_patterns : nullptr;
+    int own_padding = transform_style(node.layer.layer_style(), view, deferred, source.id(), patterns);
     if (const auto* mask = source.vector_mask(); mask && !mask->disabled) {
       auto updated = *mask;
       transform_vector_path(updated.path, {view.scale, 0, 0, view.scale, view.offset.x(), view.offset.y()});
@@ -436,8 +495,8 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
             return !safe_number(dash * shape.stroke.width);
           })) { throw VectorPreviewFallback::Coordinates; }
       check_path(shape.path, stroke_padding(shape.stroke));
-      transform_paint(shape.fill, view);
-      transform_paint(shape.stroke.content, view);
+      transform_paint(shape.fill, view, deferred, source.id(), "fill", patterns);
+      transform_paint(shape.stroke.content, view, deferred, source.id(), "stroke", patterns);
     }
   }
   return padding;
@@ -605,8 +664,72 @@ PixelBuffer sample_pixels_smooth(const PixelBuffer& source, Rect bounds, Rect cl
   return output;
 }
 
+// The per-tile pattern of one deferred paint (defer_pattern): `domain`, in view pixels, of
+// the pattern as the pixel view shows it. The document's sampler gives the document pixels
+// the domain reads exactly as the document render computes them (its own nearest, linear
+// or box filtering for the pattern's document scale and angle), and sample_pixels or
+// sample_pixels_smooth enlarges them like any pixel layer. The texels are stored rolled, so
+// view pixel (x, y) is texel (x mod width, y mod height): what a sampler at 100% with no
+// angle or phase reads, whichever tile is being drawn. Costs the domain, never the layer.
+void add_view_pattern(const VectorPreviewPattern& pattern, std::array<double, 2> reference, Rect domain,
+                      const VectorPreviewView& view, QSize document, PatternStore& patterns, RasterBudget& budget) {
+  if (domain.empty()) { return; }
+  const auto* resource = patterns.find(pattern.source_id);
+  if (resource == nullptr || resource->tile.empty()) { return; }
+  // The document pixel under each view pixel, and one more each way for the smooth reading.
+  const double left = std::floor((domain.x + 0.5 - view.offset.x()) / view.scale) - 1.0;
+  const double top = std::floor((domain.y + 0.5 - view.offset.y()) / view.scale) - 1.0;
+  const double right = std::floor((domain.x + domain.width - 0.5 - view.offset.x()) / view.scale) + 1.0;
+  const double bottom = std::floor((domain.y + domain.height - 0.5 - view.offset.y()) / view.scale) + 1.0;
+  if (!safe_number(left) || !safe_number(top) || !safe_number(right) || !safe_number(bottom)) {
+    throw VectorPreviewFallback::Coordinates;
+  }
+  const Rect source{static_cast<std::int32_t>(left), static_cast<std::int32_t>(top),
+                    static_cast<std::int32_t>(right - left) + 1, static_cast<std::int32_t>(bottom - top) + 1};
+  const auto domain_bytes = static_cast<std::uint64_t>(domain.width) * domain.height * 4U;
+  // The document plane, the enlarged pixels and their rolled copy exist together briefly.
+  budget.check(static_cast<std::uint64_t>(source.width) * source.height * 4U + 2U * domain_bytes);
+  PixelBuffer plane(source.width, source.height, PixelFormat::rgba8());
+  {
+    Layer anchor;
+    if (pattern.linked) { set_layer_effects_reference_point(anchor, reference[0], reference[1]); }
+    const PatternTileSampler sampler(resource->tile, anchor, pattern.scale, pattern.angle_degrees, pattern.linked,
+                                     pattern.phase_x, pattern.phase_y);
+    for (std::int32_t y = 0; y < source.height; ++y) {
+      auto* pixel = plane.row(y).data();
+      for (std::int32_t x = 0; x < source.width; ++x, pixel += 4) {
+        const auto sample = sampler.sample(source.x + x, source.y + y);
+        pixel[0] = sample.color.red;
+        pixel[1] = sample.color.green;
+        pixel[2] = sample.color.blue;
+        // The alpha a fully covered pixel of the document's fill gets.
+        pixel[3] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(255.0 * sample.alpha), 0L, 255L));
+      }
+    }
+  }
+  auto pixels = view.smooth_pixels ? sample_pixels_smooth(plane, source, domain, view, document, budget)
+                                   : sample_pixels(plane, source, domain, view, budget);
+  const auto shift_x = ((domain.x % domain.width) + domain.width) % domain.width;
+  const auto shift_y = ((domain.y % domain.height) + domain.height) % domain.height;
+  if (shift_x != 0 || shift_y != 0) {
+    PixelBuffer rolled(domain.width, domain.height, PixelFormat::rgba8());
+    const auto head = static_cast<std::size_t>(domain.width - shift_x) * 4U;
+    const auto tail = static_cast<std::size_t>(shift_x) * 4U;
+    for (std::int32_t y = 0; y < domain.height; ++y) {
+      const auto* from = std::as_const(pixels).row(y).data();
+      auto* to = rolled.row((y + shift_y) % domain.height).data();
+      std::memcpy(to + tail, from, head);
+      if (tail != 0) { std::memcpy(to, from + head, tail); }
+    }
+    pixels = std::move(rolled);
+  }
+  patterns.patterns.push_back({pattern.id, {}, std::move(pixels), PatternProvenance::Authored});
+}
+
+// `patterns` is the store of the tile being drawn: the document's patterns, to which each
+// node adds the view patterns of its own paints before it is rasterized.
 void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer>& layers, Rect area,
-                  const VectorPreviewView& view, QSize document, Rect canvas, const PatternStore& patterns,
+                  const VectorPreviewView& view, QSize document, Rect canvas, PatternStore& patterns,
                   RasterBudget& budget, int depth, const std::atomic_bool* cancelled) {
   const auto area_pixels = static_cast<std::uint64_t>(area.width) * area.height;
   for (const auto& node : nodes) {
@@ -625,11 +748,20 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
     const bool styled = source.layer_style().effects_visible && !source.layer_style().empty();
     const auto workspace_per_pixel = compositor_workspace_per_pixel(source.layer_style());
     budget.check_workspace(area_pixels * workspace_per_pixel * static_cast<std::uint64_t>(depth + 1));
+    if (!node.view_patterns.empty()) {
+      // rasterize_vector_shape paints a feathered shape as far past its clip as the blur reaches.
+      const int reach = node.shape && !node.sampled && node.shape->feather > 0.05 ? feather_reach(node.shape->feather) : 0;
+      for (const auto& pattern : node.view_patterns) {
+        add_view_pattern(pattern, node.pattern_reference, outset_rect(area, pattern.shape_paint ? reach : 0), view,
+                         document, patterns, budget);
+      }
+    }
     if (node.compound) {
       // Flatten just this tile's native paints, then apply the real pixel
       // layer's opacity, Fill, effects, masks and clipping in the compositor.
       // A group substitute would ignore Fill and stop acting as a clip base.
       const auto retained = budget.retained;
+      const auto pattern_count = patterns.patterns.size();
       PixelBuffer combined;
       {
         Layer parts(0, {}, LayerKind::Group);
@@ -640,6 +772,9 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
         // canvas, leaving a smaller pixel buffer paired with the original bounds.
         combined = render_detail::group_silhouette_rgb8(parts, area, &patterns);
       }
+      // The parts' rasters and their view patterns end with the flattening.
+      patterns.patterns.erase(patterns.patterns.begin() + static_cast<std::ptrdiff_t>(pattern_count),
+                              patterns.patterns.end());
       budget.retained = retained;
       budget.keep(combined);
       layer.set_pixels(std::move(combined));
@@ -803,7 +938,8 @@ VectorPreviewResult render_vector_preview(const VectorPreviewScene& scene, const
         budget.check_workspace(static_cast<std::uint64_t>(area.width) * area.height * 64U);
         Document scratch(view.pixels.width(), view.pixels.height(), PixelFormat::rgba8());
         scratch.metadata().patterns = scene.patterns;
-        raster_nodes(nodes, scratch.layers(), area, view, scene.canvas, canvas, scene.patterns, budget, 0, cancelled);
+        raster_nodes(nodes, scratch.layers(), area, view, scene.canvas, canvas, scratch.metadata().patterns, budget, 0,
+                     cancelled);
         if (cancelled && cancelled->load(std::memory_order_relaxed)) { return result; }
         const auto rendered = qimage_from_document_rect(scratch, QRect(x, y, tile.width, tile.height), true);
         if (rendered.isNull()) { throw VectorPreviewFallback::Memory; }
