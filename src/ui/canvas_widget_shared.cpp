@@ -598,13 +598,14 @@ bool zoom_trace_enabled() {
   return enabled;
 }
 
-// The display interpolation rule, in view zoom (GitHub issue 210). Zoomed out the
-// canvas always interpolates. Between 100% and 400% nearest-neighbor makes document
+// The display interpolation rule, in view zoom (GitHub issues 210 and 706). Zoomed out
+// the canvas always interpolates. Between 100% and 200% nearest-neighbor makes document
 // pixels alternate between two screen sizes (1 and 2 screen pixels at 150%), which
 // draws edges as irregular stairs, so fractional zooms there interpolate. Whole zooms
-// (100%, 200%, 300%) map each pixel to an exact block and stay crisp, as does
-// everything from 400% up, where pixels read as blocks and users edit them one by one.
-constexpr double kSmoothMagnificationLimit = 4.0;
+// map each pixel to an exact block and stay crisp, as does everything from 200% up:
+// there the uneven cells are mild (2 and 3 screen pixels at 250%) and people zoom in to
+// see the pixels. The rotated view stops smoothing at the same limit.
+constexpr double kSmoothMagnificationLimit = 2.0;
 constexpr double kWholeZoomTolerance = 0.001;
 
 bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept {
