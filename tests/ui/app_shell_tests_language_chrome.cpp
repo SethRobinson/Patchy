@@ -1917,6 +1917,60 @@ void ui_frameless_window_edges_resize() {
   CHECK(window.width() >= expanded.width() + 45);
 }
 
+void ui_title_bar_drag_closes_open_menu() {
+#ifndef Q_OS_WIN
+  patchy::test::skip("the HTCAPTION title bar and its native move loop are Windows only");
+#else
+  // A press on the HTCAPTION title bar (or a resize edge) is non-client: Qt never sees it,
+  // so an open menu stayed at its old screen position while the OS moved the window
+  // (local-053). The non-client press and the start of the OS move/size loop close it.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* bar = window.menuBar();
+  CHECK(bar != nullptr);
+  QMenu* file_menu = nullptr;
+  for (auto* action : bar->actions()) {
+    if (action->menu() != nullptr) {
+      file_menu = action->menu();
+      break;
+    }
+  }
+  CHECK(file_menu != nullptr);
+  const auto open_menus = [&] {
+    file_menu->popup(bar->mapToGlobal(QPoint(4, bar->height())));
+    QApplication::processEvents();
+    CHECK(QApplication::activePopupWidget() == file_menu);
+  };
+
+  // An unrelated message leaves the menu open, so the closes below come from the handler.
+  open_menus();
+  CHECK(patchy::ui::MainWindowTestAccess::send_native_window_message(window, WM_NULL));
+  CHECK(QApplication::activePopupWidget() == file_menu);
+
+  CHECK(patchy::ui::MainWindowTestAccess::send_native_window_message(window, WM_NCLBUTTONDOWN));
+  QApplication::processEvents();
+  CHECK(QApplication::activePopupWidget() == nullptr);
+  CHECK(!file_menu->isVisible());
+
+  for (const unsigned int message : {static_cast<unsigned int>(WM_ENTERSIZEMOVE),
+                                     static_cast<unsigned int>(WM_NCRBUTTONDOWN),
+                                     static_cast<unsigned int>(WM_ENTERMENULOOP)}) {
+    open_menus();
+    // A second popup on top: every open popup closes, innermost first.
+    QMenu stacked;
+    stacked.addAction(QStringLiteral("stacked"));
+    stacked.popup(bar->mapToGlobal(QPoint(40, bar->height() + 40)));
+    QApplication::processEvents();
+    CHECK(QApplication::activePopupWidget() == &stacked);
+    CHECK(patchy::ui::MainWindowTestAccess::send_native_window_message(window, message));
+    QApplication::processEvents();
+    CHECK(QApplication::activePopupWidget() == nullptr);
+    CHECK(!file_menu->isVisible());
+    CHECK(!stacked.isVisible());
+  }
+#endif
+}
+
 void ui_maximized_title_bar_click_keeps_window_maximized() {
   if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
     patchy::test::skip("native window frame owns the title bar on this platform");
@@ -2915,6 +2969,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_app_settings_migration_moves_legacy_settings_folder", ui_app_settings_migration_moves_legacy_settings_folder},
       {"ui_app_data_migration_moves_machine_data_to_local", ui_app_data_migration_moves_machine_data_to_local},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
+      {"ui_title_bar_drag_closes_open_menu", ui_title_bar_drag_closes_open_menu},
       {"ui_maximized_title_bar_click_keeps_window_maximized", ui_maximized_title_bar_click_keeps_window_maximized},
       {"ui_window_chrome_controls_drive_window_state", ui_window_chrome_controls_drive_window_state},
       {"ui_frameless_window_keeps_caption_and_themed_border", ui_frameless_window_keeps_caption_and_themed_border},

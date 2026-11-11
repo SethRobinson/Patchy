@@ -1,6 +1,14 @@
 #include "ui_test_access.hpp"
 #include "core/smart_object.hpp"
 
+#include <QtGlobal>
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace patchy::ui {
 
 Document& MainWindowTestAccess::document(MainWindow& window) {
@@ -495,6 +503,21 @@ std::size_t MainWindowTestAccess::session_count(MainWindow& window) {
 
 void MainWindowTestAccess::restore_window_from_maximize(MainWindow& window) {
   window.restore_window_from_maximize();
+}
+
+bool MainWindowTestAccess::send_native_window_message(MainWindow& window, unsigned int message) {
+#ifdef Q_OS_WIN
+  MSG native_message{};
+  native_message.message = message;
+  native_message.wParam = message == WM_NCLBUTTONDOWN ? HTCAPTION : 0;
+  qintptr result = 0;
+  window.nativeEvent(QByteArrayLiteral("windows_generic_MSG"), &native_message, &result);
+  return true;
+#else
+  Q_UNUSED(window);
+  Q_UNUSED(message);
+  return false;
+#endif
 }
 
 bool MainWindowTestAccess::title_bar_drag_area_contains(const MainWindow& window, QPoint menu_bar_position) {

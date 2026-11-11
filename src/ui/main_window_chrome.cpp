@@ -677,6 +677,25 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
       return true;
     }
   }
+  if (message != nullptr) {
+    // A press on the HTCAPTION title bar or an HT* resize edge is non-client, so Qt never
+    // sees it and an open menu stays at its old screen position while the OS moves or
+    // resizes the window (local-053). Close popups on the non-client press, as a native
+    // title bar does, and again when the OS move/size loop or the system menu starts
+    // (those messages always reach nativeEvent; the presses may come through the event
+    // dispatcher instead). Not consumed: DefWindowProc still runs the move or resize.
+    switch (static_cast<MSG*>(message)->message) {
+      case WM_NCLBUTTONDOWN:
+      case WM_NCRBUTTONDOWN:
+      case WM_NCMBUTTONDOWN:
+      case WM_ENTERSIZEMOVE:
+      case WM_ENTERMENULOOP:
+        close_open_popup_widgets();
+        break;
+      default:
+        break;
+    }
+  }
   if (message != nullptr && result != nullptr && !isFullScreen()) {
     auto* native_message = static_cast<MSG*>(message);
     if (native_message->message == WM_NCHITTEST && native_message->hwnd != nullptr) {

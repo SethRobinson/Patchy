@@ -322,6 +322,10 @@ public:
   // HTCAPTION hit test and the Qt-level drag fallback), in menu-bar coordinates.
   static bool title_bar_drag_area_contains(const MainWindow& window, QPoint menu_bar_position);
   static void restore_window_from_maximize(MainWindow& window);
+  // Windows only: hands MainWindow::nativeEvent a bare message (no window handle or position), the way
+  // the OS sends WM_NCLBUTTONDOWN or WM_ENTERSIZEMOVE for a title-bar drag. Returns false
+  // (and sends nothing) on other platforms.
+  static bool send_native_window_message(MainWindow& window, unsigned int message);
 
   // Makes the next use_custom_window_chrome() re-read the Linux "Use the system title
   // bar" preference (the app reads it once per process).
