@@ -4766,11 +4766,12 @@ void ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp() {
   CHECK(interpolated_columns == 0);
 }
 
-// The display interpolation rule (GitHub issue 210): fractional zooms between 100% and
-// 400% interpolate, whole zooms and high zooms show exact pixel blocks.
+// The display interpolation rule (GitHub issues 210 and 706): fractional zooms between 100%
+// and 200% interpolate, whole zooms and everything from 200% up show exact pixel blocks.
 void ui_canvas_display_smoothing_rule_pins_zoom_bands() {
   using patchy::ui::uses_smooth_display_scaling;
-  for (const double zoom : {0.125, 0.5, 0.9, 1.25, 1.5, 1.75, 2.5, 3.333, 3.99}) {
+  using patchy::ui::uses_smooth_rotated_display_scaling;
+  for (const double zoom : {0.125, 0.5, 0.9, 1.25, 1.5, 1.75, 1.99}) {
     if (!uses_smooth_display_scaling(zoom, false)) {
       std::cerr << "expected smooth display scaling at " << zoom << '\n';
       CHECK(false);
@@ -4778,9 +4779,23 @@ void ui_canvas_display_smoothing_rule_pins_zoom_bands() {
   }
   // 1.0000001 and 2.9999999 are a whole zoom reached through floating-point drift
   // (view zoom = logical zoom x device pixel ratio).
-  for (const double zoom : {1.0, 1.0000001, 2.0, 2.9999999, 3.0, 4.0, 4.5, 5.5, 7.5}) {
+  for (const double zoom : {1.0, 1.0000001, 2.0, 2.01, 2.5, 2.9999999, 3.0, 3.333, 3.5, 4.0, 4.5, 5.5, 7.5}) {
     if (uses_smooth_display_scaling(zoom, false)) {
       std::cerr << "expected exact pixels at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  // A rotated view smooths below 200% (whole zooms included: rotated pixels never land
+  // on exact blocks) and draws nearest from 200% up.
+  for (const double zoom : {0.25, 1.0, 1.5, 1.99}) {
+    if (!uses_smooth_rotated_display_scaling(zoom)) {
+      std::cerr << "expected smooth rotated display scaling at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  for (const double zoom : {2.0, 2.5, 3.0, 3.5, 4.0, 8.0}) {
+    if (uses_smooth_rotated_display_scaling(zoom)) {
+      std::cerr << "expected exact rotated pixels at " << zoom << '\n';
       CHECK(false);
     }
   }
@@ -4819,11 +4834,50 @@ int interpolated_canvas_pixels(patchy::ui::CanvasWidget& canvas, const patchy::D
   return interpolated;
 }
 
-// The rule reaches the screen: fractional zooms between 100% and 400% interpolate, 100%,
-// whole zooms and high zooms show exact pixels, and a bounded repaint after an edit at a
-// smooth zoom matches a full repaint (the blend reaches half a document pixel past the
-// edited rect).
+// The rule reaches the screen: fractional zooms between 100% and 200% interpolate, 100%,
+// whole zooms and everything from 200% up show exact pixels (GitHub issue 706), and a
+// bounded repaint after an edit at a smooth zoom matches a full repaint (the blend reaches
+// half a document pixel past the edited rect). Saves a small pixel-art scene at 150% and
+// 250%, upright and rotated, for review.
 void ui_canvas_fractional_zoom_smooths_between_whole_zooms() {
+  // Review captures: a small sprite at 150% (smooth) and 250% (blocks), and 250% turned 20
+  // degrees (blocks).
+  patchy::Document sprite(16, 16, patchy::PixelFormat::rgb8());
+  {
+    auto pixels = solid_pixels(16, 16, patchy::PixelFormat::rgb8(), QColor(236, 230, 210));
+    const char* rows[] = {"................", "......####......", "....##RRRR##....", "...#RRRRRRRR#...",
+                          "..#RRWWRRRRRR#..", "..#RWWRRRRRRR#..", ".#RRRRRRRRRRRR#.", ".#RRRRRRRRRRRR#.",
+                          ".#RRRRRRRRRRRR#.", ".#RRRRRRRRRRRR#.", "..#RRRRRRRRRR#..", "..#RRRRRRRRRR#..",
+                          "...#RRRRRRRR#...", "....##RRRR##....", "......####......", "................"};
+    for (int y = 0; y < 16; ++y) {
+      for (int x = 0; x < 16; ++x) {
+        const char cell = rows[y][x];
+        if (cell != '.') {
+          fill_pixel_rect(pixels, QRect(x, y, 1, 1),
+                          cell == '#' ? QColor(40, 24, 56) : cell == 'W' ? QColor(Qt::white) : QColor(210, 48, 64));
+        }
+      }
+    }
+    sprite.add_pixel_layer("Sprite", std::move(pixels));
+  }
+  patchy::ui::CanvasWidget sprite_canvas;
+  sprite_canvas.resize(120, 120);
+  sprite_canvas.set_document(&sprite);
+  sprite_canvas.set_pixel_grid_visible(false);
+  sprite_canvas.show();
+  QApplication::processEvents();
+  const auto capture = [&](double zoom, double degrees, const char* name) {
+    sprite_canvas.set_view_rotation(degrees);
+    sprite_canvas.set_view_zoom_centered(zoom);
+    sprite_canvas.center_view_on_document_point(QPointF(8.0, 8.0), zoom);
+    QApplication::processEvents();
+    save_image_artifact(name, render_widget_image(sprite_canvas).copy(canvas_content_rect(sprite_canvas)));
+  };
+  capture(1.5, 0.0, "ui_canvas_zoom_sprite_150");
+  capture(2.5, 0.0, "ui_canvas_zoom_sprite_250");
+  capture(2.5, 20.0, "ui_canvas_zoom_sprite_250_rotated");
+  sprite_canvas.set_view_rotation(0.0);
+
   auto document = display_smoothing_stripes_document();
   patchy::ui::CanvasWidget canvas;
   canvas.resize(240, 180);
@@ -4831,7 +4885,7 @@ void ui_canvas_fractional_zoom_smooths_between_whole_zooms() {
   canvas.show();
   QApplication::processEvents();
 
-  for (const double zoom : {1.5, 1.75, 2.5, 3.5}) {
+  for (const double zoom : {1.25, 1.5, 1.75}) {
     canvas.set_view_zoom_centered(zoom);
     QApplication::processEvents();
     const auto image = render_widget_image(canvas);
@@ -4840,7 +4894,7 @@ void ui_canvas_fractional_zoom_smooths_between_whole_zooms() {
       CHECK(false);
     }
   }
-  for (const double zoom : {1.0, 2.0, 3.0, 4.5}) {
+  for (const double zoom : {1.0, 2.0, 2.5, 3.0, 3.5, 4.5}) {
     canvas.set_view_zoom_centered(zoom);
     QApplication::processEvents();
     const auto image = render_widget_image(canvas);
@@ -4850,7 +4904,7 @@ void ui_canvas_fractional_zoom_smooths_between_whole_zooms() {
     }
   }
 
-  for (const double zoom : {1.5, 2.5}) {
+  for (const double zoom : {1.25, 1.5}) {
     canvas.set_view_zoom_centered(zoom);
     QApplication::processEvents();
     canvas.force_refresh();
@@ -4860,7 +4914,7 @@ void ui_canvas_fractional_zoom_smooths_between_whole_zooms() {
     if (layer == nullptr) {
       return;
     }
-    const QRect edited(zoom < 2.0 ? 13 : 21, 7, 5, 6);
+    const QRect edited(zoom < 1.4 ? 13 : 21, 7, 5, 6);
     fill_pixel_rect(layer->pixels(), edited, QColor(220, 30, 40));
     canvas.document_changed(edited);
     QApplication::processEvents();

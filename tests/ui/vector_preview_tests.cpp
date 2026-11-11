@@ -1040,8 +1040,8 @@ int smoothing_noise(int x, int y) {
 
 // The preview frame follows the display smoothing rule (docs/view-navigation.md, "Display
 // interpolation"): with a shape in the document, a photo looks the same as it does without
-// the preview. At fractional zooms between 100% and 400% the frame's raster content matches
-// the smoothed composite; at whole zooms and from 400% up it is the exact blocks. Runs at
+// the preview. At fractional zooms between 100% and 200% the frame's raster content matches
+// the smoothed composite; at whole zooms and from 200% up it is the exact blocks. Runs at
 // device pixel ratio 1 here and 2 in a child run of this test (QT_SCALE_FACTOR=2).
 void ui_vector_preview_raster_content_follows_display_smoothing_rule() {
   const bool child = qEnvironmentVariableIsSet("PATCHY_VECTOR_PREVIEW_DPR_CHILD");
@@ -1131,7 +1131,7 @@ void ui_vector_preview_raster_content_follows_display_smoothing_rule() {
 
   // Fractional zooms: the frame's photo is the smoothed composite's, document edge included.
   constexpr int kTolerance = 6;
-  for (const double zoom : {1.5, 2.5, 3.389}) {
+  for (const double zoom : {1.25, 1.5, 1.75}) {
     const auto view = capture(zoom);
     // The composite blends the shape's edge half a document pixel each way; the frame keeps it sharp.
     const auto reach = std::ceil(view.scale * 0.5) + 2.0;
@@ -1174,8 +1174,9 @@ void ui_vector_preview_raster_content_follows_display_smoothing_rule() {
     CHECK(sharp);
   }
 
-  // Whole zooms and 400% and up: exact blocks, each device pixel one document pixel's value.
-  for (const double zoom : {2.0, 3.0, 4.0, 5.5}) {
+  // Whole zooms and 200% and up (GitHub issue 706): exact blocks, each device pixel one
+  // document pixel's value.
+  for (const double zoom : {2.0, 2.5, 3.0, 3.389, 4.0, 5.5}) {
     const auto view = capture(zoom);
     const auto skip = view.shape.adjusted(-2, -2, 2, 2);
     int wrong = 0;
@@ -1764,8 +1765,10 @@ void ui_vector_preview_patterns_follow_display_smoothing_rule() {
   }
 }
 
-// On the canvas: with a pattern-filled shape at 800% (blocks) and 250% (smoothed), turning
-// Dynamic Vector Preview on changes nothing inside the shape. Saves both views for review.
+// On the canvas: with a pattern-filled shape at 800% (blocks) and 150% (smoothed), turning
+// Dynamic Vector Preview on changes nothing inside the shape. At the fractional block zooms
+// (250%, 450%) both views are exact blocks of the document, but Qt's nearest blit can put a
+// cell edge one device pixel from the frame's center sampling. Saves both views for review.
 void ui_vector_preview_pattern_matches_pixel_view_on_canvas() {
   // The document is larger than the view at both zooms, so the view can park its corner on
   // a whole pixel; the shape sits in the corner region that is compared and saved.
@@ -1802,7 +1805,7 @@ void ui_vector_preview_pattern_matches_pixel_view_on_canvas() {
   QApplication::processEvents();
   CHECK(std::abs(canvas.devicePixelRatioF() - 1.0) < 0.001);
 
-  for (const double zoom : {8.0, 2.5}) {
+  for (const double zoom : {8.0, 2.5, 4.5, 1.5}) {
     canvas.set_vector_preview_enabled(false);
     canvas.center_view_on_document_point(QPointF(0, 0), zoom);
     const auto center = canvas.view_transform().map_to_widget(QPointF(0, 0));
@@ -1826,9 +1829,11 @@ void ui_vector_preview_pattern_matches_pixel_view_on_canvas() {
     save_image_artifact(name("off"), off.copy(shown.adjusted(-4, -4, 4, 4)));
     save_image_artifact(name("on"), on.copy(shown.adjusted(-4, -4, 4, 4)));
 
-    const bool blocks = zoom == 8.0;
+    const bool blocks = zoom >= 2.0;
+    const bool whole = std::abs(zoom - std::round(zoom)) < 1e-9;
     int worst = 0;
     int off_document = 0;
+    int off_phase = 0;
     int compared = 0;
     for (int y = shown.top(); y <= shown.bottom(); ++y) {
       for (int x = shown.left(); x <= shown.right(); ++x) {
@@ -1846,17 +1851,30 @@ void ui_vector_preview_pattern_matches_pixel_view_on_canvas() {
         }
         const auto a = on.pixel(x, y);
         const auto b = off.pixel(x, y);
-        worst = std::max({worst, std::abs(qRed(a) - qRed(b)), std::abs(qGreen(a) - qGreen(b)), std::abs(qBlue(a) - qBlue(b))});
+        if (blocks && !whole) {
+          // The canvas pixel is a neighboring document pixel's value at worst.
+          bool near = false;
+          for (int dy = -1; dy <= 1 && !near; ++dy) {
+            for (int dx = -1; dx <= 1 && !near; ++dx) {
+              near = b == composite.pixel(source_x + dx, source_y + dy);
+            }
+          }
+          off_phase += near ? 0 : 1;
+        } else {
+          worst = std::max({worst, std::abs(qRed(a) - qRed(b)), std::abs(qGreen(a) - qGreen(b)), std::abs(qBlue(a) - qBlue(b))});
+        }
         off_document += blocks && a != composite.pixel(source_x, source_y) ? 1 : 0;
         ++compared;
       }
     }
     std::cout << "pattern on the canvas at " << zoom << ": preview on against off, worst difference " << worst << " over "
-              << compared << " pixels, " << off_document << " off their document pixel\n";
+              << compared << " pixels, " << off_document << " off their document pixel, " << off_phase
+              << " canvas pixels off a neighboring document pixel\n";
     // Blocks are exact; the smoothed view allows for Qt's blit against the frame's fixed point.
-    CHECK(compared > (blocks ? 40000 : 3000));
+    CHECK(compared > static_cast<int>(700.0 * zoom * zoom));
     CHECK(worst <= (blocks ? 0 : 6));
     CHECK(off_document == 0);
+    CHECK(off_phase == 0);
   }
   canvas.set_vector_preview_enabled(false);
 }

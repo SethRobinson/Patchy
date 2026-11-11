@@ -218,7 +218,7 @@ overlay on a shape, a pixel layer and a group; linked, phased, scaled, rotated a
 reduced patterns and transparent texels; exact blocks at 800%, 400%, 550% and 338.9%,
 bilinear at 150%, 250% and 338.9%; tile/crop equality; a sharp shape edge) and
 `ui_vector_preview_pattern_matches_pixel_view_on_canvas` (preview on against off at 800%
-and 250%).
+and 150%; at 250% and 450% each view is the document's exact blocks).
 
 ## Raster content sampling
 
@@ -231,9 +231,12 @@ a shape. `vector_preview_view()` reads the rule into `VectorPreviewView::smooth_
 the flag is part of the view's identity, so a change of it (a zoom, the pixel grid)
 is a new frame. Vector geometry is sharp at screen resolution either way.
 
-- Flag off (whole zooms, 400% and up, the pixel grid, deep zoom): `sample_pixels`,
-  the exact blocks, device pixel center to the document pixel under it.
-- Flag on (fractional zooms between 100% and 400%): `sample_pixels_smooth`,
+- Flag off (whole zooms, 200% and up, the pixel grid, deep zoom): `sample_pixels`,
+  the exact blocks, device pixel center to the document pixel under it. At a
+  fractional zoom below the deep-zoom raster (250%, 450%) the canvas's own Qt
+  nearest blit can put a cell edge one device pixel away, so turning the preview
+  on may move some cell edges by a device pixel; both show exact blocks.
+- Flag on (fractional zooms between 100% and 200%): `sample_pixels_smooth`,
   bilinear at the position Qt's smooth blit of the composite reads,
   (device + 0.5) / scale - 0.5. Color is weighted by alpha (no fringe at a layer
   edge); document pixels outside the layer are transparent, outside a mask its
@@ -253,8 +256,8 @@ is a new frame. Vector geometry is sharp at screen resolution either way.
   adjustments) the two differ slightly; that is accepted.
 
 Tests: `ui_vector_preview_raster_content_follows_display_smoothing_rule` (canvas
-with the preview on against off at 150%, 250% and 338.9%, exact blocks at 200%,
-300%, 400% and 550%, a sharp shape edge; device pixel ratio 1, and 2 in a
+with the preview on against off at 125%, 150% and 175%, exact blocks at 200%,
+250%, 300%, 338.9%, 400% and 550%, a sharp shape edge; device pixel ratio 1, and 2 in a
 `QT_SCALE_FACTOR=2` child run) and
 `ui_vector_preview_smooth_pixels_match_bilinear_composite` (alpha, layer bounds,
 mask default, document edge, tile/crop equality).
