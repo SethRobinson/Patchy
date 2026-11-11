@@ -146,6 +146,7 @@ void css_pixel_layer_gives_visible_bounds_opacity_and_blend() {
         "  top: 23px;\n"
         "  width: 20px;\n"
         "  height: 10px;\n"
+        "  z-index: 1;\n"
         "  opacity: 0.25;\n"
         "  mix-blend-mode: multiply;\n"
         "}\n");
@@ -186,6 +187,7 @@ void css_shape_layers_give_background_border_and_radius() {
         "  top: 20px;\n"
         "  width: 100px;\n"
         "  height: 60px;\n"
+        "  z-index: 1;\n"
         "  background-color: #336699;\n"
         "}\n");
   // A centered 4 px stroke: the border box is 2 px outside the outline, and so is the
@@ -199,6 +201,7 @@ void css_shape_layers_give_background_border_and_radius() {
         "  top: 98px;\n"
         "  width: 104px;\n"
         "  height: 64px;\n"
+        "  z-index: 2;\n"
         "  box-sizing: border-box;\n"
         "  background-color: #ffcc00;\n"
         "  border: 4px solid #102030;\n"
@@ -213,6 +216,7 @@ void css_shape_layers_give_background_border_and_radius() {
         "  top: 30px;\n"
         "  width: 60px;\n"
         "  height: 40px;\n"
+        "  z-index: 3;\n"
         "  background-color: #ff0000;\n"
         "  border-radius: 50%;\n"
         "}\n");
@@ -240,6 +244,7 @@ void css_shape_layers_give_background_border_and_radius() {
           "  top: 100px;\n"
           "  width: 100px;\n"
           "  height: 60px;\n"
+          "  z-index: 2;\n"
           "  opacity: 0.8;\n"
           "  box-sizing: border-box;\n"
           "  background-color: rgba(255, 204, 0, 0.5);\n"
@@ -318,6 +323,7 @@ void css_other_outlines_give_their_drawn_box() {
         "  top: 20px;\n"
         "  width: 60px;\n"
         "  height: 50px;\n"
+        "  z-index: 1;\n"
         "  background-color: #00aa55;\n"
         "  filter: drop-shadow(4px 0px 3px rgba(0, 0, 0, 0.5));\n"
         "}\n");
@@ -363,6 +369,7 @@ void css_text_layer_gives_font_properties_from_the_first_run() {
         "  top: 40px;\n"
         "  width: 120px;\n"
         "  height: 28px;\n"
+        "  z-index: 1;\n"
         "  font-family: \"Noto Sans\";\n"
         "  font-size: 24px;\n"
         "  font-weight: bold;\n"
@@ -402,6 +409,7 @@ void css_text_layer_falls_back_to_its_font_keys_and_names_styles() {
         "  top: 6px;\n"
         "  width: 50px;\n"
         "  height: 40px;\n"
+        "  z-index: 1;\n"
         "  font-family: \"Georgia\";\n"
         "  font-size: 18px;\n"
         "  font-weight: normal;\n"
@@ -447,6 +455,7 @@ void css_text_layer_falls_back_to_its_font_keys_and_names_styles() {
         "  top: 60px;\n"
         "  width: 80px;\n"
         "  height: 30px;\n"
+        "  z-index: 2;\n"
         "  font-family: \"Lubalin \\\"Graph\\\"\";\n"
         "  font-size: 20px;\n"
         "  font-weight: 600;\n"
@@ -529,6 +538,7 @@ void css_hidden_layers_are_skipped_and_folders_give_their_bounds() {
         "  top: 30px;\n"
         "  width: 120px;\n"
         "  height: 30px;\n"
+        "  z-index: 5;\n"
         "  opacity: 0.5;\n"
         "}\n");
 
@@ -575,6 +585,49 @@ void css_header_names_the_document() {
   CHECK(layers_to_css(document, ids, "").text.rfind("/* Patchy */\n", 0) == 0);
 }
 
+// z-index follows the document's stack, not the selection: every row counts from the bottom
+// of the panel (1) up, hidden layers and layers in folders included, so pasted classes stack
+// as the layers do.
+void css_z_index_follows_the_document_stack() {
+  Document document(300, 200, PixelFormat::rgba8());
+  const auto backdrop = document.add_layer(solid_pixel_layer(document, "Backdrop", Rect{0, 0, 300, 200})).id();
+  auto hidden = solid_pixel_layer(document, "Hidden", Rect{0, 0, 10, 10});
+  hidden.set_visible(false);
+  document.add_layer(std::move(hidden));
+  Layer folder(document.allocate_layer_id(), "Buttons", LayerKind::Group);
+  folder.add_child(solid_pixel_layer(document, "Under", Rect{25, 35, 40, 20}));
+  auto inner = solid_pixel_layer(document, "Inner", Rect{20, 30, 40, 20});
+  const auto inner_id = inner.id();
+  folder.add_child(std::move(inner));
+  const auto folder_id = document.add_layer(std::move(folder)).id();
+  const auto badge = document.add_layer(solid_pixel_layer(document, "Badge", Rect{30, 40, 20, 20})).id();
+
+  // Rows from the bottom: Backdrop 1, Hidden 2, Under 3, Inner 4, Buttons 5, Badge 6.
+  const auto all = css_of(document, {backdrop, inner_id, folder_id, badge});
+  const auto z_of = [&all](std::string_view class_name) {
+    const auto start = all.find("\n." + std::string(class_name) + " {\n");
+    const auto line = start == std::string::npos ? start : all.find("  z-index: ", start);
+    if (line == std::string::npos) {
+      return std::string();
+    }
+    const auto end = all.find(";\n", line);
+    return all.substr(line + 11, end - line - 11);
+  };
+  CHECK(z_of("badge") == "6");
+  CHECK(z_of("buttons") == "5");
+  CHECK(z_of("inner") == "4");
+  CHECK(z_of("backdrop") == "1");
+  // Right after the box, before the other properties.
+  CHECK(all.find(".badge {\n  position: absolute;\n  left: 30px;\n  top: 40px;\n  width: 20px;\n"
+                 "  height: 20px;\n  z-index: 6;\n}\n") != std::string::npos);
+
+  // A partial selection keeps the document's numbers.
+  const auto two = css_of(document, {inner_id, backdrop});
+  CHECK(two.find(".inner {\n  position: absolute;\n  left: 20px;\n  top: 30px;\n  width: 40px;\n"
+                 "  height: 20px;\n  z-index: 4;\n}\n") != std::string::npos);
+  CHECK(two.find("  height: 200px;\n  z-index: 1;\n") != std::string::npos);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> css_layer_export_tests() {
@@ -595,5 +648,6 @@ std::vector<patchy::test::TestCase> css_layer_export_tests() {
       {"css_hidden_layers_are_skipped_and_folders_give_their_bounds",
        css_hidden_layers_are_skipped_and_folders_give_their_bounds},
       {"css_header_names_the_document", css_header_names_the_document},
+      {"css_z_index_follows_the_document_stack", css_z_index_follows_the_document_stack},
   };
 }
