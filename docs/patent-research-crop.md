@@ -129,8 +129,10 @@ Corel, Serif, Skylum, Macphun, Pixelmator and Affinity returned no crop-interact
 
 Decided 2026-11-11: the mode is built within the limits of group 1. For group 2 the build rests
 on the earlier publications E1 to E4, the same kind of decision as the one of 2026-10-20 on the
-composite-preview patents ([patent-research-audit.md](patent-research-audit.md), item 1). The
-comparison leaves two groups:
+composite-preview patents ([patent-research-audit.md](patent-research-audit.md), item 1). Built
+the same day as Move Image Under Crop Box, off by default
+([crop-tool.md](crop-tool.md#move-image-under-crop-box)); the group 1 limits have tests, named in
+the binding entry. The comparison leaves two groups:
 
 1. Separated by design, so these bind any build and the crop tool as it is today:
    - A rotation never changes the zoom or the box size, and nothing tests whether a canvas edge

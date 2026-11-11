@@ -2816,6 +2816,7 @@ void MainWindow::load_tool_settings() {
     }
     overlay.shield_opacity_percent =
         stored_int(settings, "tools/cropShieldOpacity", overlay.shield_opacity_percent, 0, 100);
+    overlay.move_image = stored_bool(settings, "tools/cropMoveImageUnderBox", overlay.move_image);
     current_crop_overlay_options_ = overlay;
     for (const auto& target_session : sessions_) {
       if (target_session != nullptr && target_session->canvas != nullptr) {
@@ -3491,6 +3492,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropShieldColor"),
                     current_crop_overlay_options_.shield_color.name(QColor::HexRgb));
   settings.setValue(QStringLiteral("tools/cropShieldOpacity"), current_crop_overlay_options_.shield_opacity_percent);
+  settings.setValue(QStringLiteral("tools/cropMoveImageUnderBox"), current_crop_overlay_options_.move_image);
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
@@ -3916,7 +3918,8 @@ void MainWindow::apply_crop_overlay_options(const CropOverlayOptions& options) {
 void MainWindow::sync_crop_overlay_controls() {
   const auto& options = current_crop_overlay_options_;
   for (const auto& [action, checked] : {std::pair{crop_show_cropped_area_action_, options.show_cropped_area},
-                                        std::pair{crop_shield_action_, options.shield_enabled}}) {
+                                        std::pair{crop_shield_action_, options.shield_enabled},
+                                        std::pair{crop_move_image_action_, options.move_image}}) {
     if (action != nullptr) {
       const QSignalBlocker blocker(action);
       action->setChecked(checked);

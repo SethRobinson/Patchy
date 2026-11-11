@@ -454,7 +454,7 @@ void CanvasWidget::update_tool_cursor() {
       if (spacebar_repositioning_drag_rect_) {
         setCursor(Qt::SizeAllCursor);
       } else {
-        set_transform_cursor_for_handle(crop_drag_handle_, crop_angle_);
+        set_crop_handle_cursor(crop_drag_handle_, true);
       }
       return;
     }
@@ -471,7 +471,7 @@ void CanvasWidget::update_tool_cursor() {
       if (handle == TransformHandle::None) {
         setCursor(transform_rotate_cursor_at(last_mouse_position_, QRectF(crop_rect_), crop_angle_, false));
       } else {
-        set_transform_cursor_for_handle(handle, crop_angle_);
+        set_crop_handle_cursor(handle, false);
       }
       return;
     }

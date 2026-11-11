@@ -256,11 +256,14 @@ enum class PenHoverAction {
 // How the Crop tool draws the area outside its pending box (the Crop options
 // popup, GitHub issue 326). The defaults are the original look: a black shield
 // at 47% (alpha 120). Show Cropped Area off paints the outside as the backdrop.
+// move_image is the popup's Move Image Under Crop Box (GitHub issue 699, off by
+// default): the box keeps its place on screen and the view pans and turns behind it.
 struct CropOverlayOptions {
   bool show_cropped_area{true};
   bool shield_enabled{true};
   QColor shield_color{0, 0, 0};
   int shield_opacity_percent{47};
+  bool move_image{false};
   friend bool operator==(const CropOverlayOptions&, const CropOverlayOptions&) = default;
 };
 

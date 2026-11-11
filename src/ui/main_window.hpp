@@ -3531,14 +3531,15 @@ private:
   void apply_crop_preset_row(int combo_index);
   // Sets the crop style and the ratio fields in one step, so the canvas sees one change.
   void set_crop_style_and_ratio(int style, double ratio_width, double ratio_height);
-  // O, Shift+O and H while a changed crop box is pending (GitHub issue 698): next overlay,
-  // turn overlay, Show Cropped Area. From the application event filter, like the digits.
+  // O, Shift+O, H and P while a changed crop box is pending (GitHub issues 698 and 699):
+  // next overlay, turn overlay, Show Cropped Area, Move Image Under Crop Box. From the
+  // application event filter, like the digits.
   bool handle_crop_option_key_event(QObject* watched, QEvent* event);
   // Whether a built-in crop key is still on the command Patchy ships it on (or on nothing):
   // a key the user or the shortcut set gave to another command runs that command.
   [[nodiscard]] bool crop_option_key_available(const QKeySequence& key) const;
   // Names the O key in the Overlay list's tooltip while it applies; with `menu_opening`,
-  // also shows the three keys in the Crop options menu's shortcut column.
+  // also shows the four keys in the Crop options menu's shortcut column.
   void refresh_crop_key_hints(bool menu_opening = false);
   // The ratio the canvas should constrain with under the current crop style.
   [[nodiscard]] double effective_crop_ratio_width() const noexcept;
@@ -3848,6 +3849,11 @@ private:
   QToolButton* crop_options_button_{nullptr};
   QAction* crop_show_cropped_area_action_{nullptr};
   QAction* crop_shield_action_{nullptr};
+  // Move Image Under Crop Box (GitHub issue 699; tools/cropMoveImageUnderBox, off by
+  // default): the popup's checkable entry, last in the menu. The command
+  // crop.move_image_under_box is a second action that toggles it, so the entry's text
+  // can carry the P key hint.
+  QAction* crop_move_image_action_{nullptr};
   QPushButton* crop_shield_color_button_{nullptr};
   QSpinBox* crop_shield_opacity_spin_{nullptr};
   // Crop composition overlay (GitHub issue 325): the guide combo (items in

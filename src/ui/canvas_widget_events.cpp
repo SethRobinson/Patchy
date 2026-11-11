@@ -2383,7 +2383,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Crop && crop_rotating_ && (event->buttons() & Qt::LeftButton) != 0) {
     clear_move_hover_outline();
-    update_crop_rotate_drag(document_position_f(event->position()), event->modifiers());
+    update_crop_rotate_drag(event->position(), event->modifiers());
     last_mouse_position_ = event->pos();
     return;
   }
@@ -2391,11 +2391,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Crop && crop_drag_handle_ != TransformHandle::None &&
       (event->buttons() & Qt::LeftButton) != 0) {
     clear_move_hover_outline();
-    update_crop_adjust_drag(document_position_f(event->position()), event->modifiers());
+    update_crop_adjust_drag(event->position(), event->modifiers());
     if (spacebar_repositioning_drag_rect_) {
       setCursor(Qt::SizeAllCursor);
     } else {
-      set_transform_cursor_for_handle(crop_drag_handle_, crop_angle_);
+      set_crop_handle_cursor(crop_drag_handle_, true);
     }
     last_mouse_position_ = event->pos();
     return;
@@ -2408,7 +2408,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       // Off the box a drag rotates it; hint that with the nearest corner's rotate cursor.
       setCursor(transform_rotate_cursor_at(event->pos(), QRectF(crop_rect_), crop_angle_, false));
     } else {
-      set_transform_cursor_for_handle(crop_handle, crop_angle_);
+      set_crop_handle_cursor(crop_handle, false);
     }
     last_mouse_position_ = event->pos();
     return;

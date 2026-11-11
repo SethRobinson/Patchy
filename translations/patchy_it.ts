@@ -21728,6 +21728,10 @@ Sostituirlo?</translation>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>Altri effetti di sfocatura, distorsione, illuminazione e artistici</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>Strumento Taglierina: tieni fermo il riquadro e fai scorrere o ruotare l&apos;immagine dietro di esso</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22439,6 +22443,10 @@ Sostituirlo?</translation>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>Strumento Taglierina, dopo aver modificato il riquadro di ritaglio: sovrapposizione successiva / ruota sovrapposizione / mostra o nascondi l&apos;area ritagliata</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>Strumento Taglierina, dopo aver modificato il riquadro di ritaglio: sposta l&apos;immagine sotto il riquadro di ritaglio oppure il riquadro sopra l&apos;immagine</translation>
     </message>
 </context>
 <context>
@@ -35842,6 +35850,18 @@ Bloccato: %1</translation>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>%1 sceglie la sovrapposizione successiva dopo aver modificato il riquadro di ritaglio</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>Sposta l&apos;immagine sotto il riquadro di ritaglio</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>Ritaglia: l&apos;immagine si sposta sotto il riquadro di ritaglio</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>Ritaglia: il riquadro di ritaglio si sposta sopra l&apos;immagine</translation>
     </message>
 </context>
 <context>

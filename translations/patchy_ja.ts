@@ -21666,6 +21666,10 @@ Do you want to replace it?</source>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>追加のぼかし、ゆがみ、ライティング、アート効果</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>切り抜きツール: 枠を固定したまま、その下の画像を移動または回転</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22375,6 +22379,10 @@ Do you want to replace it?</source>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>切り抜きツールで切り抜き枠を変更した後: 次のオーバーレイ / オーバーレイの向きを変更 / 切り抜いた領域の表示と非表示</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>切り抜きツールで切り抜き枠を変更した後: 切り抜き枠の下で画像を動かすか、画像の上で枠を動かすかを切り替え</translation>
     </message>
 </context>
 <context>
@@ -35733,6 +35741,18 @@ Locked: %1</source>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>切り抜き枠を変更した後は %1 で次のオーバーレイに切り替わります</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>切り抜き枠の下で画像を移動</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>切り抜き: 画像が切り抜き枠の下を動きます</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>切り抜き: 切り抜き枠が画像の上を動きます</translation>
     </message>
 </context>
 <context>
