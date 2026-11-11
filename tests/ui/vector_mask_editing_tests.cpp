@@ -522,14 +522,18 @@ void ui_vector_mask_layer_effects_render_on_canvas() {
     });
     fixture.trigger("layerBlendingOptionsAction");
     pump_until([&] { return handled; });
+    // On the large page the frame with the new effects comes from a worker, and the sharp
+    // vector view from another once the view is past 100%. Wait for the canvas to report its
+    // frame current instead of for a fixed time, then let the repaint that frame asked for run.
     const auto settle = [&] {
       QElapsedTimer clock;
       clock.start();
-      while (clock.elapsed() < 1500) {
-        QApplication::processEvents(QEventLoop::AllEvents, 20);
-      }
+      QApplication::processEvents();
+      CHECK(process_events_until([&] { return fixture.canvas->render_settled(); }, 60000));
+      QApplication::processEvents();
+      return static_cast<int>(clock.elapsed());
     };
-    settle();
+    const int effects_ms = settle();
     const auto* styled = std::as_const(fixture.document()).find_layer(fixture.red);
     CHECK(styled->layer_style().drop_shadows.size() == 1 && styled->layer_style().inner_shadows.size() == 1 &&
           styled->layer_style().bevels.size() == 1 && !styled->layer_style().vector_mask_hides_effects);
@@ -538,7 +542,9 @@ void ui_vector_mask_layer_effects_render_on_canvas() {
     save_widget_artifact(scale == 1 ? "vector_mask_layer_effects" : "vector_mask_layer_effects_large_fit", fixture.window);
 
     fixture.canvas->zoom_to_document_rect(QRect(below_edge - QPoint(100, 100), QSize(200, 200)));
-    settle();
+    const int close_ms = settle();
+    std::printf("[vector-mask] scale %d: frame current %d ms after the effects, %d ms after the zoom in\n", scale,
+                effects_ms, close_ms);
     CHECK(canvas_pixel(*fixture.canvas, below_edge).red() < 200);
     save_widget_artifact(scale == 1 ? "vector_mask_layer_effects_close" : "vector_mask_layer_effects_large_close",
                          fixture.window);
@@ -547,7 +553,7 @@ void ui_vector_mask_layer_effects_render_on_canvas() {
     fixture.canvas->set_tool(patchy::ui::CanvasTool::Move);
     click_layer_row_thumbnail(*fixture.layers, QStringLiteral("Paint Layer"), QStringLiteral("layerContentThumbnail"));
     fixture.canvas->set_zoom_centered(0.15);
-    settle();
+    static_cast<void>(settle());
     CHECK(fixture.canvas->rect().contains(fixture.canvas->widget_position_for_document_point(below_edge)));
     const auto with_effects = fixture.canvas->grab().toImage();
     fixture.document().find_layer(fixture.red)->layer_style().effects_visible = false;
