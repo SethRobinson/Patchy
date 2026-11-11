@@ -4992,10 +4992,12 @@ void ui_crop_straighten_commit_levels_a_tilted_edge() {
     return;
   }
   paint_tilted_horizon(window, 8.0);
-  require_action(window, "viewFitOnScreenAction")->trigger();
-  QApplication::processEvents();
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(312, 270)),
        canvas->widget_position_for_document_point(QPoint(712, 570)));
+  CHECK(canvas->crop_session_rect() == QRect(312, 270, 401, 301));
+  // The whole picture in view for the card shots; the box stays as it is.
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
   CHECK(canvas->crop_session_rect() == QRect(312, 270, 401, 301));
   const auto tilt = std::tan(8.0 * std::numbers::pi / 180.0);
   button->click();
