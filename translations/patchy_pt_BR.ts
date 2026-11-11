@@ -6305,14 +6305,6 @@
         <translation>Nenhum</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>Proporção original</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1: 1 (quadrado)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>Destino</translation>
     </message>
@@ -9194,10 +9186,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Pessoas incríveis que doaram sugestões, relatórios de bugs e código: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>Proporção</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22436,6 +22424,10 @@ Deseja substituí-lo?</translation>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>Outros comandos</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>Ferramenta Cortar, depois de alterar a caixa de corte: próxima sobreposição / girar sobreposição / mostrar ou ocultar a área cortada</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -24193,10 +24185,6 @@ Deseja substituí-lo?</translation>
         <translation>Altura:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>Proporção:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>Nenhum</translation>
     </message>
@@ -24207,10 +24195,6 @@ Deseja substituí-lo?</translation>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1: 1 (quadrado)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>Proporção predefinida da caixa de corte</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30208,10 +30192,6 @@ Y: %2
         <translation>Tamanho</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>Proporção restringe a caixa de corte; Tamanho mostra sua largura e altura exatas e as define</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>Largura da caixa de corte</translation>
     </message>
@@ -35806,6 +35786,30 @@ Bloqueado: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Dentro mantém este traçado dentro da Espessura da linha. Escolha Centro ou Fora em Alinhar, em Aparência da forma, para deixar a linha mais grossa.</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>Predefinições de corte: Proporção e Tamanho mostram seus campos; uma proporção ou um tamanho em pixels os preenche. Um tamanho ajusta a caixa de corte para essa quantidade de pixels e não faz reamostragem</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>Próxima sobreposição</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>Predefinição de corte excluída: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>Salvar predefinição de corte</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>Predefinição de corte salva: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>%1 escolhe a próxima sobreposição depois de alterar a caixa de corte</translation>
     </message>
 </context>
 <context>

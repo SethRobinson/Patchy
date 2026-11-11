@@ -52,10 +52,20 @@
 #include <QScopeGuard>
 #include <QRadioButton>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 #include "ui/color_panel.hpp"
+#include "ui/crop_presets.hpp"
+#include "ui/hotkey_registry.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/document_trim.hpp"
+#include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QStandardItem>
+#include <QStandardItemModel>
 #include "scripting_test_support.hpp"
 #include "ui/script_engine.hpp"
 #include <cstdio>
@@ -64,6 +74,32 @@
 namespace {
 
 using namespace patchy::test::ui;
+
+using CropKind = patchy::ui::CropPresetKind;
+
+// The Preset list's row of a kind (and of a ratio or pixel size, when given); -1 when absent.
+int crop_preset_index(const QComboBox& combo, CropKind kind, QSizeF value = QSizeF()) {
+  for (int index = 0; index < combo.count(); ++index) {
+    const auto data = combo.itemData(index, patchy::ui::kCropPresetKindRole);
+    if (!data.isValid() || static_cast<CropKind>(data.toInt()) != kind) {
+      continue;
+    }
+    if (value.isEmpty() || combo.itemData(index, patchy::ui::kCropPresetValueRole).toSizeF() == value) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// The kind of the row the Preset list shows.
+CropKind crop_preset_kind(const QComboBox& combo) {
+  return static_cast<CropKind>(combo.currentData(patchy::ui::kCropPresetKindRole).toInt());
+}
+
+bool crop_preset_row_enabled(const QComboBox& combo, int index) {
+  const auto* model = qobject_cast<const QStandardItemModel*>(combo.model());
+  return model != nullptr && model->item(index) != nullptr && model->item(index)->isEnabled();
+}
 
 void ui_crop_tool_activates_with_c_hotkey() {
   patchy::ui::MainWindow window;
@@ -205,29 +241,35 @@ void ui_crop_drag_out_geometry() {
   CHECK(canvas->crop_ratio_height() == 0.0);
   CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
 
-  // The preset combo defaults to None, presets fill the fields, manual values
-  // read back as Custom, and Original Ratio derives from the document.
-  auto* preset_combo = window.findChild<QComboBox*>(QStringLiteral("cropRatioPresetCombo"));
+  // The Preset list shows Ratio while nothing is set, a ratio preset fills the fields,
+  // manual values read back as Ratio (the free mode), and Original Ratio derives from the
+  // document (GitHub issue 696).
+  auto* preset_combo = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
   CHECK(preset_combo != nullptr);
-  CHECK(preset_combo->currentText() == QStringLiteral("None"));
-  preset_combo->setCurrentIndex(2);  // 1 : 1 (Square)
+  if (preset_combo == nullptr) {
+    return;
+  }
+  CHECK(preset_combo->currentText() == QStringLiteral("Ratio"));
+  preset_combo->setCurrentIndex(crop_preset_index(*preset_combo, CropKind::Ratio, QSizeF(1.0, 1.0)));
   QApplication::processEvents();
+  CHECK(preset_combo->currentText() == QStringLiteral("1 : 1 (Square)"));
   CHECK(canvas->crop_ratio_width() == 1.0);
   CHECK(canvas->crop_ratio_height() == 1.0);
   CHECK(canvas->crop_session_rect() == QRect(128, 0, 768, 768));
   ratio_w->setValue(3.0);
   ratio_h->setValue(7.0);
   QApplication::processEvents();
-  CHECK(preset_combo->currentText() == QStringLiteral("Custom"));
-  preset_combo->setCurrentIndex(1);  // Original Ratio: 1024 x 768 reduces to 4 : 3
+  CHECK(crop_preset_kind(*preset_combo) == CropKind::FreeRatio);
+  // Original Ratio: 1024 x 768 reduces to 4 : 3.
+  preset_combo->setCurrentIndex(crop_preset_index(*preset_combo, CropKind::OriginalRatio));
   QApplication::processEvents();
   CHECK(canvas->crop_ratio_width() == 4.0);
   CHECK(canvas->crop_ratio_height() == 3.0);
-  CHECK(preset_combo->currentIndex() == 1);
+  CHECK(crop_preset_kind(*preset_combo) == CropKind::OriginalRatio);
   CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
   clear_button->click();
   QApplication::processEvents();
-  CHECK(preset_combo->currentText() == QStringLiteral("None"));
+  CHECK(crop_preset_kind(*preset_combo) == CropKind::FreeRatio);
 }
 
 // GitHub issue 66 items 1 and 2: the frame carries handles from the start (Alt
@@ -396,10 +438,10 @@ void ui_crop_tool_adopts_active_selection() {
   CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
 }
 
-// The Style combo: Ratio shows the preset/ratio row, Size shows unit Width /
+// The Preset list's two free modes: Ratio shows the ratio pair, Size shows unit Width /
 // Height fields that mirror the box and resize it about its center (linked
 // when the chain button is down), handle drags flow back into the fields, and
-// the remembered ratio returns with Ratio mode. tools/cropStyle persists.
+// picking Ratio again shows the ratio fields with nothing set. tools/cropStyle persists.
 void ui_crop_size_style_fields_mirror_and_resize_box() {
   SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
   SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
@@ -411,41 +453,42 @@ void ui_crop_size_style_fields_mirror_and_resize_box() {
   QApplication::processEvents();
   canvas->set_snap_enabled(false);
 
-  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
-  auto* preset = window.findChild<QComboBox*>(QStringLiteral("cropRatioPresetCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
   auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
   auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
   auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
   auto* height = window.findChild<QSpinBox*>(QStringLiteral("cropHeightSpin"));
   auto* link = window.findChild<QPushButton*>(QStringLiteral("cropLinkSizeButton"));
   CHECK(style != nullptr);
-  CHECK(preset != nullptr);
   CHECK(ratio_w != nullptr);
   CHECK(ratio_h != nullptr);
   CHECK(width != nullptr);
   CHECK(height != nullptr);
   CHECK(link != nullptr);
-  if (style == nullptr || preset == nullptr || ratio_w == nullptr || ratio_h == nullptr || width == nullptr ||
-      height == nullptr || link == nullptr) {
+  if (style == nullptr || ratio_w == nullptr || ratio_h == nullptr || width == nullptr || height == nullptr ||
+      link == nullptr) {
     return;
   }
-  style->setCurrentIndex(0);
+  // The free modes lead the list.
+  const int ratio_row = crop_preset_index(*style, CropKind::FreeRatio);
+  const int size_row = crop_preset_index(*style, CropKind::FreeSize);
+  CHECK(ratio_row == 0 && size_row == 1);
+  style->setCurrentIndex(ratio_row);
   ratio_w->setValue(2.0);
   ratio_h->setValue(1.0);
   QApplication::processEvents();
   CHECK(style->currentText() == QStringLiteral("Ratio"));
-  CHECK(preset->isVisible());
   CHECK(ratio_w->isVisible());
   CHECK(!width->isVisible());
   CHECK(!height->isVisible());
   CHECK(canvas->crop_session_rect() == QRect(0, 128, 1024, 512));
 
-  // Size: the ratio row hides, the constraint lifts (the automatic frame grows
+  // Size: the ratio fields hide, the constraint lifts (the automatic frame grows
   // back to the canvas; a custom box would keep its shape), and the fields
   // mirror the box.
-  style->setCurrentIndex(1);
+  style->setCurrentIndex(size_row);
   QApplication::processEvents();
-  CHECK(!preset->isVisible());
+  CHECK(style->currentText() == QStringLiteral("Size"));
   CHECK(!ratio_w->isVisible());
   CHECK(width->isVisible());
   CHECK(height->isVisible());
@@ -501,17 +544,18 @@ void ui_crop_size_style_fields_mirror_and_resize_box() {
   CHECK(width->value() == 1024);
   CHECK(height->value() == 768);
 
-  // Back to Ratio: the remembered 2 : 1 returns and re-fits the frame.
-  style->setCurrentIndex(0);
+  // Back to Ratio: the ratio fields return with nothing set (the list's Ratio entry is the
+  // free mode, GitHub issue 696), so the frame stays the whole canvas.
+  style->setCurrentIndex(ratio_row);
   QApplication::processEvents();
-  CHECK(canvas->crop_ratio_width() == 2.0);
-  CHECK(ratio_w->value() == 2.0);
-  CHECK(canvas->crop_session_rect() == QRect(0, 128, 1024, 512));
-  CHECK(preset->isVisible());
+  CHECK(canvas->crop_ratio_width() == 0.0);
+  CHECK(ratio_w->value() == 0.0);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  CHECK(ratio_w->isVisible());
   CHECK(!width->isVisible());
 
   // The style persists across windows.
-  style->setCurrentIndex(1);
+  style->setCurrentIndex(size_row);
   QApplication::processEvents();
   window.close();
   QApplication::processEvents();
@@ -519,11 +563,13 @@ void ui_crop_size_style_fields_mirror_and_resize_box() {
   show_window(second);
   require_action(second, "toolCropAction")->trigger();
   QApplication::processEvents();
-  auto* second_style = second.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+  auto* second_style = second.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
   CHECK(second_style != nullptr);
   if (second_style != nullptr) {
-    CHECK(second_style->currentIndex() == 1);
+    CHECK(crop_preset_kind(*second_style) == CropKind::FreeSize);
   }
+  auto* second_width = second.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+  CHECK(second_width != nullptr && second_width->isVisible());
   CHECK(require_canvas(second)->crop_ratio_width() == 0.0);
 }
 
@@ -631,7 +677,7 @@ void ui_crop_size_link_keeps_proportion_on_handle_drags() {
   QApplication::processEvents();
   canvas->set_snap_enabled(false);
 
-  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
   auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
   auto* height = window.findChild<QSpinBox*>(QStringLiteral("cropHeightSpin"));
   auto* link = window.findChild<QPushButton*>(QStringLiteral("cropLinkSizeButton"));
@@ -642,7 +688,7 @@ void ui_crop_size_link_keeps_proportion_on_handle_drags() {
   if (style == nullptr || width == nullptr || height == nullptr || link == nullptr) {
     return;
   }
-  style->setCurrentIndex(1);
+  style->setCurrentIndex(crop_preset_index(*style, CropKind::FreeSize));
   link->setChecked(false);
   width->setValue(600);
   height->setValue(400);
@@ -1100,7 +1146,7 @@ void ui_crop_cancel_button_off_for_ratio_frame() {
   QApplication::processEvents();
   canvas->set_snap_enabled(false);
 
-  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
   auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
   auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
   auto* apply = window.findChild<QPushButton*>(QStringLiteral("cropApplyButton"));
@@ -1113,7 +1159,7 @@ void ui_crop_cancel_button_off_for_ratio_frame() {
   if (style == nullptr || ratio_w == nullptr || ratio_h == nullptr || apply == nullptr || cancel == nullptr) {
     return;
   }
-  style->setCurrentIndex(0);
+  style->setCurrentIndex(crop_preset_index(*style, CropKind::FreeRatio));
   ratio_w->setValue(16.0);
   ratio_h->setValue(9.0);
   QApplication::processEvents();
@@ -1151,7 +1197,7 @@ void ui_crop_cancel_button_off_for_ratio_frame() {
   CHECK(!cancel->isEnabled());
 
   // Size style frames the whole canvas: nothing to apply or reset.
-  style->setCurrentIndex(1);
+  style->setCurrentIndex(crop_preset_index(*style, CropKind::FreeSize));
   QApplication::processEvents();
   CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
   CHECK(!apply->isEnabled());
@@ -2807,6 +2853,816 @@ void ui_script_document_perspective_crop() {
   CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 100);
 }
 
+// The bar's strip and the open list of `combo` painted where it sits (the offscreen screen
+// keeps Qt's list window apart from the window grab), cropped to the bar and the list.
+void save_crop_list_artifact(const std::string& name, QWidget& window, QComboBox& combo) {
+  combo.showPopup();
+  QApplication::processEvents();
+  process_events_for(30);
+  auto* popup = combo.view()->window();
+  ensure_capture_themed(window);
+  ensure_capture_themed(*popup);
+  const auto origin = window.mapToGlobal(QPoint(0, 0));
+  const QRect popup_rect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size());
+  auto* bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  const int bar_top = bar != nullptr ? bar->mapTo(&window, QPoint(0, 0)).y() : 0;
+  QImage shot(window.size().expandedTo(QSize(popup_rect.right() + 1, popup_rect.bottom() + 1)),
+              QImage::Format_ARGB32_Premultiplied);
+  shot.fill(QColor(96, 96, 104));
+  {
+    QPainter painter(&shot);
+    painter.drawPixmap(0, 0, window.grab());
+    painter.drawPixmap(popup_rect.topLeft(), popup->grab());
+  }
+  const int right = std::min(shot.width() - 1, std::max(popup_rect.right() + 420, 760));
+  const int bottom = std::min(shot.height() - 1, popup_rect.bottom() + 16);
+  save_image_artifact(name, shot.copy(QRect(QPoint(0, std::max(0, bar_top - 2)), QPoint(right, bottom))));
+  combo.hidePopup();
+  QApplication::processEvents();
+}
+
+// Picks the list's Save Preset row and answers its name prompt, typing `name` when it is not
+// empty. Returns the name the prompt offered; empty when no prompt came up.
+QString save_crop_preset_through_prompt(patchy::ui::MainWindow& window, QComboBox& presets, const QString& name) {
+  QString offered;
+  bool answered = false;
+  bool stop = false;
+  std::function<void()> answer;
+  answer = guarded([&] {
+    if (stop) {
+      return;
+    }
+    auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("cropSavePresetDialog")));
+    if (prompt == nullptr) {
+      QTimer::singleShot(10, &window, answer);
+      return;
+    }
+    offered = prompt->textValue();
+    if (!name.isEmpty()) {
+      prompt->setTextValue(name);
+    }
+    answered = true;
+    prompt->accept();
+  });
+  presets.setCurrentIndex(crop_preset_index(presets, CropKind::Save));
+  QTimer::singleShot(0, &window, answer);
+  QElapsedTimer timer;
+  timer.start();
+  while (!answered && timer.elapsed() < 5000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  stop = true;
+  process_events_for(40);  // a retry still queued sees `stop` and ends
+  return offered;
+}
+
+QJsonArray stored_crop_user_presets() {
+  return QJsonDocument::fromJson(
+             patchy::ui::app_settings().value(QStringLiteral("tools/cropUserPresets")).toString().toUtf8())
+      .array();
+}
+
+// GitHub issue 696: one Preset list replaces the Style and Ratio lists. It holds the two free
+// modes, Patchy's ratio presets, a few pixel sizes read from the New Document templates, and
+// Save Preset / Delete Preset. A ratio preset shows the ratio fields and fills them; a size
+// preset shows the Size fields and sets the box to that many pixels about its center without
+// resampling (the commit extends or crops the canvas to it). The fields stay the source of
+// truth: editing them shows the matching entry or the free mode.
+void ui_crop_preset_list_offers_modes_ratios_and_sizes() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  SettingsValueRestorer saved_presets(QStringLiteral("tools/cropUserPresets"));
+  for (const auto* key :
+       {"tools/cropStyle", "tools/cropRatioWidth", "tools/cropRatioHeight", "tools/cropUserPresets"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+  auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+  auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("cropHeightSpin"));
+  CHECK(presets != nullptr && ratio_w != nullptr && ratio_h != nullptr && width != nullptr && height != nullptr &&
+        info_label != nullptr);
+  if (presets == nullptr || ratio_w == nullptr || ratio_h == nullptr || width == nullptr || height == nullptr ||
+      info_label == nullptr) {
+    return;
+  }
+  // The two lists it replaces are gone.
+  CHECK(window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo")) == nullptr);
+  CHECK(window.findChild<QComboBox*>(QStringLiteral("cropRatioPresetCombo")) == nullptr);
+  CHECK(presets->isVisible());
+
+  // The rows, top to bottom, with a separator above each group.
+  std::vector<CropKind> kinds;
+  int separators = 0;
+  for (int index = 0; index < presets->count(); ++index) {
+    const auto data = presets->itemData(index, patchy::ui::kCropPresetKindRole);
+    if (data.isValid()) {
+      kinds.push_back(static_cast<CropKind>(data.toInt()));
+    } else {
+      ++separators;
+      CHECK(index + 1 < presets->count());
+    }
+  }
+  const std::vector<CropKind> expected_kinds = {
+      CropKind::FreeRatio, CropKind::FreeSize, CropKind::OriginalRatio, CropKind::Ratio, CropKind::Ratio,
+      CropKind::Ratio,     CropKind::Ratio,    CropKind::Ratio,         CropKind::Size,  CropKind::Size,
+      CropKind::Size,      CropKind::Size,     CropKind::Size,          CropKind::Size,  CropKind::Save,
+      CropKind::Delete};
+  CHECK(kinds == expected_kinds);
+  CHECK(separators == 3);  // ratios, sizes, the two commands; saved presets add a fourth
+  CHECK(presets->itemText(0) == QStringLiteral("Ratio"));
+  CHECK(presets->itemText(1) == QStringLiteral("Size"));
+  CHECK(presets->itemText(crop_preset_index(*presets, CropKind::OriginalRatio)) == QStringLiteral("Original Ratio"));
+  CHECK(presets->itemText(crop_preset_index(*presets, CropKind::Save)) == QStringLiteral("Save Preset..."));
+  CHECK(presets->itemText(crop_preset_index(*presets, CropKind::Delete)) == QStringLiteral("Delete Preset"));
+  for (const auto ratio : {QSizeF(1.0, 1.0), QSizeF(4.0, 5.0), QSizeF(5.0, 7.0), QSizeF(2.0, 3.0), QSizeF(16.0, 9.0)}) {
+    CHECK(crop_preset_index(*presets, CropKind::Ratio, ratio) >= 0);
+  }
+  // Every pixel size is a New Document template's, named after it.
+  const auto templates = patchy::ui::artboard_size_presets();
+  CHECK(patchy::ui::crop_size_template_ids().size() == 6U);
+  for (const auto& id : patchy::ui::crop_size_template_ids()) {
+    const auto found = std::find_if(templates.begin(), templates.end(),
+                                    [&id](const patchy::ui::ArtboardSizePreset& preset) { return preset.id == id; });
+    CHECK(found != templates.end());
+    if (found == templates.end()) {
+      continue;
+    }
+    const int row = crop_preset_index(*presets, CropKind::Size, QSizeF(found->size));
+    CHECK(row >= 0);
+    CHECK(presets->itemText(row) ==
+          QStringLiteral("%1 x %2 px (%3)").arg(found->size.width()).arg(found->size.height()).arg(found->name));
+  }
+
+  // A fresh start: Ratio with nothing set, nothing to save or delete.
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeRatio);
+  CHECK(ratio_w->isVisible() && !width->isVisible());
+  CHECK(!crop_preset_row_enabled(*presets, crop_preset_index(*presets, CropKind::Save)));
+  CHECK(!crop_preset_row_enabled(*presets, crop_preset_index(*presets, CropKind::Delete)));
+
+  // A ratio preset picked from Size: one step shows the ratio fields and fills them.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::FreeSize));
+  QApplication::processEvents();
+  CHECK(width->isVisible() && !ratio_w->isVisible());
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::Ratio, QSizeF(16.0, 9.0)));
+  QApplication::processEvents();
+  CHECK(ratio_w->isVisible() && !width->isVisible());
+  CHECK(ratio_w->value() == 16.0 && ratio_h->value() == 9.0);
+  CHECK(canvas->crop_ratio_width() == 16.0 && canvas->crop_ratio_height() == 9.0);
+  CHECK(canvas->crop_session_rect() == QRect(0, 96, 1024, 576));
+  CHECK(presets->currentText() == QStringLiteral("16 : 9"));
+  CHECK(crop_preset_row_enabled(*presets, crop_preset_index(*presets, CropKind::Save)));
+  save_crop_list_artifact("ui_crop_preset_list", window, *presets);
+
+  // Editing a field shows the free mode; typing a preset's values shows the preset.
+  ratio_h->setValue(10.0);
+  QApplication::processEvents();
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeRatio);
+  ratio_w->setValue(2.0);
+  ratio_h->setValue(3.0);
+  QApplication::processEvents();
+  CHECK(presets->currentText() == QStringLiteral("2 : 3 (4 : 6)"));
+  // Ratio picked over a preset clears the fields: what None was.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::FreeRatio));
+  QApplication::processEvents();
+  CHECK(ratio_w->value() == 0.0 && ratio_h->value() == 0.0);
+  CHECK(canvas->crop_ratio_width() == 0.0);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+
+  // A size preset: the Size fields, and the box at that many pixels about its center.
+  const int size_720 = crop_preset_index(*presets, CropKind::Size, QSizeF(1280.0, 720.0));
+  presets->setCurrentIndex(size_720);
+  QApplication::processEvents();
+  CHECK(presets->currentIndex() == size_720);
+  CHECK(width->isVisible() && !ratio_w->isVisible());
+  CHECK(width->value() == 1280 && height->value() == 720);
+  CHECK(canvas->crop_ratio_width() == 0.0);
+  CHECK(canvas->crop_session_rect() == QRect(-128, 24, 1280, 720));
+  save_widget_artifact("ui_crop_preset_size", window);
+  // The fields stay the source of truth: another size shows Size, a preset's size the preset.
+  width->setValue(500);
+  QApplication::processEvents();
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeSize);
+  width->setValue(1080);
+  height->setValue(1080);
+  QApplication::processEvents();
+  CHECK(presets->currentIndex() == crop_preset_index(*presets, CropKind::Size, QSizeF(1080.0, 1080.0)));
+
+  // Nothing is resampled: the commit makes a canvas of exactly the preset's pixels, by
+  // extending and cropping the document, and the pixels keep their scale.
+  presets->setCurrentIndex(size_720);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(QStringLiteral("1280 x 720 px")));
+  {
+    const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(doc.width() == 1280 && doc.height() == 720);
+  }
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(QStringLiteral("1024 x 768 px")));
+}
+
+// GitHub issue 696: Save Preset stores the current mode and its values under a name (a ratio,
+// or a pixel size) in tools/cropUserPresets, offering "3 : 2" or "640 x 480 px" as the name;
+// the saved entries join the list, come back in a new window and apply like the built-in
+// ones; Delete Preset removes the saved preset the list shows. Built-in entries cannot be
+// deleted, and malformed stored entries are skipped.
+void ui_crop_presets_save_delete_and_persist() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  SettingsValueRestorer saved_presets(QStringLiteral("tools/cropUserPresets"));
+  for (const auto* key :
+       {"tools/cropStyle", "tools/cropRatioWidth", "tools/cropRatioHeight", "tools/cropUserPresets"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    require_action(window, "toolCropAction")->trigger();
+    QApplication::processEvents();
+    canvas->set_snap_enabled(false);
+    auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+    auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+    auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
+    auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+    auto* height = window.findChild<QSpinBox*>(QStringLiteral("cropHeightSpin"));
+    CHECK(presets != nullptr && ratio_w != nullptr && ratio_h != nullptr && width != nullptr && height != nullptr);
+    if (presets == nullptr || ratio_w == nullptr || ratio_h == nullptr || width == nullptr || height == nullptr) {
+      return;
+    }
+    const auto save_enabled = [&] {
+      return crop_preset_row_enabled(*presets, crop_preset_index(*presets, CropKind::Save));
+    };
+    const auto delete_enabled = [&] {
+      return crop_preset_row_enabled(*presets, crop_preset_index(*presets, CropKind::Delete));
+    };
+    // No ratio: nothing to save, and no prompt comes up when the row is picked anyway.
+    CHECK(!save_enabled() && !delete_enabled());
+
+    // A ratio: saved under a typed name, the prompt offering the ratio itself.
+    ratio_w->setValue(3.0);
+    ratio_h->setValue(2.0);
+    QApplication::processEvents();
+    CHECK(save_enabled() && !delete_enabled());
+    CHECK(save_crop_preset_through_prompt(window, *presets, QStringLiteral("Photo print")) == QStringLiteral("3 : 2"));
+    CHECK(window.statusBar()->currentMessage() == QStringLiteral("Crop preset saved: Photo print"));
+    const int photo_row = crop_preset_index(*presets, CropKind::UserRatio, QSizeF(3.0, 2.0));
+    CHECK(photo_row >= 0);
+    CHECK(presets->currentIndex() == photo_row);
+    CHECK(presets->currentText() == QStringLiteral("Photo print"));
+    CHECK(!save_enabled() && delete_enabled());  // saved already; it can be deleted
+    {
+      const auto stored = stored_crop_user_presets();
+      CHECK(stored.size() == 1);
+      const auto entry = stored.at(0).toObject();
+      CHECK(entry.value(QStringLiteral("id")).toString() == QStringLiteral("user-1"));
+      CHECK(entry.value(QStringLiteral("name")).toString() == QStringLiteral("Photo print"));
+      CHECK(entry.value(QStringLiteral("kind")).toString() == QStringLiteral("ratio"));
+      CHECK(entry.value(QStringLiteral("w")).toDouble() == 3.0);
+      CHECK(entry.value(QStringLiteral("h")).toDouble() == 2.0);
+    }
+
+    // A pixel size: the Size mode's box, saved under the offered name.
+    presets->setCurrentIndex(crop_preset_index(*presets, CropKind::FreeSize));
+    width->setValue(640);
+    height->setValue(480);
+    QApplication::processEvents();
+    CHECK(crop_preset_kind(*presets) == CropKind::FreeSize);
+    CHECK(save_enabled());
+    CHECK(save_crop_preset_through_prompt(window, *presets, QString()) == QStringLiteral("640 x 480 px"));
+    const int size_row = crop_preset_index(*presets, CropKind::UserSize, QSizeF(640.0, 480.0));
+    CHECK(size_row >= 0);
+    CHECK(presets->currentIndex() == size_row);
+    CHECK(presets->currentText() == QStringLiteral("640 x 480 px"));
+    CHECK(stored_crop_user_presets().size() == 2);
+    CHECK(stored_crop_user_presets().at(1).toObject().value(QStringLiteral("kind")).toString() ==
+          QStringLiteral("size"));
+    CHECK(stored_crop_user_presets().at(1).toObject().value(QStringLiteral("id")).toString() ==
+          QStringLiteral("user-2"));
+    // The saved presets sit in their own group above the two commands.
+    CHECK(crop_preset_index(*presets, CropKind::UserRatio) < crop_preset_index(*presets, CropKind::UserSize));
+    CHECK(crop_preset_index(*presets, CropKind::UserSize) < crop_preset_index(*presets, CropKind::Save));
+    save_crop_list_artifact("ui_crop_preset_list_saved", window, *presets);
+    send_key(*canvas, Qt::Key_Escape);
+    window.close();
+    QApplication::processEvents();
+  }
+
+  // A new window lists both and applies them like the built-in entries.
+  patchy::ui::MainWindow second;
+  show_window(second);
+  auto* canvas = require_canvas(second);
+  require_action(second, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  auto* presets = second.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+  auto* ratio_w = second.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+  auto* ratio_h = second.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
+  auto* width = second.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+  CHECK(presets != nullptr && ratio_w != nullptr && ratio_h != nullptr && width != nullptr);
+  if (presets == nullptr || ratio_w == nullptr || ratio_h == nullptr || width == nullptr) {
+    return;
+  }
+  const int photo_row = crop_preset_index(*presets, CropKind::UserRatio, QSizeF(3.0, 2.0));
+  const int size_row = crop_preset_index(*presets, CropKind::UserSize, QSizeF(640.0, 480.0));
+  CHECK(photo_row >= 0 && size_row >= 0);
+  CHECK(presets->itemText(photo_row) == QStringLiteral("Photo print"));
+  presets->setCurrentIndex(photo_row);
+  QApplication::processEvents();
+  CHECK(ratio_w->isVisible());
+  CHECK(ratio_w->value() == 3.0 && ratio_h->value() == 2.0);
+  CHECK(canvas->crop_session_rect() == QRect(0, 42, 1024, 683));
+  presets->setCurrentIndex(size_row);
+  QApplication::processEvents();
+  CHECK(width->isVisible());
+  CHECK(canvas->crop_session_rect() == QRect(192, 144, 640, 480));
+  CHECK(presets->currentIndex() == size_row);
+
+  // Delete Preset removes the saved preset the list shows and leaves the box as it is.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::Delete));
+  process_events_for(60);
+  CHECK(crop_preset_index(*presets, CropKind::UserSize) < 0);
+  CHECK(second.statusBar()->currentMessage() == QStringLiteral("Crop preset deleted: 640 x 480 px"));
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeSize);
+  CHECK(canvas->crop_session_rect() == QRect(192, 144, 640, 480));
+  CHECK(stored_crop_user_presets().size() == 1);
+  // With a built-in entry shown, Delete is off and does nothing when picked anyway.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::Ratio, QSizeF(1.0, 1.0)));
+  QApplication::processEvents();
+  CHECK(!crop_preset_row_enabled(*presets, crop_preset_index(*presets, CropKind::Delete)));
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::Delete));
+  process_events_for(60);
+  CHECK(presets->currentText() == QStringLiteral("1 : 1 (Square)"));
+  CHECK(stored_crop_user_presets().size() == 1);
+  // The last saved preset gone: the key is removed, and so is the group.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::UserRatio));
+  QApplication::processEvents();
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::Delete));
+  process_events_for(60);
+  CHECK(crop_preset_index(*presets, CropKind::UserRatio) < 0);
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("tools/cropUserPresets")));
+  CHECK(ratio_w->value() == 3.0 && ratio_h->value() == 2.0);
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeRatio);
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::FreeRatio));
+
+  // Stored entries without a usable id, name, kind or value are skipped, never shown.
+  patchy::ui::app_settings().setValue(QStringLiteral("tools/cropUserPresets"), QString::fromUtf8(R"([
+      {"id":"user-4","name":"Wide","kind":"ratio","w":21,"h":9},
+      {"id":"x","name":"No id","kind":"ratio","w":1,"h":1},
+      {"id":"user-5","name":"","kind":"size","w":10,"h":10},
+      {"id":"user-6","name":"Bad kind","kind":"area","w":10,"h":10},
+      {"id":"user-7","name":"Zero","kind":"size","w":0,"h":10},
+      "junk"])"));
+  const auto loaded = patchy::ui::load_crop_user_presets();
+  CHECK(loaded.size() == 1U);
+  if (loaded.size() == 1U) {
+    CHECK(loaded.front().id == QStringLiteral("user-4") && loaded.front().name == QStringLiteral("Wide"));
+    CHECK(!loaded.front().size && loaded.front().value == QSizeF(21.0, 9.0));
+  }
+  // A new preset takes an id above every stored one.
+  CHECK(patchy::ui::add_crop_user_preset(QStringLiteral("Tall"), true, QSizeF(100.0, 400.0)) ==
+        QStringLiteral("user-5"));
+}
+
+// The settings from before the Preset list keep their meaning (tools/cropStyle,
+// tools/cropRatioWidth, tools/cropRatioHeight are permanent): a user who quit in Size style
+// comes back to the Size fields, and one who quit with a ratio comes back to that ratio, the
+// list showing its preset or Ratio for a ratio of their own.
+void ui_crop_preset_list_restores_stored_style_and_ratio() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  SettingsValueRestorer saved_presets(QStringLiteral("tools/cropUserPresets"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/cropUserPresets"));
+  struct Stored {
+    int style;
+    double ratio_w;
+    double ratio_h;
+    CropKind shown;
+    const char* text;
+  };
+  for (const auto& stored : {Stored{0, 16.0, 9.0, CropKind::Ratio, "16 : 9"},
+                             Stored{0, 3.0, 1.0, CropKind::FreeRatio, "Ratio"},
+                             Stored{0, 0.0, 0.0, CropKind::FreeRatio, "Ratio"},
+                             Stored{1, 16.0, 9.0, CropKind::FreeSize, "Size"}}) {
+    {
+      auto settings = patchy::ui::app_settings();
+      settings.setValue(QStringLiteral("tools/cropStyle"), stored.style);
+      settings.setValue(QStringLiteral("tools/cropRatioWidth"), stored.ratio_w);
+      settings.setValue(QStringLiteral("tools/cropRatioHeight"), stored.ratio_h);
+      settings.sync();
+    }
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    require_action(window, "toolCropAction")->trigger();
+    QApplication::processEvents();
+    auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+    auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+    auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
+    auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+    CHECK(presets != nullptr && ratio_w != nullptr && ratio_h != nullptr && width != nullptr);
+    if (presets == nullptr || ratio_w == nullptr || ratio_h == nullptr || width == nullptr) {
+      return;
+    }
+    CHECK(crop_preset_kind(*presets) == stored.shown);
+    CHECK(presets->currentText() == QLatin1String(stored.text));
+    CHECK(width->isVisible() == (stored.style == 1));
+    CHECK(ratio_w->isVisible() == (stored.style == 0));
+    if (stored.style == 0) {
+      CHECK(ratio_w->value() == stored.ratio_w && ratio_h->value() == stored.ratio_h);
+      CHECK(canvas->crop_ratio_width() == stored.ratio_w && canvas->crop_ratio_height() == stored.ratio_h);
+    } else {
+      // Size runs unconstrained, and the stored ratio is written back unchanged.
+      CHECK(canvas->crop_ratio_width() == 0.0);
+      CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+    }
+    window.close();
+    QApplication::processEvents();
+    const auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/cropStyle")).toInt() == stored.style);
+    CHECK(settings.value(QStringLiteral("tools/cropRatioWidth")).toDouble() == stored.ratio_w);
+    CHECK(settings.value(QStringLiteral("tools/cropRatioHeight")).toDouble() == stored.ratio_h);
+  }
+}
+
+// GitHub issue 697: the Crop bar's swap buttons. In the ratio fields the button stands where
+// the ":" was: the two values trade places, the automatic frame re-fits and a custom box
+// turns about its center; it is off until a ratio is set. In the Size fields it sits between
+// Width and Height (the link button follows Height) and the pending box trades its width and
+// height about its center.
+void ui_crop_swap_buttons_turn_ratio_and_size() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  SettingsValueRestorer saved_presets(QStringLiteral("tools/cropUserPresets"));
+  for (const auto* key :
+       {"tools/cropStyle", "tools/cropRatioWidth", "tools/cropRatioHeight", "tools/cropUserPresets"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+  auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+  auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
+  auto* ratio_swap = window.findChild<QAbstractButton*>(QStringLiteral("cropRatioSwapButton"));
+  auto* size_swap = window.findChild<QAbstractButton*>(QStringLiteral("cropSizeSwapButton"));
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("cropHeightSpin"));
+  auto* link = window.findChild<QPushButton*>(QStringLiteral("cropLinkSizeButton"));
+  CHECK(presets != nullptr && ratio_w != nullptr && ratio_h != nullptr && ratio_swap != nullptr &&
+        size_swap != nullptr && width != nullptr && height != nullptr && link != nullptr);
+  if (presets == nullptr || ratio_w == nullptr || ratio_h == nullptr || ratio_swap == nullptr ||
+      size_swap == nullptr || width == nullptr || height == nullptr || link == nullptr) {
+    return;
+  }
+  // Ratio fields: the swap shows there, off while no ratio is set.
+  CHECK(ratio_swap->isVisible() && !size_swap->isVisible());
+  CHECK(!ratio_swap->isEnabled());
+  CHECK(ratio_w->x() < ratio_swap->x() && ratio_swap->x() < ratio_h->x());
+
+  // 16 : 9 becomes 9 : 16 with one click; the automatic frame re-fits to it.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::Ratio, QSizeF(16.0, 9.0)));
+  QApplication::processEvents();
+  CHECK(ratio_swap->isEnabled());
+  CHECK(canvas->crop_session_rect() == QRect(0, 96, 1024, 576));
+  ratio_swap->click();
+  QApplication::processEvents();
+  CHECK(ratio_w->value() == 9.0 && ratio_h->value() == 16.0);
+  CHECK(canvas->crop_ratio_width() == 9.0 && canvas->crop_ratio_height() == 16.0);
+  CHECK(canvas->crop_session_rect() == QRect(296, 0, 432, 768));
+  CHECK(!canvas->crop_session_can_reset());  // still the automatic frame
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeRatio);  // 9 : 16 is no preset
+  ratio_swap->click();
+  QApplication::processEvents();
+  CHECK(ratio_w->value() == 16.0 && ratio_h->value() == 9.0);
+  CHECK(presets->currentText() == QStringLiteral("16 : 9"));
+  CHECK(canvas->crop_session_rect() == QRect(0, 96, 1024, 576));
+
+  // A custom box turns in place: its width and height trade about its center.
+  ratio_w->setValue(2.0);
+  ratio_h->setValue(1.0);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 300)),
+       canvas->widget_position_for_document_point(QPoint(500, 380)));
+  const auto landscape = canvas->crop_session_rect();
+  CHECK(landscape.has_value() && landscape->width() > landscape->height());
+  if (!landscape.has_value()) {
+    return;
+  }
+  ratio_swap->click();
+  QApplication::processEvents();
+  CHECK(ratio_w->value() == 1.0 && ratio_h->value() == 2.0);
+  CHECK(canvas->crop_session_rect() ==
+        QRect(landscape->x() + (landscape->width() - landscape->height()) / 2,
+              landscape->y() + (landscape->height() - landscape->width()) / 2, landscape->height(),
+              landscape->width()));
+  CHECK(canvas->crop_session_rect()->center() == landscape->center());
+  send_key(*canvas, Qt::Key_Escape);
+
+  // Original Ratio (4 : 3 for 1024 x 768) swaps to 3 : 4, a ratio of the user's own.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::OriginalRatio));
+  QApplication::processEvents();
+  ratio_swap->click();
+  QApplication::processEvents();
+  CHECK(ratio_w->value() == 3.0 && ratio_h->value() == 4.0);
+  CHECK(crop_preset_kind(*presets) == CropKind::FreeRatio);
+  CHECK(canvas->crop_session_rect() == QRect(224, 0, 576, 768));
+  // The swapped ratio is the one that is saved.
+  QElapsedTimer timer;
+  timer.start();
+  while (patchy::ui::app_settings().value(QStringLiteral("tools/cropRatioHeight")).toDouble() != 4.0 &&
+         timer.elapsed() < 3000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/cropRatioWidth")).toDouble() == 3.0);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/cropRatioHeight")).toDouble() == 4.0);
+
+  // Size fields: Width, swap, Height, then the link button.
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::FreeSize));
+  QApplication::processEvents();
+  CHECK(size_swap->isVisible() && !ratio_swap->isVisible());
+  CHECK(width->x() < size_swap->x() && size_swap->x() < height->x() && height->x() < link->x());
+  CHECK(size_swap->isEnabled());
+  // On the untouched frame the swap lays a turned box over the canvas.
+  size_swap->click();
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(128, -128, 768, 1024));
+  CHECK(width->value() == 768 && height->value() == 1024);
+  CHECK(canvas->crop_session_has_changes());
+  send_key(*canvas, Qt::Key_Escape);
+  width->setValue(600);
+  height->setValue(400);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(212, 184, 600, 400));
+  save_widget_artifact("ui_crop_size_swap_before", window);
+  size_swap->click();
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(312, 84, 400, 600));
+  CHECK(width->value() == 400 && height->value() == 600);
+  save_widget_artifact("ui_crop_size_swap_after", window);
+  size_swap->click();
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(212, 184, 600, 400));
+  send_key(*canvas, Qt::Key_Escape);
+  presets->setCurrentIndex(crop_preset_index(*presets, CropKind::FreeRatio));
+}
+
+// GitHub issue 698: while a changed crop box is pending, O steps to the next overlay (No
+// Overlay is not a stop), Shift+O turns the Triangle and the Golden Spiral (with another
+// overlay the key is swallowed, never a tool switch) and H shows or hides the cropped area;
+// the box survives each key. They work with the keyboard on the canvas or on a bar control,
+// and a text field keeps its letters. With the untouched frame O and H switch tools as on any
+// tool. The Crop options menu shows the keys and the Overlay list's tooltip names O.
+void ui_crop_keys_step_overlay_and_cropped_area_while_box_pending() {
+  SettingsGroupRestorer restore_hotkeys(QStringLiteral("hotkeys"));
+  SettingsValueRestorer saved_overlay(QStringLiteral("tools/cropOverlay"));
+  SettingsValueRestorer saved_orientation(QStringLiteral("tools/cropOverlayOrientation"));
+  SettingsValueRestorer saved_show(QStringLiteral("tools/cropShowCroppedArea"));
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  for (const auto* key : {"tools/cropOverlay", "tools/cropOverlayOrientation", "tools/cropShowCroppedArea",
+                          "tools/cropStyle", "tools/cropRatioWidth", "tools/cropRatioHeight"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  using Overlay = patchy::ui::CanvasWidget::CropOverlay;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* crop_tool = require_action(window, "toolCropAction");
+  crop_tool->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  auto* overlay = window.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+  auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+  auto* options = window.findChild<QToolButton*>(QStringLiteral("cropOptionsButton"));
+  auto* next = window.findChild<QAction*>(QStringLiteral("cropOverlayNextAction"));
+  auto* turn = window.findChild<QAction*>(QStringLiteral("cropOverlayTurnAction"));
+  auto* show_area = window.findChild<QAction*>(QStringLiteral("cropShowCroppedAreaAction"));
+  CHECK(overlay != nullptr && presets != nullptr && ratio_w != nullptr && options != nullptr &&
+        options->menu() != nullptr && next != nullptr && turn != nullptr && show_area != nullptr);
+  if (overlay == nullptr || presets == nullptr || ratio_w == nullptr || options == nullptr ||
+      options->menu() == nullptr || next == nullptr || turn == nullptr || show_area == nullptr) {
+    return;
+  }
+  const auto press = [](QWidget* target, Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    QTest::keyClick(target, key, modifiers);
+    QApplication::processEvents();
+  };
+  const auto lay_out_box = [&] {
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+         canvas->widget_position_for_document_point(QPoint(500, 440)));
+  };
+  canvas->setFocus();
+  QApplication::processEvents();
+
+  // The untouched frame: the letters are tool keys, as on any tool.
+  CHECK(!canvas->crop_session_can_reset());
+  press(canvas, Qt::Key_O);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Dodge);
+  crop_tool->trigger();
+  QApplication::processEvents();
+  press(canvas, Qt::Key_H);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Pan);
+  crop_tool->trigger();
+  QApplication::processEvents();
+  CHECK(overlay->currentIndex() == 1);  // Rule of Thirds: no key touched it
+
+  // A changed box: O walks the six overlays and wraps past Golden Spiral to Rule of Thirds.
+  lay_out_box();
+  const QRect box(200, 200, 301, 241);
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(canvas->crop_session_can_reset());
+  canvas->setFocus();
+  for (const auto expected : {Overlay::Grid, Overlay::Diagonal, Overlay::Triangle, Overlay::GoldenRatio,
+                              Overlay::GoldenSpiral, Overlay::Thirds}) {
+    press(canvas, Qt::Key_O);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+    CHECK(canvas->crop_overlay() == expected);
+    CHECK(overlay->currentIndex() == static_cast<int>(expected));
+    CHECK(canvas->crop_session_rect() == box);
+  }
+  // From No Overlay the step lands on Rule of Thirds.
+  overlay->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(canvas->crop_overlay() == Overlay::None);
+  press(canvas, Qt::Key_O);
+  CHECK(canvas->crop_overlay() == Overlay::Thirds);
+
+  // Shift+O: nothing to turn on Rule of Thirds, and still no tool switch.
+  const int orientation = canvas->crop_overlay_orientation();
+  press(canvas, Qt::Key_O, Qt::ShiftModifier);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+  CHECK(canvas->crop_overlay() == Overlay::Thirds);
+  CHECK(canvas->crop_overlay_orientation() == orientation);
+  CHECK(canvas->crop_session_rect() == box);
+  overlay->setCurrentIndex(static_cast<int>(Overlay::Triangle));
+  QApplication::processEvents();
+  press(canvas, Qt::Key_O, Qt::ShiftModifier);
+  CHECK(canvas->crop_overlay() == Overlay::Triangle);
+  CHECK(canvas->crop_overlay_orientation() == (orientation + 1) % 4);
+  CHECK(canvas->crop_session_rect() == box);
+
+  // H shows or hides the cropped area.
+  CHECK(show_area->isChecked() && canvas->crop_overlay_options().show_cropped_area);
+  press(canvas, Qt::Key_H);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+  CHECK(!show_area->isChecked() && !canvas->crop_overlay_options().show_cropped_area);
+  CHECK(canvas->crop_session_rect() == box);
+  press(canvas, Qt::Key_H);
+  CHECK(show_area->isChecked() && canvas->crop_overlay_options().show_cropped_area);
+
+  // The keys reach the crop from a bar control too (a list would otherwise search for the
+  // letter, and the tool key would throw the box away); a text field keeps its letters.
+  presets->setFocus();
+  QApplication::processEvents();
+  const int preset_before = presets->currentIndex();
+  press(presets, Qt::Key_O);
+  CHECK(canvas->crop_overlay() == Overlay::GoldenRatio);
+  CHECK(presets->currentIndex() == preset_before);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop && canvas->crop_session_rect() == box);
+  ratio_w->setFocus();
+  QApplication::processEvents();
+  press(ratio_w, Qt::Key_O);
+  press(ratio_w, Qt::Key_H);
+  CHECK(canvas->crop_overlay() == Overlay::GoldenRatio);
+  CHECK(show_area->isChecked());
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop && canvas->crop_session_rect() == box);
+  canvas->setFocus();
+  QApplication::processEvents();
+
+  // The menu shows the keys beside its entries, and the Overlay list's tooltip names O.
+  overlay->setCurrentIndex(static_cast<int>(Overlay::GoldenSpiral));
+  QApplication::processEvents();
+  options->menu()->popup(options->mapToGlobal(QPoint(0, options->height())));
+  QApplication::processEvents();
+  CHECK(options->menu()->actions().value(0) == next);
+  const auto shift_o = QKeySequence(Qt::SHIFT | Qt::Key_O).toString(QKeySequence::NativeText);
+  CHECK(next->text() == QStringLiteral("Next Overlay\tO"));
+  CHECK(turn->text() == QStringLiteral("Turn Overlay\t") + shift_o);
+  CHECK(show_area->text() == QStringLiteral("Show Cropped Area\tH"));
+  save_window_popup_artifact("ui_crop_options_keys", window, *options, *options->menu());
+  {
+    // The whole window with the open menu painted under its button, for the issue shot.
+    auto shot = window.grab().toImage();
+    auto* menu = options->menu();
+    auto origin = options->mapTo(&window, QPoint(0, options->height()));
+    origin.setX(std::min(origin.x(), window.width() - menu->width()));
+    QPainter painter(&shot);
+    painter.drawPixmap(origin, menu->grab());
+    painter.end();
+    save_image_artifact("ui_crop_options_keys_window", shot);
+  }
+  options->menu()->hide();
+  QApplication::processEvents();
+  CHECK(overlay->toolTip().contains(QStringLiteral("O picks the next overlay once the crop box has been changed")));
+
+  // The menu entry does what the key does.
+  next->trigger();
+  CHECK(canvas->crop_overlay() == Overlay::Thirds);
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// GitHub issue 698: the crop keys are built in, so they yield to the user's own keys. With O
+// and H given to other commands (as the GIMP-style set does: Eyedropper and Healing Brush),
+// the letters run those commands even while a changed crop box is pending, and the menu and
+// the tooltip stop naming them.
+void ui_crop_keys_yield_to_reassigned_letters() {
+  SettingsGroupRestorer restore_hotkeys(QStringLiteral("hotkeys"));
+  SettingsValueRestorer saved_overlay(QStringLiteral("tools/cropOverlay"));
+  SettingsValueRestorer saved_show(QStringLiteral("tools/cropShowCroppedArea"));
+  for (const auto* key : {"tools/cropOverlay", "tools/cropShowCroppedArea"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.beginGroup(QStringLiteral("hotkeys"));
+    settings.setValue(QStringLiteral("tools.eyedropper"), QStringLiteral("O"));
+    settings.setValue(QStringLiteral("tools.dodge"), QStringLiteral("Shift+D"));
+    settings.setValue(QStringLiteral("tools.healing"), QStringLiteral("H"));
+    settings.setValue(QStringLiteral("tools.hand"), QString());
+    settings.endGroup();
+    settings.sync();
+  }
+  using Overlay = patchy::ui::CanvasWidget::CropOverlay;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* crop_tool = require_action(window, "toolCropAction");
+  crop_tool->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  auto* overlay = window.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
+  auto* options = window.findChild<QToolButton*>(QStringLiteral("cropOptionsButton"));
+  auto* next = window.findChild<QAction*>(QStringLiteral("cropOverlayNextAction"));
+  auto* turn = window.findChild<QAction*>(QStringLiteral("cropOverlayTurnAction"));
+  auto* show_area = window.findChild<QAction*>(QStringLiteral("cropShowCroppedAreaAction"));
+  CHECK(overlay != nullptr && options != nullptr && options->menu() != nullptr && next != nullptr &&
+        turn != nullptr && show_area != nullptr);
+  if (overlay == nullptr || options == nullptr || options->menu() == nullptr || next == nullptr || turn == nullptr ||
+      show_area == nullptr) {
+    return;
+  }
+  const auto lay_out_box = [&] {
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+         canvas->widget_position_for_document_point(QPoint(500, 440)));
+    canvas->setFocus();
+    QApplication::processEvents();
+  };
+  lay_out_box();
+  CHECK(canvas->crop_session_can_reset());
+  QTest::keyClick(canvas, Qt::Key_O);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Eyedropper);
+  CHECK(canvas->crop_overlay() == Overlay::Thirds);
+  crop_tool->trigger();
+  QApplication::processEvents();
+  lay_out_box();
+  QTest::keyClick(canvas, Qt::Key_H);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Healing);
+  CHECK(show_area->isChecked());
+  crop_tool->trigger();
+  QApplication::processEvents();
+  // Shift+O is still the Dodge group's cycle here, so the crop keeps taking it.
+  lay_out_box();
+  QTest::keyClick(canvas, Qt::Key_O, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+
+  options->menu()->popup(options->mapToGlobal(QPoint(0, options->height())));
+  QApplication::processEvents();
+  CHECK(next->text() == QStringLiteral("Next Overlay"));
+  CHECK(turn->text() ==
+        QStringLiteral("Turn Overlay\t") + QKeySequence(Qt::SHIFT | Qt::Key_O).toString(QKeySequence::NativeText));
+  CHECK(show_area->text() == QStringLiteral("Show Cropped Area"));
+  options->menu()->hide();
+  QApplication::processEvents();
+  CHECK(!overlay->toolTip().contains(QStringLiteral("picks the next overlay")));
+  send_key(*canvas, Qt::Key_Escape);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> crop_tool_tests() {
@@ -2823,6 +3679,13 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_tool_frames_canvas_and_fits_ratio", ui_crop_tool_frames_canvas_and_fits_ratio},
       {"ui_crop_tool_adopts_active_selection", ui_crop_tool_adopts_active_selection},
       {"ui_crop_size_style_fields_mirror_and_resize_box", ui_crop_size_style_fields_mirror_and_resize_box},
+      {"ui_crop_preset_list_offers_modes_ratios_and_sizes", ui_crop_preset_list_offers_modes_ratios_and_sizes},
+      {"ui_crop_presets_save_delete_and_persist", ui_crop_presets_save_delete_and_persist},
+      {"ui_crop_preset_list_restores_stored_style_and_ratio", ui_crop_preset_list_restores_stored_style_and_ratio},
+      {"ui_crop_swap_buttons_turn_ratio_and_size", ui_crop_swap_buttons_turn_ratio_and_size},
+      {"ui_crop_keys_step_overlay_and_cropped_area_while_box_pending",
+       ui_crop_keys_step_overlay_and_cropped_area_while_box_pending},
+      {"ui_crop_keys_yield_to_reassigned_letters", ui_crop_keys_yield_to_reassigned_letters},
       {"ui_crop_handles_resize_move_and_nudge", ui_crop_handles_resize_move_and_nudge},
       {"ui_crop_size_link_keeps_proportion_on_handle_drags", ui_crop_size_link_keeps_proportion_on_handle_drags},
       {"ui_crop_alt_handle_drag_resizes_about_center", ui_crop_alt_handle_drag_resizes_about_center},

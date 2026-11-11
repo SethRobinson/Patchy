@@ -3484,15 +3484,29 @@ private:
   void sync_brush_overlay_menu();
   // The Sample choice for the document info lines ("active layer", ...).
   [[nodiscard]] QString retouch_sample_info_text() const;
-  // Derives the crop ratio preset combo's row from the canvas ratio values
-  // (None / a preset / Original Ratio / Custom) without firing its handler.
-  void sync_crop_ratio_preset_combo();
+  // The Crop bar's Preset list (GitHub issue 696; ui/crop_presets.hpp): fills the combo
+  // (again after a language change or a saved preset coming or going), shows the row the
+  // bar's style, ratio fields and pending box match without firing its handler, and applies
+  // a picked row (a free mode, a ratio, a pixel size, Save Preset or Delete Preset).
+  void rebuild_crop_preset_combo();
+  void sync_crop_preset_combo();
+  void apply_crop_preset_row(int combo_index);
+  // Sets the crop style and the ratio fields in one step, so the canvas sees one change.
+  void set_crop_style_and_ratio(int style, double ratio_width, double ratio_height);
+  // O, Shift+O and H while a changed crop box is pending (GitHub issue 698): next overlay,
+  // turn overlay, Show Cropped Area. From the application event filter, like the digits.
+  bool handle_crop_option_key_event(QObject* watched, QEvent* event);
+  // Whether a built-in crop key is still on the command Patchy ships it on (or on nothing):
+  // a key the user or the shortcut set gave to another command runs that command.
+  [[nodiscard]] bool crop_option_key_available(const QKeySequence& key) const;
+  // Names the O key in the Overlay list's tooltip while it applies; with `menu_opening`,
+  // also shows the three keys in the Crop options menu's shortcut column.
+  void refresh_crop_key_hints(bool menu_opening = false);
   // The ratio the canvas should constrain with under the current crop style.
   [[nodiscard]] double effective_crop_ratio_width() const noexcept;
   [[nodiscard]] double effective_crop_ratio_height() const noexcept;
   // Size style with its link button down: handle drags keep the box's proportion.
   [[nodiscard]] bool crop_size_link_active() const noexcept;
-  void apply_crop_style(int style);
   // Stores the Crop options popup's values, hands them to every canvas, syncs
   // the popup's controls and saves them.
   void apply_crop_overlay_options(const CropOverlayOptions& options);
@@ -3767,18 +3781,20 @@ private:
   QPushButton* transform_cancel_button_{nullptr};
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
-  // Crop tool options: a Style combo (Ratio: preset combo + ratio pair +
-  // Clear; Size: unit Width/Height fields that mirror and resize the box,
-  // plus a link button), and the session apply/reset pair (enabled only
-  // while the box differs from the canvas frame). The two field sets swap
-  // visibility through crop_option_widget_visible.
-  QComboBox* crop_style_combo_{nullptr};
-  QComboBox* crop_ratio_preset_combo_{nullptr};
+  // Crop tool options: the Preset list (the free modes Ratio and Size, the ratio and
+  // pixel-size presets, saved presets, Save / Delete), then the fields of the current
+  // style (Ratio: the ratio pair with its swap button and Clear; Size: unit Width/Height
+  // fields that mirror and resize the box, a swap button between them and the link button
+  // after), and the session apply/reset pair (enabled only while the box differs from the
+  // canvas frame). The two field sets swap visibility through crop_option_widget_visible.
+  QComboBox* crop_preset_combo_{nullptr};
   QDoubleSpinBox* crop_ratio_w_spin_{nullptr};
   QDoubleSpinBox* crop_ratio_h_spin_{nullptr};
+  QAbstractButton* crop_ratio_swap_button_{nullptr};
   QPushButton* crop_ratio_clear_button_{nullptr};
   UnitIntSpinBox* crop_width_spin_{nullptr};
   UnitIntSpinBox* crop_height_spin_{nullptr};
+  QAbstractButton* crop_size_swap_button_{nullptr};
   QPushButton* crop_link_size_button_{nullptr};
   std::vector<QWidget*> crop_ratio_option_widgets_;
   std::vector<QWidget*> crop_size_option_widgets_;
@@ -3799,8 +3815,10 @@ private:
   // Crop composition overlay (GitHub issue 325): the guide combo (items in
   // CanvasWidget::CropOverlay order, data = the tools/cropOverlay token), and at
   // the top of the Crop options menu Turn Overlay (Triangle and Golden Spiral)
-  // and the Always / While Dragging choice.
+  // and the Always / While Dragging choice. Next Overlay (GitHub issue 698) leads the
+  // menu; it and Turn Overlay and Show Cropped Area show their crop keys there.
   QComboBox* crop_overlay_combo_{nullptr};
+  QAction* crop_overlay_next_action_{nullptr};
   QAction* crop_overlay_turn_action_{nullptr};
   QAction* crop_overlay_show_always_action_{nullptr};
   QAction* crop_overlay_show_while_dragging_action_{nullptr};

@@ -1329,6 +1329,10 @@ public:
   // must be > 0 to constrain; a change re-fits the pending box inside itself
   // about its center (GitHub issue 66).
   void set_crop_ratio(double width, double height) noexcept;
+  // The ratio's width and height trade places (the options bar's swap button, GitHub
+  // issue 697): the automatic frame re-fits, a custom box under a set ratio trades its
+  // width and height about its center instead of keeping its width.
+  void swap_crop_ratio();
   [[nodiscard]] double crop_ratio_width() const noexcept;
   [[nodiscard]] double crop_ratio_height() const noexcept;
   // How the area outside the pending crop box draws (CropOverlayOptions,

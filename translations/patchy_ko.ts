@@ -6294,14 +6294,6 @@
         <translation>없음</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>원본 비율</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1:1 (정사각형)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>대상</translation>
     </message>
@@ -9163,10 +9155,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>제안, 버그 보고, 코드를 보내 주신 멋진 분들: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>비율</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22372,6 +22360,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>기타 명령</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>자르기 도구에서 자르기 상자를 변경한 뒤: 다음 오버레이 / 오버레이 방향 바꾸기 / 잘린 영역 표시 또는 숨기기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -24129,10 +24121,6 @@ Do you want to replace it?</source>
         <translation>높이:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>비율:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>없음</translation>
     </message>
@@ -24143,10 +24131,6 @@ Do you want to replace it?</source>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1:1 (정사각형)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>자르기 상자에 대한 가로 세로 비율 사전 설정</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30118,10 +30102,6 @@ Y: %2
         <translation>크기</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>비율은 자르기 상자를 제한하고, 크기는 상자의 정확한 너비와 높이를 표시하고 설정합니다</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>자르기 상자 너비</translation>
     </message>
@@ -35697,6 +35677,30 @@ Locked: %1</source>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>안쪽은 이 획을 선 두께 안에 유지합니다. 선을 더 두껍게 하려면 모양 외형의 정렬에서 중앙 또는 바깥쪽을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>자르기 사전 설정: 비율과 크기는 각각의 입력란을 표시하고, 비율이나 픽셀 크기를 고르면 입력란이 채워집니다. 크기는 자르기 상자를 그 픽셀 수로 맞출 뿐 리샘플링하지 않습니다</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>다음 오버레이</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>자르기 사전 설정 삭제됨: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>자르기 사전 설정 저장</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>자르기 사전 설정 저장됨: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>자르기 상자를 변경한 뒤에는 %1 키로 다음 오버레이를 고릅니다</translation>
     </message>
 </context>
 <context>

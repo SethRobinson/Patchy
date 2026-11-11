@@ -6102,14 +6102,6 @@
         <translation>Ohne</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>Ursprüngliches Seitenverhältnis</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1 (Quadrat)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>Ziel</translation>
     </message>
@@ -9194,10 +9186,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Großartige Menschen, die Vorschläge, Fehlerberichte und Code beigesteuert haben: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>Verhältnis</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22436,6 +22424,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>Andere Befehle</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>Freistellungswerkzeug, sobald der Zuschneiderahmen geändert wurde: nächste Überlagerung / Überlagerung drehen / freigestellten Bereich ein- oder ausblenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -23873,10 +23865,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Höhe:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>Verhältnis:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>Ohne</translation>
     </message>
@@ -23887,10 +23875,6 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (Quadrat)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>Seitenverhältnis-Vorgabe für den Freistellungsrahmen</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30208,10 +30192,6 @@ In Bilder umgewandelt: %1.</translation>
         <translation>Größe</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>Verhältnis beschränkt den Zuschneiderahmen; Größe zeigt seine genaue Breite und Höhe und setzt sie</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>Breite des Zuschneiderahmens</translation>
     </message>
@@ -35806,6 +35786,30 @@ Fixiert: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Innen hält diese Kontur innerhalb der Stärke der Linie. Wählen Sie unter Ausrichten in der Formdarstellung Mitte oder Außen, um die Linie dicker zu machen.</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>Freistellungsvorgaben: Verhältnis und Größe zeigen ihre Felder; ein Verhältnis oder eine Pixelgröße füllt sie aus. Eine Größe setzt den Zuschneiderahmen auf genau so viele Pixel und berechnet das Bild nicht neu</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>Nächste Überlagerung</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>Freistellungsvorgabe gelöscht: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>Freistellungsvorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>Freistellungsvorgabe gespeichert: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>%1 wählt die nächste Überlagerung, sobald der Zuschneiderahmen geändert wurde</translation>
     </message>
 </context>
 <context>

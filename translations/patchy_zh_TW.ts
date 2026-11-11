@@ -6092,14 +6092,6 @@
         <translation>無</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>原始比例</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1 (正方形)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>目標</translation>
     </message>
@@ -9163,10 +9155,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>慷慨貢獻建議、錯誤回報與程式碼的了不起的人們：%1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>比例</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22372,6 +22360,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>其他指令</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>裁切工具，變更裁切框之後: 下一個疊加 / 旋轉疊加 / 顯示或隱藏裁切區域</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -23809,10 +23801,6 @@ Do you want to replace it?</source>
         <translation>高度:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>比例:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>無</translation>
     </message>
@@ -23823,10 +23811,6 @@ Do you want to replace it?</source>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (正方形)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>裁切框的長寬比預設集</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30118,10 +30102,6 @@ Baked into images: %1.</source>
         <translation>尺寸</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>比例用於限制裁切框；尺寸顯示並設定裁切框的精確寬度和高度</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>裁切框寬度</translation>
     </message>
@@ -35697,6 +35677,30 @@ Locked: %1</source>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>「內部」會將此筆畫限制在線條的線寬之內。在「形狀外觀」的「對齊」中選擇「置中」或「外部」可讓線條變粗。</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>裁切預設集: 「比例」和「尺寸」會顯示各自的欄位；選擇比例或像素尺寸會填入這些欄位。尺寸只會把裁切框設為相應的像素數，不會重新取樣</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>下一個疊加</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>已刪除裁切預設集: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>儲存裁切預設集</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>已儲存裁切預設集: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>變更裁切框之後，按 %1 可選擇下一個疊加</translation>
     </message>
 </context>
 <context>

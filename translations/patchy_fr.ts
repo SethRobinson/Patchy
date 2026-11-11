@@ -6102,14 +6102,6 @@
         <translation>Aucun</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>Proportions d&apos;origine</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1 (carré)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>Destination</translation>
     </message>
@@ -9194,10 +9186,6 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Des personnes formidables qui ont offert suggestions, rapports de bogues et code : %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>Rapport</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22436,6 +22424,10 @@ Voulez-vous le remplacer ?</translation>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>Autres commandes</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>Outil Recadrage, une fois le cadre de recadrage modifié : superposition suivante / tourner la superposition / afficher ou masquer la zone recadrée</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -23873,10 +23865,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Hauteur :</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>Proportions :</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>Aucun</translation>
     </message>
@@ -23887,10 +23875,6 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (Carré)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>Proportions prédéfinies pour la zone de recadrage</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30208,10 +30192,6 @@ Convertis en images : %1.</translation>
         <translation>Taille</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>Rapport contraint le cadre de recadrage ; Taille affiche sa largeur et sa hauteur exactes et les définit</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>Largeur du cadre de recadrage</translation>
     </message>
@@ -35806,6 +35786,30 @@ Verrouillé : %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Intérieur garde ce contour dans l&apos;Épaisseur du trait. Choisissez Centre ou Extérieur sous Alignement, dans Aspect de la forme, pour épaissir le trait.</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>Paramètres prédéfinis de recadrage : Rapport et Taille affichent leurs champs ; un rapport ou une taille en pixels les remplit. Une taille fixe le cadre de recadrage à ce nombre de pixels et ne rééchantillonne pas</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>Superposition suivante</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>Paramètre prédéfini de recadrage supprimé : %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>Enregistrer le paramètre prédéfini de recadrage</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>Paramètre prédéfini de recadrage enregistré : %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>%1 choisit la superposition suivante une fois le cadre de recadrage modifié</translation>
     </message>
 </context>
 <context>

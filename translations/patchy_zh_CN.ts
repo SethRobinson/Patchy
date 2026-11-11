@@ -6092,14 +6092,6 @@
         <translation>无</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>原始比例</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1（方形）</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>目标</translation>
     </message>
@@ -9163,10 +9155,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>慷慨贡献建议、错误报告和代码的了不起的人们：%1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>比例</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22372,6 +22360,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>其他命令</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>裁剪工具，更改裁剪框之后: 下一个叠加 / 旋转叠加 / 显示或隐藏裁剪区域</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -23809,10 +23801,6 @@ Do you want to replace it?</source>
         <translation>高度:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>比例:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>无</translation>
     </message>
@@ -23823,10 +23811,6 @@ Do you want to replace it?</source>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (方形)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>裁剪框的长宽比预设</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30118,10 +30102,6 @@ Baked into images: %1.</source>
         <translation>大小</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>比例用于约束裁剪框；尺寸显示并设置裁剪框的精确宽度和高度</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>裁剪框宽度</translation>
     </message>
@@ -35697,6 +35677,30 @@ Locked: %1</source>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>“内部”会将此描边限制在线条粗细之内。在“形状外观”的“对齐”中选择“居中”或“外部”可使线条变粗。</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>裁剪预设: “比例”和“大小”显示各自的字段；选择比例或像素大小会填入这些字段。大小只把裁剪框设为相应的像素数，不会重新取样</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>下一个叠加</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>已删除裁剪预设: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>存储裁剪预设</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>已存储裁剪预设: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>更改裁剪框之后，按 %1 可选择下一个叠加</translation>
     </message>
 </context>
 <context>

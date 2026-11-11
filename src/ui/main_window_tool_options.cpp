@@ -2785,10 +2785,6 @@ void MainWindow::load_tool_settings() {
   current_crop_ratio_h_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioHeight"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_style_ = std::clamp(settings.value(QStringLiteral("tools/cropStyle"), 0).toInt(), 0, 1);
-  if (crop_style_combo_ != nullptr) {
-    const QSignalBlocker blocker(crop_style_combo_);
-    crop_style_combo_->setCurrentIndex(current_crop_style_);
-  }
   current_crop_delete_pixels_ = settings.value(QStringLiteral("tools/cropDeletePixels"), true).toBool();
   current_crop_delete_layers_ = settings.value(QStringLiteral("tools/cropDeleteLayers"), false).toBool();
   current_red_eye_pupil_size_ = stored_int(settings, "tools/redEyePupilSize", 50, 1, 100);
@@ -3953,19 +3949,6 @@ bool MainWindow::crop_size_link_active() const noexcept {
   return current_crop_style_ == 1 && crop_link_size_button_ != nullptr && crop_link_size_button_->isChecked();
 }
 
-void MainWindow::apply_crop_style(int style) {
-  current_crop_style_ = std::clamp(style, 0, 1);
-  if (canvas_ != nullptr) {
-    // Size mode lifts the constraint (a custom box keeps its shape, the
-    // automatic frame grows back to the canvas); Ratio mode restores the
-    // remembered ratio, which re-fits the box like a fresh entry.
-    canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
-    canvas_->set_crop_keep_proportions(crop_size_link_active());
-  }
-  schedule_save_tool_settings();
-  refresh_options_bar();
-}
-
 void MainWindow::handle_crop_size_value_changed(bool horizontal, int value) {
   if (canvas_ == nullptr || value < 1) {
     return;
@@ -3997,9 +3980,15 @@ void MainWindow::sync_crop_guide_buttons_enabled(bool edit_allowed) {
   // for the Triangle and the Golden Spiral, the show choice nothing under No
   // Overlay. The menu's button itself follows the bar (the shield options).
   const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
+  if (crop_overlay_next_action_ != nullptr) {
+    crop_overlay_next_action_->setEnabled(edit_allowed);
+  }
   if (crop_overlay_turn_action_ != nullptr) {
     crop_overlay_turn_action_->setEnabled(edit_allowed && (overlay == CanvasWidget::CropOverlay::Triangle ||
                                                            overlay == CanvasWidget::CropOverlay::GoldenSpiral));
+  }
+  if (current_tool_ == CanvasTool::Crop) {
+    refresh_crop_key_hints();  // the hotkeys may have changed since the bar was last shown
   }
   for (auto* action : {crop_overlay_show_always_action_, crop_overlay_show_while_dragging_action_}) {
     if (action != nullptr) {
@@ -4062,37 +4051,6 @@ QSize MainWindow::marquee_fixed_size_for_canvas() const {
                  std::max(1, static_cast<int>(std::lround(current_marquee_ratio_h_ * 1000.0))));
   }
   return QSize(current_marquee_width_, current_marquee_height_);
-}
-
-void MainWindow::sync_crop_ratio_preset_combo() {
-  if (crop_ratio_preset_combo_ == nullptr || canvas_ == nullptr ||
-      crop_ratio_preset_combo_->count() < 3) {
-    return;
-  }
-  const auto ratio_w = canvas_->crop_ratio_width();
-  const auto ratio_h = canvas_->crop_ratio_height();
-  const QSignalBlocker blocker(crop_ratio_preset_combo_);
-  const auto custom_index = crop_ratio_preset_combo_->count() - 1;
-  if (ratio_w <= 0.0 || ratio_h <= 0.0) {
-    crop_ratio_preset_combo_->setCurrentIndex(0);
-    return;
-  }
-  if (has_active_document() && document().width() > 0 && document().height() > 0) {
-    const auto divisor = std::gcd(document().width(), document().height());
-    if (ratio_w == static_cast<double>(document().width() / divisor) &&
-        ratio_h == static_cast<double>(document().height() / divisor)) {
-      crop_ratio_preset_combo_->setCurrentIndex(1);
-      return;
-    }
-  }
-  for (int index = 2; index < custom_index; ++index) {
-    const auto preset = crop_ratio_preset_combo_->itemData(index).toSizeF();
-    if (ratio_w == preset.width() && ratio_h == preset.height()) {
-      crop_ratio_preset_combo_->setCurrentIndex(index);
-      return;
-    }
-  }
-  crop_ratio_preset_combo_->setCurrentIndex(custom_index);
 }
 
 void MainWindow::register_option_action(QWidget* widget, std::initializer_list<CanvasTool> tools) {
@@ -4435,7 +4393,11 @@ void MainWindow::refresh_options_bar() {
     set_spin_value_unless_typing(crop_ratio_w_spin_, current_crop_ratio_w_);
     set_spin_value_unless_typing(crop_ratio_h_spin_, current_crop_ratio_h_);
   }
-  sync_crop_ratio_preset_combo();
+  if (crop_ratio_swap_button_ != nullptr) {
+    // Nothing to swap until a ratio is set.
+    crop_ratio_swap_button_->setEnabled(edit_allowed && (current_crop_ratio_w_ > 0.0 || current_crop_ratio_h_ > 0.0));
+  }
+  sync_crop_preset_combo();
   if (crop_width_spin_ != nullptr && crop_height_spin_ != nullptr) {
     // Size mode mirrors the pending box; without a session the fields rest.
     const auto crop_rect = canvas_ != nullptr ? canvas_->crop_session_rect() : std::optional<QRect>{};
@@ -4446,6 +4408,7 @@ void MainWindow::refresh_options_bar() {
       crop_height_spin_->setValue(crop_rect->height());
     }
     for (QWidget* widget : {static_cast<QWidget*>(crop_width_spin_), static_cast<QWidget*>(crop_height_spin_),
+                            static_cast<QWidget*>(crop_size_swap_button_),
                             static_cast<QWidget*>(crop_link_size_button_)}) {
       if (widget != nullptr) {
         widget->setEnabled(edit_allowed && crop_rect.has_value());

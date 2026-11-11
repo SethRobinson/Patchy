@@ -5146,8 +5146,9 @@ void ui_transform_session_context_menu_applies_and_cancels() {
   CHECK(!canvas->free_transform_active());
 }
 
-// Crop tool: Apply and Cancel (both off on the untouched canvas frame), then the Ratio
-// presets with the current one checked; a preset reshapes the box and Apply crops.
+// Crop tool: Apply and Cancel (both off on the untouched canvas frame), then the bar's
+// Preset list (GitHub issue 696) with the current entry checked and without its Save and
+// Delete commands; a ratio preset reshapes the box and Apply crops.
 void ui_crop_context_menu_offers_apply_cancel_and_ratios() {
   SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
   SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
@@ -5158,15 +5159,23 @@ void ui_crop_context_menu_offers_apply_cancel_and_ratios() {
   require_action(window, "toolCropAction")->trigger();
   QApplication::processEvents();
   canvas->set_snap_enabled(false);
-  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
-  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropRatioPresetCombo"));
-  CHECK(style != nullptr && presets != nullptr);
-  if (style == nullptr || presets == nullptr) {
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+  auto* clear = window.findChild<QPushButton*>(QStringLiteral("cropRatioClearButton"));
+  CHECK(presets != nullptr && clear != nullptr);
+  if (presets == nullptr || clear == nullptr) {
     return;
   }
-  style->setCurrentIndex(0);
+  // Ratio with nothing set: the list's first row.
+  presets->setCurrentIndex(1);
   presets->setCurrentIndex(0);
+  clear->click();
   QApplication::processEvents();
+  CHECK(presets->currentIndex() == 0);
+  const int square_row = presets->findText(QStringLiteral("1 : 1 (Square)"));
+  const int save_row = presets->findText(QStringLiteral("Save Preset..."));
+  const int delete_row = presets->findText(QStringLiteral("Delete Preset"));
+  CHECK(square_row > 1 && save_row > square_row && delete_row == save_row + 1);
+  const auto entry_name = [](int row) { return QStringLiteral("cropContextPresetAction%1").arg(row); };
   const auto doc_size = [&] {
     const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
     return QSize(doc.width(), doc.height());
@@ -5185,11 +5194,15 @@ void ui_crop_context_menu_offers_apply_cancel_and_ratios() {
   CHECK(menu->actions().size() >= 2 && menu->actions()[0] == apply && menu->actions()[1] == cancel);
   CHECK(apply != nullptr && !apply->isEnabled());
   CHECK(cancel != nullptr && !cancel->isEnabled());
-  auto* none = context_entry(*menu, QStringLiteral("cropContextRatioAction0"));
+  auto* none = context_entry(*menu, entry_name(0));
   CHECK(none != nullptr && none->isCheckable() && none->isChecked());
-  CHECK(context_entry(*menu, QStringLiteral("cropContextRatioAction%1").arg(presets->count() - 1)) == nullptr);
-  pick_context_entry(*menu, QStringLiteral("cropContextRatioAction2"));  // 1 : 1 (Square)
-  CHECK(presets->currentIndex() == 2);
+  CHECK(none != nullptr && none->text() == QStringLiteral("Ratio"));
+  CHECK(context_entry(*menu, entry_name(1)) != nullptr);  // Size
+  CHECK(context_entry(*menu, entry_name(presets->findText(QStringLiteral("16 : 9")))) != nullptr);
+  CHECK(context_entry(*menu, entry_name(save_row)) == nullptr);
+  CHECK(context_entry(*menu, entry_name(delete_row)) == nullptr);
+  pick_context_entry(*menu, entry_name(square_row));
+  CHECK(presets->currentIndex() == square_row);
   const auto side = std::min(width, height);
   const auto box = canvas->crop_session_rect();
   CHECK(box.has_value() && box->width() == side && box->height() == side);
@@ -5199,7 +5212,7 @@ void ui_crop_context_menu_offers_apply_cancel_and_ratios() {
   if (menu == nullptr) {
     return;
   }
-  auto* square = context_entry(*menu, QStringLiteral("cropContextRatioAction2"));
+  auto* square = context_entry(*menu, entry_name(square_row));
   CHECK(square != nullptr && square->isChecked());
   CHECK(context_entry(*menu, QStringLiteral("cropContextApplyAction"))->isEnabled());
   save_window_popup_artifact("ui_crop_context_menu", window, *canvas, *menu);
