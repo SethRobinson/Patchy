@@ -240,7 +240,9 @@ private:
 // takes a line of its own (the blend combo; the Lock buttons) and the rest pack
 // greedily onto the lines below, so its narrowest width is its widest item. A
 // stretch item (the name filter) takes the rest of its line and counts as
-// stretch_minimum wide when the row decides what fits.
+// stretch_minimum wide when the row decides what fits. A shrink widget (the
+// blend combo, GitHub issue 693) narrows down to its minimum width first, so
+// the row wraps only once even that does not fit one line.
 class WrappingControlRowLayout final : public WrappingPanelRowLayout {
 public:
   explicit WrappingControlRowLayout(int spacing) { setSpacing(spacing); }
@@ -256,6 +258,8 @@ public:
     stretch_layout_ = layout;
     set_stretch_widget(widget, minimum_width);
   }
+  // `widget` gives up width, down to its minimum size, to keep the row on one line.
+  void set_shrink_widget(QWidget* widget) { shrink_widget_ = widget; }
 
   [[nodiscard]] int heightForWidth(int width) const override {
     return lines_height(line_starts(width - horizontal_margins())) + vertical_margins();
@@ -288,6 +292,10 @@ public:
     const auto area = contentsRect();
     const auto visible = visible_items();
     const auto starts = line_starts(area.width());
+    // One line the natural widths overflow: the shrink widget gives up the difference.
+    const auto squeeze = starts.size() == 1
+                             ? std::clamp(run_width(visible, 0, visible.size()) - area.width(), 0, shrink_room(visible))
+                             : 0;
     auto y = area.y();
     for (std::size_t line = 0; line < starts.size(); ++line) {
       const auto first = starts[line];
@@ -298,7 +306,8 @@ public:
         auto* line_item = item(visible[position]);
         const auto hint = line_item->sizeHint();
         const auto remaining = std::max(0, area.right() + 1 - x);
-        const auto width = is_stretch(line_item) ? remaining : std::min(hint.width(), remaining);
+        const auto natural = hint.width() - (is_shrink(line_item) ? squeeze : 0);
+        const auto width = is_stretch(line_item) ? remaining : std::min(natural, remaining);
         line_item->setGeometry(QRect(x, y + (height - hint.height()) / 2, width, hint.height()));
         x += width + spacing();
       }
@@ -311,6 +320,18 @@ private:
   [[nodiscard]] bool is_stretch(QLayoutItem* candidate) const {
     return (stretch_widget_ != nullptr && candidate->widget() == stretch_widget_) ||
            (stretch_layout_ != nullptr && candidate->layout() == stretch_layout_);
+  }
+  [[nodiscard]] bool is_shrink(QLayoutItem* candidate) const {
+    return shrink_widget_ != nullptr && candidate->widget() == shrink_widget_;
+  }
+  // How much narrower than their natural widths the visible items can get on one line.
+  [[nodiscard]] int shrink_room(const std::vector<int>& visible) const {
+    for (const auto index : visible) {
+      if (is_shrink(item(index))) {
+        return std::max(0, item_width(index) - item(index)->minimumSize().width());
+      }
+    }
+    return 0;
   }
   [[nodiscard]] int item_width(int index) const {
     auto* candidate = item(index);
@@ -354,7 +375,7 @@ private:
     if (visible.empty()) {
       return {};
     }
-    if (run_width(visible, 0, visible.size()) <= width) {
+    if (run_width(visible, 0, visible.size()) - shrink_room(visible) <= width) {
       return {0};
     }
     std::vector<std::size_t> starts{0};
@@ -395,6 +416,7 @@ private:
 
   QWidget* stretch_widget_{nullptr};
   QLayout* stretch_layout_{nullptr};
+  QWidget* shrink_widget_{nullptr};
   int stretch_minimum_{0};
 };
 
@@ -633,15 +655,19 @@ void MainWindow::update_right_dock_minimum_width() {
   if (panel_layout == nullptr || panel_column_ == nullptr) {
     return;
   }
-  if (blend_combo_ != nullptr) {
-    // Under the app stylesheet the popup list is sized to the field, and the
-    // open list spends part of that width on its frame and scroll bar, so the
-    // field needs that much slack for the longest mode name not to elide in
-    // the list. (Widening only the view does nothing: the styled popup
-    // geometry ignores the view's minimum.)
+  if (auto* blend_combo = dynamic_cast<PopupAwareComboBox*>(blend_combo_); blend_combo != nullptr) {
+    // The box's natural width: its longest mode name plus the slack the open list
+    // once needed for its frame and scroll bar (the list is now widened to its entries
+    // by itself, fit_combo_popup_to_entries; the width stays so the panel opens as before).
     const auto scroll_extent =
-        blend_combo_->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, blend_combo_);
-    blend_combo_->setMinimumWidth(blend_combo_->minimumSizeHint().width() + scroll_extent + 8);
+        blend_combo->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, blend_combo);
+    const auto natural = blend_combo->longest_entry_box_width() + scroll_extent + 8;
+    // In a narrower column it gives up width before the row wraps (GitHub issue 693),
+    // down to the room the default mode's name needs: longer names end in "...".
+    constexpr int kProbeWidth = 400;
+    const auto chrome = kProbeWidth - combo_box_text_room(*blend_combo, kProbeWidth);
+    const auto short_name = blend_combo->fontMetrics().horizontalAdvance(blend_mode_name(BlendMode::Normal));
+    blend_combo->set_shrink_widths(natural, chrome + short_name + 4);
   }
   // The chrome around the panel (frames, the scroll area) can only be trusted once
   // the column has been laid out. The panel sits in RightDockOverflowArea's viewport
@@ -1704,11 +1730,11 @@ void MainWindow::create_docks() {
   // One compact row (Photoshop-style): the blend combo hugs its longest mode
   // name and Opacity/Fill are prefixed spin boxes with the toolbar popup
   // slider, so the panel spends one line here instead of three. When the
-  // stack is narrower than that line (long translated prefixes make it wider
-  // than the footer buttons), Opacity and Fill wrap onto a second line
-  // instead of raising the dock's minimum width, and Fill onto a third in a
-  // narrower column (GitHub issue 199). No extra side insets: the panel margin
-  // alone places the row.
+  // stack is narrower than that line, the combo narrows first (GitHub issue
+  // 693). Once it is down to its minimum (long translated prefixes), Opacity
+  // and Fill wrap onto a second line instead of raising the dock's minimum
+  // width, and Fill onto a third in a narrower column (GitHub issue 199). No
+  // extra side insets: the panel margin alone places the row.
   auto* blend_opacity_row = new WrappingControlRowLayout(6);
   auto* blend_combo = new PopupAwareComboBox(layers_panel);
   blend_combo_ = blend_combo;
@@ -1716,7 +1742,11 @@ void MainWindow::create_docks() {
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   blend_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
   bind_tooltip(blend_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Blend mode"));
+  // The box narrows before the row wraps (GitHub issue 693); the open list keeps every
+  // mode name whole whatever the box's width.
+  fit_combo_popup_to_entries(*blend_combo_);
   blend_opacity_row->addWidget(blend_combo_);
+  blend_opacity_row->set_shrink_widget(blend_combo_);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
   // The open list previews the highlighted mode on the canvas (GitHub issue 367).
   blend_combo->popup_shown = [this] { begin_layer_blend_preview(); };
