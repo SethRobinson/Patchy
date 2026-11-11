@@ -808,6 +808,13 @@ public:
     std::optional<SnapMatch> x{};
     std::optional<SnapMatch> y{};
   };
+  // The same result for source rects that need not sit on whole pixels (the
+  // shapes of a Path Select drag).
+  struct RectSnapResult {
+    QPointF delta{};
+    std::optional<SnapMatch> x{};
+    std::optional<SnapMatch> y{};
+  };
   // One snap target line: its document position, the extent it belongs to
   // (for the alignment guide), and what kind of target it is.
   struct SnapCandidate {
@@ -815,8 +822,8 @@ public:
     QRectF span{};
     SnapMatch::Kind kind{SnapMatch::Kind::Document};
   };
-  // The alignment guides currently shown for the live Move drag (x = vertical
-  // line, y = horizontal line); both empty outside a snapped drag.
+  // The alignment guides currently shown for the live Move drag or whole-shape
+  // drag (x = vertical line, y = horizontal line); both empty outside a snapped drag.
   [[nodiscard]] const std::optional<SnapMatch>& move_snap_match_x() const noexcept { return move_snap_x_; }
   [[nodiscard]] const std::optional<SnapMatch>& move_snap_match_y() const noexcept { return move_snap_y_; }
 
@@ -2285,6 +2292,13 @@ private:
   [[nodiscard]] QPoint snapped_marquee_current_point(QPoint anchor, QPoint current) const;
   [[nodiscard]] QPoint snapped_move_delta(QPoint raw_delta) const;
   [[nodiscard]] MoveSnapResult snapped_move_delta_with_matches(QPoint raw_delta) const;
+  // The scan behind it, shared with the whole-shape drag (docs/alignment.md): both
+  // edges and the center of every source rect (document space, at a zero delta)
+  // against the snap targets, `exclude_ids` left out. `whole_pixel_delta` rounds
+  // the result for layers; shapes keep the exact landing.
+  [[nodiscard]] RectSnapResult snapped_rects_delta_with_matches(const std::vector<QRectF>& source_rects,
+                                                                const std::vector<LayerId>& exclude_ids,
+                                                                QPointF raw_delta, bool whole_pixel_delta) const;
   // Alignment-guide overlay bookkeeping (the drag-readout pattern: bounded
   // repaints over the previous and next widget rects, cleared on release).
   [[nodiscard]] QRect move_snap_guides_widget_rect() const;
@@ -2799,6 +2813,16 @@ private:
   // state; split out of handle_path_edit_move so Shift press/release mid-drag
   // can replay it at the last raw pointer position.
   bool update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  // The total delta a whole-shape drag (Path Select, Ctrl in a shape tool) applies
+  // for the pointer travel `raw_total`: Shift's axis constraint, then the Move
+  // tool's snapping of the moved shapes' bounds, with the alignment guides it
+  // matched stored for the overlay (GitHub issue 695, docs/alignment.md).
+  [[nodiscard]] QPointF snapped_shape_drag_total(const VectorPath& path, QPointF raw_total,
+                                                 Qt::KeyboardModifiers modifiers);
+  // The bounds of each selected shape (a shape group of the target path or of an
+  // extra-selected layer) with the drag's applied delta taken back out, and the
+  // layers that own them.
+  void collect_shape_drag_snap_sources(const VectorPath& path);
   // Applies the drag at the latest pointer position if mouse moves arrived since the
   // last apply (handle_path_edit_move queues one apply per batch of moves).
   void flush_pending_path_edit_drag();
@@ -3775,6 +3799,14 @@ private:
   QPointF path_drag_origin_document_{};
   QPointF path_drag_raw_document_{};
   QPointF path_drag_applied_delta_{};
+  // Whole-shape drag snapping (GitHub issue 695): the moved shapes' bounds at the
+  // press and the layers left out of the targets, gathered once per drag, and
+  // whether the pointer has travelled far enough from the press to snap (a click
+  // that wobbles a pixel must not pull the shape onto a nearby line).
+  std::vector<QRectF> path_drag_snap_sources_{};
+  std::vector<LayerId> path_drag_snap_exclude_ids_{};
+  bool path_drag_snap_sources_ready_ = false;
+  bool path_drag_snap_armed_ = false;
   // A drag move not applied yet: each apply re-bakes the shape (a gradient fill
   // costs a full re-render) and recomposites its region, and mouse moves can arrive
   // faster than that (Wayland's uncompressed motion), so one queued apply takes the
@@ -4839,8 +4871,8 @@ private:
   mutable QRect drag_readout_dirty_rect_{};
   std::optional<QRectF> move_readout_base_rect_{};
   QString drag_readout_status_text_{};
-  // Alignment guides of the live Move drag (docs/alignment.md) and the widget
-  // rect they last painted, for the bounded repaint union.
+  // Alignment guides of the live Move drag or whole-shape drag (docs/alignment.md)
+  // and the widget rect they last painted, for the bounded repaint union.
   std::optional<SnapMatch> move_snap_x_{};
   std::optional<SnapMatch> move_snap_y_{};
   QRect move_snap_guides_dirty_rect_{};
