@@ -1153,8 +1153,9 @@ void FontPreviewPane::rebuild_lines() {
   const auto info = combo_.family_render_info(family_);  // copy; see family_render_info
   if (info.latin_capable) {
     // Type-specimen lead: the family name, large, in its own face (merging ON so the name
-    // stays complete even when the face misses the odd character).
-    QFont name_font(family_);
+    // stays complete even when the face misses the odd character); in the UI font for a symbol
+    // face, whose letters are not letters.
+    QFont name_font = info.symbol_glyphs ? combo_.font() : QFont(family_);
     apply_font_size(name_font, scaled_font(combo_.font(), 1.9));
     lines_.push_back({name_font, font_display_names().display_name(family_), QString()});
   }
@@ -1163,6 +1164,13 @@ void FontPreviewPane::rebuild_lines() {
   for (const auto ws : info.systems) {
     QFont line_font = info.sample_font;  // the family with NoFontMerging (honest coverage)
     apply_font_size(line_font, scaled_font(combo_.font(), 1.4));
+    if (ws == QFontDatabase::Latin && info.symbol_glyphs) {
+      // Its "Latin" is the font's symbol set: a glyph sample, under the Symbol label.
+      if (const auto text = symbol_font_sample(line_font); glyph_count(text) > 0) {
+        lines_.push_back({line_font, text, QFontDatabase::writingSystemName(QFontDatabase::Symbol)});
+      }
+      continue;
+    }
     if (ws == QFontDatabase::Latin) {
       //: Latin sample text in the font preview; keep it Latin in every language (it
       //: demonstrates the font's Latin glyph coverage).
@@ -1534,12 +1542,20 @@ const FontFamilyRenderInfo& FontPickerCombo::family_render_info(const QString& f
   apply_font_size(info.sample_font, row_font);
   info.sample_font.setStyleStrategy(QFont::NoFontMerging);
   if (info.latin_capable) {
+    // GitHub issue 691 follow-up: a Symbol-class face that claims Latin maps its letters onto
+    // symbols. One OS/2 read per family, kept by the style index (its Style filter answer).
+    auto& styles = FontStyleIndex::instance();
+    const auto traits = styles.cached(family);
+    info.symbol_glyphs =
+        (traits.has_value() ? *traits : styles.classify(family)).category == FontStyleCategory::symbol;
+  }
+  if (info.latin_capable && !info.symbol_glyphs) {
     info.display_font = QFont(family);
   } else {
     // The family cannot draw its own Latin name; keep the row readable in the UI font and
     // show a short run of the family's actual glyphs beside it.
     info.display_font = font();
-    if (info.systems.contains(QFontDatabase::Symbol)) {
+    if (info.symbol_glyphs || info.systems.contains(QFontDatabase::Symbol)) {
       info.row_sample = symbol_font_sample(info.sample_font).left(kMaxRowSampleChars).trimmed();
     } else if (!info.systems.isEmpty()) {
       info.row_sample = renderable_subset(info.sample_font, writing_system_sample(info.systems.front()))

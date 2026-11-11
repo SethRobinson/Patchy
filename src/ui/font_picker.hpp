@@ -84,8 +84,11 @@ struct FontFamilyRenderInfo {
   QFont display_font;   // the family's own font for its list row; the UI font when the family
                         // cannot render its own Latin name (symbol fonts)
   QFont sample_font;    // the family's own font with NoFontMerging (honest glyph coverage)
-  QString row_sample;   // short glyph run drawn beside the name when !latin_capable
+  QString row_sample;   // short glyph run drawn beside the name when the name is in the UI font
   bool latin_capable{false};
+  // A Symbol-class family that claims Latin anyway (URW's Standard Symbols PS and D050000L): its
+  // Latin letters are Greek letters or dingbats, so its name is drawn in the UI font too.
+  bool symbol_glyphs{false};
   QList<QFontDatabase::WritingSystem> systems;  // the full claimed list, priority-ordered
 };
 

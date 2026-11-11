@@ -22,6 +22,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QHoverEvent>
@@ -43,6 +44,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <utility>
 #include <vector>
 
 using namespace patchy::test::ui;
@@ -1220,11 +1222,32 @@ void ui_font_english_name_comes_from_the_name_table() {
             {1, 1, 11, 1, QStringLiteral("\u00e3\u00e9\u00ee")},
         }), hiragino).isEmpty());
 
-  // A Windows record in a legacy code page (PRC here) is not UTF-16 and is passed over.
+  // A Windows record in a legacy code page (PRC, Big5) is read for ASCII only (GitHub issue 691
+  // follow-up): stored one character per 16-bit unit, or two bytes packed into each unit ("Ke",
+  // "Ya", "nT", "ia", "n" here). Anything else in it is passed over.
   CHECK(english_family_name_from_name_table(name_table_with({
             {3, 1, 0x0804, 1, yahei},
-            {3, 3, 0x0409, 1, QStringLiteral("Wrong Bytes")},
+            {3, 3, 0x0804, 1, QStringLiteral("KeYanKeTian")},
+        }), yahei) == QStringLiteral("KeYanKeTian"));
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 3, 0x0804, 1, QStringLiteral("\u4b65\u5961\u6e54\u6961\u6e00")},
+            {3, 1, 0x0804, 1, yahei},
+        }), yahei) == QStringLiteral("KeYanTian"));
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0804, 1, yahei},
+            {3, 4, 0x0404, 1, QStringLiteral("\u00c4\u00e3")},  // Big5 bytes C4 E3: not ASCII
+            {3, 3, 0x0804, 6, QStringLiteral("\u4b65\u8140")},  // a GBK lead byte
         }), yahei).isEmpty());
+  // A Windows en-US record outranks a legacy one; a Macintosh Chinese record with ASCII text counts.
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 3, 0x0804, 1, QStringLiteral("Legacy Name")},
+            {3, 1, 0x0409, 1, QStringLiteral("Unicode Name")},
+            {3, 1, 0x0804, 1, yahei},
+        }), yahei) == QStringLiteral("Unicode Name"));
+  CHECK(english_family_name_from_name_table(name_table_with({
+            {3, 1, 0x0804, 1, yahei},
+            {1, 25, 33, 1, QStringLiteral("Ke Yan Ke Tian")},
+        }), yahei) == QStringLiteral("Ke Yan Ke Tian"));
 
   // Nothing to offer: only the listed name, or no table at all.
   CHECK(english_family_name_from_name_table(name_table_with({{3, 1, 0x0804, 1, yahei}}), yahei).isEmpty());
@@ -1644,6 +1667,156 @@ void ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules() {
   reset_picker_settings();
 }
 
+// A face that claims Latin and still states the Symbol class (GitHub issue 691 follow-up, URW's
+// Standard Symbols PS and D050000L on Linux): the bundled Liberation Sans, renamed and with its
+// OS/2 sFamilyClass set to 12 (Symbolic) in memory. Its letters stay letters, which is enough:
+// the picker goes by the class. The family name, or empty when the font could not be made.
+QString register_latin_claiming_symbol_font() {
+  QFile file(QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web/liberation/LiberationSans-Regular.ttf"));
+  if (!file.open(QIODevice::ReadOnly)) {
+    return {};
+  }
+  auto bytes = file.readAll();
+  const auto u16 = [&bytes](qsizetype at) {
+    return static_cast<quint16>((static_cast<quint8>(bytes[at]) << 8) | static_cast<quint8>(bytes[at + 1]));
+  };
+  const auto u32 = [&u16](qsizetype at) { return (static_cast<quint32>(u16(at)) << 16) | u16(at + 2); };
+  bool patched = false;
+  for (int table = 0; table < u16(4); ++table) {
+    const qsizetype record = 12 + 16 * table;
+    if (bytes.mid(record, 4) == QByteArrayLiteral("OS/2")) {
+      const auto os2 = static_cast<qsizetype>(u32(record + 8));
+      bytes[os2 + 30] = 12;  // sFamilyClass: Symbolic
+      bytes[os2 + 31] = 3;
+      patched = true;
+    }
+  }
+  if (!patched) {
+    return {};
+  }
+  // Same-length names, so no offset moves: the UTF-16 (Windows) and the Latin-1 (Macintosh)
+  // records alike.
+  const auto utf16 = [](const char* text) {
+    QByteArray out;
+    for (const char* ch = text; *ch != '\0'; ++ch) {
+      out.append('\0');
+      out.append(*ch);
+    }
+    return out;
+  };
+  for (const auto& [from, to] : {std::pair{"Liberation Sans", "Patchy Symbolic"}, std::pair{"LiberationSans", "PatchySymbolic"}}) {
+    bytes.replace(utf16(from), utf16(to));
+    bytes.replace(QByteArray(from), QByteArray(to));
+  }
+  const int id = QFontDatabase::addApplicationFontFromData(bytes);
+  return id < 0 ? QString() : QFontDatabase::applicationFontFamilies(id).value(0);
+}
+
+// GitHub issue 691 follow-up: a Symbol-class family draws its name in the UI font with a glyph
+// sample beside it, also when it claims Latin; text families keep their own face and Wingdings
+// (no Latin) is unchanged. URW's own fonts are checked too where this machine has them
+// (installed on Linux, or in local-test-fixtures/fonts/urw-base35).
+void ui_font_picker_symbol_faces_show_a_readable_name() {
+  reset_picker_settings();
+  register_test_fonts(TestFontRole::Wingdings);
+  (void)QFontDatabase::addApplicationFont(
+      QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web/carlito/Carlito-Regular.ttf"));
+  const auto urw_dir = patchy::test::local_fixtures_root() / "fonts" / "urw-base35";
+  for (const auto* file : {"StandardSymbolsPS.otf", "D050000L.otf"}) {
+    if (const auto path = urw_dir / file; std::filesystem::exists(path)) {
+      (void)QFontDatabase::addApplicationFont(patchy::ui::to_qstring(path));
+    }
+  }
+  const auto symbolic = register_latin_claiming_symbol_font();
+  CHECK(!symbolic.isEmpty());
+  if (symbolic.isEmpty()) {
+    return;
+  }
+  const auto installed = patchy::ui::font_families_without_foundries(QFontDatabase::families());
+  QStringList urw;
+  for (const auto name : {QStringLiteral("Standard Symbols PS"), QStringLiteral("D050000L")}) {
+    if (installed.contains(name)) {
+      urw.append(name);
+    }
+  }
+  const bool has_wingdings = installed.contains(QStringLiteral("Wingdings"));
+  QStringList recent{symbolic};
+  recent.append(urw);
+  if (has_wingdings) {
+    recent.append(QStringLiteral("Wingdings"));
+  }
+  recent.append(QStringLiteral("Carlito"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey), recent);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+
+  // The popup first, so the capture shows what a user sees before any check can stop the test.
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  if (popup != nullptr) {
+    auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    CHECK(list != nullptr);
+    if (list != nullptr) {
+      CHECK(family_rows(*list, true) == recent);
+      // The Recent section in view, the preview on a symbol face (URW's own where installed).
+      list->scrollToTop();
+      const auto shown = urw.isEmpty() ? symbolic : urw.front();
+      for (int row = 0; row < list->model()->rowCount(); ++row) {
+        const auto index = list->model()->index(row, 0);
+        if (index.data(patchy::ui::kFontPickerRecentRowRole).toBool() && index.data(Qt::DisplayRole).toString() == shown) {
+          list->setCurrentIndex(index);
+          break;
+        }
+      }
+      QApplication::processEvents();
+    }
+    QTest::qWait(50);
+    save_widget_artifact("font_picker_symbol_rows", *popup);
+    popup->close();
+    QApplication::processEvents();
+  }
+
+  for (const auto& family : QStringList{symbolic} + urw) {
+    const auto info = picker->family_render_info(family);
+    CHECK(info.latin_capable);
+    CHECK(info.symbol_glyphs);
+    CHECK(info.display_font.family() != family);  // the name in the UI font
+    CHECK(!info.row_sample.isEmpty());
+    CHECK(info.row_sample.size() <= 9);
+    // The preview: the name in the UI font first, then the glyphs under Symbol, no pangram.
+    patchy::ui::FontPreviewPane pane(*picker, nullptr);
+    pane.set_family(family);
+    const auto lines = pane.line_texts();
+    CHECK(lines.size() >= 2);
+    CHECK(lines.value(0) == family);
+    for (const auto& line : lines) {
+      CHECK(!line.contains(QStringLiteral("quick brown fox")));
+    }
+  }
+  const auto text_face = picker->family_render_info(QStringLiteral("Carlito"));
+  CHECK(text_face.latin_capable);
+  CHECK(!text_face.symbol_glyphs);
+  CHECK(text_face.display_font.family() == QStringLiteral("Carlito"));
+  CHECK(text_face.row_sample.isEmpty());
+  if (has_wingdings) {
+    const auto wingdings = picker->family_render_info(QStringLiteral("Wingdings"));
+    CHECK(!wingdings.latin_capable);
+    CHECK(!wingdings.symbol_glyphs);
+    CHECK(wingdings.display_font.family() != QStringLiteral("Wingdings"));
+    CHECK(!wingdings.row_sample.isEmpty());
+  }
+  reset_picker_settings();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
@@ -1668,5 +1841,6 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
       {"ui_font_display_names_round_trip_to_the_listed_family", ui_font_display_names_round_trip_to_the_listed_family},
       {"ui_font_picker_shows_english_names_when_enabled", ui_font_picker_shows_english_names_when_enabled},
       {"ui_preferences_show_font_names_in_english_checkbox", ui_preferences_show_font_names_in_english_checkbox},
+      {"ui_font_picker_symbol_faces_show_a_readable_name", ui_font_picker_symbol_faces_show_a_readable_name},
   };
 }
