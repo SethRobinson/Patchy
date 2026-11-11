@@ -332,7 +332,12 @@ int MainWindow::commit_text_layers_in_hidden_sessions(const std::vector<LayerId>
   push_undo_snapshot(undo_label);
   applying_text_options_to_layers_ = true;
   text_commit_snapshot_suppressed_ = true;
+  // Each commit would rebuild the Layers panel, the layer controls and the options bar; the
+  // pass refreshes them once at the end instead (GitHub issue 686: the per-commit rebuilds,
+  // and the old rows they left for the event loop to delete, made the pass quadratic).
+  begin_deferred_panel_refreshes();
   const auto cleanup = qScopeGuard([this, original_active, original_selection] {
+    end_deferred_panel_refreshes();
     text_font_replacements_.reset();
     applying_text_options_to_layers_ = false;
     text_commit_snapshot_suppressed_ = false;

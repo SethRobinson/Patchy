@@ -53,6 +53,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -1144,6 +1147,155 @@ void ui_update_all_text_layers_rerenders_installed_font_layers() {
   trigger_type_action(empty, "typeUpdateAllTextLayersAction");
   CHECK(MainWindowTestAccess::active_session_undo_depth(empty) == empty_depth);
   CHECK(status_message(empty) == QStringLiteral("This document has no text layers"));
+}
+
+// GitHub issue 686 follow-up: Update All Text Layers refreshes the Layers panel once for the
+// whole pass, however many layers it commits. A rebuild per commit cost O(layers) each, and the
+// rows it replaced could not be deleted until the command returned, so a 144-layer file took
+// minutes. The count is the same for 6 layers and for 12, and the result is one undo step.
+void ui_update_all_text_layers_refreshes_the_layers_panel_once() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed = patchy::test::visual_test_font().family();
+  const auto rebuilds_for = [&installed](int layers) -> std::optional<std::uint64_t> {
+    auto document = white_document();
+    std::vector<patchy::LayerId> ids;
+    for (int index = 0; index < layers; ++index) {
+      ids.push_back(document.add_layer(missing_font_text_layer(document, "Text " + std::to_string(index), installed,
+                                                               4 + index * 18))
+                        .id());
+    }
+    MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Update All Once"));
+    QApplication::processEvents();
+    const auto depth_before = MainWindowTestAccess::active_session_undo_depth(window);
+    const auto rebuilds_before = MainWindowTestAccess::layer_list_rebuild_count(window);
+    trigger_type_action(window, "typeUpdateAllTextLayersAction");
+    const auto rebuilds = MainWindowTestAccess::layer_list_rebuild_count(window) - rebuilds_before;
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+    for (const auto id : ids) {
+      CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+    }
+    CHECK(status_message(window).contains(QString::number(layers)));
+    return rebuilds;
+  };
+  const auto six = rebuilds_for(6);
+  const auto twelve = rebuilds_for(12);
+  CHECK(six.has_value() && twelve.has_value());
+  if (!six.has_value() || !twelve.has_value()) {
+    return;
+  }
+  std::fprintf(stderr, "Layers panel rebuilds: %llu for 6 layers, %llu for 12\n",
+               static_cast<unsigned long long>(*six), static_cast<unsigned long long>(*twelve));
+  CHECK(*six >= 1U && *six <= 3U);
+  CHECK(*twelve == *six);
+}
+
+// The scripted form (layer.rerenderText, one call per layer, as Testy runs it) rebuilds the panel
+// a fixed number of times per call: the call's own session no longer rebuilds it on activation,
+// entry and commit, and the rows it retires are deleted at once instead of piling up for the
+// whole run, which made every later call slower than the one before (GitHub issue 686).
+void ui_script_rerender_text_rebuilds_the_layers_panel_a_fixed_number_of_times_per_call() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed = patchy::test::visual_test_font().family();
+  const auto rebuilds_for = [&installed](int layers) -> std::optional<std::uint64_t> {
+    auto document = white_document();
+    std::vector<patchy::LayerId> ids;
+    for (int index = 0; index < layers; ++index) {
+      ids.push_back(document.add_layer(missing_font_text_layer(document, "Text " + std::to_string(index), installed,
+                                                               4 + index * 18))
+                        .id());
+    }
+    MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Rerender Calls"));
+    QApplication::processEvents();
+    const auto rebuilds_before = MainWindowTestAccess::layer_list_rebuild_count(window);
+    auto& host = window.script_engine_host();
+    patchy::ui::ScriptEngineHost::RunOptions options;
+    options.name = QStringLiteral("rerender-every-text-layer");
+    options.unattended = true;
+    CHECK(host.run_source(
+        QStringLiteral("for (const layer of app.activeDocument.layers) { if (layer.isText) layer.rerenderText(); }"),
+        std::move(options)));
+    for (int waited = 0; host.run_active() && waited < 30000; waited += 20) {
+      process_events_for(20);
+    }
+    CHECK(!host.run_active());
+    process_events_for(100);
+    for (const auto id : ids) {
+      CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+    }
+    return MainWindowTestAccess::layer_list_rebuild_count(window) - rebuilds_before;
+  };
+  const auto four = rebuilds_for(4);
+  const auto eight = rebuilds_for(8);
+  CHECK(four.has_value() && eight.has_value());
+  if (!four.has_value() || !eight.has_value()) {
+    return;
+  }
+  std::fprintf(stderr, "Layers panel rebuilds: %llu for 4 calls, %llu for 8\n",
+               static_cast<unsigned long long>(*four), static_cast<unsigned long long>(*eight));
+  // One when each call's session ends, at most one more from the script's own refresh.
+  CHECK(*four <= 4U * 2U + 1U);
+  CHECK(*eight <= 8U * 2U + 1U);
+  CHECK(*eight - *four <= 4U * 2U);
+}
+
+// Photoshop draws point text with its first baseline on the TySh anchor's y (rounded like a
+// line start). The re-render used to match the top rows of ink instead, and a faint antialiased
+// row above Patchy's glyphs counted as ink: 16 of the 25 words of the reporter's file came out a
+// pixel low (GitHub issue 686). The re-render now puts its first baseline on the anchor when the
+// two agree to within a pixel and a half, and keeps the ink pin when the anchor is further off
+// (a transform that no longer describes the raster).
+void ui_update_all_text_layers_puts_photoshop_baselines_on_the_anchor() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed = patchy::test::visual_test_font().family();
+  constexpr int kInkTop = 40;
+  const auto document_baseline_after_update = [&installed](double anchor_y) -> std::optional<double> {
+    auto document = white_document();
+    // Its raster stands in for Photoshop's: solid ink from row kInkTop down.
+    auto layer = missing_font_text_layer(document, "HH", installed, kInkTop);
+    layer.metadata()[patchy::kLayerMetadataPsdTextTransform] =
+        patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 40.0, anchor_y});
+    const auto id = document.add_layer(std::move(layer)).id();
+    MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Baseline"));
+    QApplication::processEvents();
+    trigger_type_action(window, "typeUpdateAllTextLayersAction");
+    CHECK(layer_raster_status(window, id) == QStringLiteral("patchy_raster"));
+    const auto* committed = std::as_const(MainWindowTestAccess::document(window)).find_layer(id);
+    if (committed == nullptr) {
+      return std::nullopt;
+    }
+    const auto transform = committed->metadata().find(patchy::kLayerMetadataTextTransform);
+    const auto baseline = committed->metadata().find(patchy::kLayerMetadataTextFirstBaseline);
+    if (transform == committed->metadata().end() || baseline == committed->metadata().end()) {
+      return std::nullopt;
+    }
+    const auto parsed = patchy::parse_layer_affine_transform(transform->second);
+    if (!parsed.has_value()) {
+      return std::nullopt;
+    }
+    return (*parsed)[5] + std::stod(baseline->second);
+  };
+  // Far from the raster: the ink pin alone places the baseline.
+  const auto pinned = document_baseline_after_update(kInkTop + 200.0);
+  CHECK(pinned.has_value());
+  if (!pinned.has_value()) {
+    return;
+  }
+  const auto near = std::round(*pinned) + 1.0;
+  const auto on_anchor = document_baseline_after_update(near);
+  const auto too_far = document_baseline_after_update(std::round(*pinned) + 3.0);
+  std::fprintf(stderr, "ink pin baseline %.3f; anchor %.1f -> %.3f; anchor %.1f -> %.3f\n", *pinned, near,
+               on_anchor.value_or(-1.0), std::round(*pinned) + 3.0, too_far.value_or(-1.0));
+  CHECK(on_anchor.has_value() && std::abs(*on_anchor - near) < 0.01);
+  // A half-pixel anchor rounds like Photoshop's line start, halves up.
+  const auto half = document_baseline_after_update(near - 0.5);
+  CHECK(half.has_value() && std::abs(*half - near) < 0.01);
+  CHECK(too_far.has_value() && std::abs(*too_far - *pinned) < 0.01);
 }
 
 // The same command on a PSD Photoshop wrote: every text layer is laid out and rendered by
@@ -3183,6 +3335,12 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
        ui_update_all_text_layers_keeps_the_line_composer_if_available},
       {"ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing",
        ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing},
+      {"ui_update_all_text_layers_refreshes_the_layers_panel_once",
+       ui_update_all_text_layers_refreshes_the_layers_panel_once},
+      {"ui_script_rerender_text_rebuilds_the_layers_panel_a_fixed_number_of_times_per_call",
+       ui_script_rerender_text_rebuilds_the_layers_panel_a_fixed_number_of_times_per_call},
+      {"ui_update_all_text_layers_puts_photoshop_baselines_on_the_anchor",
+       ui_update_all_text_layers_puts_photoshop_baselines_on_the_anchor},
       {"ui_replace_all_missing_fonts_uses_recommendations_then_the_default",
        ui_replace_all_missing_fonts_uses_recommendations_then_the_default},
       {"ui_missing_fonts_dialog_shows_family_and_style_apart", ui_missing_fonts_dialog_shows_family_and_style_apart},

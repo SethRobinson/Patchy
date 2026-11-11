@@ -4160,6 +4160,10 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
 }
 
 void MainWindow::refresh_options_bar() {
+  if (panel_refresh_deferral_depth_ > 0) {
+    deferred_options_bar_refresh_ = true;
+    return;
+  }
   // Runs on every passive transform-box change (each Move-tool press), so it
   // reports under PATCHY_UI_PROFILE=1 like the other per-interaction refreshes.
   const UiProfileScope profile_scope("refresh_options_bar");

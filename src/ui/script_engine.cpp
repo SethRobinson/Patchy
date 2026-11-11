@@ -68,6 +68,7 @@
 #include <QInputDialog>
 #include <QJSEngine>
 #include <QSaveFile>
+#include <QScopeGuard>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJSValueIterator>
@@ -2396,6 +2397,11 @@ bool ScriptEngineHost::edit_text_layer_session(std::int64_t session_id, LayerId 
       window_.layer_id_locks_image_pixels(layer_id)) {
     return false;
   }
+  // The activation, the session's open and its commit refresh the panels once, at the end,
+  // retiring the old Layers rows: one rebuild each that left its rows for the event loop made
+  // every later call slower (layer.rerenderText across a document, GitHub issue 686).
+  window_.begin_deferred_panel_refreshes();
+  auto refresh_once = qScopeGuard([this] { window_.end_deferred_panel_refreshes(true); });
   window_.activate_document_session(*session);
   if (!prepare_mutation(session_id)) {
     return false;
@@ -2421,6 +2427,8 @@ bool ScriptEngineHost::edit_text_layer_session(std::int64_t session_id, LayerId 
   edit(*editor);
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   window_.finish_active_text_editor();
+  refresh_once.dismiss();
+  window_.end_deferred_panel_refreshes(true);
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   note_structure_changed(session_id);
 

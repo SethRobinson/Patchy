@@ -99,7 +99,15 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
   the next save writes Patchy's TySh and Txt2 for it (for PSD text compatibility checks). One
   "Update All Text Layers" step; layers with a missing or glyphless font (Replace All Missing
   Fonts is for those) and locked or protected layers are skipped and counted on the status bar.
-  Both passes share `commit_text_layers_in_hidden_sessions`.
+  Both passes share `commit_text_layers_in_hidden_sessions`, which defers the Layers panel,
+  layer controls and options bar refreshes its commits ask for and runs each once at the end
+  (`begin_deferred_panel_refreshes`/`end_deferred_panel_refreshes`, main_window.hpp). A rebuild
+  per commit made the pass quadratic: each row asks for its fonts, and the replaced rows stay
+  alive until the command returns (a 144-layer file took minutes). The scripted text edits
+  (`edit_text_layer_session`, `rerenderText` included) defer the same way per call and retire
+  the old rows. `available_text_family_match` answers from an index rebuilt only when
+  `QFontDatabase::families()` changes. Pinned by `ui_update_all_text_layers_refreshes_the_layers_panel_once`
+  and `ui_script_rerender_text_rebuilds_the_layers_panel_a_fixed_number_of_times_per_call`.
 - Every interactive open (`open_document_path`, never unattended automation) shows the dialog while
   `imports/showMissingFontsDialog` (default true) allows. Its "Don't show when opening documents"
   box (its label names Preferences > Application as the way back) and Preferences > Application

@@ -304,6 +304,11 @@ constexpr auto kTextEditorSourceLineStartFractionProperty = "patchy.sourceLineSt
 // elsewhere (a superscript, faux bold's stroke) leaves the rest of the line where it was.
 constexpr auto kTextEditorSourceInkOffsetProperty = "patchy.sourceInkOffset";
 constexpr auto kTextEditorSourceFirstBaselineProperty = "patchy.sourceFirstBaseline";
+// Photoshop's first baseline in document pixels (the TySh anchor's y, rounded like a line start)
+// for a horizontal point-text layer that still shows Photoshop's raster. The session-start pin
+// puts this baseline there instead of matching ink tops: a faint antialiased row above Patchy's
+// glyphs counted as ink and dropped most re-rendered words a pixel (GitHub issue 686).
+constexpr auto kTextEditorSourceDocumentBaselineProperty = "patchy.sourceDocumentBaseline";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
 constexpr auto kTextEditorRenderLocalRectProperty = "patchy.textRenderLocalRect";
 constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPreview";
@@ -2105,6 +2110,7 @@ private:
     editor_->setProperty(kTextEditorSourceLineStartFractionProperty, QVariant());
     editor_->setProperty(kTextEditorSourceInkOffsetProperty, QVariant());
     editor_->setProperty(kTextEditorSourceFirstBaselineProperty, QVariant());
+    editor_->setProperty(kTextEditorSourceDocumentBaselineProperty, QVariant());
     editor_->setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
     // Box geometry changed: drop the import-frame render rect so glyphs lay out against the live
     // box instead of the original Photoshop frame (free helper isn't visible inside this class).
@@ -2878,9 +2884,23 @@ void capture_text_editor_source_ink_offset(QTextEdit& editor, const RenderedText
   if (!visible_bounds.has_value()) {
     return;
   }
-  editor.setProperty(kTextEditorSourceInkOffsetProperty,
-                     QPointF(static_cast<double>(visible_bounds->x) + rendered.local_rect.left(),
-                             static_cast<double>(visible_bounds->y) + rendered.local_rect.top()));
+  const auto ink_offset_x = static_cast<double>(visible_bounds->x) + rendered.local_rect.left();
+  auto ink_offset_y = static_cast<double>(visible_bounds->y) + rendered.local_rect.top();
+  // Matching ink tops puts this render's first baseline at anchor - offset + baseline; where the
+  // file names Photoshop's baseline and that lands within a pixel and a half of it, put the
+  // baseline exactly there (the difference is the two rasterizers' faint top rows, not a move).
+  if (const auto document_baseline = editor.property(kTextEditorSourceDocumentBaselineProperty);
+      document_baseline.isValid() && !text_editor_is_vertical(editor) &&
+      rendered.metrics.first_baseline.has_value() && std::isfinite(*rendered.metrics.first_baseline)) {
+    if (const auto anchor = text_editor_source_visible_anchor(editor); anchor.has_value()) {
+      const auto target = document_baseline.toDouble();
+      const auto pinned = anchor->y() - ink_offset_y + *rendered.metrics.first_baseline;
+      if (std::isfinite(target) && std::abs(target - pinned) <= 1.5) {
+        ink_offset_y = anchor->y() + *rendered.metrics.first_baseline - target;
+      }
+    }
+  }
+  editor.setProperty(kTextEditorSourceInkOffsetProperty, QPointF(ink_offset_x, ink_offset_y));
   if (rendered.metrics.first_baseline.has_value() && std::isfinite(*rendered.metrics.first_baseline)) {
     editor.setProperty(kTextEditorSourceFirstBaselineProperty, *rendered.metrics.first_baseline);
   }
@@ -7036,6 +7056,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   std::optional<QPointF> editing_layer_source_visible_anchor;
   std::optional<QSizeF> editing_layer_source_visible_size;
   std::optional<double> editing_layer_source_line_start_fraction;
+  std::optional<double> editing_layer_source_document_baseline;
   std::optional<QRectF> editing_layer_render_local_rect;
   bool editing_layer_is_warped_text = false;
   std::optional<QTransform> editing_layer_warp_session_transform;
@@ -7260,6 +7281,14 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
                                            : -layer_anchor_alignment_factor(*layer) * psd_visible_rect->width());
             if (std::isfinite(line_start)) {
               editing_layer_source_line_start_fraction = line_start - snap_to_pixel_grid(line_start);
+            }
+            // Photoshop's raster: its first baseline sits on the anchor's y, rounded like a line
+            // start (docs/text-render-calibration-pixel-grid.md).
+            if (const auto status = layer->metadata().find(kLayerMetadataTextRasterStatus);
+                status != layer->metadata().end() && status->second == "psd_raster_preview" &&
+                layer->metadata().contains(kLayerMetadataPsdTextTransform) &&
+                std::isfinite((*text_affine_transform)[5])) {
+              editing_layer_source_document_baseline = snap_to_pixel_grid((*text_affine_transform)[5]);
             }
           }
           document_point = QPoint(snapped_pixel_coordinate(psd_visible_rect->left()),
@@ -7512,6 +7541,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   }
   if (editing_layer_source_line_start_fraction.has_value()) {
     editor->setProperty(kTextEditorSourceLineStartFractionProperty, *editing_layer_source_line_start_fraction);
+  }
+  if (editing_layer_source_document_baseline.has_value()) {
+    editor->setProperty(kTextEditorSourceDocumentBaselineProperty, *editing_layer_source_document_baseline);
   }
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
