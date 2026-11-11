@@ -31,6 +31,7 @@
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/desktop_only_feature.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -364,7 +365,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* import_menu = file_menu->addMenu(tr("I&mport"));
   bind_widget_text(import_menu, QT_TR_NOOP("I&mport"));
   import_menu->setObjectName(QStringLiteral("fileImportMenu"));
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
+  // The web build lists the scanner commands too: it cannot reach a scanner, and says so
+  // when one is chosen (apply_web_desktop_only_commands below).
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX) || defined(Q_OS_WASM)
 #ifdef Q_OS_MACOS
   auto* import_scanner_action = import_menu->addAction(tr("From &Scanner..."));
   bind_action_text(import_scanner_action, QT_TR_NOOP("From &Scanner..."));
@@ -561,22 +564,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   file_menu->addSeparator();
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
-#ifdef Q_OS_WASM
-  // Qt ships no QtPrintSupport for WebAssembly (print_dialog_wasm.cpp stubs the
-  // dialogs), and an image-sequence export would mean one browser download per
-  // layer, which browsers refuse as download spam. The actions stay registered
-  // so hotkey ids and wiring are stable; hidden actions do not render in the
-  // menu. A browser has no host folders to open or write into either.
-  export_image_sequence_action->setVisible(false);
-  // A browser pick is a MEMFS transfer path that only open_document_path releases.
-  import_files_as_layers_action->setVisible(false);
-  // A link needs a host file to point at; the browser only hands over a copy.
-  place_linked_action->setVisible(false);
-  export_documents_folder_action->setVisible(false);
-  open_folder_action->setVisible(false);
-  page_setup_action->setVisible(false);
-  print_action->setVisible(false);
-#endif
+  // The web build cannot run Open Folder, the scanner imports, Files as Layers, Place
+  // Linked, Documents to Folder, Layers as Image Sequence, Page Setup or Print. They stay
+  // in the menu and answer with the desktop-only prompt (apply_web_desktop_only_commands
+  // at the end of this function; docs/wasm.md says why each cannot run).
   file_menu->addSeparator();
   // File > Scripts: static entries here (hotkeys register once); the script
   // entries themselves rescan on every open (main_window_scripting.cpp).
@@ -2666,8 +2657,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
 #ifdef Q_OS_WASM
   else {
     // The browser build ships no G'MIC engine, but the row stays so the library is
-    // discoverable: it explains that the nearly 400 filters come with the desktop
-    // version and offers the download, like the PDF stub (docs/wasm.md).
+    // discoverable: a desktop-only command with its own message, which says that the
+    // nearly 400 filters come with the desktop version (docs/wasm.md).
     auto* gmic_promo_action = filter_menu->addAction(tr("G'&MIC Filter Library..."));
     gmic_promo_action->setObjectName(QStringLiteral("filterGmicLibraryAction"));
     gmic_promo_action->setIcon(simple_icon(QStringLiteral("GM")));
@@ -2676,21 +2667,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     bind_translated_status_tip(gmic_promo_action, "Nearly 400 G'MIC filters, in the desktop version of Patchy");
     apply_bound_translation(gmic_promo_action);
     refresh_action_tooltip(gmic_promo_action);
-    connect(gmic_promo_action, &QAction::triggered, this, [this] {
-      QMessageBox dialog(QMessageBox::Information, tr("G'MIC Filter Library"),
-                         tr("The G'MIC Filter Library, nearly 400 filters, is part of the desktop version of "
-                            "Patchy for Windows, macOS and Linux."),
-                         QMessageBox::Ok, this);
-      dialog.setObjectName(QStringLiteral("gmicDesktopOnlyMessageBox"));
-      auto* download_button = dialog.addButton(tr("Get the Desktop Version"), QMessageBox::ActionRole);
-      dialog.setDefaultButton(download_button);
-      exec_dialog(dialog);
-      if (dialog.clickedButton() == download_button) {
-        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy#download")));
-      }
-    });
     filter_menu->addSeparator();
   }
+  // No GEGL either (its filters run in a helper process): one desktop-only row stands
+  // where the desktop build has the GEGL Filters submenu.
+  auto* gegl_desktop_only_action = filter_menu->addAction(tr("GEGL Filters"));
+  gegl_desktop_only_action->setObjectName(QStringLiteral("filterGeglFiltersAction"));
+  gegl_desktop_only_action->setMenuRole(QAction::NoRole);
+  bind_action_text(gegl_desktop_only_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "GEGL Filters"));
+  filter_menu->addSeparator();
 #endif
 #ifndef Q_OS_WASM
   // GEGL's filters (docs/gegl-filters.md): Patchy's own GEGL, by GEGL category. Filled by
@@ -2859,7 +2844,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
 #endif
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
-#ifndef Q_OS_WASM
   // Plugins > Companions > OpenAI Image Tools via API Key (docs/openai-images.md): built in, owned
   // by the window and placed at the top of the Companions submenu by CompanionMenu.
   auto* openai_images_action = new QAction(tr("OpenAI Image Tools via API Key (built-in)..."), this);
@@ -2867,12 +2851,22 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   openai_images_action->setMenuRole(QAction::NoRole);
   openai_images_action->setProperty(kWorksWithoutDocumentProperty, true);  // results open a new document
   register_hotkey(openai_images_action, "plugins.openai_images");
-  connect(openai_images_action, &QAction::triggered, this, [this] { open_openai_images_dialog(); });
   bind_action_text(openai_images_action,
                    QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "OpenAI Image Tools via API Key (built-in)..."));
+#ifndef Q_OS_WASM
+  connect(openai_images_action, &QAction::triggered, this, [this] { open_openai_images_dialog(); });
   // Plugins > Companions (docs/companions.md); the Plugins menu owns it.
   auto* companion_menu = new CompanionMenu(plugins_menu, *this);
   companion_menu->set_builtin_action(openai_images_action);
+#else
+  // The web build has no companion apps to start and no network backend for the OpenAI
+  // requests. Its Companions submenu holds the one built-in entry, a desktop-only command.
+  auto* companions_menu = plugins_menu->addMenu(QCoreApplication::translate("patchy::ui::CompanionMenu", "&Companions"));
+  companions_menu->setObjectName(QStringLiteral("companionsMenu"));
+  companions_menu->menuAction()->setMenuRole(QAction::NoRole);
+  bind_translated_text(companions_menu, QT_TRANSLATE_NOOP("patchy::ui::CompanionMenu", "&Companions"),
+                       "patchy::ui::CompanionMenu");
+  companions_menu->addAction(openai_images_action);
 #endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));
@@ -3301,16 +3295,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(cascade_windows_action_);
 
 #ifdef Q_OS_WASM
-  // Float windows are off on wasm (float_document_session no-ops; a browser
-  // tab cannot host separate movable windows). The actions stay registered so
-  // hotkey ids and wiring are stable; hidden actions do not render in the menu.
-  float_document_action_->setVisible(false);
+  // Float windows are off on wasm (float_document_session no-ops; a browser tab cannot
+  // host separate movable windows). Float in Window, Float All, Tile and Cascade stay as
+  // desktop-only commands (apply_web_desktop_only_commands below). The two that bring
+  // floated documents back could never be enabled, so they stay hidden; they are still
+  // registered, which keeps hotkey ids and wiring stable.
   dock_document_action_->setVisible(false);
-  float_all_action_->setVisible(false);
   consolidate_tabs_action_->setVisible(false);
-  tile_windows_action_->setVisible(false);
-  cascade_windows_action_->setVisible(false);
-  window_arrange_menu->menuAction()->setVisible(false);
 #endif
 
   auto* screen_size_menu = window_menu->addMenu(tr("Set Screen Size"));
@@ -3392,11 +3383,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ai_setup_action->setMenuRole(QAction::NoRole);
   register_hotkey(ai_setup_action, "help.ai_setup");
   connect(ai_setup_action, &QAction::triggered, this, [this] { open_ai_setup_dialog(); });
-#ifdef Q_OS_WASM
-  // The browser build ships no connector; hide the entry but keep the command id
-  // registered so saved hotkey tables stay stable across platforms.
-  ai_setup_action->setVisible(false);
-#endif
+  // The browser build ships no connector: there the entry is a desktop-only command
+  // (apply_web_desktop_only_commands below).
 
   // AppImage only (GitHub issue 226): its text, visibility and enabled state follow the
   // entry's state each time Help opens. The tooltip explains an unavailable entry; menus
@@ -3528,6 +3516,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       exclude_submenus_from_native_menu_roles(*menu);
     }
   }
+#ifdef Q_OS_WASM
+  // Every command a browser tab cannot run stays in its menu and answers with the
+  // "get the desktop version" prompt (desktop_only_feature.cpp holds the list). After
+  // the handlers above are connected: the prompt replaces them.
+  apply_web_desktop_only_commands(*this);
+#endif
 }
 
 void MainWindow::show_command_search() {

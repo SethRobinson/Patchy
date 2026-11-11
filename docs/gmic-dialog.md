@@ -5,7 +5,7 @@ Split from [gmic.md](gmic.md) (vendoring, build, code, allowlist, tests). Dialog
 Filter > "G'MIC Filter Library..." (`filterGmicLibraryAction`, hotkey id `filter.gmic_library`,
 a document action, created only when `gmic::engine_available()`). The wasm build has no engine and keeps
 a row under the same object name, with no hotkey, that only offers the desktop download
-(`gmicDesktopOnlyMessageBox`, [wasm.md](wasm.md)).
+(`gmicDesktopOnlyMessageBox`, a [desktop-only command](wasm.md#desktop-only-commands) with its own message).
 
 - `src/ui/gmic_library.{hpp,cpp}`: `gmic_library()` loads the embedded text once and keeps the
   allowlisted catalog.

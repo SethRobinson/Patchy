@@ -29,6 +29,7 @@
 #include <QMenuBar>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/desktop_only_feature.hpp"
 #include "ui/document_save_coordinator.hpp"
 #include "ui/document_file_rename.hpp"
 #ifndef Q_OS_WASM
@@ -2362,12 +2363,7 @@ void show_open_failed_message_box(QWidget* parent, const QString& error_text, co
     QMessageBox dialog(QMessageBox::Critical, QObject::tr("Open failed"),
                        error_text.mid(pdf_desktop_only_marker.size()).trimmed(), QMessageBox::Ok, parent);
     dialog.setObjectName(QStringLiteral("openFailedMessageBox"));
-    auto* download_button = dialog.addButton(QObject::tr("Get the Desktop Version"), QMessageBox::ActionRole);
-    dialog.setDefaultButton(download_button);
-    exec_dialog(dialog);
-    if (dialog.clickedButton() == download_button) {
-      QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy#download")));
-    }
+    exec_message_box_with_desktop_download(dialog);
     return;
   }
   const auto browser_hevc_marker =

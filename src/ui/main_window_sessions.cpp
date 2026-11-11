@@ -25,6 +25,9 @@
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
+#ifdef Q_OS_WASM
+#include "ui/desktop_only_feature.hpp"
+#endif
 #include "ui/document_float_window.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -1309,12 +1312,6 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
     scan_watermarks_action->setShortcutContext(Qt::WidgetShortcut);
   }
   close_others_action->setEnabled(sessions_.size() > 1);
-#ifdef Q_OS_WASM
-  // Float windows are off on wasm; see float_document_session. A rename would only
-  // move a file inside the page's in-memory file system.
-  float_action->setVisible(false);
-  rename_file_action->setVisible(false);
-#endif
   // The file actions need a disk path; never-saved documents (and embedded
   // smart-object child tabs) have none.
   const auto* target_session =
@@ -1330,11 +1327,24 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   // A linked smart object's tab is the parent's link target: renaming it would break
   // the link, so it stays a job for the parent's Relink.
   rename_file_action->setEnabled(has_path && !target_session->smart_object_link.has_value());
+#ifdef Q_OS_WASM
+  // A rename would only move a file inside the page's in-memory file system.
+  rename_file_action->setVisible(false);
+#endif
 
   connect(close_action, &QAction::triggered, this, [this, tab_index] { close_document_tab(tab_index); });
   connect(close_others_action, &QAction::triggered, this,
           [this, tab_index] { close_other_document_tabs(tab_index); });
   connect(close_all_action, &QAction::triggered, this, [this] { close_all_document_tabs(); });
+#ifdef Q_OS_WASM
+  // Float windows are off on wasm (float_document_session): the entry stays and answers
+  // with the desktop-only prompt, like Window > Arrange > Float in Window (docs/wasm.md).
+  connect(float_action, &QAction::triggered, this,
+          [this, name = strip_menu_ellipsis(clean_action_text(float_action))] {
+            // After the menu has closed, so the prompt does not run inside its loop.
+            QTimer::singleShot(0, this, [this, name] { show_desktop_only_feature_message(this, name); });
+          });
+#else
   connect(float_action, &QAction::triggered, this, [this, tab_index] {
     if (document_tabs_ == nullptr) {
       return;
@@ -1344,6 +1354,7 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
       float_document_session(*target_session);
     }
   });
+#endif
   connect(reopen_action, &QAction::triggered, this, [this, session_id] {
     if (auto* reopen_session = session_with_id(session_id); reopen_session != nullptr) {
       reopen_document_session(*reopen_session);

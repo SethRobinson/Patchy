@@ -15787,6 +15787,14 @@ Do you want to replace it?</source>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Desktop Version Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21696,6 +21704,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -30988,10 +31000,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Get the Desktop Version</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

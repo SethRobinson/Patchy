@@ -15805,6 +15805,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Unter 100 % scheint die Füllung auch über die ganze Arbeitsfläche durch, wie in Photoshop.</translation>
     </message>
+    <message>
+        <source>Desktop Version Only</source>
+        <translation>Nur in der Desktop-Version</translation>
+    </message>
+    <message>
+        <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
+        <translation>%1 funktioniert in der Webversion von Patchy nicht. Laden Sie dafür die Desktop-Version herunter, sie ist für Windows, macOS und Linux kostenlos.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21715,6 +21723,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation>Position, Größe, Farben und Schriften der Ebenen als Stylesheet-Text für eine Webseite in die Zwischenablage legen</translation>
+    </message>
+    <message>
+        <source>Extra blur, distortion, lighting and artistic effects</source>
+        <translation>Zusätzliche Weichzeichner-, Verzerrungs-, Licht- und Kunsteffekte</translation>
     </message>
 </context>
 <context>
@@ -31061,10 +31073,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
         <translation>Die G&apos;MIC-Filterbibliothek mit fast 400 Filtern ist Teil der Desktop-Version von Patchy für Windows, macOS und Linux.</translation>
-    </message>
-    <message>
-        <source>Get the Desktop Version</source>
-        <translation>Desktop-Version herunterladen</translation>
     </message>
     <message>
         <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>

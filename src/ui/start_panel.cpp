@@ -1,6 +1,7 @@
 #include "ui/start_panel.hpp"
 
 #include "ui/build_info.hpp"
+#include "ui/desktop_only_feature.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_backdrop.hpp"
 #include "ui/theme_palette.hpp"
@@ -197,9 +198,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   retranslation_callbacks_.push_back([download_button, download_label] {
     download_button->setAccessibleName(download_label->text());
   });
-  connect(download_button, &QPushButton::clicked, this, [] {
-    QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy#download")));
-  });
+  connect(download_button, &QPushButton::clicked, this, [] { open_desktop_download_page(); });
   desktop_layout->addWidget(download_button);
   add_desktop_label(QT_TR_NOOP("Free · Windows, macOS & Linux"), "startPanelDesktopPlatforms");
   column_layout->addWidget(desktop_card);

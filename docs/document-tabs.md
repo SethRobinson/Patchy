@@ -10,7 +10,7 @@ menu `documentTabContextMenu` fresh on each right-click:
 | Item | objectName | Notes |
 |---|---|---|
 | Close / Close Others / Close All | `documentTabClose*Action` | Close Others needs a second document |
-| Float in Window | `documentTabFloatAction` | hidden on wasm |
+| Float in Window | `documentTabFloatAction` | on wasm it shows the [desktop-only prompt](wasm.md#desktop-only-commands) |
 | Reopen Document | `documentTabReopenAction` | reloads the file in place; asks first when modified |
 | Revert | `documentTabRevertAction` | Revert below for the clicked document; shows F12 |
 | Reveal in Explorer (Finder, file manager) | `documentTabRevealAction` | per-platform label |

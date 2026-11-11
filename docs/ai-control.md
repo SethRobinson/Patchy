@@ -20,8 +20,8 @@ status label; Flatpak (`FLATPAK_ID` set) switches to the `flatpak run` command f
 and the in-sandbox skill path; an AppImage prints the `.AppImage` file with the
 `patchy-mcp` argument and flags the skill folder as existing only while Patchy runs
 ([appimage.md](appimage.md)). The blurb is deliberately not translated: its reader
-is the assistant. The action is hidden on wasm (no connector) but its command id
-stays registered. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbText`,
+is the assistant. On wasm (no connector) the action is a
+[desktop-only command](wasm.md#desktop-only-commands): it shows the download prompt. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbText`,
 `aiSetupStatusLabel`, `aiSetupCopyButton`, `aiSetupOpenSkillFolderButton`,
 `aiSetupOpenGuideButton`, `aiSetupCloseButton`, `aiSetupExamplesLabel`,
 `aiSetupExamplesComboBox`, `aiSetupExampleText`, and `aiSetupExampleCopyButton`.

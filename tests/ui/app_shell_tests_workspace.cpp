@@ -14,6 +14,7 @@
 
 #include "ui/canvas_widget.hpp"
 #include "ui/recent_file_list.hpp"
+#include "ui/desktop_only_feature.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
@@ -30,6 +31,9 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QScopeGuard>
+#include <QSet>
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QDir>
@@ -4890,6 +4894,131 @@ void ui_open_failed_box_names_the_file() {
   CHECK(box_text.size() > QDir::toNativeSeparators(path).size() + 2);
 }
 
+// The web build keeps the commands a browser tab cannot run in its menus and answers each
+// with the "get the desktop version" prompt (docs/wasm.md, "Desktop-only commands"). The
+// list and the prompt are compiled on every platform, so this applies the web build's list
+// to a desktop window and runs every command in it: the prompt names the command by its
+// place in the menus, the command's own handler does not run, and the download button
+// opens the README's download section.
+void ui_web_desktop_only_commands_offer_the_desktop_version() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  std::vector<QUrl> opened;
+  patchy::ui::set_desktop_download_opener_for_testing([&opened](const QUrl& url) { opened.push_back(url); });
+  const auto restore_opener = qScopeGuard([] { patchy::ui::set_desktop_download_opener_for_testing({}); });
+  const auto visible_top_levels = [] {
+    QSet<QWidget*> widgets;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->isVisible()) {
+        widgets.insert(widget);
+      }
+    }
+    return widgets;
+  };
+  const auto top_levels_before = visible_top_levels();
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+
+  patchy::ui::apply_web_desktop_only_commands(window);
+  // A second pass must not stack a second prompt on a command.
+  patchy::ui::apply_web_desktop_only_commands(window);
+
+  int prompts = 0;
+  for (const auto& command : patchy::ui::web_desktop_only_commands()) {
+    const auto name = QString::fromLatin1(command.action_name);
+    auto* action = window.findChild<QAction*>(name);
+    if (action == nullptr) {
+      // Rows only the web build makes: GEGL Filters stands in for the desktop submenu, and
+      // a desktop build without the G'MIC engine has no library row.
+      const bool web_only_row =
+          name == QStringLiteral("filterGeglFiltersAction") || name == QStringLiteral("filterGmicLibraryAction");
+      if (!web_only_row) {
+        std::cerr << "desktop-only command names no action: " << name.toStdString() << '\n';
+      }
+      CHECK(web_only_row);
+      continue;
+    }
+    CHECK(action->property(patchy::ui::kDesktopOnlyCommandProperty).toBool());
+    if (!action->isVisible() || !action->isEnabled()) {
+      std::cerr << "desktop-only command is hidden or disabled: " << name.toStdString() << '\n';
+      CHECK(false);
+      continue;
+    }
+    const bool own_message = command.message != nullptr;
+    const auto box_name = command.box_name != nullptr ? QString::fromLatin1(command.box_name)
+                                                      : QStringLiteral("desktopOnlyFeatureMessageBox");
+    const bool take_download = prompts == 0;
+    QString text;
+    int boxes = 0;
+    when_dialog_visible(box_name, [&](QDialog& dialog) {
+      ++boxes;
+      auto* box = qobject_cast<QMessageBox*>(&dialog);
+      auto* download = dialog.findChild<QPushButton*>(QStringLiteral("desktopDownloadButton"));
+      CHECK(box != nullptr && download != nullptr);
+      if (box == nullptr || download == nullptr) {
+        dialog.reject();
+        return;
+      }
+      text = box->text();
+      CHECK(box->textFormat() == Qt::PlainText);
+      CHECK(download->text() == QStringLiteral("Get the Desktop Version"));
+      CHECK(box->defaultButton() == download);
+      CHECK(box->button(QMessageBox::Ok) != nullptr);
+      if (name == QStringLiteral("fileImportFilesAsLayersAction")) {
+        save_widget_artifact("desktop_only_prompt", dialog);
+      }
+      if (take_download) {
+        download->click();
+      } else {
+        dialog.reject();
+      }
+    });
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(boxes == 1);
+    prompts += boxes;
+    if (own_message) {
+      CHECK(text == QCoreApplication::translate("patchy::ui::MainWindow", command.message));
+    } else {
+      const auto path = patchy::ui::action_menu_path(action, &window);
+      CHECK(!path.isEmpty());
+      if (!text.startsWith(path + QStringLiteral(" does not work in the web version of Patchy."))) {
+        std::cerr << "unexpected desktop-only prompt for " << name.toStdString() << ": " << text.toStdString() << '\n';
+        CHECK(false);
+      }
+    }
+    // Nothing the command used to do happened: no dialog, float window or document.
+    if (visible_top_levels() != top_levels_before) {
+      std::cerr << "desktop-only command still ran its handler: " << name.toStdString() << '\n';
+      CHECK(false);
+      for (auto* widget : visible_top_levels() - top_levels_before) {
+        widget->close();
+      }
+    }
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before);
+  }
+  // Everything this platform builds was run; only the first answer took the download.
+  CHECK(prompts >= static_cast<int>(patchy::ui::web_desktop_only_commands().size()) - 2);
+  CHECK(opened.size() == 1U);
+  CHECK(!opened.empty() && opened.front() == QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy#download")));
+
+  // The prompt names a command by its menus, without mnemonics or the ellipsis.
+  const auto check_path = [&window](const char* action_name, const QString& expected) {
+    const auto path = patchy::ui::action_menu_path(require_action(window, action_name), &window);
+    if (path != expected) {
+      std::cerr << "menu path of " << action_name << ": " << path.toStdString() << '\n';
+    }
+    CHECK(path == expected);
+  };
+  check_path("filePrintAction", QStringLiteral("File › Print"));
+  check_path("fileExportDocumentsToFolderAction", QStringLiteral("File › Export › Documents to Folder"));
+  check_path("pluginsOpenAiImagesAction",
+             QStringLiteral("Plugins › Companions › OpenAI Image Tools via API Key (built-in)"));
+  // A command in no menu of the window (the document tab menu's Float in Window) is named alone.
+  QAction loose(QStringLiteral("&Loose Command..."));
+  CHECK(patchy::ui::action_menu_path(&loose, &window) == QStringLiteral("Loose Command"));
+  CHECK(patchy::ui::action_menu_path(&loose, nullptr) == QStringLiteral("Loose Command"));
+  CHECK(patchy::ui::action_menu_path(nullptr, &window).isEmpty());
+}
+
 // A file whose name says another format, or none, opens by its content (GitHub issue
 // 362): a PSD named src.bin, a PNG named .jpg, a JPEG named .png, a PSD with no extension.
 // Save on such a document goes to Save As with the real extension suggested, and never
@@ -5671,6 +5800,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_open_recent_filter_narrows_entries_and_opens_first_match", ui_open_recent_filter_narrows_entries_and_opens_first_match},
       {"ui_open_dialog_remembers_last_filter", ui_open_dialog_remembers_last_filter},
       {"ui_open_failed_box_names_the_file", ui_open_failed_box_names_the_file},
+      {"ui_web_desktop_only_commands_offer_the_desktop_version",
+       ui_web_desktop_only_commands_offer_the_desktop_version},
       {"ui_open_by_content_when_the_extension_is_wrong", ui_open_by_content_when_the_extension_is_wrong},
       {"ui_pdn_files_open_with_layers_and_by_content", ui_pdn_files_open_with_layers_and_by_content},
       {"ui_open_recent_folders_list_two_hundred_folders_with_filter", ui_open_recent_folders_list_two_hundred_folders_with_filter},

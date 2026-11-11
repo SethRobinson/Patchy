@@ -135,6 +135,8 @@ Format support does not imply every source feature stays editable; see the
 [current limitations](docs/features.md#current-status). PDF import requires Qt PDF
 when building a custom desktop version. HEIC/HEIF availability depends on the
 [installed decoder](docs/heif.md). The browser build also has tighter memory limits.
+Commands it cannot run stay in its menus: choosing one says it needs the desktop
+version and links to the download.
 
 ## PSD compatibility, measured
 

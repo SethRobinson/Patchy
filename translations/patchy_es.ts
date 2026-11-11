@@ -15805,6 +15805,14 @@ Do you want to replace it?</source>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Por debajo del 100 % el relleno también se ve en todo el lienzo, como en Photoshop.</translation>
     </message>
+    <message>
+        <source>Desktop Version Only</source>
+        <translation>Solo en la versión de escritorio</translation>
+    </message>
+    <message>
+        <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
+        <translation>%1 no funciona en la versión web de Patchy. Para usarlo, descarga la versión de escritorio, que es gratuita para Windows, macOS y Linux.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21715,6 +21723,10 @@ Do you want to replace it?</source>
     <message>
         <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation>Poner en el portapapeles la posición, el tamaño, los colores y las fuentes de las capas como texto de hoja de estilos para una página web</translation>
+    </message>
+    <message>
+        <source>Extra blur, distortion, lighting and artistic effects</source>
+        <translation>Más efectos de desenfoque, distorsión, iluminación y artísticos</translation>
     </message>
 </context>
 <context>
@@ -31061,10 +31073,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
         <translation>La biblioteca de filtros G&apos;MIC, con casi 400 filtros, forma parte de la versión de escritorio de Patchy para Windows, macOS y Linux.</translation>
-    </message>
-    <message>
-        <source>Get the Desktop Version</source>
-        <translation>Obtener la versión de escritorio</translation>
     </message>
     <message>
         <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>

@@ -4996,9 +4996,13 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
 #else
         QStringLiteral("pluginsLegacyWindowsOnlyNote"),
 #endif
-#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS) && !defined(Q_OS_LINUX)
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS) && !defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
         QStringLiteral("file.import_scanner"), QStringLiteral("file.import_photocopy"),
         QStringLiteral("file.import_divide_photos"), QStringLiteral("file.import_scan_book_pdf"),
+#endif
+#ifndef Q_OS_WASM
+        // The web build's row where the desktop builds have the GEGL Filters submenu.
+        QStringLiteral("filterGeglFiltersAction"),
 #endif
     };
     // A build without ONNX Runtime or the model has no Object Selection tool.

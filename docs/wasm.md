@@ -220,23 +220,21 @@ onto setTimeout before qtloader runs (harness below).
   cannot deadlock).
 - **Clipboard:** reads are cached, image writes bypass Qt's untyped Blob
   ([clipboard.md](clipboard.md)).
-- **Compiled out or stubbed:** QtPrintSupport does not exist on wasm
-  (`print_dialog_wasm.cpp` stubs; File menu hides Print/Page Setup; the
+- **Compiled out or stubbed:** a command the build cannot run stays in its menu
+  as a [desktop-only command](#desktop-only-commands). QtPrintSupport does not exist on wasm
+  (`print_dialog_wasm.cpp` stubs; the
   portable half stays in `print_layout.cpp`). Qt publishes no wasm qtpdf
   either, so `pdf_import_stub.cpp` builds instead of `pdf_import.cpp` and
   `file_format_entries()` drops `.pdf` from the open filter; PDF EXPORT still
   works, because `pdf_export.cpp` only needs QtGui's QPdfWriter. A picked or
   dropped `.pdf` still enters the open pipeline and gets the stub's
   marker-tagged error, which the open-failed box turns into a "Get the
-  Desktop Version" download button (see [pdf-import.md](pdf-import.md)); the G'MIC row is a
-  stub.
+  Desktop Version" download button (see [pdf-import.md](pdf-import.md)).
   Deep editing stops at 16 bits (`depth_supported_on_platform`): 32-bit
   files open converted to 16 and Image > Mode and New Document offer no 32
   ([high-bit-depth.md](high-bit-depth.md)). Single-instance QLocalServer
   off. Update check off (the site redeploy is the update mechanism; the
-  GitHub fetch would fail CORS). Script sounds no-op. Scanner import off.
-  File > Open Folder, Import > Files as Layers, Place > Place Linked, and
-  Export > Documents to Folder and Layers as Image Sequence hidden. Multi-file
+  GitHub fetch would fail CORS). Script sounds no-op. Multi-file
   pickers degrade to one pick. Browser imports stay out of Recents because their source is
   released after load. Script-editor plain Save downloads nothing (Save As does).
 - **Assets.** `--preload-file` mounts staged copies at `/fonts`,
@@ -254,6 +252,53 @@ onto setTimeout before qtloader runs (harness below).
   `BAKED_MIN_MB` must stay in sync (a smaller initial is a LinkError).
   Ladders, the About readout, `patchyMemStats`, the history/cache budgets,
   and the Safari 26 tab-kill investigation: [wasm-memory.md](wasm-memory.md).
+
+### Desktop-only commands
+
+A command the web build cannot run is not removed. It stays in its menu with its
+text, key and enabled state, and running it shows `desktopOnlyFeatureMessageBox`:
+"File › Print does not work in the web version of Patchy. To use it, download the
+desktop version, which is free for Windows, macOS and Linux." The default button,
+**Get the Desktop Version** (`desktopDownloadButton`), opens the README's download
+section in a new tab (`desktop_download_url`); OK closes the box. Code:
+`src/ui/desktop_only_feature.{hpp,cpp}`.
+
+- **The list is `kWebDesktopOnlyCommands`**, by objectName.
+  `apply_web_desktop_only_commands` runs at the end of `build_menu_bar_actions`, on
+  wasm only: `make_desktop_only_command` disconnects the handlers the window
+  connected to the action's `triggered` (a menu's own connection stays, so
+  `QMenu::triggered` still fires) and connects the prompt, which names the command by
+  `action_menu_path`. To add a command, add its objectName; its handler must be
+  connected with the MainWindow as receiver before that call. An entry may carry its
+  own message and box name (the G'MIC row).
+- **What is on it and why it cannot run:** File > Open Folder (no host folders);
+  Import > From Scanner or Camera, Photocopy, Scan and Divide Photos, Scan a Book to
+  PDF (no device access; the web build makes these rows with the Windows and Linux
+  wording); Import > Files as Layers (a browser pick is a MEMFS transfer path that only
+  `open_document_path` releases); Place > Place Linked (a link needs a host file, the
+  browser hands over a copy); Export > Documents to Folder and Layers as Image
+  Sequence (one browser download per file, which browsers refuse as download spam);
+  Page Setup and Print (no QtPrintSupport); Filter > G'MIC Filter Library (no engine;
+  its own message in `gmicDesktopOnlyMessageBox`) and GEGL Filters
+  (`filterGeglFiltersAction`, a row only wasm has, where desktop builds have the
+  submenu; GEGL runs in a helper process); Plugins > Companions > OpenAI Image Tools
+  (no TLS backend, no QProcess; a plain submenu stands in for `CompanionMenu`);
+  Window > Arrange > Float in Window, Float All in Windows, Tile and Cascade (float
+  windows are off, below); Help > Set up AI Control (no connector). The document
+  tab menu's Float in Window answers with the same prompt.
+- **Still hidden:** File > Open from Clipboard (Qt's browser clipboard is a cache
+  filled by paste events, so the command could open stale pixels; Ctrl+V pastes),
+  Window > Arrange > Dock to Tabs and Consolidate All to Tabs (they could never be
+  enabled), the tab menu's Rename File, and options inside dialogs (Object
+  Selection's High Quality model, the watermark models, Choose Profile File, the
+  theme import buttons).
+- **Shared pieces:** the PDF open failure adds the same button through
+  `exec_message_box_with_desktop_download`, and the start panel's card opens the same
+  URL.
+- **Test:** `ui_web_desktop_only_commands_offer_the_desktop_version` applies the list
+  to a desktop window (the list and the prompt compile on every platform) and runs
+  every command: one prompt each, no handler, the download URL. The rows only wasm
+  creates need a look in the browser.
 
 ### Web file access, threads and blocking
 
@@ -283,9 +328,10 @@ File open/save in the browser, the worker threads and the blocking rules are in 
 - **Float windows are disabled.** No window manager, no `startSystemMove`: a
   floated document would cover the canvas with no way back.
   `MainWindow::float_document_session` no-ops on wasm and is the single
-  funnel for every entry point. The window-arrangement actions stay
-  registered but hidden (hotkey-id stability, like Print); the tab tear-off
-  gesture is compiled out. See [float-windows.md](float-windows.md).
+  funnel for every entry point. Float in Window, Float All, Tile and Cascade
+  are [desktop-only commands](#desktop-only-commands); Dock to Tabs and
+  Consolidate All to Tabs stay registered but hidden (hotkey-id stability);
+  the tab tear-off gesture is compiled out. See [float-windows.md](float-windows.md).
 - **Non-modal dialogs are restacked above their parent.** The wasm
   compositor raises a clicked window without its transient children.
   `keep_dialog_above_parent_window` (dialog_utils.cpp) registers every

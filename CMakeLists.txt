@@ -1242,6 +1242,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/background_workers.cpp
       src/ui/cli_exit.hpp
       src/ui/cli_exit.cpp
+      src/ui/desktop_only_feature.hpp
+      src/ui/desktop_only_feature.cpp
       src/ui/gradient_library.cpp
       src/ui/gradient_manager_dialog.cpp
       src/ui/gradient_preset_popup.hpp

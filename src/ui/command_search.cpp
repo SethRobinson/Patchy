@@ -419,6 +419,9 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"select.object_in_selection", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select the object inside the selection")},
     // Filter
     {"filter.last", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Repeat the last filter")},
+    // The web build's one row for GEGL (a desktop-only command there; docs/wasm.md).
+    {"filterGeglFiltersAction",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Extra blur, distortion, lighting and artistic effects")},
     {"filterAction_patchy_filters_soft_glow", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Dreamy glow on the highlights")},
     {"filterAction_patchy_filters_punchy_color", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Bolder colors and contrast")},
     {"filterAction_patchy_filters_noir", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Moody black and white")},

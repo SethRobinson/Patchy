@@ -15749,6 +15749,14 @@ Do you want to replace it?</source>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>低於 100% 時，填色也會像在 Photoshop 中一樣在整個畫布上透出。</translation>
     </message>
+    <message>
+        <source>Desktop Version Only</source>
+        <translation>僅限桌面版</translation>
+    </message>
+    <message>
+        <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
+        <translation>%1 無法在網頁版 Patchy 中使用。如需使用，請下載桌面版，Windows、macOS 與 Linux 皆可免費使用。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21653,6 +21661,10 @@ Do you want to replace it?</source>
     <message>
         <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation>將圖層的位置、大小、顏色和字型作為網頁樣式表文字放到剪貼簿</translation>
+    </message>
+    <message>
+        <source>Extra blur, distortion, lighting and artistic effects</source>
+        <translation>更多模糊、扭曲、光照與藝術效果</translation>
     </message>
 </context>
 <context>
@@ -30965,10 +30977,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
         <translation>G&apos;MIC 濾鏡庫（近 400 個濾鏡）包含在 Windows、macOS 與 Linux 的 Patchy 桌面版中。</translation>
-    </message>
-    <message>
-        <source>Get the Desktop Version</source>
-        <translation>取得桌面版</translation>
     </message>
     <message>
         <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>

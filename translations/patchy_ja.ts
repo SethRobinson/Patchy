@@ -15749,6 +15749,14 @@ Do you want to replace it?</source>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>100% 未満では、Photoshop と同じように塗りがキャンバス全体にも透けて見えます。</translation>
     </message>
+    <message>
+        <source>Desktop Version Only</source>
+        <translation>デスクトップ版のみ</translation>
+    </message>
+    <message>
+        <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
+        <translation>%1 は Web 版の Patchy では使用できません。使用するには、Windows、macOS、Linux 向けの無料のデスクトップ版をダウンロードしてください。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21653,6 +21661,10 @@ Do you want to replace it?</source>
     <message>
         <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation>レイヤーの位置、サイズ、色、フォントをウェブページ用のスタイルシートのテキストとしてクリップボードに入れる</translation>
+    </message>
+    <message>
+        <source>Extra blur, distortion, lighting and artistic effects</source>
+        <translation>追加のぼかし、ゆがみ、ライティング、アート効果</translation>
     </message>
 </context>
 <context>
@@ -30965,10 +30977,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
         <translation>G&apos;MIC フィルターライブラリ（400 近いフィルター）は、Windows、macOS、Linux 向けデスクトップ版 Patchy に含まれています。</translation>
-    </message>
-    <message>
-        <source>Get the Desktop Version</source>
-        <translation>デスクトップ版を入手</translation>
     </message>
     <message>
         <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>

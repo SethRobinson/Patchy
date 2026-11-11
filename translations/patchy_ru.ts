@@ -15861,6 +15861,14 @@ Do you want to replace it?</source>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Ниже 100% заливка проявляется и на всём холсте, как в Photoshop.</translation>
     </message>
+    <message>
+        <source>Desktop Version Only</source>
+        <translation>Только в настольной версии</translation>
+    </message>
+    <message>
+        <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
+        <translation>%1 не работает в веб-версии Patchy. Чтобы пользоваться этой функцией, скачайте настольную версию, бесплатную для Windows, macOS и Linux.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21777,6 +21785,10 @@ Do you want to replace it?</source>
     <message>
         <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation>Поместить положение, размер, цвета и шрифты слоёв в буфер обмена как текст таблицы стилей для веб-страницы</translation>
+    </message>
+    <message>
+        <source>Extra blur, distortion, lighting and artistic effects</source>
+        <translation>Дополнительные эффекты размытия, искажения, освещения и художественные эффекты</translation>
     </message>
 </context>
 <context>
@@ -31157,10 +31169,6 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
         <translation>Библиотека фильтров G&apos;MIC, почти 400 фильтров, входит в настольную версию Patchy для Windows, macOS и Linux.</translation>
-    </message>
-    <message>
-        <source>Get the Desktop Version</source>
-        <translation>Получить версию для ПК</translation>
     </message>
     <message>
         <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>

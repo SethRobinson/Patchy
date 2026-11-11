@@ -136,9 +136,10 @@ a second view of the same document (selection and overlays live per-canvas).
 
 The wasm build disables the feature entirely: a browser tab cannot host separate movable
 windows (no window manager, no `startSystemMove`), so `float_document_session` no-ops
-there, the arrangement actions and the tab context menu's Float item are hidden (still
-registered for hotkey-id stability), and the tear-off gesture is compiled out. See
-[wasm.md](wasm.md).
+there and the tear-off gesture is compiled out. Float in Window, Float All in Windows,
+Tile, Cascade and the tab context menu's Float item stay and answer with the desktop-only
+prompt; Dock to Tabs and Consolidate All to Tabs are hidden (still registered for
+hotkey-id stability). See [wasm.md](wasm.md#desktop-only-commands).
 
 Coverage: the `ui_float_*`, `ui_window_float_all_*`, and `ui_tab_drag_out_*` tests in
 tests/ui/float_window_tests.cpp.
