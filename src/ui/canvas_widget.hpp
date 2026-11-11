@@ -1503,6 +1503,11 @@ public:
   void document_changed(QRegion document_region);
   void document_changed_effect_bounds(QRect document_rect);
   void document_changed_effect_bounds(QRegion document_region);
+  // A live drag step's change (Path Select, Direct Select): always a region refresh, even
+  // past half the canvas, so the fill moves in the same frame as the outline; past
+  // kDragRegionRefreshMaxPixels on a large document an asynchronous recomposite that never
+  // cancels the one in flight (GitHub #678).
+  void document_changed_drag_region(QRegion document_region);
   // Invalidates the active grayscale target without invalidating the normal
   // compositor. Document channels are not part of the layer composite.
   void grayscale_target_changed(QRect document_rect,
@@ -1910,12 +1915,18 @@ protected:
   // Applies a recorded drag move now (presses, releases and keys call it first).
   void flush_pending_drag_move();
   // The drags whose moves coalesce: Move tool, Free Transform, a held pick (the Pick
-  // tool or a paint tool's Alt eyedropper, GitHub #478), and a Clone or Healing stroke
-  // (GitHub #597), Smudge and the toning brushes (GitHub #660), which keep every recorded
-  // position (pending_stroke_positions_).
+  // tool or a paint tool's Alt eyedropper, GitHub #478), shape box and point handles, a
+  // Path Select or Direct Select drag of points or whole shapes (a shape tool's Ctrl drag
+  // included, GitHub #678) and a Gradient Fill handle (GitHub #705), and a Clone or Healing
+  // stroke (GitHub #597), Smudge and the toning brushes (GitHub #660), which keep every
+  // recorded position (pending_stroke_positions_).
   [[nodiscard]] bool coalescing_drag_active() const noexcept {
     return moving_layer_ || dragging_transform_ || color_picking_ || shape_handle_drag_active() ||
-           coalescing_retouch_stroke();
+           path_edit_drag_moves_points() || gradient_handle_drag_.has_value() || coalescing_retouch_stroke();
+  }
+  [[nodiscard]] bool path_edit_drag_moves_points() const noexcept {
+    return path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::HandleIn ||
+           path_drag_mode_ == PathEditDrag::HandleOut;
   }
   // Smudge and the toning brushes (Dodge, Burn, Sponge, Blur, Sharpen) coalesce the same
   // way (GitHub #660), and so do Brush and Eraser strokes, whose queued moves then paint their
@@ -3716,6 +3727,8 @@ private:
   bool async_render_cache_in_flight_{false};
   bool async_render_cache_pending_{false};
   bool async_render_cache_explicit_hold_{false};
+  // Set by document_changed_drag_region: a region past half the canvas still refreshes as a region.
+  bool region_refresh_any_area_{false};
   bool async_render_cache_start_queued_{false};
   std::uint64_t async_render_cache_generation_{0};
   // The generation the in-flight refresh snapshotted at. It trails

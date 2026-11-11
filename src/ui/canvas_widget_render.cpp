@@ -52,6 +52,7 @@
 #include <QRectF>
 #include <QRegion>
 #include <QRgb>
+#include <QScopedValueRollback>
 #include <QScrollBar>
 #include <QSize>
 #include <QString>
@@ -102,6 +103,9 @@ struct CanvasWidget::MoveCommitWorker {
 namespace {
 
 constexpr std::int64_t kProcessingOverlayDirtyAreaThreshold = 8'000'000;
+// The largest region a live drag step composites on the UI thread (document_changed_drag_region):
+// a 3600x5400 photo whole. A step costs about 7 ms there on 20 threads, 45 ms on a quarter core.
+constexpr std::int64_t kDragRegionRefreshMaxPixels = 20'000'000;
 constexpr int kProcessingOverlayDelayMs = 1000;
 constexpr int kProcessingAnimationIntervalMs = 80;
 constexpr int kMaxDirtyRegionRects = 64;
@@ -538,6 +542,27 @@ void CanvasWidget::document_changed_effect_bounds(QRegion document_region) {
   document_changed_impl(std::move(document_region), true);
 }
 
+void CanvasWidget::document_changed_drag_region(QRegion document_region) {
+  // A region past half the canvas normally refreshes in full, and on a large document a
+  // full refresh runs in the background: every drag step cancelled the one in flight, so
+  // the fill stood still until the pointer did while the outline moved (GitHub #678). A
+  // drag step refreshes its region instead, in the frame that draws the outline. A region
+  // too large to composite per step goes to a background recomposite that later steps
+  // join rather than cancel (the Gradient Fill handles' way, GitHub #663).
+  if constexpr (!kBackgroundWorkRunsInline) {
+    if (document_ != nullptr && isVisible() && !render_cache_.isNull() &&
+        render_cache_.size() == QSize(document_->width(), document_->height())) {
+      const auto clipped = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+      if (async_render_cache_explicit_hold_ || region_area(clipped) > kDragRegionRefreshMaxPixels) {
+        document_changed_async_preview();
+        return;
+      }
+    }
+  }
+  const QScopedValueRollback any_area(region_refresh_any_area_, true);
+  document_changed_effect_bounds(std::move(document_region));
+}
+
 void CanvasWidget::grayscale_target_changed(QRect document_rect, DocumentChangeReason reason) {
   active_edit_target_changed_impl(QRegion(document_rect), reason);
 }
@@ -733,7 +758,7 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     }
     const auto area = region_area(document_region);
     const auto canvas_area = static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
-    if (canvas_area > 0 && area * 2 > canvas_area) {
+    if (canvas_area > 0 && area * 2 > canvas_area && !region_refresh_any_area_) {
       mark_full_dirty();
       return;
     }
