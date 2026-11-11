@@ -4831,6 +4831,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   default_tab_groups_ = panel_column_->tab_groups();
   install_window_panel_entries();
   hotkey_registry_.apply_to_actions();
+  refresh_crop_key_hints();  // the Overlay tooltip names the O key only while a tool still holds it
   // The shortcut set's tool modifiers (GitHub issue 302): Alt, or Ctrl for GIMP-style and Krita-style.
   set_active_tool_modifier_style(load_active_tool_modifier_style());
   hotkeys_phase.end();
@@ -5466,6 +5467,9 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     return true;
   }
   if (handle_opacity_digit_key_event(watched, event)) {
+    return true;
+  }
+  if (handle_crop_option_key_event(watched, event)) {
     return true;
   }
   if (handle_options_bar_focus_event(watched, event)) {

@@ -1071,10 +1071,11 @@ void ui_shape_options_bars_group_their_controls() {
 }
 
 // GitHub issue 324: the Crop bar follows the grouping rules (docs/options-bar.md) in both
-// styles: Style | the preset, W : H pair and Clear (Ratio) or the size fields (Size) | the
-// Overlay list (issue 325) | the two Delete checkboxes | the Crop options gear (issue 326) |
-// Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both styles fit one row at
-// 1366 px. The artifacts are the issue shots, in both schemes.
+// modes: the Preset list (issue 696) | the ratio pair with its swap button and Clear (Ratio)
+// or Width, swap, Height and the link button (Size; issue 697) | the Overlay list (issue 325)
+// | the two Delete checkboxes | the Crop options gear (issue 326) | Apply and Cancel. Clear
+// stays beside the pair it clears (rule 2). Both modes fit one row at 1366 px and in the
+// 1180 px test window. The artifacts are the issue shots, in both schemes.
 void ui_crop_options_bar_groups_its_controls() {
   std::vector<std::string> problems;
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -1084,7 +1085,7 @@ void ui_crop_options_bar_groups_its_controls() {
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
-    auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
     CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
     if (options_bar == nullptr || options == nullptr || style == nullptr) {
       return;
@@ -1092,7 +1093,9 @@ void ui_crop_options_bar_groups_its_controls() {
     const QString separator = QStringLiteral("|");
     require_action(window, "toolCropAction")->trigger();
     const int original = style->currentIndex();
+    // The Preset list's first two rows are its free modes, Ratio and Size.
     for (int index = 0; index < 2; ++index) {
+      window.resize(1366, 738);
       style->setCurrentIndex(index);
       QApplication::processEvents();
       process_events_for(20);
@@ -1115,12 +1118,28 @@ void ui_crop_options_bar_groups_its_controls() {
           problem(left.toStdString() + " is not followed by " + right.toStdString());
         }
       };
-      expect_next_to(QStringLiteral("cropStyleCombo"), separator);
+      expect_next_to(QStringLiteral("cropPresetCombo"), separator);
+      if (at(QStringLiteral("cropPresetCombo")) != 1) {
+        problem("the Preset list and its label do not lead the bar");
+      }
       if (index == 0) {
+        // The swap button stands where the ":" was (issue 697).
+        expect_next_to(QStringLiteral("cropRatioWidthSpin"), QStringLiteral("cropRatioSwapButton"));
+        expect_next_to(QStringLiteral("cropRatioSwapButton"), QStringLiteral("cropRatioHeightSpin"));
         expect_next_to(QStringLiteral("cropRatioHeightSpin"), QStringLiteral("cropRatioClearButton"));
         expect_next_to(QStringLiteral("cropRatioClearButton"), separator);
+        if (at(QStringLiteral(":")) >= 0) {
+          problem("the ':' label is still on the bar");
+        }
       } else {
-        expect_next_to(QStringLiteral("cropHeightSpin"), separator);
+        // Width, swap, Height, then the link button (issue 697).
+        expect_next_to(QStringLiteral("cropWidthSpin"), QStringLiteral("cropSizeSwapButton"));
+        if (const int swap = at(QStringLiteral("cropSizeSwapButton")), height = at(QStringLiteral("cropHeightSpin"));
+            swap < 0 || height != swap + 2) {
+          problem("the swap button is not followed by the Height label and field");
+        }
+        expect_next_to(QStringLiteral("cropHeightSpin"), QStringLiteral("cropLinkSizeButton"));
+        expect_next_to(QStringLiteral("cropLinkSizeButton"), separator);
       }
       if (const int overlay = at(QStringLiteral("cropOverlayCombo"));
           overlay <= 0 || tokens[static_cast<std::size_t>(overlay) - 1] != separator) {
@@ -1155,7 +1174,16 @@ void ui_crop_options_bar_groups_its_controls() {
       } else {
         std::printf("  %s: one row, %d px\n", name.c_str(), right);
       }
+      // The default test window is 1180 px wide: a bar that wrapped there could un-wrap
+      // mid-drag and move the canvas under the handle-drag tests.
+      window.resize(1180, 738);
+      QApplication::processEvents();
+      process_events_for(20);
+      if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
+        problem("takes " + std::to_string(lines) + " rows at 1180 px (row " + std::to_string(right) + " px)");
+      }
     }
+    window.resize(1366, 738);
     style->setCurrentIndex(original);
   }
   for (const auto& problem : problems) {
@@ -1470,23 +1498,32 @@ void ui_text_options_bar_groups_its_controls() {
   }
 }
 
-// GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
-// show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
-// and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
-// the checks, so these artifacts are the issue shots in both schemes.
+// GitHub issue 286 follow-up: the swap width/height buttons on the Artboard, marquee, Crop
+// and Perspective Crop bars show one monochrome glyph in the theme's icon ink, at the bar's
+// icon size, filling its box, and dim when disabled. Each wears the bar's push-button frame
+// (GitHub issue 697), 28 x 26 like the keep-proportions toggle, so it reads as a button.
+// The bars still fit one row at 1366 px. Each bar is captured before the checks, so these
+// artifacts are the issue shots in both schemes.
 void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
   struct SwapCase {
     const char* tool;
-    int marquee_style;  // -1: not a marquee
+    int marquee_style;        // -1: not a marquee
+    const char* crop_preset;  // the Crop bar's Preset entry to pick; nullptr off the Crop tool
     const char* button;
     const char* shot;
   };
-  const std::array<SwapCase, 4> cases{{
-      {"toolArtboardAction", -1, "artboardSwapSizeButton", "artboard"},
-      {"toolMarqueeAction", 1, "selectionRatioSwapButton", "marquee_fixed_ratio"},
-      {"toolMarqueeAction", 2, "selectionFixedSizeSwapButton", "marquee_fixed_size"},
-      {"toolEllipticalMarqueeAction", 2, "selectionFixedSizeSwapButton", "elliptical_marquee_fixed_size"},
+  const std::array<SwapCase, 7> cases{{
+      {"toolArtboardAction", -1, nullptr, "artboardSwapSizeButton", "artboard"},
+      {"toolMarqueeAction", 1, nullptr, "selectionRatioSwapButton", "marquee_fixed_ratio"},
+      {"toolMarqueeAction", 2, nullptr, "selectionFixedSizeSwapButton", "marquee_fixed_size"},
+      {"toolEllipticalMarqueeAction", 2, nullptr, "selectionFixedSizeSwapButton", "elliptical_marquee_fixed_size"},
+      {"toolCropAction", -1, "16 : 9", "cropRatioSwapButton", "crop_ratio"},
+      {"toolCropAction", -1, "Size", "cropSizeSwapButton", "crop_size"},
+      {"toolPerspectiveCropAction", -1, nullptr, "perspectiveCropSwapButton", "perspective_crop"},
   }};
+  SettingsValueRestorer saved_crop_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_crop_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_crop_ratio_h(QStringLiteral("tools/cropRatioHeight"));
   std::vector<std::string> problems;
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -1496,8 +1533,9 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
     auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
-    CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
-    if (options_bar == nullptr || options == nullptr || style == nullptr) {
+    auto* crop_presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && style != nullptr && crop_presets != nullptr);
+    if (options_bar == nullptr || options == nullptr || style == nullptr || crop_presets == nullptr) {
       return;
     }
     const QColor ink = patchy::ui::theme().icon_ink;
@@ -1510,6 +1548,11 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
       require_action(window, swap.tool)->trigger();
       if (swap.marquee_style >= 0) {
         style->setCurrentIndex(swap.marquee_style);
+      }
+      if (swap.crop_preset != nullptr) {
+        const int row = crop_presets->findText(QLatin1String(swap.crop_preset));
+        expect(row >= 0, swap.button, "the Crop preset is not in the list");
+        crop_presets->setCurrentIndex(row);
       }
       QApplication::processEvents();
       process_events_for(20);
@@ -1552,8 +1595,30 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
       expect(ink_box.width() >= size.width() * 3 / 4 && ink_box.height() >= size.height() / 2, swap.button,
              "glyph does not fill its box");
       expect(disabled != normal, swap.button, "does not dim when disabled");
+      // The frame (GitHub issue 697): the bar's push-button look, not a bare glyph.
+      const auto* tool_button = qobject_cast<QToolButton*>(widget);
+      expect(widget->property("optionsBarFramedButton").toBool() && tool_button != nullptr &&
+                 !tool_button->autoRaise(),
+             swap.button, "not a framed button");
+      expect(widget->size() == QSize(28, 26), swap.button, "not 28 x 26 like the keep-proportions toggle");
+      const QImage bar_image = options->grab().toImage();
+      const QRect box = widget->geometry();
+      const QColor bar_color = bar_image.pixelColor(box.left() - 2, box.center().y());
+      const auto stands_out = [&bar_color](QColor color) {
+        return std::abs(color.red() - bar_color.red()) + std::abs(color.green() - bar_color.green()) +
+                   std::abs(color.blue() - bar_color.blue()) > 20;
+      };
+      // Its border on the left edge, or its fill just inside, differs from the bar.
+      expect(stands_out(bar_image.pixelColor(box.left(), box.center().y())) ||
+                 stands_out(bar_image.pixelColor(box.left() + 2, box.center().y())),
+             swap.button, "no visible frame");
+      std::printf("  %s%s: %dx%d, bar %s, edge %s, inside %s\n", swap.button, suffix.c_str(), box.width(),
+                  box.height(), qPrintable(bar_color.name()),
+                  qPrintable(bar_image.pixelColor(box.left(), box.center().y()).name()),
+                  qPrintable(bar_image.pixelColor(box.left() + 2, box.center().y()).name()));
     }
     style->setCurrentIndex(0);
+    crop_presets->setCurrentIndex(0);
 
     // The New Document dialog's swap button shows the same glyph.
     auto* bar_swap = window.findChild<QAbstractButton*>(QStringLiteral("artboardSwapSizeButton"));
@@ -1585,19 +1650,28 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
 }
 
 // GitHub issue 286 follow-up: a swap button sits evenly between the Width field and the
-// Height label, so the space from the field's edge to the glyph matches the space from the
-// glyph to the label's text (within 1 px), on the Artboard bar and both marquee pairs.
+// Height label, so the space from the field's edge to the button's frame (GitHub issue 697;
+// it was the bare glyph before) matches the space from the frame to the label's text (within
+// 1 px), on the Artboard bar, both marquee pairs, the Crop bar's Size fields and Perspective
+// Crop. Between the Crop bar's two ratio fields, which have no label, the two gaps are equal.
 void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
   struct SwapCase {
     const char* tool;
-    int marquee_style;  // -1: not a marquee
+    int marquee_style;        // -1: not a marquee
+    const char* crop_preset;  // the Crop bar's Preset entry to pick; nullptr off the Crop tool
     const char* button;
   };
-  const std::array<SwapCase, 3> cases{{
-      {"toolArtboardAction", -1, "artboardSwapSizeButton"},
-      {"toolMarqueeAction", 1, "selectionRatioSwapButton"},
-      {"toolMarqueeAction", 2, "selectionFixedSizeSwapButton"},
+  const std::array<SwapCase, 6> cases{{
+      {"toolArtboardAction", -1, nullptr, "artboardSwapSizeButton"},
+      {"toolMarqueeAction", 1, nullptr, "selectionRatioSwapButton"},
+      {"toolMarqueeAction", 2, nullptr, "selectionFixedSizeSwapButton"},
+      {"toolCropAction", -1, "16 : 9", "cropRatioSwapButton"},
+      {"toolCropAction", -1, "Size", "cropSizeSwapButton"},
+      {"toolPerspectiveCropAction", -1, nullptr, "perspectiveCropSwapButton"},
   }};
+  SettingsValueRestorer saved_crop_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_crop_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_crop_ratio_h(QStringLiteral("tools/cropRatioHeight"));
   std::vector<std::string> problems;
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -1606,14 +1680,18 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
     window.resize(1366, 738);
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
     auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
-    CHECK(options != nullptr && style != nullptr);
-    if (options == nullptr || style == nullptr) {
+    auto* crop_presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+    CHECK(options != nullptr && style != nullptr && crop_presets != nullptr);
+    if (options == nullptr || style == nullptr || crop_presets == nullptr) {
       return;
     }
     for (const auto& swap : cases) {
       require_action(window, swap.tool)->trigger();
       if (swap.marquee_style >= 0) {
         style->setCurrentIndex(swap.marquee_style);
+      }
+      if (swap.crop_preset != nullptr) {
+        crop_presets->setCurrentIndex(crop_presets->findText(QLatin1String(swap.crop_preset)));
       }
       QApplication::processEvents();
       process_events_for(20);
@@ -1627,14 +1705,25 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
       const auto found = std::find_if(row.begin(), row.end(), [&swap](const QWidget* widget) {
         return widget->objectName() == QLatin1String(swap.button);
       });
-      if (found == row.end() || found == row.begin() || found + 1 == row.end() ||
-          qobject_cast<QLabel*>(*(found + 1)) == nullptr) {
-        problems.push_back(std::string(swap.button) + suffix + ": not between a field and a label");
+      if (found == row.end() || found == row.begin() || found + 1 == row.end()) {
+        problems.push_back(std::string(swap.button) + suffix + ": not between two controls");
         continue;
       }
       const QRect field = (*(found - 1))->geometry();
       const QRect button = (*found)->geometry();
       const QRect label = (*(found + 1))->geometry();
+      if (qobject_cast<QLabel*>(*(found + 1)) == nullptr) {
+        // Between two fields: the flow's own spacing on both sides.
+        const int left_gap = button.left() - (field.right() + 1);
+        const int right_gap = label.left() - (button.right() + 1);
+        std::printf("  %s%s: field to button %d px, button to field %d px\n", swap.button, suffix.c_str(), left_gap,
+                    right_gap);
+        if (left_gap != right_gap) {
+          problems.push_back(std::string(swap.button) + suffix + ": uneven gaps " + std::to_string(left_gap) +
+                             " and " + std::to_string(right_gap));
+        }
+        continue;
+      }
       const QImage image = options->grab().toImage();
       if (image.devicePixelRatio() != 1.0) {
         problems.push_back(std::string(swap.button) + suffix + ": grab is not at 1x");
@@ -1652,27 +1741,20 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
         }
         return false;
       };
-      int glyph_left = -1;
-      int glyph_right = -1;
-      for (int x = button.left(); x <= button.right(); ++x) {
-        if (ink_column(x)) {
-          glyph_left = glyph_left < 0 ? x : glyph_left;
-          glyph_right = x;
-        }
-      }
       int text_left = -1;
       for (int x = label.left(); x <= label.right() && text_left < 0; ++x) {
         if (ink_column(x)) {
           text_left = x;
         }
       }
-      if (glyph_left < 0 || text_left < 0) {
-        problems.push_back(std::string(swap.button) + suffix + ": glyph or label text not found");
+      if (text_left < 0) {
+        problems.push_back(std::string(swap.button) + suffix + ": label text not found");
         continue;
       }
-      const int left_gap = glyph_left - (field.right() + 1);
-      const int right_gap = text_left - (glyph_right + 1);
-      std::printf("  %s%s: field to glyph %d px, glyph to label text %d px\n", swap.button, suffix.c_str(), left_gap,
+      // The button draws its frame at its box edge.
+      const int left_gap = button.left() - (field.right() + 1);
+      const int right_gap = text_left - (button.right() + 1);
+      std::printf("  %s%s: field to button %d px, button to label text %d px\n", swap.button, suffix.c_str(), left_gap,
                   right_gap);
       if (std::abs(left_gap - right_gap) > 1) {
         problems.push_back(std::string(swap.button) + suffix + ": uneven gaps " + std::to_string(left_gap) + " and " +
@@ -1680,6 +1762,7 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
       }
     }
     style->setCurrentIndex(0);
+    crop_presets->setCurrentIndex(0);
   }
   for (const auto& problem : problems) {
     std::fprintf(stderr, "  %s\n", problem.c_str());
@@ -1995,7 +2078,7 @@ void ui_options_bars_follow_the_separator_rules() {
       tools.push_back(require_action(window, "toolObjectSelectionAction"));
     }
     auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
-    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
     auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
     for (auto* action : tools) {
       action->trigger();
@@ -2017,6 +2100,11 @@ void ui_options_bars_follow_the_separator_rules() {
       }
       const int original = variants->currentIndex();
       for (int index = 0; index < variants->count(); ++index) {
+        // The Crop bar's variants are its Preset list's two free modes, Ratio and Size (the
+        // first two rows); every other row switches to one of them or opens a prompt.
+        if (variants == crop_style && index > 1) {
+          break;
+        }
         if (auto* model = qobject_cast<QStandardItemModel*>(variants->model());
             model != nullptr && model->item(index) != nullptr && !model->item(index)->isEnabled()) {
           continue;
@@ -2198,7 +2286,7 @@ void ui_options_bar_separators_sit_centered_in_their_gaps() {
       tools.push_back(require_action(window, "toolObjectSelectionAction"));
     }
     auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
-    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
     auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
     for (auto* action : tools) {
       action->trigger();
@@ -2219,6 +2307,11 @@ void ui_options_bar_separators_sit_centered_in_their_gaps() {
       }
       const int original = variants->currentIndex();
       for (int index = 0; index < variants->count(); ++index) {
+        // The Crop bar's variants are its Preset list's two free modes, Ratio and Size (the
+        // first two rows); every other row switches to one of them or opens a prompt.
+        if (variants == crop_style && index > 1) {
+          break;
+        }
         if (auto* model = qobject_cast<QStandardItemModel*>(variants->model());
             model != nullptr && model->item(index) != nullptr && !model->item(index)->isEnabled()) {
           continue;

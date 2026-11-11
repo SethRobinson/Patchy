@@ -321,6 +321,27 @@ void CanvasWidget::set_crop_ratio(double width, double height) noexcept {
   }
 }
 
+void CanvasWidget::swap_crop_ratio() {
+  std::swap(crop_ratio_w_, crop_ratio_h_);
+  if (!crop_session_active_ || crop_ratio_w_ == crop_ratio_h_) {
+    return;
+  }
+  QRect swapped = crop_rect_;
+  if (crop_box_is_default_) {
+    swapped = ratio_fitted_crop_rect(canvas_document_rect());
+  } else if (crop_ratio_w_ > 0.0 && crop_ratio_h_ > 0.0) {
+    // Turned in place: the box that fitted W : H fits H : W exactly once transposed.
+    swapped = QRect(crop_rect_.x() + (crop_rect_.width() - crop_rect_.height()) / 2,
+                    crop_rect_.y() + (crop_rect_.height() - crop_rect_.width()) / 2, crop_rect_.height(),
+                    crop_rect_.width());
+  }
+  if (swapped != crop_rect_) {
+    crop_rect_ = swapped;
+    update();
+    notify_crop_session_changed();
+  }
+}
+
 double CanvasWidget::crop_ratio_width() const noexcept {
   return crop_ratio_w_;
 }

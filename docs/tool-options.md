@@ -49,9 +49,10 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Magic Wand | Sample (`wandSampleSizeCombo`, GitHub issue 435; its own setting, not the Pick tool's Size) | `wandSampleSize` (Point Sample when missing) | yes | yes |
 | Quick Select | Size, Sample All Layers, Enhance Edge | `quickSelectSize`, `...SampleAllLayers`, `...EnhanceEdge` | yes | yes |
 | Object Selection | Sample All Layers, Model | `objectSelectSampleAllLayers`, `objectSelectModel` | yes | yes |
-| Crop | Style, ratio W/H, Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
+| Crop | Preset list (`cropPresetCombo`: the style and the ratio W/H it sets), Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
+| Crop | saved presets (Save Preset / Delete Preset in the Preset list; [crop-tool.md](crop-tool.md)) | `cropUserPresets` (JSON) | new (issue 696) | yes |
 | Crop | Crop options popup: Show Cropped Area, shield on, color, opacity (`cropOptionsButton`) | `cropShowCroppedArea`, `cropShieldEnabled`, `cropShieldColor`, `cropShieldOpacity` | no | yes |
-| Crop | Size W/H, ratio preset row, Apply/Cancel | none (live box; preset derived) | no | no (session) |
+| Crop | Size W/H, the Preset list's shown row, the swap buttons, Apply/Cancel | none (live box; row derived) | no | no (session) |
 | Ruler | line, X/Y/W/H/A/L1/L2 readout, Straighten Layer, Straighten Image, Clear | none (view overlay) | new (issue 331) | no (session) |
 | Perspective Crop | Show Grid (`perspectiveCropShowGridCheck`) | `perspectiveCropShowGrid` | new (issue 328) | yes |
 | Perspective Crop | W, H, Resolution, Front Image, Clear, Turn, Apply/Cancel (`perspectiveCrop*`) | none | new (issue 328) | no (session) |

@@ -1009,12 +1009,15 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
   }
 
   auto* built_in_panel = add_category_panel(tr("Built-in canvas keys (not editable)"), true);
-  const std::array<std::pair<QString, QString>, 5> built_ins{{
+  const std::array<std::pair<QString, QString>, 6> built_ins{{
       {QStringLiteral("Space"), tr("Pan canvas (hold); while dragging, moves the selection or shape")},
       {QStringLiteral("0-9"), tr("Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)")},
       {QStringLiteral("Arrows / Shift+Arrows"), tr("Nudge layer by 1 px / 10 px")},
       {QStringLiteral("Enter / Esc"), tr("Commit / cancel a transform or text edit")},
       {QStringLiteral("Delete / Backspace"), tr("Delete selected guides")},
+      // Taken only while each letter is still on its tool (docs/hotkey-sets.md, "Crop keys").
+      {QStringLiteral("O / Shift+O / H"),
+       tr("Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area")},
   }};
   for (const auto& [keys, description] : built_ins) {
     add_built_in_row(built_in_panel, keys, description);

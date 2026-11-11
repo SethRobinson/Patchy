@@ -6316,14 +6316,6 @@
         <translation>Brak</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>Oryginalna proporcja</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1:1 (kwadrat)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>Miejsce docelowe</translation>
     </message>
@@ -9221,10 +9213,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Wspaniali ludzie, którzy podarowali sugestie, zgłoszenia błędów i kod: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>Proporcje</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22512,6 +22500,10 @@ Czy chcesz go zastąpić?</translation>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>Inne polecenia</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>Narzędzie Kadrowanie, po zmianie ramki kadrowania: następna nakładka / obróć nakładkę / pokaż lub ukryj przycięty obszar</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -24269,10 +24261,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Wysokość:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>Proporcje:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>Brak</translation>
     </message>
@@ -24283,10 +24271,6 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1:1 (kwadrat)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>Ustawiony współczynnik proporcji dla pola przycinania</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30310,10 +30294,6 @@ Y: %2
         <translation>Rozmiar</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>Proporcje ograniczają ramkę kadrowania; Rozmiar pokazuje jej dokładną szerokość i wysokość i je ustawia</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>Szerokość ramki kadrowania</translation>
     </message>
@@ -35947,6 +35927,30 @@ Zablokowano: %1</translation>
     <message>
         <source>Top edge of the layer</source>
         <translation>Górna krawędź warstwy</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>Ustawienia kadrowania: Proporcje i Rozmiar pokazują swoje pola; proporcje lub rozmiar w pikselach je wypełniają. Rozmiar ustawia ramkę kadrowania na tyle pikseli i nie przepróbkowuje obrazu</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>Następna nakładka</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>Usunięto ustawienie kadrowania: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>Zapisz ustawienie kadrowania</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>Zapisano ustawienie kadrowania: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>%1 wybiera następną nakładkę po zmianie ramki kadrowania</translation>
     </message>
 </context>
 <context>
