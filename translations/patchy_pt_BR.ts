@@ -22453,6 +22453,10 @@ Deseja substituí-lo?</translation>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>Ferramenta Cortar, depois de alterar a caixa de corte: mover a imagem sob a caixa de corte ou a caixa sobre a imagem</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>Pesquisar atalhos...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

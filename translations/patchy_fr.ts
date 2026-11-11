@@ -22453,6 +22453,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>Outil Recadrage, une fois le cadre de recadrage modifié : déplacer l&apos;image sous le cadre de recadrage, ou le cadre sur l&apos;image</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>Rechercher des raccourcis...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

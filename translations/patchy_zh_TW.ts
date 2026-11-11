@@ -22389,6 +22389,10 @@ Do you want to replace it?</source>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>裁切工具，變更裁切框之後: 在裁切框下移動影像，或在影像上移動裁切框</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>搜尋快速鍵...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

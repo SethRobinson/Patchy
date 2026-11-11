@@ -6,6 +6,7 @@
 
 #include <QHash>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 #include <optional>
 #include <vector>
@@ -86,6 +87,8 @@ private:
     QString label;
     QString search_haystack;
     RowSource source{RowSource::BuiltIn};
+    // The row's keys for the shortcut-only search: one token list per chord (GitHub issue 676).
+    QList<QStringList> key_chords;
   };
 
   QWidget* build_set_row(QWidget* parent);
@@ -120,6 +123,7 @@ private:
   void refresh_rows();
   void filter_rows();
   void fill_filter_combo();
+  void update_search_placeholder();
   [[nodiscard]] ListFilter list_filter() const;
   [[nodiscard]] bool row_matches_filter(const Row& row, ListFilter filter) const;
   void begin_capture(const QString& id, int slot);

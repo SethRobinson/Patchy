@@ -15,6 +15,7 @@
 #include <QHash>
 #include <QInputDialog>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -50,6 +51,133 @@ void wrap_if_long(QLabel& label, const QString& plain_text) {
 bool is_modifier_only_key(int key) {
   return key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta ||
          key == Qt::Key_AltGr || key == Qt::Key_CapsLock || key == Qt::Key_NumLock || key == Qt::Key_ScrollLock;
+}
+
+// GitHub issue 676 follow-up: with Show set to Commands with shortcuts the search reads only
+// the keys. A chord's tokens are each modifier's names (as the chips show them, plus the usual
+// other spellings) and the key's native and portable names, in lower case.
+QStringList modifier_tokens(Qt::KeyboardModifiers modifiers) {
+  QStringList tokens;
+#ifdef Q_OS_MACOS
+  if (modifiers.testFlag(Qt::ControlModifier)) {
+    tokens << QStringLiteral("cmd") << QStringLiteral("command") << QString(QChar(0x2318));
+  }
+  if (modifiers.testFlag(Qt::MetaModifier)) {
+    tokens << QStringLiteral("ctrl") << QStringLiteral("control") << QString(QChar(0x2303));
+  }
+  if (modifiers.testFlag(Qt::AltModifier)) {
+    tokens << QStringLiteral("option") << QStringLiteral("opt") << QStringLiteral("alt") << QString(QChar(0x2325));
+  }
+  if (modifiers.testFlag(Qt::ShiftModifier)) {
+    tokens << QStringLiteral("shift") << QString(QChar(0x21E7));
+  }
+#else
+  if (modifiers.testFlag(Qt::ControlModifier)) {
+    tokens << QStringLiteral("ctrl") << QStringLiteral("control");
+  }
+  if (modifiers.testFlag(Qt::MetaModifier)) {
+    tokens << QStringLiteral("meta") << QStringLiteral("win") << QStringLiteral("super");
+  }
+  if (modifiers.testFlag(Qt::AltModifier)) {
+    tokens << QStringLiteral("alt");
+  }
+  if (modifiers.testFlag(Qt::ShiftModifier)) {
+    tokens << QStringLiteral("shift");
+  }
+#endif
+  return tokens;
+}
+
+void append_key_chords(const QKeySequence& sequence, QList<QStringList>& chords) {
+  for (int index = 0; index < sequence.count(); ++index) {
+    const auto combination = sequence[index];
+    auto tokens = modifier_tokens(combination.keyboardModifiers());
+    const QKeySequence key(combination.key());
+    for (const auto format : {QKeySequence::NativeText, QKeySequence::PortableText}) {
+      const auto name = key.toString(format).toLower();
+      if (!name.isEmpty() && !tokens.contains(name)) {
+        tokens << name;
+      }
+    }
+    chords << tokens;
+  }
+}
+
+// The built-in rows show their keys as text ("O / Shift+O / H", "0-9", "Arrows / Shift+Arrows").
+QList<QStringList> built_in_key_chords(const QString& keys) {
+  QList<QStringList> chords;
+  for (const auto& alternative : keys.split(QStringLiteral(" / "), Qt::SkipEmptyParts)) {
+    QStringList tokens;
+    for (const auto& part : alternative.split(QLatin1Char('+'), Qt::SkipEmptyParts)) {
+      const auto token = part.trimmed().toLower();
+      tokens << token;
+      if (token.size() == 3 && token.at(1) == QLatin1Char('-')) {  // a range such as 0-9
+        for (char16_t c = token.at(0).unicode(); c <= token.at(2).unicode(); ++c) {
+          tokens << QString(QChar(c));
+        }
+      } else if (token == QStringLiteral("arrows")) {
+        tokens << QStringLiteral("left") << QStringLiteral("right") << QStringLiteral("up") << QStringLiteral("down");
+      }
+    }
+    chords << tokens;
+  }
+  return chords;
+}
+
+// "ctrl+u", "Ctrl U" and "ctrl + u" give ctrl and u; a plus with no key before it ("+",
+// "ctrl++") is the plus key itself.
+QStringList shortcut_query_tokens(const QString& query) {
+  QStringList tokens;
+  QString current;
+  bool after_separator = true;
+  for (const QChar c : query.toLower()) {
+    if (c.isSpace()) {
+      if (!current.isEmpty()) {
+        tokens << current;
+        current.clear();
+        after_separator = false;
+      }
+    } else if (c == QLatin1Char('+') && current.isEmpty() && after_separator) {
+      tokens << QString(c);
+      after_separator = false;
+    } else if (c == QLatin1Char('+')) {
+      if (!current.isEmpty()) {
+        tokens << current;
+        current.clear();
+      }
+      after_separator = true;
+    } else {
+      current += c;
+    }
+  }
+  if (!current.isEmpty()) {
+    tokens << current;
+  }
+  return tokens;
+}
+
+// One letter, or anything with a digit, must name the key exactly: "u" finds U (not Up), "f1"
+// finds F1 (not F10 to F12). Two or more letters may also start a longer name ("ctr", "shi",
+// "pg"), so a partly typed word still finds its chords.
+bool shortcut_token_matches(const QString& query_token, const QString& key_token) {
+  if (key_token == query_token) {
+    return true;
+  }
+  if (query_token.size() < 2 ||
+      !std::all_of(query_token.begin(), query_token.end(), [](QChar c) { return c.isLetter(); })) {
+    return false;
+  }
+  return key_token.startsWith(query_token);
+}
+
+// Every query token must match a token of the same chord.
+bool key_chords_match(const QList<QStringList>& chords, const QStringList& query_tokens) {
+  return std::any_of(chords.begin(), chords.end(), [&](const QStringList& chord) {
+    return std::all_of(query_tokens.begin(), query_tokens.end(), [&](const QString& query_token) {
+      return std::any_of(chord.begin(), chord.end(),
+                         [&](const QString& key_token) { return shortcut_token_matches(query_token, key_token); });
+    });
+  });
 }
 
 }  // namespace
@@ -194,7 +322,6 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   top_layout->setSpacing(8);
   search_edit_ = new QLineEdit(top_row);
   search_edit_->setObjectName(QStringLiteral("hotkeySearchEdit"));
-  search_edit_->setPlaceholderText(tr("Search commands or shortcuts..."));
   search_edit_->setClearButtonEnabled(true);
   top_layout->addWidget(search_edit_, 1);
   // GitHub issue 676: limits the list together with the search; the choice is not saved.
@@ -206,6 +333,7 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   filter_combo_->setToolTip(tr("List only some kinds of commands"));
   filter_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
   fill_filter_combo();
+  update_search_placeholder();
   fit_combo_popup_to_entries(*filter_combo_);
   filter_label->setBuddy(filter_combo_);
   top_layout->addWidget(filter_combo_);
@@ -244,6 +372,7 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
     list_scroll_->verticalScrollBar()->setValue(0);
   });
   connect(filter_combo_, &QComboBox::currentIndexChanged, this, [this] {
+    update_search_placeholder();
     filter_rows();
     list_scroll_->verticalScrollBar()->setValue(0);
   });
@@ -846,6 +975,7 @@ void HotkeyEditorPanel::changeEvent(QEvent* event) {
   QWidget::changeEvent(event);
   if (event->type() == QEvent::LanguageChange) {
     fill_filter_combo();
+    update_search_placeholder();
     rebuild_set_combo();
   } else if (event->type() == QEvent::StyleChange || event->type() == QEvent::FontChange) {
     fit_set_combo_width();
@@ -953,7 +1083,7 @@ void HotkeyEditorPanel::add_built_in_row(QFrame* panel, const QString& keys, con
   qobject_cast<QVBoxLayout*>(panel->layout())->addWidget(container);
 
   rows_.push_back({nullptr, container, description_label, nullptr, nullptr, nullptr, nullptr, panel, description,
-                   (description + QLatin1Char(' ') + keys).toLower()});
+                   (description + QLatin1Char(' ') + keys).toLower(), RowSource::BuiltIn, built_in_key_chords(keys)});
 }
 
 void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
@@ -1066,10 +1196,12 @@ void HotkeyEditorPanel::refresh_rows() {
 
     const auto effective = resolution_.effective.value(id);
     QStringList chip_texts;
+    row.key_chords.clear();
     for (int slot = 0; slot < effective.size(); ++slot) {
       const auto& sequence = effective.at(slot);
       const auto native = sequence.toString(QKeySequence::NativeText);
       chip_texts << native << sequence.toString(QKeySequence::PortableText);
+      append_key_chords(sequence, row.key_chords);
       auto* chip = new QPushButton(native, row.chips_host);
       chip->setObjectName(QStringLiteral("hotkeyChip.") + id + QLatin1Char('.') + QString::number(slot));
       chip->setProperty("hotkeyChip", true);
@@ -1123,6 +1255,19 @@ void HotkeyEditorPanel::fill_filter_combo() {
   filter_combo_->setCurrentIndex(std::max(index, 0));
 }
 
+void HotkeyEditorPanel::update_search_placeholder() {
+  if (search_edit_ == nullptr) {
+    return;
+  }
+  if (list_filter() == ListFilter::WithShortcuts) {
+    //: Preferences > Hotkeys search hint while Show is "Commands with shortcuts": the search
+    //: then looks only at the keys.
+    search_edit_->setPlaceholderText(tr("Search shortcuts..."));
+  } else {
+    search_edit_->setPlaceholderText(tr("Search commands or shortcuts..."));
+  }
+}
+
 HotkeyEditorPanel::ListFilter HotkeyEditorPanel::list_filter() const {
   if (filter_combo_ == nullptr || filter_combo_->currentIndex() < 0) {
     return ListFilter::All;
@@ -1151,10 +1296,15 @@ bool HotkeyEditorPanel::row_matches_filter(const Row& row, ListFilter filter) co
 void HotkeyEditorPanel::filter_rows() {
   const auto needle = search_edit_ != nullptr ? search_edit_->text().trimmed().toLower() : QString();
   const auto filter = list_filter();
+  // Commands with shortcuts searches the keys alone (GitHub issue 676 follow-up): "u" lists
+  // Ctrl+U, not Undo.
+  const bool keys_only = filter == ListFilter::WithShortcuts;
+  const auto query_tokens = keys_only ? shortcut_query_tokens(needle) : QStringList();
   QHash<QFrame*, bool> panel_visible;
   for (auto& row : rows_) {
-    const bool visible =
-        row_matches_filter(row, filter) && (needle.isEmpty() || row.search_haystack.contains(needle));
+    const bool text_matches = needle.isEmpty() || (keys_only ? key_chords_match(row.key_chords, query_tokens)
+                                                             : row.search_haystack.contains(needle));
+    const bool visible = row_matches_filter(row, filter) && text_matches;
     row.container->setVisible(visible);
     panel_visible[row.panel] = panel_visible.value(row.panel, false) || visible;
   }
