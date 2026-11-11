@@ -19,6 +19,9 @@ struct TextLayoutMetrics {
   std::optional<double> box_baseline_inset;
   std::optional<double> auto_leading;
   std::optional<double> raster_top;  // point text: local_rect.top(), the raster's top row from the origin
+  // Point text whose first line is centered or right-aligned: that line's justification point
+  // from the origin (kLayerMetadataTextAnchorX). Unset for left-aligned text.
+  std::optional<double> anchor_x;
 };
 
 

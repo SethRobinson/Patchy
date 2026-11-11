@@ -1636,8 +1636,533 @@ void text_engine_issue_683_reporter_settings_survive_an_edit_if_available() {
   }
 }
 
+namespace {
+
+int layer_index_named(const patchy::Document& document, std::string_view name) {
+  for (int index = 0; index < static_cast<int>(document.layers().size()); ++index) {
+    if (document.layers()[static_cast<std::size_t>(index)].name() == name) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// Column 16 of a layer's runs (the kept character settings), joined with "|".
+std::string run_styles_of(const patchy::Layer& layer) {
+  std::string joined;
+  bool first = true;
+  for (const auto& value : metadata_run_column(layer, patchy::kLayerMetadataTextRuns, 16)) {
+    if (!first) {
+      joined += '|';
+    }
+    first = false;
+    joined += value;
+  }
+  return joined;
+}
+
+}  // namespace
+
+// Kerning is the file's own (Testy's text-save leg, November 2026): Patchy wrote "/AutoKerning
+// true /Kerning 0" and Txt2 /11 1 (Metrics) into every run it rewrote, which kerned a Photoshop
+// run that was manual 0. A run keeps manual (with its number) and Optical in both blocks, through
+// a reopen and another save; a new layer is Metrics, as Photoshop 2026 writes one.
+void text_engine_kerning_round_trips() {
+  patchy::Document document(600, 300, patchy::PixelFormat::rgb8());
+  document.add_layer(patchy_text_layer(document, "New", "A new Patchy layer", false));
+  auto kept = patchy_text_layer(document, "Kept", "Manual Number Optical plain", false);
+  const std::string columns = "\t30\t0\t0\t#202020\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t";
+  kept.metadata()[patchy::kLayerMetadataTextRuns] = "v9\n0\t7" + columns + "kern:0\n7\t7" + columns +
+                                                    "underline,kern:-25\n14\t8" + columns + "kern:optical\n22\t5" +
+                                                    columns + "-";
+  document.add_layer(std::move(kept));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  write_artifact("text-engine-kerning.psd", bytes);
+
+  const auto check_written = [](const std::vector<std::uint8_t>& written) {
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    const auto new_index = text_index_of(written, 0);
+    const auto kept_index = text_index_of(written, 1);
+    CHECK(block.has_value() && new_index.has_value() && kept_index.has_value());
+    if (!block.has_value() || !new_index.has_value() || !kept_index.has_value()) {
+      return;
+    }
+    const auto plain = txt2_run_sheets(*block, *new_index, "6");
+    CHECK(plain.size() == 1U);
+    if (plain.size() == 1U) {
+      CHECK(sheet_integer(plain[0], "11") == 1);
+      CHECK(plain[0]->find("10") == nullptr);
+    }
+    const auto sheets = txt2_run_sheets(*block, *kept_index, "6");
+    CHECK(sheets.size() == 4U);
+    if (sheets.size() == 4U) {
+      // Manual 0: the mode alone, as Photoshop 2026 writes it.
+      CHECK(sheet_integer(sheets[0], "11") == 0 && sheets[0]->find("10") == nullptr);
+      CHECK(sheet_integer(sheets[1], "11") == 0 && sheet_number(sheets[1], "10") == -25.0);
+      CHECK(sheet_integer(sheets[1], "16") == 2);  // the underline beside it
+      CHECK(sheet_integer(sheets[2], "11") == 2 && sheets[2]->find("10") == nullptr);
+      CHECK(sheet_integer(sheets[3], "11") == 1 && sheets[3]->find("10") == nullptr);
+    }
+    // The TySh twin can only say manual: false with the number. Metrics and Optical read true,
+    // and so does the normal style sheet (twice: the ResourceDict and its DocumentResources twin).
+    CHECK(count_of(tysh_text(written, 0), "/AutoKerning true /Kerning 0 ") == 3U);
+    CHECK(count_of(tysh_text(written, 0), "/AutoKerning false") == 0U);
+    const auto tysh = tysh_text(written, 1);
+    CHECK(count_of(tysh, "/AutoKerning false /Kerning 0 ") == 1U);
+    CHECK(count_of(tysh, "/AutoKerning false /Kerning -25 ") == 1U);
+    CHECK(count_of(tysh, "/AutoKerning true /Kerning 0 ") == 4U);
+  };
+  check_written(bytes);
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2U);
+  if (read.layers().size() != 2U) {
+    return;
+  }
+  CHECK(read.layers()[0].metadata().at(patchy::kLayerMetadataTextRuns).find("kern") == std::string::npos);
+  CHECK(run_styles_of(read.layers()[1]) == "kern:0|underline,kern:-25|kern:optical|-");
+  mark_text_layers_edited(read);
+  check_written(patchy::psd::DocumentIo::write_layered_rgb8(read));
+
+  // The column's tokens.
+  patchy::psd::PsdTextStyleRun run;
+  CHECK(!patchy::psd::text_run_has_kept_kerning(run) && !patchy::psd::text_run_has_character_styles(run));
+  patchy::psd::parse_text_run_character_styles("kern:optical,future-token", run);
+  CHECK(run.kerning_mode == patchy::psd::kTextKerningOptical && run.kerning == 0.0);
+  CHECK(patchy::psd::text_run_has_character_styles(run));
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "kern:optical");
+  patchy::psd::parse_text_run_character_styles("kern:50,justalt", run);
+  CHECK(run.kerning_mode == patchy::psd::kTextKerningManual && run.kerning == 50.0);
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "justalt,kern:50");
+  patchy::psd::parse_text_run_character_styles("kern:nope,kerning:3", run);  // not the token
+  CHECK(run.kerning_mode == patchy::psd::kTextKerningMetrics && run.kerning == 0.0);
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "-");
+}
+
+// Where Photoshop takes a run's kerning from (Photoshop 2026 captures and the psd-tools files,
+// docs/txt2-kept-settings.md "Kerning"): the Txt2 style run's own /11 (0 manual, 1 Metrics, 2 Optical), else the
+// character style (/32) of its paragraph's parent sheet ("Basic Paragraph" says manual 0 in files
+// Photoshop CC wrote, which is why a run that states nothing is unkerned there), else the
+// document's default style sheet; the TySh /AutoKerning only for a layer with no Txt2 object.
+// The committed Photoshop 2026 fixture (scripts/dev/txt2/ps-capture-point-anchors.ps1) has a
+// manual and an Optical layer; the other cases edit its "right" layer in place.
+void text_engine_kerning_reads_photoshop_sheets() {
+  const auto original = read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd"));
+  const auto as_photoshop_wrote = patchy::psd::DocumentIo::read(original);
+  const auto right_layer = layer_index_named(as_photoshop_wrote, "right");
+  const auto manual_layer = layer_index_named(as_photoshop_wrote, "kern-manual");
+  const auto optical_layer = layer_index_named(as_photoshop_wrote, "kern-optical");
+  CHECK(right_layer >= 0 && manual_layer >= 0 && optical_layer >= 0);
+  if (right_layer < 0 || manual_layer < 0 || optical_layer < 0) {
+    return;
+  }
+  CHECK(run_styles_of(as_photoshop_wrote.layers()[static_cast<std::size_t>(manual_layer)]) == "kern:0");
+  CHECK(run_styles_of(as_photoshop_wrote.layers()[static_cast<std::size_t>(optical_layer)]) == "kern:optical");
+  const auto right_object = text_index_of(original, right_layer);
+  CHECK(right_object.has_value());
+  if (!right_object.has_value()) {
+    return;
+  }
+  const auto object_key = std::to_string(*right_object);
+
+  static constexpr std::string_view kMarker = "8BIMTxt2";
+  // The fixture with its Txt2 block edited in place: the edits only shorten it, and the
+  // difference goes into the whitespace after the root.
+  const auto with_txt2 = [&original](const std::function<void(patchy::psd::EngineNode&)>& edit) {
+    auto bytes = original;
+    const auto payload = text_engine_payload(bytes);
+    auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    CHECK(block.has_value());
+    if (!block.has_value()) {
+      return bytes;
+    }
+    edit(block->root());
+    const auto shorter = block->serialize();
+    CHECK(shorter.size() <= payload->size());
+    if (shorter.size() > payload->size()) {
+      return bytes;
+    }
+    block->root().close_ws.append(payload->size() - shorter.size(), ' ');
+    const auto edited = block->serialize();
+    CHECK(edited.size() == payload->size());
+    if (edited.size() != payload->size()) {
+      return bytes;
+    }
+    const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+    std::copy(edited.begin(), edited.end(), at + static_cast<std::ptrdiff_t>(kMarker.size() + 4));
+    return bytes;
+  };
+  const auto without_txt2 = [](std::vector<std::uint8_t> bytes) {
+    const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+    CHECK(at != bytes.end());
+    if (at != bytes.end()) {
+      *(at + 7) = 'X';
+    }
+    return bytes;
+  };
+  const auto run_sheet = [&object_key](patchy::psd::EngineNode& root) {
+    return root.at_path({"1", "1", object_key, "0", "6", "0", "0", "0", "0", "6"});
+  };
+  const auto paragraph_style = [](patchy::psd::EngineNode& root) {
+    return root.at_path({"0", "6", "0", "1", "0", "5", "32"});  // "Basic Paragraph", every run's parent
+  };
+  const auto set_mode = [](patchy::psd::EngineNode* sheet, const char* mode) {
+    auto* node = sheet != nullptr ? sheet->find("11") : nullptr;
+    CHECK(node != nullptr);
+    if (node != nullptr) {
+      node->raw = mode;
+    }
+  };
+  const auto erase = [](patchy::psd::EngineNode* sheet) { CHECK(sheet != nullptr && sheet->erase("11")); };
+  // What a read finds for the "right" layer, and what an edit and a save then write for it.
+  const auto read_and_saved = [&](const std::vector<std::uint8_t>& bytes) {
+    auto document = patchy::psd::DocumentIo::read(bytes);
+    const auto index = layer_index_named(document, "right");
+    CHECK(index >= 0);
+    if (index < 0) {
+      return std::string("no layer");
+    }
+    auto found = run_styles_of(document.layers()[static_cast<std::size_t>(index)]);
+    mark_text_layers_edited(document);
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    const auto object = text_index_of(written, index);
+    if (block.has_value() && object.has_value()) {
+      for (const auto* sheet : txt2_run_sheets(*block, *object, "6")) {
+        found += " txt2=" + std::to_string(sheet_integer(sheet, "11"));
+      }
+    }
+    found += count_of(tysh_text(written, index), "/AutoKerning false") > 0U ? " tysh=manual" : " tysh=auto";
+    return found;
+  };
+  static constexpr const char* kMetrics = " txt2=1 tysh=auto";
+  static constexpr const char* kManual = "kern:0 txt2=0 tysh=manual";
+  static constexpr const char* kOptical = "kern:optical txt2=2 tysh=auto";
+
+  // As Photoshop wrote it: Metrics, no token.
+  CHECK(read_and_saved(original) == kMetrics);
+  // The run's own /11.
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) { set_mode(run_sheet(root), "0"); })) == kManual);
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) { set_mode(run_sheet(root), "2"); })) == kOptical);
+  // A run that leaves it out takes the character style of its paragraph's parent sheet.
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) { erase(run_sheet(root)); })) == kMetrics);
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) {
+          erase(run_sheet(root));
+          set_mode(paragraph_style(root), "0");
+        })) == kManual);
+  // Neither names it (the run's parent style sheet, "None", is empty): the document's default.
+  CHECK(read_and_saved(with_txt2([&](patchy::psd::EngineNode& root) {
+          erase(run_sheet(root));
+          erase(paragraph_style(root));
+          set_mode(root.at_path({"1", "2"}), "2");
+        })) == kOptical);
+  // The Txt2 object wins over a TySh run that says manual. "/AutoKerning true" and the
+  // whitespace after it make room for "false"; the first one in the file is this layer's run.
+  const auto with_manual_tysh = [](std::vector<std::uint8_t> bytes) {
+    static constexpr std::string_view kKey = "/AutoKerning true";
+    static constexpr std::string_view kManualKey = "/AutoKerning false";
+    const auto at = std::search(bytes.begin(), bytes.end(), kKey.begin(), kKey.end());
+    CHECK(at != bytes.end());
+    if (at != bytes.end()) {
+      std::copy(kManualKey.begin(), kManualKey.end(), at);
+    }
+    return bytes;
+  };
+  CHECK(read_and_saved(with_manual_tysh(original)) == kMetrics);
+  // No Txt2 object: the TySh run.
+  CHECK(read_and_saved(without_txt2(original)) == kMetrics);
+  const auto from_tysh = read_and_saved(without_txt2(with_manual_tysh(original)));
+  if (from_tysh != kManual) {
+    std::printf("  TySh-only manual run read and saved as \"%s\"\n", from_tysh.c_str());
+  }
+  CHECK(from_tysh == kManual);
+}
+
+// The anti-aliasing method Photoshop shows and draws with is the TySh descriptor's 'AntA'. Files
+// exist whose EngineData /AntiAlias number disagrees with it (Smooth beside 4, Crisp beside 2 in
+// Testy's private corpus); Patchy read the number and saved such a layer as Sharp or Strong.
+void text_engine_anti_alias_reads_the_descriptor_method() {
+  auto bytes = read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd"));
+  const auto anti_alias_of = [](const patchy::Document& document, std::string_view name) {
+    const auto index = layer_index_named(document, name);
+    if (index < 0) {
+      return std::string("no layer");
+    }
+    const auto& metadata = document.layers()[static_cast<std::size_t>(index)].metadata();
+    const auto found = metadata.find(patchy::kLayerMetadataTextAntiAlias);
+    return found == metadata.end() ? std::string("unset") : found->second;
+  };
+  {
+    const auto document = patchy::psd::DocumentIo::read(bytes);
+    CHECK(anti_alias_of(document, "smooth") == std::to_string(patchy::kTextAntiAliasSmooth));
+    CHECK(anti_alias_of(document, "right") == std::to_string(patchy::kTextAntiAliasCrisp));
+  }
+  // The Smooth layer's EngineData number (the only "/AntiAlias 3" of the file) becomes Sharp's.
+  static constexpr std::string_view kKey = "/AntiAlias 3";
+  const auto at = std::search(bytes.begin(), bytes.end(), kKey.begin(), kKey.end());
+  CHECK(at != bytes.end());
+  if (at == bytes.end()) {
+    return;
+  }
+  CHECK(std::search(at + 1, bytes.end(), kKey.begin(), kKey.end()) == bytes.end());
+  *(at + static_cast<std::ptrdiff_t>(kKey.size() - 1U)) = '4';
+  auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(anti_alias_of(document, "smooth") == std::to_string(patchy::kTextAntiAliasSmooth));
+  const auto smooth_index = layer_index_named(document, "smooth");
+  mark_text_layers_edited(document);
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  write_artifact("text-engine-anti-alias-descriptor.psd", written);
+  // Both of the save's records say Smooth: the descriptor enum and the EngineData number.
+  const auto tysh = tysh_text(written, smooth_index);
+  CHECK(count_of(tysh, "AnSm") == 1U && count_of(tysh, "antiAliasSharp") == 0U);
+  CHECK(count_of(tysh, "/AntiAlias 3 ") == 1U);
+  CHECK(anti_alias_of(patchy::psd::DocumentIo::read(written), "smooth") ==
+        std::to_string(patchy::kTextAntiAliasSmooth));
+}
+
+// A text engine block Patchy cannot author into (the named-key engine of Photoshop CS-era files)
+// stays verbatim while any layer still writes the type record it was read with, and a layer
+// regenerated beside it takes an index no object has (Photoshop's old-text path). When every type
+// record is regenerated (Type > Update All Text Layers) the block is replaced by an authored one
+// and every layer addresses its own object, so Photoshop reads current text: the old-text path
+// drew the psd-tools pen-text layer wider and lighter (Testy's text-save leg, November 2026).
+void text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated() {
+  // Eight point frames and eight objects, one per type layer of the fixture.
+  const std::string kOldEngine = [] {
+    std::string frames;
+    std::string objects;
+    for (int index = 0; index < 8; ++index) {
+      frames += "<< /Resource << /Data << /TextOnPathTRange [ -1.0 -1.0 ] >> >> >> ";
+      objects += "<< /View << /Frames [ << /Resource " + std::to_string(index) + " >> ] >> >> ";
+    }
+    return " /DocumentResources << /TextFrameSet << /Resources [ " + frames + "] >> >> /DocumentObjects << /TextObjects [ " +
+           objects + "] >>";
+  }();
+  // The committed Photoshop fixture with its block's content replaced, in the file's bytes, by an
+  // old-engine one padded with spaces to the same length.
+  std::vector<std::uint8_t> old_engine_bytes;
+  const auto file_bytes = [&old_engine_bytes, &kOldEngine] {
+    auto bytes = read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd"));
+    static constexpr std::string_view kMarker = "8BIMTxt2";
+    const auto payload = text_engine_payload(bytes);
+    const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+    CHECK(payload.has_value() && at != bytes.end() && payload->size() > kOldEngine.size());
+    if (!payload.has_value() || at == bytes.end() || payload->size() <= kOldEngine.size()) {
+      return bytes;
+    }
+    old_engine_bytes.assign(payload->size(), static_cast<std::uint8_t>(' '));
+    std::copy(kOldEngine.begin(), kOldEngine.end(), old_engine_bytes.begin());
+    std::copy(old_engine_bytes.begin(), old_engine_bytes.end(), at + static_cast<std::ptrdiff_t>(kMarker.size() + 4));
+    return bytes;
+  }();
+  CHECK(patchy::psd::text_engine_block_is_named_key_engine(old_engine_bytes));
+  const auto with_old_engine = [&file_bytes] { return patchy::psd::DocumentIo::read(file_bytes); };
+  // The old engine has the Latin composer only, and Photoshop lays such a document's layers out
+  // with it: every paragraph reads composer 0 (paragraph runs column 10), where the same layers
+  // of the untouched fixture keep World-Ready (no column).
+  {
+    const auto document = with_old_engine();
+    int text_layers = 0;
+    for (const auto& layer : document.layers()) {
+      if (!layer.metadata().contains(patchy::kLayerMetadataText)) {
+        continue;
+      }
+      ++text_layers;
+      for (const auto& composer : metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 10)) {
+        CHECK(composer == "0");
+      }
+    }
+    CHECK(text_layers == 8);
+    const auto untouched = patchy::psd::DocumentIo::read(
+        read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd")));
+    for (const auto& layer : untouched.layers()) {
+      for (const auto& composer : metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 10)) {
+        CHECK(composer.empty() || composer == "1");
+      }
+    }
+  }
+  const auto text_layer_indices = [](const patchy::Document& document) {
+    std::vector<int> indices;
+    for (int index = 0; index < static_cast<int>(document.layers().size()); ++index) {
+      if (document.layers()[static_cast<std::size_t>(index)].metadata().contains(patchy::kLayerMetadataText)) {
+        indices.push_back(index);
+      }
+    }
+    return indices;
+  };
+
+  // Nothing edited: the block and every type record are the file's.
+  {
+    const auto document = with_old_engine();
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    CHECK(text_engine_payload(written) == old_engine_bytes);
+  }
+  // One layer edited: the block stays, and that layer alone leaves its objects.
+  {
+    auto document = with_old_engine();
+    const auto indices = text_layer_indices(document);
+    CHECK(indices.size() == 8U);
+    if (indices.empty()) {
+      return;
+    }
+    document.layers()[static_cast<std::size_t>(indices.front())].metadata()[patchy::kLayerMetadataTextRasterStatus] =
+        "patchy_raster";
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    CHECK(text_engine_payload(written) == old_engine_bytes);
+    for (const auto index : indices) {
+      const auto text_index = text_index_of(written, index);
+      CHECK(text_index.has_value());
+      if (text_index.has_value()) {
+        CHECK((*text_index >= patchy::psd::kRegeneratedTextIndexBase) == (index == indices.front()));
+      }
+    }
+  }
+  // Every layer edited: an authored block, one object per layer, each at its own index.
+  {
+    auto document = with_old_engine();
+    const auto indices = text_layer_indices(document);
+    mark_text_layers_edited(document);
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    write_artifact("text-engine-old-engine-replaced.psd", written);
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    CHECK(block.has_value());
+    if (!block.has_value()) {
+      return;
+    }
+    CHECK(block->object_count() == indices.size());
+    std::vector<std::int32_t> seen;
+    for (const auto index : indices) {
+      const auto text_index = text_index_of(written, index);
+      CHECK(text_index.has_value());
+      if (!text_index.has_value()) {
+        continue;
+      }
+      CHECK(*text_index >= 0 && static_cast<std::size_t>(*text_index) < block->object_count());
+      CHECK(std::find(seen.begin(), seen.end(), *text_index) == seen.end());
+      seen.push_back(*text_index);
+      const auto text = block->object_text(static_cast<std::size_t>(*text_index));
+      const auto& layer_text =
+          document.layers()[static_cast<std::size_t>(index)].metadata().at(patchy::kLayerMetadataText);
+      CHECK(text.has_value());
+      if (text.has_value()) {
+        // The object's engine text is the layer's with '\r' breaks and a closing '\r'.
+        auto expected = layer_text;
+        std::replace(expected.begin(), expected.end(), '\n', '\r');
+        CHECK(*text == expected + '\r');
+      }
+      // The Latin composer the old engine laid the layer out with.
+      for (const auto* sheet : txt2_run_sheets(*block, *text_index, "5")) {
+        CHECK(sheet_integer(sheet, "35") == 0);
+      }
+    }
+    // The reopened file reads every layer back as text with its own object.
+    const auto reread = patchy::psd::DocumentIo::read(written);
+    CHECK(text_layer_indices(reread).size() == indices.size());
+  }
+}
+
+// A box-text layer from a Photoshop file keeps the file's fractional box through a re-render
+// that left the box alone (kLayerMetadataTextFileBox): the TySh /BoxBounds and the Txt2 frame
+// carry it instead of Patchy's whole-pixel box. With whole pixels a gradient stroke aligned with
+// the layer shifted a pixel in Photoshop on the psd-tools effect-stroke-gradient file. A box the
+// user resized (more than a pixel from the file's) is written as it is.
+void text_engine_box_keeps_the_files_fractional_size() {
+  const auto written_with = [](const char* file_box) {
+    patchy::Document document(600, 300, patchy::PixelFormat::rgb8());
+    auto layer = patchy_text_layer(document, "Box", "Box text", true);
+    layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "122";
+    layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "121";
+    layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t8\tcenter";
+    layer.metadata()[patchy::kLayerMetadataTextLayoutMode] = patchy::kTextLayoutModePhotoshop;
+    layer.metadata()[patchy::kLayerMetadataTextTransform] = "1 0 0 1 20 30";  // as every commit records
+    if (file_box != nullptr) {
+      layer.metadata()[patchy::kLayerMetadataTextFileBox] = file_box;
+    }
+    document.add_layer(std::move(layer));
+    return patchy::psd::DocumentIo::write_layered_rgb8(document);
+  };
+  // The frame's contour ends its first segment at (width, 0) and its second at (width, height).
+  const auto frame_size = [](const std::vector<std::uint8_t>& written) {
+    const auto payload = text_engine_payload(written);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    const auto index = text_index_of(written, 0);
+    std::pair<double, double> size{-1.0, -1.0};
+    if (!block.has_value() || !index.has_value()) {
+      return size;
+    }
+    const auto frame = block->object_frame_index(static_cast<std::size_t>(*index));
+    const auto* contour = frame.has_value()
+                              ? block->root().at_path({"0", "8", "0", std::to_string(*frame), "0", "1", "0"})
+                              : nullptr;
+    if (contour != nullptr && contour->is_list() && contour->list.size() == 32U) {
+      size.first = contour->list[6].number().value_or(-1.0);
+      size.second = contour->list[15].number().value_or(-1.0);
+    }
+    return size;
+  };
+  const auto kept = written_with("121.84547 120.04586");
+  write_artifact("text-engine-file-box.psd", kept);
+  CHECK(count_of(tysh_text(kept, 0), "/BoxBounds [ 0.000000 0.000000 121.845470 120.045860 ]") == 1U);
+  const auto kept_frame = frame_size(kept);
+  CHECK(std::abs(kept_frame.first - 121.84547) < 0.0001 && std::abs(kept_frame.second - 120.04586) < 0.0001);
+  // A Photoshop-layout box has Photoshop's own first-baseline rule: no /10 in its frame.
+  {
+    const auto payload = text_engine_payload(kept);
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    CHECK(block.has_value());
+    if (block.has_value()) {
+      CHECK(block->root().at_path({"0", "8", "0", "0", "0", "2", "10"}) == nullptr);
+      CHECK(block->root().at_path({"0", "8", "0", "0", "0", "2", "6"}) != nullptr);
+    }
+  }
+  // No file box, or one the box no longer matches: the whole-pixel box.
+  for (const char* file_box : {static_cast<const char*>(nullptr), "125.5 120.04586", "121.84547 90", "nonsense"}) {
+    const auto plain = written_with(file_box);
+    CHECK(count_of(tysh_text(plain, 0), "/BoxBounds [ 0.000000 0.000000 122.000000 121.000000 ]") == 1U);
+    const auto plain_frame = frame_size(plain);
+    CHECK(plain_frame.first == 122.0 && plain_frame.second == 121.0);
+  }
+  // A reopened file reads the box back as whole pixels and carries no session key.
+  const auto reread = patchy::psd::DocumentIo::read(kept);
+  CHECK(reread.layers().size() == 1U);
+  if (reread.layers().size() == 1U) {
+    const auto& metadata = reread.layers()[0].metadata();
+    CHECK(!metadata.contains(patchy::kLayerMetadataTextFileBox));
+    CHECK(metadata.at(patchy::kLayerMetadataTextBoxWidth) == "122");
+    CHECK(metadata.at(patchy::kLayerMetadataTextBoxHeight) == "120");
+  }
+}
+
+// A Qt-natural box Patchy authors keeps the cap-height first-baseline rule in its frame, the one
+// its baseline inset is measured against.
+void text_engine_qt_natural_box_frame_keeps_the_cap_height_rule() {
+  patchy::Document document(600, 300, patchy::PixelFormat::rgb8());
+  document.add_layer(patchy_text_layer(document, "Box", "Box text here, second paragraph", true));
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto payload = text_engine_payload(written);
+  const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+  CHECK(block.has_value());
+  if (!block.has_value()) {
+    return;
+  }
+  const auto* rule = block->root().at_path({"0", "8", "0", "0", "0", "2", "10"});
+  CHECK(rule != nullptr);
+  CHECK(sheet_integer(rule, "0") == 2);
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
+      {"text_engine_box_keeps_the_files_fractional_size", text_engine_box_keeps_the_files_fractional_size},
+      {"text_engine_qt_natural_box_frame_keeps_the_cap_height_rule",
+       text_engine_qt_natural_box_frame_keeps_the_cap_height_rule},
+      {"text_engine_kerning_round_trips", text_engine_kerning_round_trips},
+      {"text_engine_kerning_reads_photoshop_sheets", text_engine_kerning_reads_photoshop_sheets},
+      {"text_engine_anti_alias_reads_the_descriptor_method", text_engine_anti_alias_reads_the_descriptor_method},
+      {"text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated",
+       text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated},
       {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
       {"text_engine_nul_padded_block_keeps_frames_editable", text_engine_nul_padded_block_keeps_frames_editable},
       {"text_engine_named_frames_keep_point_and_box_editable", text_engine_named_frames_keep_point_and_box_editable},

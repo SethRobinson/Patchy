@@ -31,6 +31,10 @@ November 2026: one throwaway box layer per setting, set through Action Manager o
   which switched an Every-line paragraph to Single-line in Photoshop (its lines then break
   elsewhere on the next layout). See [Line composer](#line-composer) for where Photoshop takes
   the value from.
+- **Kerning** (`autoKern`: Metrics, Optical or manual with its number): Txt2 style `/11` and
+  `/10`, and for manual the TySh `/AutoKerning false /Kerning <n>`. Where Photoshop takes it
+  from, and why a run that states nothing is unkerned in an older file, is under
+  [Kerning](#kerning). Patchy draws with the font's own pair kerning either way.
 - **Digit set, diacritic offsets, mark distance, Justification Alternates**: Txt2 style `/70`,
   `/72`, `/73`, `/87`, `/75`. Photoshop 2026 writes no TySh key for any of them; older versions
   wrote `/HindiNumbers` (true for Hindi and Farsi digits), which Patchy writes back for a run
@@ -42,7 +46,8 @@ Model: `PsdTextParagraphRun` (`auto_hyphenate`, the five numbers, `hyphenate_cap
 (`serialize_paragraph_run_settings`), the editor's `kTextBlockPhotoshopSettingsProperty`; and
 `PsdTextStyleRun` (`digit_set`, `diacritic_x_offset`, `diacritic_y_offset`, `mark_y_distance`,
 `justification_alternates`), runs v9 column 16 tokens `digits:<n>`, `diacx:<v>`, `diacy:<v>`,
-`marky:<v>`, `justalt`, the editor's `kTextMiddleEasternFormatProperty`. Each token is written
+`marky:<v>`, `justalt`, and (`kerning_mode`, `kerning`) `kern:optical`, `kern:<number>`, the
+editor's `kTextMiddleEasternFormatProperty`. Each token is written
 only off its default, so other text keeps its metadata. Hyphenate, the Kashida width, the line
 composer and the style keys resolve through the run's sheet, its parent sheet and the document's
 default sheet, as the composer does.
@@ -102,6 +107,36 @@ Tests: `text_engine_line_composer_round_trips`, `text_engine_line_composer_reads
 `ui_update_all_text_layers_keeps_the_line_composer_if_available`
 (`local-test-fixtures/psd/every-line-composer/`, Photoshop 2026 captures),
 `ui_update_all_text_layers_keeps_the_line_composer`.
+
+## Kerning
+
+Photoshop's kerning setting (the Character panel's V/A field; Action Manager `textStyle` key
+`autoKern`: `metricsKern`, `opticalKern`, `manual`) is the Txt2 style key `/11`: 0 manual, 1
+Metrics, 2 Optical, with the manual number in `/10` (1/1000 em). Photoshop 2026 writes `/AutoKerning
+true /Kerning 0` into the TySh run whatever the setting is (COM captures on This PC, November
+2026: one layer per setting, "AV To Wa" in Arial 40 px is 172 px wide with Metrics, 173 with
+Optical and 182 with manual 0), and a manual 0 run carries `/11 0` with no `/10`. Older files do
+use the TySh: `/AutoKerning false` with `/Kerning` for a manual run.
+
+Where Photoshop takes it from, for a layer with a Txt2 object: the style run's own `/11`; a run
+that leaves it out takes the character style (`/32`) of its paragraph's parent ParagraphSheetSet
+entry, ahead of the run's parent style sheet, like the type size ([txt2.md](txt2.md#key-map-pinned-by-single-setting-captures)). "Basic Paragraph" says
+`/11 0` in files Photoshop CC wrote and `/11 1` in Photoshop 2026's, so a run that states
+nothing is UNKERNED in such an older file (the psd-tools `effect-stroke-gradient.psd`: 85.8 px
+wide, 82.3 px once a save stated Metrics). The reader (`object_style_kerning`) goes run, the
+paragraph run's own `/32`, the parent paragraph sheet's `/32`, the parent StyleSheetSet entry,
+`/1/2`; the result overrides the TySh run (`runs_with_text_object_kerning`), which serves a
+layer without an object (and a file whose block is the old named-key engine).
+
+Patchy keeps it as `PsdTextStyleRun::kerning_mode` and `kerning`, runs v9 column 16 tokens
+`kern:optical` and `kern:<number>` (manual), written only off Metrics; the editor carries them
+with the Middle Eastern settings (`kTextMiddleEasternFormatProperty`). Patchy draws with the
+font's own pair kerning whatever the setting is, so a manual 0 run is a little narrower in
+Patchy than in Photoshop. The writer puts the mode into `/11` (and a non-zero number into `/10`)
+and, for manual only, `/AutoKerning false /Kerning <n>` into the TySh run; the normal sheets stay
+Metrics. Patchy used to write Metrics into every run it rewrote. Tests:
+`text_engine_kerning_round_trips`, `text_engine_kerning_reads_photoshop_sheets`,
+`ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing`.
 
 ## Paragraph settings not kept yet
 

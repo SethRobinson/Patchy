@@ -83,7 +83,11 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
   const auto leading = fixed_leading ? *run.leading : size * auto_leading_fraction;
   const auto tracking = std::isfinite(run.tracking) ? static_cast<long long>(std::lround(run.tracking)) : 0LL;
   const auto scale = [](double value) { return std::isfinite(value) && value > 0.0 ? value : 1.0; };
-  return engine_dict_of({
+  // Kerning, kept from the file: /11 0 manual, 1 Metrics, 2 Optical.
+  const auto kerning_mode = run.kerning_mode == kTextKerningManual || run.kerning_mode == kTextKerningOptical
+                                ? run.kerning_mode
+                                : kTextKerningMetrics;
+  auto sheet = engine_dict_of({
       {"0", engine_integer(std::max(0, font_index))},
       {"1", engine_number(size)},
       {"2", engine_bool(run.faux_bold)},
@@ -94,7 +98,7 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"7", engine_number(scale(run.vertical_scale))},
       {"8", engine_integer(tracking)},
       {"9", engine_number(std::isfinite(run.baseline_shift) ? run.baseline_shift : 0.0)},
-      {"11", engine_integer(1)},
+      {"11", engine_integer(kerning_mode)},
       // Character-panel styles (GitHub issue 346, Photoshop 2026 captures): /12 FontCaps, /13
       // FontBaseline, /15 strikethrough (1 on), /16 underline (2 on, Photoshop's horizontal
       // "underline left"), /18 Ligatures (on by default), /19 Discretionary Ligatures, /20
@@ -141,6 +145,18 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"88", engine_bool(false)},
       {"92", engine_number(0.0)},
   });
+  if (kerning_mode == kTextKerningManual && std::isfinite(run.kerning) && run.kerning != 0.0) {
+    // The manual number, before the mode as Photoshop orders the keys; a manual run without one
+    // is manual 0, which Photoshop 2026 writes with no /10 at all.
+    EngineDictEntry entry;
+    entry.key_ws = " ";
+    entry.key = "10";
+    entry.value = engine_number(run.kerning);
+    const auto mode = std::find_if(sheet.dict.begin(), sheet.dict.end(),
+                                   [](const EngineDictEntry& candidate) { return candidate.key == "11"; });
+    sheet.dict.insert(mode, std::move(entry));
+  }
+  return sheet;
 }
 
 // Run lengths that cover the engine text exactly (the TySh writer's normalization).
@@ -504,6 +520,81 @@ std::vector<TextParagraphComposer> TextEngineBlock::object_paragraph_composers(s
   return result;
 }
 
+std::vector<TextStyleRunKerning> TextEngineBlock::object_style_kerning(std::size_t index) const {
+  std::vector<TextStyleRunKerning> result;
+  const auto* list = objects();
+  const auto* object = list != nullptr && index < list->list.size() ? &list->list[index] : nullptr;
+  const auto* runs = object != nullptr ? object->at_path({"0", "6", "0"}) : nullptr;
+  if (runs == nullptr || !runs->is_list()) return result;
+  const auto* style_sheets = root_.at_path({"0", "5", "0"});
+  const auto* paragraph_sheets = root_.at_path({"0", "6", "0"});
+  const auto* document_sheet = root_.at_path({"1", "2"});
+  const auto* paragraph_runs = object->at_path({"0", "5", "0"});
+  // The character style (/32) of the paragraph a text position sits in: the paragraph run's own
+  // sheet first, then its parent ParagraphSheetSet entry's.
+  const auto paragraph_styles_at = [&](int position) -> std::pair<const EngineNode*, const EngineNode*> {
+    if (paragraph_runs == nullptr || !paragraph_runs->is_list()) return {nullptr, nullptr};
+    int start = 0;
+    for (std::size_t p = 0; p < paragraph_runs->list.size(); ++p) {
+      const auto& run = paragraph_runs->list[p];
+      const auto* length = run.at_path({"1"});
+      const auto run_length =
+          static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
+      if (position < start + run_length || p + 1 == paragraph_runs->list.size()) {
+        const auto* sheet = run.at_path({"0", "0"});
+        const auto* own = sheet != nullptr ? sheet->at_path({"5", "32"}) : nullptr;
+        const EngineNode* parent_style = nullptr;
+        if (sheet != nullptr && paragraph_sheets != nullptr && paragraph_sheets->is_list()) {
+          const auto* parent = sheet->at_path({"6"});
+          const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
+          if (parent_index && *parent_index >= 0 &&
+              static_cast<std::size_t>(*parent_index) < paragraph_sheets->list.size()) {
+            parent_style = paragraph_sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "5", "32"});
+          }
+        }
+        return {own, parent_style};
+      }
+      start += run_length;
+    }
+    return {nullptr, nullptr};
+  };
+  bool any = false;
+  int position = 0;
+  for (const auto& run : runs->list) {
+    TextStyleRunKerning entry;
+    const auto* length = run.at_path({"1"});
+    entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
+    const auto* sheet = run.at_path({"0", "0", "6"});
+    const EngineNode* parent_sheet = nullptr;
+    if (style_sheets != nullptr && style_sheets->is_list()) {
+      const auto* parent = run.at_path({"0", "0", "5"});
+      const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
+      if (parent_index && *parent_index >= 0 && static_cast<std::size_t>(*parent_index) < style_sheets->list.size()) {
+        parent_sheet = style_sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "6"});
+      }
+    }
+    const auto [paragraph_own, paragraph_parent] = paragraph_styles_at(position);
+    for (const auto* candidate : {sheet, paragraph_own, paragraph_parent, parent_sheet, document_sheet}) {
+      const auto* node = candidate != nullptr && candidate->is_dict() ? candidate->find("11") : nullptr;
+      const auto mode = node != nullptr ? node->integer() : std::nullopt;
+      if (!mode || *mode < kTextKerningManual || *mode > kTextKerningOptical) continue;
+      entry.mode = static_cast<int>(*mode);
+      if (*mode == kTextKerningManual) {
+        // The number sits beside the mode that names it; a sheet without one means 0.
+        const auto* number = candidate->find("10");
+        const auto value = number != nullptr ? number->number() : std::nullopt;
+        entry.kerning = value && std::isfinite(*value) && std::abs(*value) <= 100000.0 ? *value : 0.0;
+      }
+      break;
+    }
+    any = any || entry.mode.has_value();
+    result.push_back(entry);
+    position += entry.length;
+  }
+  if (!any) result.clear();
+  return result;
+}
+
 std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload) {
   std::vector<TextFrameGeometry> result;
   if (const auto engine = TextEngineBlock::parse(payload)) {
@@ -513,6 +604,7 @@ std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::u
       geometry.paragraph_font_sizes = engine->object_paragraph_font_sizes(i);
       geometry.style_features = engine->object_style_features(i);
       geometry.paragraph_composers = engine->object_paragraph_composers(i);
+      geometry.style_kerning = engine->object_style_kerning(i);
       result.push_back(std::move(geometry));
     }
     return result;
@@ -541,6 +633,15 @@ std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::u
     result.push_back(std::move(geometry));
   }
   return result;
+}
+
+bool text_engine_block_is_named_key_engine(std::span<const std::uint8_t> payload) {
+  if (TextEngineBlock::parse(payload).has_value()) {
+    return false;
+  }
+  const auto root = parse_engine_data(payload, true);
+  const auto* objects = root ? root->at_path({"DocumentObjects", "TextObjects"}) : nullptr;
+  return objects != nullptr && objects->is_list();
 }
 
 void import_text_frame_geometry(Document& document) {
@@ -595,7 +696,13 @@ EngineNode TextEngineBlock::author_frame(const TextEngineInputs& inputs) const {
     settings.set("1", engine_integer(2));
   }
   settings.set("6", engine_list_of({engine_number(-k), engine_number(-k)}));
-  if (inputs.boxed && !inputs.area) {
+  if (inputs.boxed && !inputs.area && !inputs.photoshop_layout) {
+    // The frame's first-baseline rule (Action Manager `frameBaselineAlignment`): /10 /0 2 is the
+    // cap height, which is where the writer's baseline inset puts a Qt-natural Patchy box
+    // (text_geometry_for_layer). A layer laid out by Photoshop's rules has its first baseline at
+    // the ascent, Photoshop's own default, which is a frame WITHOUT the key (every box frame
+    // Photoshop writes): with the key Photoshop read alignByCapHeight for a re-rendered
+    // Photoshop layer and moved its first line up by the ascent less the cap height.
     settings.set("10", engine_dict_of({{"0", engine_integer(2)}, {"1", engine_number(0.0)}}));
   }
   settings.set("11", engine_dict_of({{"4", engine_integer(static_cast<long long>(-k))},

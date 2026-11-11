@@ -73,6 +73,8 @@ psd::PsdTextStyleRun psd_run_with_styles(const TextCharacterStyles& styles) {
   run.diacritic_y_offset = styles.diacritic_y_offset;
   run.mark_y_distance = styles.mark_y_distance;
   run.justification_alternates = styles.justification_alternates;
+  run.kerning_mode = styles.kerning_mode;
+  run.kerning = styles.kerning;
   return run;
 }
 
@@ -82,6 +84,8 @@ void copy_middle_eastern_settings(const psd::PsdTextStyleRun& run, TextCharacter
   styles.diacritic_y_offset = run.diacritic_y_offset;
   styles.mark_y_distance = run.mark_y_distance;
   styles.justification_alternates = run.justification_alternates;
+  styles.kerning_mode = run.kerning_mode;
+  styles.kerning = run.kerning;
 }
 
 int format_choice(const QTextCharFormat& format, int property_id) {
@@ -139,13 +143,16 @@ void set_text_character_styles_on_format(QTextCharFormat& format, const TextChar
   } else {
     format.clearProperty(kTextLanguageFormatProperty);
   }
-  // The Middle Eastern settings ride as their own column 16 tokens, one property for the five.
+  // The Middle Eastern settings and the kept kerning ride as their own column 16 tokens, one
+  // property for all of them.
   TextCharacterStyles middle_eastern;
   middle_eastern.digit_set = styles.digit_set;
   middle_eastern.diacritic_x_offset = styles.diacritic_x_offset;
   middle_eastern.diacritic_y_offset = styles.diacritic_y_offset;
   middle_eastern.mark_y_distance = styles.mark_y_distance;
   middle_eastern.justification_alternates = styles.justification_alternates;
+  middle_eastern.kerning_mode = styles.kerning_mode;
+  middle_eastern.kerning = styles.kerning;
   if (middle_eastern.any()) {
     format.setProperty(kTextMiddleEasternFormatProperty, serialize_text_character_styles(middle_eastern));
   } else {

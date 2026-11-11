@@ -34,6 +34,45 @@ transform re-renders included) and the Qt-free writer turns it into geometry:
   (point text: `local_rect.top()`) tells the writer whether ty is still that origin (the raster
   sits raster_top from it: anchor) or already the baseline (a reopened layer: leave it), never
   "ink starts above ty" (`psd_writer_point_text_grown_raster_still_anchors_baseline`).
+- `patchy.text.anchor_x` (horizontal point text whose first line is centered or right-aligned):
+  that line's justification point from the text-local origin (its middle or its end; logical
+  alignment, so a right-to-left "left" is the end). Photoshop's anchor (the TySh translation, its
+  click point) is the first baseline AT that point, while Patchy's origin is the line box's left
+  edge, so the writer moves tx there in the same `translate_text_geometry_local` call as the
+  baseline, through a rotated or scaled transform too. Without it a centered or right-aligned
+  layer was saved with its anchor at its left edge and Photoshop's next layout jumped the text
+  left by half or all of its width (Testy's text-save leg, November 2026). Left-aligned text
+  records nothing, so its blocks keep their bytes. Warped point text gets the same column in
+  its own branch (the translation by `warp->baseline`), with the warp box moved along.
+- `patchy.text.file_anchor` ("x y", point text from a file): the anchor the FILE gave the layer,
+  as a point of the text-local space the committed transform maps. `commit_text_editor` records
+  it (`point_text_file_anchor_in_document` before the commit, `store_point_text_file_anchor`
+  after) when the layer's transform was still the file's, or the layer already carried one, and
+  the first paragraph's alignment did not change; every other render erases it
+  (`store_text_layout_metrics`), and a move or free transform takes it along because it is
+  text-local. The writer puts the anchor back on it exactly. The renderer's own measure
+  (anchor_x, first_baseline) is only good to about a pixel, since a commit pins the new ink to
+  the old ink on whole pixels, and Photoshop rounds the anchor before it draws: the psd-tools
+  `clip-adjustment.psd` "a" (anchor 8.763, 21.192) went out as 21.859 and came back a pixel
+  lower. The measured first baseline replaces the file's row only when they disagree by more
+  than the pin's slack (2 px on the page; 1.5 text-local px or 6% of the size through the
+  transform's scale if that is more), which means an edit really moved the
+  line. Known limit: the private corpus `deko_test.psd` (first line Last Ninja 80.8 px at 60%
+  vertical scale, fixed leading 30, layer scaled 1.73 x 3.71) measures a first baseline 10
+  text-local px below the file's anchor with no edit made, so its row goes out 37 px lower on
+  the page. Deciding at commit whether the first line's style changed, instead of comparing
+  rows in the writer, would remove the guess. A file Patchy saved before this fix has a centered or right-aligned anchor at the left
+  edge; such a layer is recognized by its stored ink box (it starts at the anchor instead of
+  straddling or ending at it) and gets the measured anchor instead.
+- `patchy.text.file_box` ("w h", box text from a Photoshop file): the size of the box the file
+  gave the layer. Photoshop's boxes are fractional (121.845 x 120.046) and Patchy's are whole
+  pixels, a session sometimes a pixel taller. A commit records the file's size
+  (`box_text_file_size`: the PSD `/BoxBounds`, or the key a previous commit left) while the
+  committed box is within a pixel of it, and the writer puts it into the TySh `bounds`,
+  `/BoxBounds` and the Txt2 frame contour. With whole pixels Photoshop wrapped the same lines
+  but aligned a gradient stroke to a box one pixel taller (psd-tools `effect-stroke-gradient.psd`).
+  Photoshop-layout layers only; a box the user resized is written as it is
+  (`text_engine_box_keeps_the_files_fractional_size`).
 - `patchy.text.box_baseline_inset` (Qt-natural box text only): Qt's first baseline minus
   (space before + the line's max `QFontMetricsF::capHeight`), rounded to 1/64 px (QFixed's grid,
   exact in binary). The writer moves the TRANSFORM ORIGIN down by it (`translate_text_geometry_local`),
@@ -73,8 +112,12 @@ overflows it holds fewer lines than the whole story, which the search read as a 
 squeezed the glyphs further on every re-edit (issue 683,
 `ui_issue_683_overflowing_box_text_reedit_keeps_its_glyphs`).
 
-`store_patchy_text_metadata` erases all four keys so a render path without metrics never keeps a
+`store_patchy_text_metadata` erases all seven keys so a render path without metrics never keeps a
 stale inset. Pinned by `psd_writer_box_text_baseline_inset_moves_box_bounds`,
+`psd_writer_point_text_anchor_follows_alignment`,
+`ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing`
+(`test-fixtures/psd/photoshop-text-point-anchors.psd`, captured by
+`scripts/dev/txt2/ps-capture-point-anchors.ps1`),
 `psd_writer_point_text_first_baseline_beats_ink_bottom`, `psd_writer_qt_natural_auto_leading_fraction`
 and `ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd` (Arial 96 px, box +
 point + two-line; writes `test-artifacts/text_baseline_check.psd` for the COM read-back).

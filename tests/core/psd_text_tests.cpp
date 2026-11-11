@@ -865,6 +865,99 @@ void psd_writer_point_text_grown_raster_still_anchors_baseline() {
   }
 }
 
+// Photoshop anchors point text (the TySh translation, its click point) at the first line's
+// justification point on the first baseline: the line's middle for centered text, its end for
+// right-aligned. Patchy's transform origin is the line box's top left, and the writer put only
+// the baseline there, so a centered or right-aligned layer was saved with its anchor at its left
+// edge and Photoshop's next layout jumped the text left by half or all of its width (Testy's
+// text-save leg, November 2026). The renderer's kLayerMetadataTextAnchorX moves the anchor along
+// the line, through a rotated or scaled transform too; a layer that came from a file gets that
+// file's own anchor back exactly (kLayerMetadataTextFileAnchor).
+void psd_writer_point_text_anchor_follows_alignment() {
+  struct Case {
+    const char* alignment;
+    const char* transform;
+    patchy::Rect bounds;      // where the 120 x 54 line box lands through the transform
+    const char* anchor_x;     // nullptr: not recorded (left-aligned)
+    const char* file_anchor;  // nullptr: none
+    double tx;
+    double ty;
+  };
+  const Case cases[] = {
+      {"left", "1 0 0 1 40 50", {40, 50, 120, 54}, nullptr, nullptr, 40.0, 93.5},
+      {"center", "1 0 0 1 40 50", {40, 50, 120, 54}, "60", nullptr, 100.0, 93.5},
+      {"right", "1 0 0 1 40 50", {40, 50, 120, 54}, "120", nullptr, 160.0, 93.5},
+      // Turned a quarter and doubled: local (x, y) lands at (300 - 2y, 50 + 2x).
+      {"center", "0 2 -2 0 300 50", {192, 50, 108, 240}, "60", nullptr, 213.0, 170.0},
+      // The file's own anchor, a fraction of a pixel off the renderer's measure.
+      {"center", "1 0 0 1 40 50", {40, 50, 120, 54}, "60", "60.3 43.1", 100.3, 93.1},
+      {"right", "0 2 -2 0 300 50", {192, 50, 108, 240}, "120", "119.5 44", 212.0, 289.0},
+      // An edit moved the first line further than the pin's slack: the measured baseline, with
+      // the file's column.
+      {"center", "1 0 0 1 40 50", {40, 50, 120, 54}, "60", "60.3 30", 100.3, 93.5},
+  };
+  for (const auto& entry : cases) {
+    patchy::Document document(420, 320, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(420, 320, 255, 255, 255));
+    patchy::Layer text_layer(document.allocate_layer_id(), "Text: Anchor",
+                             solid_rgba(entry.bounds.width, entry.bounds.height, 32, 32, 32, 255));
+    auto& layer = document.add_layer(std::move(text_layer));
+    layer.set_bounds(entry.bounds);
+    layer.metadata()[patchy::kLayerMetadataText] = "Anchor";
+    layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t6\t48\t0\t0\t#202020\tArial";
+    layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = std::string("v1\n0\t6\t") + entry.alignment;
+    layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+    layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "120";
+    layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "54";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+    layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    layer.metadata()[patchy::kLayerMetadataTextFirstBaseline] = "43.5";
+    layer.metadata()[patchy::kLayerMetadataTextRasterTop] = "0";
+    layer.metadata()[patchy::kLayerMetadataTextTransform] = entry.transform;
+    if (entry.anchor_x != nullptr) {
+      layer.metadata()[patchy::kLayerMetadataTextAnchorX] = entry.anchor_x;
+    }
+    if (entry.file_anchor != nullptr) {
+      layer.metadata()[patchy::kLayerMetadataTextFileAnchor] = entry.file_anchor;
+    }
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+    CHECK(payload.has_value());
+    if (!payload.has_value()) {
+      continue;
+    }
+    const auto tx = read_f64_be_at(*payload, 34U);
+    const auto ty = read_f64_be_at(*payload, 42U);
+    if (std::abs(tx - entry.tx) > 0.000001 || std::abs(ty - entry.ty) > 0.000001) {
+      std::printf("  %s through \"%s\" (anchor_x %s, file anchor %s): wrote %.6f, %.6f\n", entry.alignment,
+                  entry.transform, entry.anchor_x != nullptr ? entry.anchor_x : "-",
+                  entry.file_anchor != nullptr ? entry.file_anchor : "-", tx, ty);
+    }
+    CHECK(std::abs(tx - entry.tx) < 0.000001);
+    CHECK(std::abs(ty - entry.ty) < 0.000001);
+
+    // The reopened layer's transform is the anchor already, and a second save leaves it there.
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    const auto* reopened = find_layer_named(read.layers(), "Text: Anchor");
+    CHECK(reopened != nullptr);
+    if (reopened == nullptr) {
+      continue;
+    }
+    CHECK(!reopened->metadata().contains(patchy::kLayerMetadataTextAnchorX));
+    CHECK(!reopened->metadata().contains(patchy::kLayerMetadataTextFileAnchor));
+    const auto second =
+        psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(read), 1), "TySh");
+    CHECK(second.has_value());
+    if (second.has_value()) {
+      CHECK(std::abs(read_f64_be_at(*second, 34U) - entry.tx) < 0.000001);
+      CHECK(std::abs(read_f64_be_at(*second, 42U) - entry.ty) < 0.000001);
+    }
+  }
+}
+
 // A Qt-natural layer's recorded line pitch (kLayerMetadataTextAutoLeading, a fraction of the
 // dominant size) becomes the paragraph /AutoLeading so Photoshop's auto leading advances like
 // Qt; it round-trips through the v3 paragraph column without flipping the layer into the
@@ -3589,6 +3682,7 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_writer_point_text_first_baseline_beats_ink_bottom", psd_writer_point_text_first_baseline_beats_ink_bottom},
       {"psd_writer_point_text_grown_raster_still_anchors_baseline",
        psd_writer_point_text_grown_raster_still_anchors_baseline},
+      {"psd_writer_point_text_anchor_follows_alignment", psd_writer_point_text_anchor_follows_alignment},
       {"psd_writer_qt_natural_auto_leading_fraction", psd_writer_qt_natural_auto_leading_fraction},
       {"psd_writer_writes_baseline_direction_for_vertical_type", psd_writer_writes_baseline_direction_for_vertical_type},
       {"psd_writer_writes_tracking_as_an_integer", psd_writer_writes_tracking_as_an_integer},

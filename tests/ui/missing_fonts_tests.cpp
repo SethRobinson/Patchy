@@ -1364,6 +1364,194 @@ void ui_update_all_text_layers_keeps_the_line_composer_if_available() {
   }
 }
 
+// What a type layer's file says Photoshop reads back: the anchor (the TySh translation, its click
+// point), the anti-aliasing method and each run's kept character settings (runs column 16).
+struct PhotoshopTextValues {
+  double tx{0.0};
+  double ty{0.0};
+  QString anti_alias;
+  QString run_settings;
+};
+
+std::optional<PhotoshopTextValues> photoshop_text_values(const patchy::Layer& layer) {
+  const auto& metadata = layer.metadata();
+  const auto transform = metadata.find(patchy::kLayerMetadataPsdTextTransform);
+  if (transform == metadata.end()) {
+    return std::nullopt;
+  }
+  const auto fields = QString::fromStdString(transform->second).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+  if (fields.size() != 6) {
+    return std::nullopt;
+  }
+  PhotoshopTextValues values;
+  values.tx = fields[4].toDouble();
+  values.ty = fields[5].toDouble();
+  if (const auto found = metadata.find(patchy::kLayerMetadataTextAntiAlias); found != metadata.end()) {
+    values.anti_alias = QString::fromStdString(found->second);
+  }
+  if (const auto found = metadata.find(patchy::kLayerMetadataTextRuns); found != metadata.end()) {
+    // One entry per stretch of runs with the same settings: a re-render may split a run at a
+    // paragraph break without changing what it says. "-" and a missing column both mean none.
+    QStringList settings;
+    for (const auto& line : QString::fromStdString(found->second).split(QLatin1Char('\n')).mid(1)) {
+      auto value = line.split(QLatin1Char('\t')).value(16);
+      if (value == QStringLiteral("-")) {
+        value.clear();
+      }
+      if (settings.isEmpty() || settings.back() != value) {
+        settings << value;
+      }
+    }
+    values.run_settings = settings.join(QLatin1Char('|'));
+  }
+  return values;
+}
+
+// Type > Update All Text Layers and a save keep what Photoshop reads from each layer of a
+// Photoshop file (the committed capture of scripts/dev/txt2/ps-capture-point-anchors.ps1): the
+// anchor of right-aligned, centered two-paragraph, rotated and scaled point text and of a layer
+// with a baseline shift, the kerning (manual 0, Optical, Metrics) and the anti-aliasing method.
+// Patchy saved a centered or right-aligned layer's anchor at its left edge, every run as Metrics,
+// and the method from the EngineData number (Testy's text-save leg, November 2026). A layer whose
+// alignment the user then changes gets the anchor of the new alignment, where Patchy drew it.
+void ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  struct Original {
+    patchy::LayerId id;
+    std::string name;
+    PhotoshopTextValues values;
+  };
+  std::vector<Original> originals;
+  for (const auto& layer : document.layers()) {
+    if (!patchy::layer_is_text(layer)) {
+      continue;
+    }
+    const auto problems = patchy::ui::text_font_problems_for_layer(layer);
+    if (!problems.not_installed.isEmpty() || !problems.no_glyphs.isEmpty()) {
+      patchy::test::skip("the fixture's font (Arial) is not installed on this host");
+    }
+    const auto values = photoshop_text_values(layer);
+    CHECK(values.has_value());
+    if (values.has_value()) {
+      originals.push_back(Original{layer.id(), layer.name(), *values});
+    }
+  }
+  CHECK(originals.size() == 8U);
+  const auto original_named = [&originals](std::string_view name) -> const Original* {
+    const auto found = std::ranges::find_if(originals, [name](const Original& entry) { return entry.name == name; });
+    return found == originals.end() ? nullptr : &*found;
+  };
+  // The capture itself: what the test is about is in the file.
+  for (const auto* name : {"right", "center-lines", "right-rotated", "center-scaled", "left-shift", "smooth"}) {
+    CHECK(original_named(name) != nullptr);
+  }
+  if (const auto* manual = original_named("kern-manual"); manual != nullptr) {
+    CHECK(manual->values.run_settings == QStringLiteral("kern:0"));
+  }
+  if (const auto* optical = original_named("kern-optical"); optical != nullptr) {
+    CHECK(optical->values.run_settings == QStringLiteral("kern:optical"));
+  }
+  if (const auto* smooth = original_named("smooth"); smooth != nullptr) {
+    CHECK(smooth->values.anti_alias == QString::number(patchy::kTextAntiAliasSmooth));
+  }
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Photoshop Anchors"));
+  QApplication::processEvents();
+  trigger_type_action(window, "typeUpdateAllTextLayersAction");
+  for (const auto& entry : originals) {
+    CHECK(layer_raster_status(window, entry.id) == QStringLiteral("patchy_raster"));
+  }
+  const auto save_and_reopen = [&window](const char* artifact) {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+    // Kept for the Photoshop readback (docs/photoshop-com.md).
+    ensure_artifact_dir();
+    if (QFile out(QString::fromLatin1(artifact)); out.open(QIODevice::WriteOnly)) {
+      out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+    }
+    return patchy::psd::DocumentIo::read(bytes);
+  };
+  const auto reopened = save_and_reopen("test-artifacts/point-anchors-update-all.psd");
+  int checked = 0;
+  for (const auto& layer : reopened.layers()) {
+    const auto* original = original_named(layer.name());
+    if (original == nullptr) {
+      continue;
+    }
+    ++checked;
+    const auto saved = photoshop_text_values(layer);
+    CHECK(saved.has_value());
+    if (!saved.has_value()) {
+      continue;
+    }
+    if (std::abs(saved->tx - original->values.tx) > 0.001 || std::abs(saved->ty - original->values.ty) > 0.001 ||
+        saved->anti_alias != original->values.anti_alias || saved->run_settings != original->values.run_settings) {
+      std::fprintf(stderr, "%s: anchor %.4f, %.4f saved as %.4f, %.4f; anti-alias %s as %s; runs \"%s\" as \"%s\"\n",
+                   layer.name().c_str(), original->values.tx, original->values.ty, saved->tx, saved->ty,
+                   original->values.anti_alias.toUtf8().constData(), saved->anti_alias.toUtf8().constData(),
+                   original->values.run_settings.toUtf8().constData(), saved->run_settings.toUtf8().constData());
+    }
+    CHECK(std::abs(saved->tx - original->values.tx) < 0.001);
+    CHECK(std::abs(saved->ty - original->values.ty) < 0.001);
+    CHECK(saved->anti_alias == original->values.anti_alias);
+    CHECK(saved->run_settings == original->values.run_settings);
+  }
+  CHECK(checked == static_cast<int>(originals.size()));
+
+  // A second update of the same session changes nothing more (the anchor rides along).
+  trigger_type_action(window, "typeUpdateAllTextLayersAction");
+  const auto again = save_and_reopen("test-artifacts/point-anchors-update-all-twice.psd");
+  for (const auto& layer : again.layers()) {
+    const auto* original = original_named(layer.name());
+    const auto saved = photoshop_text_values(layer);
+    if (original == nullptr || !saved.has_value()) {
+      continue;
+    }
+    CHECK(std::abs(saved->tx - original->values.tx) < 0.001);
+    CHECK(std::abs(saved->ty - original->values.ty) < 0.001);
+  }
+
+  // The right-aligned layer becomes centered: its anchor is now the middle of the line Patchy
+  // drew, no longer the file's right end.
+  const auto* right = original_named("right");
+  CHECK(right != nullptr);
+  if (right == nullptr) {
+    return;
+  }
+  MainWindowTestAccess::select_layers(window, {right->id}, right->id);
+  QApplication::processEvents();
+  trigger_type_action(window, "typeAlignCenterAction");
+  const auto* centered = std::as_const(MainWindowTestAccess::document(window)).find_layer(right->id);
+  CHECK(centered != nullptr);
+  if (centered == nullptr) {
+    return;
+  }
+  CHECK(!centered->metadata().contains(patchy::kLayerMetadataTextFileAnchor));
+  CHECK(centered->metadata().contains(patchy::kLayerMetadataTextAnchorX));
+  const auto ink_left = static_cast<double>(centered->bounds().x);
+  const auto ink_right = static_cast<double>(centered->bounds().x + centered->bounds().width);
+  const auto recentered = save_and_reopen("test-artifacts/point-anchors-recentered.psd");
+  for (const auto& layer : recentered.layers()) {
+    if (layer.name() != "right") {
+      continue;
+    }
+    const auto saved = photoshop_text_values(layer);
+    CHECK(saved.has_value());
+    if (!saved.has_value()) {
+      continue;
+    }
+    std::fprintf(stderr, "right, centered: anchor %.4f (raster %.0f to %.0f), was %.4f\n", saved->tx, ink_left,
+                 ink_right, right->values.tx);
+    // Within a few pixels of the middle of the layer's raster (the buffer has a little bleed),
+    // and well away from both of its ends.
+    CHECK(std::abs(saved->tx - (ink_left + ink_right) / 2.0) < 4.0);
+    CHECK(saved->tx - ink_left > 20.0 && ink_right - saved->tx > 20.0);
+  }
+}
+
 // Type > Replace All Missing Fonts: no dialog; each missing family takes the dialog's
 // recommendation (the substitute table's pick for Helvetica), a family with none takes the
 // default text family, locked layers keep theirs, and the whole pass is one undo step.
@@ -2993,6 +3181,8 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_update_all_text_layers_keeps_the_line_composer", ui_update_all_text_layers_keeps_the_line_composer},
       {"ui_update_all_text_layers_keeps_the_line_composer_if_available",
        ui_update_all_text_layers_keeps_the_line_composer_if_available},
+      {"ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing",
+       ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing},
       {"ui_replace_all_missing_fonts_uses_recommendations_then_the_default",
        ui_replace_all_missing_fonts_uses_recommendations_then_the_default},
       {"ui_missing_fonts_dialog_shows_family_and_style_apart", ui_missing_fonts_dialog_shows_family_and_style_apart},

@@ -109,11 +109,15 @@ struct TextCharacterStyles {
   double diacritic_y_offset{0.0};
   double mark_y_distance{100.0};
   bool justification_alternates{false};
+  // Photoshop's kerning (0 manual with `kerning` in 1/1000 em, 1 Metrics, 2 Optical), kept for
+  // the file the same way; Patchy draws with the font's own pair kerning.
+  int kerning_mode{1};
+  double kerning{0.0};
   [[nodiscard]] bool any() const noexcept {
     return caps != 0 || baseline != 0 || underline || strikethrough || ordinals || fractions || !ligatures ||
            contextual_alternates || discretionary_ligatures || swash || stylistic_alternates || titling_alternates ||
            language >= 0 || digit_set != 0 || diacritic_x_offset != 0.0 || diacritic_y_offset != 0.0 ||
-           mark_y_distance != 100.0 || justification_alternates;
+           mark_y_distance != 100.0 || justification_alternates || kerning_mode != 1;
   }
   // Any OpenType feature request other than Photoshop's defaults (ligatures on, the rest off).
   [[nodiscard]] bool any_features() const noexcept {
