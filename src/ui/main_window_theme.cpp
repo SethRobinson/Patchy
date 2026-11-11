@@ -518,6 +518,30 @@ QString photoshop_style_template() {
       background: @accent_pressed_bg;
       border-color: @accent_border_bright;
     }
+    /* The swap width/height buttons (GitHub issue 697): the icon in the bar's push-button
+       frame, 28 px wide like the keep-proportions toggle, so they read as buttons. */
+    QToolBar#Options QToolButton[optionsBarFramedButton="true"] {
+      background: @options_button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
+      padding: 0;
+      min-width: 26px;
+      max-width: 26px;
+      min-height: 24px;
+      max-height: 24px;
+    }
+    QToolBar#Options QToolButton[optionsBarFramedButton="true"]:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
+    }
+    QToolBar#Options QToolButton[optionsBarFramedButton="true"]:pressed {
+      background: @accent_pressed_bg;
+      border-color: @accent_border_bright;
+    }
+    QToolBar#Options QToolButton[optionsBarFramedButton="true"]:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
+    }
     /* Keyboard focus (GitHub issue 440): a control reached with Tab or Backtab carries the
        accent outline; a click focuses without it (optionsKeyboardFocus is set by
        MainWindow::handle_options_bar_focus_event). Border colors only, so nothing changes

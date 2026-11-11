@@ -11,7 +11,7 @@ contour encoding and measured flow rules are in [area-text.md](area-text.md).
 
 Related documents:
 
-- [txt2-kept-settings.md](txt2-kept-settings.md): the settings Patchy keeps and does not draw (Hyphenate and its numbers, the Kashida width, the line composer, the Middle Eastern character settings), where Photoshop takes each from, and the Action Manager `set` that changes a layer's line composer.
+- [txt2-kept-settings.md](txt2-kept-settings.md): the settings Patchy keeps and does not draw (Hyphenate and its numbers, the Kashida width, the line composer, kerning, the Middle Eastern character settings), where Photoshop takes each from, and the Action Manager `set` that changes a layer's line composer.
 
 Probe files live in `local-test-fixtures/psd/txt2-probes/` (gitignored). The tooling is in
 `scripts/dev/txt2/`: `txt2tool.py` (PSD section walker, byte-exact EngineData tokenizer and
@@ -20,8 +20,15 @@ serializer, `dump`/`roundtrip`/`diff`/`variant` commands), `variants.py` (the V1
 `textKey` back through Action Manager, renders a PNG, resaves; logs any `PSDialogBox` text),
 `ps-capture-p2b.ps1` (single-setting captures through Action Manager, list styles
 included), `ps-relayout.ps1` (makes Photoshop lay text out again without touching the paragraph
-style and saves the render, for layout comparisons) and `make_template.py` (generates the
-authoring template).
+style and saves the render, for layout comparisons), `ps-text-readback.ps1` with
+`ps-text-readback-compare.py` (what Photoshop reads from every type layer of an original and of
+a save of it: anchor, kerning, anti-aliasing, old text, warning level, box baseline rule, and the
+render after Photoshop lays the text out again; groups are walked), `ps-capture-point-anchors.ps1`
+(the committed `photoshop-text-point-anchors.psd` fixture) and `make_template.py` (generates the
+authoring template). The readback opens files with dialogs off; `scripts/dev/photoshop-open-check.ps1`
+is the one that shows prompts, and it parks on Photoshop's "text layers might need to be updated"
+dialog, which a file with old text or a warped layer whose box Photoshop lays out differently
+raises (the original usually does too): do not run it unattended on such files.
 
 ## The writer
 
@@ -43,10 +50,19 @@ Exceptions:
 - A document that keeps a verbatim Photoshop 5.x `tySh` record gets no block at all unless it
   already had one, because the block's presence alone makes Photoshop open every such layer as
   pixels ([psd-legacy-text.md](psd-legacy-text.md)).
-- A preserved block that fails to parse is kept verbatim and the regenerated layers fall back to
-  indices no object has (`kRegeneratedTextIndexBase`), the old-text path.
+- A preserved block that fails to parse (the named-key engine of Photoshop CS-era files) is kept
+  verbatim while any layer still writes the type record it was read with, because that record
+  addresses an object of the block; the regenerated layers fall back to indices no object has
+  (`kRegeneratedTextIndexBase`), the old-text path.
 - In both cases a document holding area text refuses PSD/PSB save with an explicit error: the
   area frame lives only in the block, so it cannot be written there ([area-text.md](area-text.md)).
+- When EVERY type record of such a document is regenerated (Type > Update All Text Layers on a
+  file whose fonts are installed), nothing refers to the old objects any more and the block is
+  replaced by an authored one from the template, each layer at a fresh index
+  (`every_type_record_is_regenerated` in `build_text_engine_block`). Left on the old-text path,
+  Photoshop laid the psd-tools `pen-text.psd` layer out with its legacy engine: wider, lighter
+  glyphs (Testy's text-save leg, November 2026). Test:
+  `text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated`.
 
 Tests: `tests/core/text_engine_block_tests.cpp`.
 
@@ -87,7 +103,7 @@ embedded smart-object PSD in its `lnk2` block, not at document level).
 | `/0/2`, `/0/3`, `/0/4` | MojiKumi / MojiKumiSet (9) / KinsokuSet (6) | boilerplate, identical across captures |
 | `/0/5/0[]` | StyleSheetSet | `/0` name ("Normal RGB", "None"), `/6` the 93-key style sheet |
 | `/0/6/0[]` | ParagraphSheetSet | `/0` name ("Normal RGB", "Basic Paragraph"), `/5` the 44-key paragraph sheet, `/6` default style sheet index |
-| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update) |
+| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update); `/0/2/10` the first-baseline rule, see [Box first baseline](#box-first-baseline) |
 | `/0/9/0[]` | ListStyleSet | 11 predefined list styles, `/0` name, `/6` numbering kind; index is what a paragraph's `/36` references |
 | `/1` | DocumentObjects | |
 | `/1/4` | engine version | `/0 7 /1 11 /2 0 /3 (Photoshop)` |
@@ -166,7 +182,8 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/6`, `/7` | HorizontalScale, VerticalScale | 1.0 |
 | `/8` | Tracking | integer (200 in the tracking fixture) |
 | `/9` | BaselineShift | Engine pixels; positive raises glyphs, runs v8 column 15 |
-| `/11` | AutoKerning | 1 |
+| `/10` | Kerning (the manual number) | 1/1000 em; 0.0 in the default sheets; see [Kerning](txt2-kept-settings.md#kerning) |
+| `/11` | AutoKerning (`autoKern`) | 0 manual, 1 Metrics, 2 Optical |
 | `/12` | FontCaps | 0, 1 Small Caps, 2 All Caps |
 | `/13` | FontBaseline | 0, 1 superscript, 2 subscript |
 | `/15` | Strikethrough | 0, 1 on |
@@ -220,6 +237,43 @@ language. There is no UI for it: Patchy has no hyphenation or spell check. Accep
 2026 over COM): a Patchy-born file with English UK, German and Arabic runs, and the Photoshop
 fixture (`local-test-fixtures/psd/issue-682/`) edited and saved by Patchy, both open clean
 (`textWarningLevel 0`, no `oldText`) and read those languages back on the same runs.
+
+## Box first baseline
+
+A box frame's `/0/2/10` is its first-baseline rule (Action Manager `frameBaselineAlignment`):
+Photoshop's own box frames have no such key and read `alignByAscent`; `/10 << /0 2 /1 0.0 >>`
+reads `alignByCapHeight`. Patchy writes the key for a Qt-natural box, whose transform origin the
+writer moves by the baseline inset measured against the cap height
+([text-render-calibration-patchy-authored.md](text-render-calibration-patchy-authored.md)), and
+leaves it out for a layer in the Photoshop layout model (`TextEngineInputs::photoshop_layout`),
+whose first baseline Patchy itself puts at the ascent. Written into every box frame, it made
+Photoshop move the first line of a re-rendered Photoshop box layer up by the ascent less the cap
+height (nothing for Arial, whose two are equal; Frutiger Ultra Black at 171 px visibly).
+
+## Anti-aliasing
+
+The method Photoshop shows and draws with is the TySh descriptor's `AntA` enum (`Anno`, `AnCr`,
+`AnSt`, `AnSm`, `antiAliasSharp`, `antiAliasPlatformLCD`, `antiAliasPlatformGray`); the
+EngineData `/AntiAlias` number normally agrees, and the Txt2 object has no key for it. Files
+exist where the two disagree (Smooth beside 4, Crisp beside 2 in Testy's private corpus), so the
+reader takes the descriptor first (`extract_type_tool_anti_alias`) and the number only for a
+record without one. Test: `text_engine_anti_alias_reads_the_descriptor_method`.
+
+## The old named-key engine
+
+Photoshop CS-era files carry a block with named keys (`DocumentResources`, `DocumentObjects/
+TextObjects`, each object a `Model` and a `View`) instead of the numbered ones above
+(`text_engine_block_is_named_key_engine`). Patchy reads its point and box frames and cannot
+author into it (see [The writer](#the-writer) for when it is kept and when it is replaced).
+
+That engine has one paragraph composer, the Latin one, and Photoshop 2026 lays every type layer
+of such a document out with it, its old-text layers (a TySh with no object) included. The reader
+therefore gives every paragraph of such a document composer 0, which Patchy's own layout already
+follows (no paragraph-end kern) and a save writes as `/35 0`. Readback on This PC, November 2026:
+`mow_master.psd` (four old-text layers, one layer with an object) re-rendered and saved with
+`/35 1` differed from the original after Photoshop's re-layout (the centered copyright line a
+pixel narrower, the button captions on other pixels); the same save with `/35 0` on every
+paragraph matched it pixel for pixel. A file with no block at all stays World-Ready.
 
 ## What Photoshop 2026 accepts (probe results, all opened clean, no dialog, correct readback)
 

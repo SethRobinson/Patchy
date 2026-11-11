@@ -87,12 +87,35 @@ inline constexpr const char* kLayerMetadataPsdTextIndex = "patchy.psd.text.index
 //   origin (anchor it on the baseline) from one already at the baseline (leave it); the ink
 //   test it used before mistook a grown buffer for an anchored one (CoreText's smaller ascent
 //   grows the issue 20 "M", and its saved baseline landed an ascent high).
+// - anchor_x: horizontal point text whose first line is centered or right-aligned: that line's
+//   justification point (its middle or its end) from the text-local origin. Photoshop's anchor
+//   (its click point, the TySh tx) is that point on the first baseline, while the origin Patchy
+//   draws from is the line box's left edge; the writer moves the transform there together with
+//   the baseline. Absent for left-aligned text, where the two are the same column.
 // The reader recovers box_baseline_inset from a Patchy-signed TySh; the others only exist on
 // layers Patchy rendered in this session (the writer falls back to its raster heuristics).
 inline constexpr const char* kLayerMetadataTextFirstBaseline = "patchy.text.first_baseline";
 inline constexpr const char* kLayerMetadataTextBoxBaselineInset = "patchy.text.box_baseline_inset";
 inline constexpr const char* kLayerMetadataTextAutoLeading = "patchy.text.auto_leading";
 inline constexpr const char* kLayerMetadataTextRasterTop = "patchy.text.raster_top";
+inline constexpr const char* kLayerMetadataTextAnchorX = "patchy.text.anchor_x";
+// "x y": the anchor a point-text layer's FILE gave it (Photoshop's click point), as a point of
+// the text-local space the layer's transform (kLayerMetadataTextTransform) now maps, carried
+// through a re-render that kept the text where it was. A session commit records it for a layer
+// whose transform was still the file's (or that already carried one) when the first paragraph's
+// alignment did not change; every other render erases it (store_text_layout_metrics). The
+// writer puts the TySh anchor back on it, so Photoshop lays the text out from the very point it
+// used before: Patchy's own measure of that point (anchor_x and first_baseline) is only good to
+// about a pixel, and Photoshop rounds the anchor before it draws. Session only, like the layout
+// metrics; a saved file carries the anchor in its transform.
+inline constexpr const char* kLayerMetadataTextFileAnchor = "patchy.text.file_anchor";
+// "w h": the size of the text box a box-text layer's FILE gave it, in text-local units, carried
+// through a re-render that left the box alone (the committed whole-pixel box is within a pixel
+// of it). Photoshop's boxes are fractional (121.845 x 120.046) and Patchy's are whole pixels;
+// the writer puts the file's size back into the TySh bounds, /BoxBounds and the Txt2 frame, so
+// Photoshop wraps in, and aligns layer effects to, the box it had (a gradient stroke aligned
+// with the layer shifted a pixel on the psd-tools effect-stroke-gradient file). Session only.
+inline constexpr const char* kLayerMetadataTextFileBox = "patchy.text.file_box";
 // Marks a box-text raster rendered with the line-aware box preview (main_window.cpp).
 inline constexpr const char* kLayerMetadataTextLineAwareBoxPreview = "patchy.text.line_aware_box_preview";
 

@@ -8530,14 +8530,6 @@ Mixed selection</source>
         <translation>スタイル %1</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>元の比率</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1 (正方形)</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
     </message>
@@ -9159,10 +9151,6 @@ Mixed selection</source>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>提案、バグ報告、コードを寄せてくれた素晴らしい方々: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>比率</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22384,6 +22372,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>その他のコマンド</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>切り抜きツールで切り抜き枠を変更した後: 次のオーバーレイ / オーバーレイの向きを変更 / 切り抜いた領域の表示と非表示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -27502,10 +27494,6 @@ Clipped to the layer below</source>
         <translation>領域を置き換えず、サンプルしたテクスチャのみを重ねます。無地の背景にはっきりした模様があるソースで最も効果的です</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>比率:</translation>
-    </message>
-    <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
         <translation>縦横比の幅 (0 で制約なし)</translation>
     </message>
@@ -27548,10 +27536,6 @@ Clipped to the layer below</source>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (正方形)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>切り抜きボックスの縦横比プリセット</translation>
     </message>
     <message>
         <source>Fill Tools</source>
@@ -30128,10 +30112,6 @@ Baked into images: %1.</source>
     <message>
         <source>Size</source>
         <translation>サイズ</translation>
-    </message>
-    <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>比率は切り抜き枠を制約し、サイズは枠の正確な幅と高さを表示して設定します</translation>
     </message>
     <message>
         <source>Width of the crop box</source>
@@ -35729,6 +35709,30 @@ Locked: %1</source>
     <message>
         <source>Top edge of the layer</source>
         <translation>レイヤーの上端</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>切り抜きプリセット: 比率とサイズはそれぞれの入力欄を表示し、比率またはピクセルサイズを選ぶと入力欄に設定されます。サイズは切り抜き枠をそのピクセル数にするだけで、再サンプルはしません</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>次のオーバーレイ</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>切り抜きプリセットを削除しました: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>切り抜きプリセットを保存</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>切り抜きプリセットを保存しました: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>切り抜き枠を変更した後は %1 で次のオーバーレイに切り替わります</translation>
     </message>
 </context>
 <context>

@@ -99,10 +99,25 @@ struct PsdTextStyleRun {
   double diacritic_y_offset{0.0};
   double mark_y_distance{100.0};
   bool justification_alternates{false};
+  // Photoshop's kerning (the Character panel's V/A field; Action Manager `autoKern`), kept so a
+  // Photoshop file's run keeps it through an edit and a save; Patchy draws with the font's own
+  // pair kerning whatever this says. kerning_mode: 0 manual (`kerning` is the number, in 1/1000
+  // em; 0 is "no kerning"), 1 Metrics (what a new layer has), 2 Optical. Txt2 style keys /11 (the
+  // mode) and /10 (the number); the TySh has /AutoKerning false and /Kerning for manual only
+  // (docs/txt2-kept-settings.md, "Kerning"). Runs v9 column 16 tokens `kern:optical` and `kern:<number>`
+  // (manual), written only off Metrics.
+  int kerning_mode{1};
+  double kerning{0.0};
 };
+
+inline constexpr int kTextKerningManual = 0;
+inline constexpr int kTextKerningMetrics = 1;
+inline constexpr int kTextKerningOptical = 2;
 
 // True when a run carries a Middle Eastern setting off its default (the fields above).
 [[nodiscard]] bool text_run_has_middle_eastern_settings(const PsdTextStyleRun& run) noexcept;
+// True when a run's kerning is not Metrics (manual, a number included, or Optical).
+[[nodiscard]] bool text_run_has_kept_kerning(const PsdTextStyleRun& run) noexcept;
 
 // The Txt2 language Patchy writes for a run without one (English UK, the authoring template's).
 inline constexpr int kPhotoshopTextDefaultLanguage = 14;

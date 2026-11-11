@@ -6102,14 +6102,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9179,10 +9171,6 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ratio</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -22430,6 +22418,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -23867,10 +23859,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>None</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23880,10 +23868,6 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>1 : 1 (Square)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -30166,10 +30150,6 @@ Baked into images: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation type="unfinished"></translation>
     </message>
@@ -35755,6 +35735,30 @@ Locked: %1</source>
     </message>
     <message>
         <source>Top edge of the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

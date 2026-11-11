@@ -6102,14 +6102,6 @@
         <translation>Ninguno</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>Proporción original</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1 (Cuadrado)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>Destino</translation>
     </message>
@@ -9190,10 +9182,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Personas increíbles que aportaron sugerencias, informes de errores y código: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>Proporción</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22448,6 +22436,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>Otros comandos</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>Herramienta Recortar, una vez cambiado el cuadro de recorte: superposición siguiente / girar superposición / mostrar u ocultar el área recortada</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -23885,10 +23877,6 @@ Do you want to replace it?</source>
         <translation>Altura:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>Proporción:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>Ninguno</translation>
     </message>
@@ -23899,10 +23887,6 @@ Do you want to replace it?</source>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (Cuadrado)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>Proporción predefinida para el cuadro de recorte</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30220,10 +30204,6 @@ Convertido en imágenes: %1.</translation>
         <translation>Tamaño</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>Proporción restringe el cuadro de recorte; Tamaño muestra su ancho y alto exactos y los establece</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>Ancho del cuadro de recorte</translation>
     </message>
@@ -35838,6 +35818,30 @@ Bloqueada: %1</translation>
     <message>
         <source>Top edge of the layer</source>
         <translation>Borde superior de la capa</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>Ajustes preestablecidos de recorte: Proporción y Tamaño muestran sus campos; una proporción o un tamaño en píxeles los rellena. Un tamaño fija el cuadro de recorte en esos píxeles y no remuestrea</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>Superposición siguiente</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>Ajuste preestablecido de recorte eliminado: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>Guardar ajuste preestablecido de recorte</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>Ajuste preestablecido de recorte guardado: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>%1 elige la superposición siguiente una vez cambiado el cuadro de recorte</translation>
     </message>
 </context>
 <context>

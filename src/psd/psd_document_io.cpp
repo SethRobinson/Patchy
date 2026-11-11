@@ -101,11 +101,30 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
     }
     return std::nullopt;
   }
+  // A preserved block Patchy cannot author into (the named-key engine Photoshop CS-era files
+  // carry) is kept verbatim only while some layer still writes the type record it was read with:
+  // such a record addresses an object of that block. When every type record of the document is
+  // regenerated (Type > Update All Text Layers), nothing refers to the old objects any more and
+  // the block is replaced by an authored one, so the regenerated layers are current text instead
+  // of falling back to indices no object has, which Photoshop reads as old text and lays out
+  // with its legacy engine (wider, lighter glyphs on the psd-tools pen-text layer).
+  const bool every_type_record_is_regenerated =
+      std::all_of(encoded_layers.begin(), encoded_layers.end(), [](const EncodedLayer& encoded) {
+        if (encoded.layer == nullptr) {
+          return true;
+        }
+        const auto& blocks = encoded.layer->unknown_psd_blocks();
+        const bool has_type_record = std::any_of(blocks.begin(), blocks.end(), [](const UnknownPsdBlock& block) {
+          return block.key == "TySh" || block.key == "tySh";
+        });
+        return !has_type_record ||
+               (should_write_generated_text_block(encoded) && !text_layer_keeps_photoshop_type_block(*encoded.layer));
+      });
   std::optional<TextEngineBlock> block;
   for (const auto& global : global_blocks) {
     if (global.key == "Txt2") {
       block = TextEngineBlock::parse(global.payload);
-      if (!block.has_value()) {
+      if (!block.has_value() && !every_type_record_is_regenerated) {
         if (has_area_text) {
           throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new area text."));
         }
@@ -114,6 +133,11 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
       break;
     }
   }
+  // A block authored from the template starts empty (the document had none, or had one Patchy
+  // could not parse): the indices the layers were read with addressed other objects, or none,
+  // and mean nothing in it. Honoring them let a later layer's index land on an object an
+  // earlier layer had just been given, so two layers shared one object.
+  const bool keeps_preserved_objects = block.has_value();
   if (!block.has_value()) {
     block = TextEngineBlock::from_template();
   }
@@ -121,7 +145,8 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
   for (auto* encoded : text_layers) {
     const auto& layer = *encoded->layer;
     std::optional<std::size_t> stored_index;
-    if (const auto stored = layer.metadata().find(kLayerMetadataPsdTextIndex); stored != layer.metadata().end()) {
+    if (const auto stored = layer.metadata().find(kLayerMetadataPsdTextIndex);
+        stored != layer.metadata().end() && keeps_preserved_objects) {
       char* end = nullptr;
       const auto value = std::strtol(stored->second.c_str(), &end, 10);
       if (end != stored->second.c_str() && *end == '\0' && value >= 0 &&
@@ -650,6 +675,8 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
 struct ImportedTextFrames {
   bool present{false};
   std::vector<TextFrameGeometry> frames;
+  // The block is the old named-key engine (text_engine_block_is_named_key_engine).
+  bool named_key_engine{false};
   bool preserve_raster(const LayerRecord& record) const {
     if (!present || !record.text_geometry) return false;
     const auto index = record.text_geometry->text_index;
@@ -684,7 +711,13 @@ ImportedTextFrames inspect_text_frames(std::span<const std::uint8_t> section, bo
     if (wide && reader.remaining() < 8U) break;
     const auto size = wide ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
     if (size > reader.remaining()) break;
-    if (key == "Txt2") return {true, read_text_frame_geometries(reader.read_bytes(static_cast<std::size_t>(size)))};
+    if (key == "Txt2") {
+      const auto payload = reader.read_bytes(static_cast<std::size_t>(size));
+      auto frames = read_text_frame_geometries(payload);
+      // A numbered block yields one geometry per object; only a block that is not one is asked.
+      const bool numbered = TextEngineBlock::parse(payload).has_value();
+      return {true, std::move(frames), !numbered && text_engine_block_is_named_key_engine(payload)};
+    }
     reader.skip(static_cast<std::size_t>(size));
     reader.skip(std::min<std::size_t>((4U - size % 4U) % 4U, reader.remaining()));
   }
@@ -725,7 +758,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
   int ordinary_layer_number = 0;
   for (std::uint16_t i = 0; i < layer_count; ++i) {
     records.push_back(read_layer_record(layer_reader, large_document, cmyk_converter,
-                                        text_frames.frames, text_frames.present));
+                                        text_frames.frames, text_frames.present, text_frames.named_key_engine));
     auto& record = records.back();
     if (record.section_divider_type == 0U) {
       ++ordinary_layer_number;

@@ -382,6 +382,9 @@ struct PsdTextEngineDefaults {
   std::optional<int> language;
   std::optional<RgbColor> fill_color;
   double auto_leading_fraction{1.2};
+  // The normal style sheet's /AutoKerning and /Kerning, for a run that leaves them out.
+  bool auto_kerning{true};
+  double kerning{0.0};
 };
 
 struct DocumentAlphaComposite {
@@ -797,7 +800,7 @@ std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t>
 // pipeline for the layer info section (definitions in psd_layer_records.cpp).
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                               const CmykColorConverter& cmyk, std::span<const TextFrameGeometry> text_frames,
-                              bool has_text_engine);
+                              bool has_text_engine, bool named_key_text_engine = false);
 // synthesized_photoshop_layer_id: nonzero writes a fresh 'lyid' block for a
 // smart-object layer that has none preserved (see write_layer_record).
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
@@ -933,6 +936,10 @@ std::optional<int> extract_engine_data_font_size(std::span<const std::uint8_t> p
 std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint8_t> payload,
                                                        const CmykColorConverter& cmyk);
 std::optional<int> extract_engine_data_anti_alias(std::span<const std::uint8_t> payload);
+// The anti-aliasing method the TySh descriptor names ('AntA'), which is the one Photoshop shows
+// and draws with: files exist whose EngineData /AntiAlias disagrees with it (Smooth beside 4,
+// Crisp beside 2), and reading the number saved such a layer as Sharp or Strong.
+std::optional<int> extract_type_tool_anti_alias(std::span<const std::uint8_t> payload);
 std::string rgb_hex_color(RgbColor color);
 std::optional<RgbColor> rgb_color_from_hex(std::string_view text);
 std::string percent_decode(std::string_view text);
@@ -942,7 +949,8 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
                                                                      RgbColor fallback_color,
                                                                      const CmykColorConverter& cmyk,
                                                                      std::span<const TextParagraphFontSize> paragraph_font_sizes = {},
-                                                                     std::span<const TextStyleRunFeatures> style_features = {});
+                                                                     std::span<const TextStyleRunFeatures> style_features = {},
+                                                                     std::span<const TextStyleRunKerning> style_kerning = {});
 std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(std::span<const std::uint8_t> payload,
                                                                               std::string_view text);
 std::string serialize_paragraph_metric(double value);

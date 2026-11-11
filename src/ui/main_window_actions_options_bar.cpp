@@ -93,6 +93,8 @@
 #include <QObject>
 #include <QOverload>
 #include <QPaintEvent>
+#include <QStyleOptionComboBox>
+#include <QStylePainter>
 #include <QPainter>
 #include <QPen>
 #include <QPointF>
@@ -310,7 +312,7 @@ QMargins options_bar_ink_insets(const QWidget& widget) {
   if (button == nullptr ||
       (button->metaObject() != &QToolButton::staticMetaObject &&
        qobject_cast<const BrushDynamicsButton*>(button) == nullptr) ||
-      button->property("optionsBarSwatch").toBool()) {
+      button->property("optionsBarSwatch").toBool() || button->property("optionsBarFramedButton").toBool()) {
     return {};
   }
   if (button->toolButtonStyle() == Qt::ToolButtonIconOnly && !button->icon().isNull()) {
@@ -456,6 +458,26 @@ void open_options_bar_lists_below(QToolBar& toolbar) {
     fit_combo_popup_to_entries(*combo);
   }
 }
+
+// A combo box of fixed width whose entries can be longer than the box (the Crop bar's Preset
+// list: "1080 x 1350 px (Portrait Post)", a saved preset's name): the closed box ends a long
+// entry in an ellipsis instead of cutting it mid-letter. The open list shows entries whole.
+class ElidingComboBox final : public QComboBox {
+ public:
+  using QComboBox::QComboBox;
+
+ protected:
+  void paintEvent(QPaintEvent*) override {
+    QStylePainter painter(this);
+    QStyleOptionComboBox option;
+    initStyleOption(&option);
+    painter.drawComplexControl(QStyle::CC_ComboBox, option);
+    const int room =
+        style()->subControlRect(QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, this).width() - 2;
+    option.currentText = option.fontMetrics.elidedText(option.currentText, Qt::ElideRight, std::max(0, room));
+    painter.drawControl(QStyle::CE_ComboBoxLabel, option);
+  }
+};
 
 // Runs `callback` once, on the first click, key press or wheel turn on `widget`, before the
 // widget handles it. Owned by the widget.
@@ -1813,23 +1835,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   configure_toolbar_spinbox(ratio_width, 56);
   marquee_ratio_option_widgets_.push_back(
       add_option_widget(ratio_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  // Width and Height trade places with one click (GitHub issue 286), here and on the Artboard
-  // bar: two opposed arrows in the icon ink, an icon button sized like the bar's others.
-  // Each marquee pair has its own button.
+  // Width and Height trade places with one click (GitHub issue 286), here, on the Crop and
+  // Perspective Crop bars and on the Artboard bar: two opposed arrows in the icon ink. The
+  // button wears the bar's push-button frame (the optionsBarFramedButton QSS rule; GitHub
+  // issue 697), so it reads as a button and matches the framed link button beside it.
+  // Each pair has its own button.
   const auto make_swap_dimensions_button = [toolbar](const char* object_name) {
     auto* button = new QToolButton(toolbar);
     button->setObjectName(QLatin1String(object_name));
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIcon(simple_icon(QStringLiteral("swap-dimensions")));
     button->setIconSize(QSize(18, 18));
-    button->setAutoRaise(true);
+    button->setAutoRaise(false);  // a tool button made on a toolbar starts raised (frameless)
     button->setFocusPolicy(Qt::NoFocus);
-    button->setProperty("optionsBarButton", true);
+    button->setProperty("optionsBarFramedButton", true);
     bind_tooltip(button, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
     // Even space on both sides (GitHub issue 286): the Height label after the button drops
-    // its text padding (label_after_swap_button) and the button adds 2 px on its left, so the
-    // glyph sits as far from the Width field's edge as from the label's text (11 px each).
-    button->setStyleSheet(QStringLiteral("QToolButton { margin-left: 2px; }"));
+    // its text padding (label_after_swap_button), so the frame sits as far from the Width
+    // field's edge as from the label's text, like the shape bar's keep-proportions toggle.
     return button;
   };
   const auto label_after_swap_button = [](QWidget* label) {
@@ -1929,54 +1952,29 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand});
 
-  // Crop: Style picks what the fields mean, like the marquee's Style combo.
-  // Ratio shows the preset combo and the unitless W : H pair; Size shows unit
-  // Width / Height fields that mirror the box and resize it about its center.
-  add_option_label(QT_TR_NOOP("Style:"), {CanvasTool::Crop});
-  crop_style_combo_ = new QComboBox(toolbar);
-  crop_style_combo_->setObjectName(QStringLiteral("cropStyleCombo"));
-  crop_style_combo_->addItems({tr("Ratio"), tr("Size")});
-  crop_style_combo_->setFixedWidth(ui_text_length(72));
-  QPointer<QComboBox> crop_style_combo(crop_style_combo_);
-  register_retranslation([crop_style_combo] {
-    if (crop_style_combo == nullptr || crop_style_combo->count() < 2) {
-      return;
-    }
-    QSignalBlocker blocker(crop_style_combo);
-    crop_style_combo->setItemText(0, QObject::tr("Ratio"));
-    crop_style_combo->setItemText(1, QObject::tr("Size"));
-  });
-  bind_tooltip(crop_style_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ratio constrains the crop box; Size shows its exact width and height and sets them"));
-  add_option_widget(crop_style_combo_, {CanvasTool::Crop});
+  // Crop (GitHub issue 696): one Preset list picks what the fields mean and fills them. Its
+  // free modes are Ratio (the unitless W : H pair, constraining the box) and Size (unit
+  // Width / Height fields that mirror the box and resize it about its center); the ratio
+  // presets, the pixel sizes taken from the New Document templates and the user's saved
+  // presets switch to the mode they belong to. The rows come from ui/crop_presets.hpp.
+  add_option_label(QT_TR_NOOP("Preset:"), {CanvasTool::Crop});
+  crop_preset_combo_ = new ElidingComboBox(toolbar);
+  crop_preset_combo_->setObjectName(QStringLiteral("cropPresetCombo"));
+  // A fixed width: a saved preset's name never changes the bar's row (the popup widens to
+  // the entries; the closed box elides a longer one).
+  crop_preset_combo_->setFixedWidth(ui_text_length(128));
+  bind_tooltip(crop_preset_combo_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                 "Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills "
+                                 "them. A size sets the crop box to that many pixels and does not resample"));
+  register_retranslation([this] { rebuild_crop_preset_combo(); });
+  add_option_widget(crop_preset_combo_, {CanvasTool::Crop});
+  rebuild_crop_preset_combo();
+  // The whole list at once (about twenty rows with the separators), scrolling only once the
+  // saved presets outgrow it; open_options_bar_lists_below leaves a combo set up here alone.
+  use_scrolling_list_popup(*crop_preset_combo_, 28);
+  fit_combo_popup_to_entries(*crop_preset_combo_);
   add_option_separator({CanvasTool::Crop});
-  crop_ratio_option_widgets_.push_back(add_option_label(QT_TR_NOOP("Ratio:"), {CanvasTool::Crop}));
-  crop_ratio_preset_combo_ = new QComboBox(toolbar);
-  crop_ratio_preset_combo_->setObjectName(QStringLiteral("cropRatioPresetCombo"));
-  crop_ratio_preset_combo_->setMinimumWidth(ui_text_length(118));
-  // Index 0 "None" and the last index "Custom" are fixed anchors: the preset
-  // handler and sync_crop_ratio_preset_combo key on them. "Original Ratio"
-  // (index 1) reads the active document at selection time.
-  crop_ratio_preset_combo_->addItem(tr("None"));
-  crop_ratio_preset_combo_->addItem(tr("Original Ratio"));
-  crop_ratio_preset_combo_->addItem(tr("1 : 1 (Square)"), QSizeF(1.0, 1.0));
-  crop_ratio_preset_combo_->addItem(QStringLiteral("4 : 5 (8 : 10)"), QSizeF(4.0, 5.0));
-  crop_ratio_preset_combo_->addItem(QStringLiteral("5 : 7"), QSizeF(5.0, 7.0));
-  crop_ratio_preset_combo_->addItem(QStringLiteral("2 : 3 (4 : 6)"), QSizeF(2.0, 3.0));
-  crop_ratio_preset_combo_->addItem(QStringLiteral("16 : 9"), QSizeF(16.0, 9.0));
-  crop_ratio_preset_combo_->addItem(tr("Custom"));
-  QPointer<QComboBox> crop_preset_combo(crop_ratio_preset_combo_);
-  register_retranslation([crop_preset_combo] {
-    if (crop_preset_combo == nullptr || crop_preset_combo->count() < 8) {
-      return;
-    }
-    QSignalBlocker blocker(crop_preset_combo);
-    crop_preset_combo->setItemText(0, QObject::tr("None"));
-    crop_preset_combo->setItemText(1, QObject::tr("Original Ratio"));
-    crop_preset_combo->setItemText(2, QObject::tr("1 : 1 (Square)"));
-    crop_preset_combo->setItemText(crop_preset_combo->count() - 1, QObject::tr("Custom"));
-  });
-  bind_tooltip(crop_ratio_preset_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Aspect ratio preset for the crop box"));
-  crop_ratio_option_widgets_.push_back(add_option_widget(crop_ratio_preset_combo_, {CanvasTool::Crop}));
   crop_ratio_w_spin_ = new TrimmedDoubleSpinBox(toolbar);
   crop_ratio_w_spin_->setObjectName(QStringLiteral("cropRatioWidthSpin"));
   crop_ratio_w_spin_->setRange(0.0, 10000.0);
@@ -1985,10 +1983,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_ratio_w_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Aspect ratio width (0 = unconstrained)"));
   configure_toolbar_spinbox(crop_ratio_w_spin_, 64);
   crop_ratio_option_widgets_.push_back(add_option_widget(crop_ratio_w_spin_, {CanvasTool::Crop}));
-  auto* crop_ratio_separator = new QLabel(QStringLiteral(":"), options_content);
-  crop_ratio_separator->setProperty("optionLabel", true);
-  crop_ratio_separator->setAlignment(Qt::AlignVCenter);
-  crop_ratio_option_widgets_.push_back(add_option_widget(crop_ratio_separator, {CanvasTool::Crop}));
+  // The swap button stands where the ":" was (GitHub issue 697): 16 : 9 becomes 9 : 16.
+  crop_ratio_swap_button_ = make_swap_dimensions_button("cropRatioSwapButton");
+  crop_ratio_option_widgets_.push_back(add_option_widget(crop_ratio_swap_button_, {CanvasTool::Crop}));
   crop_ratio_h_spin_ = new TrimmedDoubleSpinBox(toolbar);
   crop_ratio_h_spin_->setObjectName(QStringLiteral("cropRatioHeightSpin"));
   crop_ratio_h_spin_->setRange(0.0, 10000.0);
@@ -2002,10 +1999,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_widget_text(crop_ratio_clear_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear"));
   bind_tooltip(crop_ratio_clear_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear the aspect ratio constraint"));
   crop_ratio_option_widgets_.push_back(add_option_widget(crop_ratio_clear_button_, {CanvasTool::Crop}));
-  // Size mode: the same unit fields as the marquee's Fixed Size pair (pixel
-  // native, a typed unit token converts at the document PPI, the same quick
-  // values in the popup). Values commit on Enter or focus-out, never per
-  // keystroke, so a half-typed width never reshapes the box.
+  // Size fields are pixel-native with unit-token conversion at the document
+  // PPI, like the marquee's Fixed Size pair; the box is the source of truth
+  // (sync_tool_option_controls_from_canvas mirrors it after every change). Width, the swap
+  // button, Height, then the link button (GitHub issue 697).
   crop_size_option_widgets_.push_back(add_option_label(QT_TR_NOOP("Width:"), {CanvasTool::Crop}));
   crop_width_spin_ = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   crop_width_spin_->set_context_provider(document_axis_context(true));
@@ -2015,15 +2012,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_width_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Width of the crop box"));
   configure_toolbar_spinbox(crop_width_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_width_spin_, {CanvasTool::Crop}));
-  crop_link_size_button_ = new QPushButton(toolbar);
-  crop_link_size_button_->setObjectName(QStringLiteral("cropLinkSizeButton"));
-  crop_link_size_button_->setCheckable(true);
-  crop_link_size_button_->setChecked(false);
-  crop_link_size_button_->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
-  bind_tooltip(crop_link_size_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Keep the crop box's width and height in proportion"));
-  crop_link_size_button_->setFixedWidth(28);
-  crop_size_option_widgets_.push_back(add_option_widget(crop_link_size_button_, {CanvasTool::Crop}));
-  crop_size_option_widgets_.push_back(add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Crop}));
+  crop_size_swap_button_ = make_swap_dimensions_button("cropSizeSwapButton");
+  crop_size_option_widgets_.push_back(add_option_widget(crop_size_swap_button_, {CanvasTool::Crop}));
+  crop_size_option_widgets_.push_back(
+      label_after_swap_button(add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Crop})));
   crop_height_spin_ = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   crop_height_spin_->set_context_provider(document_axis_context(false));
   crop_height_spin_->setObjectName(QStringLiteral("cropHeightSpin"));
@@ -2032,6 +2024,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
+  crop_link_size_button_ = new QPushButton(toolbar);
+  crop_link_size_button_->setObjectName(QStringLiteral("cropLinkSizeButton"));
+  crop_link_size_button_->setCheckable(true);
+  crop_link_size_button_->setChecked(false);
+  crop_link_size_button_->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
+  bind_tooltip(crop_link_size_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Keep the crop box's width and height in proportion"));
+  crop_link_size_button_->setFixedWidth(28);
+  crop_size_option_widgets_.push_back(add_option_widget(crop_link_size_button_, {CanvasTool::Crop}));
   // Composition overlay (GitHub issue 325): the guides inside the box. The Crop
   // options menu below turns the Triangle and Golden Spiral and chooses whether
   // the guides show all the time or only while the box is dragged. No label (the
@@ -2066,7 +2066,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           i, QCoreApplication::translate("patchy::ui::MainWindow", kCropOverlayItems[static_cast<std::size_t>(i)].first));
     }
   });
-  bind_tooltip(crop_overlay_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Composition guides drawn inside the crop box"));
+  // The tooltip names the O key while it applies (refresh_crop_key_hints, GitHub issue 698).
+  register_retranslation([this] { refresh_crop_key_hints(); });
   add_option_widget(crop_overlay_combo_, {CanvasTool::Crop});
   connect(crop_overlay_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0) {
@@ -2087,6 +2088,23 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   {
     auto* crop_menu = new QMenu(crop_options_button_);
     crop_menu->setObjectName(QStringLiteral("cropOptionsMenu"));
+    // The keys shown beside Next Overlay, Turn Overlay and Show Cropped Area are the crop
+    // keys (GitHub issue 698), set when the menu opens so they follow the hotkeys.
+    connect(crop_menu, &QMenu::aboutToShow, this, [this] { refresh_crop_key_hints(true); });
+    // Steps through the six overlays (No Overlay is not a stop; from it the step lands on
+    // Rule of Thirds).
+    crop_overlay_next_action_ = crop_menu->addAction(tr("Next Overlay"));
+    crop_overlay_next_action_->setObjectName(QStringLiteral("cropOverlayNextAction"));
+    bind_action_text(crop_overlay_next_action_, QT_TR_NOOP("Next Overlay"));
+    connect(crop_overlay_next_action_, &QAction::triggered, this, [this] {
+      const int count = crop_overlay_combo_ != nullptr ? crop_overlay_combo_->count() : 0;
+      if (count < 2) {
+        return;
+      }
+      current_crop_overlay_ = current_crop_overlay_ >= count - 1 ? 1 : std::max(1, current_crop_overlay_ + 1);
+      apply_crop_guide_options();
+      schedule_save_tool_settings();
+    });
     // Steps the orientation 0-3: the Triangle mirrors, the Golden Spiral visits
     // each corner. Enabled for those two only.
     crop_overlay_turn_action_ = crop_menu->addAction(tr("Turn Overlay"));
@@ -2224,7 +2242,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_cancel_button_->setProperty("optionsSessionButton", true);
   add_option_widget(crop_cancel_button_, {CanvasTool::Crop});
 
-  // Perspective Crop (GitHub issue 328, docs/crop-tool.md): the result's size and
+  // Perspective Crop (GitHub issue 328, docs/crop-tool-perspective.md): the result's size and
   // resolution. A blank W or H takes the quad's mean edge lengths, a blank Resolution
   // keeps the document's; Front Image fills all three from the active document and
   // Clear empties them, as in Photoshop. The fields are pixel native with typed unit
@@ -2525,11 +2543,48 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (canvas_ != nullptr) {
       canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
     }
-    sync_crop_ratio_preset_combo();
+    sync_crop_preset_combo();
+    if (crop_ratio_swap_button_ != nullptr) {
+      crop_ratio_swap_button_->setEnabled(current_crop_ratio_w_ > 0.0 || current_crop_ratio_h_ > 0.0);
+    }
     schedule_save_tool_settings();
   };
-  connect(crop_style_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-    apply_crop_style(index);
+  connect(crop_preset_combo_, &QComboBox::currentIndexChanged, this,
+          [this](int index) { apply_crop_preset_row(index); });
+  // Swap in Ratio (GitHub issue 697): the two fields trade values and a custom box trades
+  // its width and height about its center, so 16 : 9 turns into 9 : 16 in place; the
+  // automatic frame re-fits to the turned ratio.
+  connect(crop_ratio_swap_button_, &QAbstractButton::clicked, this, [this] {
+    if (crop_ratio_w_spin_ == nullptr || crop_ratio_h_spin_ == nullptr) {
+      return;
+    }
+    const double width = crop_ratio_w_spin_->value();
+    const double height = crop_ratio_h_spin_->value();
+    if (width == height) {
+      return;
+    }
+    {
+      const QSignalBlocker w_blocker(crop_ratio_w_spin_);
+      const QSignalBlocker h_blocker(crop_ratio_h_spin_);
+      crop_ratio_w_spin_->setValue(height);
+      crop_ratio_h_spin_->setValue(width);
+    }
+    current_crop_ratio_w_ = height;
+    current_crop_ratio_h_ = width;
+    if (canvas_ != nullptr) {
+      canvas_->swap_crop_ratio();
+    }
+    sync_crop_preset_combo();
+    schedule_save_tool_settings();
+  });
+  // Swap in Size: the pending box trades its width and height about its center.
+  connect(crop_size_swap_button_, &QAbstractButton::clicked, this, [this] {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (const auto rect = canvas_->crop_session_rect(); rect.has_value() && !rect->isEmpty()) {
+      canvas_->set_crop_session_size(rect->size().transposed());  // notifies, which re-syncs the fields
+    }
   });
   connect(crop_width_spin_, &QSpinBox::valueChanged, this,
           [this](int value) { handle_crop_size_value_changed(true, value); });
@@ -2545,28 +2600,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [apply_crop_ratio](double) { apply_crop_ratio(); });
   connect(crop_ratio_h_spin_, &QDoubleSpinBox::valueChanged, this,
           [apply_crop_ratio](double) { apply_crop_ratio(); });
-  connect(crop_ratio_preset_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-    if (crop_ratio_preset_combo_ == nullptr || crop_ratio_w_spin_ == nullptr ||
-        crop_ratio_h_spin_ == nullptr || index < 0) {
-      return;
-    }
-    if (index == crop_ratio_preset_combo_->count() - 1) {
-      return;  // Custom: whatever the fields hold stays.
-    }
-    auto ratio = QSizeF(0.0, 0.0);
-    if (index == 1) {
-      if (!has_active_document() || document().width() <= 0 || document().height() <= 0) {
-        return;
-      }
-      const auto divisor = std::gcd(document().width(), document().height());
-      ratio = QSizeF(static_cast<double>(document().width() / divisor),
-                     static_cast<double>(document().height() / divisor));
-    } else if (index > 1) {
-      ratio = crop_ratio_preset_combo_->itemData(index).toSizeF();
-    }
-    crop_ratio_w_spin_->setValue(ratio.width());
-    crop_ratio_h_spin_->setValue(ratio.height());
-  });
   connect(crop_ratio_clear_button_, &QPushButton::clicked, this, [this] {
     if (crop_ratio_w_spin_ != nullptr) {
       crop_ratio_w_spin_->setValue(0.0);

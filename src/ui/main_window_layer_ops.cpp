@@ -48,6 +48,8 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStandardItem>
+#include <QStandardItemModel>
 #include <QString>
 #include <QStringList>
 #include <QStringLiteral>
@@ -81,6 +83,7 @@
 #include <QClipboard>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/crop_presets.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/layer_merge.hpp"
 #include "ui/new_layer_dialog.hpp"
@@ -1685,7 +1688,9 @@ QList<QAction*> MainWindow::transform_session_context_actions() {
 }
 
 // Apply and Cancel (Cancel puts the canvas frame back, like Esc and the X button), then
-// in Ratio style the Ratio presets, the current one checked. Custom only reports.
+// the bar's Preset list (GitHub issue 696): the free modes, the ratio and pixel-size
+// presets and the saved presets, grouped as in the list, the current one checked. Save
+// Preset and Delete Preset stay on the bar.
 QList<QAction*> MainWindow::crop_context_actions() {
   for (auto* action : std::as_const(crop_context_ratio_actions_)) {
     action->deleteLater();
@@ -1697,27 +1702,38 @@ QList<QAction*> MainWindow::crop_context_actions() {
   crop_context_apply_action_->setEnabled(canvas_->crop_session_has_changes());
   crop_context_cancel_action_->setEnabled(canvas_->crop_session_can_reset());
   QList<QAction*> actions{crop_context_apply_action_, crop_context_cancel_action_};
-  if (crop_ratio_preset_combo_ == nullptr || crop_style_combo_ == nullptr || crop_style_combo_->currentIndex() != 0) {
+  if (crop_preset_combo_ == nullptr) {
     return actions;
   }
-  actions.push_back(nullptr);
   if (crop_context_ratio_group_ == nullptr) {
     crop_context_ratio_group_ = new QActionGroup(this);
     crop_context_ratio_group_->setExclusive(true);
   }
-  const auto custom = crop_ratio_preset_combo_->count() - 1;
-  for (int index = 0; index < crop_ratio_preset_combo_->count(); ++index) {
-    auto* action = new QAction(crop_ratio_preset_combo_->itemText(index), this);
-    action->setObjectName(QStringLiteral("cropContextRatioAction%1").arg(index));
-    action->setCheckable(true);
-    action->setChecked(index == crop_ratio_preset_combo_->currentIndex());
-    action->setEnabled(index != custom);
-    if (index == custom && !action->isChecked()) {
-      delete action;
+  const auto* model = qobject_cast<QStandardItemModel*>(crop_preset_combo_->model());
+  bool separator_pending = true;  // one under Cancel, then one per group of the list
+  for (int index = 0; index < crop_preset_combo_->count(); ++index) {
+    if (!crop_preset_combo_->itemData(index).isValid()) {
+      separator_pending = true;
       continue;
     }
+    // The two commands close the list; they are disabled items or open a prompt.
+    if (const auto kind = static_cast<CropPresetKind>(crop_preset_combo_->itemData(index).toInt());
+        kind == CropPresetKind::Save || kind == CropPresetKind::Delete) {
+      continue;
+    }
+    if (model != nullptr && model->item(index) != nullptr && !model->item(index)->isEnabled()) {
+      continue;
+    }
+    if (separator_pending) {
+      actions.push_back(nullptr);
+      separator_pending = false;
+    }
+    auto* action = new QAction(crop_preset_combo_->itemText(index), this);
+    action->setObjectName(QStringLiteral("cropContextPresetAction%1").arg(index));
+    action->setCheckable(true);
+    action->setChecked(index == crop_preset_combo_->currentIndex());
     crop_context_ratio_group_->addAction(action);
-    QPointer<QComboBox> combo(crop_ratio_preset_combo_);
+    QPointer<QComboBox> combo(crop_preset_combo_);
     connect(action, &QAction::triggered, this, [combo, index] {
       if (combo != nullptr) {
         combo->setCurrentIndex(index);

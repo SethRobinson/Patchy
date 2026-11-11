@@ -513,7 +513,7 @@ EncodedLayer encode_group(const Layer& layer, bool large_document, BitDepth dept
 
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                               const CmykColorConverter& cmyk, std::span<const TextFrameGeometry> text_frames,
-                              bool has_text_engine) {
+                              bool has_text_engine, bool named_key_text_engine) {
   LayerRecord record;
   bool saw_lfx2_block = false;
   std::optional<std::size_t> lrfx_block_index;
@@ -673,8 +673,18 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         // nothing marks right to left is left to right, so one whose first strong character
         // would make auto lay it out right to left (Arabic, Hebrew) is stored as "ltr", which
         // keeps Photoshop's line order and its /Justification on the side Photoshop draws it.
-        const auto apply_paragraph_composers = [text_object](std::vector<PsdTextParagraphRun>& paragraphs,
-                                                             std::string_view text) {
+        const auto apply_paragraph_composers = [text_object, named_key_text_engine](
+                                                   std::vector<PsdTextParagraphRun>& paragraphs,
+                                                   std::string_view text) {
+          if (named_key_text_engine) {
+            // The old named-key engine has the Latin composer only, and Photoshop 2026 lays every
+            // type layer of such a document out with it, the old-text layers (a TySh with no
+            // object) included: a save that said World-Ready moved the centered lines of
+            // mow_master.psd by the paragraph-end kern (Photoshop readback, November 2026).
+            for (auto& paragraph : paragraphs) {
+              paragraph.composer = 0;
+            }
+          }
           if (text_object != nullptr) {
             for (auto& paragraph : paragraphs) {
               int start = 0;
@@ -733,6 +743,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
           record.text_color = extract_engine_data_fill_color(text_payload, cmyk);
         }
         if (!record.text_anti_alias.has_value()) {
+          // The descriptor's method first: Photoshop trusts it over the EngineData number.
+          record.text_anti_alias = extract_type_tool_anti_alias(text_payload);
+        }
+        if (!record.text_anti_alias.has_value()) {
           record.text_anti_alias = extract_engine_data_anti_alias(text_payload);
         }
         if (record.text.has_value() && !record.text_runs.has_value()) {
@@ -742,7 +756,9 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                   text_object != nullptr ? std::span<const TextParagraphFontSize>(text_object->paragraph_font_sizes)
                                          : std::span<const TextParagraphFontSize>{},
                   text_object != nullptr ? std::span<const TextStyleRunFeatures>(text_object->style_features)
-                                         : std::span<const TextStyleRunFeatures>{});
+                                         : std::span<const TextStyleRunFeatures>{},
+                  text_object != nullptr ? std::span<const TextStyleRunKerning>(text_object->style_kerning)
+                                         : std::span<const TextStyleRunKerning>{});
               runs.has_value()) {
             if (!runs->empty()) {
               const auto& first_run = runs->front();

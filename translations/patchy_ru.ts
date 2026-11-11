@@ -6316,14 +6316,6 @@
         <translation>Нет</translation>
     </message>
     <message>
-        <source>Original Ratio</source>
-        <translation>Исходное соотношение</translation>
-    </message>
-    <message>
-        <source>1 : 1 (Square)</source>
-        <translation>1 : 1 (Квадрат)</translation>
-    </message>
-    <message>
         <source>Destination</source>
         <translation>Место назначения</translation>
     </message>
@@ -9221,10 +9213,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Замечательные люди, подарившие предложения, отчёты об ошибках и код: %1</translation>
-    </message>
-    <message>
-        <source>Ratio</source>
-        <translation>Пропорции</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -22512,6 +22500,10 @@ Do you want to replace it?</source>
         <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
         <translation>Другие команды</translation>
     </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
+        <translation>Инструмент «Кадрирование», после изменения рамки кадрирования: следующее наложение / повернуть наложение / показать или скрыть обрезанную область</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -24269,10 +24261,6 @@ Do you want to replace it?</source>
         <translation>Высота:</translation>
     </message>
     <message>
-        <source>Ratio:</source>
-        <translation>Соотношение:</translation>
-    </message>
-    <message>
         <source>None</source>
         <translation>Нет</translation>
     </message>
@@ -24283,10 +24271,6 @@ Do you want to replace it?</source>
     <message>
         <source>1 : 1 (Square)</source>
         <translation>1 : 1 (Квадрат)</translation>
-    </message>
-    <message>
-        <source>Aspect ratio preset for the crop box</source>
-        <translation>Предварительно заданное соотношение сторон для рамки обрезки</translation>
     </message>
     <message>
         <source>Aspect ratio width (0 = unconstrained)</source>
@@ -30310,10 +30294,6 @@ Y: %2
         <translation>Размер</translation>
     </message>
     <message>
-        <source>Ratio constrains the crop box; Size shows its exact width and height and sets them</source>
-        <translation>Пропорции ограничивают рамку кадрирования; Размер показывает её точную ширину и высоту и задаёт их</translation>
-    </message>
-    <message>
         <source>Width of the crop box</source>
         <translation>Ширина рамки кадрирования</translation>
     </message>
@@ -35947,6 +35927,30 @@ Locked: %1</source>
     <message>
         <source>Top edge of the layer</source>
         <translation>Верхний край слоя</translation>
+    </message>
+    <message>
+        <source>Crop presets: Ratio and Size show their fields; a ratio or a pixel size fills them. A size sets the crop box to that many pixels and does not resample</source>
+        <translation>Предустановки кадрирования: «Пропорции» и «Размер» показывают свои поля; пропорции или размер в пикселях заполняют их. Размер задаёт рамке кадрирования столько пикселей и не выполняет ресэмплинг</translation>
+    </message>
+    <message>
+        <source>Next Overlay</source>
+        <translation>Следующее наложение</translation>
+    </message>
+    <message>
+        <source>Crop preset deleted: %1</source>
+        <translation>Предустановка кадрирования удалена: %1</translation>
+    </message>
+    <message>
+        <source>Save Crop Preset</source>
+        <translation>Сохранить предустановку кадрирования</translation>
+    </message>
+    <message>
+        <source>Crop preset saved: %1</source>
+        <translation>Предустановка кадрирования сохранена: %1</translation>
+    </message>
+    <message>
+        <source>%1 picks the next overlay once the crop box has been changed</source>
+        <translation>%1 выбирает следующее наложение после изменения рамки кадрирования</translation>
     </message>
 </context>
 <context>
