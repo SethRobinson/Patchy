@@ -3301,6 +3301,81 @@ private:
 
 }  // namespace
 
+namespace {
+
+QString progress_title_text(const QString& title_format, const QString& name) {
+  return name.isEmpty() ? title_format : title_format.arg(name);
+}
+
+// A title bar's font is the platform's, not the dialog's: Qt exposes it only as the MDI
+// title font, so the dialog font a size larger stands in where that is the smaller one.
+std::vector<QFont> progress_title_fonts(const QWidget& dialog) {
+  auto larger = dialog.font();
+  scale_font_size(larger, 1.15);
+  return {QApplication::font("QMdiSubWindowTitleBar"), larger};
+}
+
+}  // namespace
+
+int progress_dialog_title_reserved_width(const QWidget& dialog) {
+  // KDE's default title bar holds the app icon, keep-above, minimize, maximize and close;
+  // 200 px covers them at 100% (logical pixels scale with the display).
+  constexpr int kMinimumReserve = 200;
+  const int title_bar_height = dialog.style()->pixelMetric(QStyle::PM_TitleBarHeight, nullptr, &dialog);
+  return std::max(kMinimumReserve, 6 * title_bar_height);
+}
+
+int progress_dialog_title_text_width(const QWidget& dialog, const QString& text) {
+  int width = 0;
+  for (const auto& font : progress_title_fonts(dialog)) {
+    width = std::max(width, QFontMetrics(font).horizontalAdvance(text));
+  }
+  return width;
+}
+
+int progress_dialog_title_width_cap(const QWidget& dialog) {
+  auto* screen = dialog.screen();
+  if (screen == nullptr) {
+    screen = QGuiApplication::primaryScreen();
+  }
+  const int screen_cap = screen != nullptr ? screen->availableGeometry().width() * 3 / 5 : kProgressTitleMaximumWidth;
+  // A dialog its label already made wider lends the title that width too.
+  return std::max({200, std::min(kProgressTitleMaximumWidth, screen_cap), dialog.sizeHint().width()});
+}
+
+ProgressDialogTitleFit fit_progress_dialog_title(const QWidget& dialog, const QString& title_format,
+                                                 const QString& name) {
+  const int reserve = progress_dialog_title_reserved_width(dialog);
+  const int cap = progress_dialog_title_width_cap(dialog);
+  const auto full_title = progress_title_text(title_format, name);
+  const int full_width = progress_dialog_title_text_width(dialog, full_title) + reserve;
+  if (full_width <= cap || name.isEmpty()) {
+    return {full_title, std::min(full_width, cap)};
+  }
+  // Elide in the font that draws widest, so every candidate title font fits.
+  QFont widest;
+  int widest_width = -1;
+  for (const auto& font : progress_title_fonts(dialog)) {
+    const int width = QFontMetrics(font).horizontalAdvance(full_title);
+    if (width > widest_width) {
+      widest_width = width;
+      widest = font;
+    }
+  }
+  const QFontMetrics metrics(widest);
+  const int words_width = metrics.horizontalAdvance(title_format.arg(QString()));
+  const int name_width = std::max(metrics.averageCharWidth() * 8, cap - reserve - words_width);
+  return {title_format.arg(metrics.elidedText(name, Qt::ElideMiddle, name_width)), cap};
+}
+
+void set_progress_dialog_title(QDialog& dialog, const QString& title_format, const QString& name) {
+  const auto fit = fit_progress_dialog_title(dialog, title_format, name);
+  dialog.setWindowTitle(fit.title);
+  if (fit.minimum_width > dialog.minimumWidth()) {
+    dialog.setMinimumWidth(fit.minimum_width);
+  }
+}
+
 void keep_dialog_tall_enough_for_wrapped_text(QDialog& dialog) {
   new WrappedTextDialogHeightGuard(dialog);
 }

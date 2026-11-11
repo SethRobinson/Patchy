@@ -234,9 +234,6 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr int kOpenProgressTitleReservedWidth = 140;
-constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
-
 constexpr int kMaxRecentFiles = 200;
 constexpr int kMaxRecentFolders = 200;
 constexpr int kRecentFilesMenuPageSize = 50;
@@ -263,12 +260,6 @@ bool is_network_recent_path(const QString& path, const std::vector<MountEntry>& 
   }
 #endif
   return path_is_on_network_mount(path, mounts);
-}
-
-QString elided_open_progress_title_file_name(const QWidget& widget, const QString& file_name) {
-  const int available_width =
-      std::max(kOpenProgressTitleMinimumFileNameWidth, widget.sizeHint().width() - kOpenProgressTitleReservedWidth);
-  return widget.fontMetrics().elidedText(file_name, Qt::ElideMiddle, available_width);
 }
 
 void trim_recent_files(QStringList& recent_files) {
@@ -2547,8 +2538,7 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
 
   QProgressDialog progress(MainWindow::tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, parent);
   progress.setObjectName(QStringLiteral("openProgressDialog"));
-  progress.setWindowTitle(
-      MainWindow::tr("Opening %1").arg(elided_open_progress_title_file_name(progress, info.fileName())));
+  set_progress_dialog_title(progress, MainWindow::tr("Opening %1"), info.fileName());
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(0);
   progress.setCancelButton(nullptr);
@@ -2769,7 +2759,7 @@ int MainWindow::open_folder_path(const QString& directory) {
   }
   QProgressDialog progress(tr("Opening image %1 of %2...").arg(1).arg(total), tr("Cancel"), 0, total, this);
   progress.setObjectName(QStringLiteral("openFolderProgressDialog"));
-  progress.setWindowTitle(tr("Opening %1").arg(folder_name));
+  set_progress_dialog_title(progress, tr("Opening %1"), folder_name);
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(0);
   progress.setAutoClose(false);
@@ -3680,7 +3670,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
     open_progress_stats_ = {};
     std::optional<OpenProgress> pdf_progress;
     if (loaded->pdf_bit_depth.has_value()) {
-      pdf_progress.emplace(*this, QCoreApplication::translate("QObject", "Import PDF - %1").arg(loaded->file_name),
+      pdf_progress.emplace(*this, QCoreApplication::translate("QObject", "Import PDF - %1"), loaded->file_name,
                            QStringLiteral("pdfPageImagesProgressDialog"),
                            loaded->pdf_import_ms >= open_progress_delay_ms() ? 0 : -1);
     }
@@ -3966,10 +3956,11 @@ int MainWindow::open_progress_delay_ms() {
   return override_ms < 0 ? kDefaultOpenProgressDelayMs : override_ms;
 }
 
-MainWindow::OpenProgress::OpenProgress(MainWindow& window, QString window_title, QString object_name,
-                                       int show_after_ms)
+MainWindow::OpenProgress::OpenProgress(MainWindow& window, QString title_format, QString title_name,
+                                       QString object_name, int show_after_ms)
     : window_(window),
-      window_title_(std::move(window_title)),
+      title_format_(std::move(title_format)),
+      title_name_(std::move(title_name)),
       object_name_(std::move(object_name)),
       show_after_ms_(show_after_ms < 0 ? open_progress_delay_ms() : show_after_ms),
       outer_(window.open_progress_) {
@@ -4001,7 +3992,7 @@ void MainWindow::OpenProgress::sync_dialog() {
       !window_.unattended_automation()) {
     dialog_ = std::make_unique<QProgressDialog>(label_, QString(), 0, maximum_, &window_);
     dialog_->setObjectName(object_name_);
-    dialog_->setWindowTitle(window_title_);
+    set_progress_dialog_title(*dialog_, title_format_, title_name_);
     dialog_->setWindowModality(Qt::WindowModal);
     dialog_->setMinimumDuration(0);
     dialog_->setCancelButton(nullptr);
@@ -4137,7 +4128,7 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
 
   std::optional<OpenProgress> own_progress;
   if (open_progress_ == nullptr) {
-    own_progress.emplace(*this, tr("Opening PDF"), QStringLiteral("pdfPageImagesProgressDialog"));
+    own_progress.emplace(*this, tr("Opening PDF"), QString(), QStringLiteral("pdfPageImagesProgressDialog"));
   }
   auto& progress = *open_progress_;
 
@@ -4266,7 +4257,7 @@ void MainWindow::open_extra_imported_page_sessions(const QString& file_name,
   const int page_count = static_cast<int>(pages.size()) + 1;
   std::optional<OpenProgress> own_progress;
   if (open_progress_ == nullptr) {
-    own_progress.emplace(*this, tr("Opening %1").arg(file_name), QStringLiteral("pdfPagesProgressDialog"), 0);
+    own_progress.emplace(*this, tr("Opening %1"), file_name, QStringLiteral("pdfPagesProgressDialog"), 0);
   }
   auto& progress = *open_progress_;
   int position = 1;
@@ -4354,7 +4345,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     open_progress_stats_ = {};
     std::optional<OpenProgress> pdf_progress;
     if (loaded->pdf_bit_depth.has_value()) {
-      pdf_progress.emplace(*this, QCoreApplication::translate("QObject", "Import PDF - %1").arg(loaded->file_name),
+      pdf_progress.emplace(*this, QCoreApplication::translate("QObject", "Import PDF - %1"), loaded->file_name,
                            QStringLiteral("pdfPageImagesProgressDialog"),
                            loaded->pdf_import_ms >= open_progress_delay_ms() ? 0 : -1);
     }
@@ -5853,7 +5844,7 @@ void MainWindow::run_save_write(const QString& path, bool on_worker, bool show_p
       }
       dialog = std::make_unique<QProgressDialog>(tr("Saving %1...").arg(file_name), QString(), 0, 0, this);
       dialog->setObjectName(QStringLiteral("saveProgressDialog"));
-      dialog->setWindowTitle(tr("Saving %1").arg(file_name));
+      set_progress_dialog_title(*dialog, tr("Saving %1"), file_name);
       dialog->setWindowModality(Qt::WindowModal);
       dialog->setMinimumDuration(0);
       dialog->setCancelButton(nullptr);

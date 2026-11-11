@@ -17,6 +17,9 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
+#include <QFontMetrics>
+#include <QPainter>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -1162,6 +1165,100 @@ void ui_file_drop_discards_work_when_owner_closes() {
   }
 }
 
+// A mock title bar over the dialog body: the window manager's title is not part of a
+// widget grab, so this draws the dialog's title the way a title bar with an icon and four
+// buttons does, elided in the middle to the room left beside them (GitHub #704).
+QImage open_progress_title_capture(QWidget& dialog) {
+  const auto body = dialog.grab().toImage();
+  const auto font = QApplication::font("QMdiSubWindowTitleBar");
+  const QFontMetrics metrics(font);
+  const int reserve = patchy::ui::progress_dialog_title_reserved_width(dialog);
+  const int bar_height = metrics.height() + 16;
+  const int width = static_cast<int>(std::lround(body.width() / body.devicePixelRatio()));
+  const int height = static_cast<int>(std::lround(body.height() / body.devicePixelRatio()));
+  QImage image(width + 2, height + bar_height + 1, QImage::Format_ARGB32);
+  image.fill(QColor(70, 74, 80));
+  QPainter painter(&image);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.fillRect(QRect(1, 1, width, bar_height - 1), QColor(42, 46, 50));
+  painter.setBrush(QColor(90, 150, 220));
+  painter.setPen(Qt::NoPen);
+  const int button = bar_height - 14;
+  painter.drawRoundedRect(QRect(9, 8, button, button), 2, 2);
+  painter.setBrush(QColor(120, 124, 130));
+  for (int index = 0; index < 4; ++index) {
+    painter.drawEllipse(QRect(width - 8 - (index + 1) * (button + 8), 8, button, button));
+  }
+  painter.setFont(font);
+  painter.setPen(QColor(235, 235, 235));
+  const auto shown = metrics.elidedText(dialog.windowTitle(), Qt::ElideMiddle, std::max(0, width - reserve));
+  painter.drawText(QRect(1 + reserve / 2, 1, std::max(0, width - reserve), bar_height - 1), Qt::AlignCenter, shown);
+  painter.drawImage(QRect(1, bar_height, width, height), body);
+  return image;
+}
+
+void ui_open_progress_dialog_fits_title_or_elides_name_in_middle() {
+  ensure_artifact_dir();
+  const std::array<QString, 3> file_names = {
+      QStringLiteral("psd-large.png"),
+      QStringLiteral("scan-2026-11-11-sketchbook-page-17.png"),
+      QStringLiteral("a-very-long-file-name-for-the-opening-dialog-that-runs-well-past-the-widest-the-"
+                     "progress-window-may-grow-to-0123456789.png")};
+  const std::array<QString, 3> capture_names = {QStringLiteral("open-progress-title-short.png"),
+                                                QStringLiteral("open-progress-title-medium.png"),
+                                                QStringLiteral("open-progress-title-long.png")};
+  for (std::size_t index = 0; index < file_names.size(); ++index) {
+    const auto& file_name = file_names[index];
+    const auto image_path = QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(file_name)).absoluteFilePath();
+    QImage source(6, 4, QImage::Format_RGB32);
+    source.fill(QColor(20, 40, 60));
+    CHECK(source.save(image_path));
+
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    QMimeData mime_data;
+    mime_data.setUrls(QList<QUrl>{QUrl::fromLocalFile(image_path)});
+    const auto drop_position = canvas->rect().center();
+    QDragEnterEvent drag_enter(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &drag_enter);
+    QDragMoveEvent drag_move(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &drag_move);
+    QApplication::processEvents();
+
+    // The drop queues the open; the check runs while its progress dialog is up.
+    QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &drop);
+    CHECK(drop.isAccepted());
+    bool saw_open_progress = false;
+    QString title;
+    std::exception_ptr progress_error;
+    QTimer::singleShot(0, &window, [&] {
+      try {
+        verify_open_progress_dialog(file_name, saw_open_progress);
+        auto* dialog = find_top_level_dialog(QStringLiteral("openProgressDialog"));
+        title = dialog->windowTitle();
+        CHECK(open_progress_title_capture(*dialog).save(
+            QDir(QStringLiteral("test-artifacts")).filePath(capture_names[index])));
+      } catch (...) {
+        progress_error = std::current_exception();
+      }
+    });
+    QApplication::processEvents();
+    if (progress_error) std::rethrow_exception(progress_error);
+    CHECK(saw_open_progress);
+    // verify_open_progress_dialog checked the width; the middle name fits or elides
+    // depending on the screen's width cap.
+    if (index == 0) {
+      CHECK(title == QStringLiteral("Opening ") + file_name);
+    } else if (index == 2) {
+      CHECK(title.contains(QChar(0x2026)));
+      CHECK(title.startsWith(QStringLiteral("Opening a-very")));
+      CHECK(title.endsWith(QStringLiteral("0123456789.png")));
+    }
+  }
+}
+
 void ui_reported_psd_open_shows_progress_dialog_if_available() {
   const auto fixture_path =
       patchy::test::local_psd_fixture_path("C2Kyoto Nintendo NES Cartridge Label Template (Front).psd");
@@ -1517,6 +1614,8 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part3() {
       {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
       {"ui_file_drop_discards_work_when_owner_closes", ui_file_drop_discards_work_when_owner_closes},
       {"ui_reported_psd_open_shows_progress_dialog_if_available", ui_reported_psd_open_shows_progress_dialog_if_available},
+      {"ui_open_progress_dialog_fits_title_or_elides_name_in_middle",
+       ui_open_progress_dialog_fits_title_or_elides_name_in_middle},
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles", ui_qimage_region_render_matches_full_layer_styles},
       {"ui_qimage_region_render_matches_full_with_clipping", ui_qimage_region_render_matches_full_with_clipping},

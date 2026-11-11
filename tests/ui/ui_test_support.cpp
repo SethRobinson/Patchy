@@ -1433,12 +1433,25 @@ void verify_open_progress_dialog(const QString& expected_file_name, bool& saw_di
   CHECK(title != QStringLiteral("Opening File"));
   CHECK(!title.contains(QStringLiteral("Patchy")));
   const auto title_file_name = title.mid(QStringLiteral("Opening ").size());
+  // The dialog is wide enough for its whole title beside the window manager's buttons,
+  // up to the cap; past it the name is elided in the middle (GitHub #704).
+  const int reserve = patchy::ui::progress_dialog_title_reserved_width(*dialog);
+  const int cap = patchy::ui::progress_dialog_title_width_cap(*dialog);
+  const int full_width =
+      patchy::ui::progress_dialog_title_text_width(*dialog, QStringLiteral("Opening ") + expected_file_name) + reserve;
   if (title_file_name.contains(QChar(0x2026))) {
+    CHECK(full_width > cap);
     CHECK(title_file_name.size() < expected_file_name.size());
-    CHECK(title_file_name.endsWith(QFileInfo(expected_file_name).suffix()));
+    CHECK(title_file_name.endsWith(QStringLiteral(".") + QFileInfo(expected_file_name).suffix()));
+    CHECK(title_file_name.startsWith(expected_file_name.left(3)));
+    CHECK(patchy::ui::progress_dialog_title_text_width(*dialog, title) + reserve <= cap);
+    CHECK(dialog->minimumWidth() >= cap);
   } else {
     CHECK(title_file_name == expected_file_name);
+    CHECK(full_width <= cap);
+    CHECK(dialog->minimumWidth() >= full_width);
   }
+  CHECK(dialog->width() >= dialog->minimumWidth());
   CHECK(dialog->windowModality() == Qt::WindowModal);
   CHECK(dialog->minimum() == 0);
   CHECK(dialog->maximum() == 0);

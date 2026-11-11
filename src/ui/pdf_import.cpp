@@ -1004,7 +1004,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   QProgressDialog progress(QObject::tr("Importing page %1 of %2...").arg(1).arg(selected_count),
                            QObject::tr("Cancel"), 0, selected_count, parent);
   progress.setObjectName(QStringLiteral("pdfImportProgressDialog"));
-  progress.setWindowTitle(QObject::tr("Import PDF - %1").arg(file_name));
+  set_progress_dialog_title(progress, QObject::tr("Import PDF - %1"), file_name);
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(0);
   progress.setAutoClose(false);

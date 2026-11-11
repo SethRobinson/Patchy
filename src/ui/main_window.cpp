@@ -10906,7 +10906,7 @@ void MainWindow::render_pending_pdf_image_layers(std::span<Document* const> targ
   // session yet, so nothing else touches them meanwhile.
   std::optional<OpenProgress> own_progress;
   if (open_progress_ == nullptr) {
-    own_progress.emplace(*this, tr("Opening PDF"), QStringLiteral("pdfPageImagesProgressDialog"));
+    own_progress.emplace(*this, tr("Opening PDF"), QString(), QStringLiteral("pdfPageImagesProgressDialog"));
   }
   auto& progress = *open_progress_;
   using Decoded = std::optional<std::pair<PixelBuffer, Rect>>;
