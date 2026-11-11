@@ -1393,6 +1393,182 @@ void ui_transformed_text_side_handles_follow_rotation() {
   send_key(*editor, Qt::Key_Escape);
   process_events_for(100);
 }
+
+// A box turned a quarter by Free Transform and reopened with the Type tool: it edits on the
+// transformed overlay. Shared by the #684 follow-up tests below.
+QTextEdit* open_quarter_turned_box_session(MainWindow& window, CanvasWidget& canvas, const QString& text) {
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(200, 180)),
+       canvas.widget_position_for_document_point(QPoint(440, 300)));
+  process_events_for(150);
+  auto* editor = canvas.findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return nullptr;
+  editor->setPlainText(text);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  const auto state = canvas.transform_controls_state();
+  CHECK(state.has_value()); if (!state) return nullptr;
+  CHECK(canvas.set_transform_controls_state(state->reference_position, 100.0, 100.0, 90.0));
+  QApplication::processEvents();
+  send_key(canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto turned = canvas.active_layer_document_rect();
+  CHECK(turned.has_value()); if (!turned) return nullptr;
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto edit_point = canvas.widget_position_for_document_point(turned->center());
+  send_mouse(canvas, QEvent::MouseButtonPress, edit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, edit_point, Qt::LeftButton, Qt::NoButton);
+  process_events_for(150);
+  return canvas.findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+}
+
+// The #684 follow-up (philipzae, #176's orange zones): a box resizes from anywhere along each
+// side, from 6 px outside its line to 3 px inside it, with the side's size cursor; a click
+// further inside still places the caret. A press in the band does not jump the edge onto the
+// pointer. The same on the transformed overlay, where the band and its cursor turn with the box.
+void ui_text_box_edge_bands_resize_one_edge() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, "app.newDocument(640,480);");
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 60)),
+       canvas->widget_position_for_document_point(QPoint(340, 260)));
+  process_events_for(150);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  editor->setPlainText(QStringLiteral("Edge bands resize the text box from anywhere along a side. ").repeated(3));
+  process_events_for(150);
+  struct Box {
+    int x, y, width, height;
+  };
+  const auto box = [&] {
+    return Box{editor->property("patchy.documentTextX").toInt(), editor->property("patchy.documentTextY").toInt(),
+               editor->property("patchy.documentTextWidth").toInt(),
+               editor->property("patchy.documentTextHeight").toInt()};
+  };
+  const auto band_named = [canvas](const char* name) {
+    return canvas->findChild<QWidget*>(QString::fromLatin1(name), Qt::FindDirectChildrenOnly);
+  };
+  for (const auto* name : {"textBoxResizeBandTop", "textBoxResizeBandBottom", "textBoxResizeBandLeft",
+                           "textBoxResizeBandRight"}) {
+    auto* band = band_named(name);
+    CHECK(band != nullptr && band->isVisible());
+  }
+  auto frame = editor->geometry();
+  // What a real pointer finds a quarter of the way along each side: the band, with its cursor,
+  // 5 px outside and 2 px inside the line; 6 px inside it is the text.
+  const QPoint right_out(frame.right() + 1 + 5, frame.top() + frame.height() / 4);
+  const QPoint right_in(frame.right() - 1, frame.top() + frame.height() / 4);
+  const QPoint bottom_in(frame.left() + frame.width() / 4, frame.bottom() - 1);
+  const QPoint left_text(frame.left() + 6, frame.top() + frame.height() / 2);
+  {
+    auto* hit = canvas->childAt(right_out);
+    CHECK(hit != nullptr && hit->objectName() == QStringLiteral("textBoxResizeBandRight"));
+    CHECK(hit != nullptr && hit->cursor().shape() == Qt::SizeHorCursor);
+    hit = canvas->childAt(right_in);
+    CHECK(hit != nullptr && hit->objectName() == QStringLiteral("textBoxResizeBandRight"));
+    hit = canvas->childAt(bottom_in);
+    CHECK(hit != nullptr && hit->objectName() == QStringLiteral("textBoxResizeBandBottom"));
+    CHECK(hit != nullptr && hit->cursor().shape() == Qt::SizeVerCursor);
+    hit = canvas->childAt(left_text);
+    CHECK(hit == nullptr || !hit->property("patchy.textResizeHandle").toBool());
+  }
+  {
+    const auto shot = canvas->grab().toImage();
+    save_image_artifact("ui_text_box_edge_bands", shot.copy(frame.adjusted(-40, -30, 40, 30).intersected(shot.rect())));
+  }
+  const auto drag_at = [&](QPoint from, QPoint delta) {
+    editor->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    drag(*canvas, from, from + delta);
+    process_events_for(150);
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  };
+  // The right band, outside the line: only the width changes, by exactly the drag.
+  auto before = box();
+  drag_at(right_out, QPoint(-60, 13));
+  auto after = box();
+  CHECK(after.x == before.x && after.y == before.y && after.height == before.height);
+  CHECK(std::abs(after.width - (before.width - 60)) <= 1);
+  // The bottom band, just inside the line: only the height.
+  frame = editor->geometry();
+  before = box();
+  drag_at(QPoint(frame.left() + frame.width() / 4, frame.bottom() - 1), QPoint(9, 30));
+  after = box();
+  CHECK(after.x == before.x && after.y == before.y && after.width == before.width);
+  CHECK(std::abs(after.height - (before.height + 30)) <= 1);
+  // The left band moves the origin and keeps the right edge.
+  frame = editor->geometry();
+  before = box();
+  drag_at(QPoint(frame.left() - 3, frame.top() + frame.height() * 3 / 4), QPoint(20, 0));
+  after = box();
+  CHECK(std::abs(after.x - (before.x + 20)) <= 1);
+  CHECK(std::abs((after.x + after.width) - (before.x + before.width)) <= 1);
+  // A click 6 px inside the top edge places the caret on the first line; the box stays.
+  frame = editor->geometry();
+  before = box();
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  click_widget_like_a_user(*canvas, QPoint(frame.left() + 12, frame.top() + 6));
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->textCursor().position() < 8);
+  after = box();
+  CHECK(after.x == before.x && after.y == before.y && after.width == before.width && after.height == before.height);
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+
+  // On the overlay: the box turned a quarter, so its right side runs down the screen.
+  editor = open_quarter_turned_box_session(window, *canvas, QStringLiteral("Turned box text with edge bands"));
+  CHECK(editor != nullptr); if (!editor) return;
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"), Qt::FindDirectChildrenOnly);
+  CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
+  const auto corners = [&] { return overlay->property("patchy.transformedTextResizeHandleCenters").toList(); };
+  auto corner_list = corners();
+  CHECK(corner_list.size() == 4); if (corner_list.size() != 4) return;
+  // TopLeft, TopRight, BottomLeft, BottomRight: the right side runs TopRight to BottomRight.
+  const auto right_a = corner_list[1].toPointF();
+  const auto right_b = corner_list[3].toPointF();
+  const auto center = (corner_list[0].toPointF() + corner_list[3].toPointF()) / 2.0;
+  auto outward = (right_a + right_b) / 2.0 - center;
+  outward /= std::max(1e-6, std::hypot(outward.x(), outward.y()));
+  const auto along_right = right_a + (right_b - right_a) * 0.25;
+  const auto hover_cursor = [&](QPointF canvas_point) {
+    send_mouse(*overlay, QEvent::MouseMove, (canvas_point - QPointF(overlay->pos())).toPoint(), Qt::NoButton,
+               Qt::NoButton);
+    return overlay->cursor().shape();
+  };
+  CHECK(hover_cursor(along_right + outward * 4.0) == Qt::SizeVerCursor);
+  CHECK(hover_cursor(along_right - outward * 2.0) == Qt::SizeVerCursor);
+  CHECK(hover_cursor(along_right - outward * 8.0) == Qt::IBeamCursor);
+  {
+    const auto shot = canvas->grab().toImage();
+    save_image_artifact("ui_transformed_text_edge_bands",
+                        shot.copy(overlay->geometry().adjusted(-10, -10, 10, 10).intersected(shot.rect())));
+  }
+  const auto width_before = editor->property("patchy.documentTextWidth").toInt();
+  const auto height_before = editor->property("patchy.documentTextHeight").toInt();
+  const auto start = (along_right + outward * 4.0).toPoint();
+  const auto end = (along_right + outward * 44.0).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, (start + end) / 2, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  process_events_for(120);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(std::abs(editor->property("patchy.documentTextWidth").toInt() - (width_before + 40)) <= 2);
+  CHECK(editor->property("patchy.documentTextHeight").toInt() == height_before);
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_area_tests() {
@@ -1416,5 +1592,6 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_box_text_overflow_marker_on_bottom_right_handle", ui_box_text_overflow_marker_on_bottom_right_handle},
           {"ui_box_text_overflow_marker_tooltip", ui_box_text_overflow_marker_tooltip},
           {"ui_box_text_side_handles_move_one_edge", ui_box_text_side_handles_move_one_edge},
-          {"ui_transformed_text_side_handles_follow_rotation", ui_transformed_text_side_handles_follow_rotation}};
+          {"ui_transformed_text_side_handles_follow_rotation", ui_transformed_text_side_handles_follow_rotation},
+          {"ui_text_box_edge_bands_resize_one_edge", ui_text_box_edge_bands_resize_one_edge}};
 }

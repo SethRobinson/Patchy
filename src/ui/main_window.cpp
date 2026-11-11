@@ -1357,6 +1357,13 @@ class TransformedTextEditOverlay final : public QWidget {
   };
   static constexpr double kHandleSize = 6.0;
   static constexpr double kHandleHitMargin = 5.0;
+  // The edge bands (#684 follow-up, #176's zones): each side resizes from anywhere between the
+  // corners' hit squares, within kEdgeBandOutside outside its line and kEdgeBandInside inside it,
+  // so a click just inside the text still places the caret.
+  static constexpr double kEdgeBandOutside = 6.0;
+  static constexpr double kEdgeBandInside = 3.0;
+  // Room around the box for the bands and the corner rotate zones (kTextBoxCornerRotateReach).
+  static constexpr double kOverlayMargin = 32.0;
 
 public:
   explicit TransformedTextEditOverlay(CanvasWidget* canvas)
@@ -1419,7 +1426,10 @@ public:
       return;
     }
 
-    const auto overlay_geometry = canvas_polygon.boundingRect().adjusted(-8.0, -8.0, 8.0, 8.0).toAlignedRect();
+    const auto overlay_geometry =
+        canvas_polygon.boundingRect()
+            .adjusted(-kOverlayMargin, -kOverlayMargin, kOverlayMargin, kOverlayMargin)
+            .toAlignedRect();
     if (overlay_geometry.isEmpty()) {
       hide();
       return;
@@ -1450,6 +1460,10 @@ public:
       const auto handle_rect = resize_handle_rect(handle);
       mask = mask.united(QRegion(handle_rect.toAlignedRect()));
       side_handle_centers.push_back(handle_rect.center() + origin);
+      // The band outside the line too, so the overlay (and its size cursor) is under the pointer.
+      if (const auto band = edge_band_polygon(handle); !band.isEmpty()) {
+        mask = mask.united(QRegion(band.toPolygon()));
+      }
     }
     setProperty("patchy.transformedTextEditorPolygon", editor_polygon);
     setProperty("patchy.transformedTextResizeHandleCenters", handle_centers);
@@ -1585,9 +1599,13 @@ protected:
     if (const auto handle = resize_handle_at(event->position()); handle != ResizeHandle::None) {
       QToolTip::hideText();
       editor_->setFocus(Qt::MouseFocusReason);
+      // From the press point, not the handle's: a press on an edge band a few pixels off the
+      // line must not jump the edge onto the pointer.
       resize_drag_ = ResizeDragState{handle,
                                      text_transform_,
-                                     editor_point_for_handle(handle),
+                                     map_canvas_point_to_editor(event->position() + QPointF(geometry().topLeft()),
+                                                                text_transform_)
+                                         .value_or(editor_point_for_handle(handle)),
                                      std::max(kMinimumTextBoxDocumentSize,
                                               editor_->property("patchy.documentTextWidth").toInt()),
                                      std::max(kMinimumTextBoxDocumentSize,
@@ -1908,7 +1926,55 @@ private:
         return handle;
       }
     }
+    // The squares win; then the band along each side (shown with its side handle).
+    for (const auto handle : kSideHandles) {
+      if (resize_handle_shown(handle) && edge_band_polygon(handle).containsPoint(point, Qt::OddEvenFill)) {
+        return handle;
+      }
+    }
     return ResizeHandle::None;
+  }
+
+  // A side's two corners, in the order the side runs.
+  [[nodiscard]] static std::pair<ResizeHandle, ResizeHandle> side_corners(ResizeHandle side) {
+    switch (side) {
+      case ResizeHandle::Top:
+        return {ResizeHandle::TopLeft, ResizeHandle::TopRight};
+      case ResizeHandle::Bottom:
+        return {ResizeHandle::BottomLeft, ResizeHandle::BottomRight};
+      case ResizeHandle::Left:
+        return {ResizeHandle::TopLeft, ResizeHandle::BottomLeft};
+      default:
+        return {ResizeHandle::TopRight, ResizeHandle::BottomRight};
+    }
+  }
+
+  // A side's resize band in overlay coordinates: between the corners' hit squares, from
+  // kEdgeBandOutside outside the drawn line to kEdgeBandInside inside it, turned with the box.
+  [[nodiscard]] QPolygonF edge_band_polygon(ResizeHandle side) const {
+    const auto [first, second] = side_corners(side);
+    const auto a = handle_overlay_center(first);
+    const auto b = handle_overlay_center(second);
+    const auto edge = b - a;
+    const auto length = std::hypot(edge.x(), edge.y());
+    const auto reach = kHandleSize / 2.0 + kHandleHitMargin;
+    if (length <= 2.0 * reach) {
+      return {};
+    }
+    const QPointF along = edge / length;
+    QPointF outward(-along.y(), along.x());
+    const auto box_center = (handle_overlay_center(ResizeHandle::TopLeft) +
+                             handle_overlay_center(ResizeHandle::BottomRight)) / 2.0;
+    const auto middle = (a + b) / 2.0;
+    if (QPointF::dotProduct(middle - box_center, outward) < 0.0) {
+      outward = -outward;
+    }
+    const auto start = a + along * reach;
+    const auto end = b - along * reach;
+    QPolygonF band;
+    band << start + outward * kEdgeBandOutside << end + outward * kEdgeBandOutside
+         << end - outward * kEdgeBandInside << start - outward * kEdgeBandInside;
+    return band;
   }
 
   // The size cursor nearest the handle's outward direction as drawn, so a rotated or skewed box
@@ -11979,6 +12045,72 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       editor_rect.width() < side_handle_minimum_edge || editor_rect.height() < side_handle_minimum_edge;
   const auto middle = QPoint(editor_rect.left() + (editor_rect.width() + 1) / 2,
                              editor_rect.top() + (editor_rect.height() + 1) / 2);
+
+  // The edge bands (#684 follow-up, #176's zones): invisible strips along each side that resize
+  // like its side handle, from kBandOutside outside the line to kBandInside inside it (a click
+  // further in places the caret), between the corners' hit squares (handle square plus
+  // text_editor_resize_handle_at's 8 px). Created before the handles, so the squares stay on top.
+  struct BandSpec {
+    const char* name;
+    const char* corner;
+    Qt::CursorShape cursor;
+  };
+  static constexpr std::array<BandSpec, 4> kBands = {{
+      {"textBoxResizeBandTop", "top", Qt::SizeVerCursor},
+      {"textBoxResizeBandBottom", "bottom", Qt::SizeVerCursor},
+      {"textBoxResizeBandLeft", "left", Qt::SizeHorCursor},
+      {"textBoxResizeBandRight", "right", Qt::SizeHorCursor},
+  }};
+  constexpr int kBandOutside = 6;
+  constexpr int kBandInside = 3;
+  const int corner_reach = handle_size / 2 + 8 + 1;
+  // The lines the handles sit on: top and left on the first row and column, bottom and right
+  // just past the last.
+  const int line_left = editor_rect.left();
+  const int line_top = editor_rect.top();
+  const int line_right = editor_rect.right() + 1;
+  const int line_bottom = editor_rect.bottom() + 1;
+  for (const auto& spec : kBands) {
+    auto* band = canvas_->findChild<QWidget*>(QString::fromLatin1(spec.name), Qt::FindDirectChildrenOnly);
+    if (band == nullptr) {
+      band = new QWidget(canvas_);
+      band->setObjectName(QString::fromLatin1(spec.name));
+      band->setProperty("patchy.textResizeHandle", true);
+      band->setProperty("patchy.textResizeBand", true);
+      band->setProperty("patchy.textResizeCorner", QString::fromLatin1(spec.corner));
+      band->setCursor(spec.cursor);
+      band->setFocusPolicy(Qt::NoFocus);
+      // Nothing to see: the application sheet would otherwise paint the strip as a panel.
+      set_themed_style(*band, QStringLiteral("#%1 { background: transparent; border: none; }")
+                                  .arg(QString::fromLatin1(spec.name)));
+      band->installEventFilter(this);
+    }
+    const auto corner = QString::fromLatin1(spec.corner);
+    QRect band_rect;
+    if (corner == QStringLiteral("top")) {
+      band_rect = QRect(QPoint(line_left + corner_reach, line_top - kBandOutside),
+                        QPoint(line_right - corner_reach, line_top + kBandInside - 1));
+    } else if (corner == QStringLiteral("bottom")) {
+      band_rect = QRect(QPoint(line_left + corner_reach, line_bottom - kBandInside),
+                        QPoint(line_right - corner_reach, line_bottom + kBandOutside - 1));
+    } else if (corner == QStringLiteral("left")) {
+      band_rect = QRect(QPoint(line_left - kBandOutside, line_top + corner_reach),
+                        QPoint(line_left + kBandInside - 1, line_bottom - corner_reach));
+    } else {
+      band_rect = QRect(QPoint(line_right - kBandInside, line_top + corner_reach),
+                        QPoint(line_right + kBandOutside - 1, line_bottom - corner_reach));
+    }
+    // Shown with the side handles (the same short-box rule), never hidden mid-drag.
+    const bool dragging = editor->property("patchy.activeTextResizeHandleName").toString() == band->objectName();
+    if ((box_too_small_for_side_handles && !dragging) || band_rect.isEmpty()) {
+      band->hide();
+      continue;
+    }
+    band->setGeometry(band_rect);
+    band->show();
+    band->raise();
+  }
+
   for (const auto& spec : kHandles) {
     auto* handle = canvas_->findChild<QWidget*>(QString::fromLatin1(spec.name), Qt::FindDirectChildrenOnly);
     if (handle == nullptr) {
@@ -12155,8 +12287,16 @@ QWidget* MainWindow::text_editor_resize_handle_at(QPoint canvas_position) const 
   QWidget* best_handle = nullptr;
   int best_distance = std::numeric_limits<int>::max();
   const auto handles = canvas_->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+  // The squares (with 8 px around them) first; an edge band only where no square reaches.
+  QWidget* band_hit = nullptr;
   for (auto* handle : handles) {
     if (handle == nullptr || !handle->isVisible() || !handle->property("patchy.textResizeHandle").toBool()) {
+      continue;
+    }
+    if (handle->property("patchy.textResizeBand").toBool()) {
+      if (band_hit == nullptr && handle->geometry().contains(canvas_position)) {
+        band_hit = handle;
+      }
       continue;
     }
     const auto hit_rect = handle->geometry().adjusted(-8, -8, 8, 8);
@@ -12170,7 +12310,7 @@ QWidget* MainWindow::text_editor_resize_handle_at(QPoint canvas_position) const 
       best_handle = handle;
     }
   }
-  return best_handle;
+  return best_handle != nullptr ? best_handle : band_hit;
 }
 
 bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event) {
