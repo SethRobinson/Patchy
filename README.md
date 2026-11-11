@@ -10,7 +10,7 @@ limited palettes without flattening your layers, bring in Affinity, Krita, GIMP,
 OpenRaster, Paint.NET, and PDF artwork, and extend the editor with classic plug-ins and
 JavaScript.
 
-**[Download](#download)** · **[Try in your browser](https://www.patchyimageeditor.com)** · **[Features](#features)** · **[Full gallery](docs/screenshots.md)**
+**[Download](#download)** · **[Try in your browser](https://www.patchyimageeditor.com)** · **[Watch the video](https://www.youtube.com/watch?v=xhM6RvmcjGU)** · **[Features](#features)** · **[Full gallery](docs/screenshots.md)**
 
 For bug reports and feature requests, please [open an issue](https://github.com/SethRobinson/Patchy/issues/new) or post in [Discussions](https://github.com/SethRobinson/Patchy/discussions). These are the best places to post because search engines can index them, helping others find the questions and answers. Want to chat? Join [Seth's Discord](https://discord.gg/QwV5VaZ).
 
@@ -54,6 +54,14 @@ Patchy then updates with `flatpak update` and starts from your application menu.
 [Linux install guide](docs/install-linux.md) covers getting the `flatpak` tool,
 system-wide installs, the single-file bundle, Raspberry Pi setup, and the AppImage (FUSE,
 menu entries, updates).
+
+## Video
+
+<a href="https://www.youtube.com/watch?v=xhM6RvmcjGU"><img src="docs/images/video/video_poster.jpg" width="1000" alt="Video poster: a wall of Patchy screenshots behind the words All of it. Free. and a Watch the video button marked 2:47."></a>
+
+A tour of Patchy in under three minutes, cut from real captures of the app: layer styles,
+vectors, brushes, palette mode, PSD compatibility, filters, type, Smart Objects, scanning,
+themes and scripting. [Watch it on YouTube](https://www.youtube.com/watch?v=xhM6RvmcjGU).
 
 ## Screenshots
 

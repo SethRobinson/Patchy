@@ -4,7 +4,7 @@ Related documents:
 
 - [readme-showcase-scenes.md](readme-showcase-scenes.md): the animated captures and the newer scenes' composition rules
 
-The README uses a hero image and six feature cards: `layered_import`, `object_select`,
+The README uses a hero image, a [video poster](#the-video-poster) and six feature cards: `layered_import`, `object_select`,
 `breakout` (animated), `plugin_kpt5`, `web_export_quad` (animated) and `mcp_isometric`
 (animated). The
 [full gallery](screenshots.md)
@@ -230,6 +230,18 @@ documents or attach this capture workflow to an unrelated running instance.
 Capture conventions, fixture requirements, and the separate Mehdi plug-in recipe are in
 "README screenshots: capture conventions" below. The photograph's source and
 license are recorded in [NOTICE-THIRD-PARTY.md](../NOTICE-THIRD-PARTY.md).
+
+## The video poster
+
+The README's Video section, between Download and Screenshots, is one image:
+`docs/images/video/video_poster.jpg`, a frame of the promotional film with a play button
+drawn on it (Patchy's own, not YouTube's logo), linked to the film on YouTube. A README
+cannot embed a player, so the poster is the player; the link row under the introduction
+carries the same link. The film and its poster are made outside this repository, so this is
+the one README image without a recipe here. When the film is replaced, change the poster,
+the running time in its alt text, and both links together. Keep the section to that one
+image at the hero's width. The music credit stays on the film and its YouTube page, not in
+the README.
 
 ## README screenshots: capture conventions
 
