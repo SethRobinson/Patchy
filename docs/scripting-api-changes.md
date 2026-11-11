@@ -23,6 +23,15 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-11 (behavioral): `doc.resizeCanvas` no longer leaves the Background's name and locks on a
+layer that stopped being the Background (GitHub issue 701,
+[background-layer.md](background-layer.md#canvas-changes)). With options, a resize that leaves the
+Background pixels beyond the canvas makes it an ordinary unlocked layer named "Layer 0" (the
+name in the user's language) that keeps every pixel, as Image > Canvas Size does; a resize that
+only grows the canvas keeps the Background and fills as before, now whatever the Background is
+named. Without options, any new size releases it the same way. Documents made by
+`app.newDocument` have no Background and are unchanged. Pinned by
+`ui_script_resize_canvas_keeping_pixels_turns_background_into_layer_0`.
 2026-11-10 (behavioral): `addShape` with a `line` geometry centers the line's stroke unless the
 appearance names an `alignment`; it was inside, where the stroke never showed past the line's
 weight (local-051, [vector-tools-lines.md](vector-tools-lines.md#a-lines-stroke)). The other shapes keep

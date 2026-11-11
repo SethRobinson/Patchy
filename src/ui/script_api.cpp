@@ -3447,12 +3447,24 @@ void ScriptDocumentObject::resizeCanvas(int width, int height, const QJSValue& o
     if (document == nullptr) {
       return;
     }
+    // The Background's bounds are the canvas, so a new size makes it an ordinary "Layer 0"
+    // (GitHub issue 701) instead of leaving its locks on a layer that is no longer one.
+    const auto* background =
+        background_layer(std::as_const(*document).layers(), document->width(), document->height());
+    const auto background_id = background != nullptr ? std::optional<LayerId>(background->id()) : std::nullopt;
     document->resize_canvas(width, height);
+    if (background_id.has_value() &&
+        background_layer(std::as_const(*document).layers(), document->width(), document->height()) == nullptr) {
+      if (auto* released = document->find_layer(*background_id); released != nullptr) {
+        release_background(*released, layer_from_background_name());
+      }
+    }
     host_.note_structure_changed(session_id_);
     return;
   }
   // With options it is Image > Canvas Size: the content moves with the anchor or offset and
-  // the Background layer fills the new area with `fill`.
+  // the Background layer fills the new area with `fill`; left with pixels beyond the canvas,
+  // it becomes "Layer 0" (GitHub issue 701).
   static constexpr std::array<std::pair<const char*, CanvasAnchor>, 9> kAnchors{{
       {"topLeft", CanvasAnchor::TopLeft}, {"top", CanvasAnchor::Top}, {"topRight", CanvasAnchor::TopRight},
       {"left", CanvasAnchor::Left}, {"center", CanvasAnchor::Center}, {"right", CanvasAnchor::Right},
@@ -3526,7 +3538,7 @@ void ScriptDocumentObject::resizeCanvas(int width, int height, const QJSValue& o
   if (document == nullptr) {
     return;
   }
-  resize_canvas_to_frame(*document, frame, edit_color(fill), false);
+  resize_canvas_to_frame(*document, frame, edit_color(fill), false, layer_from_background_name());
   static_cast<void>(grow_canvas_to_artboards(*document));
   if (!selection_bounds.isEmpty()) {
     host_.set_selection_coverage(session_id_, selection_bounds.translated(-frame.x, -frame.y), selection);

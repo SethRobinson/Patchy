@@ -45,8 +45,10 @@ logical DPI (96 on Windows, varies with scaling) and indistinguishable from a re
 
 Canvas Size preserves off-canvas layer pixels and raster masks by default, including
 hidden layers and layers inside groups. The anchor translates their bounds without
-resampling. Background layers fill newly exposed canvas with the extension color while
-retaining existing pixels. "Also crop each actual layer to the canvas area" explicitly
+resampling. The Background fills newly exposed canvas with the extension color while
+retaining existing pixels; a canvas made smaller without the layer crop leaves it pixels
+beyond the canvas, which turns it into an ordinary "Layer 0"
+([background-layer.md](background-layer.md#canvas-changes)). "Also crop each actual layer to the canvas area" explicitly
 enables the destructive layer/mask crop, even when the canvas dimensions are unchanged.
 "Also delete layers that end up fully off the canvas" (`canvasSizeDeleteOffCanvasCheck`,
 core `remove_layers_outside_canvas`) removes every non-group layer whose bounds miss the

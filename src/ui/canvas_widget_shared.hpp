@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace patchy::ui {
@@ -219,6 +220,9 @@ int display_mip_level_for_zoom(double zoom) noexcept;
 // "Layer N", one past the top-level count and not taken anywhere in the tree (New Layer,
 // and the layer a paint press adds to an empty artboard).
 [[nodiscard]] QString default_new_layer_name(const Document& document);
+// "Layer 0": the name the Background takes when it becomes an ordinary layer (Layer from
+// Background, and a crop or canvas resize that keeps its pixels beyond the canvas).
+[[nodiscard]] std::string layer_from_background_name();
 // Mip level for PREVIEW-ONLY display-resolution compositing (move drags): the
 // display mip level clamped to [0, 3].
 int preview_composite_level_for_zoom(double zoom) noexcept;

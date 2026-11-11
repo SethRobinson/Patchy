@@ -191,6 +191,12 @@ void set_layer_lock_flag(Layer& layer, LayerLockFlags flag, bool locked);
 // of the Background (Duplicate, Alt-drag, Copy, copy to another document): Photoshop makes
 // the copy an ordinary unlocked layer (GitHub issue 604).
 void clear_background_locks(Layer& layer);
+// Makes the Background an ordinary layer, as Layer from Background does: clear_background_locks
+// and, when `name` is not empty, that name. The UI and scripts pass their translated "Layer 0"
+// (layer_from_background_name, ui/canvas_widget_shared.hpp); core callers without one leave the
+// name alone. A canvas resize that leaves the Background's kept pixels beyond the canvas runs it
+// too (GitHub issue 701, resize_canvas_to_frame).
+void release_background(Layer& layer, std::string_view name);
 // clear_background_locks on `copy` when `source_id` is the Background of `layers`.
 void clear_background_locks_if_copy_of_background(Layer& copy, LayerId source_id, const std::vector<Layer>& layers,
                                                   std::int32_t canvas_width, std::int32_t canvas_height);

@@ -2239,6 +2239,111 @@ void ui_canvas_size_preserves_layers_and_crop_option_resets() {
   CHECK(layer().pixels().width() == 12 && layer().pixels().pixel(11, 11)[0] == 17);
 }
 
+// GitHub issue 701. Image > Canvas Size made smaller without its layer crop keeps the
+// Background's pixels beyond the canvas, so the layer becomes an ordinary "Layer 0" in the
+// Canvas size undo step. With the layer crop, or when the canvas only grows, it stays the
+// Background and covers the new canvas.
+void ui_canvas_size_keeping_pixels_turns_background_into_layer_0() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto background = [&document] {
+    return patchy::background_layer(std::as_const(document).layers(), document.width(), document.height());
+  };
+  const auto bottom_badges = [layer_list] {
+    auto* row = layer_list->itemWidget(layer_list->item(layer_list->count() - 1));
+    return row != nullptr ? row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")) : QList<QLabel*>{};
+  };
+  const auto bottom_is_background_row = [&bottom_badges] {
+    const auto badges = bottom_badges();
+    return badges.size() == 1 && badges.front()->property("layerBackgroundBadge").toBool();
+  };
+  CHECK(background() != nullptr);
+  if (background() == nullptr) {
+    return;
+  }
+  const auto background_id = background()->id();
+  const auto canvas_width = document.width();
+  const auto canvas_height = document.height();
+  const auto resize = [&](int width, int height, bool crop) {
+    bool saw_dialog = false;
+    std::exception_ptr failure;
+    QTimer::singleShot(0, &window, [&] {
+      auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyCanvasSizeDialog"));
+      try {
+        CHECK(dialog != nullptr);
+        auto* checkbox = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeCropLayersCheck"));
+        auto* width_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeWidthSpin"));
+        auto* height_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeHeightSpin"));
+        CHECK(checkbox != nullptr && width_spin != nullptr && height_spin != nullptr);
+        checkbox->setChecked(crop);
+        width_spin->setValue(width);
+        height_spin->setValue(height);
+        saw_dialog = true;
+      } catch (...) {
+        failure = std::current_exception();
+      }
+      if (dialog != nullptr) {
+        if (failure) {
+          dialog->reject();
+        } else {
+          dialog->accept();
+        }
+      }
+    });
+    require_action(window, "imageCanvasSizeAction")->trigger();
+    QApplication::processEvents();
+    if (failure) {
+      std::rethrow_exception(failure);
+    }
+    CHECK(saw_dialog);
+    CHECK(document.width() == width && document.height() == height);
+  };
+  const auto undo = [&] {
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(document.width() == canvas_width && document.height() == canvas_height);
+    CHECK(background() != nullptr && background()->id() == background_id);
+    CHECK(std::as_const(document).layers().front().name() == "Background");
+    CHECK(bottom_is_background_row());
+  };
+
+  // Smaller, pixels kept: "Layer 0" with every pixel, no lock badge on its row.
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  resize(400, 300, false);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  CHECK(background() == nullptr);
+  {
+    const auto& bottom = std::as_const(document).layers().front();
+    CHECK(bottom.id() == background_id);
+    CHECK(bottom.name() == "Layer 0");
+    CHECK((patchy::layer_lock_flags(bottom) &
+           (patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest)) ==
+          0U);
+    CHECK(bottom.bounds().width == canvas_width && bottom.bounds().height == canvas_height);
+    CHECK(bottom.pixels().width() == canvas_width && bottom.pixels().height() == canvas_height);
+  }
+  CHECK(bottom_badges().isEmpty());
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 0")) != nullptr);
+  undo();
+
+  // Smaller with the layer crop: cut to the canvas, still the Background.
+  resize(400, 300, true);
+  CHECK(background() != nullptr && background()->id() == background_id);
+  CHECK(std::as_const(document).layers().front().name() == "Background");
+  CHECK(bottom_is_background_row());
+  undo();
+
+  // Larger, pixels kept: the Background fills the new area and stays the Background.
+  resize(canvas_width + 60, canvas_height + 40, false);
+  CHECK(background() != nullptr && background()->id() == background_id);
+  CHECK(background() != nullptr && background()->pixels().width() == canvas_width + 60);
+  CHECK(bottom_is_background_row());
+  undo();
+}
+
 void ui_new_document_and_canvas_size_dialogs_work() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
@@ -5372,6 +5477,8 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_canvas_size_preserves_layers_and_crop_option_resets",
        ui_canvas_size_preserves_layers_and_crop_option_resets},
+      {"ui_canvas_size_keeping_pixels_turns_background_into_layer_0",
+       ui_canvas_size_keeping_pixels_turns_background_into_layer_0},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
       {"ui_new_document_preset_double_click_creates_document", ui_new_document_preset_double_click_creates_document},
       {"ui_new_document_dialog_remembers_last_settings", ui_new_document_dialog_remembers_last_settings},
