@@ -745,6 +745,10 @@ QString default_new_layer_name(const Document& document) {
   return name;
 }
 
+std::string layer_from_background_name() {
+  return QObject::tr("Layer %1").arg(0).toStdString();
+}
+
 int display_mip_level_for_zoom(double zoom) noexcept {
   if (zoom >= 1.0 || zoom <= 0.0 || !std::isfinite(zoom)) {
     return 0;

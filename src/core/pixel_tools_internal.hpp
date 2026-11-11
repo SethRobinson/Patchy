@@ -8,7 +8,7 @@ namespace patchy {
 
 // Helpers shared between the painting half (pixel_tools.cpp, where they are defined) and the
 // geometry half (document_geometry.cpp). Internal to src/core: never include this header
-// anywhere else. The extension_color default arguments of canvas_resized_format_for_layer and
+// anywhere else. The default arguments of canvas_resized_format_for_layer and
 // fill_resized_layer_background live at the definitions in pixel_tools.cpp, so only that file
 // may call them with defaults; other callers pass every argument explicitly.
 
@@ -18,9 +18,14 @@ namespace patchy {
 // A color pixel layer at any depth: for operations that move whole pixels (flips)
 // rather than paint through the 8-bit write path.
 [[nodiscard]] Layer* pixel_layer_any_depth(Document& document, LayerId layer_id) noexcept;
+// New canvas area under a layer is extension_color for a Background and transparent for
+// every other layer. A Background here is a pixel layer named "Background" (the rule since
+// before GitHub issue 274) or, with `is_background`, the document's Background by the
+// background_layer rule whatever its name (a translated name, a PSD record's own name).
 [[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
-                                                          EditColor extension_color) noexcept;
-void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer, EditColor extension_color);
+                                                          EditColor extension_color, bool is_background) noexcept;
+void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer, EditColor extension_color,
+                                   bool is_background);
 void copy_resized_layer_pixel(const PixelBuffer& source, PixelBuffer& destination, std::int32_t sx, std::int32_t sy,
                               std::int32_t dx, std::int32_t dy);
 

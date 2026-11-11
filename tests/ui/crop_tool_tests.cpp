@@ -31,6 +31,7 @@
 #include <vector>
 #include "ui_test_access.hpp"
 #include "scripting_test_support.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/warp_mesh.hpp"
 #include <QTest>
@@ -46,6 +47,7 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QAbstractItemView>
 #include <QMenu>
 #include <QPainter>
@@ -1925,6 +1927,105 @@ void ui_crop_delete_options_crop_and_delete_layers() {
   auto* second_layers = second.findChild<QCheckBox*>(QStringLiteral("cropDeleteLayersCheck"));
   CHECK(second_pixels != nullptr && !second_pixels->isChecked());
   CHECK(second_layers != nullptr && second_layers->isChecked());
+}
+
+// GitHub issue 701. With Delete Cropped Pixels off a crop keeps the Background's pixels
+// beyond the new canvas, and a Background's bounds are the canvas, so the layer becomes an
+// ordinary "Layer 0" (the Background locks cleared, every pixel kept) in the Crop undo step.
+// It used to keep its name and both locks while no longer being the Background, so the row
+// showed the plain transparency and position badges. With the option on, the Background is
+// cut to the canvas and stays the Background.
+void ui_crop_keeping_pixels_turns_background_into_layer_0() {
+  SettingsValueRestorer restore_pixels(QStringLiteral("tools/cropDeletePixels"));
+  SettingsValueRestorer restore_layers(QStringLiteral("tools/cropDeleteLayers"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/cropDeletePixels"));
+    settings.remove(QStringLiteral("tools/cropDeleteLayers"));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  auto* pixels_check = window.findChild<QCheckBox*>(QStringLiteral("cropDeletePixelsCheck"));
+  CHECK(layer_list != nullptr && layers_dock != nullptr && pixels_check != nullptr);
+  const auto background = [&document] {
+    return patchy::background_layer(std::as_const(document).layers(), document.width(), document.height());
+  };
+  // The lock badges on the bottom row: one padlock marked layerBackgroundBadge for the
+  // Background, none for an unlocked ordinary layer.
+  const auto bottom_badges = [layer_list] {
+    auto* row = layer_list->itemWidget(layer_list->item(layer_list->count() - 1));
+    return row != nullptr ? row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")) : QList<QLabel*>{};
+  };
+  const auto bottom_is_background_row = [&bottom_badges] {
+    const auto badges = bottom_badges();
+    return badges.size() == 1 && badges.front()->property("layerBackgroundBadge").toBool();
+  };
+  CHECK(background() != nullptr);
+  if (background() == nullptr) {
+    return;
+  }
+  const auto background_id = background()->id();
+  const auto canvas_width = document.width();
+  const auto canvas_height = document.height();
+  CHECK(bottom_is_background_row());
+
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  const auto crop_to_box = [&] {
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+         canvas->widget_position_for_document_point(QPoint(300, 250)));
+    CHECK(canvas->crop_session_rect() == QRect(100, 100, 201, 151));
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(document.width() == 201 && document.height() == 151);
+  };
+  const auto undo = [&] {
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(document.width() == canvas_width && document.height() == canvas_height);
+    CHECK(background() != nullptr && background()->id() == background_id);
+    CHECK(std::as_const(document).layers().front().name() == "Background");
+    CHECK(bottom_is_background_row());
+  };
+
+  // Delete Cropped Pixels on (the default): cut to the canvas, still the Background.
+  CHECK(pixels_check->isChecked());
+  crop_to_box();
+  CHECK(background() != nullptr && background()->id() == background_id);
+  CHECK(std::as_const(document).layers().front().name() == "Background");
+  CHECK(bottom_is_background_row());
+  undo();
+
+  // Off: the layer keeps all its pixels around the new canvas and is "Layer 0".
+  pixels_check->setChecked(false);
+  QApplication::processEvents();
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  crop_to_box();
+  // Captured before the checks, so a failing run still shows the row.
+  save_widget_artifact("issue701_crop_keep_pixels_layers_panel", *layers_dock);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  CHECK(background() == nullptr);
+  {
+    const auto& bottom = std::as_const(document).layers().front();
+    CHECK(bottom.id() == background_id);
+    CHECK(bottom.name() == "Layer 0");
+    CHECK((patchy::layer_lock_flags(bottom) &
+           (patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest)) ==
+          0U);
+    CHECK(bottom.bounds().x == -100 && bottom.bounds().y == -100);
+    CHECK(bottom.bounds().width == canvas_width && bottom.bounds().height == canvas_height);
+    CHECK(bottom.pixels().width() == canvas_width && bottom.pixels().height() == canvas_height);
+  }
+  CHECK(bottom_badges().isEmpty());
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 0")) != nullptr);
+  // One undo brings back the Background with its padlock.
+  undo();
 }
 
 // Image > Trim... (GitHub issue 297). Answers the next Trim dialog: checks whether
@@ -4567,6 +4668,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_overlay_choices_draw_their_guides", ui_crop_overlay_choices_draw_their_guides},
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
       {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
+      {"ui_crop_keeping_pixels_turns_background_into_layer_0", ui_crop_keeping_pixels_turns_background_into_layer_0},
       {"ui_crop_options_popup_sets_shield_and_cropped_area", ui_crop_options_popup_sets_shield_and_cropped_area},
       {"ui_trim_transparent_pixels_trims_sides_and_undoes", ui_trim_transparent_pixels_trims_sides_and_undoes},
       {"ui_trim_corner_colors_and_nothing_to_trim", ui_trim_corner_colors_and_nothing_to_trim},

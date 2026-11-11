@@ -231,6 +231,13 @@ void clear_background_locks(Layer& layer) {
       layer, layer_lock_flags(layer) & ~(kLayerLockPosition | kLayerLockTransparentPixels | kLayerLockArtboardAutonest));
 }
 
+void release_background(Layer& layer, std::string_view name) {
+  clear_background_locks(layer);
+  if (!name.empty()) {
+    layer.set_name(std::string(name));
+  }
+}
+
 void clear_background_locks_if_copy_of_background(Layer& copy, LayerId source_id, const std::vector<Layer>& layers,
                                                   std::int32_t canvas_width, std::int32_t canvas_height) {
   const auto* background = background_layer(layers, canvas_width, canvas_height);
