@@ -1565,10 +1565,22 @@ CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterO
   return accumulator;
 }
 
-CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStroke& stroke,
-                                       const VectorRasterOptions& options) {
+namespace {
+
+// A stroke's coverage, and whether all of it is the double-width band cut by the path's own
+// coverage (an Inside or Outside stroke on closed contours). Such a stroke lies wholly on one
+// side of the path, which rasterize_vector_shape uses to composite it beside the fill.
+struct StrokeBand {
+  CoverageBuffer coverage;
+  bool cut_by_path{false};
+};
+
+// `path_coverage`, when given, is rasterize_vector_path(path) over options.clip (the caller
+// already has it); null rasterizes it here.
+StrokeBand rasterize_stroke_band(const VectorPath& path, const VectorStroke& stroke,
+                                 const VectorRasterOptions& options, const CoverageBuffer* path_coverage) {
   if (options.clip.empty() || path.empty() || !(stroke.width > 0.0)) {
-    return CoverageBuffer{};
+    return StrokeBand{};
   }
   // Inside/outside strokes rasterize the centered band at DOUBLE width, then
   // clip by the fill region (or its complement): the clipped half is exactly
@@ -1663,7 +1675,7 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
     }
   }
   if (edges.empty() && open_edges.empty()) {
-    return CoverageBuffer{};
+    return StrokeBand{};
   }
   const auto& seed_edge = edges.empty() ? open_edges.front() : edges.front();
   std::int32_t min_fx = seed_edge.from.x;
@@ -1686,7 +1698,7 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   band_bounds.height = fixed_floor_div(max_fy) + 1 - band_bounds.y;
   band_bounds = intersect_rects(band_bounds, options.clip);
   if (band_bounds.empty()) {
-    return CoverageBuffer{};
+    return StrokeBand{};
   }
   const std::int32_t shift_x = band_bounds.x * kSub;
   const std::int32_t shift_y = band_bounds.y * kSub;
@@ -1705,11 +1717,17 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
     rasterize_edges(edges, band_bounds.width, band_bounds.height, WindingRule::NonZero, band.pixels);
   }
 
-  if (!centered && !edges.empty()) {
-    VectorRasterOptions region_options;
-    region_options.clip = options.clip;
-    region_options.reference_geometry = options.reference_geometry;
-    const auto region = rasterize_vector_path(path, region_options);
+  const bool cut_by_path = !centered && !edges.empty();
+  if (cut_by_path) {
+    CoverageBuffer own_region;
+    if (path_coverage == nullptr) {
+      VectorRasterOptions region_options;
+      region_options.clip = options.clip;
+      region_options.reference_geometry = options.reference_geometry;
+      own_region = rasterize_vector_path(path, region_options);
+      path_coverage = &own_region;
+    }
+    const auto& region = *path_coverage;
     auto* bytes = band.pixels.data().data();
     const auto stride = band.pixels.stride_bytes();
     const bool inside = stroke.alignment == VectorStrokeAlignment::Inside;
@@ -1742,7 +1760,16 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
     }
   }
   trim_coverage(band);
-  return band;
+  // An open contour's band is moved sideways, not cut: with one in the path the stroke as a
+  // whole no longer lies on one side of the fill's edge.
+  return StrokeBand{std::move(band), cut_by_path && open_edges.empty()};
+}
+
+}  // namespace
+
+CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStroke& stroke,
+                                       const VectorRasterOptions& options) {
+  return rasterize_stroke_band(path, stroke, options, nullptr).coverage;
 }
 
 namespace {
@@ -2551,6 +2578,13 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
 
   const bool fill_on = content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None;
   CoverageBuffer fill_coverage;
+  // The path's own coverage (no Density, no inversion), kept for an Inside or Outside stroke.
+  const VectorRasterOptions path_options = options;
+  std::optional<CoverageBuffer> path_coverage;
+  // A layer-aligned gradient spans the shape whatever its Density: Photoshop 27.11 keeps the
+  // ramp on the shape's bounds at Density 98% and 50% and shows its end colors over the rest
+  // of the canvas (docs/vector-tools-appearance.md, "Gradient fill and Density").
+  Rect fill_alignment_bounds;
   if (fill_on) {
     if (content.path_disabled) {
       // Disabled shape path: the fill covers the whole canvas (mask off).
@@ -2563,8 +2597,10 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
       fill_coverage = rasterize_vector_mask_coverage(inverter, raster_domain);
     } else {
       fill_coverage = rasterize_vector_path(content.path, options);
+      path_coverage = fill_coverage;
     }
     if (content.density != 255) {
+      fill_alignment_bounds = fill_coverage.bounds;
       fill_coverage = apply_shape_density(fill_coverage, content.density, raster_domain);
     }
   }
@@ -2573,6 +2609,9 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
       content.stroke.content.kind != VectorFillKind::None && !content.path.empty() &&
       !content.path_disabled;
   CoverageBuffer stroke_coverage;
+  // True when the stroke lies wholly inside or wholly outside the path and there is a fill
+  // for it to meet (the compositing below).
+  bool stroke_beside_fill = false;
   if (stroke_on) {
     // Native layer flags already travel with edits, undo, duplication and PSD
     // saves. Like fxrp (the paint anchor), sn2P belongs to the owning layer,
@@ -2586,7 +2625,14 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
         }
       }
     }
-    stroke_coverage = rasterize_vector_stroke(content.path, content.stroke, options);
+    if (!path_coverage.has_value() && !fill_coverage.bounds.empty() &&
+        content.stroke.alignment != VectorStrokeAlignment::Center) {
+      path_coverage = rasterize_vector_path(content.path, path_options);
+    }
+    auto band = rasterize_stroke_band(content.path, content.stroke, options,
+                                      path_coverage.has_value() ? &*path_coverage : nullptr);
+    stroke_coverage = std::move(band.coverage);
+    stroke_beside_fill = band.cut_by_path && path_coverage.has_value() && !fill_coverage.bounds.empty();
   }
 
   const Rect bounds = union_rects(fill_coverage.bounds, stroke_coverage.bounds);
@@ -2604,9 +2650,13 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
                             content.stroke.blend_mode == BlendMode::Normal;
 
   if (!fill_coverage.bounds.empty()) {
+    auto fill_alignment = paint_bounds ? paint_bounds->fill : std::nullopt;
+    if (!fill_alignment.has_value() && !fill_alignment_bounds.empty()) {
+      fill_alignment = fill_alignment_bounds;
+    }
     const auto fill_pixels =
         paint_coverage(fill_coverage, content.fill, paint_bounds ? paint_bounds->canvas : canvas, patterns,
-                       layer_for_pattern_anchor, paint_bounds ? paint_bounds->fill : std::nullopt);
+                       layer_for_pattern_anchor, fill_alignment);
     const auto* src = fill_pixels.data().data();
     const auto src_stride = fill_pixels.stride_bytes();
     if (split_planes) {
@@ -2659,10 +2709,24 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
         }
       }
     }
+    // On a pixel the path's edge crosses, an Inside or Outside stroke and the fill are not two
+    // independent coverages to stack with "over": the stroke lies in the part of the pixel
+    // inside the path (Inside) or in the part outside it (Outside). So the fill alpha UNDER
+    // the stroke is the fill's alpha in that part, not the pixel's average: the fill paint's
+    // own opacity where the fill is (an Inside stroke replaces fill, never adds to it), and
+    // nothing, or the Density floor, where it is not (an Outside stroke sits beside the fill
+    // and the two fill the pixel). Stacked as independent coverages an Outside edge pixel was
+    // only 1 - f + f*f covered (75% at f = 0.5: a pale seam) and fill color showed outside an
+    // Inside stroke. Photoshop 27.11 probes: docs/vector-tools-appearance.md, "Fill and stroke
+    // on shared edge pixels". Pixels wholly inside or outside the path, Center strokes and
+    // open contours keep the plain "over", byte for byte.
+    const bool stroke_in_path = content.stroke.alignment == VectorStrokeAlignment::Inside;
+    const double density_floor = static_cast<double>(255 - content.density) / 255.0;
     for (std::int32_t y = 0; y < stroke_coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(stroke_coverage.bounds.y - bounds.y + y) * out_stride +
                   static_cast<std::size_t>(stroke_coverage.bounds.x - bounds.x) * 4;
       const auto* stroke_row = src + static_cast<std::size_t>(y) * src_stride;
+      const auto document_y = stroke_coverage.bounds.y + y;
       for (std::int32_t x = 0; x < stroke_coverage.bounds.width; ++x) {
         const double source_alpha =
             (static_cast<double>(stroke_row[x * 4 + 3]) / 255.0) * content.stroke.opacity;
@@ -2671,22 +2735,42 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
         }
         auto* dest = row + static_cast<std::size_t>(x) * 4;
         const double dest_alpha = static_cast<double>(dest[3]) / 255.0;
+        double under_alpha = dest_alpha;
+        bool edge_pixel = false;
+        if (stroke_beside_fill) {
+          const auto document_x = stroke_coverage.bounds.x + x;
+          const auto path_value = coverage_at(*path_coverage, document_x, document_y);
+          if (path_value != 0 && path_value != 255) {
+            edge_pixel = true;
+            const auto fill_value = coverage_at(fill_coverage, document_x, document_y);
+            const double paint_alpha =
+                fill_value > 0 ? std::min(1.0, static_cast<double>(dest[3]) / static_cast<double>(fill_value))
+                               : 0.0;
+            // The fill is whole on the path's side, or on the other one when inverted.
+            under_alpha = stroke_in_path != content.path_inverted ? paint_alpha : paint_alpha * density_floor;
+          }
+        }
         std::array<std::uint8_t, 3> source_rgb{stroke_row[x * 4 + 0], stroke_row[x * 4 + 1],
                                                stroke_row[x * 4 + 2]};
-        if (content.stroke.blend_mode != BlendMode::Normal && dest_alpha > 0.0) {
+        if (content.stroke.blend_mode != BlendMode::Normal && under_alpha > 0.0) {
           source_rgb = composite_blended_rgb(source_rgb, {dest[0], dest[1], dest[2]},
                                              content.stroke.blend_mode, 1.0F,
-                                             static_cast<float>(dest_alpha));
+                                             static_cast<float>(under_alpha));
         }
-        const double out_alpha = source_alpha + dest_alpha * (1.0 - source_alpha);
+        // The fill's share of the result: what the stroke leaves showing.
+        const double fill_share =
+            edge_pixel ? std::clamp(dest_alpha - source_alpha * under_alpha, 0.0, 1.0 - source_alpha)
+                       : dest_alpha * (1.0 - source_alpha);
+        const double out_alpha = source_alpha + fill_share;
         if (out_alpha <= 0.0) {
           dest[0] = dest[1] = dest[2] = dest[3] = 0;
           continue;
         }
         for (int channel = 0; channel < 3; ++channel) {
-          const double blended = (source_rgb[static_cast<std::size_t>(channel)] * source_alpha +
-                                  dest[channel] * dest_alpha * (1.0 - source_alpha)) /
-                                 out_alpha;
+          const double fill_term = edge_pixel ? dest[channel] * fill_share
+                                              : dest[channel] * dest_alpha * (1.0 - source_alpha);
+          const double blended =
+              (source_rgb[static_cast<std::size_t>(channel)] * source_alpha + fill_term) / out_alpha;
           dest[channel] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(blended), 0L, 255L));
         }
         dest[3] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(out_alpha * 255.0), 0L, 255L));

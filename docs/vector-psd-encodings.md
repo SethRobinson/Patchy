@@ -199,6 +199,10 @@ src/core/vector_live_shapes.hpp.
 - Aligned dashes retain original-width caps; zero-length dots carry their
   path tangent. Geometry, tests and residuals:
   [vector-fixtures.md](vector-fixtures.md).
+- An Inside or Outside stroke shares the path's edge pixels with the fill
+  (beside it or inside it, never stacked as independent coverage); rule and
+  Photoshop probes:
+  [vector-tools-appearance.md](vector-tools-appearance.md#fill-and-stroke-on-shared-edge-pixels).
 - The stroker builds the band as a union of per-segment quads plus join/cap
   wedges under the nonzero rule; every loop must carry the SAME orientation
   (append_outline_loop normalizes by signed area), or an opposite-winding

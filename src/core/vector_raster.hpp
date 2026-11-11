@@ -112,9 +112,10 @@ struct VectorPaintBounds {
 
 // The clip update_vector_shape_raster draws a shape's coverage in: the bake domain (the
 // canvas, grown to hold a shape that reaches past it) and the feather's reach around it.
-// A layer-aligned gradient spans its paint's coverage bounds inside this clip, and a fill
-// with Density under 100% covers all of it, so a renderer that draws the same shape at
-// another scale (Dynamic Vector Preview) takes the gradient's box from here.
+// A layer-aligned gradient spans its paint's coverage bounds inside this clip (the path's
+// coverage: a fill with Density under 100% covers all of the clip, but its gradient stays on
+// the shape), so a renderer that draws the same shape at another scale (Dynamic Vector
+// Preview) takes the gradient's box from here.
 [[nodiscard]] Rect vector_shape_coverage_domain(const VectorShapeContent& content, Rect canvas);
 
 // Bakes the layer's vector shape into pixels()/bounds() and stamps the

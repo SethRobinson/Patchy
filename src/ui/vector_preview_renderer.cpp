@@ -331,14 +331,15 @@ Layer native_group_tree(const VectorPreviewNode& node, std::uint64_t& workspace)
 
 // The box a layer-aligned gradient spans in the document render: the bounds of the fill's
 // (or stroke's) coverage as the document bake draws it, inside the bake's own clip. That
-// clip holds a shape that reaches past the canvas and the feather's reach, and Density
-// below 100% covers all of it (local-051 follow-up 2: the ramp ran over the path's box cut
-// at the canvas, so a gradient on a shape with Density under 100%, or on one hanging past
-// the canvas edge, was a different gradient in the sharp view).
+// clip holds a shape that reaches past the canvas and the feather's reach (local-051
+// follow-up 2: the ramp ran over the path's box cut at the canvas, so a gradient on a shape
+// hanging past the canvas edge was a different gradient in the sharp view). Density below
+// 100% spreads the fill over the whole clip but leaves the gradient on the shape, as
+// Photoshop does (rasterize_vector_shape's fill_alignment_bounds).
 Rect native_gradient_bounds(const VectorShapeContent& shape, Rect canvas, bool stroke, RasterBudget& budget) {
   if (!safe_number(shape.feather)) { throw VectorPreviewFallback::Coordinates; }
   const Rect domain = vector_shape_coverage_domain(shape, canvas);
-  if (!stroke && (shape.path_disabled || shape.path.empty() || shape.density != 255)) { return domain; }
+  if (!stroke && (shape.path_disabled || shape.path.empty())) { return domain; }
   check_path(shape.path, stroke ? stroke_padding(shape.stroke) : 0.0);
   const bool complement = shape.path_disabled || shape.path_inverted || shape.path.empty() ||
       shape.path.subpaths.front().op == PathCombineOp::Subtract;

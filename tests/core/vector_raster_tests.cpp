@@ -1725,6 +1725,114 @@ void stroke_shape_composites_fill_and_stroke() {
   CHECK(mixed[2] > 100 && mixed[2] < 140);  // half the stroke blue
 }
 
+// Photoshop 27.11 probes (docs/vector-tools-appearance.md, "Fill and stroke on shared edge
+// pixels"): an Outside stroke sits beside the fill and an Inside stroke inside it, so on a
+// pixel the path's edge crosses the two shares add up to the pixel (Outside) or to the fill's
+// coverage (Inside). Stacked as two independent coverages they left up to a quarter of the
+// backdrop showing between the fill and an Outside stroke, and fill color outside an Inside
+// one. Red fill, blue stroke: red times alpha is the fill's share of a pixel.
+void stroke_shape_fill_and_stroke_share_edge_pixels() {
+  const Rect canvas{0, 0, 96, 80};
+  VectorPath ellipse;
+  {
+    LiveShapeParams params;
+    params.kind = LiveShapeKind::Ellipse;
+    params.left = 20.0;
+    params.top = 14.0;
+    params.right = 76.0;
+    params.bottom = 66.0;
+    ellipse.subpaths = patchy::generate_live_shape_subpaths(params);
+  }
+  VectorPath slanted;
+  {
+    PathSubpath quad;
+    quad.closed = true;
+    quad.op = PathCombineOp::Add;
+    quad.anchors = {corner(22.3, 30.1), corner(66.8, 12.4), corner(75.2, 48.7), corner(30.9, 64.6)};
+    slanted.subpaths = {quad};
+  }
+  struct Worst {
+    int edge_pixels{0};
+    int alpha_error{0};       // against the expected alpha
+    int fill_share_error{0};  // against the expected fill share (red premultiplied)
+  };
+  // expected(g) gives the alpha and the fill's premultiplied share for path coverage g.
+  const auto measure = [&](const VectorPath& path, patchy::VectorShapeContent content, auto expected) {
+    content.path = path;
+    const auto coverage = rasterize(path, canvas);
+    const auto shape = patchy::rasterize_vector_shape(content, canvas, nullptr, nullptr);
+    Worst worst;
+    for (std::int32_t y = canvas.y; y < canvas.y + canvas.height; ++y) {
+      for (std::int32_t x = canvas.x; x < canvas.x + canvas.width; ++x) {
+        const int g = coverage_pixel(coverage, x, y);
+        if (g == 0 || g == 255 || !shape.bounds.contains(x, y)) {
+          continue;
+        }
+        ++worst.edge_pixels;
+        const auto* px = shape.pixels.pixel(x - shape.bounds.x, y - shape.bounds.y);
+        const std::array<double, 2> want = expected(static_cast<double>(g));
+        const double fill_share = px[0] * px[3] / 255.0;
+        worst.alpha_error = std::max(worst.alpha_error, static_cast<int>(std::ceil(std::abs(px[3] - want[0]) - 0.5)));
+        worst.fill_share_error =
+            std::max(worst.fill_share_error, static_cast<int>(std::ceil(std::abs(fill_share - want[1]) - 0.5)));
+      }
+    }
+    return worst;
+  };
+  const auto check = [](const char* what, const Worst& worst) {
+    if (worst.alpha_error > 2 || worst.fill_share_error > 2) {
+      std::fprintf(stderr, "  %s, %d edge pixels: alpha off by %d, fill share off by %d (of 255)\n", what,
+                   worst.edge_pixels, worst.alpha_error, worst.fill_share_error);
+    }
+    CHECK(worst.edge_pixels > 100);
+    CHECK(worst.alpha_error <= 2);
+    CHECK(worst.fill_share_error <= 2);
+  };
+  patchy::VectorShapeContent base;
+  base.fill.kind = patchy::VectorFillKind::Solid;
+  base.fill.color = patchy::RgbColor{255, 0, 0};
+  base.stroke.enabled = true;
+  base.stroke.width = 8.0;
+  base.stroke.content.kind = patchy::VectorFillKind::Solid;
+  base.stroke.content.color = patchy::RgbColor{0, 0, 255};
+  for (const auto* path : {&ellipse, &slanted}) {
+    // Outside: the fill's share g and the stroke's 255 - g fill the pixel, so over an opaque
+    // backdrop none of it shows between them.
+    auto outside = base;
+    outside.stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+    check("outside", measure(*path, outside, [](double g) { return std::array<double, 2>{255.0, g}; }));
+    // A half-strength stroke: the fill's share is unchanged, the stroke adds half of its own.
+    outside.stroke.opacity = 0.5;
+    check("outside at half opacity",
+          measure(*path, outside, [](double g) { return std::array<double, 2>{g + (255.0 - g) * 0.5, g}; }));
+    // Density: the faint fill outside the path lies under the stroke, and the pixel stays full.
+    outside.stroke.opacity = 1.0;
+    outside.density = 128;
+    check("outside with Density",
+          measure(*path, outside, [](double g) { return std::array<double, 2>{255.0, g}; }));
+
+    // Inside: the stroke covers the fill wherever the fill is, so the edge pixel is stroke
+    // color at the fill's coverage, with no fill color outside the stroke.
+    auto inside = base;
+    inside.stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+    check("inside", measure(*path, inside, [](double g) { return std::array<double, 2>{g, 0.0}; }));
+    inside.stroke.opacity = 0.5;
+    check("inside at half opacity",
+          measure(*path, inside, [](double g) { return std::array<double, 2>{g, g * 0.5}; }));
+  }
+
+  // Pixels the edge does not cross keep the plain stacking: fill inside, stroke over the
+  // fill's inner band (Inside) or alone past the path (Outside).
+  auto inside = base;
+  inside.path = ellipse;
+  inside.stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  const auto shape = patchy::rasterize_vector_shape(inside, canvas, nullptr, nullptr);
+  const auto* center = shape.pixels.pixel(48 - shape.bounds.x, 40 - shape.bounds.y);
+  CHECK(center[0] == 255 && center[2] == 0 && center[3] == 255);
+  const auto* band = shape.pixels.pixel(24 - shape.bounds.x, 40 - shape.bounds.y);
+  CHECK(band[0] == 0 && band[2] == 255 && band[3] == 255);
+}
+
 
 patchy::LayerVectorMask baked_triangle_mask(Rect canvas) {
   patchy::LayerVectorMask mask;
@@ -2413,6 +2521,33 @@ void gradient_fill_alignment_bounds_follow_the_bake() {
   const auto bounds = std::as_const(layer).bounds();
   CHECK(pixels.pixel(10 - bounds.x, 20 - bounds.y)[0] < 12);
   CHECK(pixels.pixel(49 - bounds.x, 20 - bounds.y)[0] > 240);
+
+  // Density under 100% spreads the fill over the canvas but leaves the gradient on the shape
+  // (Photoshop 27.11 at Density 98% and 50%: docs/vector-tools-appearance.md, "Gradient fill
+  // and Density"): inside the shape nothing changes, and the rest of the canvas shows the
+  // ramp's end colors at the Density floor.
+  const patchy::PixelBuffer full_pixels = pixels;
+  const auto full_bounds = bounds;
+  content.density = 128;
+  layer.set_vector_shape(content);
+  CHECK(patchy::gradient_fill_alignment_bounds(std::as_const(layer), canvas) == shape_bounds);
+  patchy::update_vector_shape_raster(layer, canvas, nullptr);
+  const auto& tinted = std::as_const(layer).pixels();
+  const auto tinted_bounds = std::as_const(layer).bounds();
+  CHECK(tinted_bounds == canvas);
+  bool inside_unchanged = true;
+  for (std::int32_t y = 12; y < 40; ++y) {
+    for (std::int32_t x = 10; x < 50; ++x) {
+      inside_unchanged = inside_unchanged &&
+                         std::memcmp(tinted.pixel(x - tinted_bounds.x, y - tinted_bounds.y),
+                                     full_pixels.pixel(x - full_bounds.x, y - full_bounds.y), 4) == 0;
+    }
+  }
+  CHECK(inside_unchanged);
+  const auto* left = tinted.pixel(2 - tinted_bounds.x, 20 - tinted_bounds.y);
+  CHECK(left[0] < 4 && left[3] == 127);
+  const auto* right = tinted.pixel(70 - tinted_bounds.x, 20 - tinted_bounds.y);
+  CHECK(right[0] > 251 && right[3] == 127);
 }
 
 // Stop edits from the canvas handles keep both lists sorted, track the edited stop, keep at
@@ -2767,6 +2902,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter",
        stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter},
       {"stroke_shape_composites_fill_and_stroke", stroke_shape_composites_fill_and_stroke},
+      {"stroke_shape_fill_and_stroke_share_edge_pixels", stroke_shape_fill_and_stroke_share_edge_pixels},
       {"vector_mask_composites_in_flatten", vector_mask_composites_in_flatten},
       {"vector_mask_multiplies_with_raster_mask", vector_mask_multiplies_with_raster_mask},
       {"update_vector_shape_raster_bakes_pixels", update_vector_shape_raster_bakes_pixels},

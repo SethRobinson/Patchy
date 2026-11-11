@@ -42,6 +42,9 @@ the fill also shows over the whole canvas, as in Photoshop."), built like the St
 note below: no width of its own, a fixed height, and a spacer under the Edge section
 that holds its room while it is hidden. Feather and Density show the same in Dynamic
 Vector Preview ([vector-preview.md](vector-preview.md#shape-feather-and-density)).
+How the bake draws the fill beside a stroke, and a gradient under Density:
+[Fill and stroke on shared edge pixels](#fill-and-stroke-on-shared-edge-pixels),
+[Gradient fill and Density](#gradient-fill-and-density).
 
 With a line among the targets the Stroke form has a note under Align
 (`shapeStrokeInsideLineHint`, local-051), shown while the stroke is on and Align is
@@ -116,3 +119,100 @@ On 16/32-bit documents shape and fill layers keep regenerating their 8-bit
 bake for the deep compositor, except gradient-only fills
 (`deep_gradient_fill_raster`: no stroke, feather, density or parts) that
 render at depth.
+
+## Fill and stroke on shared edge pixels
+
+An Inside or Outside stroke is the double-width band cut by the path's own coverage
+(`rasterize_stroke_band`), so on a pixel the path's edge crosses, the stroke and the fill
+are two parts of one pixel: the stroke lies in the part inside the path (Inside) or in the
+part outside it (Outside). `rasterize_vector_shape` composites them that way. With `a` the
+fill's alpha on the pixel, `s` the stroke's coverage, `o` its opacity and `u` the fill's
+alpha under the stroke:
+
+    alpha = a + s * o * (1 - u)        fill's share = a - s * o * u
+
+`u` is the fill paint's own opacity where the fill is whole (an Inside stroke replaces
+fill, it never adds to it) and nothing where it is not (an Outside stroke sits beside the
+fill and the two fill the pixel); with Density under 100% the Density floor stands in for
+"nothing", and an inverted path swaps the two sides. Stacked as two independent
+coverages with "over" (`u = a`, the rule until November 2026) an Outside edge pixel was
+only `1 - f + f * f` covered (75% at `f` = 0.5), a pale seam of backdrop between fill and
+stroke, and fill color showed outside an Inside stroke. It was in the baked pixels, so
+in saved files too.
+
+Pixels wholly inside or outside the path, Center strokes (the stroke covers the edge),
+fill-less shapes and paths with an open contour (its band is moved sideways, not cut)
+keep the plain "over" byte for byte: on the probes below a Center stroke changed no
+pixel and an Inside or Outside stroke only the pixels the path crosses (398 of 32,000 on
+the ellipse). Stroke and fill coverage themselves are unchanged
+(`stroke_golden_digests_are_stable`, `raster_golden_digests_are_stable`).
+
+Photoshop 27.11 over COM (November 2026): a red fill and a blue 8 px stroke on a
+transparent canvas, a 120 x 100 ellipse and a 110 x 64 rectangle turned 20 degrees, each
+layer saved as a PNG. Red times alpha is the fill's share of a pixel, blue times alpha
+the stroke's. Values of 255; ellipse / rectangle.
+
+| | Photoshop | Before | Now |
+|---|---|---|---|
+| Outside: uncovered part of the pixels fill and stroke share | 0 on all 354 / 365 | to 64, mean 44 / 45 | 0 on all 351 / 368 |
+| Inside: fill's share of the partly covered edge pixels | 0 on all 386 / 418 | to 64, mean 40 / 38 | 0 on all 398 / 424 |
+| Inside: mean alpha of those pixels | 138.5 / 124.4 | 161.4 / 149.2 | 138.6 / 124.2 |
+| Outside on a 50% fill (gradient, both alpha stops 50%): uncovered, mean | 69.0 / 68.6 | 104.3 / 102.2 | 69.1 / 69.2 |
+| Outside, dashes {2, 2}: uncovered, mean (dash ends only in Photoshop) | 7.8 / 8.9 | 47.9 / 58.2 | 6.0 / 16.2 |
+
+- On a half-transparent fill Photoshop's Outside edge pixel is `0.5 f + (1 - f)` (202 at
+  `f` = 106) and its Inside edge pixel the stroke alone at alpha `f`: side by side and
+  nested, never doubled. Center strokes agreed before and are unchanged.
+- The path's own coverage agrees with Photoshop's within 17 of 255 on the ellipse and 3
+  on the rectangle. Flattened over a pale backdrop (yellow fill, navy stroke), pixels
+  more than 24 from Photoshop's render of the same PSD: 215 before and 0 now (Outside
+  ellipse), 232 and 0 (Outside rectangle), and on the path's edge of the Inside ellipse
+  225 and 0.
+- Not changed, measured on the same probes: the inner edge of an Inside stroke differs
+  a little from Photoshop's, on the ellipse by a fraction of a pixel (63 pixels more than
+  24 apart, largest 39) and on the rectangle at two of its inner corners (41).
+- The stroke's own opacity has no Photoshop reference: 27.11 reads `strokeStyleOpacity`
+  back (50.2%) but draws the stroke at full strength, from a file and after setting it
+  through Action Manager, flattened too. Patchy applies it with the same geometry (the
+  formula above).
+- The split planes for interior overlays (`fill_cache`, `stroke_cache`) are unchanged:
+  the compositor still stamps the stroke over the overlays with "over", on a base pass
+  that no longer has the seam.
+- Existing files, measured: a PSD Patchy saved before the change opens redrawn, with no
+  seam (11 probe files equal the new render unedited, the gradient and Density ones
+  too). A PSD Photoshop saved opens with Photoshop's stored pixels (2 probe files
+  re-saved by Photoshop equal its own render on every pixel; `finalize_vector_layers`
+  keeps them), and an edit of the shape redraws it.
+
+Tests: `stroke_shape_fill_and_stroke_share_edge_pixels` (Outside, Inside, half opacity,
+Density, on an ellipse and a slanted quadrilateral), the Inside and Outside cases of
+`ui_vector_preview_matches_document_render_for_shape_layers`, now held to its strict
+limits ([vector-preview.md](vector-preview.md#verification)). The probe scripts and
+Photoshop's renders are in `local-test-fixtures/vector-probe/stroke-seam/`.
+
+## Gradient fill and Density
+
+Density under 100% spreads the fill over the canvas, but a gradient aligned with the
+layer stays on the shape. Photoshop 27.11 (an 80 px square at 60..140 on a 200 x 160
+canvas, a red to blue ramp at 0 degrees, Density set through `vectorMaskDensity`): at
+100%, 98% and 50% the square's pixels are identical, and the rest of the canvas shows the
+ramp's end colors (red left of the square, blue right of it) at alpha 5 and 127. So
+`rasterize_vector_shape` aligns the gradient to the fill's coverage bounds from before
+Density (`fill_alignment_bounds`); `gradient_fill_alignment_bounds` (the Gradient tool's
+handles) and Dynamic Vector Preview's `native_gradient_bounds` give the same box. Until
+November 2026 the ramp ran over the whole canvas once Density was under 100%. Patchy's
+render of that probe now equals Photoshop's on every pixel at all three values. A
+gradient not aligned with the layer spans the canvas in both, at any Density. Test:
+`gradient_fill_alignment_bounds_follow_the_bake`.
+
+Known difference, not changed: with Density under 100% and a stroke, Photoshop tints the
+canvas with the stroke's paint, not the fill's. At 50% a green square with a 10 px
+gradient stroke shows the stroke's ramp alone at alpha 127 outside the shape, and inside
+it the fill under a 50% wash of the stroke (as if Density blended the layer toward its
+unmasked top paint). Patchy spreads the fill and leaves the stroke as drawn.
+
+Open observation (one probe, not investigated): the aligned-gradient square at Density
+50%, saved by Patchy and re-saved by Photoshop 27.11, opens in Patchy without the tint
+outside the square (Density reads back as 50; the same in the build before this change),
+while the Photoshop-authored `photoshop-shape-feather.psd` opens with its tint
+(`psd_shape_layer_feather_and_density_match_photoshop`).
