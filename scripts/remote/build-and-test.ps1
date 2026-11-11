@@ -6,6 +6,7 @@ developer environment, then run the test suites. Mirrors build-and-test.sh.
   build-and-test.ps1 [-Preset release] [-BuildTarget <target>[,<target>...]]
                      [-Filter <ui substr>] [-CoreFilter <core substr>] [-SkipTests] [-Jobs 8]
                      [-PerfScenario startup] [-PerfEnv 'NAME=value;NAME=value']
+  build-and-test.ps1 -Preset <preset> -Warncheck [-Clean] [-Jobs 8]
 
 -BuildTarget builds only the named CMake targets instead of the preset's default target,
 and then only the suites whose executables this run built are run: patchy_core_tests and
@@ -23,6 +24,10 @@ linked in this run, so that count covers exactly the targets built and only the 
 that changed: zero-warning verification still needs the release preset's default target
 from a clean build directory (docs/platform.md, "Warning verification").
 
+-Warncheck runs that verification instead (warncheck.ps1): the preset's default target in
+its own build\warncheck-<preset>, failing on any warning line, no tests. The folder is kept
+after a pass, so the next run is incremental; -Clean starts it from an empty folder.
+
 -PerfScenario runs `patchy_perf_tests <scenario>` after the suites (alone with -SkipTests)
 when this run built patchy_perf_tests, with each -PerfEnv NAME=value set first; `startup` is
 the startup timing and regression check (docs/startup-performance.md).
@@ -35,6 +40,8 @@ param(
   [switch]$SkipTests,
   [string]$PerfScenario = '',
   [string]$PerfEnv = '',
+  [switch]$Warncheck,
+  [switch]$Clean,
   [int]$Jobs = 8
 )
 
@@ -45,6 +52,11 @@ Set-Location $repo
 # every other Windows preset is x64.
 $vsArch = if ($Preset -like 'windows-arm64*') { 'arm64' } else { 'x64' }
 $vsEnv = "scripts\vs-env.bat -arch=$vsArch -host_arch=$vsArch >nul"
+if ($Warncheck) {
+  if ($BuildTarget -or $Filter -or $CoreFilter -or $PerfScenario) { Write-Host '-Warncheck builds the default target and runs no tests'; exit 2 }
+  & (Join-Path $PSScriptRoot 'warncheck.ps1') -Preset $Preset -EnvCommand $vsEnv -Jobs $Jobs -Clean:$Clean
+  exit $LASTEXITCODE
+}
 $buildDir = Join-Path $repo "build\$Preset"
 $targets = @($BuildTarget -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $targetArgs = ''

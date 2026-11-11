@@ -31,8 +31,19 @@ if /i "%~1"=="verify-windows" ( powershell -NoProfile -ExecutionPolicy Bypass -F
 if /i "%~1"=="verify-mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target mac <nul > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="verify-linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target linux <nul > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="verify-windows-arm64" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target windows-arm64 <nul > "%LOG%" 2>&1 & goto done )
+rem Before the version bump (docs/release-process.md): the warning check and the rehearsal
+rem run on the build hosts only, so they never meet this PC's build lock.
+if /i "%~1"=="warncheck-windows" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0warncheck.ps1" -Target windows <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="warncheck-windows-arm64" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0warncheck.ps1" -Target windows-arm64 <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="warncheck-mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0warncheck.ps1" -Target mac <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="warncheck-linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0warncheck.ps1" -Target linux <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="warncheck-wasm" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0warncheck.ps1" -Target wasm <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="rehearse-windows" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rehearse.ps1" -Target windows <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="rehearse-windows-arm64" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rehearse.ps1" -Target windows-arm64 <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="rehearse-mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rehearse.ps1" -Target mac <nul > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="rehearse-linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rehearse.ps1" -Target linux <nul > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="upload-github" ( call "%~dp0publish-github-release.bat" nopause <nul > "%LOG%" 2>&1 & goto done )
-echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, wasm-local, verify-windows, verify-windows-arm64, verify-mac, verify-linux, upload-wasm, upload-all, upload-desktop, or upload-github^). > "%LOG%"
+echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, wasm-local, verify-windows, verify-windows-arm64, verify-mac, verify-linux, warncheck-windows, warncheck-windows-arm64, warncheck-mac, warncheck-linux, warncheck-wasm, rehearse-windows, rehearse-windows-arm64, rehearse-mac, rehearse-linux, upload-wasm, upload-all, upload-desktop, or upload-github^). > "%LOG%"
 >"%MARKER%" echo exit=2
 exit /b 2
 

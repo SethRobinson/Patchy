@@ -20,6 +20,8 @@ if /i "%PATCHY_ARCH%"=="all" (
   if exist "%REPO%\build\package\PatchyGeglSources.zip" del /f /q "%REPO%\build\package\PatchyGeglSources.zip"
   call "%~f0" x64
   if not "!ERRORLEVEL!"=="0" goto fail
+  rem The x64 half signed with this token and PIN, so the ARM64 half may retry from its first file.
+  set "PATCHY_SIGNING_PROVEN=1"
   call "%~f0" arm64
   if not "!ERRORLEVEL!"=="0" goto fail
   rem The source of the GEGL every package carries, published beside them (docs/gegl-filters.md, "Sources").
@@ -33,8 +35,10 @@ if /i not "%PATCHY_ARCH%"=="x64" if /i not "%PATCHY_ARCH%"=="arm64" (
   goto fail
 )
 if /i "%PATCHY_ARCH%"=="arm64" (set "PATCHY_ARCH=arm64") else set "PATCHY_ARCH=x64"
-rem :SignFile retries a failed signature only after one has passed in this run.
+rem :SignFile retries a failed signature only after one has passed in this run, the x64 half
+rem of the same "all" run included (PATCHY_SIGNING_PROVEN, set above once that half is done).
 set "SIGNED_ONE_FILE="
+if defined PATCHY_SIGNING_PROVEN if not defined PATCHY_ALLOW_UNSIGNED set "SIGNED_ONE_FILE=1"
 
 set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"

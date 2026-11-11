@@ -3,6 +3,12 @@
 # the snapshot checkout: configure + build the given preset, then run the test suites.
 #   build-and-test.sh <preset> [--target <t>[,<t>...]] [--filter <ui substr>]
 #                     [--core-filter <core substr>] [--skip-tests]
+#   build-and-test.sh <preset> --warncheck [--clean]
+#
+# --warncheck runs the warning check instead (warncheck.sh, docs/platform.md "Warning
+# verification"): the preset's default target in its own build/warncheck-<preset>, failing on
+# any warning line, no tests; --clean starts it from an empty folder. The linux-appimage
+# preset runs it in the AppImage's container (packaging/linux/make-appimage.sh --warncheck).
 #
 # --target builds only those CMake targets instead of the preset's default target, and then
 # only the suites whose executables this run built are run (patchy_core_tests,
@@ -16,7 +22,7 @@
 # directory (docs/platform.md, "Warning verification").
 set -euo pipefail
 
-USAGE="usage: build-and-test.sh <preset> [--target t1,t2] [--filter substr] [--core-filter substr] [--skip-tests]"
+USAGE="usage: build-and-test.sh <preset> [--target t1,t2] [--filter substr] [--core-filter substr] [--skip-tests] | <preset> --warncheck [--clean]"
 PRESET="${1:?$USAGE}"
 shift
 
@@ -41,15 +47,28 @@ FILTER=""
 CORE_FILTER=""
 TARGETS=""
 SKIP_TESTS=0
+WARNCHECK=0
+CLEAN=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --filter) FILTER="${2:?--filter needs a value}"; shift 2 ;;
     --core-filter) CORE_FILTER="${2:?--core-filter needs a value}"; shift 2 ;;
     --target) TARGETS="${2:?--target needs a value}"; shift 2 ;;
     --skip-tests) SKIP_TESTS=1; shift ;;
+    --warncheck) WARNCHECK=1; shift ;;
+    --clean) CLEAN=clean; shift ;;
     *) echo "unknown arg: $1" >&2; echo "$USAGE" >&2; exit 2 ;;
   esac
 done
+if [ "$WARNCHECK" = "1" ] && [ -n "$TARGETS$FILTER$CORE_FILTER" ]; then
+  echo "--warncheck builds the default target and runs no tests" >&2; exit 2
+fi
+if [ -n "$CLEAN" ] && [ "$WARNCHECK" != "1" ]; then echo "--clean needs --warncheck" >&2; exit 2; fi
+# The AppImage's toolchain (gcc-12, Qt 6.8.3) lives in its container, not on this host.
+if [ "$WARNCHECK" = "1" ] && [ "$PRESET" = "linux-appimage" ]; then
+  exec bash "$HOME/patchy/src/packaging/linux/make-appimage.sh" --warncheck ${CLEAN:+--clean}
+fi
+. "$HOME/patchy/src/scripts/remote/warncheck.sh"
 # Comma list -> words for cmake --target and for the suite checks below.
 TARGET_LIST=$(printf '%s' "$TARGETS" | tr ',' ' ')
 built() {
@@ -75,6 +94,30 @@ cd "$HOME/patchy/src"
 JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
 [ "$JOBS" -ge 1 ] || JOBS=1
 
+if [ "$WARNCHECK" = "1" ]; then
+  if [ "$PRESET" = "linux-flatpak-qt" ]; then
+    # flatpak-builder compiles the package with the SDK's hardening flags, whose optimizer
+    # false positives a plain preset never prints (docs/platform.md, "The flatpak build is a
+    # second Linux compiler"). Take them from the last package build's own cache, else the
+    # set the 6.11 SDK used; CMake reads CFLAGS and CXXFLAGS on the first configure, and a
+    # change in them makes warncheck.sh start clean.
+    FLATPAK_CFLAGS='-O2 -pipe -g -Wp,-D_FORTIFY_SOURCE=3 -Wp,-D_GLIBCXX_ASSERTIONS -fexceptions -fstack-protector-strong -grecord-gcc-switches -fasynchronous-unwind-tables -fstack-clash-protection -fcf-protection -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer'
+    FLATPAK_CXXFLAGS="$FLATPAK_CFLAGS"
+    FLATPAK_CACHE=$(ls -t "$HOME"/patchy/src/packaging/linux/.flatpak-builder/build/patchy-*/CMakeCache.txt 2>/dev/null | head -1 || true)
+    if [ -n "$FLATPAK_CACHE" ]; then
+      CACHED=$(sed -nE 's/^CMAKE_C_FLAGS:STRING=(.+)$/\1/p' "$FLATPAK_CACHE" | head -1)
+      [ -z "$CACHED" ] || FLATPAK_CFLAGS="$CACHED"
+      CACHED=$(sed -nE 's/^CMAKE_CXX_FLAGS:STRING=(.+)$/\1/p' "$FLATPAK_CACHE" | head -1)
+      [ -z "$CACHED" ] || FLATPAK_CXXFLAGS="$CACHED"
+    fi
+    export CFLAGS="$FLATPAK_CFLAGS" CXXFLAGS="$FLATPAK_CXXFLAGS"
+    echo "== warncheck: the Flatpak package's compile flags${FLATPAK_CACHE:+ (from $FLATPAK_CACHE)}: $CXXFLAGS =="
+  fi
+  WARNCHECK_STATUS=0
+  patchy_warncheck "$HOME/patchy/src" "$PRESET" "$JOBS" "$CLEAN" || WARNCHECK_STATUS=$?
+  exit "$WARNCHECK_STATUS"
+fi
+
 BUILD_DIR="build/$PRESET"
 BUILD_LOG="$BUILD_DIR/remote-build.log"
 TARGET_ARGS=()
@@ -90,13 +133,13 @@ echo "== configure ($PRESET) =="
 cmake --preset "$PRESET" 2>&1 | tee "$BUILD_LOG"
 echo "== build ($PRESET, $TARGET_NOTE, -j $JOBS) =="
 # pipefail keeps the build's exit status through tee. The ${X[@]+...} form expands an empty
-# array under set -u on macOS's bash 3.2. The pattern avoids \b, which BSD grep lacks.
+# array under set -u on macOS's bash 3.2. The count and list skip ninja's progress lines
+# (warncheck.sh), which name objects such as no_layer_warning_tests.cpp.
 BUILD_STATUS=0
 nice -n 10 cmake --build --preset "$PRESET" -j "$JOBS" ${TARGET_ARGS[@]+"${TARGET_ARGS[@]}"} 2>&1 | tee -a "$BUILD_LOG" || BUILD_STATUS=$?
-WARNING_RE='(^|[^a-z])warning([^a-z]|$)'
-WARNINGS=$(grep -ciE "$WARNING_RE" "$BUILD_LOG" || true)
+WARNINGS=$(patchy_warncheck_count "$BUILD_LOG")
 echo "== warnings printed by this build: $WARNINGS ($PRESET, $TARGET_NOTE; only what this run compiled and linked) =="
-grep -iE "$WARNING_RE" "$BUILD_LOG" | sort -u | head -40 | sed 's/^/  /' || true
+patchy_warncheck_list "$BUILD_LOG"
 [ "$BUILD_STATUS" = "0" ] || exit "$BUILD_STATUS"
 
 if [ "$SKIP_TESTS" = "1" ]; then
@@ -109,24 +152,35 @@ if ! built patchy_core_tests && ! built patchy_ui_visual_tests && ! built patchy
   exit 0
 fi
 
+# Every suite runs even when an earlier one fails, as in build-and-test.ps1: one run reports
+# every failure, and the exit code is the first failing suite's.
+FIRST_FAILURE=0
+note_failure() {
+  if [ "$1" != "0" ] && [ "$FIRST_FAILURE" = "0" ]; then FIRST_FAILURE="$1"; fi
+}
+
 if built patchy_core_tests; then
   echo "== patchy_core_tests $CORE_FILTER =="
+  SUITE_STATUS=0
   if [ -n "$CORE_FILTER" ]; then
-    (cd "$BUILD_DIR" && nice -n 10 ./patchy_core_tests "$CORE_FILTER")
+    (cd "$BUILD_DIR" && nice -n 10 ./patchy_core_tests "$CORE_FILTER") || SUITE_STATUS=$?
   else
-    (cd "$BUILD_DIR" && nice -n 10 ./patchy_core_tests)
+    (cd "$BUILD_DIR" && nice -n 10 ./patchy_core_tests) || SUITE_STATUS=$?
   fi
+  note_failure "$SUITE_STATUS"
 else
   echo "== patchy_core_tests not built in this run; skipped =="
 fi
 
 if built patchy_ui_visual_tests; then
   echo "== patchy_ui_visual_tests (offscreen) $FILTER =="
+  SUITE_STATUS=0
   if [ -n "$FILTER" ]; then
-    (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests "$FILTER")
+    (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests "$FILTER") || SUITE_STATUS=$?
   else
-    (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests)
+    (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests) || SUITE_STATUS=$?
   fi
+  note_failure "$SUITE_STATUS"
 else
   echo "== patchy_ui_visual_tests not built in this run; skipped =="
 fi
@@ -136,9 +190,14 @@ fi
 # the real cocoa platform, which the logged-in console session provides.
 if [ "$(uname -s)" = "Darwin" ] && built patchy_mac_a11y_tests; then
   echo "== patched Qt cocoa plugin =="
-  bash scripts/setup-qt-cocoa-patch-mac.sh
-  echo "== patchy_mac_a11y_tests (cocoa) =="
-  (cd "$BUILD_DIR" && ./patchy_mac_a11y_tests "$PWD/../../.deps/qt-cocoa-6.8.3-patched")
+  SUITE_STATUS=0
+  bash scripts/setup-qt-cocoa-patch-mac.sh || SUITE_STATUS=$?
+  if [ "$SUITE_STATUS" = "0" ]; then
+    echo "== patchy_mac_a11y_tests (cocoa) =="
+    (cd "$BUILD_DIR" && ./patchy_mac_a11y_tests "$PWD/../../.deps/qt-cocoa-6.8.3-patched") || SUITE_STATUS=$?
+  fi
+  note_failure "$SUITE_STATUS"
 elif [ "$(uname -s)" = "Darwin" ]; then
   echo "== patchy_mac_a11y_tests not built in this run; skipped =="
 fi
+exit "$FIRST_FAILURE"

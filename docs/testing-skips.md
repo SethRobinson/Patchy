@@ -23,7 +23,7 @@ A test that recorded a failure (`report_failure`, a `guarded()` callback, `when_
 
 ## Expected-skip lists
 
-`verify-windows.ps1` (core and ui steps) and `verify-remote.ps1` (the suites step) judge skips through `scripts\release\skip-check.ps1`. For each suite they print its `[SUMMARY]` lines and skip count, then compare the skipped names with:
+`verify-windows.ps1` (core and ui steps) and `verify-remote.ps1` (the suites step, which the release rehearsal runs alone with `-SuitesOnly`: [release-process.md](release-process.md#before-the-version-bump)) judge skips through `scripts\release\skip-check.ps1`. For each suite they print its `[SUMMARY]` lines and skip count, then compare the skipped names with:
 
 ```
 <local fixtures>\expected-skips\<host>-<suite>.txt

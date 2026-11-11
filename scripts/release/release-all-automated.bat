@@ -14,6 +14,12 @@ rem verify-mac verify-linux (the release tests, after the builders), upload-wasm
 rem (the Flatpak repository and the wasm site on rtsoft.com) upload-desktop (the Flatpak
 rem repository only), and upload-github (publish after
 rem pushing the build commit with the OLD update manifest).
+rem Before the version bump (docs/release-process.md, "Before the version bump"):
+rem warncheck-windows warncheck-windows-arm64 warncheck-mac warncheck-linux warncheck-wasm
+rem (the warning check on each build host; warncheck launches all five) and rehearse-windows
+rem rehearse-windows-arm64 rehearse-mac rehearse-linux (the warning check, then both full
+rem suites on that host; rehearse launches all four plus warncheck-wasm). They build no
+rem package and need no bump, so a launch of only these skips the metainfo preflight.
 rem All requested targets launch in parallel. Run builds, upload-all, and upload-github
 rem in separate invocations, waiting for successful exit markers between phases.
 rem Only after the public release downloads are verified, update latest_version.json
@@ -26,12 +32,20 @@ rem marker, which reads as a hung build. See docs/release-process-scripts.md.
 setlocal EnableExtensions
 cd /d "%~dp0..\.."
 if not exist build\release-logs mkdir build\release-logs
+rem The warning check and the rehearsal run between releases, when the metainfo still names
+rem the next tag (check-metainfo.py reports the pending bump), so only a launch that holds
+rem nothing else keeps the preflight off.
+set "EARLY_ONLY="
+if not "%~1"=="" set "EARLY_ONLY=1"
+for %%T in (%*) do call :classify %%~T
+if defined EARLY_ONLY goto ssh_preflight
 rem Preflight: the Linux metainfo (screenshot URLs pinned to a release tag, the <release>
 rem entry) must describe the version in CMakeLists.txt before anything is built or
 rem uploaded. 1.17 and 1.18 shipped with the screenshots still pinned to v1.16 because
 rem nothing checked (docs/release-process.md, "Release safety checks").
 python "%~dp0check-metainfo.py"
 if not "%ERRORLEVEL%"=="0" goto metainfo_failed
+:ssh_preflight
 rem Every Windows ssh call in scripts\ must pass -n (or feed stdin): an ssh that keeps the
 rem worker's stdin can stay alive after its remote command ends, and the release driver hung
 rem that way on five release days, each time on a call the earlier fixes had not touched.
@@ -54,9 +68,38 @@ if "%~1"=="" (
   call :launch linux
   call :launch wasm
 ) else (
-  for %%T in (%*) do call :launch %%T
+  for %%T in (%*) do call :target %%T
 )
 echo Targets launched. Logs and exit markers: build\release-logs\^<target^>.log and .exit
+exit /b 0
+
+:classify
+set "EARLY_NAME=%~1"
+if /i "%EARLY_NAME%"=="warncheck" exit /b 0
+if /i "%EARLY_NAME%"=="rehearse" exit /b 0
+if /i "%EARLY_NAME:~0,10%"=="warncheck-" exit /b 0
+if /i "%EARLY_NAME:~0,9%"=="rehearse-" exit /b 0
+set "EARLY_ONLY="
+exit /b 0
+
+:target
+if /i "%~1"=="warncheck" (
+  call :launch warncheck-windows
+  call :launch warncheck-windows-arm64
+  call :launch warncheck-mac
+  call :launch warncheck-linux
+  call :launch warncheck-wasm
+  exit /b 0
+)
+if /i "%~1"=="rehearse" (
+  call :launch rehearse-windows
+  call :launch rehearse-windows-arm64
+  call :launch rehearse-mac
+  call :launch rehearse-linux
+  call :launch warncheck-wasm
+  exit /b 0
+)
+call :launch %~1
 exit /b 0
 
 :metainfo_failed

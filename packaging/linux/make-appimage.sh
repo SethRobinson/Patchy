@@ -10,6 +10,9 @@
 #   make-appimage.sh --tests [filter]
 #                               build the tests on the AppImage toolchain (gcc-12, Qt 6.8.3)
 #                               and run both suites offscreen; no AppImage is written
+#   make-appimage.sh --warncheck [--clean]
+#                               the warning check (scripts/remote/warncheck.sh) of the
+#                               linux-appimage preset on that toolchain; no AppImage is written
 # Prerequisite (one-time, needs sudo): sudo apt-get install -y podman uidmap
 # The image is built on first use and rebuilt whenever the Containerfile or
 # scripts/setup-ai-deps.sh changes (its tag is their hash).
@@ -26,6 +29,10 @@ FILTER=""
 if [ "${1:-}" = "--tests" ]; then
   MODE=tests
   FILTER="${2:-}"
+elif [ "${1:-}" = "--warncheck" ]; then
+  # The warning check (scripts/remote/warncheck.sh) on this toolchain; FILTER carries "clean".
+  MODE=warncheck
+  case "${2:-}" in "") ;; --clean) FILTER=clean ;; *) echo "ERROR: unknown argument ${2}" >&2; exit 2 ;; esac
 fi
 
 VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/CMakeLists.txt" | head -1)

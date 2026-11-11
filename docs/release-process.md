@@ -40,6 +40,41 @@ the Flatpak carries, read from the manifest and uploaded with the release
 
 `build\package` must never hold a previous version's files once a new build starts. The mac and Linux builders write versioned artifacts (`Patchy-<version>.dmg`, `Patchy-<version>.flatpak`, `Patchy-<version>-aarch64.flatpak`, `Patchy-<version>-x86_64.AppImage`); `publish-github-release.ps1` publishes this version's. Unversioned copies left by the retired rtsoft.com mirror uploads are deleted by `release-mac.ps1` and `release-linux.ps1` along with the old versioned artifacts, and the Windows packager deletes its own final-named outputs before rebuilding. An agent that builds packages by hand must do the same delete before reporting the folder as release-ready.
 
+## Before the version bump
+
+Rehearse first. Releases 1.28 to 1.32 each took two to four full build-and-verify rounds,
+almost all for problems day-to-day work never runs into: warnings only clang (mac, wasm),
+the Flatpak's GCC with its hardening flags or the AppImage's gcc-12 print, and UI tests that
+fail only on mac or Linux. Merges build and test on Windows only. The rehearsal finds them
+on the build hosts with no package, signature or bump, and fixes land on main before the
+bump.
+
+1. When the work for the release is merged, run `scripts\release\release-all-automated.bat
+   rehearse` (unattended rules: [release-process-scripts.md](release-process-scripts.md)).
+   It launches `rehearse-windows`, `rehearse-windows-arm64`, `rehearse-mac`,
+   `rehearse-linux` and `warncheck-wasm`. Each rehearsal (`scripts\release\rehearse.ps1`)
+   runs the warning check ([platform.md](platform.md#warning-verification)), then both full
+   suites through `verify-remote.ps1 -SuitesOnly` with the expected-skip check, and reports
+   both even when the first fails. Windows runs `opt-dev` on the first idle offload host,
+   so this PC stays free. A launch of only these targets skips the metainfo preflight (the
+   pending bump would fail it).
+2. Judge each target by its `.exit` marker and the summary at the end of
+   `build\release-logs\<target>.log`; the suites log is
+   `build\release-logs\rehearse-<target>-suites.log`. Exit 75 means a host was busy or
+   locked: rerun that target alone.
+3. Fix on main and rerun just the failing targets. A warning check reruns incrementally
+   (minutes); `warncheck-<target>` alone checks a fix without the suites. The first
+   warning check on a host builds everything (the web app takes about an hour on the wasm
+   host), so run `release-all-automated.bat warncheck` ahead of time when a host is new.
+4. Install the expected-skip lists a host does not have yet: the suites step writes a
+   candidate list beside its log and prints the `copy` that installs it
+   ([testing-skips.md](testing-skips.md#expected-skip-lists)). Review every skip first.
+   Release day judges skips only where lists are installed.
+
+The rehearsal does not replace the release run: packaging, signing, notarization, the
+LTCG link, the MCP and package checks, the aarch64 Flatpak and the AppImage suites run only
+then.
+
 ## Version bump checklist
 
 When bumping the release version, update the version fields:
@@ -133,7 +168,9 @@ signed like x64, staged in `build\package\staging-arm64`, and checked by
 executables (the headless smoke check and `patchy-mcp --check` are skipped too). A failure
 in the ARM64 half fails the builder after the x64 packages are already built and verified.
 A failed signature (the token's smart card error 0x8010001F) is retried twice, 15 s apart, but
-only once a file has signed in that run, so a wrong PIN is never resent.
+only once a file has signed in that run (the x64 half counts for the ARM64 half), so a wrong
+PIN is never resent. A failure on the run's very first signature is not retried: rerun the
+builder once.
 `verify-windows-arm64` (`verify-remote.ps1 -Target windows-arm64`) runs both full suites from
 a native `windows-arm64-opt-dev` build on the `windows-arm64` host (an LTCG link may not fit
 its 16 GB), then copies the two packages there and runs `verify-windows-package.ps1 -Arch
@@ -163,6 +200,8 @@ These checks keep a broken build from looking like a shipped one. Keep every esc
 - **Signing is mandatory.** `packaging/macos/make-dmg.sh` errors under `PATCHY_REQUIRE_SIGNING=1` (set by `scripts\remote\release-mac.ps1`) and requires `spctl` to report `source=Notarized Developer ID` on the finished dmg; `build-release.bat`'s `:SignFile` errors unless `PATCHY_ALLOW_UNSIGNED=1` is set for a deliberately unsigned local build. A missing `~/.patchy-release-env` (mac) or `RT_PROJECTS` (Windows) is a failure, not a "signing skipped" line. The `stapler validate` hang to avoid is in [packaging/macos/README.md](../packaging/macos/README.md).
 - **Uploads are verified.** The Flatpak repository goes through `scripts\release\upload-one-file.bat` (`upload-flatpak-repo-to-rtsoft.bat`), which fails on a bad `scp` and then compares the local SHA-256 against one the server computes over what landed; `upload-to-rtsoft.bat` collects failures and ends with a named summary and a non-zero exit. Never call `scp` or `%RT_PROJECTS%\UploadFileToRTsoftSSH.bat` directly for a release artifact. (`upload-wasm-to-rtsoft.bat` does its own multi-file transfer plus a live COOP/COEP header check, which is why it stays separate.) Every upload script takes the server account from `upload-target.bat` (the `upload` entry of `scripts/remote/hosts.local.json`), never from the script itself.
 - **Packages must run headless.** `--headless` is a shipped feature, so every packager runs the staged `patchy.exe --headless --run-script` on a one-line script and fails unless the output ends in `[done]`: `build-release.bat` copies `qwindows.dll` and `qoffscreen.dll` itself (`:CopyRequiredPlatformPlugins`; windeployqt deploys only the former) before `:HeadlessSmokeCheck`; `packaging/macos/make-dmg.sh` copies `libqoffscreen.dylib` after macdeployqt and runs the same check; `packaging/linux/make-flatpak.sh` runs it inside the built sandbox with `flatpak-builder --run`. Those three run before any artifact is written. `packaging/linux/make-appimage.sh` runs it after its ABI audit, in the 22.04 container and again on the host through FUSE ([appimage.md](appimage.md)). `release-linux.ps1` builds with `-SkipTests`, so this smoke check is the only thing that executes the Flatpak on release day; the suites run in the Flatpak SDK through `remote-build.ps1` during per-change verification.
+
+- **The Linux package compiles report their warnings.** The tree check's `warnings printed by this build` line in `linux.log` covers only that dev build. After the AppImage, `release-linux.ps1` prints `== warning lines in the flatpak package build: N ==` and the same for `appimage` (from `build/release-<name>-build.log` on the host, counted as the warning check counts), with the lines. Both must read 0, or every listed line must be the packaging tools' own; the builder does not fail on them. The aarch64 Flatpak's compile is not counted.
 
 - **The Linux metainfo describes the release.** `release-all.bat`, `release-all-automated.bat`, `release-linux.ps1` and `publish-github-release.ps1` run `scripts\release\check-metainfo.py` (Python 3 on PATH) and stop when a screenshot URL pins a tag whose image differs from the tree's, pins a tag that does not exist, declares a wrong size, or when the version has no `<release>` entry. Between releases the pins name the next tag, so the check reports the pending bump; the version bump with `--fix` makes it pass. A backfill (`-Target`) skips it.
 

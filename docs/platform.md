@@ -53,6 +53,22 @@ build on each platform also runs both full suites. Run
 `patchy_curves_clipping_preview_tests` and `patchy_perf_tests` when validating a
 cross-platform cleanup or changing their dependencies.
 
+The warning check automates this on the build hosts, no tests:
+`scripts\release\warncheck.ps1 -Target windows|windows-arm64|mac|linux|wasm` (release
+targets `warncheck-<target>`, `warncheck` for all five; when to run it:
+[release-process.md](release-process.md#before-the-version-bump)). Each run is
+`remote-build.ps1 -Warncheck` (`scripts/remote/warncheck.ps1` and `warncheck.sh`, which behave
+the same): the default target in its own `build/warncheck-<preset>`, failing on any line with
+the word `warning` except ninja's `[N/M]` progress lines (`no_layer_warning_tests.cpp`). It
+covers `opt-dev` on an offload host (MSVC: the release preset adds only LTCG link warnings,
+which the windows builder prints), `windows-arm64-opt-dev`, `mac-release`, `linux-flatpak-qt`
+with the Flatpak package's hardening flags (read from the last package build's
+`CMakeCache.txt`, see below), `linux-appimage` in the AppImage's gcc-12 container (the package's sources; its test binaries are not checked on gcc-12, which prints libstdc++ false positives for them), and `wasm-release` plus
+`wasm-core`. The folder is kept after a pass, so the next run compiles only what changed and
+prints every new warning; a run that did not pass (its warned objects are built and would
+stay silent), a changed compiler, Qt, Emscripten or flags, or `-Clean` starts the next one
+from an empty folder. `build/warncheck-<preset>.log` on the host holds the last run.
+
 `scripts\remote\remote-build.ps1 -Target mac|linux` exercises the Release preset; after
 it snapshots the tree (`scripts\remote\remote-snapshot.ps1`), use that remote checkout
 for clean `mac-dev` or `linux-dev` verification. Do not add `-Werror` or `/WX`; a new

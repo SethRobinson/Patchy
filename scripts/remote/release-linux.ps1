@@ -124,13 +124,21 @@ ssh -n $remoteHost 'mkdir -p ~/patchy/src/build/flatpak-import && rm -f ~/patchy
 if ($LASTEXITCODE -ne 0) { throw 'could not prepare build/flatpak-import on the linux build host' }
 scp -q $armUnsigned "${remoteHost}:patchy/src/build/flatpak-import/"
 if ($LASTEXITCODE -ne 0) { throw 'could not copy the aarch64 bundle to the linux build host' }
-ssh -n $remoteHost "source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_FLATPAK_REPO=1 PATCHY_FLATPAK_IMPORT_BUNDLES=aarch64=`$HOME/patchy/src/build/flatpak-import/$armBundleName bash ~/patchy/src/packaging/linux/make-flatpak.sh"
+# Both package builds also write their output to a log on the host, for the warning count
+# after step 4: the tree check's "warnings printed by this build" covers only its own compile.
+ssh -n $remoteHost "set -o pipefail; source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_FLATPAK_REPO=1 PATCHY_FLATPAK_IMPORT_BUNDLES=aarch64=`$HOME/patchy/src/build/flatpak-import/$armBundleName bash ~/patchy/src/packaging/linux/make-flatpak.sh 2>&1 | tee ~/patchy/src/build/release-flatpak-build.log"
 if ($LASTEXITCODE -ne 0) { throw 'make-flatpak.sh failed on the linux build host' }
 
 # 4. The AppImage (docs/appimage.md): built in an Ubuntu 22.04 podman container from the
 # same snapshot, smoke-checked inside it and again on the host through FUSE.
-ssh -n $remoteHost 'bash ~/patchy/src/packaging/linux/make-appimage.sh'
+ssh -n $remoteHost 'set -o pipefail; bash ~/patchy/src/packaging/linux/make-appimage.sh 2>&1 | tee ~/patchy/src/build/release-appimage-build.log'
 if ($LASTEXITCODE -ne 0) { throw 'make-appimage.sh failed on the linux build host' }
+
+# The warning lines of the two package compiles (the Flatpak's GCC with its hardening flags,
+# the AppImage's gcc-12), counted as the warning check counts them (warncheck.sh). Reported,
+# not failed on: the packagers' own tools also print the word. Read every line listed.
+ssh -n $remoteHost '. ~/patchy/src/scripts/remote/warncheck.sh; for f in flatpak appimage; do log="$HOME/patchy/src/build/release-$f-build.log"; echo "== warning lines in the $f package build: $(patchy_warncheck_count "$log") (log $log) =="; patchy_warncheck_list "$log"; done'
+if ($LASTEXITCODE -ne 0) { throw 'could not count the package build warnings on the linux build host' }
 
 $dest = Join-Path $repoRoot 'build\package'
 New-Item -ItemType Directory -Force $dest | Out-Null

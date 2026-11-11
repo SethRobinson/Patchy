@@ -7,6 +7,13 @@ upload order"):
      built and packaged connectors, and on linux the Flatpak and AppImage checks.
 
   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\verify-remote.ps1 -Target mac|linux [-SkipSuites]
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\verify-remote.ps1 -Target windows|windows-arm64|mac|linux -SuitesOnly
+
+-SuitesOnly runs step 1 alone and needs no package or builder: the rehearsal before a
+version bump (rehearse.ps1, docs/release-process.md "Before the version bump"). Its log is
+build\release-logs\rehearse-<target>-suites.log, and only it takes -Target windows: the
+opt-dev suites on the first idle offload host, whose skips are judged against that host's
+lists (verify-windows.ps1 runs this PC's own release suites on release day).
 
 Run it after that target's builder (release-all-automated.bat verify-mac / verify-linux do
 this unattended); it refuses while build\release-logs\<target>.exit reports a failed build.
@@ -30,9 +37,12 @@ fail on the lock and the closing tail would echo the file back into itself witho
 Logs: verify-windows-arm64-suites.log and verify-windows-arm64-checks.log.
 #>
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows-arm64')][string]$Target,
-  [switch]$SkipSuites
+  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows-arm64', 'windows')][string]$Target,
+  [switch]$SkipSuites,
+  [switch]$SuitesOnly
 )
+if ($SuitesOnly -and $SkipSuites) { throw '-SuitesOnly and -SkipSuites leave nothing to run' }
+if ($Target -eq 'windows' -and -not $SuitesOnly) { throw '-Target windows is only for -SuitesOnly; verify-windows.ps1 checks this PC''s packages' }
 # 'Continue', not 'Stop': native stderr would become terminating errors under 5.1.
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'release-process-run.ps1')
@@ -41,7 +51,8 @@ $root =(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $root
 if (-not (Test-Path 'CMakeLists.txt')) { throw "not the repository root: $root" }
 . (Join-Path $root 'scripts\remote\remote-hosts.ps1')
-$remoteHost = (Get-PatchyRemoteHost $Target).ssh
+# The windows offload host is picked by remote-build.ps1 (first idle) and read from its log.
+$remoteHost = if ($Target -eq 'windows') { $null } else { (Get-PatchyRemoteHost $Target).ssh }
 $logs = Join-Path $root 'build\release-logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 
@@ -49,7 +60,7 @@ $version = (Select-String -Path 'CMakeLists.txt' -Pattern '^\s*VERSION\s+([0-9.]
 if (-not $version) { throw 'could not read the project version from CMakeLists.txt' }
 
 $builderMarker = Join-Path $logs $(if ($Target -eq 'windows-arm64') { 'windows.exit' } else { "$Target.exit" })
-if (Test-Path $builderMarker) {
+if (-not $SuitesOnly -and (Test-Path $builderMarker)) {
   $builder = (Get-Content $builderMarker -Raw).Trim()
   if ($builder -ne 'exit=0') { Write-Output "$Target builder reported $builder; not verifying."; exit 1 }
 }
@@ -62,14 +73,19 @@ function Count([string]$log, [string]$text) {
 }
 
 if (-not $SkipSuites) {
-  $suitesLog = Join-Path $logs "verify-$Target-suites.log"
-  Write-Output "== $Target full native suites (remote-build.ps1) =="
-  $presetArgument = $(if ($Target -eq 'windows-arm64') { ' -Preset windows-arm64-opt-dev' } else { '' })
+  $suitesLog = Join-Path $logs $(if ($SuitesOnly) { "rehearse-$Target-suites.log" } else { "verify-$Target-suites.log" })
+  Write-Output "== $Target full native suites (remote-build.ps1) started $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) =="
+  $presetArgument = switch ($Target) { 'windows-arm64' { ' -Preset windows-arm64-opt-dev' } 'windows' { ' -Preset opt-dev' } default { '' } }
   $code = Invoke-CmdLine ('powershell -NoProfile -ExecutionPolicy Bypass -File scripts\remote\remote-build.ps1 -Target ' +
                          $Target + $presetArgument + ' > "' + $suitesLog + '" 2>&1')
   $fails = (Count $suitesLog '[FAIL]') + (Count $suitesLog '[CRASH]')
   if ($code -eq 0 -and $fails -gt 0) { $code = 1 }
   Write-Output ("suites: exit={0} pass={1} fail={2} skip={3}" -f $code, (Count $suitesLog '[PASS]'), $fails, (Count $suitesLog '[SKIP]'))
+  if ($Target -eq 'windows') {
+    $built = Select-String -LiteralPath $suitesLog -Pattern '^== building snapshot \S+ on (\S+) ==$' | Select-Object -First 1
+    if ($built) { $remoteHost = $built.Matches[0].Groups[1].Value }
+    if (-not $remoteHost) { Write-Output 'suites: could not tell which windows host ran them'; if ($code -eq 0) { $code = 1 } }
+  }
   # A skipped test checked nothing: judge the skips against this host's expected lists.
   $unexpected = 0
   Test-PatchySkips -Log $suitesLog -HostName $remoteHost -Root $root -Unexpected ([ref]$unexpected)
@@ -78,7 +94,7 @@ if (-not $SkipSuites) {
     if ($code -eq 0) { $code = 1 }
   }
   Write-Marker $suitesLog $code
-  if ($code -ne 0) { exit $code }
+  if ($code -ne 0 -or $SuitesOnly) { exit $code }
 }
 
 if ($Target -eq 'windows-arm64') {

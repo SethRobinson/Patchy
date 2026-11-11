@@ -5,6 +5,12 @@ work tree right after the snapshot checkout. Builds and stages the web site
 preset and runs the full wasm core suite under the emsdk-bundled node.
 
   wasm-build-and-test.ps1 [-Jobs 8] [-SkipTests]
+  wasm-build-and-test.ps1 -Warncheck [-Clean] [-Jobs 8]
+
+-Warncheck stages no site and runs no suite: warncheck.ps1 builds the wasm-release (the web
+app) and wasm-core (the engine and its tests) presets in their own build\warncheck-<preset>
+folders and fails on any warning line either printed (docs/platform.md, "Warning
+verification"); -Clean starts both from empty folders.
 
 The host needs what build-wasm.bat needs locally: emsdk and the Qt wasm_multithread kit in
 .deps (scripts\wasm\setup-emsdk.ps1, setup-qt-wasm.ps1). The pinned onnxruntime-web and
@@ -17,17 +23,31 @@ summary line (exit code, pass, fail and skip counts) and every [FAIL] line.
 #>
 param(
   [int]$Jobs = 8,
-  [switch]$SkipTests
+  [switch]$SkipTests,
+  [switch]$Warncheck,
+  [switch]$Clean
 )
 
 $ErrorActionPreference = 'Continue'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $repo
 $throttled = Join-Path $repo 'scripts\run-throttled.bat'
+$wasmEnv = 'call .deps\emsdk\emsdk_env.bat >nul 2>&1 && call scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul'
 
 Write-Host '== setup-ai-deps -Web =='
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup-ai-deps.ps1 -Web
 if ($LASTEXITCODE -ne 0) { Write-Host "setup-ai-deps.ps1 -Web failed ($LASTEXITCODE)"; exit 1 }
+
+if ($Warncheck) {
+  # Both presets run even when the first fails, so one run reports every warning.
+  $failed = 0
+  foreach ($warnPreset in @('wasm-release', 'wasm-core')) {
+    & (Join-Path $PSScriptRoot 'warncheck.ps1') -Preset $warnPreset -EnvCommand $wasmEnv -Jobs $Jobs -Clean:$Clean
+    if ($LASTEXITCODE -ne 0) { $failed++ }
+  }
+  if ($failed) { exit 1 }
+  exit 0
+}
 
 Write-Host "== build-wasm.bat (wasm-release site, -j $Jobs, below-normal priority) =="
 $env:NO_PAUSE = '1'
@@ -47,7 +67,6 @@ if ($SkipTests) {
   exit 0
 }
 
-$wasmEnv = 'call .deps\emsdk\emsdk_env.bat >nul 2>&1 && call scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul'
 Write-Host '== configure wasm-core =='
 cmd /s /c "$wasmEnv && cmake --preset wasm-core 2>&1"
 if ($LASTEXITCODE -ne 0) { Write-Host "wasm-core configure failed ($LASTEXITCODE)"; exit 1 }

@@ -3,9 +3,11 @@
 # Ubuntu 22.04 image from ./Containerfile with the repository mounted at /src.
 #   build-in-container.sh package <version>   build, stage, bundle, pack, audit, smoke check
 #   build-in-container.sh tests [filter]      build the tests on this toolchain and run both suites
+#   build-in-container.sh warncheck [clean]   the warning check of the linux-appimage preset
+#                                             (scripts/remote/warncheck.sh)
 set -euo pipefail
 
-MODE="${1:?usage: build-in-container.sh package <version> | tests [filter]}"
+MODE="${1:?usage: build-in-container.sh package <version> | tests [filter] | warncheck [clean]}"
 ROOT=/src
 [ -f "$ROOT/CMakeLists.txt" ] || { echo "ERROR: the repository is not mounted at $ROOT" >&2; exit 1; }
 cd "$ROOT"
@@ -26,6 +28,15 @@ if [ ! -f "$GEGL_BUNDLE/lib/libgegl-0.4.so.0" ] || [ ! -f "$GEGL_BUNDLE/share/lo
   echo "== build Patchy's own GEGL for the AppImage =="
   bash "$ROOT/scripts/dev/gegl/build-gegl-appimage.sh" "$ROOT"
   patchy_gegl_check_sources "$GEGL_BUNDLE/licenses/SOURCES.txt"
+fi
+
+if [ "$MODE" = "warncheck" ]; then
+  . "$ROOT/scripts/remote/warncheck.sh"
+  WARNCHECK_STATUS=0
+  # The package preset, what ships. The test binaries are not checked on this compiler: gcc-12
+  # prints libstdc++ false positives for them (-Wstringop-overflow on "literal" + std::string).
+  patchy_warncheck "$ROOT" linux-appimage "$JOBS" "${2:-}" || WARNCHECK_STATUS=$?
+  exit "$WARNCHECK_STATUS"
 fi
 
 if [ "$MODE" = "tests" ]; then

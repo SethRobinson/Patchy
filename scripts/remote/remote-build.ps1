@@ -5,6 +5,7 @@ and runs the test suites there.
   scripts\remote\remote-build.ps1 -Target mac|linux|windows|windows-arm64|wasm [-TestFilter ui_palette] [-CoreTestFilter psd]
                                   [-BuildTarget patchy_ui_visual_tests[,patchy_core_tests]] [-Preset opt-dev]
                                   [-SkipTests] [-FetchArtifacts]
+  scripts\remote\remote-build.ps1 -Target <target> -Warncheck [-Clean] [-Preset <preset>]
   linux only:   [-NativeQt]
   windows only: [-WindowsHost <ssh target>] [-WaitMinutes 30] [-PerfScenario startup] [-PerfEnv 'NAME=value;...']
 
@@ -17,6 +18,14 @@ windows-arm64-release preset by default (-Preset windows-arm64-opt-dev to iterat
 stages the site in that host's build\package\wasm-site, then builds wasm-core and runs the
 full wasm core suite (-SkipTests skips the suite). It takes no filters, -BuildTarget or
 -Preset. scripts\remote\release-wasm.ps1 wraps it and copies the site back.
+
+-Warncheck runs the warning check on the host instead of a build and test run
+(warncheck.ps1 / warncheck.sh, docs/platform.md "Warning verification"): the preset's
+default target in its own build/warncheck-<preset>, kept after a pass so the next run is
+incremental, failing on any warning line; no tests, no artifacts. -Clean starts it from an
+empty folder. With -Target wasm it checks the wasm-release and wasm-core presets; with
+-Target linux -Preset linux-appimage it runs in the AppImage's gcc-12 container.
+scripts\release\warncheck.ps1 runs it for each platform (the warncheck-* release targets).
 
 A typical worker loop builds only the suite it runs, in the optimized no-LTCG preset:
 
@@ -100,7 +109,10 @@ param(
   # windows only: when every reachable host is busy, keep re-probing for this many minutes.
   [int]$WaitMinutes = 0,
   # Clear the target host's build lock first. Only after checking its holder is really gone.
-  [switch]$BreakLock
+  [switch]$BreakLock,
+  # The warning check instead of a build and test run; -Clean starts it from an empty folder.
+  [switch]$Warncheck,
+  [switch]$Clean
 )
 
 # 'Continue', not 'Stop': under Windows PowerShell 5.1 any native stderr line
@@ -114,6 +126,10 @@ $ErrorActionPreference = 'Continue'
 $winTarget = $Target -like 'windows*' -or $Target -eq 'wasm'
 if (($WindowsHost -or $WaitMinutes) -and -not $winTarget) { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows, windows-arm64 and wasm' }
 if (($PerfScenario -or $PerfEnv) -and $Target -notlike 'windows*') { throw '-PerfScenario and -PerfEnv are only supported for -Target windows and windows-arm64' }
+if ($Clean -and -not $Warncheck) { throw '-Clean needs -Warncheck' }
+if ($Warncheck -and ($TestFilter -or $CoreTestFilter -or $BuildTarget.Count -or $SkipTests -or $PerfScenario -or $PerfEnv -or $FetchArtifacts)) {
+  throw '-Warncheck builds the default target and runs no tests: it takes no filters, -BuildTarget, -SkipTests, -PerfScenario, -PerfEnv or -FetchArtifacts'
+}
 if ($Target -eq 'wasm' -and ($TestFilter -or $CoreTestFilter -or $BuildTarget.Count -or $Preset -or $FetchArtifacts)) {
   throw '-Target wasm builds the web site and runs the full wasm core suite; it takes no filters, -BuildTarget, -Preset or -FetchArtifacts'
 }
@@ -208,6 +224,8 @@ try {
   if ($Target -eq 'wasm') {
     $psArgs = @()
     if ($SkipTests) { $psArgs += '-SkipTests' }
+    if ($Warncheck) { $psArgs += '-Warncheck' }
+    if ($Clean) { $psArgs += '-Clean' }
     if ($remote.jobs) { $psArgs += @('-Jobs', [int]$remote.jobs) }
     $wt = $remote.workTree.Replace('\', '/')
     $remoteCmd = "git -C $wt fetch -q origin +refs/snapshots/dev; " + 'if ($LASTEXITCODE) { exit $LASTEXITCODE }; ' +
@@ -223,6 +241,8 @@ try {
     if ($CoreTestFilter) { $psArgs += @('-CoreFilter', "'$CoreTestFilter'") }
     if ($targets.Count) { $psArgs += @('-BuildTarget', "'$($targets -join ',')'") }
     if ($SkipTests) { $psArgs += '-SkipTests' }
+    if ($Warncheck) { $psArgs += '-Warncheck' }
+    if ($Clean) { $psArgs += '-Clean' }
     if ($PerfScenario) { $psArgs += @('-PerfScenario', "'$PerfScenario'") }
     if ($PerfEnv) { $psArgs += @('-PerfEnv', "'$PerfEnv'") }
     # Optional per-host parallelism from the host config; build-and-test.ps1 defaults to 8.
@@ -239,6 +259,8 @@ try {
     if ($CoreTestFilter) { $shArgs += @('--core-filter', "'$CoreTestFilter'") }
     if ($targets.Count) { $shArgs += @('--target', ($targets -join ',')) }
     if ($SkipTests) { $shArgs += '--skip-tests' }
+    if ($Warncheck) { $shArgs += '--warncheck' }
+    if ($Clean) { $shArgs += '--clean' }
     $remoteCmd = 'git -C ~/patchy/src fetch -q origin +refs/snapshots/dev && ' +
       'git -C ~/patchy/src checkout -q -f --detach FETCH_HEAD && ' +
       'bash ~/patchy/src/scripts/remote/build-and-test.sh ' + ($shArgs -join ' ')
@@ -247,7 +269,7 @@ try {
   ssh -n $remoteHost $remoteCmd
   $remoteExit = $LASTEXITCODE
 
-  if ($artifactSrc -and ($FetchArtifacts -or ($remoteExit -ne 0 -and -not $SkipTests))) {
+  if ($artifactSrc -and -not $Warncheck -and ($FetchArtifacts -or ($remoteExit -ne 0 -and -not $SkipTests))) {
     $dest = Join-Path $repoRoot.Trim() "build\remote-artifacts\$Target"
     New-Item -ItemType Directory -Force $dest | Out-Null
     Write-Host "== fetching test-artifacts to $dest =="
