@@ -31,6 +31,7 @@
 #include <vector>
 #include "ui_test_access.hpp"
 #include "scripting_test_support.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/warp_mesh.hpp"
 #include <QTest>
@@ -46,6 +47,7 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QAbstractItemView>
 #include <QMenu>
 #include <QPainter>
@@ -64,6 +66,9 @@
 #include "core/pixel_depth.hpp"
 #include "formats/document_trim.hpp"
 #include <QInputDialog>
+#include <QLineF>
+#include <QPolygonF>
+#include <QTransform>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1927,6 +1932,105 @@ void ui_crop_delete_options_crop_and_delete_layers() {
   CHECK(second_layers != nullptr && second_layers->isChecked());
 }
 
+// GitHub issue 701. With Delete Cropped Pixels off a crop keeps the Background's pixels
+// beyond the new canvas, and a Background's bounds are the canvas, so the layer becomes an
+// ordinary "Layer 0" (the Background locks cleared, every pixel kept) in the Crop undo step.
+// It used to keep its name and both locks while no longer being the Background, so the row
+// showed the plain transparency and position badges. With the option on, the Background is
+// cut to the canvas and stays the Background.
+void ui_crop_keeping_pixels_turns_background_into_layer_0() {
+  SettingsValueRestorer restore_pixels(QStringLiteral("tools/cropDeletePixels"));
+  SettingsValueRestorer restore_layers(QStringLiteral("tools/cropDeleteLayers"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/cropDeletePixels"));
+    settings.remove(QStringLiteral("tools/cropDeleteLayers"));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  auto* pixels_check = window.findChild<QCheckBox*>(QStringLiteral("cropDeletePixelsCheck"));
+  CHECK(layer_list != nullptr && layers_dock != nullptr && pixels_check != nullptr);
+  const auto background = [&document] {
+    return patchy::background_layer(std::as_const(document).layers(), document.width(), document.height());
+  };
+  // The lock badges on the bottom row: one padlock marked layerBackgroundBadge for the
+  // Background, none for an unlocked ordinary layer.
+  const auto bottom_badges = [layer_list] {
+    auto* row = layer_list->itemWidget(layer_list->item(layer_list->count() - 1));
+    return row != nullptr ? row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")) : QList<QLabel*>{};
+  };
+  const auto bottom_is_background_row = [&bottom_badges] {
+    const auto badges = bottom_badges();
+    return badges.size() == 1 && badges.front()->property("layerBackgroundBadge").toBool();
+  };
+  CHECK(background() != nullptr);
+  if (background() == nullptr) {
+    return;
+  }
+  const auto background_id = background()->id();
+  const auto canvas_width = document.width();
+  const auto canvas_height = document.height();
+  CHECK(bottom_is_background_row());
+
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  const auto crop_to_box = [&] {
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+         canvas->widget_position_for_document_point(QPoint(300, 250)));
+    CHECK(canvas->crop_session_rect() == QRect(100, 100, 201, 151));
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(document.width() == 201 && document.height() == 151);
+  };
+  const auto undo = [&] {
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(document.width() == canvas_width && document.height() == canvas_height);
+    CHECK(background() != nullptr && background()->id() == background_id);
+    CHECK(std::as_const(document).layers().front().name() == "Background");
+    CHECK(bottom_is_background_row());
+  };
+
+  // Delete Cropped Pixels on (the default): cut to the canvas, still the Background.
+  CHECK(pixels_check->isChecked());
+  crop_to_box();
+  CHECK(background() != nullptr && background()->id() == background_id);
+  CHECK(std::as_const(document).layers().front().name() == "Background");
+  CHECK(bottom_is_background_row());
+  undo();
+
+  // Off: the layer keeps all its pixels around the new canvas and is "Layer 0".
+  pixels_check->setChecked(false);
+  QApplication::processEvents();
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  crop_to_box();
+  // Captured before the checks, so a failing run still shows the row.
+  save_widget_artifact("issue701_crop_keep_pixels_layers_panel", *layers_dock);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  CHECK(background() == nullptr);
+  {
+    const auto& bottom = std::as_const(document).layers().front();
+    CHECK(bottom.id() == background_id);
+    CHECK(bottom.name() == "Layer 0");
+    CHECK((patchy::layer_lock_flags(bottom) &
+           (patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest)) ==
+          0U);
+    CHECK(bottom.bounds().x == -100 && bottom.bounds().y == -100);
+    CHECK(bottom.bounds().width == canvas_width && bottom.bounds().height == canvas_height);
+    CHECK(bottom.pixels().width() == canvas_width && bottom.pixels().height() == canvas_height);
+  }
+  CHECK(bottom_badges().isEmpty());
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 0")) != nullptr);
+  // One undo brings back the Background with its padlock.
+  undo();
+}
+
 // Image > Trim... (GitHub issue 297). Answers the next Trim dialog: checks whether
 // Transparent Pixels is offered, picks `basis` (an object name, or nullptr to keep the
 // remembered choice), sets the sides and accepts.
@@ -3784,6 +3888,870 @@ void ui_combo_list_separators_are_one_themed_line() {
   CHECK(problems.empty());
 }
 
+// ---------------------------------------------------------------------------------------
+// Move Image Under Crop Box (GitHub issue 699): the crop box keeps its place on screen and
+// the view pans and turns behind it. The limits these tests pin are the "Crop interaction"
+// entry of docs/legal-constraints.md.
+
+QString crop_move_image_key() {
+  return QStringLiteral("tools/cropMoveImageUnderBox");
+}
+
+// The pending crop box's four corners on screen, clockwise from its own top-left.
+QPolygonF crop_box_on_screen(const patchy::ui::CanvasWidget& canvas) {
+  QPolygonF corners;
+  const auto rect = canvas.crop_session_rect();
+  if (!rect.has_value()) {
+    return corners;
+  }
+  const QRectF box(*rect);
+  QTransform turn;
+  turn.translate(box.center().x(), box.center().y());
+  turn.rotate(canvas.crop_session_angle());
+  turn.translate(-box.center().x(), -box.center().y());
+  const auto view = canvas.view_transform();
+  for (const auto corner : {box.topLeft(), box.topRight(), box.bottomRight(), box.bottomLeft()}) {
+    corners << view.map_to_widget(turn.map(corner));
+  }
+  return corners;
+}
+
+QPointF polygon_center(const QPolygonF& polygon) {
+  QPointF sum;
+  for (const auto& point : polygon) {
+    sum += point;
+  }
+  return polygon.isEmpty() ? sum : sum / static_cast<double>(polygon.size());
+}
+
+bool polygons_near(const QPolygonF& a, const QPolygonF& b, double tolerance) {
+  if (a.size() != b.size() || a.isEmpty()) {
+    return false;
+  }
+  for (qsizetype i = 0; i < a.size(); ++i) {
+    if (QLineF(a[i], b[i]).length() > tolerance) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// The on-screen angle of the box's top edge in degrees, clockwise (0 = upright).
+double crop_box_screen_degrees(const QPolygonF& corners) {
+  const auto edge = corners.value(1) - corners.value(0);
+  return std::atan2(edge.y(), edge.x()) * 180.0 / std::numbers::pi;
+}
+
+// The distance between two angles in degrees, wrap included.
+double degrees_apart(double a, double b) {
+  auto difference = std::fmod(a - b, 360.0);
+  if (difference > 180.0) {
+    difference -= 360.0;
+  } else if (difference < -180.0) {
+    difference += 360.0;
+  }
+  return std::abs(difference);
+}
+
+// Drags from outside the box so the pointer travels `degrees` clockwise about the box's
+// center on screen. The drag starts at the first angle (in 15 degree steps) where both ends
+// lie in the view area, so a box near an edge of the view still turns. Returns the travel
+// the rounded pointer positions really made.
+double turn_about_crop_box(patchy::ui::CanvasWidget& canvas, double degrees,
+                           Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  const auto corners = crop_box_on_screen(canvas);
+  const auto center = polygon_center(corners);
+  double half_diagonal = 0.0;
+  for (const auto& corner : corners) {
+    half_diagonal = std::max(half_diagonal, QLineF(center, corner).length());
+  }
+  const auto radius = half_diagonal + 24.0;
+  const auto at = [&](double angle) {
+    const auto radians = angle * std::numbers::pi / 180.0;
+    return QPointF(center.x() + radius * std::cos(radians), center.y() + radius * std::sin(radians)).toPoint();
+  };
+  const auto inside = canvas.view_content_rect().toAlignedRect().adjusted(4, 4, -4, -4);
+  std::optional<double> start;
+  for (int step = 0; step < 24 && !start.has_value(); ++step) {
+    const auto angle = step * 15.0;
+    if (inside.contains(at(angle)) && inside.contains(at(angle + degrees))) {
+      start = angle;
+    }
+  }
+  CHECK(start.has_value());
+  if (!start.has_value()) {
+    return 0.0;
+  }
+  const auto from = at(*start);
+  const auto to = at(*start + degrees);
+  drag(canvas, from, to, modifiers);
+  const auto angle_of = [&](QPoint point) {
+    return std::atan2(point.y() - center.y(), point.x() - center.x()) * 180.0 / std::numbers::pi;
+  };
+  auto travel = std::fmod(angle_of(to) - angle_of(from), 360.0);
+  if (travel > 180.0) {
+    travel -= 360.0;
+  } else if (travel < -180.0) {
+    travel += 360.0;
+  }
+  return travel;
+}
+
+// A landscape whose horizon runs `tilt_degrees` clockwise off level, with posts square to
+// it: turning the picture until the horizon is level is what the crop mode is for.
+void paint_tilted_horizon(patchy::ui::MainWindow& window, double tilt_degrees) {
+  const auto radians = tilt_degrees * std::numbers::pi / 180.0;
+  const auto cos_tilt = std::cos(radians);
+  const auto sin_tilt = std::sin(radians);
+  paint_first_layer(window, [=](int x, int y) {
+    const auto dx = x - 512.0;
+    const auto dy = y - 420.0;
+    const auto along = dx * cos_tilt + dy * sin_tilt;
+    const auto below = -dx * sin_tilt + dy * cos_tilt;
+    if (std::hypot(x - 760.0, y - 170.0) < 54.0) {
+      return QColor(250, 214, 96);
+    }
+    if (below <= 0.0 && below > -130.0 && std::fmod(std::abs(along) + 9.0, 170.0) < 18.0) {
+      return QColor(92, 62, 44);
+    }
+    if (below > 0.0) {
+      return QColor(74, std::clamp(150 - static_cast<int>(below / 4.0), 90, 150), 70);
+    }
+    return QColor(std::clamp(120 + y / 8, 120, 215), std::clamp(170 + y / 14, 170, 225), 238);
+  });
+}
+
+// Shows the window on the Crop tool with snapping and the ratio off, and returns the Move
+// Image Under Crop Box entry (null fails the caller's CHECK).
+QAction* start_crop_for_move_image(patchy::ui::MainWindow& window) {
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  auto* mode = window.findChild<QAction*>(QStringLiteral("cropMoveImageAction"));
+  CHECK(mode != nullptr && mode->isCheckable());
+  return mode;
+}
+
+void set_crop_move_image(QAction& mode, bool on) {
+  mode.setChecked(on);
+  QApplication::processEvents();
+}
+
+// A drag inside the box slides the image under it: the box keeps its place on screen and
+// its rect travels the other way over the document, in whole pixels. The arrows nudge the
+// image the same way. Off (the default), the box moves over a still image as before.
+void ui_crop_move_image_inside_drag_slides_image_under_box() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  if (mode == nullptr) {
+    return;
+  }
+  // Off unless the user asks for it.
+  CHECK(!mode->isChecked() && !canvas->crop_overlay_options().move_image);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+       canvas->widget_position_for_document_point(QPoint(500, 440)));
+  const QRect box(200, 200, 301, 241);
+  CHECK(canvas->crop_session_rect() == box);
+  const auto zoom = canvas->zoom();
+
+  // Switching it on with a box pending centers the box: a pan, at the same zoom.
+  mode->trigger();
+  QApplication::processEvents();
+  CHECK(mode->isChecked() && canvas->crop_overlay_options().move_image);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Crop: the image moves under the crop box"));
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(canvas->zoom() == zoom);
+  const auto held = crop_box_on_screen(*canvas);
+  CHECK(QLineF(polygon_center(held), canvas->view_content_rect().center()).length() < 0.01);
+  CHECK(std::abs(crop_box_screen_degrees(held)) < 1e-9);
+
+  // The inside of the box shows the hand: a drag there slides the image.
+  const auto press = polygon_center(held).toPoint();
+  send_mouse(*canvas, QEvent::MouseMove, press, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  const QPoint travel(48, 36);
+  const auto anchor_before = canvas->view_transform().map_to_widget(QPointF(350.0, 320.0));
+  drag(*canvas, press, press + travel);
+  const auto moved = canvas->view_transform().map_vector_to_document(QPointF(travel));
+  const QPoint box_travel(static_cast<int>(std::lround(-moved.x())), static_cast<int>(std::lround(-moved.y())));
+  const auto slid = box.translated(box_travel);
+  CHECK(!box_travel.isNull());
+  CHECK(canvas->crop_session_rect() == slid);
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+  CHECK(canvas->zoom() == zoom);
+  CHECK(canvas->view_transform().angle_degrees() == 0.0);
+  // The image went with the pointer (to the whole document pixel).
+  const auto anchor_after = canvas->view_transform().map_to_widget(QPointF(350.0, 320.0));
+  CHECK(QLineF(anchor_after - anchor_before, QPointF(travel)).length() <= zoom + 0.01);
+
+  // Arrows nudge the image under the box along the document's axes: Right moves the
+  // image right, so the box sits one pixel further left on the document.
+  send_key(*canvas, Qt::Key_Right);
+  CHECK(canvas->crop_session_rect() == slid.translated(-1, 0));
+  send_key(*canvas, Qt::Key_Down, Qt::ShiftModifier);
+  CHECK(canvas->crop_session_rect() == slid.translated(-1, -10));
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+  CHECK(canvas->zoom() == zoom);
+
+  // Off again: the box moves over a still image, as it always did.
+  mode->trigger();
+  QApplication::processEvents();
+  CHECK(!mode->isChecked() && !canvas->crop_overlay_options().move_image);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Crop: the crop box moves over the image"));
+  const auto rect_off = canvas->crop_session_rect().value_or(QRect());
+  const auto pan_off = canvas->view_transform().pan();
+  const auto screen_off = crop_box_on_screen(*canvas);
+  CHECK(polygons_near(screen_off, held, 0.01));  // switching it off moved nothing
+  const auto center_off = polygon_center(screen_off).toPoint();
+  drag(*canvas, center_off, center_off + travel);
+  CHECK(canvas->crop_session_rect() == rect_off.translated(-box_travel));
+  CHECK(canvas->view_transform().pan() == pan_off);
+  CHECK(!polygons_near(crop_box_on_screen(*canvas), screen_off, 1.0));
+  send_key(*canvas, Qt::Key_Right);
+  CHECK(canvas->crop_session_rect() == rect_off.translated(-box_travel).translated(1, 0));
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// A drag outside the box turns the image about the box's center: the view takes the turn,
+// the box stays upright where it is, its rect and the zoom do not change, and Shift snaps
+// the box's angle to 15 degrees. Esc puts the view's angle back and centers the frame.
+void ui_crop_move_image_outside_drag_turns_image_under_upright_box() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("activeToolInfoLabel"));  // the Info line
+  CHECK(info_label != nullptr);
+  if (mode == nullptr || info_label == nullptr) {
+    return;
+  }
+  paint_tilted_horizon(window, 8.0);
+
+  // With the untouched frame the option alone moves nothing.
+  const auto pan_before = canvas->view_transform().pan();
+  set_crop_move_image(*mode, true);
+  CHECK(canvas->view_transform().pan() == pan_before);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+
+  // A new box is centered once it is laid out (a pan; the zoom stays).
+  const auto zoom = canvas->zoom();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(330, 250)),
+       canvas->widget_position_for_document_point(QPoint(690, 520)));
+  const QRect box(330, 250, 361, 271);
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(canvas->zoom() == zoom);
+  const auto held = crop_box_on_screen(*canvas);
+  CHECK(QLineF(polygon_center(held), canvas->view_content_rect().center()).length() < 0.01);
+
+  // Level the horizon: the pointer goes 8 degrees counterclockwise and the image follows.
+  const auto travel = turn_about_crop_box(*canvas, -8.0);
+  CHECK(std::abs(travel + 8.0) < 1.0);
+  CHECK(std::abs(canvas->crop_session_angle() + travel) < 1e-6);
+  CHECK(std::abs(canvas->view_transform().angle_degrees() - travel) < 1e-6);
+  CHECK(canvas->view_rotation() == 0.0);  // the user's own angle is untouched
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+  CHECK(std::abs(crop_box_screen_degrees(crop_box_on_screen(*canvas))) < 1e-6);
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(canvas->zoom() == zoom);
+  CHECK(info_label->text().contains(QStringLiteral("Angle:")));
+  save_widget_artifact("ui_crop_move_image_turned", *canvas);
+  save_image_artifact("ui_crop_move_image_turned_window", window.grab().toImage());
+
+  // A click outside changes nothing.
+  const auto angle = canvas->crop_session_angle();
+  const auto outside =
+      (polygon_center(held) - QPointF(QLineF(polygon_center(held), held.value(0)).length() + 30.0, 0.0)).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->crop_session_angle() == angle);
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+
+  // Shift snaps the box's angle over the document to 15 degrees.
+  turn_about_crop_box(*canvas, -9.0, Qt::ShiftModifier);
+  CHECK(canvas->crop_session_angle() == 15.0);
+  CHECK(std::abs(canvas->view_transform().angle_degrees() + 15.0) < 1e-9);
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(canvas->zoom() == zoom);
+
+  // Esc: the frame is back around the canvas, the view upright again and the frame centered.
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  CHECK(canvas->crop_session_angle() == 0.0);
+  CHECK(canvas->view_transform().angle_degrees() == 0.0);
+  CHECK(canvas->zoom() == zoom);
+  CHECK(QLineF(polygon_center(crop_box_on_screen(*canvas)), canvas->view_content_rect().center()).length() < 0.01);
+
+  // The issue shot: the horizon leveled under an upright box, zoomed out by the user so the
+  // turned canvas shows around it.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(330, 250)),
+       canvas->widget_position_for_document_point(QPoint(690, 520)));
+  turn_about_crop_box(*canvas, -8.0);
+  canvas->set_view_zoom_centered(canvas->view_zoom() * 0.55);
+  QApplication::processEvents();
+  CHECK(std::abs(crop_box_screen_degrees(crop_box_on_screen(*canvas))) < 1e-6);
+  save_image_artifact("ui_crop_move_image_turned_zoomed_out", window.grab().toImage());
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// The commit is the classic crop for the same box and angle: the same box reached with the
+// box moving over the image and with the image moving under the box gives the same pixels.
+void ui_crop_move_image_commit_matches_classic_crop() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  struct Cropped {
+    int width{0};
+    int height{0};
+    patchy::Rect bounds;
+    std::vector<std::uint8_t> bytes;
+  };
+  const auto crop = [](bool move_image) {
+    Cropped result;
+    patchy::ui::MainWindow window;
+    auto* mode = start_crop_for_move_image(window);
+    auto* canvas = require_canvas(window);
+    if (mode == nullptr) {
+      return result;
+    }
+    paint_tilted_horizon(window, 8.0);
+    set_crop_move_image(*mode, move_image);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 200)),
+         canvas->widget_position_for_document_point(QPoint(700, 500)));
+    CHECK(canvas->crop_session_rect() == QRect(300, 200, 401, 301));
+    // Both end with the box turned 15 degrees clockwise over the document and moved 3 px
+    // left and 2 px up: the box follows the pointer, the image goes the other way.
+    turn_about_crop_box(*canvas, move_image ? -15.0 : 15.0, Qt::ShiftModifier);
+    for (int i = 0; i < 3; ++i) {
+      send_key(*canvas, move_image ? Qt::Key_Right : Qt::Key_Left);
+    }
+    for (int i = 0; i < 2; ++i) {
+      send_key(*canvas, move_image ? Qt::Key_Down : Qt::Key_Up);
+    }
+    CHECK(canvas->crop_session_angle() == 15.0);
+    CHECK(canvas->crop_session_rect() == QRect(297, 198, 401, 301));
+    if (move_image) {
+      // Image > Crop to Selection commits the pending box like Enter.
+      require_action(window, "imageCropToSelectionAction")->trigger();
+    } else {
+      send_key(*canvas, Qt::Key_Return);
+    }
+    QApplication::processEvents();
+    // The new document is framed afresh, the view upright.
+    CHECK(canvas->crop_session_angle() == 0.0);
+    CHECK(canvas->view_transform().angle_degrees() == 0.0);
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    result.width = document.width();
+    result.height = document.height();
+    CHECK(!document.layers().empty());
+    if (!document.layers().empty()) {
+      const auto& layer = document.layers().front();
+      result.bounds = layer.bounds();
+      const auto data = layer.pixels().data();
+      result.bytes.assign(data.begin(), data.end());
+    }
+    return result;
+  };
+  const auto classic = crop(false);
+  const auto moved = crop(true);
+  CHECK(classic.width == 401 && classic.height == 301);
+  CHECK(moved.width == classic.width && moved.height == classic.height);
+  CHECK(moved.bounds.x == classic.bounds.x && moved.bounds.y == classic.bounds.y &&
+        moved.bounds.width == classic.bounds.width && moved.bounds.height == classic.bounds.height);
+  CHECK(!classic.bytes.empty());
+  CHECK(moved.bytes == classic.bytes);
+}
+
+// The view's angle before the session is the user's. Esc, a tool switch, an edit lock, a
+// commit, an undo and switching the option off all put it back; Rotate View during the
+// session turns the user's angle, not the box.
+void ui_crop_move_image_gives_the_view_rotation_back() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(info_label != nullptr);
+  if (mode == nullptr || info_label == nullptr) {
+    return;
+  }
+  canvas->set_view_rotation(20.0);
+  set_crop_move_image(*mode, true);
+  const auto view_angle = [&] { return canvas->view_transform().angle_degrees(); };
+  // Lays out a box and turns the image 30 degrees under it: the view goes from 20 to -10.
+  const auto turn_a_box = [&](QPoint from, QPoint to) {
+    drag(*canvas, canvas->widget_position_for_document_point(from), canvas->widget_position_for_document_point(to));
+    CHECK(canvas->crop_session_can_reset());
+    CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+    const auto held = crop_box_on_screen(*canvas);
+    // The box shows the way the document does: at the user's angle.
+    CHECK(degrees_apart(crop_box_screen_degrees(held), 20.0) < 1e-6);
+    turn_about_crop_box(*canvas, -30.0, Qt::ShiftModifier);
+    CHECK(canvas->crop_session_angle() == 30.0);
+    CHECK(std::abs(view_angle() + 10.0) < 1e-9);
+    CHECK(std::abs(canvas->view_rotation() - 20.0) < 1e-9);
+    CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+  };
+  const QPoint box_from(400, 300);
+  const QPoint box_to(640, 470);
+
+  // Esc.
+  turn_a_box(box_from, box_to);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->crop_session_angle() == 0.0);
+  CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+
+  // A tool switch cancels the crop.
+  turn_a_box(box_from, box_to);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->crop_session_active());
+  CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+
+  // An edit lock cancels it too.
+  turn_a_box(box_from, box_to);
+  canvas->set_edit_locked(true);
+  CHECK(!canvas->crop_session_active());
+  CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+  canvas->set_edit_locked(false);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_active());
+
+  // Switching the option off gives the turn back and leaves the box turned over the
+  // document; switching it on again turns the image and centers the box.
+  turn_a_box(box_from, box_to);
+  set_crop_move_image(*mode, false);
+  CHECK(canvas->crop_session_angle() == 30.0);
+  CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+  CHECK(degrees_apart(crop_box_screen_degrees(crop_box_on_screen(*canvas)), 50.0) < 1e-6);
+  set_crop_move_image(*mode, true);
+  CHECK(canvas->crop_session_angle() == 30.0);
+  CHECK(std::abs(view_angle() + 10.0) < 1e-9);
+  CHECK(degrees_apart(crop_box_screen_degrees(crop_box_on_screen(*canvas)), 20.0) < 1e-6);
+  CHECK(QLineF(polygon_center(crop_box_on_screen(*canvas)), canvas->view_content_rect().center()).length() < 0.01);
+
+  // Rotate View during the session turns the user's angle; the box goes with the document.
+  require_action(window, "viewRotateRightAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::abs(canvas->view_rotation() - 35.0) < 1e-9);
+  CHECK(std::abs(view_angle() - 5.0) < 1e-9);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(std::abs(view_angle() - 35.0) < 1e-9);
+  canvas->set_view_rotation(20.0);
+
+  // A commit.
+  turn_a_box(box_from, box_to);
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!info_label->text().contains(QStringLiteral("1024 x 768 px")));
+  CHECK(canvas->crop_session_angle() == 0.0);
+  CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+
+  // An undo swaps the document under the pending box.
+  const auto small = canvas->crop_session_rect().value_or(QRect());
+  turn_a_box(QPoint(small.width() / 4, small.height() / 4), QPoint(small.width() * 3 / 4, small.height() * 3 / 4));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(QStringLiteral("1024 x 768 px")));
+  CHECK(canvas->crop_session_angle() == 0.0);
+  CHECK(std::abs(view_angle() - 20.0) < 1e-9);
+}
+
+// After a handle drag the view pans so the box is centered again. The drag itself leaves
+// the view alone, and the re-centering never touches the zoom.
+void ui_crop_move_image_recenters_by_pan_after_handle_drag() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  if (mode == nullptr) {
+    return;
+  }
+  set_crop_move_image(*mode, true);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 250)),
+       canvas->widget_position_for_document_point(QPoint(600, 450)));
+  const QRect box(300, 250, 301, 201);
+  CHECK(canvas->crop_session_rect() == box);
+  const auto zoom = canvas->zoom();
+  const auto view_center = canvas->view_content_rect().center();
+  const auto centered = [&] {
+    return QLineF(polygon_center(crop_box_on_screen(*canvas)), view_center).length() < 0.01;
+  };
+  CHECK(centered());
+
+  // The right edge, 90 px outward.
+  const auto corners = crop_box_on_screen(*canvas);
+  const auto pan_before = canvas->view_transform().pan();
+  const auto grab = ((corners.value(1) + corners.value(2)) / 2.0).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, grab + QPoint(90, 0), Qt::NoButton, Qt::LeftButton);
+  // Mid-drag the view has not moved: the left edge is where it was and the box has grown.
+  const auto dragging = crop_box_on_screen(*canvas);
+  CHECK(canvas->view_transform().pan() == pan_before);
+  CHECK(QLineF(dragging.value(0), corners.value(0)).length() < 0.01);
+  CHECK(dragging.value(1).x() > corners.value(1).x() + 80.0);
+  CHECK(canvas->zoom() == zoom);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, grab + QPoint(90, 0), Qt::LeftButton, Qt::NoButton);
+  const auto grown = canvas->crop_session_rect().value_or(QRect());
+  CHECK(grown.topLeft() == box.topLeft() && grown.height() == box.height() && grown.width() > box.width());
+  // On release the view pans by half the growth and nothing else changes.
+  CHECK(centered());
+  const auto pan_shift = canvas->view_transform().pan() - pan_before;
+  CHECK(std::abs(pan_shift.x() + (grown.width() - box.width()) * zoom / 2.0) < 0.01);
+  CHECK(std::abs(pan_shift.y()) < 0.01);
+  CHECK(canvas->zoom() == zoom);
+  CHECK(canvas->view_transform().angle_degrees() == 0.0);
+
+  // The same with the image turned: a corner drag, then the box is centered and upright.
+  turn_about_crop_box(*canvas, 20.0, Qt::ShiftModifier);
+  CHECK(canvas->crop_session_angle() == -15.0);
+  const auto turned = crop_box_on_screen(*canvas);
+  const auto corner = turned.value(2).toPoint();
+  drag(*canvas, corner, corner + QPoint(40, 30));
+  const auto larger = canvas->crop_session_rect().value_or(QRect());
+  CHECK(larger.width() > grown.width() && larger.height() > grown.height());
+  CHECK(canvas->crop_session_angle() == -15.0);
+  CHECK(centered());
+  CHECK(std::abs(crop_box_screen_degrees(crop_box_on_screen(*canvas))) < 1e-6);
+  CHECK(canvas->zoom() == zoom);
+  send_key(*canvas, Qt::Key_Escape);
+
+  // Off: a handle drag leaves the view where it is, as before.
+  set_crop_move_image(*mode, false);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 250)),
+       canvas->widget_position_for_document_point(QPoint(600, 450)));
+  const auto classic_pan = canvas->view_transform().pan();
+  const auto classic_corners = crop_box_on_screen(*canvas);
+  const auto classic_grab = ((classic_corners.value(1) + classic_corners.value(2)) / 2.0).toPoint();
+  drag(*canvas, classic_grab, classic_grab + QPoint(90, 0));
+  CHECK(canvas->crop_session_rect().value_or(QRect()).width() > 301);
+  CHECK(canvas->view_transform().pan() == classic_pan);
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// P toggles the option while a changed crop box is pending, from the canvas or a bar
+// control (a text field keeps the letter); with the untouched frame P is the Pen tool. The
+// Crop options menu ends with the entry and shows the key, the command toggles it too, and
+// the choice persists.
+void ui_crop_move_image_p_key_toggles_and_setting_persists() {
+  SettingsGroupRestorer restore_hotkeys(QStringLiteral("hotkeys"));
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* crop_tool = require_action(window, "toolCropAction");
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropPresetCombo"));
+  auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+  auto* options = window.findChild<QToolButton*>(QStringLiteral("cropOptionsButton"));
+  CHECK(presets != nullptr && ratio_w != nullptr && options != nullptr && options->menu() != nullptr);
+  if (mode == nullptr || presets == nullptr || ratio_w == nullptr || options == nullptr || options->menu() == nullptr) {
+    return;
+  }
+  const auto press = [](QWidget* target, Qt::Key key) {
+    QTest::keyClick(target, key);
+    QApplication::processEvents();
+  };
+  // A command with a permanent id and no key of its own: P is a built-in crop key.
+  const auto* command = window.hotkey_registry().find_command(QStringLiteral("crop.move_image_under_box"));
+  CHECK(command != nullptr && command->action != nullptr && command->default_shortcuts.isEmpty());
+  if (command == nullptr || command->action == nullptr) {
+    return;
+  }
+  canvas->setFocus();
+  QApplication::processEvents();
+
+  // The untouched frame: P is the Pen tool, as on any tool.
+  CHECK(!canvas->crop_session_can_reset());
+  press(canvas, Qt::Key_P);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Pen);
+  CHECK(!mode->isChecked());
+  crop_tool->trigger();
+  QApplication::processEvents();
+
+  // A changed box: P switches the option and the box survives.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+       canvas->widget_position_for_document_point(QPoint(500, 440)));
+  const QRect box(200, 200, 301, 241);
+  CHECK(canvas->crop_session_rect() == box);
+  canvas->setFocus();
+  press(canvas, Qt::Key_P);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+  CHECK(mode->isChecked() && canvas->crop_overlay_options().move_image);
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Crop: the image moves under the crop box"));
+  press(canvas, Qt::Key_P);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+  CHECK(!mode->isChecked() && !canvas->crop_overlay_options().move_image);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Crop: the crop box moves over the image"));
+
+  // From a bar control too; a text field keeps its letters.
+  presets->setFocus();
+  QApplication::processEvents();
+  const int preset_before = presets->currentIndex();
+  press(presets, Qt::Key_P);
+  CHECK(mode->isChecked());
+  CHECK(presets->currentIndex() == preset_before);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop && canvas->crop_session_rect() == box);
+  ratio_w->setFocus();
+  QApplication::processEvents();
+  press(ratio_w, Qt::Key_P);
+  CHECK(mode->isChecked());
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop && canvas->crop_session_rect() == box);
+  canvas->setFocus();
+  QApplication::processEvents();
+
+  // The entry is the menu's last and shows its key.
+  options->menu()->popup(options->mapToGlobal(QPoint(0, options->height())));
+  QApplication::processEvents();
+  CHECK(options->menu()->actions().value(options->menu()->actions().size() - 1) == mode);
+  CHECK(mode->text() == QStringLiteral("Move Image Under Crop Box\tP"));
+  save_window_popup_artifact("ui_crop_move_image_menu", window, *options, *options->menu());
+  options->menu()->hide();
+  QApplication::processEvents();
+
+  // The command (Search Commands, Keyboard Shortcuts) toggles the same option.
+  command->action->trigger();
+  QApplication::processEvents();
+  CHECK(!mode->isChecked() && !canvas->crop_overlay_options().move_image);
+  command->action->trigger();
+  QApplication::processEvents();
+  CHECK(mode->isChecked() && canvas->crop_overlay_options().move_image);
+
+  // The choice persists into a fresh window.
+  QElapsedTimer timer;
+  timer.start();
+  while (patchy::ui::app_settings().value(crop_move_image_key()).toString() != QStringLiteral("true") &&
+         timer.elapsed() < 3000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  CHECK(patchy::ui::app_settings().value(crop_move_image_key()).toString() == QStringLiteral("true"));
+  send_key(*canvas, Qt::Key_Escape);
+  patchy::ui::MainWindow second;
+  show_window(second);
+  auto* second_mode = second.findChild<QAction*>(QStringLiteral("cropMoveImageAction"));
+  CHECK(second_mode != nullptr && second_mode->isChecked());
+  CHECK(require_canvas(second)->crop_overlay_options().move_image);
+}
+
+// P is a built-in key, so it yields: with P given to another command (the GIMP-style set
+// puts the Brush there) the letter runs that command even with a changed box pending, and
+// the menu stops naming it.
+void ui_crop_move_image_p_key_yields_to_a_reassigned_letter() {
+  SettingsGroupRestorer restore_hotkeys(QStringLiteral("hotkeys"));
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.beginGroup(QStringLiteral("hotkeys"));
+    settings.setValue(QStringLiteral("tools.brush"), QStringLiteral("P"));
+    settings.setValue(QStringLiteral("tools.pen"), QStringLiteral("B"));
+    settings.endGroup();
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* options = window.findChild<QToolButton*>(QStringLiteral("cropOptionsButton"));
+  CHECK(options != nullptr && options->menu() != nullptr);
+  if (mode == nullptr || options == nullptr || options->menu() == nullptr) {
+    return;
+  }
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+       canvas->widget_position_for_document_point(QPoint(500, 440)));
+  CHECK(canvas->crop_session_can_reset());
+  options->menu()->popup(options->mapToGlobal(QPoint(0, options->height())));
+  QApplication::processEvents();
+  CHECK(mode->text() == QStringLiteral("Move Image Under Crop Box"));
+  options->menu()->hide();
+  QApplication::processEvents();
+  canvas->setFocus();
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_P);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
+  CHECK(!mode->isChecked());
+}
+
+// The limits recorded in docs/legal-constraints.md ("Crop interaction"). Each block fails
+// if a later change breaks one:
+//   1. no crop gesture, release, re-centering or mode switch changes the zoom;
+//   2. a rotation never changes the box's size, with canvas edges inside the box or not;
+//   3. one overlay, the user's choice, for every gesture (no finer grid for turning);
+//   4. the outside of the box is drawn the same way during a gesture and after it;
+//   5. no snapping to preset ratios.
+void ui_crop_move_image_keeps_the_recorded_limits() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  if (mode == nullptr) {
+    return;
+  }
+  set_crop_move_image(*mode, true);
+  const auto lay_out = [&](QPoint from, QPoint to) {
+    drag(*canvas, canvas->widget_position_for_document_point(from), canvas->widget_position_for_document_point(to));
+  };
+
+  // 1. The zoom is the user's alone.
+  const auto run_gestures = [&](double zoom) {
+    const auto held = [&] { return canvas->zoom() == zoom; };
+    lay_out(QPoint(360, 260), QPoint(660, 500));
+    CHECK(held());
+    auto corners = crop_box_on_screen(*canvas);
+    const auto center = polygon_center(corners).toPoint();
+    drag(*canvas, center, center + QPoint(31, -17));  // slide the image
+    CHECK(held());
+    turn_about_crop_box(*canvas, 23.0);  // turn it
+    CHECK(held());
+    turn_about_crop_box(*canvas, -40.0, Qt::ShiftModifier);
+    CHECK(held());
+    corners = crop_box_on_screen(*canvas);
+    const auto corner = corners.value(2).toPoint();
+    send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(26, 18), Qt::NoButton, Qt::LeftButton);
+    CHECK(held());  // during a handle drag
+    send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(26, 18), Qt::LeftButton, Qt::NoButton);
+    CHECK(held());  // after the release and its re-centering
+    corners = crop_box_on_screen(*canvas);
+    const auto edge = ((corners.value(0) + corners.value(3)) / 2.0).toPoint();
+    drag(*canvas, edge, edge + QPoint(-14, 0), Qt::AltModifier);
+    CHECK(held());
+    send_key(*canvas, Qt::Key_Left);
+    send_key(*canvas, Qt::Key_Up, Qt::ShiftModifier);
+    CHECK(held());
+    canvas->set_crop_ratio(16.0, 9.0);
+    CHECK(held());
+    canvas->swap_crop_ratio();
+    CHECK(held());
+    canvas->set_crop_ratio(0.0, 0.0);
+    const auto size = canvas->crop_session_rect().value_or(QRect()).size();
+    canvas->set_crop_session_size(QSize(size.width() + 40, size.height() + 20));
+    CHECK(held());
+    set_crop_move_image(*mode, false);
+    CHECK(held());
+    set_crop_move_image(*mode, true);
+    CHECK(held());
+    send_key(*canvas, Qt::Key_Escape);
+    CHECK(held());
+  };
+  const auto first_view_zoom = canvas->view_zoom();
+  run_gestures(canvas->zoom());
+  // The same at a zoom the user picked.
+  canvas->set_view_zoom_centered(first_view_zoom * 0.5);
+  CHECK(canvas->view_zoom() < first_view_zoom);
+  run_gestures(canvas->zoom());
+  canvas->set_view_zoom_centered(first_view_zoom * 0.25);
+  const auto small_zoom = canvas->zoom();
+
+  // 2. A box larger than the canvas has canvas edges inside it from the start. Turning the
+  //    image leaves the box exactly as it was: no shrinking, no zoom to hide the edges.
+  canvas->set_crop_session_size(QSize(1400, 1000));
+  const auto big = canvas->crop_session_rect().value_or(QRect());
+  CHECK(big.size() == QSize(1400, 1000));
+  turn_about_crop_box(*canvas, 33.0);
+  CHECK(canvas->crop_session_angle() != 0.0);
+  CHECK(canvas->crop_session_rect() == big);
+  CHECK(canvas->zoom() == small_zoom);
+  turn_about_crop_box(*canvas, 20.0, Qt::ShiftModifier);
+  CHECK(canvas->crop_session_rect() == big);
+  CHECK(canvas->zoom() == small_zoom);
+  set_crop_move_image(*mode, false);  // and with the box turning over a still image
+  turn_about_crop_box(*canvas, 28.0);
+  CHECK(canvas->crop_session_rect() == big);
+  CHECK(canvas->zoom() == small_zoom);
+  set_crop_move_image(*mode, true);
+  send_key(*canvas, Qt::Key_Escape);
+  canvas->set_view_zoom_centered(first_view_zoom);
+  const auto zoom = canvas->zoom();
+
+  // 3 and 4. On the white canvas the inside of the box is its overlay and nothing else, so
+  //    the box's pixels are the same idle, sliding and turning; and a whole frame taken
+  //    during a gesture equals the frame after it.
+  lay_out(QPoint(400, 290), QPoint(620, 470));
+  canvas->set_crop_overlay(patchy::ui::CanvasWidget::CropOverlay::Thirds, 0, false);  // always shown
+  const auto frame = [&] { return render_widget_image(*canvas); };
+  // Inside the dashed border and clear of the eight handles.
+  const auto inside = crop_box_on_screen(*canvas).boundingRect().toAlignedRect().adjusted(7, 7, -7, -7);
+  CHECK(inside.width() > 60 && inside.height() > 60);
+  const auto idle = frame().copy(inside);
+  // The overlay's lines are in there: the middle row is not one flat color.
+  bool has_lines = false;
+  for (int x = 1; x < idle.width(); ++x) {
+    has_lines = has_lines || idle.pixel(x, idle.height() / 2) != idle.pixel(0, idle.height() / 2);
+  }
+  CHECK(has_lines);
+  const auto center = polygon_center(crop_box_on_screen(*canvas)).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, center + QPoint(22, 14), Qt::NoButton, Qt::LeftButton);
+  const auto sliding = frame();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center + QPoint(22, 14), Qt::LeftButton, Qt::NoButton);
+  const auto slid = frame();
+  CHECK(sliding.copy(inside) == idle);
+  CHECK(sliding == slid);
+
+  const auto corners = crop_box_on_screen(*canvas);
+  const auto box_center = polygon_center(corners);
+  const auto radius = QLineF(box_center, corners.value(0)).length() + 36.0;
+  const auto turn_from = (box_center + QPointF(radius, 0.0)).toPoint();
+  const auto turn_to = (box_center + QPointF(radius * std::cos(0.3), radius * std::sin(0.3))).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, turn_from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, turn_to, Qt::NoButton, Qt::LeftButton);
+  const auto turning = frame();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, turn_to, Qt::LeftButton, Qt::NoButton);
+  const auto turned = frame();
+  CHECK(canvas->crop_session_angle() != 0.0);
+  CHECK(turning.copy(inside) == idle);  // the same overlay for turning as for sliding and for no gesture
+  CHECK(turned.copy(inside) == idle);
+  CHECK(turning == turned);
+  CHECK(turned != slid);  // the image did turn around the box
+  CHECK(canvas->zoom() == zoom);
+  send_key(*canvas, Qt::Key_Escape);
+
+  // 5. An edge dragged through the square shape passes it one pixel at a time: no stop on
+  //    1:1 or any other preset ratio.
+  lay_out(QPoint(300, 200), QPoint(500, 380));
+  const auto free_box = canvas->crop_session_rect().value_or(QRect());
+  CHECK(free_box.width() > free_box.height() + 12);
+  const auto free_corners = crop_box_on_screen(*canvas);
+  const auto bottom = ((free_corners.value(2) + free_corners.value(3)) / 2.0).toPoint();
+  const auto view = canvas->view_transform();  // a handle drag leaves the view alone
+  // The edge keeps its offset from the grab, so each pointer position gives one height.
+  const auto grab_document_y = view.map_to_document(QPointF(bottom)).y();
+  const auto edge_document_y = static_cast<double>(free_box.y() + free_box.height());
+  const auto to_square = static_cast<int>(std::lround((free_box.width() - free_box.height()) * canvas->zoom()));
+  send_mouse(*canvas, QEvent::MouseButtonPress, bottom, Qt::LeftButton, Qt::LeftButton);
+  int smallest = free_box.width() * 2;
+  int largest = 0;
+  for (int offset = -6; offset <= 6; ++offset) {
+    const auto pointer = bottom + QPoint(0, to_square + offset);
+    send_mouse(*canvas, QEvent::MouseMove, pointer, Qt::NoButton, Qt::LeftButton);
+    const auto rect = canvas->crop_session_rect().value_or(QRect());
+    const auto pointer_document_y = view.map_to_document(QPointF(pointer)).y();
+    const auto expected_height =
+        static_cast<int>(std::lround(pointer_document_y + (edge_document_y - grab_document_y))) - free_box.y();
+    CHECK(rect.width() == free_box.width());
+    CHECK(rect.height() == expected_height);
+    smallest = std::min(smallest, rect.height());
+    largest = std::max(largest, rect.height());
+  }
+  CHECK(smallest < free_box.width() && largest > free_box.width());  // the walk crossed the square
+  send_mouse(*canvas, QEvent::MouseButtonRelease, bottom + QPoint(0, to_square + 6), Qt::LeftButton, Qt::NoButton);
+  send_key(*canvas, Qt::Key_Escape);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> crop_tool_tests() {
@@ -3822,11 +4790,22 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_overlay_choices_draw_their_guides", ui_crop_overlay_choices_draw_their_guides},
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
       {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
+      {"ui_crop_keeping_pixels_turns_background_into_layer_0", ui_crop_keeping_pixels_turns_background_into_layer_0},
       {"ui_crop_options_popup_sets_shield_and_cropped_area", ui_crop_options_popup_sets_shield_and_cropped_area},
       {"ui_trim_transparent_pixels_trims_sides_and_undoes", ui_trim_transparent_pixels_trims_sides_and_undoes},
       {"ui_trim_corner_colors_and_nothing_to_trim", ui_trim_corner_colors_and_nothing_to_trim},
       {"ui_trim_deep_documents", ui_trim_deep_documents},
       {"ui_trim_tolerance_cuts_near_matches", ui_trim_tolerance_cuts_near_matches},
       {"ui_script_trim", ui_script_trim},
+      {"ui_crop_move_image_inside_drag_slides_image_under_box", ui_crop_move_image_inside_drag_slides_image_under_box},
+      {"ui_crop_move_image_outside_drag_turns_image_under_upright_box",
+       ui_crop_move_image_outside_drag_turns_image_under_upright_box},
+      {"ui_crop_move_image_commit_matches_classic_crop", ui_crop_move_image_commit_matches_classic_crop},
+      {"ui_crop_move_image_gives_the_view_rotation_back", ui_crop_move_image_gives_the_view_rotation_back},
+      {"ui_crop_move_image_recenters_by_pan_after_handle_drag", ui_crop_move_image_recenters_by_pan_after_handle_drag},
+      {"ui_crop_move_image_p_key_toggles_and_setting_persists", ui_crop_move_image_p_key_toggles_and_setting_persists},
+      {"ui_crop_move_image_p_key_yields_to_a_reassigned_letter",
+       ui_crop_move_image_p_key_yields_to_a_reassigned_letter},
+      {"ui_crop_move_image_keeps_the_recorded_limits", ui_crop_move_image_keeps_the_recorded_limits},
   };
 }

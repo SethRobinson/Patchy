@@ -15833,6 +15833,11 @@ Czy chcesz go zastąpić?</translation>
         <translation>Wybrane wcześniej</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>Usuń z wybranych wcześniej</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>Sugerowane</translation>
@@ -21790,6 +21795,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>Dodatkowe efekty rozmycia, zniekształcenia, oświetlenia i artystyczne</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>Narzędzie Kadrowanie: ramka zostaje w miejscu, a obraz przesuwa się lub obraca pod nią</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22503,6 +22512,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>Narzędzie Kadrowanie, po zmianie ramki kadrowania: następna nakładka / obróć nakładkę / pokaż lub ukryj przycięty obszar</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>Narzędzie Kadrowanie, po zmianie ramki kadrowania: przesuwaj obraz pod ramką kadrowania albo ramkę nad obrazem</translation>
     </message>
 </context>
 <context>
@@ -35951,6 +35964,18 @@ Zablokowano: %1</translation>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>%1 wybiera następną nakładkę po zmianie ramki kadrowania</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>Przesuwaj obraz pod ramką kadrowania</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>Kadrowanie: obraz przesuwa się pod ramką kadrowania</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>Kadrowanie: ramka kadrowania przesuwa się nad obrazem</translation>
     </message>
 </context>
 <context>

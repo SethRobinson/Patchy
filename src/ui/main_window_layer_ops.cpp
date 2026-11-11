@@ -2341,8 +2341,7 @@ void MainWindow::layer_from_background() {
   const auto id = background->id();
   push_undo_snapshot(tr("Layer from Background"));
   auto* layer = document().find_layer(id);
-  clear_background_locks(*layer);
-  layer->set_name(QObject::tr("Layer %1").arg(0).toStdString());
+  release_background(*layer, layer_from_background_name());
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -7128,11 +7127,12 @@ void MainWindow::commit_crop_rect(QRect rect, double angle_degrees) {
   } else {
     // Delete Cropped Pixels off: the same frame resize as Canvas Size, so
     // layers keep their pixels beyond the new canvas and a later canvas
-    // extension or move brings them back.
+    // extension or move brings them back. A Background left with pixels beyond
+    // the canvas becomes "Layer 0" (GitHub issue 701).
     if (frame.empty()) {
       return;
     }
-    patchy::resize_canvas_to_frame(cropped_document, frame, extension_color, false);
+    patchy::resize_canvas_to_frame(cropped_document, frame, extension_color, false, layer_from_background_name());
   }
   push_undo_snapshot(tr("Crop"));
   doc = std::move(cropped_document);

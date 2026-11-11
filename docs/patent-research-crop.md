@@ -8,6 +8,9 @@ the tool is described in [crop-tool.md](crop-tool.md). This is an engineering re
 and of the published patents considered, in the conventions of
 [patent-research.md](patent-research.md): a claim reading by an engineer, not a legal opinion.
 
+A second scan of the same day, on straightening by a drawn line (GitHub #702), is the section
+[Straighten by a drawn line](#straighten-by-a-drawn-line-github-702).
+
 Question: may the Crop tool gain a mode where the crop box stays centered and upright in the view
 while the image pans, zooms and turns behind it (the newer of Photoshop's two crop modes, with
 its Auto Center Preview option), and within what limits?
@@ -125,9 +128,14 @@ full-text searches for Adobe as assignee (crop with rotate, straighten, pan or c
 claims, filed from 2009) returned no patent on the Photoshop CS6 crop interaction; searches for
 Corel, Serif, Skylum, Macphun, Pixelmator and Affinity returned no crop-interaction patent.
 
-## Outcome (not decided on the scan date)
+## Outcome (decided 2026-11-11)
 
-The mode is not built until Seth decides. The comparison leaves two groups:
+Decided 2026-11-11: the mode is built within the limits of group 1. For group 2 the build rests
+on the earlier publications E1 to E4, the same kind of decision as the one of 2026-10-20 on the
+composite-preview patents ([patent-research-audit.md](patent-research-audit.md), item 1). Built
+the same day as Move Image Under Crop Box, off by default
+([crop-tool.md](crop-tool.md#move-image-under-crop-box)); the group 1 limits have tests, named in
+the binding entry. The comparison leaves two groups:
 
 1. Separated by design, so these bind any build and the crop tool as it is today:
    - A rotation never changes the zoom or the box size, and nothing tests whether a canvas edge
@@ -141,12 +149,64 @@ The mode is not built until Seth decides. The comparison leaves two groups:
 2. Not separated by design: claims 14 and 15 of US 11532072, claims 4 to 7 of US 11120525, and
    NL 2009172. The independent claims of the first two already describe the Ratio list and the
    crop shield Patchy ships, so declining the mode changes nothing about those. A build rests,
-   for this group, on E1 to E4 being earlier than the family, which is a judgment this record
-   does not make.
+   for this group, on E1 to E4 being earlier than the family: the decision above, not a finding
+   of this record.
 
 Re-check dates: 2031-07-12 (the five US continuations end), 2032-07-11 (NL 2009172),
 2033-09-21 (US 9158455). After the last one the limits in group 1 that come from this family
 can be dropped; the other owners' dates are in the table.
+
+## Straighten by a drawn line (GitHub #702)
+
+Scan of November 11, 2026, the same day. Claim text from the USPTO Patent Public Search full
+text; legal status, fee events and the Japanese and Chinese members from their Google Patents
+pages.
+
+Question: may the Crop tool gain a Straighten button? While it is on, the user drags a line
+along something that should be level or upright; on release the pending box turns about its own
+center so the line becomes level or upright, whichever is nearer, and nothing is applied until
+Enter. The Ruler's Straighten Image ([pick-tool.md](pick-tool.md#ruler)), which ships, already
+turns and crops the image by a drawn line in one step.
+
+| Patent | Status | What its independent claims require | The gesture |
+|---|---|---|---|
+| Apple US 7679625 (filed 2005-01-07) | Term ended 2026-05-10 (E4 above) | The picture's content turns relative to the display as the user's input continues, while the frame does not, with the crop indicated as it turns. | Expired. |
+| Apple US 9569078, US 10552016, US 10942634 (priority 2012-03-06) | In force, to 2033 | A detected horizon shown as a selectable item that levels the image; a partial-circle dial or a separate item with a stationary marker, turned by touch. | Absent: the line is the user's own drag; no detection, no dial. |
+| Apple US 9158455, US 9767535 (priority 2011-07-12) | In force, to 2033-09-21 and 2031-07-12 | A rotation followed by a zoom (an edge test, or an amount set by the rotation). | Absent while the turn changes neither the zoom nor the box size and nothing tests for canvas edges. |
+| Ancestry.com US 8249391 (filed 2007-08-24) | Lapsed 2024-08-21 (12th-year fee unpaid) | Two points of a skew line from the user, the skew angle's sine and cosine from them, and the image transformed, updated with every move of the input device. | Expired. |
+| Sony US 9215374 (priority 2008-08-18) | Lapsed 2023-12-15 (8th-year fee unpaid) | A drag longer than a fixed non-zero distance; a line approximating it; a region bounded by two lines parallel to it and two orthogonal to it is cut out and rotated to correct the tilt. | Expired; CN 101656832 B is listed as expired for fees too. |
+| Sony JP 4640470 B2 (filed 2008-08-18, registered 2010-12-10, published 2011-03-02) | In force. Japanese register (J-PlatPat 経過情報, read 2026-11-11; register updated 2025-12-03): 本権利は抹消されていない (not erased), owner Sony Corporation, 最終納付年分 16 (fees paid to 2026-12-10, one receipt each year since 2013, the last on 2025-12-02), 存続期間満了日 2028-08-18 | Claim 1 (machine translation): an image shown on a screen that takes operation input; detection of that input; a first approximate straight line derived from the input's trajectory as the reference for correcting the image's inclination; and correction of the displayed image's inclination from that line and a predetermined reference line. Claims 6, 7 and 8 are the method, program and camera forms; claim 9 derives the line from feature points of a subject the user points at. | Every element present: the line comes from the drag and the commit turns the image so the line matches level or upright. The Ruler's Straighten Image has every element too. No step can be left out without losing the feature. |
+
+USPTO full-text claim searches (filed from 2006: straighten, skew, tilt or inclination with a
+drawn, dragged or user-specified line, and with crop, rotate, angle, horizontal or vertical)
+returned nothing else on image editing. Read and unrelated: ABBYY US 10430948 and US 10366469
+(text images for OCR), PFU US 9848104 (scanned-document skew), Apple US 9507765 (rotated text in
+a table cell, a citing patent of US 8249391).
+
+Published earlier work, each dated before the JP member's 2008-08-18 filing:
+
+- **E5. Lightroom 1.0 User Guide** (the E1 document, archived 2007-02-23), page 70, "Straighten
+  an image": "Select the Straighten tool, and then drag in the photo along a line that you want
+  to be horizontal or vertical." The same page sets "a crop boundary" first and then rotates
+  "the image in relation to the crop boundary".
+- **E6. Photoshop's measure line and Rotate Canvas > Arbitrary.** creativetechs.com, "Fast way
+  to straighten a photo in Photoshop", 2007-02-17: "drag a line across part of your image that
+  should be straight horizontal or vertical", "Then choose Image > Rotate Canvas > Arbitrary";
+  the post says the feature "has been around since Photoshop 5.5" (1999). The Arbitrary dialog
+  opens with the line's angle filled in.
+- **E7. US 8249391's application**, published 2009-02-26 as US 2009/0052802: after the JP
+  filing, so not earlier work for it; cited for the US record only.
+
+Outcome (not decided on the scan date). Separated by design, and binding on any build: the turn
+happens once, on release, never while the line is drawn (US 8249391's live transform, expired,
+and US 7679625 both turn during the input); no zoom and no box resize follow the turn, and no
+edge test (US 9158455, US 9767535); no detected line and no dial (Apple's 2012 family). Not
+separated by design: claim 1 of JP 4640470 B2, which applies in Japan only and also describes
+the Ruler's Straighten Image as it ships. A build rests, for that patent, on E5 and E6 being
+earlier than its filing date, which is a judgment this record does not make. The register read
+on 2026-11-11 confirms the patent in force. Watch items: 2026-12-10, when the 17th year's fee
+falls due (late payment with a surcharge is accepted for six months after it), and 2028-08-18,
+the end of the term.
 
 ## Not verified
 
@@ -160,5 +220,13 @@ can be dropped; the other owners' dates are in the table.
   were not transcribed.
 - No search of Japanese, Chinese, Korean or European patents beyond this family's own members,
   and no search of pending applications by title after 2024.
-- The YouTube tutorial linked in the issue was not watched; Photoshop's behaviour is from its
+- JP 4640470 B2: its 10 claims were read in Google's machine translation; the Japanese text was
+  not compared line by line. Its status is from the register (above), which Google's copy lags:
+  Google listed fee receipts through 2020-12-04 only. No search of Japanese patents beyond the
+  Sony family.
+- The fee lapses of US 8249391 and US 9215374 are from Google Patents' copy of the USPTO
+  events (codes EXP and LAPS); a petition to revive was not looked for.
+- The #702 tutorial (Artose, "Crop Tool Part- 2") was not watched; its chapter list puts
+  "Straighten Option In Crop Tool" at 0:10.
+- The #699 YouTube tutorial linked in the issue was not watched; Photoshop's behaviour is from its
   documentation and the reviews found.

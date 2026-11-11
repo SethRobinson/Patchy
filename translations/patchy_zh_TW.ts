@@ -15721,6 +15721,11 @@ Do you want to replace it?</source>
         <translation>先前選擇過</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>從先前選擇過中移除</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>建議</translation>
@@ -21666,6 +21671,10 @@ Do you want to replace it?</source>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>更多模糊、扭曲、光照與藝術效果</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>裁切工具：裁切框保持不動，在其後方移動或旋轉影像</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22375,6 +22384,10 @@ Do you want to replace it?</source>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>裁切工具，變更裁切框之後: 下一個疊加 / 旋轉疊加 / 顯示或隱藏裁切區域</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>裁切工具，變更裁切框之後: 在裁切框下移動影像，或在影像上移動裁切框</translation>
     </message>
 </context>
 <context>
@@ -35733,6 +35746,18 @@ Locked: %1</source>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>變更裁切框之後，按 %1 可選擇下一個疊加</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>在裁切框下移動影像</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>裁切：影像在裁切框下移動</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>裁切：裁切框在影像上移動</translation>
     </message>
 </context>
 <context>

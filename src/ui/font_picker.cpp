@@ -304,6 +304,7 @@ struct FontListRow {
   bool recent{false};
   int extra_section{-1};  // a family row of FontPickerCombo::extra_sections()[n]
   QString note{};         // that row's dim note beside the name
+  bool removable{false};  // an extra section's row with the remove button (Recent rows always have it)
 };
 
 // Where a family row sits, so a rebuild can put the selection back in the same place: the full
@@ -411,6 +412,8 @@ public:
         return row.kind == FontPickerRowKind::family ? row.extra_section : -1;
       case kFontPickerRowNoteRole:
         return row.note;
+      case kFontPickerRowRemovableRole:
+        return row.kind == FontPickerRowKind::family && (row.recent || row.removable);
       case kFontPickerFavoriteRole:
         return row.kind == FontPickerRowKind::family && favorites_ != nullptr && favorites_->contains(row.text);
       default:
@@ -461,8 +464,8 @@ public:
     auto text_rect = rect.adjusted(8, 0, -8, 0);
     // The row buttons (GitHub issues 630 and 569). Their space is kept on every row, so a name
     // never re-elides when the mouse arrives; a favorite's star shows always, the rest on hover.
-    const bool recent = index.data(kFontPickerRecentRowRole).toBool();
-    const auto star_rect = font_picker_row_button_rect(rect, FontPickerRowButton::favorite, recent);
+    const bool removable = index.data(kFontPickerRowRemovableRole).toBool();
+    const auto star_rect = font_picker_row_button_rect(rect, FontPickerRowButton::favorite, removable);
     text_rect.setRight(star_rect.left() - 4);
     const bool hovered = (option.state & QStyle::State_MouseOver) != 0;
     const bool favorite = index.data(kFontPickerFavoriteRole).toBool();
@@ -475,7 +478,7 @@ public:
     if (favorite || hovered) {
       paint_star(*painter, QRectF(star_rect), favorite, button_ink(FontPickerRowButton::favorite));
     }
-    if (recent && hovered) {
+    if (removable && hovered) {
       const QRectF glyph = QRectF(font_picker_row_button_rect(rect, FontPickerRowButton::remove_recent, true))
                                .adjusted(6.0, 6.0, -6.0, -6.0);
       painter->setRenderHint(QPainter::Antialiasing, true);
@@ -602,6 +605,7 @@ public:
   FontListFilter(FontPickerCombo& combo, QListView& list, QLineEdit& search, QComboBox& style,
                  QComboBox& language, QLabel& status, QToolButton& hidden_matches, QObject* parent)
       : QObject(parent),
+        combo_(combo),
         list_(list),
         search_(search),
         style_(style),
@@ -632,7 +636,7 @@ public:
     }
     // The caller's extra sections (GitHub issue 692), installed families only, each once a section.
     for (const auto& section : combo.extra_sections()) {
-      FontPickerSection kept{section.title, {}};
+      FontPickerSection kept{section.title, {}, section.remove, section.remove_tooltip};
       for (const auto& row : section.rows) {
         if (installed.contains(row.family) &&
             std::ranges::none_of(kept.rows,
@@ -680,6 +684,27 @@ public:
     if (recent_.removeAll(family) > 0) {
       rebuild(true);
     }
+  }
+
+  // The remove button of an extra section's row (issue 692 follow-up: "Chosen before").
+  void remove_from_section(int section, const QString& family) {
+    if (section < 0 || section >= static_cast<int>(extra_sections_.size())) {
+      return;
+    }
+    auto& rows = extra_sections_[static_cast<std::size_t>(section)].rows;
+    const auto removed =
+        std::erase_if(rows, [&family](const FontPickerSectionRow& row) { return row.family == family; });
+    combo_.remove_extra_section_row(section, family);
+    if (removed > 0) {
+      rebuild(true);
+    }
+  }
+
+  // The remove button's tooltip on a row of extra section `section`.
+  [[nodiscard]] QString section_remove_tooltip(int section) const {
+    return section >= 0 && section < static_cast<int>(extra_sections_.size())
+               ? extra_sections_[static_cast<std::size_t>(section)].remove_tooltip
+               : QString();
   }
 
   // Rebuilds the rows, keeping the current family (and its section) when it survives. With
@@ -746,7 +771,8 @@ public:
         std::vector<FontListRow> section_rows;
         for (const auto& row : extra.rows) {
           if (accepts(row.family)) {
-            section_rows.push_back({FontPickerRowKind::family, row.family, false, section, row.note});
+            section_rows.push_back(
+                {FontPickerRowKind::family, row.family, false, section, row.note, static_cast<bool>(extra.remove)});
           }
         }
         if (!section_rows.empty()) {
@@ -909,6 +935,7 @@ private:
     }
   }
 
+  FontPickerCombo& combo_;
   QListView& list_;
   QLineEdit& search_;
   QComboBox& style_;
@@ -970,11 +997,14 @@ protected:
           const auto pressed = std::exchange(pressed_, RowButtonHover{});
           const auto hit = button_at(mouse->position().toPoint());
           if (hit.row == pressed.row && hit.button == pressed.button) {
-            const auto family = list_.model()->index(hit.row, 0).data(Qt::DisplayRole).toString();
+            const auto index = list_.model()->index(hit.row, 0);
+            const auto family = index.data(Qt::DisplayRole).toString();
+            const int section = index.data(kFontPickerExtraSectionRole).toInt();
             // Queued: the action rebuilds the list's model, which must not happen inside its
             // own mouse event.
             QMetaObject::invokeMethod(
-                this, [this, family, button = hit.button] { activate(family, button); }, Qt::QueuedConnection);
+                this, [this, family, section, button = hit.button] { activate(family, section, button); },
+                Qt::QueuedConnection);
           }
           event->accept();
           return true;
@@ -985,7 +1015,12 @@ protected:
         const auto* help = static_cast<const QHelpEvent*>(event);
         const auto hit = button_at(help->pos());
         if (hit.button == FontPickerRowButton::remove_recent) {
-          QToolTip::showText(help->globalPos(), FontPickerCombo::tr("Remove from Recent"), list_.viewport());
+          const int section = list_.model()->index(hit.row, 0).data(kFontPickerExtraSectionRole).toInt();
+          const auto tip =
+              section >= 0 ? rows_.section_remove_tooltip(section) : FontPickerCombo::tr("Remove from Recent");
+          if (!tip.isEmpty()) {
+            QToolTip::showText(help->globalPos(), tip, list_.viewport());
+          }
           return true;
         }
         if (hit.button == FontPickerRowButton::favorite) {
@@ -1020,9 +1055,9 @@ private:
       return {};
     }
     const auto rect = list_.visualRect(index);
-    const bool recent = index.data(kFontPickerRecentRowRole).toBool();
+    const bool removable = index.data(kFontPickerRowRemovableRole).toBool();
     for (const auto button : {FontPickerRowButton::remove_recent, FontPickerRowButton::favorite}) {
-      if (font_picker_row_button_rect(rect, button, recent).contains(position)) {
+      if (font_picker_row_button_rect(rect, button, removable).contains(position)) {
         return {index.row(), button};
       }
     }
@@ -1036,9 +1071,11 @@ private:
     }
   }
 
-  void activate(const QString& family, FontPickerRowButton button) {
+  void activate(const QString& family, int section, FontPickerRowButton button) {
     if (button == FontPickerRowButton::favorite) {
       rows_.toggle_favorite(family);
+    } else if (button == FontPickerRowButton::remove_recent && section >= 0) {
+      rows_.remove_from_section(section, family);
     } else if (button == FontPickerRowButton::remove_recent) {
       rows_.remove_recent(family);
     }
@@ -1072,14 +1109,14 @@ private:
 
 }  // namespace
 
-QRect font_picker_row_button_rect(const QRect& row_rect, FontPickerRowButton button, bool recent_row) {
+QRect font_picker_row_button_rect(const QRect& row_rect, FontPickerRowButton button, bool removable_row) {
   const int side = std::clamp(row_rect.height() - 4, 14, 22);
   const QRect rightmost(row_rect.right() - 4 - side + 1, row_rect.top() + (row_rect.height() - side) / 2, side, side);
   switch (button) {
     case FontPickerRowButton::remove_recent:
-      return recent_row ? rightmost : QRect();
+      return removable_row ? rightmost : QRect();
     case FontPickerRowButton::favorite:
-      return recent_row ? rightmost.translated(-(side + 2), 0) : rightmost;
+      return removable_row ? rightmost.translated(-(side + 2), 0) : rightmost;
     case FontPickerRowButton::none:
       break;
   }
@@ -1116,8 +1153,9 @@ void FontPreviewPane::rebuild_lines() {
   const auto info = combo_.family_render_info(family_);  // copy; see family_render_info
   if (info.latin_capable) {
     // Type-specimen lead: the family name, large, in its own face (merging ON so the name
-    // stays complete even when the face misses the odd character).
-    QFont name_font(family_);
+    // stays complete even when the face misses the odd character); in the UI font for a symbol
+    // face, whose letters are not letters.
+    QFont name_font = info.symbol_glyphs ? combo_.font() : QFont(family_);
     apply_font_size(name_font, scaled_font(combo_.font(), 1.9));
     lines_.push_back({name_font, font_display_names().display_name(family_), QString()});
   }
@@ -1126,6 +1164,13 @@ void FontPreviewPane::rebuild_lines() {
   for (const auto ws : info.systems) {
     QFont line_font = info.sample_font;  // the family with NoFontMerging (honest coverage)
     apply_font_size(line_font, scaled_font(combo_.font(), 1.4));
+    if (ws == QFontDatabase::Latin && info.symbol_glyphs) {
+      // Its "Latin" is the font's symbol set: a glyph sample, under the Symbol label.
+      if (const auto text = symbol_font_sample(line_font); glyph_count(text) > 0) {
+        lines_.push_back({line_font, text, QFontDatabase::writingSystemName(QFontDatabase::Symbol)});
+      }
+      continue;
+    }
     if (ws == QFontDatabase::Latin) {
       //: Latin sample text in the font preview; keep it Latin in every language (it
       //: demonstrates the font's Latin glyph coverage).
@@ -1451,6 +1496,18 @@ void FontPickerCombo::set_extra_sections(std::vector<FontPickerSection> sections
   extra_sections_ = std::move(sections);
 }
 
+void FontPickerCombo::remove_extra_section_row(int section, const QString& family) {
+  if (section < 0 || section >= static_cast<int>(extra_sections_.size())) {
+    return;
+  }
+  auto& extra = extra_sections_[static_cast<std::size_t>(section)];
+  std::erase_if(extra.rows, [&family](const FontPickerSectionRow& row) { return row.family == family; });
+  // A copy: the action may hand the picker new sections.
+  if (const auto remove = extra.remove; remove) {
+    remove(family);
+  }
+}
+
 void FontPickerCombo::show_name_from_start() {
   if (auto* edit = lineEdit(); edit != nullptr) {
     edit->setCursorPosition(0);
@@ -1485,12 +1542,20 @@ const FontFamilyRenderInfo& FontPickerCombo::family_render_info(const QString& f
   apply_font_size(info.sample_font, row_font);
   info.sample_font.setStyleStrategy(QFont::NoFontMerging);
   if (info.latin_capable) {
+    // GitHub issue 691 follow-up: a Symbol-class face that claims Latin maps its letters onto
+    // symbols. One OS/2 read per family, kept by the style index (its Style filter answer).
+    auto& styles = FontStyleIndex::instance();
+    const auto traits = styles.cached(family);
+    info.symbol_glyphs =
+        (traits.has_value() ? *traits : styles.classify(family)).category == FontStyleCategory::symbol;
+  }
+  if (info.latin_capable && !info.symbol_glyphs) {
     info.display_font = QFont(family);
   } else {
     // The family cannot draw its own Latin name; keep the row readable in the UI font and
     // show a short run of the family's actual glyphs beside it.
     info.display_font = font();
-    if (info.systems.contains(QFontDatabase::Symbol)) {
+    if (info.symbol_glyphs || info.systems.contains(QFontDatabase::Symbol)) {
       info.row_sample = symbol_font_sample(info.sample_font).left(kMaxRowSampleChars).trimmed();
     } else if (!info.systems.isEmpty()) {
       info.row_sample = renderable_subset(info.sample_font, writing_system_sample(info.systems.front()))

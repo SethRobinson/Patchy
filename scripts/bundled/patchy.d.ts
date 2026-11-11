@@ -1367,7 +1367,9 @@ interface PatchyDocument {
    *  (where the old canvas's top-left lands in the new one, so `{x: 200}` adds 200 px on the
    *  left) places the content, the Background layer fills the new area with `fill` (default
    *  white), and the selection moves with the content. Throws for Smart Filters and unparsed
-   *  Smart Objects when options are given. */
+   *  Smart Objects when options are given. A Background cannot hold pixels beyond the canvas:
+   *  a resize that leaves it any (or, without options, any size change) makes it an ordinary
+   *  unlocked layer named "Layer 0" that keeps every pixel. */
   resizeCanvas(width: number, height: number, options?: {anchor?: PatchyCanvasAnchor; x?: number; y?: number;
     fill?: string}): void;
   /** The artboards, top of the layer stack first (empty without artboards). */

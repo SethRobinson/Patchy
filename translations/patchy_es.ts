@@ -15777,6 +15777,11 @@ Do you want to replace it?</source>
         <translation>Elegidas antes</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>Quitar de elegidas antes</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>Sugerencias</translation>
@@ -21728,6 +21733,10 @@ Do you want to replace it?</source>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>Más efectos de desenfoque, distorsión, iluminación y artísticos</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>Herramienta Recortar: mantener el cuadro en su sitio y deslizar o girar la imagen detrás de él</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22439,6 +22448,10 @@ Do you want to replace it?</source>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>Herramienta Recortar, una vez cambiado el cuadro de recorte: superposición siguiente / girar superposición / mostrar u ocultar el área recortada</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>Herramienta Recortar, una vez cambiado el cuadro de recorte: mover la imagen bajo el cuadro de recorte o el cuadro sobre la imagen</translation>
     </message>
 </context>
 <context>
@@ -35842,6 +35855,18 @@ Bloqueada: %1</translation>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>%1 elige la superposición siguiente una vez cambiado el cuadro de recorte</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>Mover la imagen bajo el cuadro de recorte</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>Recortar: la imagen se mueve bajo el cuadro de recorte</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>Recortar: el cuadro de recorte se mueve sobre la imagen</translation>
     </message>
 </context>
 <context>

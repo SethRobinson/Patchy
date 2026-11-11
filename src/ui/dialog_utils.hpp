@@ -90,6 +90,8 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 //   per pixel, ten with Shift, a tenth with Alt (integer fields then move every ten
 //   pixels); changing a modifier mid-drag continues from the current value. The
 //   pointer wraps at the screen edge where the platform allows it.
+// - Only the newest move of an event-loop pass sets the value (GitHub #700; the rule and
+//   its test switch are at set_scrub_move_coalescing_for_testing below).
 // - A scrub ends with the spin box's editingFinished, so undo paths that coalesce an
 //   edit session record one step per scrub.
 // - The SizeHor cursor shows wherever a press scrubs.
@@ -116,7 +118,8 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 // label that must not become a handle (the "to" between a range's two fields) sets
 // kScrubLabelExemptProperty. Tests: ui_dialog_scrub_labels_pair_every_row_shape,
 // ui_options_bar_label_scrub_changes_spin_value, ui_options_bar_field_drag_scrubs_and_click_edits,
-// ui_scrub_gap_and_modifiers_follow_the_zone_rules, ui_layer_opacity_prefix_scrub_is_one_undo_entry.
+// ui_scrub_gap_and_modifiers_follow_the_zone_rules, ui_layer_opacity_prefix_scrub_is_one_undo_entry,
+// ui_scrub_moves_coalesce_to_the_latest_position.
 inline constexpr char kScrubHandleInstalledProperty[] = "patchy.scrubHandleInstalled";
 inline constexpr char kScrubLabelExemptProperty[] = "patchy.scrubLabelExempt";
 // True on a spin box while a scrub drags its value: set once the drag passes the drag
@@ -384,6 +387,17 @@ void ensure_slider_drag_coalescing();
 // moves coalesced so far.
 void set_slider_drag_coalescing_all_moves_for_testing(bool all_moves);
 [[nodiscard]] int slider_drag_moves_coalesced_for_testing();
+// Scrub handles coalesce their moves the same way (GitHub #700; docs/ui-conventions-dialogs.md,
+// "Scrub move coalescing"): each value a scrub sets runs the field's whole valueChanged
+// chain, so the first window-system move of an event-loop pass is applied at once, later
+// ones are only recorded, and the pass end applies the newest. The release, a key, another
+// button, and a move with Shift or Alt changed apply the recorded move first, so the final
+// value is where the pointer is and a rate change continues from it. Default coalesces
+// window-system (spontaneous) moves only, so moves a test sends one by one are each
+// applied; AllMoves also coalesces posted and sent moves; Off applies every move.
+enum class ScrubMoveCoalescing { Default, AllMoves, Off };
+void set_scrub_move_coalescing_for_testing(ScrubMoveCoalescing mode);
+[[nodiscard]] int scrub_moves_coalesced_for_testing();
 // The X glyph the dark dialog chrome's title bar uses, for a frameless dialog
 // that draws its own corner close button (About).
 QIcon dialog_chrome_close_icon();

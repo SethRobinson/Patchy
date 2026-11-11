@@ -460,7 +460,7 @@ bool CanvasWidget::add_move_layer_menu_entries(QMenu& menu, QPoint widget_point)
   return true;
 }
 
-const Layer* CanvasWidget::auto_select_target_layer(const Layer* leaf) const {
+const Layer* CanvasWidget::auto_select_target_layer(const Layer* leaf, bool favor_selected) const {
   if (leaf == nullptr || document_ == nullptr || auto_select_target_ != MoveAutoSelectTarget::Group) {
     return leaf;
   }
@@ -469,18 +469,43 @@ const Layer* CanvasWidget::auto_select_target_layer(const Layer* leaf) const {
   if (!collect_layer_ancestor_groups(layers, leaf->id(), ancestors)) {
     return leaf;
   }
+  // A layer the user picked in the Layers panel moves on its own (GitHub issue
+  // 703, a deliberate difference from Photoshop): the outermost selected layer
+  // between the group and the leaf wins, so a selected group still beats its
+  // selected child. With nothing selected the active layer counts, as it does
+  // for the hover outline's transform-box check.
+  const auto is_selected = [&](LayerId id) {
+    if (!favor_selected) {
+      return false;
+    }
+    if (!selected_layer_ids_.empty()) {
+      return std::find(selected_layer_ids_.begin(), selected_layer_ids_.end(), id) != selected_layer_ids_.end();
+    }
+    const auto active = document_->active_layer_id();
+    return active.has_value() && *active == id;
+  };
   // The outermost group, skipping an artboard: an artboard is a canvas, not a
   // group the user built, so its own children are the top level there.
+  const Layer* outermost = nullptr;
   for (auto it = ancestors.rbegin(); it != ancestors.rend(); ++it) {
     const auto* group = find_layer_in_tree(layers, *it);
     if (group == nullptr) {
       return leaf;
     }
-    if (!group->artboard().has_value()) {
+    if (group->artboard().has_value()) {
+      continue;
+    }
+    if (outermost == nullptr) {
+      outermost = group;
+    }
+    if (is_selected(group->id())) {
       return group;
     }
   }
-  return leaf;
+  if (outermost == nullptr || is_selected(leaf->id())) {
+    return leaf;
+  }
+  return outermost;
 }
 
 std::optional<QRect> CanvasWidget::move_target_outline_bounds(const Layer& layer) const {
@@ -1138,8 +1163,9 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
       return std::nullopt;
     }
   } else {
-    // Auto-Select Group outlines the group the click would pick.
-    hit_layer = auto_select_target_layer(hit_layer);
+    // Auto-Select Group outlines the group the click would pick (a selected
+    // layer itself for a plain press, GitHub issue 703; Ctrl picks the group).
+    hit_layer = auto_select_target_layer(hit_layer, !modifiers.testFlag(Qt::ControlModifier));
   }
   if (show_transform_controls_ && extra_shown(ViewExtra::TransformControls) && click_selects) {
     if (!selected_layer_ids_.empty()) {
@@ -1239,7 +1265,7 @@ bool CanvasWidget::move_press_drags_at(QPoint widget_position) const {
     const auto only = only_layer_id(document.layers());
     return only.has_value() && movable_under(document.find_layer(*only));
   }
-  return movable_under(auto_select_target_layer(topmost_move_layer_at(document_point, true)));
+  return movable_under(auto_select_target_layer(topmost_move_layer_at(document_point, true), true));
 }
 
 void CanvasWidget::clear_move_hover_outline() {

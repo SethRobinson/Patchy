@@ -143,19 +143,21 @@ MissingFontEntry missing_font_entry(const DocumentMissingFont& font) {
   return entry;
 }
 
-// Remembers the replacements Resolve Fonts just applied (issue 692): a pick that differs from the
+// Remembers the replacements Resolve Fonts just applied (issue 692): a font picked by hand in the
+// row's picker, even the one it started on (issue 692 follow-up), a pick that differs from the
 // row's built-in recommendation, any pick for a symbol font nothing is recommended for (its row
 // starts unticked), and any pick for a font that already has remembered ones, so going back to
 // the recommendation is the new last pick and accepting a remembered font counts once more. An
 // untouched recommendation for a font with no history is not a choice and records nothing.
-void remember_font_replacements(const std::vector<MissingFontEntry>& entries,
-                                const QHash<QString, QString>& replacements) {
+void remember_font_replacements(const std::vector<MissingFontEntry>& entries, const MissingFontsDialogResult& result) {
   for (const auto& entry : entries) {
-    const auto chosen = replacements.constFind(text_font_replacement_key(entry.family));
-    if (chosen == replacements.constEnd() || chosen->trimmed().isEmpty()) {
+    const auto key = text_font_replacement_key(entry.family);
+    const auto chosen = result.replacements.constFind(key);
+    if (chosen == result.replacements.constEnd() || chosen->trimmed().isEmpty()) {
       continue;
     }
-    const bool by_hand = entry.suggestion == MissingFontSuggestion::no_symbol_match ||
+    const bool by_hand = result.picked_by_hand.contains(key) ||
+                         entry.suggestion == MissingFontSuggestion::no_symbol_match ||
                          chosen->compare(entry.recommended, Qt::CaseInsensitive) != 0;
     if (by_hand || !remembered_font_replacements(entry.family).empty()) {
       record_font_replacement(entry.family, *chosen);
@@ -275,7 +277,7 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
   if (!result.has_value() || result->replacements.isEmpty()) {
     return;
   }
-  remember_font_replacements(entries, result->replacements);
+  remember_font_replacements(entries, *result);
   int skipped_locked = 0;
   const auto changed = resolve_missing_fonts(result->replacements, &skipped_locked);
   auto message = tr("Replaced missing fonts in %n text layer(s)", nullptr, changed);

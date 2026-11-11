@@ -15777,6 +15777,11 @@ Voulez-vous le remplacer ?</translation>
         <translation>Déjà choisies</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>Retirer des déjà choisies</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>Suggestions</translation>
@@ -21728,6 +21733,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>Effets supplémentaires de flou, de distorsion, d&apos;éclairage et artistiques</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>Outil Recadrage : garder le cadre en place et faire glisser ou pivoter l&apos;image derrière lui</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22439,6 +22448,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>Outil Recadrage, une fois le cadre de recadrage modifié : superposition suivante / tourner la superposition / afficher ou masquer la zone recadrée</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>Outil Recadrage, une fois le cadre de recadrage modifié : déplacer l&apos;image sous le cadre de recadrage, ou le cadre sur l&apos;image</translation>
     </message>
 </context>
 <context>
@@ -35842,6 +35855,18 @@ Verrouillé : %1</translation>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>%1 choisit la superposition suivante une fois le cadre de recadrage modifié</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>Déplacer l&apos;image sous le cadre de recadrage</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>Recadrage : l&apos;image se déplace sous le cadre de recadrage</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>Recadrage : le cadre de recadrage se déplace sur l&apos;image</translation>
     </message>
 </context>
 <context>

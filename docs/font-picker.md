@@ -25,14 +25,23 @@ control, with two sections of its own above Recent ("Extra sections" below). Tex
   never "Arial [TMC ]". The model keeps one row per foundry copy (Qt selects rows by its own list);
   the popup lists the family once. Recent and Favorites saved with a suffix read back plain, once.
 - Row buttons (`font_picker_row_button_rect`, `FontPickerRowButton`): every family row has the
-  favorite star at its right; Recent rows have the remove x rightmost with the star just left of
-  it. Their space is reserved on every row so names never re-elide on hover. A favorite's star is
+  favorite star at its right; Recent rows and the rows of an extra section with a `remove` action
+  (`kFontPickerRowRemovableRole`) have the remove x rightmost with the star just left of it. Their space is reserved on every row so names never re-elide on hover. A favorite's star is
   filled in `font_favorite_star` always; an empty star and the x show on the hovered row only, in
   `text_secondary` (`text_primary` over the button). `RowButtonController`, an event filter on the
   list's viewport, owns presses inside a button rect: the row is neither selected nor picked, the
   action runs queued on release over the same button (it rebuilds the model), and a double click
   toggles twice. Clicks elsewhere on the row and all keyboard handling are untouched; there is no
   keyboard shortcut for the buttons.
+- **Symbol faces** (issue 691 follow-up): a family whose Latin letters are not letters has its name
+  drawn in the UI font with a short run of its own glyphs (`symbol_font_sample`, at most 9) at the
+  right of the row, and the preview pane leads with the name in the UI font. That is a family that
+  claims no Latin (Wingdings, Webdings, Symbol on Windows), or one that claims Latin and whose
+  style class is Symbol ([below](#style-classification); `FontFamilyRenderInfo::symbol_glyphs`):
+  URW's Standard Symbols PS and D050000L on Linux map Latin codes to Greek letters and dingbats.
+  Its preview shows those glyphs under the Symbol label instead of the Latin pangram. The class
+  comes from `FontStyleIndex` (one OS/2 read per family, the first time its row is painted,
+  shared with the Style filter), so it holds with the English-names option on or off.
 - The popup opens on the current family's Recent row with the list at the top, so the section is in
   view; a current family that is not recent opens centered in the full list.
 
@@ -52,6 +61,11 @@ the options bar's picker sets none and is unchanged.
   `kFontPickerExtraSectionRole` (the section's index, -1 elsewhere) and `kFontPickerRowNoteRole`:
   the note is drawn dim in the UI font at the right of the row and takes at most three fifths of
   the name's width.
+- A section with a `remove` action (issue 692 follow-up: "Chosen before") gives each row the
+  Recent x, with the section's own `remove_tooltip`. A click runs the action with the family and
+  drops the row from the open list (scroll kept, popup open) and from the combo's sections
+  (`remove_extra_section_row`), so the next popup leaves it out too; the family stays in the full
+  list. Sections without one have no x.
 - A popup with an extra section opens with the list at the top, on the current family's topmost
   row. A rebuild puts the selection back in the section it was in (`row_zone`).
 - Test: `ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules`.
@@ -74,6 +88,10 @@ Latin PostScript name. Code: `src/ui/font_display_names.{hpp,cpp}`.
   English, Macintosh English, then any record in Latin script; the other kind next; the
   PostScript name (id 6) last. A candidate must be Latin script whatever language it is filed
   under, and a family already named in Latin script (`font_name_is_latin`) is never opened.
+  Records in a legacy Windows code page (encodings 2 to 6: Shift JIS, PRC, Big5, Wansung, Johab)
+  and in a non-Roman Macintosh encoding count only when they hold ASCII, which reads the same in
+  all of them; a legacy record may store it one character per 16-bit unit or two bytes per unit,
+  and both are read. Font engines give no file path, so there is no file-name fallback.
 - **One table per font database load** (`font_display_names()`): built on first use, one font
   engine load per family listed in another script, answers kept by family and style list so a
   later `fontDatabaseChanged` reopens nothing. Empty while the option is off. Nothing is read per
@@ -176,16 +194,19 @@ every platform's font engine answers without a file path.
 3. PANOSE: family type 3 Script, 4 Decorative; Latin Text with serif style 6 (Square) Slab Serif,
    2 to 10 Serif, 11 to 15 Sans Serif (15, Rounded, is Calibri and Carlito).
 4. A family that claims the Symbol writing system and not Latin is Symbol.
-5. The name-based class (`font_class_for_name`: the substitute table, then name words): serif,
-   sans, script, display (Decorative). Anything still unknown shows under All Styles and Other.
+5. The name-based class (`font_class_for_name`: the substitute table, then name words, then a few
+   whole names: Standard Symbols PS and L, D050000L, whose Type 1 copies on Linux have no OS/2
+   table): serif, sans, script, display (Decorative), symbol. Anything still unknown shows under
+   All Styles and Other.
 
 Variable is the presence of an `fvar` table. Many Google fonts (Montserrat, Oswald, Caveat) leave
 both OS/2 fields zero and so only reach a style through their name.
 
 ### Cost and the cache
 
-Reading a family loads one font engine, so nothing is read until a table-reading filter (every
-Style but All Styles and Monospace) is chosen. Unread families are then classified in 12 ms timer
+Reading a family loads one font engine, so the filter reads nothing until a table-reading filter
+(every Style but All Styles and Monospace) is chosen; a row reads its own family when it is first
+painted (Symbol faces, above), the engine its name is drawn with anyway. Unread families are then classified in 12 ms timer
 slices with a "Reading font styles... N%" line; the list fills in every 400 ms and once at the end.
 Answers are cached in memory and in `font-style-cache.txt` in the app's local data folder (a
 versioned header line, then category token, variable flag, the family's joined
@@ -200,6 +221,9 @@ cap, missing families, header skipping, filters, persistence, the rule's color i
 list height, Enter in an open list, Other, the favorite star, the Favorites view with filters and
 persistence, the Recent x, the hidden-matches hint, plain names for foundry duplicates; English
 names: `ui_font_english_name_*`, `ui_font_display_names_round_trip_to_the_listed_family`,
+Symbol faces: `ui_font_picker_symbol_faces_show_a_readable_name`, which renames the bundled
+Liberation Sans in memory and marks it Symbol, plus URW's fonts where installed or in
+`local-test-fixtures/fonts/urw-base35`,
 `ui_font_picker_shows_english_names_when_enabled`,
 `ui_preferences_show_font_names_in_english_checkbox`); the popup's older cases are
 `ui_text_font_picker_*` in `tests/ui/text_editor_font_picker_tests.cpp`.

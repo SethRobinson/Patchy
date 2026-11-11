@@ -32,39 +32,76 @@ constexpr quint16 kNameTypographicFamily = 16;
 
 constexpr int kNoRank = 99;
 
-// How well a record serves as the English name; lower is better, kNoRank is unusable. Every
-// candidate must be Latin script whatever its language says: some fonts file their native name
-// under en-US.
-int english_name_rank(const OpenTypeNameRecord& record) {
-  if (record.text.isEmpty() || !font_name_is_latin(record.text)) {
-    return kNoRank;
+[[nodiscard]] bool is_ascii(const QString& text) {
+  return std::all_of(text.cbegin(), text.cend(), [](QChar ch) { return ch.unicode() < 0x80U; });
+}
+
+// The ASCII text of a Windows record in a legacy code page (Shift JIS, PRC, Big5, Wansung, Johab;
+// GitHub issue 691 follow-up), empty when it holds anything else. ASCII reads the same in all of
+// them, and fonts store it two ways: one character per 16-bit unit (0x00XX, what
+// decode_name_string's UTF-16 reading already gives) or two bytes packed into each unit.
+[[nodiscard]] QString legacy_windows_ascii(const QString& utf16_text) {
+  if (is_ascii(utf16_text)) {
+    return utf16_text;
   }
+  QString packed;
+  packed.reserve(utf16_text.size() * 2);
+  for (const auto ch : utf16_text) {
+    for (const auto byte : {static_cast<char16_t>(ch.unicode() >> 8), static_cast<char16_t>(ch.unicode() & 0xffU)}) {
+      if (byte == 0) {
+        continue;  // padding of an odd-length string
+      }
+      if (byte < 0x20U || byte >= 0x7fU) {
+        return {};
+      }
+      packed.append(QChar(byte));
+    }
+  }
+  return packed;
+}
+
+struct NameCandidate {
+  int rank{kNoRank};  // how well it serves as the English name; lower is better
+  QString text;
+};
+
+// A record as an English name candidate. Every candidate must be Latin script whatever its
+// language says: some fonts file their native name under en-US.
+NameCandidate english_name_candidate(const OpenTypeNameRecord& record) {
+  NameCandidate candidate;
+  candidate.text = record.text;
   switch (record.platform) {
     case kPlatformWindows:
-      // Symbol (0) and Unicode BMP (1) strings are UTF-16; the legacy code-page encodings
-      // (PRC, Big5 and the rest) are not what decode_name_string reads.
+      // Symbol (0) and Unicode BMP (1) strings are UTF-16; the legacy code pages are read for
+      // ASCII only.
       if (record.encoding > 1) {
-        return kNoRank;
+        candidate.text = legacy_windows_ascii(record.text);
       }
       if (record.language == kWindowsEnglishUs) {
-        return 0;
+        candidate.rank = 0;
+      } else {
+        candidate.rank = (record.language & kWindowsPrimaryLanguageMask) == kWindowsPrimaryEnglish ? 1 : 4;
       }
-      return (record.language & kWindowsPrimaryLanguageMask) == kWindowsPrimaryEnglish ? 1 : 4;
-    case kPlatformMacintosh: {
-      // Only Roman-encoded records decode reliably (decode_name_string reads Latin-1), and only
-      // their ASCII range is the same in Mac Roman.
-      const bool ascii = std::all_of(record.text.cbegin(), record.text.cend(),
-                                     [](QChar ch) { return ch.unicode() < 0x80U; });
-      if (record.encoding != 0 || !ascii) {
-        return kNoRank;
+      break;
+    case kPlatformMacintosh:
+      // decode_name_string reads Latin-1; only the ASCII range means the same in Mac Roman and
+      // in the other Macintosh encodings (Chinese, Japanese, Korean and the rest).
+      if (!is_ascii(record.text)) {
+        return {};
       }
-      return record.language == 0 ? 2 : 4;
-    }
+      candidate.rank = record.encoding == 0 && record.language == 0 ? 2 : 4;
+      break;
     case kPlatformUnicode:
-      return 3;
+      candidate.rank = 3;
+      break;
     default:
-      return kNoRank;
+      return {};
   }
+  candidate.text = candidate.text.simplified();
+  if (candidate.text.isEmpty() || !font_name_is_latin(candidate.text)) {
+    return {};
+  }
+  return candidate;
 }
 
 struct NameTableAnswer {
@@ -75,10 +112,7 @@ struct NameTableAnswer {
 NameTableAnswer english_name_answer(const QByteArray& name_table, const QString& listed_family) {
   NameTableAnswer answer;
   const auto listed_key = listed_family.simplified().toCaseFolded();
-  struct Best {
-    int rank{kNoRank};
-    QString text;
-  };
+  using Best = NameCandidate;
   Best family;
   Best typographic;
   Best postscript;
@@ -102,9 +136,8 @@ NameTableAnswer english_name_answer(const QByteArray& name_table, const QString&
       default:
         continue;
     }
-    if (const int rank = english_name_rank(record); rank < slot->rank) {
-      slot->rank = rank;
-      slot->text = record.text.simplified();
+    if (auto candidate = english_name_candidate(record); candidate.rank < slot->rank) {
+      *slot = std::move(candidate);
     }
   }
   answer.lists_family = listed_is_family || listed_is_typographic;

@@ -284,6 +284,160 @@ void document_remove_layers_outside_frame_before_cropping_resize() {
   CHECK(cropped_first.find_layer(outside_id) != nullptr);
 }
 
+// An 8 x 6 document whose only layer is the Background by the background_layer rule (opaque
+// RGB, canvas-sized, position locked), under `name`. The image-pixels lock is not one the
+// Background status carries, so it must survive a release.
+[[nodiscard]] patchy::Document background_rule_document(const char* name) {
+  patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+  auto& background = document.add_pixel_layer(name, solid_rgb(8, 6, 200, 100, 50));
+  patchy::set_layer_lock_flags(background, patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels |
+                                               patchy::kLayerLockImagePixels);
+  return document;
+}
+
+[[nodiscard]] const patchy::Layer* document_background(const patchy::Document& document) {
+  return patchy::background_layer(document.layers(), document.width(), document.height());
+}
+
+// GitHub issue 701. A canvas resize that keeps the layers' pixels (Crop with Delete Cropped
+// Pixels off, Canvas Size without its layer crop) and leaves the Background reaching beyond
+// the new canvas makes it an ordinary layer that still holds every pixel: the Background
+// locks cleared, the caller's name, only translated. It used to keep its name and locks
+// while no longer matching the Background rule.
+void document_canvas_resize_keeping_pixels_releases_background() {
+  constexpr auto kBackgroundLocks = patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels |
+                                    patchy::kLayerLockArtboardAutonest;
+  const patchy::EditColor fill{12, 34, 56, 255};
+
+  // The canvas shrinks on every side.
+  auto shrunk = background_rule_document("Background");
+  CHECK(document_background(shrunk) != nullptr);
+  patchy::resize_canvas_to_frame(shrunk, patchy::Rect{2, 1, 4, 3}, fill, false, "Layer 0");
+  CHECK(shrunk.width() == 4 && shrunk.height() == 3);
+  CHECK(document_background(shrunk) == nullptr);
+  {
+    const auto& layer = std::as_const(shrunk).layers().front();
+    CHECK(layer.name() == "Layer 0");
+    CHECK(patchy::layer_lock_flags(layer) == patchy::kLayerLockImagePixels);
+    CHECK(layer.bounds() == (patchy::Rect{-2, -1, 8, 6}));
+    CHECK(layer.pixels().width() == 8 && layer.pixels().height() == 6);
+    CHECK(layer.pixels().format().channels == 3U);
+    CHECK(layer.pixels().pixel(0, 0)[0] == 200 && layer.pixels().pixel(7, 5)[2] == 50);
+  }
+
+  // A core caller without a name (the artboard canvas fit) releases the locks and leaves
+  // the name alone.
+  auto unnamed = background_rule_document("Background");
+  patchy::resize_canvas_to_frame(unnamed, patchy::Rect{2, 1, 4, 3}, fill, false);
+  CHECK(document_background(unnamed) == nullptr);
+  CHECK(std::as_const(unnamed).layers().front().name() == "Background");
+  CHECK((patchy::layer_lock_flags(std::as_const(unnamed).layers().front()) & kBackgroundLocks) == 0U);
+
+  // Smaller on the left and bottom, larger on the top and right: the released layer is only
+  // translated, so the new canvas area beside it is transparent, not filled.
+  auto mixed = background_rule_document("Background");
+  patchy::resize_canvas_to_frame(mixed, patchy::Rect{2, -2, 10, 4}, fill, false, "Layer 0");
+  CHECK(mixed.width() == 10 && mixed.height() == 4);
+  CHECK(document_background(mixed) == nullptr);
+  {
+    const auto& layer = std::as_const(mixed).layers().front();
+    CHECK(layer.name() == "Layer 0");
+    CHECK((patchy::layer_lock_flags(layer) & kBackgroundLocks) == 0U);
+    CHECK(layer.bounds() == (patchy::Rect{-2, 2, 8, 6}));
+    CHECK(layer.pixels().width() == 8 && layer.pixels().height() == 6);
+    CHECK(layer.pixels().pixel(0, 0)[0] == 200);
+  }
+
+  // A layer that is only named "Background" (unlocked, as an opened flat image's) is not
+  // the Background: nothing is released or renamed, and it keeps its pixels as before.
+  patchy::Document flat(8, 6, patchy::PixelFormat::rgb8());
+  flat.add_pixel_layer("Background", solid_rgb(8, 6, 200, 100, 50));
+  CHECK(document_background(flat) == nullptr);
+  patchy::resize_canvas_to_frame(flat, patchy::Rect{2, 1, 4, 3}, fill, false, "Layer 0");
+  CHECK(std::as_const(flat).layers().front().name() == "Background");
+  CHECK(std::as_const(flat).layers().front().bounds() == (patchy::Rect{-2, -1, 8, 6}));
+}
+
+// The cases that keep the Background (GitHub issue 701): a pixel-keeping resize that only
+// grows the canvas fills the new area, and a resize that crops the layers cuts it to the
+// canvas. Both go by the Background rule, not the layer's name: a PSD from a translated
+// Photoshop, Flatten Image in a translated Patchy and a script's flatten() name it otherwise,
+// and such a Background used to be left unfilled and stop being one.
+void document_canvas_resize_keeps_background_when_it_fits_the_canvas() {
+  const patchy::EditColor fill{12, 34, 56, 255};
+  const auto full_locks = patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels |
+                          patchy::kLayerLockImagePixels;
+  for (const char* name : {"Background", "Hintergrund"}) {
+    // Grown on every side, pixels kept.
+    auto grown = background_rule_document(name);
+    patchy::resize_canvas_to_frame(grown, patchy::Rect{-2, -2, 12, 10}, fill, false, "Layer 0");
+    CHECK(grown.width() == 12 && grown.height() == 10);
+    const auto* background = document_background(grown);
+    CHECK(background != nullptr);
+    if (background != nullptr) {
+      CHECK(background->name() == name);
+      CHECK(patchy::layer_lock_flags(*background) == full_locks);
+      CHECK(background->pixels().format().channels == 3U);
+      CHECK(background->pixels().pixel(0, 0)[0] == 12 && background->pixels().pixel(0, 0)[2] == 56);
+      CHECK(background->pixels().pixel(2, 2)[0] == 200);
+      CHECK(background->pixels().pixel(11, 9)[1] == 34);
+    }
+
+    // Shrunk with the layer crop: cut to the canvas.
+    auto cropped = background_rule_document(name);
+    patchy::resize_canvas_to_frame(cropped, patchy::Rect{2, 1, 4, 3}, fill, true, "Layer 0");
+    background = document_background(cropped);
+    CHECK(background != nullptr);
+    if (background != nullptr) {
+      CHECK(background->name() == name);
+      CHECK(patchy::layer_lock_flags(*background) == full_locks);
+      CHECK(background->pixels().width() == 4 && background->pixels().height() == 3);
+      CHECK(background->pixels().pixel(0, 0)[0] == 200);
+    }
+
+    // Shrunk on one side and grown on another with the layer crop: cut and filled.
+    auto cut_and_filled = background_rule_document(name);
+    patchy::resize_canvas_to_frame(cut_and_filled, patchy::Rect{2, -2, 10, 4}, fill, true, "Layer 0");
+    background = document_background(cut_and_filled);
+    CHECK(background != nullptr);
+    if (background != nullptr) {
+      CHECK(background->pixels().width() == 10 && background->pixels().height() == 4);
+      CHECK(background->pixels().pixel(0, 0)[0] == 12);
+      CHECK(background->pixels().pixel(0, 2)[0] == 200);
+      CHECK(background->pixels().pixel(9, 3)[0] == 12);
+    }
+
+    // The crops that cut every layer keep it too: expanding, rotated and perspective.
+    auto expanded = background_rule_document(name);
+    CHECK(patchy::crop_document(expanded, patchy::Rect{-2, -2, 6, 6}, fill));
+    background = document_background(expanded);
+    CHECK(background != nullptr);
+    if (background != nullptr) {
+      CHECK(background->pixels().pixel(0, 0)[0] == 12 && background->pixels().pixel(2, 2)[0] == 200);
+    }
+    auto rotated = background_rule_document(name);
+    CHECK(patchy::crop_document(rotated, patchy::Rect{1, 1, 6, 4}, 30.0, fill));
+    CHECK(document_background(rotated) != nullptr);
+    auto perspective = background_rule_document(name);
+    CHECK(patchy::perspective_crop_document(perspective, {1.0, 0.0, 7.0, 1.0, 6.0, 5.0, 0.0, 4.0}, 6, 4, fill));
+    CHECK(document_background(perspective) != nullptr);
+  }
+
+  // A transparent fill (artboard canvas growth) cannot keep a Background opaque: the layer
+  // named "Background" still widens, with an alpha channel, and its Background locks go.
+  auto transparent = background_rule_document("Background");
+  patchy::resize_canvas_to_frame(transparent, patchy::Rect{-2, -2, 12, 10}, patchy::EditColor{0, 0, 0, 0}, false);
+  CHECK(document_background(transparent) == nullptr);
+  {
+    const auto& layer = std::as_const(transparent).layers().front();
+    CHECK(layer.name() == "Background");
+    CHECK(patchy::layer_lock_flags(layer) == patchy::kLayerLockImagePixels);
+    CHECK(layer.bounds() == (patchy::Rect{0, 0, 12, 10}));
+    CHECK(layer.pixels().format().channels == 4U);
+    CHECK(layer.pixels().pixel(0, 0)[3] == 0 && layer.pixels().pixel(2, 2)[3] == 255);
+  }
+}
+
 void document_canvas_resize_honors_anchor_and_extension_color() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
   const auto& background = document.add_pixel_layer("Background", solid_rgb(4, 4, 255, 255, 255));
@@ -3604,6 +3758,10 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"document_remove_layers_outside_canvas", document_remove_layers_outside_canvas},
       {"document_remove_layers_outside_frame_before_cropping_resize",
        document_remove_layers_outside_frame_before_cropping_resize},
+      {"document_canvas_resize_keeping_pixels_releases_background",
+       document_canvas_resize_keeping_pixels_releases_background},
+      {"document_canvas_resize_keeps_background_when_it_fits_the_canvas",
+       document_canvas_resize_keeps_background_when_it_fits_the_canvas},
       {"document_canvas_resize_honors_anchor_and_extension_color",
        document_canvas_resize_honors_anchor_and_extension_color},
       {"document_canvas_resize_preserves_offcanvas_layers_and_masks",

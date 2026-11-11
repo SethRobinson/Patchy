@@ -15833,6 +15833,11 @@ Do you want to replace it?</source>
         <translation>Выбранные ранее</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>Удалить из выбранных ранее</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>Предлагаемые</translation>
@@ -21790,6 +21795,10 @@ Do you want to replace it?</source>
         <source>Extra blur, distortion, lighting and artistic effects</source>
         <translation>Дополнительные эффекты размытия, искажения, освещения и художественные эффекты</translation>
     </message>
+    <message>
+        <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
+        <translation>Инструмент «Кадрирование»: рамка остаётся на месте, а изображение сдвигается или поворачивается под ней</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22503,6 +22512,10 @@ Do you want to replace it?</source>
     <message>
         <source>Crop tool, once the crop box has been changed: next overlay / turn overlay / show or hide the cropped area</source>
         <translation>Инструмент «Кадрирование», после изменения рамки кадрирования: следующее наложение / повернуть наложение / показать или скрыть обрезанную область</translation>
+    </message>
+    <message>
+        <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
+        <translation>Инструмент «Кадрирование», после изменения рамки кадрирования: двигать изображение под рамкой кадрирования или рамку над изображением</translation>
     </message>
 </context>
 <context>
@@ -35951,6 +35964,18 @@ Locked: %1</source>
     <message>
         <source>%1 picks the next overlay once the crop box has been changed</source>
         <translation>%1 выбирает следующее наложение после изменения рамки кадрирования</translation>
+    </message>
+    <message>
+        <source>Move Image Under Crop Box</source>
+        <translation>Двигать изображение под рамкой кадрирования</translation>
+    </message>
+    <message>
+        <source>Crop: the image moves under the crop box</source>
+        <translation>Кадрирование: изображение движется под рамкой кадрирования</translation>
+    </message>
+    <message>
+        <source>Crop: the crop box moves over the image</source>
+        <translation>Кадрирование: рамка кадрирования движется над изображением</translation>
     </message>
 </context>
 <context>

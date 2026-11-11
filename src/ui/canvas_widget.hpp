@@ -251,7 +251,9 @@ public:
   // View rotation (docs/view-navigation-rotation.md): the on-screen angle of the
   // document in degrees, clockwise, wrapped into (-180, 180]. It turns only the view;
   // the pixels never change. Setting it pivots on the view area's center, keeping the
-  // document point there in place. Per canvas, not saved, like zoom.
+  // document point there in place. Per canvas, not saved, like zoom. This is the user's
+  // angle: the turn a Crop session adds while the image moves under the box (GitHub
+  // issue 699) is kept apart and goes away with the session.
   [[nodiscard]] double view_rotation() const noexcept;
   void set_view_rotation(double degrees);
   // The current document <-> widget mapping (zoom, pan and rotation together).
@@ -2412,7 +2414,10 @@ private:
   [[nodiscard]] double clamp_logical_zoom(double logical_zoom) const noexcept;
   void begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer, bool rectangle_allowed);
   // The layer a Move-tool click on `leaf` selects under the Auto-Select target.
-  [[nodiscard]] const Layer* auto_select_target_layer(const Layer* leaf) const;
+  // `favor_selected` (plain presses, the hover outline): under Group, a layer
+  // on the way from the outermost group down to `leaf` that is itself selected
+  // is the target, the outermost such one (GitHub issue 703).
+  [[nodiscard]] const Layer* auto_select_target_layer(const Layer* leaf, bool favor_selected = false) const;
   struct MoveSelectionCandidate {
     LayerId target{};
     QRectF bounds;  // the leaf's Move rect
@@ -3069,12 +3074,32 @@ private:
   void begin_crop_drag_out(QMouseEvent* event, QPoint document_point);
   void handle_crop_session_press(QMouseEvent* event);
   void update_crop_drag_out(QPoint document_point, Qt::KeyboardModifiers modifiers);
-  void update_crop_adjust_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
-  void update_crop_rotate_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  void update_crop_adjust_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers);
+  void update_crop_rotate_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers);
   void finish_crop_mouse_release(QMouseEvent* event);
   void nudge_crop_rect(QPoint delta);
   void notify_crop_session_changed();
   void reset_crop_session_state();
+  // Move Image Under Crop Box (GitHub issue 699; docs/crop-tool.md). True while the
+  // option is on and the Crop tool has its session: the box keeps its place on screen
+  // and the view pans and turns behind it. The zoom is never touched by any of this
+  // (docs/legal-constraints.md, "Crop interaction").
+  [[nodiscard]] bool crop_view_follows_box() const noexcept;
+  [[nodiscard]] QPointF crop_box_center_document() const noexcept;
+  // Gives the view the turn the pending box calls for (minus the box's angle while the
+  // view follows it, none otherwise) and pans so `anchor_document` sits at
+  // `anchor_widget`. False when the pan limits moved the anchor.
+  bool sync_crop_view_turn(QPointF anchor_document, QPointF anchor_widget);
+  // Sets the box and holds its center at `center_widget`, the view absorbing the
+  // box's angle. Refused (nothing changes, false) when the pan limits would move it.
+  bool place_crop_box(QRect rect, double angle, QPointF center_widget);
+  // Pans so the box's center is the view area's center.
+  void center_crop_box_in_view();
+  // The option changed under a session: the view takes or gives back the box's angle.
+  void apply_crop_move_image_change();
+  // The cursor over (or dragging) a box part: a hand inside the box while the image
+  // moves under it, the transform cursors otherwise.
+  void set_crop_handle_cursor(TransformHandle handle, bool dragging);
   // Frames the canvas, or the active selection's bounds (which override the
   // ratio), when the Crop tool is current and a document is set; a no-op
   // otherwise. Called on tool pick, document swap, and unlock.
@@ -4232,6 +4257,14 @@ private:
   CropOverlayOptions crop_overlay_options_;
   double crop_rotate_start_angle_{0.0};
   double crop_rotate_start_vector_degrees_{0.0};
+  // Move Image Under Crop Box: the degrees this session has turned the view by (minus
+  // the box's angle while the view follows it), and the widget point the box's center
+  // holds through a drag.
+  double crop_view_turn_degrees_{0.0};
+  QPointF crop_hold_center_widget_;
+  // The user's view angle: view_rotation_degrees_ without crop_view_turn_degrees_ (the
+  // same number while that is 0). view_rotation() reports it, set_view_rotation sets it.
+  double view_user_rotation_degrees_{0.0};
   bool crop_square_constrained_{false};
   bool crop_from_center_{false};
   double crop_ratio_w_{0.0};

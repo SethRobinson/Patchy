@@ -1278,20 +1278,23 @@ EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y, int 
 
 [[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
                                                           EditColor extension_color = EditColor{255, 255, 255,
-                                                                                                 255}) noexcept {
+                                                                                                 255},
+                                                          bool is_background = false) noexcept {
   if (source.format().channels < 3) {
     return source.format();
   }
-  if (source.format().channels >= 4 || layer.name() != "Background" || extension_color.a < 255) {
+  if (source.format().channels >= 4 || !(is_background || layer.name() == "Background") ||
+      extension_color.a < 255) {
     return with_bit_depth(PixelFormat::rgba8(), source.format().bit_depth);
   }
   return source.format();
 }
 
 void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer,
-                                   EditColor extension_color = EditColor{255, 255, 255, 255}) {
+                                   EditColor extension_color = EditColor{255, 255, 255, 255},
+                                   bool is_background = false) {
   pixels.clear(0);
-  if (layer.name() != "Background" || pixels.format().channels < 3 || pixels.empty()) {
+  if (!(is_background || layer.name() == "Background") || pixels.format().channels < 3 || pixels.empty()) {
     return;
   }
   if (pixels.format().bit_depth != BitDepth::UInt8) {

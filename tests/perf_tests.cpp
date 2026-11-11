@@ -17,6 +17,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/brush_automation.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/dialog_utils.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include "ui/image_document_io.hpp"
@@ -33,6 +34,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontComboBox>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
@@ -120,6 +122,26 @@ class MainWindowTestAccess {
   static void undo(MainWindow& window) { window.undo(); }
   static void duplicate_active_layer(MainWindow& window) { window.duplicate_active_layer(); }
   static void add_text_at(MainWindow& window, QPoint document_point) { window.add_text_at(document_point, QRect()); }
+  // The parts of one text Size step, for the textscrub scenario (GitHub #700).
+  static void select_type_tool(MainWindow& window) {
+    if (window.type_tool_action_ != nullptr) {
+      window.type_tool_action_->trigger();
+    }
+  }
+  static void apply_text_size_to_editor(MainWindow& window, QTextEdit& editor, double points) {
+    window.apply_text_size_to_editor(editor, points);
+  }
+  static void relayout_text_editor(MainWindow& window, QTextEdit* editor) {
+    window.relayout_text_editor(editor, true);
+  }
+  static void schedule_text_editor_preview(MainWindow& window, QTextEdit* editor) {
+    window.schedule_text_editor_preview(editor);
+  }
+  static void update_text_editor_preview(MainWindow& window, QTextEdit* editor) {
+    window.update_text_editor_preview(editor);
+  }
+  static void refresh_text_color_button(MainWindow& window) { window.refresh_text_color_button(); }
+  static void refresh_document_info(MainWindow& window) { window.refresh_document_info(); }
   static bool cmyk_proof(MainWindow& window) {
     return window.active_session() != nullptr && window.active_session()->cmyk_proof;
   }
@@ -2081,6 +2103,428 @@ void text_layer_live_drag_perf() {
             << "[PERF] textdrag_live move_delay_ms " << summary(recorder.move_delay_ms) << '\n'
             << "[PERF] textdrag_live paint_lag_ms " << summary(recorder.paint_lag_ms) << '\n'
             << "[PERF] textdrag_live paint_gap_ms " << summary(recorder.paint_gap_ms) << '\n';
+}
+
+// Text Size scrub during a live text edit (GitHub #700): a new document, the Type tool,
+// one word typed and all selected, then the Size label of the options bar dragged. Run
+// once for point text and once for a dragged text box.
+//   split     each part of one size step called by itself (40 steps of 2.25 pt)
+//   scrub     the same steps as real moves on the Size label, each followed by a repaint
+//   burst     120 queued moves, applied one by one and with the scrub move coalescing
+// PATCHY_PERF_TEXTSCRUB_DOC=WxH@PPI sets the document (default 1920x1080@72),
+// PATCHY_PERF_TEXTSCRUB_TEXT the word, PATCHY_PERF_TEXTSCRUB_FONT the family.
+// `textscrub_live` instead waits for a real pointer on a real window system (the headless
+// sway rig, scripts/dev/wayland-popups/live-scrub.sh): it writes the Size label's screen
+// position to PATCHY_PERF_LIVE_READY and measures each window-system move's queueing
+// delay, the values the field took and the gaps between them, and the canvas repaints.
+// PATCHY_PERF_LIVE_COALESCE=off turns the scrub move coalescing off (the baseline),
+// PATCHY_PERF_TEXTSCRUB_KIND=point picks point text (default box).
+struct TextScrubSession {
+  patchy::ui::CanvasWidget* canvas{nullptr};
+  QTextEdit* editor{nullptr};
+  QDoubleSpinBox* size{nullptr};
+  QLabel* label{nullptr};
+};
+
+std::optional<TextScrubSession> start_text_scrub_session(patchy::ui::MainWindow& window, bool box) {
+  int width = 1920;
+  int height = 1080;
+  double ppi = 72.0;
+  if (const auto spec = qEnvironmentVariable("PATCHY_PERF_TEXTSCRUB_DOC"); !spec.isEmpty()) {
+    const auto size_and_ppi = spec.split(QLatin1Char('@'));
+    const auto size = size_and_ppi.value(0).split(QLatin1Char('x'));
+    width = std::max(16, size.value(0).toInt());
+    height = std::max(16, size.value(1).toInt());
+    if (size_and_ppi.size() > 1) {
+      ppi = std::max(1.0, size_and_ppi.value(1).toDouble());
+    }
+  }
+  patchy::ui::MainWindowTestAccess::new_document(window, width, height, ppi);
+  TextScrubSession session;
+  session.canvas = active_canvas(window);
+  CHECK(session.canvas != nullptr);
+  if (session.canvas == nullptr) {
+    return std::nullopt;
+  }
+  session.canvas->fit_to_view();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::select_type_tool(window);
+  QApplication::processEvents();
+  if (const auto family = qEnvironmentVariable("PATCHY_PERF_TEXTSCRUB_FONT"); !family.isEmpty()) {
+    if (auto* fonts = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo")); fonts != nullptr) {
+      fonts->setCurrentFont(QFont(family));
+      QApplication::processEvents();
+    }
+  }
+  const auto at = [&](int x, int y) { return session.canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto start = at(width / 10, height / 6);
+  send_mouse(*session.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  if (box) {
+    const auto end = at(width * 8 / 10, height * 8 / 10);
+    send_mouse(*session.canvas, QEvent::MouseMove, (start + end) / 2, Qt::NoButton, Qt::LeftButton);
+    send_mouse(*session.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+    send_mouse(*session.canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  } else {
+    send_mouse(*session.canvas, QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+  }
+  const auto wait = [](int ms) {
+    const auto started = Clock::now();
+    while (std::chrono::duration<double, std::milli>(Clock::now() - started).count() < ms) {
+      QApplication::processEvents(QEventLoop::AllEvents, 10);
+    }
+  };
+  wait(200);
+  session.editor = session.canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  session.size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(session.editor != nullptr);
+  CHECK(session.size != nullptr);
+  if (session.editor == nullptr || session.size == nullptr) {
+    return std::nullopt;
+  }
+  for (auto* label : window.findChildren<QLabel*>()) {
+    if (label->isVisible() && label->buddy() == nullptr && label->property("optionLabel").toBool() &&
+        label->text() == QStringLiteral("Size")) {
+      session.label = label;
+    }
+  }
+  CHECK(session.label != nullptr);
+  if (session.label == nullptr) {
+    return std::nullopt;
+  }
+  const auto text = qEnvironmentVariableIsSet("PATCHY_PERF_TEXTSCRUB_TEXT")
+                        ? qEnvironmentVariable("PATCHY_PERF_TEXTSCRUB_TEXT")
+                        : QStringLiteral("Type");
+  session.editor->textCursor().insertText(text);
+  wait(100);
+  session.editor->selectAll();
+  session.size->setValue(139.0);
+  wait(200);
+  session.editor->selectAll();
+  return session;
+}
+
+void text_size_scrub_perf() {
+  const auto summary = [](std::vector<double> values) {
+    std::ostringstream text;
+    if (values.empty()) {
+      text << "n=0";
+      return text.str();
+    }
+    double total = 0.0;
+    for (const auto value : values) {
+      total += value;
+    }
+    std::sort(values.begin(), values.end());
+    text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+         << " median=" << values[values.size() / 2] << " max=" << values.back();
+    return text.str();
+  };
+  constexpr int kSteps = 40;
+  constexpr double kStepPoints = 2.25;  // nine pixels of pointer travel at 0.25 pt a pixel
+  for (const bool box : {false, true}) {
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+      window.showMaximized();
+    } else {
+      window.show();
+    }
+    QApplication::processEvents();
+    const auto session = start_text_scrub_session(window, box);
+    if (!session.has_value()) {
+      return;
+    }
+    auto* canvas = session->canvas;
+    auto* editor = session->editor;
+    auto* size = session->size;
+    const char* kind = box ? "box" : "point";
+    const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    std::cout << "[PERF] textscrub kind=" << kind << " document=" << doc.width() << 'x' << doc.height() << " ppi="
+              << doc.print_settings().horizontal_ppi << " zoom=" << canvas->zoom() << " font=\""
+              << editor->currentFont().family().toStdString() << "\" editor=" << editor->width() << 'x'
+              << editor->height() << " platform=" << QGuiApplication::platformName().toStdString()
+              << " threads=" << patchy::hardware_worker_threads() << '\n';
+
+    // Each part of a size step by itself, in the order apply_text_size_to_active_editor
+    // and the field's valueChanged run them.
+    std::vector<double> apply_ms, relayout_ms, schedule_ms, preview_ms, color_ms, info_ms, paint_ms, step_ms;
+    for (int step = 1; step <= kSteps; ++step) {
+      const double points = 139.0 + kStepPoints * step;
+      const auto started = Clock::now();
+      apply_ms.push_back(elapsed_ms(
+          [&] { patchy::ui::MainWindowTestAccess::apply_text_size_to_editor(window, *editor, points); }));
+      relayout_ms.push_back(
+          elapsed_ms([&] { patchy::ui::MainWindowTestAccess::relayout_text_editor(window, editor); }));
+      schedule_ms.push_back(
+          elapsed_ms([&] { patchy::ui::MainWindowTestAccess::schedule_text_editor_preview(window, editor); }));
+      preview_ms.push_back(
+          elapsed_ms([&] { patchy::ui::MainWindowTestAccess::update_text_editor_preview(window, editor); }));
+      color_ms.push_back(elapsed_ms([&] { patchy::ui::MainWindowTestAccess::refresh_text_color_button(window); }));
+      info_ms.push_back(elapsed_ms([&] { patchy::ui::MainWindowTestAccess::refresh_document_info(window); }));
+      paint_ms.push_back(elapsed_ms([&] {
+        canvas->repaint();
+        QApplication::processEvents();
+      }));
+      step_ms.push_back(std::chrono::duration<double, std::milli>(Clock::now() - started).count());
+    }
+    std::cout << "[PERF] textscrub kind=" << kind << " split apply_text_size " << summary(apply_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split relayout " << summary(relayout_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split schedule_preview " << summary(schedule_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split preview_render " << summary(preview_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split color_button " << summary(color_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split document_info " << summary(info_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split repaint_and_events " << summary(paint_ms) << '\n'
+              << "[PERF] textscrub kind=" << kind << " split whole_step " << summary(step_ms) << '\n';
+
+    // The same steps as real moves on the Size label.
+    size->setValue(139.0);
+    QApplication::processEvents();
+    int values = 0;
+    const auto counter =
+        QObject::connect(size, &QDoubleSpinBox::valueChanged, size, [&values](double) { ++values; });
+    auto* label = session->label;
+    const auto origin = label->rect().center();
+    const int drag_start = QApplication::startDragDistance();
+    send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start, 0), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    values = 0;
+    std::vector<double> move_ms;
+    for (int step = 1; step <= kSteps; ++step) {
+      move_ms.push_back(elapsed_ms([&] {
+        send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start + step * 9, 0), Qt::NoButton,
+                   Qt::LeftButton);
+        canvas->repaint();
+        QApplication::processEvents();
+      }));
+    }
+    const auto release_ms = elapsed_ms([&] {
+      send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + kSteps * 9, 0), Qt::LeftButton,
+                 Qt::NoButton);
+      canvas->repaint();
+      QApplication::processEvents();
+    });
+    std::cout << "[PERF] textscrub kind=" << kind << " scrub moves=" << kSteps << " values=" << values
+              << " size_pt=" << size->value() << " move_ms " << summary(move_ms) << " release_ms=" << release_ms
+              << '\n';
+
+    // One-pixel moves, a quarter point each: the text has whole pixels, so the steps that
+    // land on the pixel size it already has leave the session alone.
+    {
+      size->setValue(139.0);
+      QApplication::processEvents();
+      send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start, 0), Qt::NoButton, Qt::LeftButton);
+      QApplication::processEvents();
+      values = 0;
+      constexpr int kFineMoves = 120;
+      const auto marks = [&] { return editor->property("patchy.caretLayoutGeneration").toInt(); };
+      const auto marks_before = marks();
+      std::vector<double> fine_ms;
+      for (int step = 1; step <= kFineMoves; ++step) {
+        fine_ms.push_back(elapsed_ms([&] {
+          send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start + step, 0), Qt::NoButton,
+                     Qt::LeftButton);
+          canvas->repaint();
+          QApplication::processEvents();
+        }));
+      }
+      const auto session_marks = marks() - marks_before;
+      send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + kFineMoves, 0), Qt::LeftButton,
+                 Qt::NoButton);
+      QApplication::processEvents();
+      std::cout << "[PERF] textscrub kind=" << kind << " fine_scrub moves=" << kFineMoves << " values=" << values
+                << " session_marks=" << session_marks << " size_pt=" << size->value() << " text_px="
+                << editor->property("patchy.documentTextSize").toInt() << " move_ms " << summary(fine_ms) << '\n';
+    }
+
+    // A burst of queued moves, as Wayland delivers a fast pointer behind a slow step.
+    for (const bool coalescing : {false, true}) {
+      constexpr int kBurst = 120;
+      patchy::ui::set_scrub_move_coalescing_for_testing(coalescing ? patchy::ui::ScrubMoveCoalescing::AllMoves
+                                                                   : patchy::ui::ScrubMoveCoalescing::Off);
+      size->setValue(139.0);
+      QApplication::processEvents();
+      send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start, 0), Qt::NoButton, Qt::LeftButton);
+      QApplication::processEvents();
+      canvas->repaint();
+      values = 0;
+      // Each move is built when its turn in the queue comes: a scrub reads the global
+      // position, and on Qt 6.8 mouse events built up front share their point with the
+      // pointing device, so a posted batch reports the wrong global positions.
+      for (int move = 1; move <= kBurst; ++move) {
+        const auto position = origin + QPoint(drag_start + move * 3, 0);
+        QMetaObject::invokeMethod(
+            label, [label, position] { send_mouse(*label, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton); },
+            Qt::QueuedConnection);
+      }
+      const auto burst_ms = elapsed_ms([&] {
+        QApplication::processEvents();
+        QApplication::processEvents();
+        canvas->repaint();
+      });
+      const int applied = values;
+      const double burst_points = size->value();
+      send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + kBurst * 3, 0), Qt::LeftButton,
+                 Qt::NoButton);
+      QApplication::processEvents();
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] textscrub kind=" << kind
+                << " burst coalescing=" << (coalescing ? "on" : "off") << " moves=" << kBurst << " applied="
+                << applied << " size_pt=" << burst_points << " after_release_pt=" << size->value() << " text_px="
+                << editor->property("patchy.documentTextSize").toInt() << " burst_ms=" << burst_ms << '\n';
+    }
+    patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::Default);
+    QObject::disconnect(counter);
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+}
+
+void text_size_scrub_live_perf() {
+  class Recorder : public QObject {
+   public:
+    QWidget* canvas{nullptr};
+    bool button_down{false};
+    bool released{false};
+    int moves{0};
+    int paints{0};
+    std::vector<double> move_delay_ms;
+    std::vector<double> paint_gap_ms;
+    double last_paint_ms{-1.0};
+    double first_move_ms{-1.0};
+    double release_ms{-1.0};
+    double release_timestamp_ms{-1.0};
+
+    static double now_ms() {
+      // steady_clock is CLOCK_MONOTONIC on Linux, the clock Wayland input timestamps use.
+      return static_cast<double>(
+          std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count());
+    }
+
+   protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+      const auto now = now_ms();
+      const auto since = [now](ulong stamp) {
+        return static_cast<double>(static_cast<std::int32_t>(
+            static_cast<std::uint32_t>(static_cast<std::uint64_t>(now)) - static_cast<std::uint32_t>(stamp)));
+      };
+      if (watched == canvas) {
+        if (event->type() == QEvent::Paint && button_down && first_move_ms >= 0.0) {
+          ++paints;
+          if (last_paint_ms >= 0.0) {
+            paint_gap_ms.push_back(now - last_paint_ms);
+          }
+          last_paint_ms = now;
+        }
+        return QObject::eventFilter(watched, event);
+      }
+      switch (event->type()) {
+        case QEvent::MouseButtonPress:
+          button_down = true;
+          break;
+        case QEvent::MouseMove:
+          if (button_down && event->spontaneous()) {
+            ++moves;
+            if (first_move_ms < 0.0) {
+              first_move_ms = now;
+            }
+            move_delay_ms.push_back(since(static_cast<QMouseEvent*>(event)->timestamp()));
+          }
+          break;
+        case QEvent::MouseButtonRelease:
+          if (button_down) {
+            button_down = false;
+            released = true;
+            release_ms = now;
+            release_timestamp_ms = now - since(static_cast<QMouseEvent*>(event)->timestamp());
+          }
+          break;
+        default:
+          break;
+      }
+      return QObject::eventFilter(watched, event);
+    }
+  };
+  const auto summary = [](std::vector<double> values) {
+    std::ostringstream text;
+    if (values.empty()) {
+      text << "n=0";
+      return text.str();
+    }
+    std::sort(values.begin(), values.end());
+    text << std::fixed << std::setprecision(1) << "median=" << values[values.size() / 2]
+         << " p95=" << values[std::min(values.size() - 1, values.size() * 95 / 100)] << " max=" << values.back();
+    return text.str();
+  };
+
+  patchy::ui::MainWindow window;
+  window.showFullScreen();
+  QApplication::processEvents();
+  const bool box = qEnvironmentVariable("PATCHY_PERF_TEXTSCRUB_KIND") != QStringLiteral("point");
+  const auto session = start_text_scrub_session(window, box);
+  if (!session.has_value()) {
+    return;
+  }
+  const auto coalesce_off = qEnvironmentVariable("PATCHY_PERF_LIVE_COALESCE") == QStringLiteral("off");
+  if (coalesce_off) {
+    patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::Off);
+  }
+  auto* size = session->size;
+  auto* label = session->label;
+  Recorder recorder;
+  recorder.canvas = session->canvas;
+  label->installEventFilter(&recorder);
+  session->canvas->installEventFilter(&recorder);
+  std::vector<double> value_gap_ms;
+  double last_value_ms = -1.0;
+  int values = 0;
+  QObject::connect(size, &QDoubleSpinBox::valueChanged, size, [&](double) {
+    const auto now = Recorder::now_ms();
+    ++values;
+    if (last_value_ms >= 0.0) {
+      value_gap_ms.push_back(now - last_value_ms);
+    }
+    last_value_ms = now;
+  });
+  const auto coalesced_before = patchy::ui::scrub_moves_coalesced_for_testing();
+  const auto screen = label->mapTo(&window, label->rect().center());
+  const auto ready_path = qEnvironmentVariable("PATCHY_PERF_LIVE_READY");
+  if (!ready_path.isEmpty()) {
+    QFile ready(ready_path);
+    if (ready.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+      ready.write(QStringLiteral("%1 %2 %3 %4\n")
+                      .arg(screen.x())
+                      .arg(screen.y())
+                      .arg(window.width())
+                      .arg(window.height())
+                      .toUtf8());
+    }
+  }
+  std::cout << "[LIVE] ready x=" << screen.x() << " y=" << screen.y() << " window=" << window.width() << 'x'
+            << window.height() << " platform=" << QGuiApplication::platformName().toStdString() << std::endl;
+  const auto seconds = qEnvironmentVariableIsSet("PATCHY_PERF_LIVE_SECONDS")
+                           ? qEnvironmentVariableIntValue("PATCHY_PERF_LIVE_SECONDS")
+                           : 60;
+  const auto started = Clock::now();
+  while (!recorder.released && std::chrono::duration<double>(Clock::now() - started).count() < seconds) {
+    QApplication::processEvents(QEventLoop::WaitForMoreEvents, 50);
+  }
+  const auto drained = elapsed_ms([&] {
+    for (int pass = 0; pass < 5; ++pass) {
+      QApplication::processEvents();
+    }
+  });
+  std::cout << std::fixed << std::setprecision(1) << "[PERF] textscrub_live kind=" << (box ? "box" : "point")
+            << " coalescing=" << (coalesce_off ? "off" : "on") << " released=" << recorder.released
+            << " moves=" << recorder.moves << " values=" << values
+            << " coalesced=" << (patchy::ui::scrub_moves_coalesced_for_testing() - coalesced_before)
+            << " paints=" << recorder.paints << " scrub_ms=" << (recorder.release_ms - recorder.first_move_ms)
+            << " release_delay_ms=" << (recorder.release_ms - recorder.release_timestamp_ms)
+            << " size_pt=" << size->value() << " drain_ms=" << drained << '\n'
+            << "[PERF] textscrub_live move_delay_ms " << summary(recorder.move_delay_ms) << '\n'
+            << "[PERF] textscrub_live value_gap_ms " << summary(value_gap_ms) << '\n'
+            << "[PERF] textscrub_live paint_gap_ms " << summary(recorder.paint_gap_ms) << '\n';
 }
 
 // PDF open and export timing (September 2026 report: an 86 MB, 85-page scanned
@@ -5415,6 +5859,14 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "textdrag") {
       run_scenario("textdrag", text_layer_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "textscrub") {
+      run_scenario("textscrub", text_size_scrub_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "textscrub_live") {
+      run_scenario("textscrub_live", text_size_scrub_live_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "vectormaskdrag") {

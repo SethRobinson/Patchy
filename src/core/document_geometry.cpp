@@ -376,8 +376,11 @@ void shift_layer_mask_to_canvas(Layer& layer, CanvasResizeOffset offset, std::in
   mask->bounds = clipped;
 }
 
+// `is_background`: the layer is the document's Background by the background_layer rule and
+// stays one through this resize, so it fills new area whatever its name. Without it the
+// older rule decides alone: a pixel layer named "Background" fills.
 void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t height, CanvasResizeOffset offset,
-                            EditColor extension_color, bool crop_layer = true) {
+                            EditColor extension_color, bool crop_layer = true, bool is_background = false) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
       resize_layer_to_canvas(child, width, height, offset, extension_color, crop_layer);
@@ -407,7 +410,7 @@ void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t heigh
     layer.set_bounds(shifted_bounds);
     // Ordinary layers need only a translation. Painting already expands their
     // buffers on demand; resizing the canvas must not rewrite their pixels.
-    if (layer.name() != "Background") {
+    if (!is_background && layer.name() != "Background") {
       return;
     }
     // Keep the Background's existing off-canvas data while filling new space.
@@ -419,8 +422,8 @@ void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t heigh
   }
   const auto& source = std::as_const(layer).pixels();
   PixelBuffer resized(resized_bounds.width, resized_bounds.height,
-                      canvas_resized_format_for_layer(layer, source, extension_color));
-  fill_resized_layer_background(resized, layer, extension_color);
+                      canvas_resized_format_for_layer(layer, source, extension_color, is_background));
+  fill_resized_layer_background(resized, layer, extension_color, is_background);
 
   if (!source.empty()) {
     for (std::int32_t sy = 0; sy < source.height(); ++sy) {
@@ -643,7 +646,8 @@ void crop_layer_mask_rotated(Layer& layer, Rect crop, const RotatedCropMap& map)
   mask->bounds = destination_bounds;
 }
 
-void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& map, EditColor extension_color) {
+void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& map, EditColor extension_color,
+                                bool is_background = false) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
       crop_layer_to_rect_rotated(child, crop, map, extension_color);
@@ -662,11 +666,12 @@ void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& m
 
   const auto old_bounds = layer.bounds();
   const auto& source = std::as_const(layer).pixels();
-  if (layer.name() == "Background" && source.format().channels >= 3) {
+  if ((is_background || layer.name() == "Background") && source.format().channels >= 3) {
     // Canvas-sized rebuild with the canvas-resize fill rules under the exposed
     // corners, mirroring the expanding path.
-    PixelBuffer rotated(crop.width, crop.height, canvas_resized_format_for_layer(layer, source, extension_color));
-    fill_resized_layer_background(rotated, layer, extension_color);
+    PixelBuffer rotated(crop.width, crop.height,
+                        canvas_resized_format_for_layer(layer, source, extension_color, is_background));
+    fill_resized_layer_background(rotated, layer, extension_color, is_background);
     sample_rotated_crop_pixels(source, old_bounds, rotated, result_canvas, map);
     layer.set_pixels(std::move(rotated));
     layer.set_bounds(Rect{0, 0, crop.width, crop.height});
@@ -683,7 +688,7 @@ void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& m
   // Rotation exposes area inside the bounding box, so opaque 8-bit formats
   // gain an alpha channel (the transparent-extension format rule).
   PixelBuffer rotated(destination_bounds.width, destination_bounds.height,
-                      canvas_resized_format_for_layer(layer, source, EditColor{0, 0, 0, 0}));
+                      canvas_resized_format_for_layer(layer, source, EditColor{0, 0, 0, 0}, false));
   rotated.clear(0);
   sample_rotated_crop_pixels(source, old_bounds, rotated, destination_bounds, map);
   layer.set_pixels(std::move(rotated));
@@ -763,7 +768,7 @@ void sample_perspective_crop_pixels(const PixelBuffer& source, Rect source_bound
 
 // The rotated crop's layer rules (crop_layer_to_rect_rotated) under the homography.
 void perspective_crop_layer(Layer& layer, Rect result_canvas, const PerspectiveCropMap& map,
-                            EditColor extension_color) {
+                            EditColor extension_color, bool is_background = false) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
       perspective_crop_layer(child, result_canvas, map, extension_color);
@@ -793,12 +798,12 @@ void perspective_crop_layer(Layer& layer, Rect result_canvas, const PerspectiveC
 
   const auto old_bounds = layer.bounds();
   const auto& source = std::as_const(layer).pixels();
-  if (layer.name() == "Background" && source.format().channels >= 3) {
+  if ((is_background || layer.name() == "Background") && source.format().channels >= 3) {
     // Canvas-sized rebuild with the canvas-resize fill rules under area the quad
     // takes from beyond the canvas, as the rotated crop does.
     PixelBuffer mapped(result_canvas.width, result_canvas.height,
-                       canvas_resized_format_for_layer(layer, source, extension_color));
-    fill_resized_layer_background(mapped, layer, extension_color);
+                       canvas_resized_format_for_layer(layer, source, extension_color, is_background));
+    fill_resized_layer_background(mapped, layer, extension_color, is_background);
     sample_perspective_crop_pixels(source, old_bounds, mapped, result_canvas, map);
     layer.set_pixels(std::move(mapped));
     layer.set_bounds(result_canvas);
@@ -813,7 +818,7 @@ void perspective_crop_layer(Layer& layer, Rect result_canvas, const PerspectiveC
     return;
   }
   PixelBuffer mapped(destination_bounds.width, destination_bounds.height,
-                     canvas_resized_format_for_layer(layer, source, EditColor{0, 0, 0, 0}));
+                     canvas_resized_format_for_layer(layer, source, EditColor{0, 0, 0, 0}, false));
   mapped.clear(0);
   sample_perspective_crop_pixels(source, old_bounds, mapped, destination_bounds, map);
   layer.set_pixels(std::move(mapped));
@@ -921,18 +926,20 @@ namespace {
 
 
 // Crop that may extend past the canvas: content outside `crop` is discarded and
-// buffers stay tight, except a pixel layer literally named "Background", which
-// is rebuilt canvas-sized through resize_layer_to_canvas so the canvas-resize
-// fill rules put extension_color under the exposed area.
-void crop_layer_to_rect_expanding(Layer& layer, Rect crop, EditColor extension_color) {
+// buffers stay tight, except the Background (`is_background`, the background_layer
+// rule) and a pixel layer literally named "Background", which are rebuilt
+// canvas-sized through resize_layer_to_canvas so the canvas-resize fill rules put
+// extension_color under the exposed area.
+void crop_layer_to_rect_expanding(Layer& layer, Rect crop, EditColor extension_color, bool is_background = false) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
       crop_layer_to_rect_expanding(child, crop, extension_color);
     }
     return;
   }
-  if (layer.kind() == LayerKind::Pixel && layer.name() == "Background") {
-    resize_layer_to_canvas(layer, crop.width, crop.height, CanvasResizeOffset{-crop.x, -crop.y}, extension_color);
+  if (layer.kind() == LayerKind::Pixel && (is_background || layer.name() == "Background")) {
+    resize_layer_to_canvas(layer, crop.width, crop.height, CanvasResizeOffset{-crop.x, -crop.y}, extension_color,
+                           true, is_background);
     return;
   }
   crop_layer_to_rect(layer, crop);
@@ -1386,7 +1393,19 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
                          extension_color, crop_layers);
 }
 
-void resize_canvas_to_frame(Document& document, Rect frame, EditColor extension_color, bool crop_layers) {
+namespace {
+
+// The document's Background (background_layer, core/layer_metadata.hpp), read before a
+// canvas change so the per-layer passes can tell it from the other layers.
+[[nodiscard]] std::optional<LayerId> document_background_id(const Document& document) {
+  const auto* background = background_layer(document.layers(), document.width(), document.height());
+  return background != nullptr ? std::optional<LayerId>(background->id()) : std::nullopt;
+}
+
+}  // namespace
+
+void resize_canvas_to_frame(Document& document, Rect frame, EditColor extension_color, bool crop_layers,
+                            std::string_view layer_from_background_name) {
   const auto width = frame.width;
   const auto height = frame.height;
   if (width <= 0 || height <= 0) {
@@ -1394,6 +1413,13 @@ void resize_canvas_to_frame(Document& document, Rect frame, EditColor extension_
   }
 
   const CanvasResizeOffset offset{-frame.x, -frame.y};
+  const auto background_id = document_background_id(std::as_const(document));
+  // GitHub issue 701: the Background's bounds are the canvas. A resize that keeps the layers'
+  // pixels and leaves the old canvas reaching beyond the new one cannot keep it the Background,
+  // so it becomes an ordinary layer that still holds every pixel.
+  const bool releases_background =
+      background_id.has_value() && !crop_layers &&
+      (offset.x < 0 || offset.y < 0 || offset.x + document.width() > width || offset.y + document.height() > height);
   compose_document_text_transforms(
       document.layers(),
       {1.0, 0.0, 0.0, 1.0, static_cast<double>(offset.x), static_cast<double>(offset.y)});
@@ -1405,7 +1431,25 @@ void resize_canvas_to_frame(Document& document, Rect frame, EditColor extension_
   }
   document.resize_canvas(width, height);
   for (auto& layer : document.layers()) {
-    resize_layer_to_canvas(layer, width, height, offset, extension_color, crop_layers);
+    bool is_background = false;
+    if (background_id == layer.id()) {
+      if (releases_background) {
+        release_background(layer, layer_from_background_name);
+      } else {
+        // A transparent fill cannot keep a Background opaque, so that resize (artboard canvas
+        // growth) stays on the name rule alone.
+        is_background = extension_color.a == 255;
+      }
+    }
+    resize_layer_to_canvas(layer, width, height, offset, extension_color, crop_layers, is_background);
+  }
+  // The same for a Background a transparent fill gave an alpha channel: no lock of the
+  // Background stays on a layer that stopped being one.
+  if (background_id.has_value() && !releases_background &&
+      background_layer(std::as_const(document).layers(), width, height) == nullptr) {
+    if (auto* released = document.find_layer(*background_id); released != nullptr) {
+      release_background(*released, layer_from_background_name);
+    }
   }
   transform_document_vector_data(document,
                                  {1.0, 0.0, 0.0, 1.0, static_cast<double>(offset.x),
@@ -1477,8 +1521,9 @@ bool crop_document(Document& document, Rect crop, double angle_degrees, EditColo
   const auto map = rotated_crop_map(crop, angle_degrees);
   compose_document_text_transforms(document.layers(), map.forward);
   compose_document_smart_object_placements(document.layers(), map.forward);
+  const auto background_id = document_background_id(std::as_const(document));
   for (auto& layer : document.layers()) {
-    crop_layer_to_rect_rotated(layer, crop, map, extension_color);
+    crop_layer_to_rect_rotated(layer, crop, map, extension_color, background_id == layer.id());
   }
   for (auto& channel : document.channels()) {
     crop_document_channel_rotated(channel, crop, map);
@@ -1502,11 +1547,12 @@ bool crop_document(Document& document, Rect crop, EditColor extension_color) {
   compose_document_smart_object_placements(
       document.layers(),
       {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x), static_cast<double>(-crop.y)});
+  const auto background_id = document_background_id(std::as_const(document));
   for (auto& layer : document.layers()) {
     if (contained) {
       crop_layer_to_rect(layer, crop);
     } else {
-      crop_layer_to_rect_expanding(layer, crop, extension_color);
+      crop_layer_to_rect_expanding(layer, crop, extension_color, background_id == layer.id());
     }
   }
   for (auto& channel : document.channels()) {
@@ -1553,8 +1599,9 @@ bool perspective_crop_document(Document& document, const std::array<double, 8>& 
   } else {
     perspective_crop_layer_metadata(document.layers(), *map);
   }
+  const auto background_id = document_background_id(std::as_const(document));
   for (auto& layer : document.layers()) {
-    perspective_crop_layer(layer, result_canvas, *map, extension_color);
+    perspective_crop_layer(layer, result_canvas, *map, extension_color, background_id == layer.id());
   }
   for (auto& channel : document.channels()) {
     perspective_crop_document_channel(channel, result_canvas, *map);

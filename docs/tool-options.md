@@ -52,6 +52,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Crop | Preset list (`cropPresetCombo`: the style and the ratio W/H it sets), Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
 | Crop | saved presets (Save Preset / Delete Preset in the Preset list; [crop-tool.md](crop-tool.md)) | `cropUserPresets` (JSON) | new (issue 696) | yes |
 | Crop | Crop options popup: Show Cropped Area, shield on, color, opacity (`cropOptionsButton`) | `cropShowCroppedArea`, `cropShieldEnabled`, `cropShieldColor`, `cropShieldOpacity` | no | yes |
+| Crop | Crop options popup: Move Image Under Crop Box (`cropMoveImageAction`; [crop-tool.md](crop-tool.md#move-image-under-crop-box)) | `cropMoveImageUnderBox` | new (issue 699) | yes |
 | Crop | Size W/H, the Preset list's shown row, the swap buttons, Apply/Cancel | none (live box; row derived) | no | no (session) |
 | Ruler | line, X/Y/W/H/A/L1/L2 readout, Straighten Layer, Straighten Image, Clear | none (view overlay) | new (issue 331) | no (session) |
 | Perspective Crop | Show Grid (`perspectiveCropShowGridCheck`) | `perspectiveCropShowGrid` | new (issue 328) | yes |

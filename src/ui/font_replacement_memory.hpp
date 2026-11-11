@@ -32,6 +32,9 @@ struct RememberedFontReplacement {
     const QString& missing_family);
 // Counts one more choice of `chosen_family` for `missing_family` and makes it the last pick.
 void record_font_replacement(const QString& missing_family, const QString& chosen_family);
+// Forgets `chosen_family` (ASCII case ignored) for `missing_family`: the "Chosen before" row's
+// remove button. A font left with no pick leaves the list.
+void forget_font_replacement(const QString& missing_family, const QString& chosen_family);
 // Forgets everything (tests).
 void clear_remembered_font_replacements();
 
