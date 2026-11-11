@@ -8643,10 +8643,6 @@ RVB : %2, %3, %4</translation>
         <translation>Contour progressif :</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Sous 100 %, le fond transparaît partout, comme la densité du masque vectoriel de Photoshop</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>Rétablir le fond, le contour, l&apos;opacité et le bord par défaut (la géométrie reste)</translation>
     </message>
@@ -15804,6 +15800,14 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Sous 100 %, le fond transparaît aussi sur toute la zone de travail, comme dans Photoshop.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Sous 100 %, le fond, ou la couleur du contour si la forme en a un, transparaît sur toute la zone de travail, comme la densité du masque vectoriel de Photoshop</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Sous 100 %, la couleur du contour transparaît aussi sur toute la zone de travail et sur le fond, comme dans Photoshop.</translation>
     </message>
 </context>
 <context>

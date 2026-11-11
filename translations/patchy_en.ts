@@ -8635,10 +8635,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15785,6 +15781,14 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

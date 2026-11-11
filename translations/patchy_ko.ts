@@ -8370,10 +8370,6 @@ RGB: %2, %3, %4</translation>
         <translation>페더:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>100% 미만에서는 Photoshop의 벡터 마스크 밀도와 같이 채우기가 모든 곳에서 보입니다.</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>페인트:</translation>
     </message>
@@ -15748,6 +15744,14 @@ Do you want to replace it?</source>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>100% 미만에서는 Photoshop과 같이 채우기가 캔버스 전체에도 보입니다.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>100% 미만에서는 Photoshop의 벡터 마스크 밀도와 같이 채우기가, 모양에 획이 있으면 획 색상이 캔버스 전체에 보입니다</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>100% 미만에서는 Photoshop과 같이 획 색상이 캔버스 전체와 채우기 위에도 보입니다.</translation>
     </message>
 </context>
 <context>

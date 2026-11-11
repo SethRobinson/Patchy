@@ -8619,10 +8619,6 @@ Mixed selection</source>
         <translation>ぼかし:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>100% 未満では Photoshop のベクトルマスクの濃度のように塗りが全体に透けて見えます</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>塗り・線・不透明度・エッジを初期設定に戻します（形状はそのまま）</translation>
     </message>
@@ -15748,6 +15744,14 @@ Do you want to replace it?</source>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>100% 未満では、Photoshop と同じように塗りがキャンバス全体にも透けて見えます。</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>100% 未満では Photoshop のベクトルマスクの濃度のように、塗り（シェイプに境界線がある場合は境界線の色）がキャンバス全体に透けて見えます</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>100% 未満では、Photoshop と同じように境界線の色がキャンバス全体と塗りの上にも透けて見えます。</translation>
     </message>
 </context>
 <context>

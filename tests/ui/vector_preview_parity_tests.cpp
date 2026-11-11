@@ -444,6 +444,57 @@ std::vector<ParityCase> parity_cases() {
     shape.density = 90;
     add_shape(doc, std::move(shape));
   });
+  // Density with a stroke: the stroke's paint spreads over the whole canvas and washes over
+  // the fill (rasterize_vector_shape's spread_stroke_paint), so no tile may be culled and
+  // every tile carries the wash.
+  for (const auto alignment : {Align::Inside, Align::Center, Align::Outside}) {
+    const char* names[] = {"inside", "center", "outside"};
+    crisp(std::string("density with a stroke ") + names[static_cast<int>(alignment)], [alignment](Document& doc) {
+      auto shape = ellipse_shape(34.5, 26, 92, 68, {60, 190, 90});
+      stroke(shape, 7, alignment, {200, 40, 60});
+      shape.density = 128;
+      add_shape(doc, std::move(shape));
+    });
+  }
+  crisp("density with a dashed gradient stroke", [](Document& doc) {
+    auto shape = rect_shape(40, 30, 80, 60, 10, {60, 190, 90});
+    stroke(shape, 9, Align::Center);
+    shape.stroke.content.kind = VectorFillKind::Gradient;
+    shape.stroke.content.gradient = gradient(true);
+    shape.stroke.dashes = {3, 2};
+    shape.density = 90;
+    add_shape(doc, std::move(shape));
+  });
+  crisp("density with a stroke and no fill", [](Document& doc) {
+    auto shape = polygon_shape(80, 60, 44, 6, 0);
+    shape.fill.kind = VectorFillKind::None;
+    stroke(shape, 6, Align::Outside, {40, 90, 200});
+    shape.density = 200;
+    add_shape(doc, std::move(shape));
+  });
+  crisp("density zero with a stroke", [](Document& doc) {
+    auto shape = rect_shape(40, 30, 80, 60, 6);
+    stroke(shape, 5, Align::Inside, {200, 40, 60});
+    shape.density = 0;
+    add_shape(doc, std::move(shape));
+  });
+  soft("feather and density with a stroke", [](Document& doc) {
+    auto shape = ellipse_shape(40, 30, 80, 60);
+    stroke(shape, 6, Align::Outside, {40, 90, 200});
+    shape.feather = 3.0;
+    shape.density = 150;
+    add_shape(doc, std::move(shape));
+  });
+  cases.push_back({"density with a pattern stroke", Kind::Crisp, [](Document& doc) {
+    add_pattern(doc);
+    auto shape = ellipse_shape(40, 30, 80, 60, {245, 245, 245});
+    stroke(shape, 10, Align::Center);
+    shape.stroke.content.kind = VectorFillKind::Pattern;
+    shape.stroke.content.pattern_id = "parity-pattern";
+    shape.stroke.content.pattern_scale = 1;
+    shape.density = 128;
+    add_shape(doc, std::move(shape));
+  }, true});
   // A layer-aligned gradient stays on the shape when Density under 100% spreads the fill over
   // the canvas (the rest shows the ramp's end colors), feathered or not.
   crisp("density aligned gradient", [](Document& doc) {

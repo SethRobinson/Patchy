@@ -8643,10 +8643,6 @@ RGB: %2, %3, %4</translation>
         <translation>Sfuma:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Sotto il 100% il riempimento traspare ovunque, come la densità della maschera vettoriale di Photoshop</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>Ripristina riempimento, traccia, opacità e bordo predefiniti (la geometria resta)</translation>
     </message>
@@ -15804,6 +15800,14 @@ Sostituirlo?</translation>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Sotto il 100% il riempimento traspare anche su tutto il quadro, come in Photoshop.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Sotto il 100% il riempimento, o il colore della traccia se la forma ha una traccia, traspare su tutto il quadro, come la densità della maschera vettoriale di Photoshop</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Sotto il 100% il colore della traccia traspare anche su tutto il quadro e sul riempimento, come in Photoshop.</translation>
     </message>
 </context>
 <context>

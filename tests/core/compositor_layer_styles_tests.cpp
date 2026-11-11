@@ -1283,6 +1283,33 @@ void compositor_interior_overlay_stays_under_vector_stroke() {
     CHECK(flattened.pixel(48, 48)[0] == 255);
     CHECK(flattened.pixel(48, 48)[1] == 255);
   }
+  {
+    // Density 50% with the stroke on (Photoshop 27.11 probes ce10+co, in10+co, out10+co,
+    // docs/vector-tools-appearance.md, "Density with a stroke"): the overlay still covers the
+    // fill only, the stroke's color washes over it at half strength and tints the canvas, and
+    // the overlay's color does not spread.
+    patchy::Document document(96, 96, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(96, 96, 255, 255, 255));
+    auto shape = make_stroked_shape_layer(document, true);
+    auto content = *std::as_const(shape).vector_shape();
+    content.density = 128;
+    shape.set_vector_shape(content);
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(96, 96), &document.metadata().patterns);
+    auto& layer = document.add_layer(std::move(shape));
+    layer.layer_style().color_overlays.push_back(overlay);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    const auto close_to = [&](int x, int y, int red, int green, int blue) {
+      const auto* px = flattened.pixel(x, y);
+      return std::abs(px[0] - red) <= 2 && std::abs(px[1] - green) <= 2 && std::abs(px[2] - blue) <= 2;
+    };
+    // Fill center: 128 parts overlay red (255, 0, 0) and 127 parts stroke green (20, 200, 60).
+    CHECK(close_to(48, 48, 138, 100, 30));
+    // Stroke band: the stroke.
+    CHECK(close_to(48, 21, 20, 200, 60));
+    CHECK(close_to(48, 26, 20, 200, 60));
+    // Outside: 127 parts stroke green over the white backdrop.
+    CHECK(close_to(8, 8, 138, 228, 158));
+  }
 }
 
 // A 48 px square (24..72) whose gradient fill runs left to right and is fully transparent

@@ -8643,10 +8643,6 @@ RGB: %2, %3, %4</translation>
         <translation>Weiche Kante:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Unter 100 % scheint die Füllung überall durch, wie die Vektormasken-Dichte in Photoshop</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>Standardfüllung, -kontur, -deckkraft und -kante wiederherstellen (die Geometrie bleibt)</translation>
     </message>
@@ -15804,6 +15800,14 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Unter 100 % scheint die Füllung auch über die ganze Arbeitsfläche durch, wie in Photoshop.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Unter 100 % scheint die Füllung, oder bei einer Form mit Kontur die Konturfarbe, über die ganze Arbeitsfläche durch, wie die Vektormasken-Dichte in Photoshop</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Unter 100 % scheint die Konturfarbe auch über die ganze Arbeitsfläche und über die Füllung durch, wie in Photoshop.</translation>
     </message>
 </context>
 <context>

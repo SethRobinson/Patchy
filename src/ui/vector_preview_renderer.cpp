@@ -110,9 +110,9 @@ void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>
         const auto bounds = shape->path.bounds();
         const bool complement = shape->path_disabled || shape->path_inverted ||
             (!shape->path.subpaths.empty() && shape->path.subpaths.front().op == PathCombineOp::Subtract);
-        // Density below 100% shows the fill over the whole canvas (apply_shape_density).
-        const bool tinted = shape->density != 255 && shape->stroke.fill_enabled &&
-                            shape->fill.kind != VectorFillKind::None;
+        // Density below 100% shows the fill, or with a stroke the stroke's paint, over the
+        // whole canvas.
+        const bool tinted = vector_shape_density_spreads(*shape);
         if (bounds && !complement && !tinted) {
           const double padding = stroke_padding(shape->stroke);
           node.bounds = QRectF(QPointF(bounds->left - padding, bounds->top - padding),

@@ -148,9 +148,10 @@ Shape Appearance gained them, so the sharp view drew the shape unfeathered and w
 its Density tint for seven weeks). The sharp view must show what the document render
 shows:
 
-- Density below 100% shows the fill over the whole canvas (`apply_shape_density`), so
-  such a node has no bounds: it is never culled, and every tile's clip (its area inside
-  the mapped canvas) takes the tint.
+- Density below 100% shows the fill over the whole canvas (`apply_shape_density`), or
+  with a stroke the stroke's paint (`spread_stroke_paint`), so such a node
+  (`vector_shape_density_spreads`) has no bounds: it is never culled, and every tile's
+  clip (its area inside the mapped canvas) takes the tint.
 - Feather is scaled with the view and blurred by `rasterize_vector_shape`, which reaches
   the three box radii past the clip itself, so a halo is not cut at the path's box or at a
   tile edge. The node's cull bounds grow by that reach, and the blur's planes over the
@@ -316,9 +317,10 @@ gradients follow the whole shape, as in Photoshop
 
 `tests/ui/vector_preview_parity_tests.cpp` holds the sharp view to the document render:
 
-- `ui_vector_preview_matches_document_render_for_shape_layers`: 70 documents (every
+- `ui_vector_preview_matches_document_render_for_shape_layers`: 78 documents (every
   shape kind, fill, stroke alignment on straight, slanted and curved edges, dash, cap and
-  join, Feather and Density alone and together, inverted and disabled paths, masks,
+  join, Feather and Density alone, together and with a stroke, inverted and disabled
+  paths, masks,
   effects, shapes past the canvas edge, combine ops, merged vector layers), each rendered
   at 100%, 400% and 250% (pattern paints at the whole zooms: blocks average back to
   document pixels only there). The frame,

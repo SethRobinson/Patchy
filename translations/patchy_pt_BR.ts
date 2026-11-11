@@ -8392,10 +8392,6 @@ RGB: %2, %3, %4</translation>
         <translation>Difusão:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Abaixo de 100%, o preenchimento aparece em todos os lugares, como a densidade da máscara vetorial do Photoshop</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Pintar:</translation>
     </message>
@@ -15804,6 +15800,14 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>Abaixo de 100%, o preenchimento também aparece em toda a tela, como no Photoshop.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Abaixo de 100%, o preenchimento, ou a cor do traçado quando a forma tem traçado, aparece em toda a tela, como a densidade da máscara vetorial do Photoshop</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Abaixo de 100%, a cor do traçado também aparece em toda a tela e sobre o preenchimento, como no Photoshop.</translation>
     </message>
 </context>
 <context>

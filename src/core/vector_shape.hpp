@@ -295,8 +295,10 @@ struct VectorShapeContent {
   bool path_inverted{false};
   // Photoshop's vector-mask parameters on the shape's own path (mask-data
   // parameter bits 2/3, photoshop-shape-feather.psd): density < 255 shows the
-  // fill everywhere at (255 - density)/255, and feather (px) gaussian-blurs
-  // the whole rendered shape, stroke included, unclamped at the canvas.
+  // fill everywhere at (255 - density)/255, or with a stroke the stroke's paint
+  // (the fill then sits under a wash of it; docs/vector-tools-appearance.md,
+  // "Density with a stroke"), and feather (px) gaussian-blurs the whole rendered
+  // shape, stroke included, unclamped at the canvas.
   std::uint8_t density{255};
   double feather{0.0};
   VectorFill fill{};

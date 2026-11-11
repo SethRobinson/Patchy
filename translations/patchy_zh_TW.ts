@@ -8619,10 +8619,6 @@ RGB：%2, %3, %4</translation>
         <translation>羽化:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>低於 100% 時填色會像 Photoshop 的向量遮色片濃度一樣在整個畫布上透出</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>恢復預設的填色、筆畫、不透明度和邊緣（幾何形狀保持不變）</translation>
     </message>
@@ -15748,6 +15744,14 @@ Do you want to replace it?</source>
     <message>
         <source>Below 100% the fill also shows over the whole canvas, as in Photoshop.</source>
         <translation>低於 100% 時，填色也會像在 Photoshop 中一樣在整個畫布上透出。</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>低於 100% 時，填色（形狀有筆畫時為筆畫顏色）會像 Photoshop 的向量遮色片濃度一樣在整個畫布上透出</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>低於 100% 時，筆畫顏色也會像在 Photoshop 中一樣在整個畫布和填色上透出。</translation>
     </message>
 </context>
 <context>

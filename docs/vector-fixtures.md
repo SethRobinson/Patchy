@@ -50,6 +50,15 @@ headless-stale ([ps-compat.md](ps-compat.md)).
   `psd_shape_layer_feather_and_density_match_photoshop`) without prompts,
   read feather 4/8 and density 153 back through executeActionGet, and its
   flatten matched the capture within 6/255 at the probe points.
+- photoshop-shape-density-stroke.psd/bmp and photoshop-shape-edges-resaved.psd/bmp
+  (PS 27.11): written by Patchy, then opened and SAVED AGAIN by Photoshop, so each
+  shape record carries the crisp pixels Photoshop stores for a drawn shape beside
+  its Feather / Density parameters (the script-made fixtures above have empty
+  records). The first: a square with an 8 px red to blue gradient stroke at
+  Density 50%; the second: an ellipse with Feather 3 and an inside stroke, and a
+  square at Density 60%. The BMPs are Photoshop's flatten. Authored by
+  local-test-fixtures/vector-probe/stroke-seam/density/ (make_fixture_sources.js,
+  resave_fixtures.jsx); `psd_photoshop_saved_shapes_keep_feather_and_density`.
 - patchy-compound-group.psd/bmp: PATCHY-written (the document
   `make_compound_group_document` builds;
   `psd_compound_group_writes_continuation_records_and_round_trips` dumps it
