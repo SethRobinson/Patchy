@@ -57,7 +57,11 @@ transform re-renders included) and the Qt-free writer turns it into geometry:
   lower. The measured first baseline replaces the file's row only when they disagree by more
   than the pin's slack (2 px on the page; 1.5 text-local px or 6% of the size through the
   transform's scale if that is more), which means an edit really moved the
-  line. A file Patchy saved before this fix has a centered or right-aligned anchor at the left
+  line. Known limit: the private corpus `deko_test.psd` (first line Last Ninja 80.8 px at 60%
+  vertical scale, fixed leading 30, layer scaled 1.73 x 3.71) measures a first baseline 10
+  text-local px below the file's anchor with no edit made, so its row goes out 37 px lower on
+  the page. Deciding at commit whether the first line's style changed, instead of comparing
+  rows in the writer, would remove the guess. A file Patchy saved before this fix has a centered or right-aligned anchor at the left
   edge; such a layer is recognized by its stored ink box (it starts at the anchor instead of
   straddling or ending at it) and gets the measured anchor instead.
 - `patchy.text.file_box` ("w h", box text from a Photoshop file): the size of the box the file
