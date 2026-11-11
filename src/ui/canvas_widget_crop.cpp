@@ -12,6 +12,7 @@
 
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/ruler_tool.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
@@ -472,6 +473,7 @@ void CanvasWidget::apply_crop_move_image_change() {
   // A drag in flight was measured for the other mode: it ends here, as on focus loss.
   crop_dragging_out_ = false;
   crop_rotating_ = false;
+  crop_straightening_ = false;
   crop_drag_handle_ = TransformHandle::None;
   spacebar_repositioning_drag_rect_ = false;
   const auto wanted = crop_view_follows_box() && crop_angle_ != 0.0 ? -crop_angle_ : 0.0;
@@ -514,6 +516,9 @@ void CanvasWidget::reset_crop_session_state() {
   crop_square_constrained_ = false;
   crop_from_center_ = false;
   crop_hold_center_widget_ = QPointF();
+  crop_straighten_armed_ = false;
+  crop_straightening_ = false;
+  crop_straighten_from_button_ = false;
   if (had_turn) {
     sync_crop_view_turn(turn_anchor, turn_anchor_widget);
     update();
@@ -722,6 +727,12 @@ void CanvasWidget::begin_crop_drag_out(QMouseEvent* event, QPoint document_point
 }
 
 void CanvasWidget::handle_crop_session_press(QMouseEvent* event) {
+  if (crop_straighten_armed_ || event->modifiers().testFlag(Qt::ControlModifier)) {
+    // Straighten (GitHub issue 702): the press starts a line wherever it lands, the
+    // handles and the inside included. Ctrl held is the same gesture for one line.
+    begin_crop_straighten_line(event);
+    return;
+  }
   const auto handle = crop_handle_at(event->pos());
   const auto on_handle = handle != TransformHandle::None && handle != TransformHandle::Move;
   if (crop_box_is_default_ && !on_handle &&
@@ -1051,6 +1062,112 @@ void CanvasWidget::finish_crop_mouse_release(QMouseEvent* event) {
   }
 }
 
+void CanvasWidget::set_crop_straighten_armed(bool armed) {
+  armed = armed && crop_session_active_ && tool_ == CanvasTool::Crop;
+  if (armed == crop_straighten_armed_) {
+    return;
+  }
+  crop_straighten_armed_ = armed;
+  if (!armed && crop_straightening_ && crop_straighten_from_button_) {
+    cancel_crop_straighten_line();
+  }
+  update_tool_cursor();
+  notify_crop_session_changed();
+}
+
+bool CanvasWidget::crop_straighten_armed() const noexcept {
+  return crop_straighten_armed_;
+}
+
+bool CanvasWidget::crop_straighten_line_active() const noexcept {
+  return crop_straightening_;
+}
+
+void CanvasWidget::begin_crop_straighten_line(QMouseEvent* event) {
+  crop_straightening_ = true;
+  crop_straighten_from_button_ = crop_straighten_armed_;
+  crop_straighten_press_widget_ = event->pos();
+  // Document coordinates through the view transform, so the line means the same at any
+  // zoom and view rotation, Move Image Under Crop Box's turned view included.
+  crop_straighten_start_ = document_position_f(event->position());
+  crop_straighten_end_ = crop_straighten_start_;
+  setCursor(Qt::CrossCursor);
+  update();
+}
+
+void CanvasWidget::finish_crop_straighten_line(QMouseEvent* event) {
+  crop_straighten_end_ = document_position_f(event->position());
+  crop_straightening_ = false;
+  const auto travel = (event->pos() - crop_straighten_press_widget_).manhattanLength();
+  if (travel < QApplication::startDragDistance() || crop_straighten_start_ == crop_straighten_end_) {
+    // A click draws no line: nothing turns, and the button stays on.
+    crop_straighten_from_button_ = false;
+    update_tool_cursor();
+    update();
+    return;
+  }
+  auto degrees = crop_straighten_degrees(crop_straighten_start_, crop_straighten_end_, crop_angle_);
+  if (std::abs(degrees) < 1e-9) {
+    degrees = 0.0;
+  }
+  // The box turns once, here, about its own center: never while the line is drawn, and
+  // with no zoom, no change of size and no test of where the canvas edges fall
+  // (docs/legal-constraints.md, "Crop interaction"). With the image moving under the
+  // box, the view takes the turn the way the rotate drag shows it.
+  if (degrees != crop_angle_) {
+    if (crop_view_follows_box()) {
+      place_crop_box(crop_rect_, degrees, view_transform().map_to_widget(crop_box_center_document()));
+    } else {
+      crop_angle_ = degrees;
+    }
+    if (crop_angle_ != 0.0) {
+      crop_box_is_default_ = false;
+    }
+  }
+  if (crop_straighten_from_button_) {
+    crop_straighten_armed_ = false;
+  }
+  crop_straighten_from_button_ = false;
+  update_tool_cursor();
+  update();
+  notify_crop_session_changed();
+}
+
+void CanvasWidget::cancel_crop_straighten_line() {
+  if (!crop_straightening_) {
+    return;
+  }
+  crop_straightening_ = false;
+  crop_straighten_from_button_ = false;
+  update_tool_cursor();
+  update();
+}
+
+void CanvasWidget::draw_crop_straighten_line(QPainter& painter) const {
+  if (tool_ != CanvasTool::Crop || !crop_straightening_ || crop_straighten_start_ == crop_straighten_end_) {
+    return;
+  }
+  // The Ruler's line: cursor ink (dark under light) with a tick across each end, exempt
+  // from theme roles like every tool overlay (docs/ui-conventions.md).
+  const auto start = widget_position_f(crop_straighten_start_);
+  const auto end = widget_position_f(crop_straighten_end_);
+  const auto along = end - start;
+  const auto length = std::hypot(along.x(), along.y());
+  const QPointF normal = length > 0.0 ? QPointF(-along.y() / length, along.x() / length) : QPointF(0.0, 1.0);
+  constexpr double kTick = 5.0;
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setBrush(Qt::NoBrush);
+  for (int pass = 0; pass < 2; ++pass) {
+    painter.setPen(pass == 0 ? QPen(QColor(10, 14, 20), 3.0, Qt::SolidLine, Qt::RoundCap)
+                             : QPen(QColor(245, 248, 252), 1.0, Qt::SolidLine, Qt::FlatCap));
+    painter.drawLine(QLineF(start, end));
+    painter.drawLine(QLineF(start - normal * kTick, start + normal * kTick));
+    painter.drawLine(QLineF(end - normal * kTick, end + normal * kTick));
+  }
+  painter.restore();
+}
+
 void CanvasWidget::nudge_crop_rect(QPoint delta) {
   if (!crop_session_active_ || delta.isNull()) {
     return;
@@ -1164,7 +1281,8 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
   // Composition guides (GitHub issue 325; rule of thirds by default), as a
   // dark+light pair so they read on any artwork; skipped when the rect is too
   // small for them to help. "While dragging" shows them only during a gesture.
-  const bool dragging = crop_dragging_out_ || crop_rotating_ || crop_drag_handle_ != TransformHandle::None;
+  const bool dragging =
+      crop_dragging_out_ || crop_rotating_ || crop_straightening_ || crop_drag_handle_ != TransformHandle::None;
   if (crop_overlay_ != CropOverlay::None && (!crop_overlay_only_while_dragging_ || dragging) &&
       widget_rect.width() >= 24.0 && widget_rect.height() >= 24.0) {
     const auto guides = crop_overlay_guides(crop_overlay_, crop_overlay_orientation_, local_rect);

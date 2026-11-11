@@ -3838,6 +3838,8 @@ private:
   std::vector<QWidget*> crop_ratio_option_widgets_;
   std::vector<QWidget*> crop_size_option_widgets_;
   QPushButton* crop_apply_button_{nullptr};
+  // Straighten (GitHub issue 702): checked while the canvas's Straighten line is armed.
+  QToolButton* crop_straighten_button_{nullptr};
   // Canvas Size's two layer options on the Crop bar. "Delete Cropped Pixels"
   // (Photoshop's option and default: on) crops every layer to the new canvas;
   // off, layers keep their off-canvas pixels like Canvas Size. "Delete

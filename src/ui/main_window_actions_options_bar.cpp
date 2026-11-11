@@ -2068,6 +2068,35 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   // The tooltip names the O key while it applies (refresh_crop_key_hints, GitHub issue 698).
   register_retranslation([this] { refresh_crop_key_hints(); });
+  // Straighten (GitHub issue 702, docs/crop-tool-straighten.md): a momentary toggle that
+  // leads the Overlay group. On, the next drag on the canvas draws a line and its release
+  // turns the pending box so the line is level or upright; the canvas turns it off again
+  // (crop_straighten_armed, mirrored in refresh_options_bar). Nothing is persisted.
+  crop_straighten_button_ = new QToolButton(toolbar);
+  crop_straighten_button_->setObjectName(QStringLiteral("cropStraightenButton"));
+  crop_straighten_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  crop_straighten_button_->setIcon(simple_icon(QStringLiteral("crop-straighten")));
+  crop_straighten_button_->setIconSize(QSize(18, 18));
+  crop_straighten_button_->setCheckable(true);
+  crop_straighten_button_->setAutoRaise(true);
+  crop_straighten_button_->setFocusPolicy(Qt::NoFocus);
+  crop_straighten_button_->setProperty("optionsBarButton", true);
+  register_retranslation([this] { crop_straighten_button_->setAccessibleName(tr("Straighten")); });
+  bind_tooltip(crop_straighten_button_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                 "Straighten: drag along something that should be level or upright, and the "
+                                 "crop box turns to match (or hold Ctrl and drag)"));
+  add_option_widget(crop_straighten_button_, {CanvasTool::Crop});
+  connect(crop_straighten_button_, &QToolButton::toggled, this, [this](bool on) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_crop_straighten_armed(on);
+    if (on && canvas_->crop_straighten_armed()) {
+      statusBar()->showMessage(tr("Drag along something that should be level or upright"));
+    }
+    refresh_options_bar();
+  });
   add_option_widget(crop_overlay_combo_, {CanvasTool::Crop});
   connect(crop_overlay_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0) {

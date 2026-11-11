@@ -35759,6 +35759,18 @@ Locked: %1</source>
         <source>Crop: the crop box moves over the image</source>
         <translation>裁切：裁切框在影像上移動</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>拉直</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>拉直：沿著應該水平或垂直的物體拖曳，裁切框會隨之旋轉（也可以按住 Ctrl 拖曳）</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>沿著應該水平或垂直的物體拖曳</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

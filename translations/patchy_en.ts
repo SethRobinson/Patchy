@@ -35786,6 +35786,18 @@ Locked: %1</source>
         <source>Crop: the crop box moves over the image</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

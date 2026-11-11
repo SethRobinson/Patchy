@@ -4427,6 +4427,18 @@ void MainWindow::refresh_options_bar() {
   if (crop_cancel_button_ != nullptr) {
     crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_can_reset());
   }
+  if (crop_straighten_button_ != nullptr) {
+    // The canvas owns the state: one line turns it off, and so does any reset of the box.
+    const auto armed = canvas_ != nullptr && canvas_->crop_straighten_armed();
+    if (crop_straighten_button_->isChecked() != armed) {
+      const QSignalBlocker blocker(crop_straighten_button_);
+      crop_straighten_button_->setChecked(armed);
+      if (!armed && statusBar()->currentMessage() == tr("Drag along something that should be level or upright")) {
+        statusBar()->clearMessage();  // the hint goes with the button
+      }
+    }
+    crop_straighten_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_active());
+  }
   if (perspective_crop_turn_button_ != nullptr) {
     perspective_crop_turn_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
                                               canvas_->perspective_crop_session_active());

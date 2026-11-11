@@ -1196,6 +1196,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   upright_overlays.reset();
   draw_perspective_crop_overlay(painter);
   draw_ruler_overlay(painter);
+  draw_crop_straighten_line(painter);
   draw_gradient_fill_handles(painter);
   draw_shape_points(painter);  // a live Polygon's or Line's two drag points, over its outline
   upright_overlays.emplace(*this, &painter);

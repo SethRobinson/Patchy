@@ -35868,6 +35868,18 @@ Verrouillé : %1</translation>
         <source>Crop: the crop box moves over the image</source>
         <translation>Recadrage : le cadre de recadrage se déplace sur l&apos;image</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>Redresser</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>Redresser : faites glisser le long d&apos;un élément qui doit être horizontal ou vertical, et le cadre de recadrage pivote en conséquence (ou faites glisser en maintenant Ctrl)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>Faites glisser le long d&apos;un élément qui doit être horizontal ou vertical</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1350,6 +1350,15 @@ public:
   // Resizes the pending box to `size` pixels about its center (the options-bar
   // Size fields); the box becomes custom. Ignored without a session.
   void set_crop_session_size(QSize size);
+  // The Crop bar's Straighten button (GitHub issue 702, docs/crop-tool-straighten.md).
+  // Armed, a press-drag draws a line instead of the usual gestures, and its release turns
+  // the pending box about its center so the line is level or upright in the box's frame
+  // (crop_straighten_degrees). One line per arming: the release disarms; a click without
+  // a drag and Esc mid-line keep it armed. Ctrl held at a press draws one line without
+  // arming. Every session reset or end disarms. Ignored without a session.
+  void set_crop_straighten_armed(bool armed);
+  [[nodiscard]] bool crop_straighten_armed() const noexcept;
+  [[nodiscard]] bool crop_straighten_line_active() const noexcept;
   // Aspect constraint for new drag-outs and corner-handle drags. Both values
   // must be > 0 to constrain; a change re-fits the pending box inside itself
   // about its center (GitHub issue 66).
@@ -3075,6 +3084,10 @@ private:
   void update_crop_rotate_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers);
   void finish_crop_mouse_release(QMouseEvent* event);
   void nudge_crop_rect(QPoint delta);
+  void begin_crop_straighten_line(QMouseEvent* event);
+  void finish_crop_straighten_line(QMouseEvent* event);
+  void cancel_crop_straighten_line();
+  void draw_crop_straighten_line(QPainter& painter) const;
   void notify_crop_session_changed();
   void reset_crop_session_state();
   // Move Image Under Crop Box (GitHub issue 699; docs/crop-tool.md). True while the
@@ -4254,6 +4267,14 @@ private:
   CropOverlayOptions crop_overlay_options_;
   double crop_rotate_start_angle_{0.0};
   double crop_rotate_start_vector_degrees_{0.0};
+  // Straighten (GitHub issue 702): the button's state, the line in flight (document
+  // pixels, unsnapped) and whether the button or a held Ctrl started it.
+  bool crop_straighten_armed_{false};
+  bool crop_straightening_{false};
+  bool crop_straighten_from_button_{false};
+  QPointF crop_straighten_start_;
+  QPointF crop_straighten_end_;
+  QPoint crop_straighten_press_widget_;
   // Move Image Under Crop Box: the degrees this session has turned the view by (minus
   // the box's angle while the view follows it), and the widget point the box's center
   // holds through a drag.
