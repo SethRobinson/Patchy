@@ -19238,6 +19238,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Smudge strength: %1%</source>
         <translation>Wischfinger-Stärke: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>Größe der Ebenen ändern</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>Ebenengröße ändern</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35806,6 +35814,26 @@ Fixiert: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Innen hält diese Kontur innerhalb der Stärke der Linie. Wählen Sie unter Ausrichten in der Formdarstellung Mitte oder Außen, um die Linie dicker zu machen.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>Breite der Ebene</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>Breite und Höhe der Ebene proportional halten</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>Höhe der Ebene</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>Linke Kante der Ebene</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>Obere Kante der Ebene</translation>
     </message>
 </context>
 <context>

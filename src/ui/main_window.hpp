@@ -1941,6 +1941,44 @@ private:
   // row widget, whose construction and QSS polish dominated each commit on Windows.
   void finish_artboard_edit(const QString& status, std::optional<LayerId> select, bool rows_unchanged = false);
   void build_properties_artboard_panel(QWidget* parent, QVBoxLayout* layout);
+  // One Properties size block: "W: [ ] (link) H: [ ]" over "X: [ ] Y: [ ]", pixel-native
+  // fields that follow the ruler unit and take typed units. The shape rows and the layer
+  // rows (GitHub issue 693) are both built by build_properties_size_panel, so they look
+  // and behave alike; the caller connects the fields. Names and tooltips are QT_TR_NOOP
+  // sources of this class.
+  struct PropertiesSizePanelSpec {
+    const char* panel_name;
+    const char* width_name;
+    const char* link_name;
+    const char* height_name;
+    const char* x_name;
+    const char* y_name;
+    const char* width_tooltip;
+    const char* link_tooltip;
+    const char* height_tooltip;
+    const char* x_tooltip;
+    const char* y_tooltip;
+  };
+  struct PropertiesSizePanel {
+    QWidget* panel{nullptr};
+    UnitSpinBox* width{nullptr};
+    UnitSpinBox* height{nullptr};
+    UnitSpinBox* x{nullptr};
+    UnitSpinBox* y{nullptr};
+    QPushButton* link{nullptr};
+  };
+  PropertiesSizePanel build_properties_size_panel(QWidget* parent, const PropertiesSizePanelSpec& spec);
+  // The layer rows (GitHub issue 693): the frame of the selected pixel, text or smart
+  // object layers, folders included (CanvasWidget::layer_frame_state). sync shows it (hidden
+  // with nothing to measure, disabled when Free Transform would refuse); an edit is
+  // debounced, then applied through CanvasWidget::set_layer_frame as one undo step, and
+  // dropped when the selection changed meanwhile.
+  void sync_layer_size_fields();
+  void handle_layer_size_value_changed(bool width_changed, double value);
+  void schedule_layer_size_apply(bool size_edit);
+  bool apply_layer_size_fields();
+  [[nodiscard]] std::vector<std::int64_t> layer_size_target_key() const;
+  [[nodiscard]] bool layer_size_fields_take_edits() const;
   [[nodiscard]] std::pair<ArtboardBackground, RgbColor> current_artboard_background() const;
   [[nodiscard]] QSize current_artboard_size() const;
   void layer_via_copy();
@@ -4081,6 +4119,20 @@ private:
   QSpinBox* properties_polygon_sides_spin_{nullptr};
   QSpinBox* properties_polygon_star_inset_spin_{nullptr};
   QPushButton* properties_shape_link_size_button_{nullptr};
+  QWidget* properties_layer_size_panel_{nullptr};
+  UnitSpinBox* properties_layer_width_spin_{nullptr};
+  UnitSpinBox* properties_layer_height_spin_{nullptr};
+  UnitSpinBox* properties_layer_x_spin_{nullptr};
+  UnitSpinBox* properties_layer_y_spin_{nullptr};
+  QPushButton* properties_layer_link_size_button_{nullptr};
+  QTimer* layer_size_apply_timer_{nullptr};
+  double layer_size_ratio_{1.0};  // width / height at the last sync (link button)
+  // The document and layers a pending field edit was typed for (layer_size_target_key),
+  // and which pair it touched: the other pair keeps the frame's own values, which the
+  // fields show rounded.
+  std::vector<std::int64_t> layer_size_pending_key_;
+  bool layer_size_pending_size_{false};
+  bool layer_size_pending_position_{false};
   QPushButton* properties_edit_appearance_button_{nullptr};
   QLabel* active_tool_info_label_{nullptr};
   QLabel* canvas_info_label_{nullptr};

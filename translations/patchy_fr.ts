@@ -19238,6 +19238,14 @@ Voulez-vous le remplacer ?</translation>
         <source>Smudge strength: %1%</source>
         <translation>Intensité du doigt : %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>Redimensionner les calques</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>Redimensionner le calque</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35806,6 +35814,26 @@ Verrouillé : %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Intérieur garde ce contour dans l&apos;Épaisseur du trait. Choisissez Centre ou Extérieur sous Alignement, dans Aspect de la forme, pour épaissir le trait.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>Largeur du calque</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>Conserver les proportions entre largeur et hauteur du calque</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>Hauteur du calque</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>Bord gauche du calque</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>Bord supérieur du calque</translation>
     </message>
 </context>
 <context>

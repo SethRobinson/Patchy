@@ -240,7 +240,9 @@ private:
 // takes a line of its own (the blend combo; the Lock buttons) and the rest pack
 // greedily onto the lines below, so its narrowest width is its widest item. A
 // stretch item (the name filter) takes the rest of its line and counts as
-// stretch_minimum wide when the row decides what fits.
+// stretch_minimum wide when the row decides what fits. A shrink widget (the
+// blend combo, GitHub issue 693) narrows down to its minimum width first, so
+// the row wraps only once even that does not fit one line.
 class WrappingControlRowLayout final : public WrappingPanelRowLayout {
 public:
   explicit WrappingControlRowLayout(int spacing) { setSpacing(spacing); }
@@ -256,6 +258,8 @@ public:
     stretch_layout_ = layout;
     set_stretch_widget(widget, minimum_width);
   }
+  // `widget` gives up width, down to its minimum size, to keep the row on one line.
+  void set_shrink_widget(QWidget* widget) { shrink_widget_ = widget; }
 
   [[nodiscard]] int heightForWidth(int width) const override {
     return lines_height(line_starts(width - horizontal_margins())) + vertical_margins();
@@ -288,6 +292,10 @@ public:
     const auto area = contentsRect();
     const auto visible = visible_items();
     const auto starts = line_starts(area.width());
+    // One line the natural widths overflow: the shrink widget gives up the difference.
+    const auto squeeze = starts.size() == 1
+                             ? std::clamp(run_width(visible, 0, visible.size()) - area.width(), 0, shrink_room(visible))
+                             : 0;
     auto y = area.y();
     for (std::size_t line = 0; line < starts.size(); ++line) {
       const auto first = starts[line];
@@ -298,7 +306,8 @@ public:
         auto* line_item = item(visible[position]);
         const auto hint = line_item->sizeHint();
         const auto remaining = std::max(0, area.right() + 1 - x);
-        const auto width = is_stretch(line_item) ? remaining : std::min(hint.width(), remaining);
+        const auto natural = hint.width() - (is_shrink(line_item) ? squeeze : 0);
+        const auto width = is_stretch(line_item) ? remaining : std::min(natural, remaining);
         line_item->setGeometry(QRect(x, y + (height - hint.height()) / 2, width, hint.height()));
         x += width + spacing();
       }
@@ -311,6 +320,18 @@ private:
   [[nodiscard]] bool is_stretch(QLayoutItem* candidate) const {
     return (stretch_widget_ != nullptr && candidate->widget() == stretch_widget_) ||
            (stretch_layout_ != nullptr && candidate->layout() == stretch_layout_);
+  }
+  [[nodiscard]] bool is_shrink(QLayoutItem* candidate) const {
+    return shrink_widget_ != nullptr && candidate->widget() == shrink_widget_;
+  }
+  // How much narrower than their natural widths the visible items can get on one line.
+  [[nodiscard]] int shrink_room(const std::vector<int>& visible) const {
+    for (const auto index : visible) {
+      if (is_shrink(item(index))) {
+        return std::max(0, item_width(index) - item(index)->minimumSize().width());
+      }
+    }
+    return 0;
   }
   [[nodiscard]] int item_width(int index) const {
     auto* candidate = item(index);
@@ -354,7 +375,7 @@ private:
     if (visible.empty()) {
       return {};
     }
-    if (run_width(visible, 0, visible.size()) <= width) {
+    if (run_width(visible, 0, visible.size()) - shrink_room(visible) <= width) {
       return {0};
     }
     std::vector<std::size_t> starts{0};
@@ -395,6 +416,7 @@ private:
 
   QWidget* stretch_widget_{nullptr};
   QLayout* stretch_layout_{nullptr};
+  QWidget* shrink_widget_{nullptr};
   int stretch_minimum_{0};
 };
 
@@ -500,6 +522,76 @@ private:
 };
 
 }  // namespace
+
+MainWindow::PropertiesSizePanel MainWindow::build_properties_size_panel(QWidget* parent,
+                                                                        const PropertiesSizePanelSpec& spec) {
+  PropertiesSizePanel built;
+  built.panel = new QWidget(parent);
+  built.panel->setObjectName(QLatin1String(spec.panel_name));
+  built.panel->hide();
+  auto* rows = new QVBoxLayout(built.panel);
+  rows->setContentsMargins(0, 2, 0, 2);
+  rows->setSpacing(4);
+  auto* size_row = new QHBoxLayout();
+  size_row->setContentsMargins(0, 0, 0, 0);
+  size_row->setSpacing(4);
+  auto* position_row = new QHBoxLayout();
+  position_row->setContentsMargins(0, 0, 0, 0);
+  position_row->setSpacing(4);
+  rows->addLayout(size_row);
+  rows->addLayout(position_row);
+  const auto add_label = [&built](QHBoxLayout* row, const char* source) {
+    auto* label = new QLabel(built.panel);
+    bind_widget_text(label, source);
+    row->addWidget(label);
+  };
+  const auto make_spin = [&built](QHBoxLayout* row, const char* name, const char* tooltip) {
+    auto* spin = new UnitSpinBox(SpinUnit::Pixels, built.panel);
+    spin->setObjectName(QLatin1String(name));
+    spin->setRange(0.1, 60000.0);
+    spin->setDecimals(1);
+    spin->setSingleStep(1.0);
+    spin->setKeyboardTracking(false);
+    spin->setEnabled(false);
+    bind_tooltip(spin, tooltip);
+    configure_dialog_spinbox(spin, 96);
+    spin->setFixedWidth(96);
+    row->addWidget(spin);
+    return spin;
+  };
+  add_label(size_row, QT_TR_NOOP("W:"));
+  built.width = make_spin(size_row, spec.width_name, spec.width_tooltip);
+  built.link = new QPushButton(built.panel);
+  built.link->setObjectName(QLatin1String(spec.link_name));
+  built.link->setCheckable(true);
+  built.link->setIcon(simple_icon(QStringLiteral("link")));
+  built.link->setFixedWidth(28);
+  bind_tooltip(built.link, spec.link_tooltip);
+  built.link->setEnabled(false);
+  size_row->addWidget(built.link);
+  add_label(size_row, QT_TR_NOOP("H:"));
+  built.height = make_spin(size_row, spec.height_name, spec.height_tooltip);
+  size_row->addStretch(1);
+  add_label(position_row, QT_TR_NOOP("X:"));
+  built.x = make_spin(position_row, spec.x_name, spec.x_tooltip);
+  position_row->addSpacing(28 + 4);  // under the link button
+  add_label(position_row, QT_TR_NOOP("Y:"));
+  built.y = make_spin(position_row, spec.y_name, spec.y_tooltip);
+  position_row->addStretch(1);
+  for (auto* spin : {built.x, built.y}) {
+    spin->setRange(-60000.0, 60000.0);
+  }
+  install_scrub_labels_in(built.panel);  // drag "W:" / "H:" to scrub (issue 46)
+  // Photoshop's Properties panel shows W/H and X/Y in the ruler unit.
+  built.width->set_context_provider(document_unit_context_provider(true));
+  built.height->set_context_provider(document_unit_context_provider(false));
+  built.x->set_context_provider(document_unit_context_provider(true));
+  built.y->set_context_provider(document_unit_context_provider(false));
+  for (auto* spin : {built.width, built.height, built.x, built.y}) {
+    register_ruler_unit_field(spin);
+  }
+  return built;
+}
 
 void MainWindow::apply_right_column_width(int width) {
   right_dock_pinned_width_ = width;
@@ -633,15 +725,19 @@ void MainWindow::update_right_dock_minimum_width() {
   if (panel_layout == nullptr || panel_column_ == nullptr) {
     return;
   }
-  if (blend_combo_ != nullptr) {
-    // Under the app stylesheet the popup list is sized to the field, and the
-    // open list spends part of that width on its frame and scroll bar, so the
-    // field needs that much slack for the longest mode name not to elide in
-    // the list. (Widening only the view does nothing: the styled popup
-    // geometry ignores the view's minimum.)
+  if (auto* blend_combo = dynamic_cast<PopupAwareComboBox*>(blend_combo_); blend_combo != nullptr) {
+    // The box's natural width: its longest mode name plus the slack the open list
+    // once needed for its frame and scroll bar (the list is now widened to its entries
+    // by itself, fit_combo_popup_to_entries; the width stays so the panel opens as before).
     const auto scroll_extent =
-        blend_combo_->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, blend_combo_);
-    blend_combo_->setMinimumWidth(blend_combo_->minimumSizeHint().width() + scroll_extent + 8);
+        blend_combo->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, blend_combo);
+    const auto natural = blend_combo->longest_entry_box_width() + scroll_extent + 8;
+    // In a narrower column it gives up width before the row wraps (GitHub issue 693),
+    // down to the room the default mode's name needs: longer names end in "...".
+    constexpr int kProbeWidth = 400;
+    const auto chrome = kProbeWidth - combo_box_text_room(*blend_combo, kProbeWidth);
+    const auto short_name = blend_combo->fontMetrics().horizontalAdvance(blend_mode_name(BlendMode::Normal));
+    blend_combo->set_shrink_widths(natural, chrome + short_name + 4);
   }
   // The chrome around the panel (frames, the scroll area) can only be trusted once
   // the column has been laid out. The panel sits in RightDockOverflowArea's viewport
@@ -684,6 +780,13 @@ void MainWindow::update_right_dock_minimum_width() {
 }
 
 bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event) {
+  if (event->type() == QEvent::Show && properties_layer_size_panel_ != nullptr &&
+      watched == properties_layer_size_panel_->parentWidget()) {
+    // The layer rows are measured only while Properties shows (sync_layer_size_fields):
+    // expanding, reopening or bringing its tab forward catches them up.
+    QTimer::singleShot(0, this, [this] { sync_layer_size_fields(); });
+    return false;
+  }
   if (event->type() == QEvent::LayoutRequest && layer_list_ != nullptr && watched == layer_list_->parentWidget()) {
     // A narrow column wraps the Layers panel's rows (GitHub issue 199), which
     // raises the panel's minimum height. The refit raises the panel's own floor to
@@ -1704,11 +1807,11 @@ void MainWindow::create_docks() {
   // One compact row (Photoshop-style): the blend combo hugs its longest mode
   // name and Opacity/Fill are prefixed spin boxes with the toolbar popup
   // slider, so the panel spends one line here instead of three. When the
-  // stack is narrower than that line (long translated prefixes make it wider
-  // than the footer buttons), Opacity and Fill wrap onto a second line
-  // instead of raising the dock's minimum width, and Fill onto a third in a
-  // narrower column (GitHub issue 199). No extra side insets: the panel margin
-  // alone places the row.
+  // stack is narrower than that line, the combo narrows first (GitHub issue
+  // 693). Once it is down to its minimum (long translated prefixes), Opacity
+  // and Fill wrap onto a second line instead of raising the dock's minimum
+  // width, and Fill onto a third in a narrower column (GitHub issue 199). No
+  // extra side insets: the panel margin alone places the row.
   auto* blend_opacity_row = new WrappingControlRowLayout(6);
   auto* blend_combo = new PopupAwareComboBox(layers_panel);
   blend_combo_ = blend_combo;
@@ -1716,7 +1819,11 @@ void MainWindow::create_docks() {
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   blend_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
   bind_tooltip(blend_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Blend mode"));
+  // The box narrows before the row wraps (GitHub issue 693); the open list keeps every
+  // mode name whole whatever the box's width.
+  fit_combo_popup_to_entries(*blend_combo_);
   blend_opacity_row->addWidget(blend_combo_);
+  blend_opacity_row->set_shrink_widget(blend_combo_);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
   // The open list previews the highlighted mode on the canvas (GitHub issue 367).
   blend_combo->popup_shown = [this] { begin_layer_blend_preview(); };
@@ -2466,90 +2573,55 @@ void MainWindow::create_docks() {
   active_layer_shape_label_ = add_properties_label(QStringLiteral("activeLayerShapeLabel"));
 
   // W / H of the active shape layer, one compact row like the options bar's
-  // readouts (which share the same apply path and stay in sync with these).
-  properties_shape_size_panel_ = new QWidget(properties_panel);
-  properties_shape_size_panel_->setObjectName(QStringLiteral("propertiesShapeSizePanel"));
-  properties_shape_size_panel_->hide();
-  // W / H, then X / Y (GitHub #521): they also size and place the components Path Select
+  // readouts (which share the same apply path and stay in sync with these),
+  // then X / Y (GitHub #521): they also size and place the components Path Select
   // picked on a work path, saved path or vector mask.
-  auto* properties_shape_size_rows = new QVBoxLayout(properties_shape_size_panel_);
-  properties_shape_size_rows->setContentsMargins(0, 2, 0, 2);
-  properties_shape_size_rows->setSpacing(4);
-  auto* properties_shape_size_row = new QHBoxLayout();
-  properties_shape_size_row->setContentsMargins(0, 0, 0, 0);
-  properties_shape_size_row->setSpacing(4);
-  auto* properties_shape_position_row = new QHBoxLayout();
-  properties_shape_position_row->setContentsMargins(0, 0, 0, 0);
-  properties_shape_position_row->setSpacing(4);
-  properties_shape_size_rows->addLayout(properties_shape_size_row);
-  properties_shape_size_rows->addLayout(properties_shape_position_row);
-  QHBoxLayout* properties_shape_current_row = properties_shape_size_row;
-  const auto add_shape_size_label = [this, &properties_shape_current_row](const char* source) {
-    auto* label = new QLabel(properties_shape_size_panel_);
-    bind_widget_text(label, source);
-    properties_shape_current_row->addWidget(label);
-    return label;
-  };
-  const auto make_properties_shape_size_spin = [this, &properties_shape_current_row](const char* name,
-                                                                                     const char* tooltip) {
-    auto* spin = new UnitSpinBox(SpinUnit::Pixels, properties_shape_size_panel_);
-    spin->setObjectName(QLatin1String(name));
-    spin->setRange(0.1, 60000.0);
-    spin->setDecimals(1);
-    spin->setSingleStep(1.0);
-    spin->setKeyboardTracking(false);
-    spin->setEnabled(false);
-    bind_tooltip(spin, tooltip);
-    configure_dialog_spinbox(spin, 96);
-    spin->setFixedWidth(96);
-    properties_shape_current_row->addWidget(spin);
-    return spin;
-  };
-  add_shape_size_label(QT_TR_NOOP("W:"));
-  properties_shape_width_spin_ =
-      make_properties_shape_size_spin("propertiesShapeWidthSpin", QT_TR_NOOP("Width of the active shape"));
-  properties_shape_link_size_button_ = new QPushButton(properties_shape_size_panel_);
-  properties_shape_link_size_button_->setObjectName(QStringLiteral("propertiesShapeLinkSizeButton"));
-  properties_shape_link_size_button_->setCheckable(true);
-  properties_shape_link_size_button_->setIcon(simple_icon(QStringLiteral("link")));
-  properties_shape_link_size_button_->setFixedWidth(28);
-  bind_tooltip(properties_shape_link_size_button_,
-               QT_TR_NOOP("Keep the shape's width and height in proportion"));
-  properties_shape_link_size_button_->setEnabled(false);
-  properties_shape_size_row->addWidget(properties_shape_link_size_button_);
-  add_shape_size_label(QT_TR_NOOP("H:"));
-  properties_shape_height_spin_ =
-      make_properties_shape_size_spin("propertiesShapeHeightSpin", QT_TR_NOOP("Height of the active shape"));
-  properties_shape_size_row->addStretch(1);
-  properties_shape_current_row = properties_shape_position_row;
-  add_shape_size_label(QT_TR_NOOP("X:"));
-  properties_shape_x_spin_ =
-      make_properties_shape_size_spin("propertiesShapeXSpin", QT_TR_NOOP("Left edge of the active shape"));
-  properties_shape_position_row->addSpacing(28 + 4);  // under the link button
-  add_shape_size_label(QT_TR_NOOP("Y:"));
-  properties_shape_y_spin_ =
-      make_properties_shape_size_spin("propertiesShapeYSpin", QT_TR_NOOP("Top edge of the active shape"));
-  properties_shape_position_row->addStretch(1);
-  for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
-    spin->setRange(-60000.0, 60000.0);
-  }
+  const auto shape_rows = build_properties_size_panel(
+      properties_panel,
+      {"propertiesShapeSizePanel", "propertiesShapeWidthSpin", "propertiesShapeLinkSizeButton",
+       "propertiesShapeHeightSpin", "propertiesShapeXSpin", "propertiesShapeYSpin",
+       QT_TR_NOOP("Width of the active shape"), QT_TR_NOOP("Keep the shape's width and height in proportion"),
+       QT_TR_NOOP("Height of the active shape"), QT_TR_NOOP("Left edge of the active shape"),
+       QT_TR_NOOP("Top edge of the active shape")});
+  properties_shape_size_panel_ = shape_rows.panel;
+  properties_shape_width_spin_ = shape_rows.width;
+  properties_shape_height_spin_ = shape_rows.height;
+  properties_shape_x_spin_ = shape_rows.x;
+  properties_shape_y_spin_ = shape_rows.y;
+  properties_shape_link_size_button_ = shape_rows.link;
   properties_layout->addWidget(properties_shape_size_panel_);
-  install_scrub_labels_in(properties_shape_size_panel_);  // drag "W:" / "H:" to scrub (issue 46)
-  // Photoshop's Properties panel shows shape W/H in the ruler unit.
-  properties_shape_width_spin_->set_context_provider(document_unit_context_provider(true));
-  properties_shape_height_spin_->set_context_provider(document_unit_context_provider(false));
-  register_ruler_unit_field(properties_shape_width_spin_);
-  register_ruler_unit_field(properties_shape_height_spin_);
   connect(properties_shape_width_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { handle_vector_shape_size_value_changed(true, value); });
   connect(properties_shape_height_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { handle_vector_shape_size_value_changed(false, value); });
-  properties_shape_x_spin_->set_context_provider(document_unit_context_provider(true));
-  properties_shape_y_spin_->set_context_provider(document_unit_context_provider(false));
-  register_ruler_unit_field(properties_shape_x_spin_);
-  register_ruler_unit_field(properties_shape_y_spin_);
   for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
     connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { schedule_vector_shape_size_apply(); });
+  }
+
+  // The same rows for pixel, text and smart object layers and folders (GitHub issue 693):
+  // the frame Free Transform would start on, edited through the same session.
+  const auto layer_rows = build_properties_size_panel(
+      properties_panel,
+      {"propertiesLayerSizePanel", "propertiesLayerWidthSpin", "propertiesLayerLinkSizeButton",
+       "propertiesLayerHeightSpin", "propertiesLayerXSpin", "propertiesLayerYSpin",
+       QT_TR_NOOP("Width of the layer"), QT_TR_NOOP("Keep the layer's width and height in proportion"),
+       QT_TR_NOOP("Height of the layer"), QT_TR_NOOP("Left edge of the layer"), QT_TR_NOOP("Top edge of the layer")});
+  properties_layer_size_panel_ = layer_rows.panel;
+  properties_layer_width_spin_ = layer_rows.width;
+  properties_layer_height_spin_ = layer_rows.height;
+  properties_layer_x_spin_ = layer_rows.x;
+  properties_layer_y_spin_ = layer_rows.y;
+  properties_layer_link_size_button_ = layer_rows.link;
+  // A photo or a line of type is rarely meant to be squashed: proportions hold unless
+  // the link is turned off.
+  properties_layer_link_size_button_->setChecked(true);
+  properties_layout->addWidget(properties_layer_size_panel_);
+  connect(properties_layer_width_spin_, &QDoubleSpinBox::valueChanged, this,
+          [this](double value) { handle_layer_size_value_changed(true, value); });
+  connect(properties_layer_height_spin_, &QDoubleSpinBox::valueChanged, this,
+          [this](double value) { handle_layer_size_value_changed(false, value); });
+  for (auto* spin : {properties_layer_x_spin_, properties_layer_y_spin_}) {
+    connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { schedule_layer_size_apply(false); });
   }
 
   // Live-shape rows (GitHub #521): a live rectangle's Radius, a live polygon's Sides and
@@ -2663,6 +2735,7 @@ void MainWindow::create_docks() {
   active_tool_info_label_ = add_properties_label(QStringLiteral("activeToolInfoLabel"));
   properties_layout->addStretch(0);
   properties_scroll->setWidget(properties_panel);
+  properties_panel->installEventFilter(this);  // its Show syncs the layer rows
   panel_specs.push_back(PanelSpec{.id = QStringLiteral("propertiesDock"),
                                   .object_prefix = QStringLiteral("properties"),
                                   .title = tr("Properties"),

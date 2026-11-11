@@ -9,11 +9,15 @@
 #include <QAbstractItemView>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QPainter>
 #include <QScopeGuard>
 #include <QSignalBlocker>
+#include <QStyleOptionComboBox>
+#include <QStylePainter>
 #include <QStyledItemDelegate>
+#include <QToolTip>
 #include <QWheelEvent>
 #include <QStandardItemModel>
 #include <QObject>
@@ -604,6 +608,79 @@ bool PopupAwareComboBox::eventFilter(QObject* watched, QEvent* event) {
     popup_hidden();
   }
   return QComboBox::eventFilter(watched, event);
+}
+
+void PopupAwareComboBox::set_shrink_widths(int natural, int minimum) {
+  natural = std::max(0, natural);
+  minimum = std::clamp(minimum, 0, natural);
+  if (natural == natural_width_ && minimum == shrink_minimum_width_) {
+    return;
+  }
+  natural_width_ = natural;
+  shrink_minimum_width_ = minimum;
+  updateGeometry();
+}
+
+int PopupAwareComboBox::longest_entry_box_width() const {
+  return QComboBox::minimumSizeHint().width();
+}
+
+QSize PopupAwareComboBox::sizeHint() const {
+  auto hint = QComboBox::sizeHint();
+  if (natural_width_ > 0) {
+    hint.setWidth(natural_width_);
+  }
+  return hint;
+}
+
+QSize PopupAwareComboBox::minimumSizeHint() const {
+  auto hint = QComboBox::minimumSizeHint();
+  if (natural_width_ > 0) {
+    hint.setWidth(shrink_minimum_width_);
+  }
+  return hint;
+}
+
+QString PopupAwareComboBox::displayed_text() const {
+  const auto text = currentText();
+  if (natural_width_ <= 0 || text.isEmpty()) {
+    return text;
+  }
+  const int room = combo_box_text_room(*this);
+  return fontMetrics().horizontalAdvance(text) <= room ? text : fontMetrics().elidedText(text, Qt::ElideRight, room);
+}
+
+QString PopupAwareComboBox::hover_text() const {
+  const auto tip = toolTip();
+  const auto text = currentText();
+  if (displayed_text() == text) {
+    return tip;
+  }
+  return tip.isEmpty() ? text : tip + QLatin1Char('\n') + text;
+}
+
+bool PopupAwareComboBox::event(QEvent* event) {
+  if (event->type() == QEvent::ToolTip && displayed_text() != currentText()) {
+    QToolTip::showText(static_cast<QHelpEvent*>(event)->globalPos(), hover_text(), this);
+    return true;
+  }
+  return QComboBox::event(event);
+}
+
+void PopupAwareComboBox::paintEvent(QPaintEvent* event) {
+  const auto shown = displayed_text();
+  if (shown == currentText()) {
+    QComboBox::paintEvent(event);
+    return;
+  }
+  // QComboBox::paintEvent with the label shortened: the style clips a long label mid-letter.
+  QStylePainter painter(this);
+  painter.setPen(palette().color(QPalette::Text));
+  QStyleOptionComboBox option;
+  initStyleOption(&option);
+  painter.drawComplexControl(QStyle::CC_ComboBox, option);
+  option.currentText = shown;
+  painter.drawControl(QStyle::CE_ComboBoxLabel, option);
 }
 
 }  // namespace patchy::ui

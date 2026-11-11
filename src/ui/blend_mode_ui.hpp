@@ -73,6 +73,9 @@ void enable_blend_mode_items_for_depth(QComboBox* combo, BitDepth depth);
 // Qt sets on opening already finds the handler ready. popup_hidden runs once the list is
 // gone, before a chosen item's currentIndexChanged; it also runs when the list closes
 // without hidePopup (the window losing focus), and may run twice for one close.
+//
+// It can also narrow below its longest entry (GitHub issue 693, set_shrink_widths): the
+// closed box then ends the current entry in "..." and its tooltip adds the whole name.
 class PopupAwareComboBox final : public QComboBox {
 public:
   using QComboBox::QComboBox;
@@ -81,11 +84,28 @@ public:
   void showPopup() override;
   void hidePopup() override;
 
+  // Lets a layout narrow the box: `natural` is the width it asks for (sizeHint) and
+  // `minimum` the narrowest it may get (minimumSizeHint). 0 and 0 restore Qt's own hints.
+  void set_shrink_widths(int natural, int minimum);
+  // The box width Qt asks for: the longest entry plus the frame and arrow.
+  [[nodiscard]] int longest_entry_box_width() const;
+  // What the closed box draws: the current entry, shortened when the box is too narrow.
+  [[nodiscard]] QString displayed_text() const;
+  // What hovering shows: the tooltip, with the whole entry on a second line while the
+  // box shortens it.
+  [[nodiscard]] QString hover_text() const;
+  [[nodiscard]] QSize sizeHint() const override;
+  [[nodiscard]] QSize minimumSizeHint() const override;
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
+  bool event(QEvent* event) override;
+  void paintEvent(QPaintEvent* event) override;
 
 private:
   QObject* watched_popup_{nullptr};
+  int natural_width_{0};
+  int shrink_minimum_width_{0};
 };
 
 }  // namespace patchy::ui

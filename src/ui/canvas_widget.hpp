@@ -1272,6 +1272,29 @@ public:
   [[nodiscard]] QString apply_scripted_free_transform(
       LayerId layer_id, const std::function<std::array<QPointF, 4>(const std::array<QPointF, 4>& box)>& place,
       std::optional<TransformInterpolation> interpolation);
+  // The Properties panel's layer size and position fields (GitHub issue 693). The frame is
+  // the box Free Transform starts on for the layer selection (the active layer when no row
+  // is selected): one layer's content, or the union of a folder's contents, a multi-layer
+  // selection or a link group. One smart object reads as its placement instead (the placed
+  // content's bounds, without its raster's soft edge). Always whole layers, a pixel
+  // selection changes nothing.
+  // `editable` is false when that session would refuse (a position lock, the Background,
+  // a preview-only smart object) or one is open: the frame is then only a readout.
+  // Empty when there is nothing to measure (no layer, no pixels, an adjustment layer) and
+  // for a lone shape layer or an artboard, which have Properties rows of their own.
+  struct LayerFrameState {
+    QRectF rect;
+    bool editable{false};
+  };
+  [[nodiscard]] std::optional<LayerFrameState> layer_frame_state() const;
+  // Puts that frame at `rect` (document pixels). A new size runs one Free Transform
+  // session scaled to it and committed at once with the interactive commit's rules
+  // (pixels resample with the current interpolation, text and smart objects keep their
+  // own transform, linked masks and linked layers follow), as one "Resize layer" history
+  // entry. The same size at another place is a plain move by whole pixels, like an
+  // arrow-key nudge ("Move layer"). False when nothing changed or the edit was refused
+  // (refusals reach the status bar).
+  bool set_layer_frame(const QRectF& rect);
   // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent) into the
   // working cage; manual handle drags flip the reported style back to warpCustom.
   void apply_warp_style_preset(const QString& style, double value);
@@ -3436,7 +3459,9 @@ private:
   void notify_transform_controls_changed();
   [[nodiscard]] QPointF transform_reference_position(QRectF document_rect, double angle_degrees) const;
   bool prepare_free_transform_source();
-  [[nodiscard]] TransformTargetCollection collect_free_transform_targets() const;
+  // `whole_layers` takes linked partners even with a pixel selection (the Properties
+  // panel's size fields, which never transform only the selected pixels).
+  [[nodiscard]] TransformTargetCollection collect_free_transform_targets(bool whole_layers = false) const;
   [[nodiscard]] static QRectF transform_targets_content_union(const std::vector<TransformTarget>& targets);
   bool begin_free_transform_multi(TransformTargetCollection collection);
   bool ensure_transform_multi_snapshot();
@@ -4337,6 +4362,9 @@ private:
   // Set while Straighten Layer opens its Free Transform session: the whole layer turns,
   // never just the selected pixels (floating_selection_rect_for_layer).
   bool transform_ignores_selection_{false};
+  // Set while set_layer_frame runs its session: linked layers follow even with a pixel
+  // selection (collect_free_transform_targets).
+  bool transform_takes_whole_layers_{false};
   // Artboard tool gesture state (canvas_widget_artboard.cpp), document space.
   enum class ArtboardDragMode { None, Create, Move, Resize };
   ArtboardDragMode artboard_drag_mode_{ArtboardDragMode::None};

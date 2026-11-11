@@ -8,6 +8,7 @@
 #include "core/smart_object.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/smart_object_render.hpp"
 #include "local_psd_fixtures.hpp"
 #include "scripting_test_support.hpp"
@@ -21,6 +22,8 @@
 #include <QColor>
 #include <QDoubleSpinBox>
 #include <QImage>
+#include <QLabel>
+#include <QLineEdit>
 #include <QList>
 #include <QMenu>
 #include <QPainter>
@@ -41,6 +44,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1291,6 +1295,527 @@ void ui_move_box_ctrl_toggles_distort_mid_drag() {
   CHECK(canvas->active_layer_document_rect() == bounds);
 }
 
+// GitHub issue 693: the Properties panel's W, H, X and Y rows for pixel, text and smart
+// object layers and folders. The fields show the frame Free Transform starts on, in the
+// ruler unit; an edit runs that transform (or a plain move) as one undo step.
+struct LayerSizeFields {
+  QWidget* panel{nullptr};
+  QDoubleSpinBox* width{nullptr};
+  QDoubleSpinBox* height{nullptr};
+  QDoubleSpinBox* x{nullptr};
+  QDoubleSpinBox* y{nullptr};
+  QPushButton* link{nullptr};
+};
+
+LayerSizeFields layer_size_fields(patchy::ui::MainWindow& window) {
+  // The rows are measured only while the Properties panel shows; it starts collapsed.
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  process_events_for(50);
+  LayerSizeFields fields;
+  fields.panel = window.findChild<QWidget*>(QStringLiteral("propertiesLayerSizePanel"));
+  fields.width = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesLayerWidthSpin"));
+  fields.height = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesLayerHeightSpin"));
+  fields.x = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesLayerXSpin"));
+  fields.y = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesLayerYSpin"));
+  fields.link = window.findChild<QPushButton*>(QStringLiteral("propertiesLayerLinkSizeButton"));
+  CHECK(fields.panel != nullptr && fields.width != nullptr && fields.height != nullptr);
+  CHECK(fields.x != nullptr && fields.y != nullptr && fields.link != nullptr);
+  return fields;
+}
+
+// A capture shows the values, not what the test's typing left selected.
+void deselect_field_text(const LayerSizeFields& fields) {
+  for (auto* spin : {fields.width, fields.height, fields.x, fields.y}) {
+    if (auto* editor = spin->findChild<QLineEdit*>(); editor != nullptr) {
+      editor->deselect();
+    }
+  }
+  QApplication::processEvents();
+}
+
+// The debounce (250 ms) and the apply.
+void settle_layer_size_edit() {
+  process_events_for(450);
+}
+
+void type_in_field(QDoubleSpinBox& spin, const QString& text) {
+  auto* editor = spin.findChild<QLineEdit*>();
+  CHECK(editor != nullptr);
+  editor->setText(text);
+  send_key(spin, Qt::Key_Return);
+  QApplication::processEvents();
+}
+
+QRectF layer_frame(patchy::ui::CanvasWidget& canvas) {
+  const auto state = canvas.layer_frame_state();
+  CHECK(state.has_value());
+  return state.has_value() ? state->rect : QRectF();
+}
+
+bool fields_show(const LayerSizeFields& fields, const QRectF& frame) {
+  return std::abs(fields.width->value() - frame.width()) < 0.05 &&
+         std::abs(fields.height->value() - frame.height()) < 0.05 &&
+         std::abs(fields.x->value() - frame.left()) < 0.05 && std::abs(fields.y->value() - frame.top()) < 0.05;
+}
+
+std::vector<std::uint8_t> layer_pixel_bytes(const patchy::Layer& layer) {
+  std::vector<std::uint8_t> bytes;
+  const auto& pixels = layer.pixels();
+  for (std::int32_t row = 0; row < pixels.height(); ++row) {
+    const auto span = pixels.row(row);
+    bytes.insert(bytes.end(), span.begin(), span.end());
+  }
+  return bytes;
+}
+
+patchy::Layer size_test_layer(patchy::Document& document, const char* name, patchy::Rect bounds, QColor color) {
+  patchy::Layer layer(document.allocate_layer_id(), name,
+                      solid_pixels(bounds.width, bounds.height, patchy::PixelFormat::rgba8(), color));
+  layer.set_bounds(bounds);
+  return layer;
+}
+
+void ui_properties_layer_size_fields_resize_and_move_a_pixel_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  // 100 ppi: 1 in is 100 px and 2 cm is 78.74 px, which lands on 79 whole pixels.
+  patchy::Document source(400, 300, patchy::PixelFormat::rgb8());
+  source.print_settings().horizontal_ppi = 100.0;
+  source.print_settings().vertical_ppi = 100.0;
+  source.add_pixel_layer("Paper", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  auto photo = size_test_layer(source, "Photo", patchy::Rect{60, 40, 120, 80}, QColor(200, 60, 40));
+  // A gradient, so a resample that is not undone exactly would show.
+  for (std::int32_t row = 0; row < 80; ++row) {
+    auto span = photo.pixels().row(row);
+    for (std::int32_t column = 0; column < 120; ++column) {
+      span[static_cast<std::size_t>(column) * 4U] = static_cast<std::uint8_t>(column * 2);
+      span[static_cast<std::size_t>(column) * 4U + 1U] = static_cast<std::uint8_t>(row * 3);
+    }
+  }
+  const auto photo_id = photo.id();
+  source.add_layer(std::move(photo));
+  auto other = size_test_layer(source, "Other", patchy::Rect{250, 200, 50, 30}, QColor(40, 90, 200));
+  const auto other_id = other.id();
+  source.add_layer(std::move(other));
+
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(source), QStringLiteral("Size Fields"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto& document = Access::document(window);
+  Access::select_layers(window, {photo_id}, photo_id);
+  QApplication::processEvents();
+  const auto fields = layer_size_fields(window);
+  const auto photo_layer = [&]() -> const patchy::Layer& { return *std::as_const(document).find_layer(photo_id); };
+
+  // Shown and live for a pixel layer, proportions linked by default.
+  CHECK(!fields.panel->isHidden() && fields.panel->isEnabled());
+  CHECK(fields.link->isChecked());
+  CHECK(fields_show(fields, QRectF(60, 40, 120, 80)));
+  CHECK(window.findChild<QWidget*>(QStringLiteral("propertiesShapeSizePanel"))->isHidden());
+  const auto original_pixels = layer_pixel_bytes(photo_layer());
+  const auto original_revision = photo_layer().pixel_revision();
+  const auto depth = Access::active_session_undo_depth(window);
+
+  // Reading the frame is not an edit, and neither is a value that did not change.
+  settle_layer_size_edit();
+  fields.width->setValue(120.0);
+  settle_layer_size_edit();
+  CHECK(Access::active_session_undo_depth(window) == depth);
+  CHECK(photo_layer().pixel_revision() == original_revision);
+
+  // Linked: W 240 doubles H; the top-left corner stays. One undo step, undone exactly.
+  fields.width->setValue(240.0);
+  CHECK(std::abs(fields.height->value() - 160.0) < 0.05);
+  settle_layer_size_edit();
+  CHECK(layer_frame(*canvas) == QRectF(60, 40, 240, 160));
+  CHECK(fields_show(fields, QRectF(60, 40, 240, 160)));
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Resize layer"));
+  CHECK(!canvas->free_transform_active());
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(photo_layer().bounds() == (patchy::Rect{60, 40, 120, 80}));
+  CHECK(layer_pixel_bytes(photo_layer()) == original_pixels);
+  CHECK(fields_show(fields, QRectF(60, 40, 120, 80)));
+  CHECK(Access::active_session_undo_depth(window) == depth);
+
+  // Typed units at the document's resolution; unlinked, the other side stays.
+  fields.link->setChecked(false);
+  type_in_field(*fields.height, QStringLiteral("1 in"));
+  settle_layer_size_edit();
+  CHECK(layer_frame(*canvas) == QRectF(60, 40, 120, 100));
+  type_in_field(*fields.width, QStringLiteral("2 cm"));
+  settle_layer_size_edit();
+  CHECK(layer_frame(*canvas) == QRectF(60, 40, 79, 100));
+  CHECK(Access::active_session_undo_depth(window) == depth + 2);
+  // Each field keeps the unit that was typed into it.
+  CHECK(fields.height->text().contains(QStringLiteral("in")));
+  CHECK(fields.width->text().contains(QStringLiteral("cm")));
+
+  // X and Y move the layer: the pixels are not resampled.
+  const auto resized_pixels = layer_pixel_bytes(photo_layer());
+  const auto resized_revision = photo_layer().pixel_revision();
+  type_in_field(*fields.x, QStringLiteral("10 px"));
+  settle_layer_size_edit();
+  type_in_field(*fields.y, QStringLiteral("0.5 in"));
+  settle_layer_size_edit();
+  CHECK(layer_frame(*canvas) == QRectF(10, 50, 79, 100));
+  CHECK(photo_layer().pixel_revision() == resized_revision);
+  CHECK(layer_pixel_bytes(photo_layer()) == resized_pixels);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Move layer"));
+  CHECK(Access::active_session_undo_depth(window) == depth + 4);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(layer_frame(*canvas) == QRectF(10, 40, 79, 100));
+
+  // A selection change is not an edit, and a value typed just before it goes nowhere.
+  const auto depth_before_switch = Access::active_session_undo_depth(window);
+  Access::select_layers(window, {other_id}, other_id);
+  settle_layer_size_edit();
+  CHECK(fields_show(fields, QRectF(250, 200, 50, 30)));
+  CHECK(Access::active_session_undo_depth(window) == depth_before_switch);
+  fields.width->setValue(90.0);
+  Access::select_layers(window, {photo_id}, photo_id);
+  settle_layer_size_edit();
+  CHECK(Access::active_session_undo_depth(window) == depth_before_switch);
+  CHECK(std::as_const(document).find_layer(other_id)->bounds() == (patchy::Rect{250, 200, 50, 30}));
+  CHECK(layer_frame(*canvas) == QRectF(10, 40, 79, 100));
+  CHECK(fields_show(fields, QRectF(10, 40, 79, 100)));
+
+  // The fields follow the ruler unit, like the shape rows.
+  Access::set_ruler_unit_preference(window, patchy::ui::MeasurementUnit::Centimeters);
+  QApplication::processEvents();
+  for (auto* spin : {fields.width, fields.height, fields.x, fields.y}) {
+    CHECK(spin->text().contains(QStringLiteral("cm")));
+  }
+  CHECK(std::abs(fields.height->value() - 100.0) < 0.05);  // still pixels underneath
+  Access::show_panel(window, QStringLiteral("propertiesDock"));
+  process_events_for(200);
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesPanel")); panel != nullptr) {
+    CHECK(fields.height->mapTo(panel, fields.height->rect().bottomRight()).x() <= panel->width());
+    deselect_field_text(fields);
+    save_widget_artifact("ui_properties_layer_size_fields_pixel_layer_cm", *panel);
+  }
+  Access::set_ruler_unit_preference(window, patchy::ui::MeasurementUnit::Pixels);
+  QApplication::processEvents();
+}
+
+void ui_properties_layer_size_fields_keep_text_and_smart_objects_live() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto smart_id = open_smart_object_fixture(window);
+  auto* canvas = require_canvas(window);
+  auto& document = Access::document(window);
+  Access::select_layers(window, {smart_id}, smart_id);
+  QApplication::processEvents();
+  const auto fields = layer_size_fields(window);
+  const auto smart_layer = [&]() -> const patchy::Layer& { return *std::as_const(document).find_layer(smart_id); };
+
+  // A smart object: its placement scales, the layer stays a smart object.
+  CHECK(!fields.panel->isHidden() && fields.panel->isEnabled());
+  const auto smart_frame = layer_frame(*canvas);
+  CHECK(fields_show(fields, smart_frame));
+  const auto placement_before = patchy::smart_object_placement_from_layer(smart_layer());
+  const auto smart_bounds_before = smart_layer().bounds();
+  const auto smart_pixels_before = layer_pixel_bytes(smart_layer());
+  CHECK(placement_before.has_value());
+  const auto depth = Access::active_session_undo_depth(window);
+  const auto wanted_smart_width = std::round(smart_frame.width() * 1.5);
+  fields.width->setValue(wanted_smart_width);
+  settle_layer_size_edit();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Resize layer"));
+  CHECK(patchy::layer_is_smart_object(smart_layer()));
+  CHECK(patchy::smart_object_lock_reason(smart_layer()).empty());
+  CHECK(!smart_object_placements_equal(placement_before, patchy::smart_object_placement_from_layer(smart_layer())));
+  auto resized_smart_frame = layer_frame(*canvas);
+  std::cout << "[INFO] smart object frame " << smart_frame.width() << " x " << smart_frame.height() << " at "
+            << smart_frame.left() << ", " << smart_frame.top() << " -> " << resized_smart_frame.width() << " x "
+            << resized_smart_frame.height() << " at " << resized_smart_frame.left() << ", "
+            << resized_smart_frame.top() << " (asked for width " << wanted_smart_width << ")\n";
+  // The placement lands exactly on the typed frame (whole pixels), top-left corner kept.
+  CHECK(std::abs(resized_smart_frame.width() - wanted_smart_width) <= 0.05);
+  CHECK(std::abs(resized_smart_frame.height() - smart_frame.height() * wanted_smart_width / smart_frame.width()) <= 1.0);
+  CHECK(std::abs(resized_smart_frame.left() - std::floor(smart_frame.left() + 0.5)) <= 0.05);
+  CHECK(std::abs(resized_smart_frame.top() - std::floor(smart_frame.top() + 0.5)) <= 0.05);
+  CHECK(fields_show(fields, resized_smart_frame));
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(smart_object_placements_equal(placement_before, patchy::smart_object_placement_from_layer(smart_layer())));
+  CHECK(smart_layer().bounds() == smart_bounds_before);
+  CHECK(layer_pixel_bytes(smart_layer()) == smart_pixels_before);
+  // Again, for the saved file below.
+  fields.width->setValue(wanted_smart_width);
+  settle_layer_size_edit();
+  const auto placement_after = patchy::smart_object_placement_from_layer(smart_layer());
+  resized_smart_frame = layer_frame(*canvas);
+
+  // A text layer: its transform scales, the text stays editable type.
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  const QPoint text_from(document.width() / 6, document.height() / 6);
+  const QPoint text_to(document.width() / 2, document.height() / 2);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(text_from),
+       canvas->widget_position_for_document_point(text_to));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Resize me"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  process_events_for(120);
+  CHECK(document.active_layer_id().has_value());
+  const auto text_id = *document.active_layer_id();
+  const auto text_layer = [&]() -> const patchy::Layer& { return *std::as_const(document).find_layer(text_id); };
+  CHECK(patchy::layer_is_text(text_layer()));
+  Access::select_layers(window, {text_id}, text_id);
+  QApplication::processEvents();
+  CHECK(!fields.panel->isHidden() && fields.panel->isEnabled());
+  const auto text_frame = layer_frame(*canvas);
+  CHECK(fields_show(fields, text_frame));
+  const auto text_metadata_before = text_layer().metadata();
+  const auto text_bounds_before = text_layer().bounds();
+  const auto text_depth = Access::active_session_undo_depth(window);
+  const auto wanted_text_height = std::round(text_frame.height() * 0.5);
+  fields.height->setValue(wanted_text_height);
+  settle_layer_size_edit();
+  CHECK(Access::active_session_undo_depth(window) == text_depth + 1);
+  CHECK(patchy::layer_is_text(text_layer()));
+  CHECK(text_layer().metadata().count(patchy::kLayerMetadataTextTransform) == 1U);
+  CHECK(text_layer().metadata() != text_metadata_before);
+  const auto resized_text_frame = layer_frame(*canvas);
+  CHECK(std::abs(resized_text_frame.height() - wanted_text_height) <= 2.0);
+  CHECK(std::abs(resized_text_frame.width() - text_frame.width() * 0.5) <= 2.0);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(text_layer().metadata() == text_metadata_before);
+  CHECK(text_layer().bounds() == text_bounds_before);
+  fields.height->setValue(wanted_text_height);
+  settle_layer_size_edit();
+  CHECK(patchy::layer_is_text(text_layer()));
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesPanel")); panel != nullptr) {
+    Access::set_ruler_unit_preference(window, patchy::ui::MeasurementUnit::Centimeters);
+    Access::show_panel(window, QStringLiteral("propertiesDock"));
+    process_events_for(200);
+    deselect_field_text(fields);
+    // The panel's File line names the fixture's folder on the machine running the test:
+    // the shareable capture starts at the Layer line below it.
+    const auto shot = capture_widget_artifact("ui_properties_layer_size_fields_text_layer_cm_panel", *panel);
+    if (auto* layer_line = panel->findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+        layer_line != nullptr && !shot.isNull()) {
+      const auto top = std::clamp(static_cast<int>(std::lround((layer_line->y() - 4) * shot.devicePixelRatio())), 0,
+                                  shot.height() - 1);
+      save_image_artifact("ui_properties_layer_size_fields_text_layer_cm",
+                          shot.copy(0, top, shot.width(), shot.height() - top));
+    }
+    Access::set_ruler_unit_preference(window, patchy::ui::MeasurementUnit::Pixels);
+    QApplication::processEvents();
+  }
+
+  // The saved PSD holds both edits: the Photoshop acceptance file.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  ensure_artifact_dir();
+  {
+    std::ofstream out("test-artifacts/properties_layer_size_fields.psd", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  }
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* reread_smart = nullptr;
+  const patchy::Layer* reread_text = nullptr;
+  for (const auto& candidate : reread.layers()) {
+    if (patchy::layer_is_smart_object(candidate) && candidate.name() == smart_layer().name()) {
+      reread_smart = &candidate;
+    } else if (patchy::layer_is_text(candidate)) {
+      reread_text = &candidate;
+    }
+  }
+  CHECK(reread_smart != nullptr && reread_text != nullptr);
+  if (reread_smart == nullptr || reread_text == nullptr) {
+    return;
+  }
+  CHECK(smart_object_placements_equal(placement_after, patchy::smart_object_placement_from_layer(*reread_smart)));
+  CHECK(patchy::smart_object_lock_reason(*reread_smart).empty());
+  CHECK(reread_smart->bounds() == smart_layer().bounds());
+  CHECK(std::abs(reread_text->bounds().width - text_layer().bounds().width) <= 1);
+  CHECK(std::abs(reread_text->bounds().height - text_layer().bounds().height) <= 1);
+  CHECK(std::abs(reread_text->bounds().x - text_layer().bounds().x) <= 1);
+  CHECK(std::abs(reread_text->bounds().y - text_layer().bounds().y) <= 1);
+  CHECK(reread_text->metadata().count(patchy::kLayerMetadataTextTransform) == 1U);
+}
+
+void ui_properties_layer_size_fields_folders_links_masks_and_locks() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::Document source(400, 300, patchy::PixelFormat::rgb8());
+  source.add_pixel_layer("Paper", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer folder(source.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  auto left = size_test_layer(source, "Left", patchy::Rect{40, 40, 60, 40}, QColor(200, 60, 40));
+  auto right = size_test_layer(source, "Right", patchy::Rect{120, 60, 40, 60}, QColor(40, 160, 80));
+  const auto left_id = left.id();
+  const auto right_id = right.id();
+  folder.add_child(std::move(left));
+  folder.add_child(std::move(right));
+  const auto folder_id = folder.id();
+  source.add_layer(std::move(folder));
+  auto masked = size_test_layer(source, "Masked", patchy::Rect{220, 40, 80, 60}, QColor(40, 90, 200));
+  {
+    patchy::LayerMask mask;
+    mask.bounds = patchy::Rect{230, 50, 40, 30};
+    mask.pixels = patchy::PixelBuffer(40, 30, patchy::PixelFormat::gray8());
+    for (std::int32_t row = 0; row < 30; ++row) {
+      auto span = mask.pixels.row(row);
+      std::fill(span.begin(), span.end(), std::uint8_t{255});
+    }
+    mask.default_color = 0;
+    masked.set_mask(std::move(mask));
+  }
+  const auto masked_id = masked.id();
+  source.add_layer(std::move(masked));
+  auto partner = size_test_layer(source, "Partner", patchy::Rect{220, 200, 40, 40}, QColor(160, 60, 200));
+  const auto partner_id = partner.id();
+  source.add_layer(std::move(partner));
+  patchy::Layer empty(source.allocate_layer_id(), "Empty", patchy::PixelBuffer());
+  const auto empty_id = empty.id();
+  source.add_layer(std::move(empty));
+  auto locked = size_test_layer(source, "Locked", patchy::Rect{300, 220, 30, 20}, QColor(90, 90, 90));
+  locked.set_lock_flags(patchy::kLayerLockPosition);
+  const auto locked_id = locked.id();
+  source.add_layer(std::move(locked));
+  patchy::Layer adjustment(source.allocate_layer_id(), "Adjustment", patchy::LayerKind::Adjustment);
+  const auto adjustment_id = adjustment.id();
+  source.add_layer(std::move(adjustment));
+  patchy::Layer shape(source.allocate_layer_id(), "Shape", patchy::PixelBuffer());
+  {
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 40;
+    params.top = 200;
+    params.right = 140;
+    params.bottom = 260;
+    patchy::populate_live_shape_box_corners(params);
+    patchy::VectorShapeContent content;
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination.push_back(params);
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{60, 130, 230};
+    shape.set_vector_shape(std::move(content));
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(400, 300), nullptr);
+  }
+  const auto shape_id = shape.id();
+  source.add_layer(std::move(shape));
+
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(source), QStringLiteral("Size Field States"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto& document = Access::document(window);
+  const auto fields = layer_size_fields(window);
+  const auto bounds_of = [&](patchy::LayerId id) { return std::as_const(document).find_layer(id)->bounds(); };
+  fields.link->setChecked(false);
+
+  // A folder: the union of its children; a new size transforms them together.
+  Access::select_layers(window, {folder_id}, folder_id);
+  QApplication::processEvents();
+  CHECK(!fields.panel->isHidden() && fields.panel->isEnabled());
+  CHECK(fields_show(fields, QRectF(40, 40, 120, 80)));
+  auto depth = Access::active_session_undo_depth(window);
+  fields.width->setValue(240.0);
+  settle_layer_size_edit();
+  CHECK(layer_frame(*canvas) == QRectF(40, 40, 240, 80));
+  CHECK(bounds_of(left_id) == (patchy::Rect{40, 40, 120, 40}));
+  CHECK(bounds_of(right_id) == (patchy::Rect{200, 60, 80, 60}));
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Resize layers"));
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(bounds_of(left_id) == (patchy::Rect{40, 40, 60, 40}));
+  CHECK(bounds_of(right_id) == (patchy::Rect{120, 60, 40, 60}));
+  // X moves every child.
+  fields.x->setValue(20.0);
+  settle_layer_size_edit();
+  CHECK(bounds_of(left_id) == (patchy::Rect{20, 40, 60, 40}));
+  CHECK(bounds_of(right_id) == (patchy::Rect{100, 60, 40, 60}));
+  CHECK(Access::current_history_label(window) == QStringLiteral("Move layers"));
+  Access::undo(window);
+  QApplication::processEvents();
+
+  // Several selected layers read and transform as one frame.
+  Access::select_layers(window, {left_id, partner_id}, left_id);
+  QApplication::processEvents();
+  CHECK(!fields.panel->isHidden() && fields.panel->isEnabled());
+  CHECK(fields_show(fields, QRectF(40, 40, 220, 200)));
+
+  // A linked raster mask follows a resize, as in Free Transform.
+  Access::select_layers(window, {masked_id}, masked_id);
+  QApplication::processEvents();
+  CHECK(fields_show(fields, QRectF(220, 40, 80, 60)));
+  fields.width->setValue(160.0);
+  settle_layer_size_edit();
+  CHECK(layer_frame(*canvas) == QRectF(220, 40, 160, 60));
+  {
+    const auto& mask = std::as_const(document).find_layer(masked_id)->mask();
+    CHECK(mask.has_value());
+    if (mask.has_value()) {
+      CHECK(std::abs(mask->bounds.x - 240) <= 1);
+      CHECK(std::abs(mask->bounds.width - 80) <= 1);
+      CHECK(mask->bounds.y == 50 && mask->bounds.height == 30);
+    }
+  }
+  Access::undo(window);
+  QApplication::processEvents();
+
+  // Linked layers: the frame is the link group's, and both follow an edit.
+  Access::select_layers(window, {masked_id, partner_id}, masked_id);
+  QApplication::processEvents();
+  require_action(window, "layerLinkAction")->trigger();
+  QApplication::processEvents();
+  Access::select_layers(window, {partner_id}, partner_id);
+  QApplication::processEvents();
+  CHECK(fields_show(fields, QRectF(220, 40, 80, 200)));
+  fields.y->setValue(20.0);
+  settle_layer_size_edit();
+  CHECK(bounds_of(masked_id) == (patchy::Rect{220, 20, 80, 60}));
+  CHECK(bounds_of(partner_id) == (patchy::Rect{220, 180, 40, 40}));
+  Access::undo(window);
+  QApplication::processEvents();
+
+  // Nothing to measure: no rows. A locked layer: its size reads, the fields are off.
+  Access::select_layers(window, {empty_id}, empty_id);
+  QApplication::processEvents();
+  CHECK(fields.panel->isHidden());
+  CHECK(!canvas->layer_frame_state().has_value());
+  Access::select_layers(window, {locked_id}, locked_id);
+  QApplication::processEvents();
+  CHECK(!fields.panel->isHidden());
+  CHECK(!fields.panel->isEnabled() && !fields.width->isEnabled() && !fields.x->isEnabled());
+  CHECK(fields_show(fields, QRectF(300, 220, 30, 20)));
+  depth = Access::active_session_undo_depth(window);
+  CHECK(!canvas->set_layer_frame(QRectF(300, 220, 60, 40)));
+  CHECK(bounds_of(locked_id) == (patchy::Rect{300, 220, 30, 20}));
+  CHECK(Access::active_session_undo_depth(window) == depth);
+
+  // An adjustment layer has no rows; a shape layer keeps its own; a folder holding it
+  // takes the layer rows.
+  Access::select_layers(window, {adjustment_id}, adjustment_id);
+  QApplication::processEvents();
+  CHECK(fields.panel->isHidden());
+  Access::select_layers(window, {shape_id}, shape_id);
+  QApplication::processEvents();
+  CHECK(patchy::layer_is_vector_shape(*std::as_const(document).find_layer(shape_id)));
+  CHECK(fields.panel->isHidden());
+  CHECK(!canvas->layer_frame_state().has_value());
+  CHECK(!window.findChild<QWidget*>(QStringLiteral("propertiesShapeSizePanel"))->isHidden());
+  Access::select_layers(window, {shape_id, left_id}, shape_id);
+  QApplication::processEvents();
+  CHECK(!fields.panel->isHidden() && fields.panel->isEnabled());
+  CHECK(fields_show(fields, QRectF(40, 40, 100, 220)));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> free_transform_distort_tests() {
@@ -1320,5 +1845,11 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_move_box_ctrl_drag_corner_distorts", ui_move_box_ctrl_drag_corner_distorts},
       {"ui_move_box_ctrl_drag_side_distorts_and_skews", ui_move_box_ctrl_drag_side_distorts_and_skews},
       {"ui_move_box_ctrl_toggles_distort_mid_drag", ui_move_box_ctrl_toggles_distort_mid_drag},
+      {"ui_properties_layer_size_fields_resize_and_move_a_pixel_layer",
+       ui_properties_layer_size_fields_resize_and_move_a_pixel_layer},
+      {"ui_properties_layer_size_fields_keep_text_and_smart_objects_live",
+       ui_properties_layer_size_fields_keep_text_and_smart_objects_live},
+      {"ui_properties_layer_size_fields_folders_links_masks_and_locks",
+       ui_properties_layer_size_fields_folders_links_masks_and_locks},
   };
 }

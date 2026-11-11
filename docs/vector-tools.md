@@ -69,7 +69,10 @@ scales the shape about its top-left through `transform_layer_vector_data`
 (live shapes stay live; one "Shape size" undo per edit). The Properties panel
 repeats the row (`propertiesShapeSizePanel`) for an active editable shape
 layer; both share `handle_vector_shape_size_value_changed`
-(`ui_shape_size_controls_follow_move_and_properties_selection`).
+(`ui_shape_size_controls_follow_move_and_properties_selection`). The rows are built by
+`MainWindow::build_properties_size_panel`, which also builds the rows every other layer
+kind gets ([free-transform-targets.md](free-transform-targets.md#size-fields-in-the-properties-panel-github-issue-693));
+a lone shape layer shows only the shape rows.
 
 ### Handles and drag points on the shape tools (GitHub #690)
 

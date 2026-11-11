@@ -19238,6 +19238,14 @@ Do you want to replace it?</source>
         <source>Smudge strength: %1%</source>
         <translation>Intensidad del dedo: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>Cambiar tamaño de capas</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>Cambiar tamaño de capa</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35806,6 +35814,26 @@ Bloqueada: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Interior mantiene este trazo dentro del Grosor de la línea. Elija Centro o Exterior en Alinear, en Aspecto de la forma, para que la línea sea más gruesa.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>Ancho de la capa</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>Mantener proporcionales el ancho y el alto de la capa</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>Alto de la capa</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>Borde izquierdo de la capa</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>Borde superior de la capa</translation>
     </message>
 </context>
 <context>

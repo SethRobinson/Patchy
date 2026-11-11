@@ -219,7 +219,8 @@ decimals and step before it shows another unit, never while one is shown.
 
 `view/rulerUnits` is also the display unit of the pixel-native position and size fields,
 Photoshop's Units & Rulers model: the transform X/Y fields, the shape W/H readouts (options
-bar and Properties panel), the Properties panel's shape X/Y and live-rectangle Radius, the
+bar and Properties panel), the Properties panel's shape X/Y and live-rectangle Radius, its
+layer W/H/X/Y rows ([free-transform-targets.md](free-transform-targets.md#size-fields-in-the-properties-panel-github-issue-693)), the
 vector stroke width and line weight (both fractional px so a 0.5 mm hairline survives), the
 New Guide position, the New Guide Layout gutters and margins, and the Shape Appearance and
 Create Shape dialogs' X/Y/W/H, line start/end, line weight and stroke width. The transform
