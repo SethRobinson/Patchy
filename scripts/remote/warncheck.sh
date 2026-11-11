@@ -29,6 +29,20 @@ patchy_warncheck_list() {
   grep -vE '^\[[0-9]+/[0-9]+\] ' "$1" | grep -iE "$PATCHY_WARNCHECK_RE" | sort -u | head -40 | sed 's/^/  /' || true
 }
 
+# patchy_warncheck_report <name> <log>: the count and the lines of a package build's log,
+# report only. A function so release-linux.ps1's ssh command needs no double quotes: Windows
+# PowerShell 5.1 drops them from a native command's argument. linuxdeploy and its plug-ins
+# print over a hundred "WARNING: ..." lines of their own at the start of a line (no copyright
+# file, strip not called), which no compiler does: those are left out.
+patchy_warncheck_report() {
+  local kept
+  kept=$(mktemp "${TMPDIR:-/tmp}/patchy-warncheck-report.XXXXXX")
+  grep -vE '^(\[[A-Za-z0-9_-]+/std(out|err)\] )?WARNING: ' "$2" > "$kept" || true
+  echo "== warning lines in the $1 package build: $(patchy_warncheck_count "$kept") (log $2) =="
+  patchy_warncheck_list "$kept"
+  rm -f "$kept"
+}
+
 # The compiler (its path and --version line), the CFLAGS and CXXFLAGS a first configure
 # would read, and Qt (Qt6ConfigVersion.cmake) a configured build directory uses, as one
 # checksum. Never fails: an unreadable part just changes it.

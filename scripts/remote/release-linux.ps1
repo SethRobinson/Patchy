@@ -137,7 +137,7 @@ if ($LASTEXITCODE -ne 0) { throw 'make-appimage.sh failed on the linux build hos
 # The warning lines of the two package compiles (the Flatpak's GCC with its hardening flags,
 # the AppImage's gcc-12), counted as the warning check counts them (warncheck.sh). Reported,
 # not failed on: the packagers' own tools also print the word. Read every line listed.
-ssh -n $remoteHost '. ~/patchy/src/scripts/remote/warncheck.sh; for f in flatpak appimage; do log="$HOME/patchy/src/build/release-$f-build.log"; echo "== warning lines in the $f package build: $(patchy_warncheck_count "$log") (log $log) =="; patchy_warncheck_list "$log"; done'
+ssh -n $remoteHost '. ~/patchy/src/scripts/remote/warncheck.sh; for f in flatpak appimage; do patchy_warncheck_report $f $HOME/patchy/src/build/release-$f-build.log; done'
 if ($LASTEXITCODE -ne 0) { throw 'could not count the package build warnings on the linux build host' }
 
 $dest = Join-Path $repoRoot 'build\package'
