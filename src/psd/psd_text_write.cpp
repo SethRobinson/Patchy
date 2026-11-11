@@ -2204,6 +2204,8 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
         run.direction = "rtl";
       }
     }
+    // Patchy's left and right indents go out as Photoshop's start and end ones.
+    swap_right_to_left_paragraph_indents(paragraph_runs);
   }
   // Qt-natural layers advance lines by Qt's line height, not Photoshop's 1.2 x size; the
   // renderer records that pitch as a fraction (kLayerMetadataTextAutoLeading) and it rides the

@@ -6,6 +6,7 @@
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
 #include "ui/alpha_row_bands.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/text_document.hpp"
@@ -29,8 +30,11 @@
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextEdit>
 #include <QTimer>
+#include <QWidget>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -698,6 +702,119 @@ void ui_issue_683_hebrew_psd_justified_lines_reach_both_edges_if_available() {
   write_psd_artifact(live, "issue_683_hebrew_justified_patchy.psd");
 }
 
+// GitHub issue 683 (follow-up 3): the reporter's "Indent left 40pt, Indent First Line 20pt" layer
+// (right to left, justified). Photoshop draws the 40 pt Indent Left (its /EndIndent) on the left
+// and the first-line indent on the right. A re-render was pinned to the file's ink box, which hid
+// that Patchy laid the 40 pt out on the right; a box resize drops that pin and the gap jumped to
+// the right edge. Patchy now reads Photoshop's start and end indents as the paragraph's sides, so
+// after a resize the gap stays on the left and the first line starts 20 pt in from the right.
+void ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-683/arabic-rtl-settings-photoshop.psd");
+  patchy::test::skip_unless_exists(path);
+  register_test_fonts(TestFontRole::UiDefault);
+  if (QFontDatabase::families(QFontDatabase::Arabic).isEmpty()) {
+    patchy::test::skip("no Arabic-capable font available on this machine");
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId id{};
+  for (auto& layer : document.layers()) {
+    if (patchy::layer_is_text(layer)) {
+      // Adobe Arabic is not on every host: a Photoshop raster preview would ask first.
+      layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+      if (layer.name().rfind("Indent left 40pt", 0) == 0) {
+        id = layer.id();
+      }
+    }
+  }
+  CHECK(id != patchy::LayerId{});
+  if (id == patchy::LayerId{}) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Arabic indents 683"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  // Hosts without Adobe Arabic ask before editing: continue with the stand-in font.
+  QTimer missing_font_watcher;
+  missing_font_watcher.setInterval(50);
+  QObject::connect(&missing_font_watcher, &QTimer::timeout, [] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      return;
+    }
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      if (dialog->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+  });
+  missing_font_watcher.start();
+  patchy::ui::MainWindowTestAccess::edit_text_layer(window, id);
+  process_events_for(300);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  // Drag the bottom handle down: the width, and so the line breaks, stay as they are.
+  auto* bottom = canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottom"), Qt::FindDirectChildrenOnly);
+  CHECK(bottom != nullptr && bottom->isVisible());
+  if (bottom == nullptr) {
+    return;
+  }
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  const auto center = bottom->geometry().center();
+  drag(*canvas, center, center + QPoint(0, 30));
+  process_events_for(200);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  const auto box_left = editor->property("patchy.documentTextX").toInt();
+  const auto box_right = box_left + editor->property("patchy.documentTextWidth").toInt();
+  send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+  process_events_for(300);
+  missing_font_watcher.stop();
+  const auto& live = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* layer = std::as_const(live).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  save_image_artifact("issue_683_rtl_indent_after_resize",
+                      image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)));
+  const auto lines = ink_lines(layer->pixels());
+  print_lines("resized", lines);
+  std::printf("  box %d-%d, layer x %d\n", box_left, box_right, layer->bounds().x);
+  std::fflush(stdout);
+  // The paragraph keeps 40 as its left indent (column 4) and 20 as its first-line indent.
+  const auto paragraph = QString::fromStdString(layer->metadata().at(patchy::kLayerMetadataTextParagraphRuns));
+  const auto fields = paragraph.split(QLatin1Char('\n')).value(1).split(QLatin1Char('\t'));
+  CHECK(std::abs(fields.value(3).toDouble() - 20.0) < 0.5 && std::abs(fields.value(4).toDouble() - 40.0) < 0.5 &&
+        std::abs(fields.value(5).toDouble()) < 0.5);
+  CHECK(lines.size() >= 4U);
+  if (lines.size() < 4U) {
+    return;
+  }
+  // Every line clears the 40 px Indent Left (a few px of side bearing aside); the justified middle
+  // lines reach the right edge; the first line stops about 20 px short of it.
+  for (std::size_t index = 0; index < lines.size(); ++index) {
+    const auto left = layer->bounds().x + lines[index].left;
+    const auto right = layer->bounds().x + lines[index].right;
+    CHECK(left >= box_left + 36);
+    if (index > 0 && index + 1 < lines.size()) {
+      CHECK(right >= box_right - 6);
+    }
+  }
+  const auto first_right = layer->bounds().x + lines.front().right;
+  CHECK(first_right <= box_right - 14 && first_right >= box_right - 28);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_rtl_psd_tests() {
@@ -716,5 +833,7 @@ std::vector<patchy::test::TestCase> text_rtl_psd_tests() {
        ui_issue_683_overflowing_box_text_reedit_keeps_its_glyphs},
       {"ui_issue_683_arabic_psd_rerenders_right_aligned_if_available",
        ui_issue_683_arabic_psd_rerenders_right_aligned_if_available},
+      {"ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available",
+       ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available},
   };
 }

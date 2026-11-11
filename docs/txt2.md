@@ -138,8 +138,8 @@ Paragraph sheet (`/1/1[i]/0/5/0[j]/0/0/5`, and `/0/6`, `/1/3`):
 |---|---|---|
 | `/0` | Justification | 0 left, 1 right, 2 center, then justified with the last line 3 left, 4 right, 5 centered, 6 justified too (Justify All); 4 and 5 pinned by a DOM readback of GitHub issue 672's file. Same values as the TySh |
 | `/1` | FirstLineIndent | px, negative for hanging |
-| `/2` | StartIndent | px |
-| `/3` | EndIndent | px |
+| `/2` | StartIndent | px, on the paragraph's start side (the right in a right-to-left paragraph) |
+| `/3` | EndIndent | px, on the end side; Patchy keeps left and right indents and swaps the two for `/33 1` ([calibration](text-render-calibration-vertical-rtl.md#paragraph-direction-right-to-left)) |
 | `/4` | SpaceBefore | px |
 | `/5` | SpaceAfter | px |
 | `/6` | (default sheets only) | 1 |

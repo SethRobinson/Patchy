@@ -1612,6 +1612,31 @@ void text_engine_issue_683_reporter_settings_survive_an_edit_if_available() {
     }
     CHECK(matches);
   }
+  // Indents: in a right-to-left paragraph Photoshop's /StartIndent is the right one and its
+  // /EndIndent the left one (this layer's 40 pt Indent Left is /EndIndent 40; its raster has the
+  // gap on the left). Patchy keeps left and right indents, so it reads 40 as the left indent, and
+  // the save writes it back as /EndIndent in both blocks. The first-line indent stays on the
+  // start side.
+  {
+    const auto index = layer_index_named(arabic.document, "Indent left 40pt");
+    CHECK(index >= 0);
+    const auto object = index >= 0 ? text_index_of(arabic.bytes, index) : std::nullopt;
+    CHECK(object.has_value());
+    if (index >= 0 && object.has_value()) {
+      const auto& layer = arabic.document.layers()[static_cast<std::size_t>(index)];
+      const auto metric = [&](std::size_t column) {
+        const auto values = metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, column);
+        return values.size() == 1U && !values.front().empty() ? std::stod(values.front()) : -1.0;
+      };
+      CHECK(std::abs(metric(3) - 20.0) < 0.01 && std::abs(metric(4) - 40.0) < 0.01 && std::abs(metric(5)) < 0.01);
+      CHECK(count_of(tysh_paragraph_runs(arabic.bytes, index), "/StartIndent 0.0 /EndIndent 40.0") == 1U);
+      const auto sheets = txt2_run_sheets(*arabic_block, *object, "5");
+      CHECK(sheets.size() == 1U);
+      for (const auto* sheet : sheets) {
+        CHECK(sheet_number(sheet, "1") == 20.0 && sheet_number(sheet, "2") == 0.0 && sheet_number(sheet, "3") == 40.0);
+      }
+    }
+  }
   // A reopen of the saved file reads the same settings back.
   const auto reread = patchy::psd::DocumentIo::read(arabic.bytes);
   for (const auto& layer : arabic.document.layers()) {
@@ -1632,6 +1657,10 @@ void text_engine_issue_683_reporter_settings_survive_an_edit_if_available() {
             metadata_run_column(layer, patchy::kLayerMetadataTextRuns, 16));
       CHECK(metadata_run_column(*twin, patchy::kLayerMetadataTextParagraphRuns, 11) ==
             metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 11));
+      for (const std::size_t column : {3U, 4U, 5U}) {
+        CHECK(metadata_run_column(*twin, patchy::kLayerMetadataTextParagraphRuns, column) ==
+              metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, column));
+      }
     }
   }
 }

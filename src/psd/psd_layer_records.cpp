@@ -729,6 +729,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
               paragraph.direction = "ltr";
             }
           }
+          // Photoshop's indents are on the start and end sides, Patchy's on the left and right.
+          swap_right_to_left_paragraph_indents(paragraphs);
         };
         if (!record.text.has_value()) {
           const auto frame = text_object != nullptr ? *text_object : TextFrameGeometry{};

@@ -3382,6 +3382,51 @@ void psd_issue_683_direction_reads_txt2_and_photoshop_default() {
   CHECK(patchy::psd::first_strong_text_direction(utf16(u"12 - 34!")).empty());
 }
 
+// GitHub issue 683: Photoshop's /StartIndent and /EndIndent sit on a paragraph's start and end
+// sides, Patchy's paragraph runs keep left and right indents (Qt lays block margins out by side).
+// A right-to-left paragraph with a 40 px left indent is written as /EndIndent 40 in the TySh and
+// the Txt2 and reopens with its 40 px on the left; a left-to-right one keeps /StartIndent 40, and
+// an auto paragraph the writer resolves to right to left swaps like an explicit one.
+void psd_issue_683_rtl_indents_are_photoshop_start_and_end_sides() {
+  const std::string arabic = "\xd9\x85\xd8\xb1\xd8\xad\xd8\xa8\xd8\xa7";
+  struct Case {
+    const char* paragraph_runs;
+    const char* expected_tysh;
+  };
+  const Case cases[] = {
+      {"v4\n0\t5\tjustify\t20\t40\t0\t0\t0\t1.2\trtl", "/StartIndent 0.0 /EndIndent 40.0"},
+      {"v4\n0\t5\tjustify\t20\t40\t0\t0\t0\t1.2\tltr", "/StartIndent 40.0 /EndIndent 0.0"},
+      {"v2\n0\t5\tjustify\t20\t40\t0\t0\t0", "/StartIndent 0.0 /EndIndent 40.0"},
+  };
+  for (const auto& entry : cases) {
+    const auto bytes =
+        patchy::psd::DocumentIo::write_layered_rgb8(arabic_text_document_for_writer(arabic, entry.paragraph_runs));
+    const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+    CHECK(payload.has_value());
+    const std::string payload_text = payload.has_value() ? std::string(payload->begin(), payload->end()) : std::string();
+    CHECK(payload_text.find(entry.expected_tysh) != std::string::npos);
+    CHECK(payload_text.find("/FirstLineIndent 20.0") != std::string::npos);
+    // The reopen reads the Txt2 direction and swaps back: 40 on the left, nothing on the right.
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    const auto metric = [&](std::size_t field) {
+      const auto value = first_paragraph_field(read.layers().back(), field);
+      return value.empty() ? -1.0 : std::stod(value);
+    };
+    CHECK(std::abs(metric(3) - 20.0) < 0.01);
+    CHECK(std::abs(metric(4) - 40.0) < 0.01);
+    CHECK(std::abs(metric(5)) < 0.01);
+  }
+  // The shared helper swaps right-to-left runs only.
+  std::vector<patchy::psd::PsdTextParagraphRun> runs(2);
+  runs[0].direction = "rtl";
+  runs[0].start_indent = 40.0;
+  runs[1].direction = "ltr";
+  runs[1].start_indent = 40.0;
+  patchy::psd::swap_right_to_left_paragraph_indents(runs);
+  CHECK(runs[0].start_indent == 0.0 && runs[0].end_indent == 40.0);
+  CHECK(runs[1].start_indent == 40.0 && runs[1].end_indent == 0.0);
+}
+
 // GitHub issue 683: a Photoshop-layout layer Patchy saves carries the layout mark, so it reopens
 // in the Photoshop layout model (auto leading = 1.2 x size) instead of Qt's natural line pitch; a
 // Qt-natural layer stays unmarked.
@@ -3691,6 +3736,8 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_writer_exports_vertical_type_block_and_reads_it_back", psd_writer_exports_vertical_type_block_and_reads_it_back},
       {"psd_paragraph_direction_round_trips_as_v4_column", psd_paragraph_direction_round_trips_as_v4_column},
       {"psd_issue_683_direction_reads_txt2_and_photoshop_default", psd_issue_683_direction_reads_txt2_and_photoshop_default},
+      {"psd_issue_683_rtl_indents_are_photoshop_start_and_end_sides",
+       psd_issue_683_rtl_indents_are_photoshop_start_and_end_sides},
       {"psd_issue_683_photoshop_layout_mark_round_trips", psd_issue_683_photoshop_layout_mark_round_trips},
       {"psd_issue_683_reporter_files_read_direction_if_available", psd_issue_683_reporter_files_read_direction_if_available},
       {"psd_vertical_capture_imports_orientation", psd_vertical_capture_imports_orientation},

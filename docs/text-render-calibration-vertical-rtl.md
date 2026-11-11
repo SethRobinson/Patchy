@@ -88,6 +88,18 @@ to left, so its right alignment landed on the left and its runs reordered. So:
   ([text-tool.md](text-tool.md#justify-modes)). Kashida insertion, digit sets, Justification
   Alternates and diacritic positions are kept in the PSD and not drawn
   ([txt2-kept-settings.md](txt2-kept-settings.md)).
+- **Indents are on the paragraph's sides** (GitHub issue 683, the reporter's "Indent left 40pt,
+  Indent First Line 20pt" layer: `/EndIndent 40`, `/33 1`, Photoshop's raster has the 40 pt on the
+  left and the first-line indent on the right). Photoshop's `/StartIndent` and `/EndIndent` (Txt2
+  `/2`, `/3`) are start and end indents; Patchy's paragraph runs (columns 4 and 5), the Paragraph
+  panel and `textParagraph` hold left and right ones, which Qt lays out by side, and Qt puts the
+  first-line indent on the start side as Photoshop does. `swap_right_to_left_paragraph_indents`
+  (psd_text_runs.hpp) swaps the two for every right-to-left run, in the reader after the direction
+  is settled and in the writer after auto is resolved, so both blocks get them back. Before that, a
+  re-render hid the mistake (it is pinned to the file's ink box) and a box resize, which drops the
+  pin, moved the gap to the right. Tests: `psd_issue_683_rtl_indents_are_photoshop_start_and_end_sides`,
+  `text_engine_issue_683_reporter_settings_survive_an_edit_if_available`,
+  `ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available`.
 - Tests: `psd_issue_683_direction_reads_txt2_and_photoshop_default`,
   `psd_issue_683_reporter_files_read_direction_if_available` (`local-test-fixtures/psd/issue-683/`:
   the reporter's Photoshop file, his Patchy 1.29 resave with right to left set, his Photon Studio

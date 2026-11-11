@@ -160,6 +160,10 @@ struct PsdTextParagraphRun {
   // right, center, justify, justifyRight, justifyCenter, justifyAll (persisted; never rename).
   int justification{0};
   double first_line_indent{0.0};
+  // The left and right indents (Qt's block margins, the Paragraph panel's fields). Photoshop's
+  // /StartIndent and /EndIndent are on the paragraph's start and end sides instead, so the PSD
+  // reader and writer swap them for a right-to-left paragraph
+  // (swap_right_to_left_paragraph_indents).
   double start_indent{0.0};
   double end_indent{0.0};
   double space_before{0.0};
@@ -225,6 +229,14 @@ void copy_paragraph_run_settings(const PsdTextParagraphRun& from, PsdTextParagra
 // scripts (and RLM/ALM), "ltr" for any other letter, empty when it has none. A table of strong
 // ranges, not the full bidi database: digits, punctuation, symbols and marks are skipped.
 std::string first_strong_text_direction(std::span<const std::uint16_t> utf16);
+
+// Photoshop keeps a paragraph's /StartIndent and /EndIndent on its start and end sides: in a
+// right-to-left paragraph the start indent is the right one, and its Paragraph panel shows the
+// /EndIndent as Indent Left Margin. Patchy's start_indent and end_indent are the left and right
+// indents (Qt lays block margins out by side). Swaps the two in every run whose direction is
+// "rtl", which converts either way; the first-line indent stays on the start side in both
+// (GitHub issue 683: a box resize put a 40 pt Indent Left of an Arabic paragraph on the right).
+void swap_right_to_left_paragraph_indents(std::span<PsdTextParagraphRun> runs) noexcept;
 
 // A text layer's style runs and paragraph runs as its metadata describes them (patchy.text.runs
 // and patchy.text.paragraph_runs, with the layer's single-value font keys as the fallback run),
