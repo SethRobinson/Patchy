@@ -1,5 +1,6 @@
 #include "ui/text_document.hpp"
 #include "ui/text_font_service.hpp"
+#include "ui/text_language_font.hpp"
 #include "ui/text_layout.hpp"
 #include "ui/text_area_layout.hpp"
 #include "ui/dialog_utils.hpp"
@@ -1473,6 +1474,10 @@ QFont text_render_featured_font(const QTextCharFormat& format) {
   font.setLetterSpacing(QFont::AbsoluteSpacing,
                         format.property(kTextRenderBaseLetterSpacingFormatProperty).toDouble());
   apply_render_feature_names(font, format.property(kTextRenderFeaturesFormatProperty).toStringList());
+  if (const auto families = format.property(kTextRenderLanguageFamiliesFormatProperty).toStringList();
+      !families.isEmpty()) {
+    font.setFamilies(families);
+  }
   return font;
 }
 
@@ -1492,7 +1497,11 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
       }
       const auto format = fragment.charFormat();
       const auto styles = text_character_styles_from_format(format);
-      if (styles.caps == 0 && styles.baseline == 0 && !styles.any_features()) {
+      // A run in a language the font has its own forms for (Photoshop's Character panel language,
+      // GitHub issue 683) is shaped with the face's language copy (text_language_font.hpp).
+      const bool language_forms =
+          !vertical && !opentype_language_tags_for_photoshop_language(styles.language).isEmpty();
+      if (styles.caps == 0 && styles.baseline == 0 && !styles.any_features() && !language_forms) {
         continue;  // underline and strikethrough are drawn by the render plan
       }
       auto font = format.font();
@@ -1538,11 +1547,26 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
       // ordinals and fractions (Arial's smcp lowercase stand 0.56 em, not the 0.7 x cap height a
       // synthesized small cap would), and leaves text whose font lacks a feature unchanged.
       QStringList features;
+      QStringList language_families;
       if (!vertical) {
         const auto text = fragment.text();
-        const auto plain = shape_text_line(text, font);
+        // The features are tried in the run's language (a face may file a feature's lookups
+        // under that language only).
+        auto shaping_font = font;
+        auto candidate_families = language_forms ? text_language_font_families(font, styles.language) : QStringList{};
+        // Contextual Alternates stay on in an Arabic or Farsi run (Photoshop 2018 builds Adobe Arabic
+        // 3.005's Allah ligature, an ARA calt rule, with the run's calt at its default, off).
+        const bool language_calt = !candidate_families.isEmpty() && !styles.contextual_alternates &&
+                                   text_language_keeps_contextual_alternates(styles.language);
+        if (!candidate_families.isEmpty()) {
+          shaping_font.setFamilies(candidate_families);
+        }
+        if (language_calt) {
+          shaping_font.setFeature(kContextualAlternatesFeature, 1);
+        }
+        const auto plain = shape_text_line(text, shaping_font);
         const auto try_feature = [&](QFont::Tag tag, quint32 value = 1U) {
-          auto featured = font;
+          auto featured = shaping_font;
           apply_render_feature_names(featured, features);
           featured.setFeature(tag, value);
           if (shape_text_line(text, featured).glyphs != plain.glyphs) {
@@ -1558,21 +1582,41 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
         if (styles.swash) try_feature(kSwashFeature);
         if (styles.stylistic_alternates) try_feature(kStylisticAlternatesFeature);
         if (styles.titling_alternates) try_feature(kTitlingAlternatesFeature);
+        if (!candidate_families.isEmpty()) {
+          // Kept only when the language changes the glyphs, like the features above.
+          auto featured = font;
+          apply_render_feature_names(featured, features);
+          auto in_language = featured;
+          in_language.setFamilies(candidate_families);
+          if (language_calt) {
+            in_language.setFeature(kContextualAlternatesFeature, 1);
+          }
+          if (shape_text_line(text, in_language).glyphs != shape_text_line(text, featured).glyphs) {
+            language_families = std::move(candidate_families);
+            if (language_calt) {
+              features << render_feature_name(kContextualAlternatesFeature, 1U);
+            }
+          }
+        }
       }
-      if (features.isEmpty() && styles.caps == 0 && styles.baseline == 0) {
+      if (features.isEmpty() && language_families.isEmpty() && styles.caps == 0 && styles.baseline == 0) {
         continue;  // the face has none of the requested features: the run draws exactly as typed
       }
       if (styles.caps == 1 && !features.contains(render_feature_name(kSmallCapsFeature, 1U))) {
         // No small capitals in the face: Qt synthesizes them at 70%, Photoshop's /SmallCapSize.
         font.setCapitalization(QFont::SmallCaps);
       }
-      if (!features.isEmpty()) {
+      if (!features.isEmpty() || !language_families.isEmpty()) {
         // The layout cannot shape with features, so it reserves the featured width instead:
         // the difference is spread over the fragment's characters as letter spacing, and the
         // plan draws the featured glyphs from their own shaping (draw_featured_glyph_runs).
         const auto base_spacing = absolute_letter_spacing(font);
         auto featured_font = font;
         apply_render_feature_names(featured_font, features);
+        if (!language_families.isEmpty()) {
+          featured_font.setFamilies(language_families);
+          overlay.setProperty(kTextRenderLanguageFamiliesFormatProperty, language_families);
+        }
         const auto text = fragment.text();
         const auto plain_advance = shape_text_line(text, font).advance;
         const auto featured_advance = shape_text_line(text, featured_font).advance;
@@ -1601,7 +1645,8 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
 }
 
 bool text_format_has_render_features(const QTextCharFormat& format) {
-  return !format.property(kTextRenderFeaturesFormatProperty).toStringList().isEmpty();
+  return !format.property(kTextRenderFeaturesFormatProperty).toStringList().isEmpty() ||
+         !format.property(kTextRenderLanguageFamiliesFormatProperty).toStringList().isEmpty();
 }
 
 // Build the QTextDocument a text layer is rasterized from.  The caret/selection layout is built

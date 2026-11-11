@@ -22,6 +22,7 @@
 #include <QEventLoop>
 #include <QFont>
 #include <QFontDatabase>
+#include <QImage>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRect>
@@ -37,6 +38,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <optional>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -815,6 +817,159 @@ void ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available() {
   CHECK(first_right <= box_right - 14 && first_right >= box_right - 28);
 }
 
+
+// The first row in `area` of a flattened white-background document that holds dark ink.
+std::optional<int> first_dark_row(const QImage& image, QRect area) {
+  area = area.intersected(image.rect());
+  for (int y = area.top(); y <= area.bottom(); ++y) {
+    for (int x = area.left(); x <= area.right(); ++x) {
+      if (qGray(image.pixel(x, y)) < 128) {
+        return y;
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+// Opens `path`, edits its box layer named `prefix...`, and drags `handle_name` straight down:
+// the box grows, and the first line stays where the session drew it, in the live preview and
+// after the commit (GitHub issue 683, follow-up 5). A Photoshop-layout box's render buffer starts
+// above the frame top; a resize clears the import frame's render rect, and the buffer was then
+// placed on the frame corner, every line dropping by the overhang (5 px for 16 px Arabic).
+void check_box_bottom_edge_drag_keeps_the_first_line(const std::filesystem::path& path, const std::string& prefix,
+                                                     const char* handle_name, double zoom,
+                                                     const char* artifact) {
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId id{};
+  for (const auto& layer : document.layers()) {
+    if (patchy::layer_is_text(layer) && layer.name().rfind(prefix, 0) == 0) {
+      id = layer.id();
+    }
+  }
+  CHECK(id != patchy::LayerId{});
+  if (id == patchy::LayerId{}) {
+    return;
+  }
+  // Every top below is read the same way, from the flattened document: the file's raster, the
+  // session's live preview, and the committed layer.
+  const auto file_image = image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(document));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Box drag 683"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(zoom);
+  QApplication::processEvents();
+  // Hosts without the file's font (Adobe Arabic; Arial on Linux) ask before editing: continue
+  // with the stand-in font.
+  QTimer missing_font_watcher;
+  missing_font_watcher.setInterval(50);
+  QObject::connect(&missing_font_watcher, &QTimer::timeout, [] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      return;
+    }
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      if (dialog->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+  });
+  missing_font_watcher.start();
+  patchy::ui::MainWindowTestAccess::edit_text_layer(window, id);
+  process_events_for(300);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  // A caret, not a selection, so the shots show the glyphs.
+  editor->moveCursor(QTextCursor::End);
+  process_events_for(200);
+  const QRect box(editor->property("patchy.documentTextX").toInt(), editor->property("patchy.documentTextY").toInt(),
+                  editor->property("patchy.documentTextWidth").toInt(),
+                  editor->property("patchy.documentTextHeight").toInt());
+  // The first line's ink may rise a little over the frame top (Arabic marks, Photoshop's
+  // ascent rule); look from well above it down past the first line.
+  const QRect first_line_area(box.left(), box.top() - 12, box.width(), 40);
+  const auto& live = patchy::ui::MainWindowTestAccess::document(window);
+  const auto composite_top = [&live, &first_line_area] {
+    return first_dark_row(image_from_pixels_for_visuals(patchy::Compositor{}.flatten_rgb8(live)), first_line_area);
+  };
+  const auto screen_crop = [canvas, &box] {
+    const auto top_left = canvas->widget_position_for_document_point(box.topLeft() - QPoint(8, 14));
+    const auto bottom_right = canvas->widget_position_for_document_point(box.bottomRight() + QPoint(8, 46));
+    return QRect(top_left, bottom_right);
+  };
+  const auto file_top = first_dark_row(file_image, first_line_area);
+  const auto session_top = composite_top();
+  // `artifact` (or null) names a before and after shot of the box, which must be on screen.
+  const auto before_shot = artifact != nullptr
+                               ? capture_widget_artifact(std::string(artifact) + "_canvas_before", *canvas).copy(screen_crop())
+                               : QImage();
+  auto* handle = canvas->findChild<QWidget*>(QString::fromLatin1(handle_name), Qt::FindDirectChildrenOnly);
+  CHECK(handle != nullptr && handle->isVisible());
+  if (handle == nullptr) {
+    return;
+  }
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  const auto center = handle->geometry().center();
+  drag(*canvas, center, center + QPoint(0, static_cast<int>(std::lround(30.0 * zoom))));
+  process_events_for(300);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.documentTextY").toInt() == box.top());
+  CHECK(editor->property("patchy.documentTextHeight").toInt() == box.height() + 30);
+  const auto resized_top = composite_top();
+  if (artifact != nullptr) {
+    const auto after_shot = capture_widget_artifact(std::string(artifact) + "_canvas_after", *canvas).copy(screen_crop());
+    save_stacked_artifact(artifact, {before_shot, after_shot});
+  }
+  send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+  process_events_for(300);
+  missing_font_watcher.stop();
+  CHECK(std::as_const(live).find_layer(id) != nullptr);
+  const auto committed_top = composite_top();
+  std::printf("  %s: file top %d, session %d, after the drag %d, committed %d (box top %d)\n", prefix.c_str(),
+              file_top.value_or(-1), session_top.value_or(-1), resized_top.value_or(-1), committed_top.value_or(-1), box.top());
+  std::fflush(stdout);
+  CHECK(session_top.has_value() && resized_top.has_value() && committed_top.has_value());
+  if (!session_top.has_value() || !resized_top.has_value() || !committed_top.has_value()) {
+    return;
+  }
+  // The session draws at the file's raster position (the file's top is printed for reference: a
+  // stand-in font's faint top rows read it a pixel or two off). Unpinned by the resize, the
+  // stand-in may lay the first line a pixel off the pinned one, never the overhang the bug
+  // dropped it by.
+  CHECK(std::abs(*resized_top - *session_top) <= 1);
+  CHECK(*committed_top == *resized_top);
+}
+
+// GitHub issue 683 (follow-up 5): philipzae's Arabic paragraphs (16 px right aligned, and the
+// 12 pt one with indents and 24 pt line spacing).
+void ui_issue_683_box_bottom_edge_drag_keeps_the_first_line_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-683/arabic-rtl-settings-photoshop.psd");
+  patchy::test::skip_unless_exists(path);
+  register_test_fonts(TestFontRole::UiDefault);
+  check_box_bottom_edge_drag_keeps_the_first_line(path, "Right align, Kashidas medium", "textBoxResizeHandleBottom",
+                                                  1.5, "issue_683_box_bottom_drag_right_align");
+  check_box_bottom_edge_drag_keeps_the_first_line(path, "Indent left 40pt", "textBoxResizeHandleBottom", 1.0,
+                                                  nullptr);
+}
+
+// The same for a left-to-right Photoshop box (Arial 24 px in a 300 x 40 frame, too short for
+// side handles, so the bottom right corner drags straight down).
+void ui_photoshop_box_bottom_edge_drag_keeps_the_first_line() {
+  register_test_fonts(TestFontRole::UiDefault);
+  check_box_bottom_edge_drag_keeps_the_first_line(
+      patchy::test::committed_psd_fixture_path("photoshop-box-text-overflow.psd"), "Overflow Box",
+      "textBoxResizeHandleBottomRight", 2.0, "photoshop_box_bottom_drag");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_rtl_psd_tests() {
@@ -835,5 +990,9 @@ std::vector<patchy::test::TestCase> text_rtl_psd_tests() {
        ui_issue_683_arabic_psd_rerenders_right_aligned_if_available},
       {"ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available",
        ui_issue_683_rtl_left_indent_stays_left_after_a_box_resize_if_available},
+      {"ui_issue_683_box_bottom_edge_drag_keeps_the_first_line_if_available",
+       ui_issue_683_box_bottom_edge_drag_keeps_the_first_line_if_available},
+      {"ui_photoshop_box_bottom_edge_drag_keeps_the_first_line",
+       ui_photoshop_box_bottom_edge_drag_keeps_the_first_line},
   };
 }

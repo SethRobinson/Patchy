@@ -107,6 +107,9 @@ inline constexpr int kTextFractionsFormatProperty = QTextFormat::UserProperty + 
 // spacing the fragment had before that correction, which the featured shaping uses.
 inline constexpr int kTextRenderFeaturesFormatProperty = QTextFormat::UserProperty + 50;
 inline constexpr int kTextRenderBaseLetterSpacingFormatProperty = QTextFormat::UserProperty + 51;
+// Render documents only: the families a fragment is drawn in when its Photoshop language has its
+// own forms in the font (QStringList, text_language_font_families), the same way as the features.
+inline constexpr int kTextRenderLanguageFamiliesFormatProperty = QTextFormat::UserProperty + 63;
 // Block property: Photoshop's paragraph composer (paragraph runs v5, Txt2 /35), set only when a
 // paragraph is not World-Ready (1, the default): 0 is the Latin and East Asian composer.
 inline constexpr int kTextBlockComposerProperty = QTextFormat::UserProperty + 52;

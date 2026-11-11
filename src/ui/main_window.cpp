@@ -2910,16 +2910,16 @@ Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_po
                 rendered.pixels.width(),
                 rendered.pixels.height()};
   }
-  if (text_editor_area(editor) || !text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
-    // Point text: the document point is the text-local origin; the buffer starts
-    // local_rect.topLeft() from it (left of / above it when glyph ink overhangs the line start
-    // or top; the identity render's local_rect is already whole pixels). Box text keeps its
-    // frame-corner placement (its rect carries the line bleed above the frame).
-    return Rect{document_point.x() + static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
-                document_point.y() + static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
-                rendered.pixels.width(), rendered.pixels.height()};
-  }
-  return Rect{document_point.x(), document_point.y(), rendered.pixels.width(), rendered.pixels.height()};
+  // The document point is the text-local origin (point text) or the frame corner (box and area
+  // text); the buffer starts local_rect.topLeft() from it, whole pixels. Point text overhangs it
+  // where glyph ink reaches left of the line start or above its top. A Qt-natural box's buffer
+  // starts on the corner, but a Photoshop-layout box's starts above and left of it: its first
+  // line box rises over the frame top when the font's line ascent exceeds Photoshop's
+  // first-baseline ascent, plus the line bleed. Placing that buffer on the corner dropped every
+  // line once a resize had cleared the import frame's render rect (GitHub #683).
+  return Rect{document_point.x() + static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
+              document_point.y() + static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
+              rendered.pixels.width(), rendered.pixels.height()};
 }
 
 std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTextEdit& editor,

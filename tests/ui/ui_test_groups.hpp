@@ -65,6 +65,7 @@ std::vector<patchy::test::TestCase> text_area_tests();
 std::vector<patchy::test::TestCase> text_canvas_session_tests();
 std::vector<patchy::test::TestCase> text_color_targets_tests();
 std::vector<patchy::test::TestCase> text_character_styles_tests();
+std::vector<patchy::test::TestCase> text_run_language_tests();
 std::vector<patchy::test::TestCase> text_options_bar_toggles_tests();
 std::vector<patchy::test::TestCase> flat_image_format_tests();
 std::vector<patchy::test::TestCase> smart_filter_tests();
