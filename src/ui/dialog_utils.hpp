@@ -352,6 +352,10 @@ private:
 // a dialog or the main window from whatever sits behind it (a check of the Linux
 // chrome on October 17, 2026: 1 px dialogs blended into the window behind them).
 [[nodiscard]] int frameless_window_edge_width();
+// Closes every open popup (menus, combo lists), innermost first. A window move or resize
+// the OS runs from a caption or frame-edge press is a non-client press Qt never sees, so
+// an open menu would otherwise stay behind at its old screen position.
+void close_open_popup_widgets();
 enum class DialogChromeCloseMode { Reject, Accept };
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,
                                         DialogChromeCloseMode close_mode = DialogChromeCloseMode::Reject);

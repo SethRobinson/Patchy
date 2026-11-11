@@ -1260,6 +1260,23 @@ int frameless_window_edge_width() {
 #endif
 }
 
+void close_open_popup_widgets() {
+  // Bounded: a popup that refuses to close (or reopens itself) must not hang the caller.
+  for (int pass = 0; pass < 16; ++pass) {
+    QWidget* popup = QApplication::activePopupWidget();
+    if (popup == nullptr) {
+      return;
+    }
+    popup->close();
+    if (QApplication::activePopupWidget() == popup) {
+      popup->hide();
+      if (QApplication::activePopupWidget() == popup) {
+        return;
+      }
+    }
+  }
+}
+
 namespace {
 
 ThemedQss dialog_chrome_style() {
