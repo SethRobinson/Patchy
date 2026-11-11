@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.33" date="2026-11-12">
+      <description>
+        <ul>
+          <li>Crop: presets, a Straighten button, and a mode that moves the image under the box</li>
+          <li>Text boxes resize from any edge and turn from their corners while editing</li>
+          <li>Shapes snap while dragged; exact pixel blocks from 200% zoom up</li>
+          <li>Drags keep up with the pointer on Wayland</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.32" date="2026-11-11">
       <description>
         <ul>
