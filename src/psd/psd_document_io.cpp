@@ -675,6 +675,8 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
 struct ImportedTextFrames {
   bool present{false};
   std::vector<TextFrameGeometry> frames;
+  // The block is the old named-key engine (text_engine_block_is_named_key_engine).
+  bool named_key_engine{false};
   bool preserve_raster(const LayerRecord& record) const {
     if (!present || !record.text_geometry) return false;
     const auto index = record.text_geometry->text_index;
@@ -709,7 +711,13 @@ ImportedTextFrames inspect_text_frames(std::span<const std::uint8_t> section, bo
     if (wide && reader.remaining() < 8U) break;
     const auto size = wide ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
     if (size > reader.remaining()) break;
-    if (key == "Txt2") return {true, read_text_frame_geometries(reader.read_bytes(static_cast<std::size_t>(size)))};
+    if (key == "Txt2") {
+      const auto payload = reader.read_bytes(static_cast<std::size_t>(size));
+      auto frames = read_text_frame_geometries(payload);
+      // A numbered block yields one geometry per object; only a block that is not one is asked.
+      const bool numbered = TextEngineBlock::parse(payload).has_value();
+      return {true, std::move(frames), !numbered && text_engine_block_is_named_key_engine(payload)};
+    }
     reader.skip(static_cast<std::size_t>(size));
     reader.skip(std::min<std::size_t>((4U - size % 4U) % 4U, reader.remaining()));
   }
@@ -750,7 +758,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
   int ordinary_layer_number = 0;
   for (std::uint16_t i = 0; i < layer_count; ++i) {
     records.push_back(read_layer_record(layer_reader, large_document, cmyk_converter,
-                                        text_frames.frames, text_frames.present));
+                                        text_frames.frames, text_frames.present, text_frames.named_key_engine));
     auto& record = records.back();
     if (record.section_divider_type == 0U) {
       ++ordinary_layer_number;

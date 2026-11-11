@@ -282,6 +282,22 @@ exist where the two disagree (Smooth beside 4, Crisp beside 2 in Testy's private
 reader takes the descriptor first (`extract_type_tool_anti_alias`) and the number only for a
 record without one. Test: `text_engine_anti_alias_reads_the_descriptor_method`.
 
+## The old named-key engine
+
+Photoshop CS-era files carry a block with named keys (`DocumentResources`, `DocumentObjects/
+TextObjects`, each object a `Model` and a `View`) instead of the numbered ones above
+(`text_engine_block_is_named_key_engine`). Patchy reads its point and box frames and cannot
+author into it (see [The writer](#the-writer) for when it is kept and when it is replaced).
+
+That engine has one paragraph composer, the Latin one, and Photoshop 2026 lays every type layer
+of such a document out with it, its old-text layers (a TySh with no object) included. The reader
+therefore gives every paragraph of such a document composer 0, which Patchy's own layout already
+follows (no paragraph-end kern) and a save writes as `/35 0`. Readback on This PC, November 2026:
+`mow_master.psd` (four old-text layers, one layer with an object) re-rendered and saved with
+`/35 1` differed from the original after Photoshop's re-layout (the centered copyright line a
+pixel narrower, the button captions on other pixels); the same save with `/35 0` on every
+paragraph matched it pixel for pixel. A file with no block at all stays World-Ready.
+
 ## What Photoshop 2026 accepts (probe results, all opened clean, no dialog, correct readback)
 
 - **The cached layout tree is optional.** Object `/1/2` replaced by `[ ]`, removed, or the

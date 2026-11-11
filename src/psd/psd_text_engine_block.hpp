@@ -142,6 +142,13 @@ inline constexpr std::int32_t kRegeneratedTextIndexBase = 100000;
 // point/box frames too, without changing the writer's verbatim preservation of that engine format.
 std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload);
 
+// True for the text engine block of Photoshop CS-era files: named keys (`DocumentResources`,
+// `DocumentObjects/TextObjects`) instead of the numbered ones Patchy parses and authors. That
+// engine has one paragraph composer, the Latin one: Photoshop 2026 lays every type layer of
+// such a document out without the World-Ready paragraph-end kern, its old-text layers included
+// (docs/txt2.md, "The old named-key engine").
+[[nodiscard]] bool text_engine_block_is_named_key_engine(std::span<const std::uint8_t> payload);
+
 // Called after layers and document-level blocks have both been decoded.
 void import_text_frame_geometry(Document& document);
 

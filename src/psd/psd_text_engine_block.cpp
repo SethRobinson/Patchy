@@ -635,6 +635,15 @@ std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::u
   return result;
 }
 
+bool text_engine_block_is_named_key_engine(std::span<const std::uint8_t> payload) {
+  if (TextEngineBlock::parse(payload).has_value()) {
+    return false;
+  }
+  const auto root = parse_engine_data(payload, true);
+  const auto* objects = root ? root->at_path({"DocumentObjects", "TextObjects"}) : nullptr;
+  return objects != nullptr && objects->is_list();
+}
+
 void import_text_frame_geometry(Document& document) {
   const auto& blocks = std::as_const(document).metadata().unknown_psd_resources;
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const auto& b) { return b.key == "Txt2"; });

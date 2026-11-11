@@ -1929,23 +1929,60 @@ void text_engine_anti_alias_reads_the_descriptor_method() {
 // and every layer addresses its own object, so Photoshop reads current text: the old-text path
 // drew the psd-tools pen-text layer wider and lighter (Testy's text-save leg, November 2026).
 void text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated() {
-  static constexpr std::string_view kOldEngine =
-      " /DocumentResources << /TextFrameSet << /Resources [ << /Resource << /Data << /TextOnPathTRange [ -1.0 -1.0 ] >> "
-      ">> >> ] >> >> /DocumentObjects << /TextObjects [ << /View << /Frames [ << /Resource 0 >> ] >> >> ] >>";
-  const auto with_old_engine = [] {
-    auto document = patchy::psd::DocumentIo::read(
-        read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd")));
-    bool replaced = false;
-    for (auto& block : document.metadata().unknown_psd_resources) {
-      if (block.key == "Txt2") {
-        block.payload.assign(kOldEngine.begin(), kOldEngine.end());
-        replaced = true;
+  // Eight point frames and eight objects, one per type layer of the fixture.
+  const std::string kOldEngine = [] {
+    std::string frames;
+    std::string objects;
+    for (int index = 0; index < 8; ++index) {
+      frames += "<< /Resource << /Data << /TextOnPathTRange [ -1.0 -1.0 ] >> >> >> ";
+      objects += "<< /View << /Frames [ << /Resource " + std::to_string(index) + " >> ] >> >> ";
+    }
+    return " /DocumentResources << /TextFrameSet << /Resources [ " + frames + "] >> >> /DocumentObjects << /TextObjects [ " +
+           objects + "] >>";
+  }();
+  // The committed Photoshop fixture with its block's content replaced, in the file's bytes, by an
+  // old-engine one padded with spaces to the same length.
+  std::vector<std::uint8_t> old_engine_bytes;
+  const auto file_bytes = [&old_engine_bytes, &kOldEngine] {
+    auto bytes = read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd"));
+    static constexpr std::string_view kMarker = "8BIMTxt2";
+    const auto payload = text_engine_payload(bytes);
+    const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+    CHECK(payload.has_value() && at != bytes.end() && payload->size() > kOldEngine.size());
+    if (!payload.has_value() || at == bytes.end() || payload->size() <= kOldEngine.size()) {
+      return bytes;
+    }
+    old_engine_bytes.assign(payload->size(), static_cast<std::uint8_t>(' '));
+    std::copy(kOldEngine.begin(), kOldEngine.end(), old_engine_bytes.begin());
+    std::copy(old_engine_bytes.begin(), old_engine_bytes.end(), at + static_cast<std::ptrdiff_t>(kMarker.size() + 4));
+    return bytes;
+  }();
+  CHECK(patchy::psd::text_engine_block_is_named_key_engine(old_engine_bytes));
+  const auto with_old_engine = [&file_bytes] { return patchy::psd::DocumentIo::read(file_bytes); };
+  // The old engine has the Latin composer only, and Photoshop lays such a document's layers out
+  // with it: every paragraph reads composer 0 (paragraph runs column 10), where the same layers
+  // of the untouched fixture keep World-Ready (no column).
+  {
+    const auto document = with_old_engine();
+    int text_layers = 0;
+    for (const auto& layer : document.layers()) {
+      if (!layer.metadata().contains(patchy::kLayerMetadataText)) {
+        continue;
+      }
+      ++text_layers;
+      for (const auto& composer : metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 10)) {
+        CHECK(composer == "0");
       }
     }
-    CHECK(replaced);
-    return document;
-  };
-  const auto old_engine_bytes = std::vector<std::uint8_t>(kOldEngine.begin(), kOldEngine.end());
+    CHECK(text_layers == 8);
+    const auto untouched = patchy::psd::DocumentIo::read(
+        read_all(patchy::test::committed_psd_fixture_path("photoshop-text-point-anchors.psd")));
+    for (const auto& layer : untouched.layers()) {
+      for (const auto& composer : metadata_run_column(layer, patchy::kLayerMetadataTextParagraphRuns, 10)) {
+        CHECK(composer.empty() || composer == "1");
+      }
+    }
+  }
   const auto text_layer_indices = [](const patchy::Document& document) {
     std::vector<int> indices;
     for (int index = 0; index < static_cast<int>(document.layers().size()); ++index) {
@@ -2015,6 +2052,10 @@ void text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated() 
         auto expected = layer_text;
         std::replace(expected.begin(), expected.end(), '\n', '\r');
         CHECK(*text == expected + '\r');
+      }
+      // The Latin composer the old engine laid the layer out with.
+      for (const auto* sheet : txt2_run_sheets(*block, *text_index, "5")) {
+        CHECK(sheet_integer(sheet, "35") == 0);
       }
     }
     // The reopened file reads every layer back as text with its own object.

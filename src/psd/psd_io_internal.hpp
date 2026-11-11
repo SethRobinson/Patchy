@@ -800,7 +800,7 @@ std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t>
 // pipeline for the layer info section (definitions in psd_layer_records.cpp).
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                               const CmykColorConverter& cmyk, std::span<const TextFrameGeometry> text_frames,
-                              bool has_text_engine);
+                              bool has_text_engine, bool named_key_text_engine = false);
 // synthesized_photoshop_layer_id: nonzero writes a fresh 'lyid' block for a
 // smart-object layer that has none preserved (see write_layer_record).
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
