@@ -24,7 +24,9 @@ struct LayerCss {
 };
 
 // One class per listed layer that is visible and has an extent. A folder gives its
-// contents' bounds; its layers get classes only when listed themselves. Output is
+// contents' bounds; its layers get classes only when listed themselves. Each class's
+// z-index is the layer's row in the whole panel from the bottom (1), every layer counted, so
+// it does not depend on which layers are listed. Output is
 // deterministic: the same document and ids give the same bytes on every platform.
 [[nodiscard]] LayerCss layers_to_css(const Document& document, std::span<const LayerId> layer_ids,
                                      std::string_view document_name);

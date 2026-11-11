@@ -559,7 +559,7 @@ Box layer_box(const Document& document, const Layer& layer) {
   return pixel_box(layer);
 }
 
-Declarations layer_declarations(const Document& document, const Layer& layer, const Box& box) {
+Declarations layer_declarations(const Document& document, const Layer& layer, const Box& box, int z_index) {
   Declarations declarations;
   // One allocation covers a typical class. It also keeps GCC 12 quiet: without the spare
   // capacity it reports a false -Warray-bounds in the growth path it inlines for the second
@@ -570,6 +570,7 @@ Declarations layer_declarations(const Document& document, const Layer& layer, co
   declarations.emplace_back("top", px(box.top));
   declarations.emplace_back("width", px(box.width));
   declarations.emplace_back("height", px(box.height));
+  declarations.emplace_back("z-index", std::to_string(z_index));
 
   const bool group = layer.kind() == LayerKind::Group;
   const auto* shape = !group && layer_is_vector_shape(layer) ? layer.vector_shape() : nullptr;
@@ -623,13 +624,30 @@ struct Emitter {
     return candidate;
   }
 
+  // The z-index of the next row the walk reaches: rows are numbered from the bottom of the
+  // whole panel (1) up, every layer and folder counted, so a layer's number does not depend
+  // on which layers are listed.
+  int z_index{0};
+
+  static int count_rows(const std::vector<Layer>& layers) {
+    int rows = 0;
+    for (const auto& layer : layers) {
+      ++rows;
+      if (layer.kind() == LayerKind::Group) {
+        rows += count_rows(layer.children());
+      }
+    }
+    return rows;
+  }
+
   // Panel order: the last layer of a list is the top row.
   void walk(const std::vector<Layer>& layers, bool ancestors_visible) {
     for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
       const auto& layer = *it;
       const bool visible = ancestors_visible && layer.visible();
+      const int row_z_index = z_index--;
       if (wanted.contains(layer.id())) {
-        emit(layer, visible);
+        emit(layer, visible, row_z_index);
       }
       if (layer.kind() == LayerKind::Group) {
         walk(layer.children(), visible);
@@ -637,7 +655,7 @@ struct Emitter {
     }
   }
 
-  void emit(const Layer& layer, bool visible) {
+  void emit(const Layer& layer, bool visible, int row_z_index) {
     if (!visible) {
       ++result.hidden_skipped;
       return;
@@ -648,7 +666,7 @@ struct Emitter {
       return;
     }
     body += "\n." + unique_class_name(layer.name()) + " {\n";
-    for (const auto& [property, value] : layer_declarations(document, layer, box)) {
+    for (const auto& [property, value] : layer_declarations(document, layer, box, row_z_index)) {
       body += "  " + property + ": " + value + ";\n";
     }
     body += "}\n";
@@ -745,6 +763,7 @@ LayerCss layers_to_css(const Document& document, std::span<const LayerId> layer_
                        std::string_view document_name) {
   const std::set<LayerId> wanted(layer_ids.begin(), layer_ids.end());
   Emitter emitter{document, wanted, {}, {}, {}};
+  emitter.z_index = Emitter::count_rows(document.layers());
   emitter.walk(document.layers(), true);
   auto result = std::move(emitter.result);
   if (result.classes == 0) {

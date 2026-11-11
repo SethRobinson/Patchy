@@ -24,6 +24,7 @@ The blend-mode names are the SVG writer's map (`svg::detail::blend_mode_css`,
   top: 98px;
   width: 104px;
   height: 64px;
+  z-index: 2;
   box-sizing: border-box;
   background-color: #ffcc00;
   border: 4px solid #102030;
@@ -36,6 +37,11 @@ The blend-mode names are the SVG writer's map (`svg::detail::blend_mode_css`,
   the ids came in. Lines end with `\n`; lengths are px in document pixels, rounded to 2 decimals
   with no trailing zeros (em values to 3), built from integers so no locale changes them.
   The same document and selection give the same bytes on every platform.
+- `z-index` is the layer's row in the whole panel counted from the bottom (1): every layer
+  and folder counts, hidden ones and those inside folders included, and a folder sits above
+  its contents. So the numbers depend on the document, not on the selection: classes copied
+  at different times still stack as the layers do. Photoshop's Copy CSS also writes
+  `z-index`; its numbering was not compared (running it would overwrite the clipboard).
 - Class names (`class_name_from_layer_name`): ASCII letters lowercased; digits, `-` and `_`
   kept; non-ASCII characters kept as typed (CSS identifiers allow them); everything else,
   Unicode spaces and bytes that are not UTF-8 included, one `-`; a leading digit gets `layer-`
@@ -50,7 +56,7 @@ The blend-mode names are the SVG writer's map (`svg::detail::blend_mode_css`,
 
 ## What maps to what
 
-Every class: `position: absolute`, `left`, `top`, `width`, `height`; `opacity` when below
+Every class: `position: absolute`, `left`, `top`, `width`, `height`, `z-index`; `opacity` when below
 100%; `mix-blend-mode` when the mode is not Normal and CSS has it (Pass Through and the modes
 CSS lacks say nothing).
 
@@ -116,7 +122,7 @@ when none gave a class) and leaves the clipboard alone; the menu command is
 
 Core (`tests/core/css_layer_export_tests.cpp`, filter `css_`): names and deduplication, pixel
 layers, shapes (border alignment, radii, dashes), gradients, other outlines, text (runs, the
-single-value fallback keys, styles), drop shadows, hidden layers, folders, the header. Each
-pins the exact text. UI: `ui_copy_css_copies_selected_layers_as_classes` (clipboard text,
+single-value fallback keys, styles), drop shadows, hidden layers, folders, the header,
+`z-index` (`css_z_index_follows_the_document_stack`). Each pins the exact text. UI: `ui_copy_css_copies_selected_layers_as_classes` (clipboard text,
 panel order, the row menu's Export submenu captured as `issue688_copy_css_export_submenu`,
 the script call, the nothing-usable message).

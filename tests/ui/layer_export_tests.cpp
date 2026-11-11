@@ -264,6 +264,7 @@ void ui_copy_css_copies_selected_layers_as_classes() {
                                            "  top: 20px;\n"
                                            "  width: 50px;\n"
                                            "  height: 50px;\n"
+                                           "  z-index: 2;\n"
                                            "  opacity: 0.5;\n"
                                            "}\n");
   const QString paper_class = QStringLiteral(".paper {\n"
@@ -272,6 +273,7 @@ void ui_copy_css_copies_selected_layers_as_classes() {
                                              "  top: 0px;\n"
                                              "  width: 200px;\n"
                                              "  height: 120px;\n"
+                                             "  z-index: 1;\n"
                                              "}\n");
   const QString header = QStringLiteral("/* Patchy: Poster.psd */\n\n");
 
@@ -413,6 +415,7 @@ void ui_copy_css_describes_shape_text_and_pixel_layers() {
                                     "  top: 20px;\n"
                                     "  width: 200px;\n"
                                     "  height: 120px;\n"
+                                    "  z-index: 3;\n"
                                     "  box-sizing: border-box;\n"
                                     "  background-color: #ffcc00;\n"
                                     "  border: 4px solid #102030;\n"
@@ -425,6 +428,7 @@ void ui_copy_css_describes_shape_text_and_pixel_layers() {
                                     "  top: 40px;\n"
                                     "  width: 100px;\n"
                                     "  height: 80px;\n"
+                                    "  z-index: 2;\n"
                                     "}\n")));
   CHECK(css.indexOf(QStringLiteral("\n.card {")) < css.indexOf(QStringLiteral("\n.photo {")));
 
