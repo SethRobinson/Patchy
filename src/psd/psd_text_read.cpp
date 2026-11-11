@@ -2375,6 +2375,14 @@ std::string first_strong_text_direction(std::span<const std::uint16_t> utf16) {
   return {};
 }
 
+void swap_right_to_left_paragraph_indents(std::span<PsdTextParagraphRun> runs) noexcept {
+  for (auto& run : runs) {
+    if (run.direction == "rtl") {
+      std::swap(run.start_indent, run.end_indent);
+    }
+  }
+}
+
 // v1: start len alignment; v2: + indent/space metrics; v3: + auto-leading fraction;
 // v4: + paragraph direction ("auto", "ltr" or "rtl"); v5: + composer (Txt2 /35, written only
 // when a paragraph is not World-Ready); v6: + the kept Photoshop settings (column 11,
