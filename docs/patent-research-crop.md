@@ -125,9 +125,12 @@ full-text searches for Adobe as assignee (crop with rotate, straighten, pan or c
 claims, filed from 2009) returned no patent on the Photoshop CS6 crop interaction; searches for
 Corel, Serif, Skylum, Macphun, Pixelmator and Affinity returned no crop-interaction patent.
 
-## Outcome (not decided on the scan date)
+## Outcome (decided 2026-11-11)
 
-The mode is not built until Seth decides. The comparison leaves two groups:
+Decided 2026-11-11: the mode is built within the limits of group 1. For group 2 the build rests
+on the earlier publications E1 to E4, the same kind of decision as the one of 2026-10-20 on the
+composite-preview patents ([patent-research-audit.md](patent-research-audit.md), item 1). The
+comparison leaves two groups:
 
 1. Separated by design, so these bind any build and the crop tool as it is today:
    - A rotation never changes the zoom or the box size, and nothing tests whether a canvas edge
@@ -141,8 +144,8 @@ The mode is not built until Seth decides. The comparison leaves two groups:
 2. Not separated by design: claims 14 and 15 of US 11532072, claims 4 to 7 of US 11120525, and
    NL 2009172. The independent claims of the first two already describe the Ratio list and the
    crop shield Patchy ships, so declining the mode changes nothing about those. A build rests,
-   for this group, on E1 to E4 being earlier than the family, which is a judgment this record
-   does not make.
+   for this group, on E1 to E4 being earlier than the family: the decision above, not a finding
+   of this record.
 
 Re-check dates: 2031-07-12 (the five US continuations end), 2032-07-11 (NL 2009172),
 2033-09-21 (US 9158455). After the last one the limits in group 1 that come from this family
