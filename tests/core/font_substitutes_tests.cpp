@@ -211,7 +211,8 @@ void font_substitutes_symbol_fonts_pair_only_fonts_with_the_same_codes() {
 
   for (const auto name : {"Wine Wingdings", "Wingdings", "Wingdings 2", "Wingdings 3", "Webdings", "Symbol",
                           "SymbolMT", "WineSymbol", "Zapf Dingbats", "ITC Zapf Dingbats", "Marlett", "MT Extra",
-                          "Patchy Missing Dingbats"}) {
+                          "Patchy Missing Dingbats", "Standard Symbols PS", "Standard Symbols L", "D050000L",
+                          "d050000l"}) {
     CHECK(patchy::font_class_for_name(name) == FontClass::symbol);
   }
   // "Symbol" alone is not a symbol word: these are Unicode text fonts.

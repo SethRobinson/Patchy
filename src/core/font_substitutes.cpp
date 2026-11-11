@@ -479,6 +479,9 @@ std::vector<std::string> family_name_words(std::string_view family) {
 }
 
 constexpr std::string_view kSymbolWords[] = {"wingdings", "webdings", "dingbats", "marlett"};
+// Whole names (lower case) of symbol fonts no word gives away: URW's base 35 symbol and dingbat
+// fonts on Linux (GitHub issue 691 follow-up). Their Type 1 copies carry no OS/2 table to say so.
+constexpr std::string_view kSymbolFamilyNames[] = {"standard symbols ps", "standard symbols l", "d050000l"};
 constexpr std::string_view kMonoWords[] = {"mono", "monospace", "monospaced", "code", "console", "typewriter",
                                            "courier", "terminal"};
 constexpr std::string_view kSansWords[] = {"sans", "gothic", "grotesk", "grotesque", "hei"};
@@ -500,8 +503,13 @@ constexpr std::string_view kMonoDefaults[] = {"Consolas", "Courier New", "Menlo"
 }  // namespace
 
 FontClass classify_font_name_words(std::string_view family) {
+  std::string lower(family);
+  std::ranges::transform(lower, lower.begin(), [](char ch) {
+    return ch >= 'A' && ch <= 'Z' ? static_cast<char>(ch - 'A' + 'a') : ch;
+  });
   const auto words = family_name_words(family);
-  if (has_any_word(words, kSymbolWords)) {
+  if (has_any_word(words, kSymbolWords) || std::ranges::find(kSymbolFamilyNames, std::string_view(lower)) !=
+                                               std::ranges::end(kSymbolFamilyNames)) {
     return FontClass::symbol;
   }
   if (has_any_word(words, kMonoWords)) {
