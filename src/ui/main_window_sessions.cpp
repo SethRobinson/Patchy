@@ -332,7 +332,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   } else {
     QProgressDialog progress(opening_label, QString(), 0, 0, this);
     progress.setObjectName(QStringLiteral("openSessionProgressDialog"));
-    progress.setWindowTitle(tr("Opening %1").arg(tab_title));
+    set_progress_dialog_title(progress, tr("Opening %1"), tab_title);
     progress.setWindowModality(Qt::WindowModal);
     progress.setCancelButton(nullptr);
     progress.setAutoClose(false);

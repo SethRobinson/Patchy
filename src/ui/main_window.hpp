@@ -1262,8 +1262,11 @@ private:
   // automation; pump() turns the event loop (no user input) either way.
   class OpenProgress {
    public:
-    // `show_after_ms` < 0 takes the default delay (open_progress_delay_ms).
-    OpenProgress(MainWindow& window, QString window_title, QString object_name, int show_after_ms = -1);
+    // The title is `title_format` with `title_name` for %1 (set_progress_dialog_title; an
+    // empty name takes the format as it is). `show_after_ms` < 0 takes the default delay
+    // (open_progress_delay_ms).
+    OpenProgress(MainWindow& window, QString title_format, QString title_name, QString object_name,
+                 int show_after_ms = -1);
     ~OpenProgress();
     OpenProgress(const OpenProgress&) = delete;
     OpenProgress& operator=(const OpenProgress&) = delete;
@@ -1279,7 +1282,8 @@ private:
     // Creates the dialog once it is due and brings its label and range up to date.
     void sync_dialog();
     MainWindow& window_;
-    QString window_title_;
+    QString title_format_;
+    QString title_name_;
     QString object_name_;
     QString label_;
     int value_{0};

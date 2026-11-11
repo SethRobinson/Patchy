@@ -371,6 +371,28 @@ void remember_dialog_position(QDialog& dialog);
 // rows around it instead of growing the dialog (GitHub #612). The minimum height follows
 // the layout's height-for-width: a longer text or a narrower window grows the dialog.
 void keep_dialog_tall_enough_for_wrapped_text(QDialog& dialog);
+// The title of a small progress dialog that names a file or folder ("Opening %1",
+// "Saving %1"). The window manager draws a title in its own font beside its icon and
+// buttons and cuts what does not fit (KDE showed "Ope...psd", GitHub #704), so the dialog
+// is made wide enough for the whole title, up to a cap (kProgressTitleMaximumWidth or
+// three fifths of the screen, or the dialog's own size hint when wider); past the cap the name is elided in the middle so the words
+// around it and the file's extension still show. `title_format` holds `%1` for `name`;
+// an empty `name` takes `title_format` as the whole title.
+struct ProgressDialogTitleFit {
+  QString title;
+  int minimum_width{0};
+};
+inline constexpr int kProgressTitleMaximumWidth = 520;
+// Room the title bar takes besides the text: the window icon and up to four buttons.
+[[nodiscard]] int progress_dialog_title_reserved_width(const QWidget& dialog);
+// The widest the title text draws in the fonts a title bar may use.
+[[nodiscard]] int progress_dialog_title_text_width(const QWidget& dialog, const QString& text);
+[[nodiscard]] int progress_dialog_title_width_cap(const QWidget& dialog);
+[[nodiscard]] ProgressDialogTitleFit fit_progress_dialog_title(const QWidget& dialog, const QString& title_format,
+                                                               const QString& name);
+// Sets the fitted title and raises the dialog's minimum width to fit it. Call before the
+// dialog is placed (remember_dialog_position) so it centers at its final width.
+void set_progress_dialog_title(QDialog& dialog, const QString& title_format, const QString& name = {});
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
 // Coalesces the mouse moves of a slider drag app-wide (GitHub #601): the first
