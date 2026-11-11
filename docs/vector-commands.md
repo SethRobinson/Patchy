@@ -160,7 +160,8 @@ and the Pen's Ctrl latch shows Direct Select's. Coverage: `ui_direct_select_alt_
 Shape tools (issues 312, 313). Ctrl is a temporary Path Select: `shape_ctrl_path_select_`
 follows Ctrl while idle (hover, key filter: cursor, overlay); a Ctrl press latches
 `shape_temp_path_select_` to release, so `path_edit_tool()` reports PathSelect (Ctrl+Alt-drag
-duplicates the shape into the same layer like Path Select's Alt-drag). Shift at a
+duplicates the shape into the same layer like Path Select's Alt-drag; the move and the
+copy [snap like a Move drag](alignment.md#whole-shape-drags)). Shift at a
 vector drag's press sets `shape_press_adds_to_shape_` for that commit:
 `effective_vector_combine_index()` reads Add (any kind joins the active shape layer; none: a
 new layer); the Combine combo is never written. Tests:
