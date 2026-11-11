@@ -1945,8 +1945,8 @@ protected:
     return path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::HandleIn ||
            path_drag_mode_ == PathEditDrag::HandleOut;
   }
-  // Every paint stroke: Clone and Healing (GitHub #597), Smudge and the toning brushes
-  // (GitHub #660), Brush and Eraser, whose queued moves then paint their spaced dabs in one
+  // Every paint stroke: Clone and Healing (GitHub #597), Smudge and the toning brushes (Dodge,
+  // Burn, Sponge, Blur, Sharpen; GitHub #660), Brush and Eraser, whose queued moves then paint their spaced dabs in one
   // batch (GitHub #677 follow-up), and Mixer Brush and Pattern Stamp (the November 2026 drag
   // audit). Each keeps every recorded position as a folded sample.
   [[nodiscard]] bool coalescing_retouch_stroke() const noexcept { return painting_; }
