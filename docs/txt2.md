@@ -43,10 +43,19 @@ Exceptions:
 - A document that keeps a verbatim Photoshop 5.x `tySh` record gets no block at all unless it
   already had one, because the block's presence alone makes Photoshop open every such layer as
   pixels ([psd-legacy-text.md](psd-legacy-text.md)).
-- A preserved block that fails to parse is kept verbatim and the regenerated layers fall back to
-  indices no object has (`kRegeneratedTextIndexBase`), the old-text path.
+- A preserved block that fails to parse (the named-key engine of Photoshop CS-era files) is kept
+  verbatim while any layer still writes the type record it was read with, because that record
+  addresses an object of the block; the regenerated layers fall back to indices no object has
+  (`kRegeneratedTextIndexBase`), the old-text path.
 - In both cases a document holding area text refuses PSD/PSB save with an explicit error: the
   area frame lives only in the block, so it cannot be written there ([area-text.md](area-text.md)).
+- When EVERY type record of such a document is regenerated (Type > Update All Text Layers on a
+  file whose fonts are installed), nothing refers to the old objects any more and the block is
+  replaced by an authored one from the template, each layer at a fresh index
+  (`every_type_record_is_regenerated` in `build_text_engine_block`). Left on the old-text path,
+  Photoshop laid the psd-tools `pen-text.psd` layer out with its legacy engine: wider, lighter
+  glyphs (Testy's text-save leg, November 2026). Test:
+  `text_engine_old_engine_block_is_replaced_when_every_layer_is_regenerated`.
 
 Tests: `tests/core/text_engine_block_tests.cpp`.
 
@@ -87,7 +96,7 @@ embedded smart-object PSD in its `lnk2` block, not at document level).
 | `/0/2`, `/0/3`, `/0/4` | MojiKumi / MojiKumiSet (9) / KinsokuSet (6) | boilerplate, identical across captures |
 | `/0/5/0[]` | StyleSheetSet | `/0` name ("Normal RGB", "None"), `/6` the 93-key style sheet |
 | `/0/6/0[]` | ParagraphSheetSet | `/0` name ("Normal RGB", "Basic Paragraph"), `/5` the 44-key paragraph sheet, `/6` default style sheet index |
-| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update) |
+| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update); `/0/2/10` the first-baseline rule, see [Box first baseline](#box-first-baseline) |
 | `/0/9/0[]` | ListStyleSet | 11 predefined list styles, `/0` name, `/6` numbering kind; index is what a paragraph's `/36` references |
 | `/1` | DocumentObjects | |
 | `/1/4` | engine version | `/0 7 /1 11 /2 0 /3 (Photoshop)` |
@@ -166,7 +175,8 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/6`, `/7` | HorizontalScale, VerticalScale | 1.0 |
 | `/8` | Tracking | integer (200 in the tracking fixture) |
 | `/9` | BaselineShift | Engine pixels; positive raises glyphs, runs v8 column 15 |
-| `/11` | AutoKerning | 1 |
+| `/10` | Kerning (the manual number) | 1/1000 em; 0.0 in the default sheets; see [Kerning](#kerning) |
+| `/11` | AutoKerning (`autoKern`) | 0 manual, 1 Metrics, 2 Optical |
 | `/12` | FontCaps | 0, 1 Small Caps, 2 All Caps |
 | `/13` | FontBaseline | 0, 1 superscript, 2 subscript |
 | `/15` | Strikethrough | 0, 1 on |
@@ -220,6 +230,57 @@ language. There is no UI for it: Patchy has no hyphenation or spell check. Accep
 2026 over COM): a Patchy-born file with English UK, German and Arabic runs, and the Photoshop
 fixture (`local-test-fixtures/psd/issue-682/`) edited and saved by Patchy, both open clean
 (`textWarningLevel 0`, no `oldText`) and read those languages back on the same runs.
+
+## Kerning
+
+Photoshop's kerning setting (the Character panel's V/A field; Action Manager `textStyle` key
+`autoKern`: `metricsKern`, `opticalKern`, `manual`) is the Txt2 style key `/11`: 0 manual, 1
+Metrics, 2 Optical, with the manual number in `/10` (1/1000 em). Photoshop 2026 writes `/AutoKerning
+true /Kerning 0` into the TySh run whatever the setting is (COM captures on This PC, November
+2026: one layer per setting, "AV To Wa" in Arial 40 px is 172 px wide with Metrics, 173 with
+Optical and 182 with manual 0), and a manual 0 run carries `/11 0` with no `/10`. Older files do
+use the TySh: `/AutoKerning false` with `/Kerning` for a manual run.
+
+Where Photoshop takes it from, for a layer with a Txt2 object: the style run's own `/11`; a run
+that leaves it out takes the character style (`/32`) of its paragraph's parent ParagraphSheetSet
+entry, ahead of the run's parent style sheet, like the type size above. "Basic Paragraph" says
+`/11 0` in files Photoshop CC wrote and `/11 1` in Photoshop 2026's, so a run that states
+nothing is UNKERNED in such an older file (the psd-tools `effect-stroke-gradient.psd`: 85.8 px
+wide, 82.3 px once a save stated Metrics). The reader (`object_style_kerning`) goes run, the
+paragraph run's own `/32`, the parent paragraph sheet's `/32`, the parent StyleSheetSet entry,
+`/1/2`; the result overrides the TySh run (`runs_with_text_object_kerning`), which serves a
+layer without an object (and a file whose block is the old named-key engine).
+
+Patchy keeps it as `PsdTextStyleRun::kerning_mode` and `kerning`, runs v9 column 16 tokens
+`kern:optical` and `kern:<number>` (manual), written only off Metrics; the editor carries them
+with the Middle Eastern settings (`kTextMiddleEasternFormatProperty`). Patchy draws with the
+font's own pair kerning whatever the setting is, so a manual 0 run is a little narrower in
+Patchy than in Photoshop. The writer puts the mode into `/11` (and a non-zero number into `/10`)
+and, for manual only, `/AutoKerning false /Kerning <n>` into the TySh run; the normal sheets stay
+Metrics. Patchy used to write Metrics into every run it rewrote. Tests:
+`text_engine_kerning_round_trips`, `text_engine_kerning_reads_photoshop_sheets`,
+`ui_update_all_text_layers_keeps_photoshop_anchor_kerning_and_anti_aliasing`.
+
+## Box first baseline
+
+A box frame's `/0/2/10` is its first-baseline rule (Action Manager `frameBaselineAlignment`):
+Photoshop's own box frames have no such key and read `alignByAscent`; `/10 << /0 2 /1 0.0 >>`
+reads `alignByCapHeight`. Patchy writes the key for a Qt-natural box, whose transform origin the
+writer moves by the baseline inset measured against the cap height
+([text-render-calibration-patchy-authored.md](text-render-calibration-patchy-authored.md)), and
+leaves it out for a layer in the Photoshop layout model (`TextEngineInputs::photoshop_layout`),
+whose first baseline Patchy itself puts at the ascent. Written into every box frame, it made
+Photoshop move the first line of a re-rendered Photoshop box layer up by the ascent less the cap
+height (nothing for Arial, whose two are equal; Frutiger Ultra Black at 171 px visibly).
+
+## Anti-aliasing
+
+The method Photoshop shows and draws with is the TySh descriptor's `AntA` enum (`Anno`, `AnCr`,
+`AnSt`, `AnSm`, `antiAliasSharp`, `antiAliasPlatformLCD`, `antiAliasPlatformGray`); the
+EngineData `/AntiAlias` number normally agrees, and the Txt2 object has no key for it. Files
+exist where the two disagree (Smooth beside 4, Crisp beside 2 in Testy's private corpus), so the
+reader takes the descriptor first (`extract_type_tool_anti_alias`) and the number only for a
+record without one. Test: `text_engine_anti_alias_reads_the_descriptor_method`.
 
 ## What Photoshop 2026 accepts (probe results, all opened clean, no dialog, correct readback)
 

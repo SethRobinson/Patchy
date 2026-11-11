@@ -24,6 +24,7 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QRawFont>
+#include <QStyle>
 #include <QTextBlock>
 #include <QTextBlockFormat>
 #include <QTextCursor>
@@ -1133,6 +1134,29 @@ TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const
     metrics.first_baseline = settings.boxed ? first_baseline - plan.local_rect.top() : first_baseline;
     if (!settings.boxed) {
       metrics.raster_top = plan.local_rect.top();
+    }
+  }
+  if (!settings.boxed && !settings.area) {
+    // Photoshop anchors point text at the first line's justification point (its middle when
+    // centered, its end when right-aligned); the plan's origin is the line box's left edge.
+    // Alignment is logical, so a right-to-left paragraph's "left" is the visual right.
+    const auto& first = natural.front();
+    auto direction = first.block.blockFormat().layoutDirection();
+    if (direction != Qt::LeftToRight && direction != Qt::RightToLeft) {
+      direction = first.block.text().isRightToLeft() ? Qt::RightToLeft : Qt::LeftToRight;
+    }
+    const auto visual = QStyle::visualAlignment(direction, first.block.blockFormat().alignment());
+    const double factor = (visual & Qt::AlignHCenter) != 0 ? 0.5 : (visual & Qt::AlignRight) != 0 ? 1.0 : 0.0;
+    if (factor > 0.0) {
+      QRectF line_rect = first.line.naturalTextRect().translated(layout->blockBoundingRect(first.block).topLeft());
+      if (!plan.line_render_items.empty() && plan.line_render_items.front().line.isValid()) {
+        const auto& item = plan.line_render_items.front();
+        line_rect = item.line.naturalTextRect().translated(item.block_origin);
+      }
+      const auto anchor_x = line_rect.left() + factor * line_rect.width();
+      if (std::isfinite(anchor_x)) {
+        metrics.anchor_x = anchor_x;
+      }
     }
   }
   if (settings.photoshop_layout) {

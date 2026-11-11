@@ -4113,6 +4113,9 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   layer.metadata().erase(kLayerMetadataTextBoxBaselineInset);
   layer.metadata().erase(kLayerMetadataTextAutoLeading);
   layer.metadata().erase(kLayerMetadataTextRasterTop);
+  layer.metadata().erase(kLayerMetadataTextAnchorX);
+  layer.metadata().erase(kLayerMetadataTextFileAnchor);
+  layer.metadata().erase(kLayerMetadataTextFileBox);
   clear_layer_psd_text_source(layer);
 }
 
@@ -4131,6 +4134,132 @@ void store_text_layout_metrics(Layer& layer, const TextLayoutMetrics& metrics) {
   store(kLayerMetadataTextBoxBaselineInset, metrics.box_baseline_inset);
   store(kLayerMetadataTextAutoLeading, metrics.auto_leading);
   store(kLayerMetadataTextRasterTop, metrics.raster_top);
+  store(kLayerMetadataTextAnchorX, metrics.anchor_x);
+  // The file's anchor belongs to the render that carried it over (commit_text_editor records it
+  // again after this); any other render places the text itself.
+  layer.metadata().erase(kLayerMetadataTextFileAnchor);
+}
+
+// The document point a point-text layer's file anchored it at (Photoshop's click point: the first
+// baseline at the first line's justification point), while the layer still knows it:
+// - a layer whose render carried the anchor over (kLayerMetadataTextFileAnchor): that text-local
+//   point through the layer's transform, so a move or a free transform since took it along;
+// - an imported layer nothing has re-rendered: its transform's translation (the PSD transform,
+//   moved or transformed with the layer). A file Patchy wrote before the anchor fix has a
+//   centered or right-aligned layer's translation at the line box's LEFT edge; such a layer is
+//   told apart by its stored ink box, which then starts at the anchor instead of straddling or
+//   ending at it, and is left to the renderer's own measure.
+// Warped point text counts: its transform maps the unwarped text-local space the anchor is in.
+// Nothing for box, area and vertical text, whose anchors follow other rules.
+std::optional<QPointF> point_text_file_anchor_in_document(const Layer& layer) {
+  if (!layer_is_text(layer) || layer_text_is_vertical(layer) || text_area_for_layer(layer).has_value()) {
+    return std::nullopt;
+  }
+  const auto& metadata = layer.metadata();
+  if (const auto flow = metadata.find(kLayerMetadataTextFlow);
+      flow != metadata.end() && text_flow_is_box(QString::fromStdString(flow->second))) {
+    return std::nullopt;
+  }
+  const auto transform = canonical_text_affine_transform_for_layer(layer);
+  if (!transform.has_value()) {
+    return std::nullopt;
+  }
+  if (const auto stored = metadata.find(kLayerMetadataTextFileAnchor); stored != metadata.end()) {
+    const auto fields = QString::fromStdString(stored->second).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    bool ok_x = false;
+    bool ok_y = false;
+    const QPointF local(fields.value(0).toDouble(&ok_x), fields.value(1).toDouble(&ok_y));
+    if (fields.size() != 2 || !ok_x || !ok_y || !std::isfinite(local.x()) || !std::isfinite(local.y())) {
+      return std::nullopt;
+    }
+    return qtransform_from_affine(*transform).map(local);
+  }
+  if (!metadata.contains(kLayerMetadataPsdTextTransform)) {
+    return std::nullopt;
+  }
+  const auto status = metadata.find(kLayerMetadataTextRasterStatus);
+  const bool photoshop_raster = status != metadata.end() && status->second == "psd_raster_preview";
+  if (!photoshop_raster) {
+    // A Patchy raster (a file Patchy saved, reopened; or a preview regenerated at import): the
+    // transform has to be the file's own, and its anchor where the alignment says it is.
+    if (layer_patchy_text_transform_overrides_psd_source(layer)) {
+      return std::nullopt;
+    }
+    // A record without an ink box (Photoshop CS-era files; every block Patchy writes has one)
+    // cannot be one of those, so its anchor stands.
+    const auto factor = layer_anchor_alignment_factor(layer);
+    if (factor > 0.0) {
+      const auto ink = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoundingBox);
+      if (ink.has_value() && ink->width() > 1.0 &&
+          std::abs(ink->left() + factor * ink->width()) > 0.25 * ink->width() + 2.0) {
+        return std::nullopt;
+      }
+    }
+  }
+  const QPointF anchor((*transform)[4], (*transform)[5]);
+  if (!std::isfinite(anchor.x()) || !std::isfinite(anchor.y())) {
+    return std::nullopt;
+  }
+  return anchor;
+}
+
+// The size of the text box a box-text layer's file gave it, in text-local units, while the
+// layer still knows it: the size a render carried over (kLayerMetadataTextFileBox), else an
+// imported layer's PSD box. Photoshop's boxes are fractional; Patchy's are whole pixels.
+std::optional<QSizeF> box_text_file_size(const Layer& layer) {
+  if (!layer_is_text(layer) || text_area_for_layer(layer).has_value() || layer_has_active_text_warp(layer)) {
+    return std::nullopt;
+  }
+  const auto& metadata = layer.metadata();
+  const auto flow = metadata.find(kLayerMetadataTextFlow);
+  if (flow == metadata.end() || !text_flow_is_box(QString::fromStdString(flow->second))) {
+    return std::nullopt;
+  }
+  // Photoshop-layout layers only: a Qt-natural box Patchy wrote stores its /BoxBounds taller by
+  // the baseline inset (text_geometry_for_layer), which is not the box's size.
+  if (const auto mode = metadata.find(kLayerMetadataTextLayoutMode);
+      mode == metadata.end() || mode->second != kTextLayoutModePhotoshop) {
+    return std::nullopt;
+  }
+  QSizeF size;
+  if (const auto stored = metadata.find(kLayerMetadataTextFileBox); stored != metadata.end()) {
+    const auto fields = QString::fromStdString(stored->second).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    bool ok_width = false;
+    bool ok_height = false;
+    size = QSizeF(fields.value(0).toDouble(&ok_width), fields.value(1).toDouble(&ok_height));
+    if (fields.size() != 2 || !ok_width || !ok_height) {
+      return std::nullopt;
+    }
+  } else if (const auto box = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoxBounds); box.has_value()) {
+    size = box->size();
+  } else {
+    return std::nullopt;
+  }
+  if (!std::isfinite(size.width()) || !std::isfinite(size.height()) || !(size.width() >= 1.0) ||
+      !(size.height() >= 1.0)) {
+    return std::nullopt;
+  }
+  return size;
+}
+
+// Records `anchor` (a document point, point_text_file_anchor_in_document before the commit) on a
+// freshly committed layer as a point of the text-local space its new transform maps.
+void store_point_text_file_anchor(Layer& layer, const QPointF& anchor) {
+  const auto transform = canonical_text_affine_transform_for_layer(layer);
+  if (!transform.has_value()) {
+    return;
+  }
+  bool invertible = false;
+  const auto inverse = qtransform_from_affine(*transform).inverted(&invertible);
+  if (!invertible) {
+    return;
+  }
+  const auto local = inverse.map(anchor);
+  if (!std::isfinite(local.x()) || !std::isfinite(local.y())) {
+    return;
+  }
+  layer.metadata()[kLayerMetadataTextFileAnchor] =
+      (QString::number(local.x(), 'g', 17) + QLatin1Char(' ') + QString::number(local.y(), 'g', 17)).toStdString();
 }
 
 // Version number of a serialized runs string ("v3" -> 3); 0 when the first line is not a tag.
@@ -8072,6 +8201,23 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (text_layer_name_is_auto(layer)) {
       layer.set_name(name.toStdString());
     }
+    // Before the layer's file geometry is cleared: where its file anchored it, the alignment
+    // that anchor belongs to, and the transform it is expressed through (see the end).
+    const auto file_anchor = std::as_const(layer).metadata().contains(kLayerMetadataTextTransform) ||
+                                     std::as_const(layer).metadata().contains(kLayerMetadataPsdTextTransform)
+                                 ? point_text_file_anchor_in_document(std::as_const(layer))
+                                 : std::nullopt;
+    const auto previous_alignment_factor = layer_anchor_alignment_factor(std::as_const(layer));
+    const auto file_box = box_text_file_size(std::as_const(layer));
+    const auto previous_file_anchor_text = [&]() -> std::optional<std::string> {
+      const auto& previous = std::as_const(layer).metadata();
+      const auto anchor = previous.find(kLayerMetadataTextFileAnchor);
+      const auto transform = previous.find(kLayerMetadataTextTransform);
+      if (anchor == previous.end() || transform == previous.end()) {
+        return std::nullopt;
+      }
+      return transform->second + '\n' + anchor->second;
+    }();
     layer.set_pixels(std::move(committed_pixels));
     layer.set_bounds(committed_bounds);
     layer.set_visible(restore_existing_visibility);
@@ -8110,6 +8256,33 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
           LayerAffineTransform{committed_warp_transform.m11(), committed_warp_transform.m12(),
                                committed_warp_transform.m21(), committed_warp_transform.m22(),
                                committed_warp_transform.dx(), committed_warp_transform.dy()});
+    }
+    // Horizontal point text that came from a file keeps the anchor the file gave it (Photoshop's
+    // click point) when the commit kept the first paragraph's alignment: the session pins the
+    // text to where it was, so that document point is still the anchor, and a PSD save writes
+    // it back exactly (kLayerMetadataTextFileAnchor). A changed alignment moves the anchor to
+    // another point of the line; the renderer's own measure serves then.
+    if (file_anchor.has_value() && !boxed_text && !settings.vertical && !settings.area.has_value() &&
+        std::abs(previous_alignment_factor - layer_anchor_alignment_factor(std::as_const(layer))) < 1e-9) {
+      const auto committed_transform = std::as_const(layer).metadata().find(kLayerMetadataTextTransform);
+      if (previous_file_anchor_text.has_value() && committed_transform != std::as_const(layer).metadata().end() &&
+          previous_file_anchor_text->starts_with(committed_transform->second + '\n')) {
+        // The same transform as before: the same local point, digit for digit, so a commit that
+        // changes nothing leaves the layer's metadata equal (no History step, GitHub issue 387).
+        layer.metadata()[kLayerMetadataTextFileAnchor] =
+            previous_file_anchor_text->substr(committed_transform->second.size() + 1U);
+      } else {
+        store_point_text_file_anchor(layer, *file_anchor);
+      }
+    }
+    // Box text that came from a file keeps the file's fractional box while the committed
+    // whole-pixel box is still that box (within a pixel: the session rounds it, sometimes up).
+    if (file_box.has_value() && boxed_text && !settings.area.has_value() && !committed_warp_used.has_value() &&
+        std::abs(file_box->width() - stored_box_width) <= 1.0 &&
+        std::abs(file_box->height() - stored_box_height) <= 1.0) {
+      layer.metadata()[kLayerMetadataTextFileBox] =
+          (QString::number(file_box->width(), 'g', 17) + QLatin1Char(' ') + QString::number(file_box->height(), 'g', 17))
+              .toStdString();
     }
   };
   // A commit that would leave an existing layer exactly as it was (a session applied with

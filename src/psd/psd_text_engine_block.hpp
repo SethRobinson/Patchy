@@ -48,6 +48,10 @@ struct TextEngineInputs {
   double box_height{0.0};
   bool vertical{false};
   std::optional<VectorPath> area;
+  // The layer is laid out by Photoshop's rules (kLayerMetadataTextLayoutMode): its box frame
+  // then keeps Photoshop's own first-baseline rule (the ascent) instead of the cap-height rule a
+  // Qt-natural Patchy box is written with (author_frame).
+  bool photoshop_layout{false};
 };
 
 // The FontSize one paragraph run of a text object hands to style runs that leave FontSize unset
@@ -82,6 +86,18 @@ struct TextStyleRunFeatures {
   std::optional<bool> justification_alternates;
 };
 
+// The kerning one style run of a text object resolves to (style keys /11: 0 manual, 1 Metrics,
+// 2 Optical, and /10 the manual number in 1/1000 em): the run's own sheet, else the character
+// style of the paragraph its first character sits in (the paragraph run's own /32, then its
+// parent ParagraphSheetSet entry's: "Basic Paragraph" says manual 0 in files Photoshop CC wrote),
+// else the run's parent StyleSheetSet entry, else the document's default style sheet (/1/2).
+// Photoshop reads the kerning here and not from the TySh (docs/txt2.md, "Kerning").
+struct TextStyleRunKerning {
+  int length{0};
+  std::optional<int> mode;
+  std::optional<double> kerning;
+};
+
 // The composer (paragraph key /35) and direction (/33: 0 left to right, 1 right to left) one
 // paragraph run of a text object resolves to: its own sheet, else its parent ParagraphSheetSet
 // entry, else the document's default paragraph sheet (/1/3). Hyphenate (/9), the Kashida
@@ -114,6 +130,8 @@ struct TextFrameGeometry {
   std::vector<TextStyleRunFeatures> style_features{};
   // One entry per paragraph run of the object; empty when no sheet names any of its settings.
   std::vector<TextParagraphComposer> paragraph_composers{};
+  // One entry per style run of the object; empty when no sheet names a kerning mode.
+  std::vector<TextStyleRunKerning> style_kerning{};
 };
 
 // Unaddressed TySh index for regenerated text beside a verbatim legacy engine,
@@ -146,6 +164,7 @@ class TextEngineBlock {
   [[nodiscard]] std::vector<TextParagraphFontSize> object_paragraph_font_sizes(std::size_t index) const;
   [[nodiscard]] std::vector<TextStyleRunFeatures> object_style_features(std::size_t index) const;
   [[nodiscard]] std::vector<TextParagraphComposer> object_paragraph_composers(std::size_t index) const;
+  [[nodiscard]] std::vector<TextStyleRunKerning> object_style_kerning(std::size_t index) const;
 
   // Authors a text object from the inputs and stores it at `index` (replacing the object and
   // its frame there, or appending when `index` is past the end); fonts join the FontSet as

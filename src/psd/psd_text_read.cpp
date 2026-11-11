@@ -1548,6 +1548,11 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
       if (const auto baseline = engine_number_after_key(sheet, "/BaselineDirection"); baseline.has_value()) {
         defaults.baseline_direction = static_cast<int>(std::lround(*baseline));
       }
+      defaults.auto_kerning = engine_bool_after_key(sheet, "/AutoKerning", true);
+      if (const auto kerning = engine_number_after_key(sheet, "/Kerning");
+          kerning.has_value() && std::isfinite(*kerning) && std::abs(*kerning) <= 100000.0) {
+        defaults.kerning = *kerning;
+      }
       defaults.fill_color = extract_engine_fill_color_from_text(sheet, cmyk);
     }
   }
@@ -1620,6 +1625,50 @@ std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextS
   return result;
 }
 
+// Lays the 'Txt2' object's kerning (one entry per style run of the object) over the TySh runs,
+// splitting a TySh run where the kerning changes inside it. Photoshop reads the object, not the
+// TySh: Photoshop 2026 writes /AutoKerning true into every TySh run, and an older file's TySh can
+// say manual beside a Metrics object.
+std::vector<PsdTextStyleRun> runs_with_text_object_kerning(std::vector<PsdTextStyleRun> runs,
+                                                           std::span<const TextStyleRunKerning> kerning) {
+  std::vector<PsdTextStyleRun> result;
+  result.reserve(runs.size());
+  for (auto& run : runs) {
+    int position = run.start;
+    const int run_end = run.start + run.length;
+    int entry_start = 0;
+    for (std::size_t k = 0; k < kerning.size() && position < run_end; ++k) {
+      const int entry_end = k + 1 == kerning.size() ? std::max(run_end, entry_start + kerning[k].length)
+                                                    : entry_start + kerning[k].length;
+      const int piece_end = std::min(run_end, entry_end);
+      if (piece_end > position) {
+        auto piece = run;
+        piece.start = position;
+        piece.length = piece_end - position;
+        if (kerning[k].mode.has_value()) {
+          piece.kerning_mode = *kerning[k].mode;
+          piece.kerning = piece.kerning_mode == kTextKerningManual ? kerning[k].kerning.value_or(0.0) : 0.0;
+        }
+        if (!result.empty() && piece.start > run.start && result.back().kerning_mode == piece.kerning_mode &&
+            result.back().kerning == piece.kerning) {
+          result.back().length += piece.length;
+        } else {
+          result.push_back(std::move(piece));
+        }
+        position = piece_end;
+      }
+      entry_start = entry_end;
+    }
+    if (position < run_end) {
+      auto rest = run;
+      rest.start = position;
+      rest.length = run_end - position;
+      result.push_back(std::move(rest));
+    }
+  }
+  return result;
+}
+
 }  // namespace
 
 std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<const std::uint8_t> payload,
@@ -1628,7 +1677,8 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
                                                                      RgbColor fallback_color,
                                                                      const CmykColorConverter& cmyk,
                                                                      std::span<const TextParagraphFontSize> paragraph_font_sizes,
-                                                                     std::span<const TextStyleRunFeatures> style_features) {
+                                                                     std::span<const TextStyleRunFeatures> style_features,
+                                                                     std::span<const TextStyleRunKerning> style_kerning) {
   const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
   const auto style_pos = engine.find("/StyleRun");
   if (style_pos == std::string_view::npos) {
@@ -1719,6 +1769,15 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     if (engine_bool_after_key(dictionaries[index], "/HindiNumbers", false)) {
       run.digit_set = 2;
     }
+    // Kerning: a TySh run is manual when it says /AutoKerning false, with the number in /Kerning
+    // (0 = no kerning). Photoshop 2026 writes true and 0 here whatever the setting is and keeps
+    // the real one (Metrics, Optical, manual) in the Txt2 object, which overrides this below when
+    // the layer has one (docs/txt2.md, "Kerning").
+    if (!engine_bool_after_key(dictionaries[index], "/AutoKerning", defaults.auto_kerning)) {
+      run.kerning_mode = kTextKerningManual;
+      const auto kerning = engine_number_after_key(dictionaries[index], "/Kerning").value_or(defaults.kerning);
+      run.kerning = std::isfinite(kerning) && std::abs(kerning) <= 100000.0 ? kerning : 0.0;
+    }
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1791,6 +1850,9 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
   }
   if (!style_features.empty()) {
     runs = runs_with_text_object_features(std::move(runs), style_features);
+  }
+  if (!style_kerning.empty()) {
+    runs = runs_with_text_object_kerning(std::move(runs), style_kerning);
   }
   return runs;
 }
@@ -1903,7 +1965,11 @@ bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept {
   return run.font_caps != 0 || run.font_baseline != 0 || run.underline || run.strikethrough || run.ordinals ||
          run.fractions || !run.ligatures || run.contextual_alternates || run.discretionary_ligatures || run.swash ||
          run.stylistic_alternates || run.titling_alternates || run.language.has_value() ||
-         text_run_has_middle_eastern_settings(run);
+         text_run_has_middle_eastern_settings(run) || text_run_has_kept_kerning(run);
+}
+
+bool text_run_has_kept_kerning(const PsdTextStyleRun& run) noexcept {
+  return run.kerning_mode == kTextKerningManual || run.kerning_mode == kTextKerningOptical;
 }
 
 bool text_run_has_middle_eastern_settings(const PsdTextStyleRun& run) noexcept {
@@ -2007,6 +2073,10 @@ std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
   if (run.diacritic_y_offset != 0.0) add("diacy:" + serialize_paragraph_metric(run.diacritic_y_offset));
   if (run.mark_y_distance != 100.0) add("marky:" + serialize_paragraph_metric(run.mark_y_distance));
   if (run.justification_alternates) add("justalt");
+  if (run.kerning_mode == kTextKerningOptical) add("kern:optical");
+  if (run.kerning_mode == kTextKerningManual) {
+    add("kern:" + serialize_paragraph_metric(std::isfinite(run.kerning) ? run.kerning : 0.0));
+  }
   return tokens.empty() ? std::string("-") : tokens;
 }
 
@@ -2029,6 +2099,8 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
   run.diacritic_y_offset = 0.0;
   run.mark_y_distance = 100.0;
   run.justification_alternates = false;
+  run.kerning_mode = kTextKerningMetrics;
+  run.kerning = 0.0;
   const auto offset_value = [](std::string_view digits) -> std::optional<double> {
     const auto value = run_token_number(digits);
     return value.has_value() && std::abs(*value) <= 100000.0 ? value : std::nullopt;
@@ -2084,6 +2156,14 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
       run.mark_y_distance = offset_value(token.substr(6)).value_or(100.0);
     } else if (token == "justalt") {
       run.justification_alternates = true;
+    } else if (token == "kern:optical") {
+      run.kerning_mode = kTextKerningOptical;
+      run.kerning = 0.0;
+    } else if (token.starts_with("kern:")) {
+      if (const auto value = offset_value(token.substr(5)); value.has_value()) {
+        run.kerning_mode = kTextKerningManual;
+        run.kerning = *value;
+      }
     }
   }
 }
@@ -2925,6 +3005,38 @@ std::optional<PsdTextGeometry> extract_type_tool_geometry(std::span<const std::u
       }
     }
     return geometry;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<int> extract_type_tool_anti_alias(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.remaining() < 2U + 6U * 8U + 2U + 4U) {
+      return std::nullopt;
+    }
+    (void)reader.read_u16();
+    for (int i = 0; i < 6; ++i) {
+      (void)read_f64(reader);
+    }
+    (void)reader.read_u16();
+    (void)reader.read_u32();
+    const auto descriptor = read_descriptor(reader);
+    const auto* method = descriptor_value(descriptor, "AntA");
+    if (method == nullptr || method->type != DescriptorValue::Type::Enum) {
+      return std::nullopt;
+    }
+    // The enum values Photoshop writes (write side: photoshop_anti_alias_enum).
+    const std::string_view name = method->enum_value;
+    if (name == "Anno") return kTextAntiAliasNone;
+    if (name == "AnCr") return kTextAntiAliasCrisp;
+    if (name == "AnSt") return kTextAntiAliasStrong;
+    if (name == "AnSm") return kTextAntiAliasSmooth;
+    if (name == "antiAliasSharp") return kTextAntiAliasSharp;
+    if (name == "antiAliasPlatformLCD") return kTextAntiAliasWindowsLcd;
+    if (name == "antiAliasPlatformGray") return kTextAntiAliasWindows;
+    return std::nullopt;
   } catch (const std::exception&) {
     return std::nullopt;
   }

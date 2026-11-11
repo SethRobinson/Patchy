@@ -1169,6 +1169,68 @@ double box_text_baseline_inset(const Layer& layer) {
   return std::round(*inset * 64.0) / 64.0;
 }
 
+// The first line's justification point from the text-local origin, as the renderer measured it
+// (kLayerMetadataTextAnchorX); 0 for left-aligned text and for rasters no Patchy render measured.
+double point_text_anchor_x(const Layer& layer) {
+  if (const auto stored = layer_metadata_value(layer, kLayerMetadataTextAnchorX); stored.has_value()) {
+    if (const auto anchor = parse_double(*stored);
+        anchor.has_value() && std::isfinite(*anchor) && std::abs(*anchor) < 10000000.0) {
+      return *anchor;
+    }
+  }
+  return 0.0;
+}
+
+// The renderer's first baseline (kLayerMetadataTextFirstBaseline), when a Patchy render measured one.
+std::optional<double> layer_first_baseline(const Layer& layer) {
+  if (const auto stored = layer_metadata_value(layer, kLayerMetadataTextFirstBaseline); stored.has_value()) {
+    if (const auto baseline = parse_double(*stored); baseline.has_value() && std::isfinite(*baseline)) {
+      return baseline;
+    }
+  }
+  return std::nullopt;
+}
+
+// The anchor the layer's file gave it, in the text-local space of the current transform
+// (kLayerMetadataTextFileAnchor), when a re-render carried it along.
+std::optional<std::array<double, 2>> point_text_file_anchor(const Layer& layer) {
+  const auto stored = layer_metadata_value(layer, kLayerMetadataTextFileAnchor);
+  if (!stored.has_value()) {
+    return std::nullopt;
+  }
+  const auto fields = split_space_fields(*stored);
+  if (fields.size() != 2U) {
+    return std::nullopt;
+  }
+  const auto x = parse_double(fields[0]);
+  const auto y = parse_double(fields[1]);
+  if (!x.has_value() || !y.has_value() || !std::isfinite(*x) || !std::isfinite(*y) || std::abs(*x) > 10000000.0 ||
+      std::abs(*y) > 10000000.0) {
+    return std::nullopt;
+  }
+  return std::array<double, 2>{*x, *y};
+}
+
+// The box size the layer's file gave it (kLayerMetadataTextFileBox), while the layer's own
+// whole-pixel box is still within a pixel of it.
+std::optional<std::array<double, 2>> box_text_file_size(const Layer& layer, double width, double height) {
+  const auto stored = layer_metadata_value(layer, kLayerMetadataTextFileBox);
+  if (!stored.has_value()) {
+    return std::nullopt;
+  }
+  const auto fields = split_space_fields(*stored);
+  if (fields.size() != 2U) {
+    return std::nullopt;
+  }
+  const auto file_width = parse_double(fields[0]);
+  const auto file_height = parse_double(fields[1]);
+  if (!file_width.has_value() || !file_height.has_value() || !(*file_width >= 1.0) || !(*file_height >= 1.0) ||
+      std::abs(*file_width - width) > 1.0 || std::abs(*file_height - height) > 1.0) {
+    return std::nullopt;
+  }
+  return std::array<double, 2>{*file_width, *file_height};
+}
+
 bool point_text_geometry_needs_baseline_anchor(const Layer& layer, const PsdTextGeometry& geometry) {
   if (layer_has_photoshop_text_source(layer) && should_preserve_imported_text_geometry(layer)) {
     return false;
@@ -1651,7 +1713,16 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index, 
   if (run.digit_set != 0) {
     style += run.digit_set == 1 ? " /HindiNumbers false" : " /HindiNumbers true";
   }
-  style += " /AutoKerning true /Kerning 0 /FillColor ";
+  // Kerning is the file's own: "/AutoKerning true /Kerning 0" on every run turned a manual
+  // (unkerned) Photoshop run into Metrics. The TySh can only say manual (false, with the number);
+  // Metrics and Optical both read true here and the Txt2 /11 tells them apart.
+  if (run.kerning_mode == kTextKerningManual) {
+    style += " /AutoKerning false /Kerning ";
+    style += std::to_string(static_cast<long long>(std::lround(std::isfinite(run.kerning) ? run.kerning : 0.0)));
+    style += " /FillColor ";
+  } else {
+    style += " /AutoKerning true /Kerning 0 /FillColor ";
+  }
   style += engine_color_object(run.color);
   style += " >>";
   return style;
@@ -1845,6 +1916,9 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   normal_style.strikethrough = false;
   normal_style.language.reset();
   normal_style.digit_set = 0;  // /HindiNumbers belongs to the runs that have a digit set
+  // Every run names its own kerning; the normal sheet keeps Photoshop's default (Metrics).
+  normal_style.kerning_mode = kTextKerningMetrics;
+  normal_style.kerning = 0.0;
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
   const auto normal_justification = engine_paragraph_runs.empty() ? 0 : engine_paragraph_runs.front().justification;
   const auto resources =
@@ -1956,6 +2030,29 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
       geometry.transform = *parsed;
     }
   }
+  // The anchor the layer's file gave it, when a re-render carried it along
+  // (kLayerMetadataTextFileAnchor): Photoshop rounds the anchor before it draws, so the
+  // renderer's own measure of it, good to about a pixel, moved the glyphs a pixel on some layers.
+  // The measured first baseline replaces the file's row only when the two disagree by more than
+  // the pin's slack (an edit that really moved the line, such as another size): Photoshop then
+  // has to draw where Patchy did.
+  const auto file_anchor = !boxed_text && !geometry.vertical && !should_preserve_imported_text_geometry(layer) &&
+                                   layer_metadata_value(layer, kLayerMetadataTextTransform).has_value()
+                               ? point_text_file_anchor(layer)
+                               : std::nullopt;
+  const auto file_anchor_row = [&](std::optional<double> measured_baseline) {
+    auto row = (*file_anchor)[1];
+    if (measured_baseline.has_value() && std::isfinite(*measured_baseline)) {
+      // The pin is good to a document pixel and the measure to a text-local one (a scaled layer's
+      // small type rounds its metrics): 2 px on the page, 1.5 text-local px or 6% of the size.
+      const auto row_scale = std::hypot(geometry.transform[2], geometry.transform[3]);
+      const auto slack = std::max(2.0, std::max(1.5, 0.06 * layer_text_base_size(layer)) * row_scale);
+      if (std::abs(row - *measured_baseline) * row_scale > slack) {
+        row = *measured_baseline;
+      }
+    }
+    return row;
+  };
   if (warp != nullptr) {
     // A warped layer's pixels are the WARPED render, so neither the layer rect nor
     // the visible-pixel scan describes the text box; the warp metadata carries the
@@ -1970,7 +2067,14 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
       // Patchy geometry there or a type re-render in Photoshop drops the text by
       // one descent (the buldge_test jump, July 2026). The shifted box top goes
       // below -0.5, which also skips the generic ink-bottom anchoring beneath.
-      translate_text_geometry_local(geometry, 0.0, warp->baseline);
+      // Along the line the anchor is the first line's justification point, as for
+      // unwarped text below (a centered warped layer was saved anchored at its left edge).
+      if (file_anchor.has_value()) {
+        translate_text_geometry_local(geometry, (*file_anchor)[0], file_anchor_row(warp->baseline));
+      } else {
+        translate_text_geometry_local(geometry, geometry.vertical ? 0.0 : point_text_anchor_x(layer),
+                                      warp->baseline);
+      }
     }
   } else if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
     if (const auto local_bounds = visible_text_local_bounds_from_layer_pixels(layer, *visible, geometry.transform);
@@ -2025,8 +2129,20 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
   } else if (!bounding_box_from_pixels) {
     geometry.bounding_box = geometry.bounds;
   }
-  if (!boxed_text && !geometry.vertical && point_text_geometry_needs_baseline_anchor(layer, geometry)) {
-    translate_text_geometry_local(geometry, 0.0, point_text_baseline_offset(layer, geometry));
+  if (!boxed_text && !geometry.vertical) {
+    // Photoshop's point-text anchor (the TySh translation, its click point) is the first baseline
+    // at the first line's justification point: the line start for left-aligned text, its middle
+    // for centered, its end for right-aligned. Patchy's transform origin is the line box's top
+    // left, so the anchor is a text-local point that the origin moves to. Writing the origin's
+    // own column for a centered or right-aligned layer made Photoshop's next layout jump the
+    // text left by half or all of its width (Testy's text-save leg, November 2026).
+    if (warp == nullptr && file_anchor.has_value()) {
+      translate_text_geometry_local(geometry, (*file_anchor)[0], file_anchor_row(layer_first_baseline(layer)));
+    } else if (point_text_geometry_needs_baseline_anchor(layer, geometry)) {
+      // A warped layer was anchored with its warp box above.
+      translate_text_geometry_local(geometry, warp == nullptr ? point_text_anchor_x(layer) : 0.0,
+                                    point_text_baseline_offset(layer, geometry));
+    }
   }
   if (const auto index = layer_metadata_value(layer, kLayerMetadataPsdTextIndex); index.has_value()) {
     geometry.text_index = std::max(0, parse_int_or(*index, 0));
@@ -2121,9 +2237,18 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
     if (const auto height = layer_metadata_value(layer, kLayerMetadataTextBoxHeight); height.has_value()) {
       inputs.box_height = std::max(1, parse_int_or(*height, bounds.height));
     }
+    // The file's own fractional box, when a re-render left the box alone.
+    if (!text_area_for_layer(layer) && !should_preserve_imported_text_geometry(layer)) {
+      if (const auto file_size = box_text_file_size(layer, inputs.box_width, inputs.box_height); file_size.has_value()) {
+        inputs.box_width = (*file_size)[0];
+        inputs.box_height = (*file_size)[1];
+      }
+    }
   }
   inputs.vertical = layer_text_is_vertical(layer);
   inputs.area = text_area_for_layer(layer);
+  inputs.photoshop_layout =
+      layer_metadata_value(layer, kLayerMetadataTextLayoutMode).value_or(std::string_view{}) == kTextLayoutModePhotoshop;
   inputs.run_font_names.reserve(runs.size());
   for (const auto& run : runs) {
     inputs.run_font_names.push_back(photoshop_font_name_for_run(run.family, run.style, run.bold, run.italic));
@@ -2173,6 +2298,18 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
                                           warp_active ? &*warp : nullptr);
   if (text_index_override.has_value()) {
     geometry.text_index = *text_index_override;
+  }
+  if (boxed_text && !warp_active && !inputs->area.has_value() && !should_preserve_imported_text_geometry(layer)) {
+    // The geometry was laid out on the whole-pixel box; the file's fractional size
+    // (text_engine_inputs_for_layer) goes into the box's far edges.
+    const auto extra_width = inputs->box_width - static_cast<double>(text_bounds.width);
+    const auto extra_height = inputs->box_height - static_cast<double>(text_bounds.height);
+    if (std::abs(extra_width) <= 1.0 && std::abs(extra_height) <= 1.0) {
+      geometry.bounds.right += extra_width;
+      geometry.bounds.bottom += extra_height;
+      geometry.box_bounds.right += extra_width;
+      geometry.box_bounds.bottom += extra_height;
+    }
   }
   const auto anti_alias_metadata = layer_metadata_value(layer, kLayerMetadataTextAntiAlias);
   const auto anti_alias = anti_alias_metadata.has_value() ? parse_int_or(*anti_alias_metadata, 3) : 3;

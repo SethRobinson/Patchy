@@ -31,6 +31,10 @@ November 2026: one throwaway box layer per setting, set through Action Manager o
   which switched an Every-line paragraph to Single-line in Photoshop (its lines then break
   elsewhere on the next layout). See [Line composer](#line-composer) for where Photoshop takes
   the value from.
+- **Kerning** (`autoKern`: Metrics, Optical or manual with its number): Txt2 style `/11` and
+  `/10`, and for manual the TySh `/AutoKerning false /Kerning <n>`. Where Photoshop takes it
+  from, and why a run that states nothing is unkerned in an older file, is in
+  [txt2.md](txt2.md#kerning). Patchy draws with the font's own pair kerning either way.
 - **Digit set, diacritic offsets, mark distance, Justification Alternates**: Txt2 style `/70`,
   `/72`, `/73`, `/87`, `/75`. Photoshop 2026 writes no TySh key for any of them; older versions
   wrote `/HindiNumbers` (true for Hindi and Farsi digits), which Patchy writes back for a run
@@ -42,7 +46,8 @@ Model: `PsdTextParagraphRun` (`auto_hyphenate`, the five numbers, `hyphenate_cap
 (`serialize_paragraph_run_settings`), the editor's `kTextBlockPhotoshopSettingsProperty`; and
 `PsdTextStyleRun` (`digit_set`, `diacritic_x_offset`, `diacritic_y_offset`, `mark_y_distance`,
 `justification_alternates`), runs v9 column 16 tokens `digits:<n>`, `diacx:<v>`, `diacy:<v>`,
-`marky:<v>`, `justalt`, the editor's `kTextMiddleEasternFormatProperty`. Each token is written
+`marky:<v>`, `justalt`, and (`kerning_mode`, `kerning`) `kern:optical`, `kern:<number>`, the
+editor's `kTextMiddleEasternFormatProperty`. Each token is written
 only off its default, so other text keeps its metadata. Hyphenate, the Kashida width, the line
 composer and the style keys resolve through the run's sheet, its parent sheet and the document's
 default sheet, as the composer does.

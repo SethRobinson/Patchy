@@ -733,6 +733,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
           record.text_color = extract_engine_data_fill_color(text_payload, cmyk);
         }
         if (!record.text_anti_alias.has_value()) {
+          // The descriptor's method first: Photoshop trusts it over the EngineData number.
+          record.text_anti_alias = extract_type_tool_anti_alias(text_payload);
+        }
+        if (!record.text_anti_alias.has_value()) {
           record.text_anti_alias = extract_engine_data_anti_alias(text_payload);
         }
         if (record.text.has_value() && !record.text_runs.has_value()) {
@@ -742,7 +746,9 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                   text_object != nullptr ? std::span<const TextParagraphFontSize>(text_object->paragraph_font_sizes)
                                          : std::span<const TextParagraphFontSize>{},
                   text_object != nullptr ? std::span<const TextStyleRunFeatures>(text_object->style_features)
-                                         : std::span<const TextStyleRunFeatures>{});
+                                         : std::span<const TextStyleRunFeatures>{},
+                  text_object != nullptr ? std::span<const TextStyleRunKerning>(text_object->style_kerning)
+                                         : std::span<const TextStyleRunKerning>{});
               runs.has_value()) {
             if (!runs->empty()) {
               const auto& first_run = runs->front();
