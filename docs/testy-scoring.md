@@ -286,9 +286,11 @@ So for files with type layers three editors get a second save (`_text_save_leg`,
   Two known limits (November 2026): after the re-layout Photoshop keeps a layer effect's
   gradient aligned to the pixels it loaded until the file is saved and reopened, so a
   gradient stroke shifts its colors (psd-tools `effect-stroke-gradient.psd`: 19% and 23%
-  of the pixels, nothing moved, read as the same); and a layer whose old named-key `Txt2`
-  object carries a cached layout is drawn from that cache in the reference, which no
-  rewritten save can match (`pen-text.psd`, "Vodka vodka": every editor's save differs).
+  of the pixels, nothing moved, read as the same); and the reference of psd-tools
+  `pen-text.psd` draws "Vodka vodka" 74 px wide where Photoshop lays the same data out
+  79 px wide (eleven Courier advances at 12 px) in every editor's save, current text
+  included. The cause is not established; the layout cached in the file's old named-key
+  `Txt2` object is the suspect.
 - **Settings**: each paragraph's justification, Hyphenate, direction and line composer
   (every-line or single-line), the layer's orientation, anti-aliasing and kind (point or
   paragraph text), the text itself and the fonts it names, from Photoshop's manifest of
