@@ -19168,6 +19168,14 @@ Do you want to replace it?</source>
         <source>Smudge strength: %1%</source>
         <translation>涂抹强度：%1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>调整多个图层大小</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>调整图层大小</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35689,6 +35697,26 @@ Locked: %1</source>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>“内部”会将此描边限制在线条粗细之内。在“形状外观”的“对齐”中选择“居中”或“外部”可使线条变粗。</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>图层的宽度</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>保持图层的宽高比例</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>图层的高度</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>图层的左边缘</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>图层的上边缘</translation>
     </message>
 </context>
 <context>

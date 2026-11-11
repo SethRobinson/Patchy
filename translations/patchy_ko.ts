@@ -19168,6 +19168,14 @@ Do you want to replace it?</source>
         <source>Smudge strength: %1%</source>
         <translation>손가락 강도: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>레이어 크기 조정</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>레이어 크기 조정</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35689,6 +35697,26 @@ Locked: %1</source>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>안쪽은 이 획을 선 두께 안에 유지합니다. 선을 더 두껍게 하려면 모양 외형의 정렬에서 중앙 또는 바깥쪽을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>레이어의 너비</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>레이어의 너비와 높이를 비율로 유지</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>레이어의 높이</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>레이어의 왼쪽 가장자리</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>레이어의 위쪽 가장자리</translation>
     </message>
 </context>
 <context>

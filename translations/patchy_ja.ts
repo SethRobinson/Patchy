@@ -19168,6 +19168,14 @@ Do you want to replace it?</source>
         <source>Smudge strength: %1%</source>
         <translation>指先の強さ: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>レイヤーのサイズを変更</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>レイヤーのサイズを変更</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35689,6 +35697,26 @@ Locked: %1</source>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>「内側」では、この境界線は直線の太さの範囲内に収まります。直線を太くするには、シェイプの外観の「位置」で「中央」または「外側」を選択してください。</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>レイヤーの幅</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>レイヤーの幅と高さの比率を保つ</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>レイヤーの高さ</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>レイヤーの左端</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>レイヤーの上端</translation>
     </message>
 </context>
 <context>

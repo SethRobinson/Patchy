@@ -523,6 +523,76 @@ private:
 
 }  // namespace
 
+MainWindow::PropertiesSizePanel MainWindow::build_properties_size_panel(QWidget* parent,
+                                                                        const PropertiesSizePanelSpec& spec) {
+  PropertiesSizePanel built;
+  built.panel = new QWidget(parent);
+  built.panel->setObjectName(QLatin1String(spec.panel_name));
+  built.panel->hide();
+  auto* rows = new QVBoxLayout(built.panel);
+  rows->setContentsMargins(0, 2, 0, 2);
+  rows->setSpacing(4);
+  auto* size_row = new QHBoxLayout();
+  size_row->setContentsMargins(0, 0, 0, 0);
+  size_row->setSpacing(4);
+  auto* position_row = new QHBoxLayout();
+  position_row->setContentsMargins(0, 0, 0, 0);
+  position_row->setSpacing(4);
+  rows->addLayout(size_row);
+  rows->addLayout(position_row);
+  const auto add_label = [&built](QHBoxLayout* row, const char* source) {
+    auto* label = new QLabel(built.panel);
+    bind_widget_text(label, source);
+    row->addWidget(label);
+  };
+  const auto make_spin = [&built](QHBoxLayout* row, const char* name, const char* tooltip) {
+    auto* spin = new UnitSpinBox(SpinUnit::Pixels, built.panel);
+    spin->setObjectName(QLatin1String(name));
+    spin->setRange(0.1, 60000.0);
+    spin->setDecimals(1);
+    spin->setSingleStep(1.0);
+    spin->setKeyboardTracking(false);
+    spin->setEnabled(false);
+    bind_tooltip(spin, tooltip);
+    configure_dialog_spinbox(spin, 96);
+    spin->setFixedWidth(96);
+    row->addWidget(spin);
+    return spin;
+  };
+  add_label(size_row, QT_TR_NOOP("W:"));
+  built.width = make_spin(size_row, spec.width_name, spec.width_tooltip);
+  built.link = new QPushButton(built.panel);
+  built.link->setObjectName(QLatin1String(spec.link_name));
+  built.link->setCheckable(true);
+  built.link->setIcon(simple_icon(QStringLiteral("link")));
+  built.link->setFixedWidth(28);
+  bind_tooltip(built.link, spec.link_tooltip);
+  built.link->setEnabled(false);
+  size_row->addWidget(built.link);
+  add_label(size_row, QT_TR_NOOP("H:"));
+  built.height = make_spin(size_row, spec.height_name, spec.height_tooltip);
+  size_row->addStretch(1);
+  add_label(position_row, QT_TR_NOOP("X:"));
+  built.x = make_spin(position_row, spec.x_name, spec.x_tooltip);
+  position_row->addSpacing(28 + 4);  // under the link button
+  add_label(position_row, QT_TR_NOOP("Y:"));
+  built.y = make_spin(position_row, spec.y_name, spec.y_tooltip);
+  position_row->addStretch(1);
+  for (auto* spin : {built.x, built.y}) {
+    spin->setRange(-60000.0, 60000.0);
+  }
+  install_scrub_labels_in(built.panel);  // drag "W:" / "H:" to scrub (issue 46)
+  // Photoshop's Properties panel shows W/H and X/Y in the ruler unit.
+  built.width->set_context_provider(document_unit_context_provider(true));
+  built.height->set_context_provider(document_unit_context_provider(false));
+  built.x->set_context_provider(document_unit_context_provider(true));
+  built.y->set_context_provider(document_unit_context_provider(false));
+  for (auto* spin : {built.width, built.height, built.x, built.y}) {
+    register_ruler_unit_field(spin);
+  }
+  return built;
+}
+
 void MainWindow::apply_right_column_width(int width) {
   right_dock_pinned_width_ = width;
   if (workspace_splitter_ == nullptr || panel_column_ == nullptr) {
@@ -710,6 +780,13 @@ void MainWindow::update_right_dock_minimum_width() {
 }
 
 bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event) {
+  if (event->type() == QEvent::Show && properties_layer_size_panel_ != nullptr &&
+      watched == properties_layer_size_panel_->parentWidget()) {
+    // The layer rows are measured only while Properties shows (sync_layer_size_fields):
+    // expanding, reopening or bringing its tab forward catches them up.
+    QTimer::singleShot(0, this, [this] { sync_layer_size_fields(); });
+    return false;
+  }
   if (event->type() == QEvent::LayoutRequest && layer_list_ != nullptr && watched == layer_list_->parentWidget()) {
     // A narrow column wraps the Layers panel's rows (GitHub issue 199), which
     // raises the panel's minimum height. The refit raises the panel's own floor to
@@ -2496,90 +2573,55 @@ void MainWindow::create_docks() {
   active_layer_shape_label_ = add_properties_label(QStringLiteral("activeLayerShapeLabel"));
 
   // W / H of the active shape layer, one compact row like the options bar's
-  // readouts (which share the same apply path and stay in sync with these).
-  properties_shape_size_panel_ = new QWidget(properties_panel);
-  properties_shape_size_panel_->setObjectName(QStringLiteral("propertiesShapeSizePanel"));
-  properties_shape_size_panel_->hide();
-  // W / H, then X / Y (GitHub #521): they also size and place the components Path Select
+  // readouts (which share the same apply path and stay in sync with these),
+  // then X / Y (GitHub #521): they also size and place the components Path Select
   // picked on a work path, saved path or vector mask.
-  auto* properties_shape_size_rows = new QVBoxLayout(properties_shape_size_panel_);
-  properties_shape_size_rows->setContentsMargins(0, 2, 0, 2);
-  properties_shape_size_rows->setSpacing(4);
-  auto* properties_shape_size_row = new QHBoxLayout();
-  properties_shape_size_row->setContentsMargins(0, 0, 0, 0);
-  properties_shape_size_row->setSpacing(4);
-  auto* properties_shape_position_row = new QHBoxLayout();
-  properties_shape_position_row->setContentsMargins(0, 0, 0, 0);
-  properties_shape_position_row->setSpacing(4);
-  properties_shape_size_rows->addLayout(properties_shape_size_row);
-  properties_shape_size_rows->addLayout(properties_shape_position_row);
-  QHBoxLayout* properties_shape_current_row = properties_shape_size_row;
-  const auto add_shape_size_label = [this, &properties_shape_current_row](const char* source) {
-    auto* label = new QLabel(properties_shape_size_panel_);
-    bind_widget_text(label, source);
-    properties_shape_current_row->addWidget(label);
-    return label;
-  };
-  const auto make_properties_shape_size_spin = [this, &properties_shape_current_row](const char* name,
-                                                                                     const char* tooltip) {
-    auto* spin = new UnitSpinBox(SpinUnit::Pixels, properties_shape_size_panel_);
-    spin->setObjectName(QLatin1String(name));
-    spin->setRange(0.1, 60000.0);
-    spin->setDecimals(1);
-    spin->setSingleStep(1.0);
-    spin->setKeyboardTracking(false);
-    spin->setEnabled(false);
-    bind_tooltip(spin, tooltip);
-    configure_dialog_spinbox(spin, 96);
-    spin->setFixedWidth(96);
-    properties_shape_current_row->addWidget(spin);
-    return spin;
-  };
-  add_shape_size_label(QT_TR_NOOP("W:"));
-  properties_shape_width_spin_ =
-      make_properties_shape_size_spin("propertiesShapeWidthSpin", QT_TR_NOOP("Width of the active shape"));
-  properties_shape_link_size_button_ = new QPushButton(properties_shape_size_panel_);
-  properties_shape_link_size_button_->setObjectName(QStringLiteral("propertiesShapeLinkSizeButton"));
-  properties_shape_link_size_button_->setCheckable(true);
-  properties_shape_link_size_button_->setIcon(simple_icon(QStringLiteral("link")));
-  properties_shape_link_size_button_->setFixedWidth(28);
-  bind_tooltip(properties_shape_link_size_button_,
-               QT_TR_NOOP("Keep the shape's width and height in proportion"));
-  properties_shape_link_size_button_->setEnabled(false);
-  properties_shape_size_row->addWidget(properties_shape_link_size_button_);
-  add_shape_size_label(QT_TR_NOOP("H:"));
-  properties_shape_height_spin_ =
-      make_properties_shape_size_spin("propertiesShapeHeightSpin", QT_TR_NOOP("Height of the active shape"));
-  properties_shape_size_row->addStretch(1);
-  properties_shape_current_row = properties_shape_position_row;
-  add_shape_size_label(QT_TR_NOOP("X:"));
-  properties_shape_x_spin_ =
-      make_properties_shape_size_spin("propertiesShapeXSpin", QT_TR_NOOP("Left edge of the active shape"));
-  properties_shape_position_row->addSpacing(28 + 4);  // under the link button
-  add_shape_size_label(QT_TR_NOOP("Y:"));
-  properties_shape_y_spin_ =
-      make_properties_shape_size_spin("propertiesShapeYSpin", QT_TR_NOOP("Top edge of the active shape"));
-  properties_shape_position_row->addStretch(1);
-  for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
-    spin->setRange(-60000.0, 60000.0);
-  }
+  const auto shape_rows = build_properties_size_panel(
+      properties_panel,
+      {"propertiesShapeSizePanel", "propertiesShapeWidthSpin", "propertiesShapeLinkSizeButton",
+       "propertiesShapeHeightSpin", "propertiesShapeXSpin", "propertiesShapeYSpin",
+       QT_TR_NOOP("Width of the active shape"), QT_TR_NOOP("Keep the shape's width and height in proportion"),
+       QT_TR_NOOP("Height of the active shape"), QT_TR_NOOP("Left edge of the active shape"),
+       QT_TR_NOOP("Top edge of the active shape")});
+  properties_shape_size_panel_ = shape_rows.panel;
+  properties_shape_width_spin_ = shape_rows.width;
+  properties_shape_height_spin_ = shape_rows.height;
+  properties_shape_x_spin_ = shape_rows.x;
+  properties_shape_y_spin_ = shape_rows.y;
+  properties_shape_link_size_button_ = shape_rows.link;
   properties_layout->addWidget(properties_shape_size_panel_);
-  install_scrub_labels_in(properties_shape_size_panel_);  // drag "W:" / "H:" to scrub (issue 46)
-  // Photoshop's Properties panel shows shape W/H in the ruler unit.
-  properties_shape_width_spin_->set_context_provider(document_unit_context_provider(true));
-  properties_shape_height_spin_->set_context_provider(document_unit_context_provider(false));
-  register_ruler_unit_field(properties_shape_width_spin_);
-  register_ruler_unit_field(properties_shape_height_spin_);
   connect(properties_shape_width_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { handle_vector_shape_size_value_changed(true, value); });
   connect(properties_shape_height_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { handle_vector_shape_size_value_changed(false, value); });
-  properties_shape_x_spin_->set_context_provider(document_unit_context_provider(true));
-  properties_shape_y_spin_->set_context_provider(document_unit_context_provider(false));
-  register_ruler_unit_field(properties_shape_x_spin_);
-  register_ruler_unit_field(properties_shape_y_spin_);
   for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
     connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { schedule_vector_shape_size_apply(); });
+  }
+
+  // The same rows for pixel, text and smart object layers and folders (GitHub issue 693):
+  // the frame Free Transform would start on, edited through the same session.
+  const auto layer_rows = build_properties_size_panel(
+      properties_panel,
+      {"propertiesLayerSizePanel", "propertiesLayerWidthSpin", "propertiesLayerLinkSizeButton",
+       "propertiesLayerHeightSpin", "propertiesLayerXSpin", "propertiesLayerYSpin",
+       QT_TR_NOOP("Width of the layer"), QT_TR_NOOP("Keep the layer's width and height in proportion"),
+       QT_TR_NOOP("Height of the layer"), QT_TR_NOOP("Left edge of the layer"), QT_TR_NOOP("Top edge of the layer")});
+  properties_layer_size_panel_ = layer_rows.panel;
+  properties_layer_width_spin_ = layer_rows.width;
+  properties_layer_height_spin_ = layer_rows.height;
+  properties_layer_x_spin_ = layer_rows.x;
+  properties_layer_y_spin_ = layer_rows.y;
+  properties_layer_link_size_button_ = layer_rows.link;
+  // A photo or a line of type is rarely meant to be squashed: proportions hold unless
+  // the link is turned off.
+  properties_layer_link_size_button_->setChecked(true);
+  properties_layout->addWidget(properties_layer_size_panel_);
+  connect(properties_layer_width_spin_, &QDoubleSpinBox::valueChanged, this,
+          [this](double value) { handle_layer_size_value_changed(true, value); });
+  connect(properties_layer_height_spin_, &QDoubleSpinBox::valueChanged, this,
+          [this](double value) { handle_layer_size_value_changed(false, value); });
+  for (auto* spin : {properties_layer_x_spin_, properties_layer_y_spin_}) {
+    connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { schedule_layer_size_apply(false); });
   }
 
   // Live-shape rows (GitHub #521): a live rectangle's Radius, a live polygon's Sides and
@@ -2693,6 +2735,7 @@ void MainWindow::create_docks() {
   active_tool_info_label_ = add_properties_label(QStringLiteral("activeToolInfoLabel"));
   properties_layout->addStretch(0);
   properties_scroll->setWidget(properties_panel);
+  properties_panel->installEventFilter(this);  // its Show syncs the layer rows
   panel_specs.push_back(PanelSpec{.id = QStringLiteral("propertiesDock"),
                                   .object_prefix = QStringLiteral("properties"),
                                   .title = tr("Properties"),

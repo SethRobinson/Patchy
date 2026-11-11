@@ -19212,6 +19212,14 @@ Do you want to replace it?</source>
         <source>Smudge strength: %1%</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35715,6 +35723,26 @@ Locked: %1</source>
     </message>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

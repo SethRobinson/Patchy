@@ -9,6 +9,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/theme_palette.hpp"
 
+#include "core/artboard.hpp"
 #include "core/document.hpp"
 #include "core/floating_selection.hpp"
 #include "core/layer.hpp"
@@ -1609,7 +1610,7 @@ bool CanvasWidget::free_transform_targets_selection() const noexcept {
 // locked smart object, vector lock, unsupported Smart Filter stack) refuses the
 // WHOLE session instead of being skipped: scaling the rest of a folder around a
 // pinned member would tear the artwork apart.
-CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_targets() const {
+CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_targets(bool whole_layers) const {
   TransformTargetCollection collection;
   if (document_ == nullptr) {
     collection.refusal = tr("Select an editable pixel layer to transform");
@@ -1625,7 +1626,8 @@ CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_tar
     // Linked layers transform with their partners (GitHub issue 656), unless a pixel
     // selection makes this a transform of the selected pixels (Photoshop's rule).
     const auto& layers = std::as_const(*document_).layers();
-    roots = root_drop_layer_ids(layers, selection_.isEmpty() ? with_linked_layer_ids(layers, roots) : roots);
+    const bool take_links = selection_.isEmpty() || whole_layers || transform_takes_whole_layers_;
+    roots = root_drop_layer_ids(layers, take_links ? with_linked_layer_ids(layers, roots) : roots);
   }
   if (roots.empty()) {
     collection.refusal = tr("Select an editable pixel layer to transform");
@@ -4246,6 +4248,169 @@ QString CanvasWidget::apply_scripted_free_transform(
     error = tr("Select an editable pixel layer to transform");
   }
   return error;
+}
+
+std::optional<CanvasWidget::LayerFrameState> CanvasWidget::layer_frame_state() const {
+  if (document_ == nullptr || layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
+    return std::nullopt;
+  }
+  const auto& document = std::as_const(*document_);
+  const auto& layers = document.layers();
+  auto roots = selected_layer_ids_;
+  if (roots.empty()) {
+    if (const auto active = document.active_layer_id(); active.has_value()) {
+      roots.push_back(*active);
+    }
+  }
+  if (roots.empty()) {
+    return std::nullopt;
+  }
+  roots = root_drop_layer_ids(layers, with_linked_layer_ids(layers, roots));
+  if (roots.size() == 1U) {
+    // A shape layer and an artboard have their own Properties rows.
+    const auto* root = document.find_layer(roots.front());
+    if (root == nullptr || layer_is_artboard(*root) ||
+        (layer_is_vector_shape(*root) && !layer_is_text(*root) && !layer_is_smart_object(*root))) {
+      return std::nullopt;
+    }
+  }
+  // The frame, measured whether or not a session would start: a locked layer still reads.
+  QRectF frame;
+  const std::function<void(const Layer&)> add = [&](const Layer& layer) {
+    if (layer.kind() == LayerKind::Group) {
+      for (const auto& child : layer.children()) {
+        add(child);
+      }
+      return;
+    }
+    if (const auto rect = transform_controls_rect_for_layer(layer); rect.has_value()) {
+      frame = frame.isNull() ? *rect : frame.united(*rect);
+    }
+  };
+  for (const auto id : roots) {
+    if (const auto* root = document.find_layer(id); root != nullptr) {
+      add(*root);
+    }
+  }
+  if (frame.isEmpty()) {
+    return std::nullopt;
+  }
+  LayerFrameState state{frame, false};
+  if (transforming_layer_ || warping_layer_ || path_transform_active_ || moving_layer_) {
+    return state;  // the open session owns the geometry until it ends
+  }
+  // The checks begin_free_transform makes, without its side effects.
+  const auto collection = collect_free_transform_targets(true);
+  if (!collection.use_single_layer_path) {
+    if (collection.refusal.isEmpty() && !collection.position_lock_refusal && !collection.targets.empty()) {
+      state.rect = transform_targets_content_union(collection.targets);
+      state.editable = !state.rect.isEmpty();
+    }
+    return state;
+  }
+  const auto* layer = document.find_layer(roots.front());
+  state.editable = layer != nullptr && layer_has_movable_pixels(*layer) && !layer_effectively_locks_position(*layer) &&
+                   !(layer_is_smart_object(*layer) && !smart_object_lock_reason(*layer).empty()) &&
+                   vector_lock_reason(*layer).empty();
+  if (layer != nullptr && layer_is_smart_object(*layer)) {
+    // One smart object reads as its placement, the placed content's own bounds: its
+    // raster carries a soft edge a pixel or two past them, which would make a typed size
+    // read back larger and drift with every edit. set_layer_frame maps the session box
+    // by the same scale, so the placement lands exactly on the typed frame.
+    if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
+      const auto& quad = smart_object_render_quad(*placement);
+      QPolygonF corners;
+      for (std::size_t corner = 0; corner < 4U; ++corner) {
+        corners << QPointF(quad[corner * 2U], quad[corner * 2U + 1U]);
+      }
+      if (const auto placed = corners.boundingRect(); placed.width() >= 1.0 && placed.height() >= 1.0) {
+        state.rect = placed;
+      }
+    }
+  }
+  return state;
+}
+
+bool CanvasWidget::set_layer_frame(const QRectF& rect) {
+  const auto state = layer_frame_state();
+  if (!state.has_value() || !state->editable || !std::isfinite(rect.x()) || !std::isfinite(rect.y()) ||
+      !std::isfinite(rect.width()) || !std::isfinite(rect.height()) || rect.width() < 0.5 || rect.height() < 0.5) {
+    return false;
+  }
+  constexpr double kSameSize = 0.05;
+  const auto& frame = state->rect;
+  if (std::abs(rect.width() - frame.width()) < kSameSize && std::abs(rect.height() - frame.height()) < kSameSize) {
+    // The same size somewhere else: a move, never a resample.
+    const QPoint delta(static_cast<int>(std::lround(rect.left() - frame.left())),
+                       static_cast<int>(std::lround(rect.top() - frame.top())));
+    const auto ids = movable_layer_ids();
+    if (delta.isNull() || ids.empty()) {
+      return false;
+    }
+    std::vector<std::pair<LayerId, QPoint>> deltas;
+    deltas.reserve(ids.size());
+    for (const auto id : ids) {
+      deltas.emplace_back(id, delta);
+    }
+    const auto dirty = offset_layers(deltas, ids.size() >= 2U ? tr("Move layers") : tr("Move layer"));
+    if (dirty.isEmpty()) {
+      return false;
+    }
+    document_changed_effect_bounds(dirty);
+    return true;
+  }
+  // The interactive Free Transform commit (as straighten_layer runs it), with the history
+  // entry renamed, whole layers even with a pixel selection, and no drag hint or result
+  // line in the status bar; refusals still report.
+  const auto saved_before_edit = before_edit_callback_;
+  bool recorded = false;
+  before_edit_callback_ = [this, saved_before_edit, &recorded](const QString&) {
+    recorded = true;
+    if (saved_before_edit) {
+      saved_before_edit(transform_targets_.size() >= 2U ? tr("Resize layers") : tr("Resize layer"));
+    }
+  };
+  const auto saved_status = std::exchange(status_callback_, nullptr);
+  const auto saved_ignore = std::exchange(transform_ignores_selection_, true);
+  const auto saved_whole = std::exchange(transform_takes_whole_layers_, true);
+  const auto saved_snap = snap_transforms_to_pixel_grid_;
+  if (begin_free_transform()) {
+    const auto original = transform_original_rect_;
+    // The session box is the frame, placed like a typed Free Transform box (the session
+    // snaps it to whole pixels), for everything but a lone smart object. That one's box
+    // is its raster, a little larger than its frame (its placement): the typed frame is
+    // snapped here, and the box follows by the frame's own scale and offset, unsnapped.
+    constexpr double kSameRect = 1e-6;
+    const bool box_is_frame =
+        std::abs(original.left() - frame.left()) < kSameRect && std::abs(original.top() - frame.top()) < kSameRect &&
+        std::abs(original.width() - frame.width()) < kSameRect &&
+        std::abs(original.height() - frame.height()) < kSameRect;
+    auto box = rect;
+    if (!box_is_frame) {
+      const auto target = saved_snap ? snap_transform_rect_to_pixel_grid(rect) : rect;
+      const auto scale_x = target.width() / frame.width();
+      const auto scale_y = target.height() / frame.height();
+      box = QRectF(target.left() + (original.left() - frame.left()) * scale_x,
+                   target.top() + (original.top() - frame.top()) * scale_y, original.width() * scale_x,
+                   original.height() * scale_y);
+      snap_transforms_to_pixel_grid_ = false;
+    }
+    const auto reference = box.center() + anchor_offset_from_center(box.size(), transform_reference_point_);
+    if (original.width() > 0.0 && original.height() > 0.0 &&
+        set_transform_controls_state(reference, box.width() / original.width() * 100.0,
+                                     box.height() / original.height() * 100.0, 0.0)) {
+      commit_free_transform();
+    }
+    if (transforming_layer_) {
+      cancel_free_transform();
+    }
+  }
+  snap_transforms_to_pixel_grid_ = saved_snap;
+  transform_takes_whole_layers_ = saved_whole;
+  transform_ignores_selection_ = saved_ignore;
+  status_callback_ = saved_status;
+  before_edit_callback_ = saved_before_edit;
+  return recorded;
 }
 
 bool CanvasWidget::begin_free_transform_mode(TransformDistortMode mode) {

@@ -19292,6 +19292,14 @@ Czy chcesz go zastąpić?</translation>
         <source>Smudge strength: %1%</source>
         <translation>Siła smugi: %1%</translation>
     </message>
+    <message>
+        <source>Resize layers</source>
+        <translation>Zmień rozmiar warstw</translation>
+    </message>
+    <message>
+        <source>Resize layer</source>
+        <translation>Zmień rozmiar warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -35907,6 +35915,26 @@ Zablokowano: %1</translation>
     <message>
         <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>Wewnątrz utrzymuje ten obrys w granicach Grubości linii. Wybierz Środek lub Na zewnątrz w polu Wyrównanie w oknie Wygląd kształtu, aby pogrubić linię.</translation>
+    </message>
+    <message>
+        <source>Width of the layer</source>
+        <translation>Szerokość warstwy</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s width and height in proportion</source>
+        <translation>Zachowaj proporcjonalną szerokość i wysokość warstwy</translation>
+    </message>
+    <message>
+        <source>Height of the layer</source>
+        <translation>Wysokość warstwy</translation>
+    </message>
+    <message>
+        <source>Left edge of the layer</source>
+        <translation>Lewa krawędź warstwy</translation>
+    </message>
+    <message>
+        <source>Top edge of the layer</source>
+        <translation>Górna krawędź warstwy</translation>
     </message>
 </context>
 <context>
