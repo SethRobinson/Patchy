@@ -4759,8 +4759,8 @@ void ui_crop_move_image_keeps_the_recorded_limits() {
 // are the #702 item of the "Crop interaction" entry in docs/legal-constraints.md: the box
 // turns once, on release; no zoom, no change of size and no fit inside the canvas.
 
-QToolButton* crop_straighten_button(patchy::ui::MainWindow& window) {
-  auto* button = window.findChild<QToolButton*>(QStringLiteral("cropStraightenButton"));
+QPushButton* crop_straighten_button(patchy::ui::MainWindow& window) {
+  auto* button = window.findChild<QPushButton*>(QStringLiteral("cropStraightenButton"));
   CHECK(button != nullptr && button->isCheckable());
   return button;
 }
@@ -4834,7 +4834,7 @@ void ui_crop_straighten_line_levels_box_to_nearest_axis() {
   CHECK(!mode->isChecked());
   CHECK(button->isVisible() && button->isEnabled() && !button->isChecked());
   CHECK(button->toolTip().contains(QStringLiteral("level or upright")));
-  CHECK(button->accessibleName() == QStringLiteral("Straighten"));
+  CHECK(button->text() == QStringLiteral("Straighten") && !button->icon().isNull());
   const QRect box(300, 200, 401, 301);
   const auto lay_out_box = [&] {
     send_key(*canvas, Qt::Key_Escape);  // back to the canvas frame
@@ -5112,6 +5112,10 @@ void ui_crop_straighten_commit_levels_a_tilted_edge() {
   if (mode == nullptr || button == nullptr) {
     return;
   }
+  // A laptop-width window for the card shots: the bar is one row there.
+  window.resize(1366, 800);
+  QApplication::processEvents();
+  process_events_for(20);
   paint_tilted_horizon(window, 8.0);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(312, 270)),
        canvas->widget_position_for_document_point(QPoint(712, 570)));

@@ -1177,13 +1177,63 @@ void ui_crop_options_bar_groups_its_controls() {
         std::printf("  %s: one row, %d px\n", name.c_str(), right);
       }
       // The default test window is 1180 px wide: a bar that wrapped there could un-wrap
-      // mid-drag and move the canvas under the handle-drag tests.
-      window.resize(1180, 738);
+      // mid-drag and move the canvas under the handle-drag tests. Ratio fits it; Size, with
+      // its unit fields and the labeled Straighten button (issue 702 follow-up), needs a
+      // 1207 px window, and at 1180 px the Brush row the test window opens on already holds
+      // the bar at two rows, so nothing moves there.
+      if (index == 0) {
+        window.resize(1180, 738);
+        QApplication::processEvents();
+        process_events_for(20);
+        if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
+          problem("takes " + std::to_string(lines) + " rows at 1180 px (row " + std::to_string(right) + " px)");
+        }
+      }
+      // The states the Crop bar passes through keep one row and a one-row bar at 1366 px
+      // (issue 702 follow-up): a custom box, Straighten armed, Move Image Under Crop Box.
+      window.resize(1366, 738);
       QApplication::processEvents();
       process_events_for(20);
-      if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
-        problem("takes " + std::to_string(lines) + " rows at 1180 px (row " + std::to_string(right) + " px)");
+      const int one_row = options_bar->height();
+      const auto check_state = [&](const std::string& state) {
+        QApplication::processEvents();
+        process_events_for(20);
+        const auto [right, lines] = options_row_extent(*options);
+        std::printf("  %s, %s: %d px on %d row(s), bar %d px\n", name.c_str(), state.c_str(), right, lines,
+                    options_bar->height());
+        if (lines != 1) {
+          problem(state + " takes " + std::to_string(lines) + " rows at 1366 px");
+        }
+        if (options_bar->height() != one_row) {
+          problem(state + " changes the bar height to " + std::to_string(options_bar->height()) + " px from " +
+                  std::to_string(one_row));
+        }
+      };
+      auto* straighten = window.findChild<QPushButton*>(QStringLiteral("cropStraightenButton"));
+      auto* move_image = window.findChild<QAction*>(QStringLiteral("cropMoveImageAction"));
+      if (straighten == nullptr || move_image == nullptr) {
+        problem("no Straighten button or Move Image Under Crop Box entry");
+        continue;
       }
+      if (straighten->text() != QStringLiteral("Straighten") || straighten->icon().isNull() ||
+          !straighten->isCheckable()) {
+        problem("the Straighten button lacks its label, icon or toggle");
+      }
+      drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 150)),
+           canvas->widget_position_for_document_point(QPoint(600, 450)));
+      check_state("custom box");
+      straighten->click();
+      if (!straighten->isChecked()) {
+        problem("the Straighten button does not stay pressed while armed");
+      }
+      check_state("Straighten armed");
+      save_widget_artifact("issue_702_crop_options_bar_armed_" + name, *options_bar);
+      straighten->click();
+      move_image->setChecked(true);
+      check_state("Move Image Under Crop Box");
+      move_image->setChecked(false);
+      send_key(*canvas, Qt::Key_Escape);
+      check_state("frame again");
     }
     window.resize(1366, 738);
     style->setCurrentIndex(original);
