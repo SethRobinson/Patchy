@@ -1,7 +1,8 @@
 // The on-canvas text edit session: the layer transform it carries through entry and commit
 // (GitHub issue 373), the caret against the drawn line (384), the text box outline (385, 371),
 // the options-bar size round trip (371), a held Enter and the wheel over the box (413), Esc
-// on the untouched placeholder (415) and the Size scrub with its move coalescing (700). The
+// on the untouched placeholder (415), the Size scrub with its move coalescing (700) and the
+// box following a zoom-out mid-edit (707). The
 // reporter's sample is a local fixture
 // (local-test-fixtures/psd/text-rotate-issue373.psd); the committed-fixture tests build the
 // same shapes from photoshop-text-box-auto-leading.psd so they run everywhere.
@@ -1145,6 +1146,185 @@ void ui_text_size_scrub_during_edit_follows_the_latest_move() {
   CHECK(!undo->isEnabled());
 }
 
+// Point text edited while the view zooms out (GitHub issue 707): the editor kept an 80 x 32
+// screen-pixel floor (and the application sheet's 22 px QTextEdit minimum) and wrote the width
+// floor back into the session's document width, so the box held its old screen size, covered
+// the neighbouring text and came back wider at 100%. The box must
+// scale with the zoom both ways, and the canvas under and around it must draw the document as
+// it is without a session (the edited text included).
+void ui_text_edit_frame_follows_zoom_out() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(640, 240, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  document.add_pixel_layer("Background", solid_pixels(640, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  SessionWindow session;
+  open_document(session, std::move(document), QStringLiteral("Zoom Out Mid-Edit"));
+  session.window.resize(1200, 800);
+  QApplication::processEvents();
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  session.canvas->set_primary_color(QColor(20, 20, 20));
+  QApplication::processEvents();
+  auto* size = session.window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(size != nullptr);
+  if (size == nullptr) {
+    return;
+  }
+  size->setValue(24.0);
+  QApplication::processEvents();
+  // A font sample sheet like the reporter's: three columns, three rows.
+  struct Sample {
+    QPoint at;
+    QString text;
+  };
+  const std::vector<Sample> samples = {
+      {{40, 40}, QStringLiteral("Andale")},  {{230, 40}, QStringLiteral("Calibri")},
+      {{420, 40}, QStringLiteral("Caladea")}, {{40, 95}, QStringLiteral("Arial")},
+      {{230, 95}, QStringLiteral("Cambria")}, {{420, 95}, QStringLiteral("Carlito")},
+      {{40, 150}, QStringLiteral("Black")},  {{230, 150}, QStringLiteral("Candara")},
+      {{420, 150}, QStringLiteral("Liberation")},
+  };
+  for (const auto& sample : samples) {
+    patchy::ui::MainWindowTestAccess::add_text_at(session.window, sample.at);
+    QApplication::processEvents();
+    process_events_for(150);
+    auto* editor = live_editor(*session.canvas);
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    editor->setPlainText(sample.text);
+    QApplication::processEvents();
+    process_events_for(150);
+    commit_session(*session.canvas);
+  }
+  const auto calibri = find_layer_id(std::as_const(patchy::ui::MainWindowTestAccess::document(session.window)),
+                                     [](const patchy::Layer& layer) {
+                                       const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+                                       return text != layer.metadata().end() && text->second == "Calibri";
+                                     });
+  CHECK(calibri.has_value());
+  if (!calibri.has_value()) {
+    return;
+  }
+
+  // The new session's box is about 400 document px wide here, so 1/8 is where the old 80 px
+  // floor took over and widened it.
+  const std::vector<double> zooms = {0.5, 1.0 / 3.0, 0.25, 0.125};
+  const auto view_at = [&](double zoom) {
+    session.canvas->set_zoom(zoom);
+    QApplication::processEvents();
+    process_events_for(250);
+  };
+  // The document without a session at each zoom, and where its origin sits.
+  std::vector<QImage> references;
+  std::vector<QPoint> origins;
+  for (const auto zoom : zooms) {
+    view_at(zoom);
+    references.push_back(session.canvas->grab().toImage().convertToFormat(QImage::Format_ARGB32));
+    origins.push_back(session.canvas->widget_position_for_document_point(QPoint(0, 0)));
+    if (zoom == zooms[1]) {
+      save_widget_artifact("tcs_issue707_zoomed_out_no_session", *session.canvas);
+    }
+  }
+  view_at(1.0);
+
+  const auto flash_time = QApplication::cursorFlashTime();
+  QApplication::setCursorFlashTime(0);
+  auto* editor = open_session(session.window, *session.canvas, *calibri);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    QApplication::setCursorFlashTime(flash_time);
+    return;
+  }
+  const auto frame_at_100 = editor->geometry();
+  std::printf("  frame at 100%%: %dx%d\n", frame_at_100.width(), frame_at_100.height());
+  save_widget_artifact("tcs_issue707_session_100", *session.canvas);
+
+  // Every check is recorded and reported at the end, so the captures cover all zooms.
+  bool all_held = true;
+  const auto expect = [&](bool held, const char* what) {
+    if (!held) {
+      all_held = false;
+      std::printf("    did not hold: %s\n", what);
+    }
+  };
+  for (std::size_t index = 0; index < zooms.size(); ++index) {
+    const auto zoom = zooms[index];
+    view_at(zoom);
+    expect(live_editor(*session.canvas) == editor, "same session");
+    const auto frame = editor->geometry();
+    const auto grab = session.canvas->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+    if (index == 1) {
+      save_widget_artifact("tcs_issue707_zoomed_out_session", *session.canvas);
+    }
+    const auto origin = session.canvas->widget_position_for_document_point(QPoint(0, 0));
+    std::printf("  zoom %.3f: frame %d,%d %dx%d (100%% scaled: %.1fx%.1f)\n", zoom, frame.x(), frame.y(),
+                frame.width(), frame.height(), frame_at_100.width() * zoom, frame_at_100.height() * zoom);
+    // The box scales with the document: within a few pixels of its 100% size times the zoom.
+    expect(frame.width() <= static_cast<int>(std::ceil(frame_at_100.width() * zoom)) + 3, "width scales down");
+    // The box never gets shorter than 8 px, so it keeps a hit area at tiny zooms.
+    expect(frame.height() <= std::max(8, static_cast<int>(std::ceil(frame_at_100.height() * zoom)) + 3),
+           "height scales down");
+    expect(frame.width() >= static_cast<int>(std::floor(frame_at_100.width() * zoom)) - 3, "width not too small");
+    expect(origin == origins[index], "same view origin as the reference");
+    if (origin != origins[index] || grab.size() != references[index].size()) {
+      continue;
+    }
+    // Outside the box and its handles the canvas is the document as drawn without a session,
+    // and inside it no ink of the edited text is missing.
+    const auto around = frame.adjusted(-8, -8, 8, 8);
+    const auto inner = frame.adjusted(2, 2, -2, -2);
+    // The resize handles are opaque squares on the frame: they cover ink by design.
+    std::vector<QRect> handles;
+    for (auto* handle : session.canvas->findChildren<QWidget*>()) {
+      if (handle->isVisible() && handle->objectName().startsWith(QStringLiteral("textBoxResizeHandle"))) {
+        handles.push_back(handle->geometry());
+      }
+    }
+    const auto on_handle = [&](int x, int y) {
+      return std::any_of(handles.begin(), handles.end(), [&](const QRect& rect) { return rect.contains(x, y); });
+    };
+    int changed_outside = 0;
+    int missing_ink_inside = 0;
+    int ink_inside = 0;
+    for (int y = 0; y < grab.height(); ++y) {
+      for (int x = 0; x < grab.width(); ++x) {
+        const QColor seen = grab.pixelColor(x, y);
+        const QColor expected = references[index].pixelColor(x, y);
+        if (!around.contains(x, y)) {
+          if (std::abs(seen.red() - expected.red()) > 8 || std::abs(seen.green() - expected.green()) > 8 ||
+              std::abs(seen.blue() - expected.blue()) > 8) {
+            ++changed_outside;
+          }
+        } else if (inner.contains(x, y) && !on_handle(x, y) && expected.lightness() < 128) {
+          ++ink_inside;
+          if (seen.lightness() > 200) {
+            ++missing_ink_inside;
+          }
+        }
+      }
+    }
+    std::printf("    pixels changed outside the box: %d; ink inside %d, missing %d\n", changed_outside, ink_inside,
+                missing_ink_inside);
+    expect(changed_outside == 0, "canvas unchanged outside the box");
+    if (zoom >= 0.25) {
+      expect(ink_inside > 10, "the edited text has ink in the box");
+    }
+    expect(missing_ink_inside == 0, "no ink missing in the box");
+  }
+
+  // Back at 100% the box is the size it started at: zooming out must not have widened it.
+  view_at(1.0);
+  const auto frame_back = editor->geometry();
+  std::printf("  frame back at 100%%: %dx%d\n", frame_back.width(), frame_back.height());
+  expect(std::abs(frame_back.width() - frame_at_100.width()) <= 1, "width back at 100%");
+  expect(std::abs(frame_back.height() - frame_at_100.height()) <= 1, "height back at 100%");
+  CHECK(all_held);
+  QApplication::setCursorFlashTime(flash_time);
+  commit_session(*session.canvas);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_canvas_session_tests() {
@@ -1157,6 +1337,7 @@ std::vector<patchy::test::TestCase> text_canvas_session_tests() {
       {"ui_text_escape_drops_the_untouched_placeholder", ui_text_escape_drops_the_untouched_placeholder},
       {"ui_text_box_outline_shows_on_unrotated_text", ui_text_box_outline_shows_on_unrotated_text},
       {"ui_text_caret_spans_the_drawn_line", ui_text_caret_spans_the_drawn_line},
+      {"ui_text_edit_frame_follows_zoom_out", ui_text_edit_frame_follows_zoom_out},
       {"ui_text_size_points_round_trip_at_common_resolutions", ui_text_size_points_round_trip_at_common_resolutions},
       {"ui_text_size_field_keeps_typed_points", ui_text_size_field_keeps_typed_points},
       {"ui_rotated_psd_box_text_edit_keeps_transform", ui_rotated_psd_box_text_edit_keeps_transform},

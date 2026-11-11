@@ -7003,6 +7003,18 @@ void MainWindow::set_text_editor_area(QTextEdit& editor, const std::optional<Vec
   schedule_text_editor_preview(&editor);
 }
 
+namespace {
+
+// A point-text editor's minimum screen size: `pixels` at 100% and above, the same document
+// size below it (never under 8 px, so the box keeps a hit area). A fixed screen floor held the
+// box at its old screen size while the view zoomed out, and the relayout wrote that floor back
+// into the session's document size, so the box came back wider at 100% (GitHub issue 707).
+int text_editor_screen_floor(int pixels, double zoom) {
+  return std::max(8, static_cast<int>(std::lround(pixels * std::min(1.0, zoom))));
+}
+
+}  // namespace
+
 void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bool show_editor,
                              std::optional<VectorPath> requested_area, std::optional<LayerId> target_text_layer) {
   if (canvas_ == nullptr) {
@@ -7685,8 +7697,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   }
   const auto widget_point = canvas_->widget_position_for_document_point(document_point);
   editor->setGeometry(widget_point.x(), widget_point.y(),
-                      std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom()))),
-                      std::max(32, static_cast<int>(std::round(document_editor_height * canvas_->zoom()))));
+                      std::max(text_editor_screen_floor(80, canvas_->zoom()),
+                               static_cast<int>(std::round(document_editor_width * canvas_->zoom()))),
+                      std::max(text_editor_screen_floor(32, canvas_->zoom()),
+                               static_cast<int>(std::round(document_editor_height * canvas_->zoom()))));
   const auto resize_editor = [editor = QPointer<QTextEdit>(editor), this] {
     if (editor == nullptr) {
       return;
@@ -11857,20 +11871,45 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
     editor->document()->setTextWidth(width);
   } else {
     editor->document()->setTextWidth(-1);
-    const auto minimum_width = std::max(80, width);
-    const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
+    // The floors are document sizes at or below 100% (text_editor_screen_floor), so the box
+    // scales with the zoom (GitHub issue 707). Below 8 px the editor's own font stops shrinking
+    // (its pixel size floor), so its measurements overstate the text there: the glyph layout
+    // gives the content's size instead.
+    const auto width_floor = text_editor_screen_floor(80, zoom);
+    const auto height_floor = text_editor_screen_floor(32, zoom);
+    const auto glyph_layout_bounds = [&] {
+      double layout_zoom = 1.0;
+      const auto* layout_document = text_editor_document_space_layout(*editor, layout_zoom);
+      return layout_document != nullptr ? text_editor_line_geometry(*editor, *layout_document).bounding_rect()
+                                        : QRectF();
+    };
+    std::optional<QRectF> floor_font_layout;
+    if (static_cast<double>(document_text_size) * zoom < 8.0) {
+      if (const auto bounds = glyph_layout_bounds(); bounds.isValid() && bounds.width() > 0.0) {
+        floor_font_layout = bounds;
+      }
+    }
+    const auto content_width =
+        (floor_font_layout.has_value() ? static_cast<int>(std::ceil(floor_font_layout->right() * zoom))
+                                       : static_cast<int>(std::ceil(editor->document()->idealWidth()))) +
+        6;
     if (text_document_has_non_left_alignment(*editor->document())) {
       // QTextEdit lays aligned NoWrap text out against the viewport width, so any slack between
       // the widget and the content shifts the editor's glyphs/caret away from the rendered layer
       // pixels, which lay out against the tight ideal width.  Track the content exactly (shrink
       // as well as grow) for centered/right point text; left text keeps the roomier behavior.
-      width = std::max(80, content_width);
+      width = std::max(width_floor, content_width);
       document_editor_width =
           std::max(1, static_cast<int>(std::ceil(static_cast<double>(width) / zoom)));
     } else {
-      width = allow_point_auto_expand ? std::max(minimum_width, content_width) : minimum_width;
-      document_editor_width = std::max(document_editor_width,
-                                       static_cast<int>(std::ceil(static_cast<double>(width) / zoom)));
+      // Only text that outgrows the box widens the session, never the screen floor or the
+      // rounding of the scaled width (that crept up a few pixels on every zoom step).
+      if (allow_point_auto_expand && content_width > width) {
+        width = content_width;
+        document_editor_width = std::max(document_editor_width,
+                                         static_cast<int>(std::ceil(static_cast<double>(content_width) / zoom)));
+      }
+      width = std::max(width_floor, width);
     }
     editor->setProperty("patchy.documentTextWidth", document_editor_width);
     editor->document()->setTextWidth(width);
@@ -11879,20 +11918,14 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
     // left the widget a third too short, and since the widget's rect is the hit area, the last
     // line could not be clicked at all -- the click fell through to the canvas and committed the
     // session instead.
-    auto text_height = std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
-    {
-      double layout_zoom = 1.0;
-      if (const auto* layout_document = text_editor_document_space_layout(*editor, layout_zoom);
-          layout_document != nullptr) {
-        const auto layout_bounds = text_editor_line_geometry(*editor, *layout_document).bounding_rect();
-        if (layout_bounds.isValid() && layout_bounds.height() > 0.0) {
-          text_height = std::max(text_height,
-                                 static_cast<int>(std::ceil(layout_bounds.bottom() * zoom)) + 2);
-        }
-      }
+    auto text_height = std::max(
+        height_floor,
+        floor_font_layout.has_value() ? 0 : static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
+    if (const auto layout_bounds = glyph_layout_bounds(); layout_bounds.isValid() && layout_bounds.height() > 0.0) {
+      text_height = std::max(text_height, static_cast<int>(std::ceil(layout_bounds.bottom() * zoom)) + 2);
     }
-    const auto minimum_height =
-        std::max(32, static_cast<int>(std::ceil(static_cast<double>(document_text_size) * zoom * 1.45)));
+    const auto minimum_height = std::max(
+        height_floor, static_cast<int>(std::ceil(static_cast<double>(document_text_size) * zoom * 1.45)));
     height = std::max(text_height, minimum_height);
     document_editor_height = std::max(kMinimumTextBoxDocumentSize,
                                       static_cast<int>(std::ceil(static_cast<double>(height) / zoom)));

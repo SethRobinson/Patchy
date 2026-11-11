@@ -2314,10 +2314,13 @@ QString color_button_style(QColor color) {
       .arg(text);
 }
 
+// min-height: 0 overrides the application sheet's 20 px field minimum, which held the inline
+// editor's box at 22 px tall however far the view zoomed out (GitHub issue 707).
 QString inline_text_editor_style(QColor color, int pixel_size) {
   Q_UNUSED(pixel_size);
   return QStringLiteral(
-             "QTextEdit { background: transparent; border: 1px solid transparent; padding: 0; color: rgb(%1, %2, %3); "
+             "QTextEdit { background: transparent; border: 1px solid transparent; padding: 0; min-height: 0; "
+             "color: rgb(%1, %2, %3); "
              "selection-background-color: rgba(49, 116, 190, 130); selection-color: rgb(%1, %2, %3); } "
              "QTextEdit QWidget { background: transparent; } "
              "QTextEdit::selection { background: rgba(49, 116, 190, 130); color: rgb(%1, %2, %3); }")
