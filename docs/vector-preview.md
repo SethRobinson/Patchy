@@ -162,11 +162,13 @@ shows:
   (`sample_pixels_smooth`) whatever the view's smoothing rule. A 9 px feather is blurred
   natively up to about 700% and sampled above.
 - A layer-aligned gradient spans the box of its paint's coverage in the document render,
-  and the Edge values change that box: a feathered shape is drawn over the canvas grown
-  by the feather's reach (so a shape past the canvas edge is cut there, not at the
-  canvas), and a fill with Density under 100% covers all of it. `native_gradient_bounds`
-  mirrors both; before it did, a gradient on such a shape was a different gradient in
-  the sharp view.
+  and Feather changes that box: a feathered shape is drawn over the canvas grown by the
+  feather's reach (so a shape past the canvas edge is cut there, not at the canvas).
+  Density does not: under 100% the fill covers the whole clip, but the gradient stays on
+  the shape, as in Photoshop
+  ([vector-tools-appearance.md](vector-tools-appearance.md#gradient-fill-and-density)).
+  `native_gradient_bounds` mirrors the bake in both; where it did not, a gradient on such
+  a shape was a different gradient in the sharp view.
 
 ## Pattern phase
 
@@ -276,17 +278,21 @@ gradients follow the whole shape, as in Photoshop
 
 `tests/ui/vector_preview_parity_tests.cpp` holds the sharp view to the document render:
 
-- `ui_vector_preview_matches_document_render_for_shape_layers`: 60 documents (every
-  shape kind, fill, stroke alignment, dash, cap and join, Feather and Density alone and
-  together, inverted and disabled paths, masks, effects, shapes past the canvas edge,
-  combine ops, a merged vector layer), each rendered at 100%, 400% and 250%. The frame,
+- `ui_vector_preview_matches_document_render_for_shape_layers`: 66 documents (every
+  shape kind, fill, stroke alignment on straight, slanted and curved edges, dash, cap and
+  join, Feather and Density alone and together, inverted and disabled paths, masks,
+  effects, shapes past the canvas edge, combine ops, a merged vector layer), each rendered
+  at 100%, 400% and 250%. The frame,
   averaged down to document pixels, is compared with the composite; a reduced view counts
   how far a pixel lies outside the range of the other image's 3 x 3 neighborhood, so an
   antialiased edge costs nothing and a flat area, a missing feature or an extra one costs
   in full. A panned 400% view must equal the same pixels of the full one. The report is
   `test-artifacts/vector-preview-parity.txt`; a failing view saves its images beside it.
-  Two classes are looser on purpose: an Outside stroke leaves a one-pixel seam along the
-  path's edge in the document render, and a pattern is interpolated in the sharp view.
+  Two classes are looser on purpose: blurs (Feather, effects), whose box sizes round
+  differently at each zoom, and patterns, which the sharp view interpolates. Inside and
+  Outside strokes are held to the strict limits: fill and stroke share the edge pixels
+  without a seam at every zoom
+  ([vector-tools-appearance.md](vector-tools-appearance.md#fill-and-stroke-on-shared-edge-pixels)).
 - `ui_vector_preview_shows_shape_feather_and_density_at_every_zoom`: on the canvas at
   50%, 100%, 300% and 1600%, preview on and off, live in Shape Appearance, after OK, Undo
   and Cancel.

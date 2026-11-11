@@ -206,12 +206,14 @@ Layer& add_shape(Document& doc, VectorShapeContent shape, const char* name = "Sh
   return doc.add_layer(std::move(layer));
 }
 
-// How strict a case is. Flat fills and strokes must agree almost exactly. Blurs (Feather,
-// effects) are built from box passes whose sizes round differently at each zoom. An Outside
-// stroke leaves a one-pixel seam along the path's edge in the document render (its band is
-// cut by the fill's antialiased coverage), which a view at a higher zoom draws thinner.
-// A pattern is interpolated between its texels in the sharp view.
-enum class Kind { Crisp, Soft, Seam, Pattern };
+// How strict a case is. Flat fills and strokes must agree almost exactly, Inside and Outside
+// strokes included: fill and stroke share the pixels the path's edge crosses, so no seam
+// separates them at any zoom (rasterize_vector_shape; before that an Outside stroke left a
+// one-pixel seam in the document render that a zoomed view drew thinner, and these cases had
+// a looser class of their own). Blurs (Feather, effects) are built from box passes whose
+// sizes round differently at each zoom. A pattern is interpolated between its texels in the
+// sharp view.
+enum class Kind { Crisp, Soft, Pattern };
 
 struct ParityCase {
   std::string name;
@@ -230,9 +232,6 @@ std::vector<ParityCase> parity_cases() {
   const auto soft = [&](std::string name, std::function<void(Document&)> build) {
     cases.push_back({std::move(name), Kind::Soft, std::move(build)});
   };
-  const auto seam = [&](std::string name, std::function<void(Document&)> build) {
-    cases.push_back({std::move(name), Kind::Seam, std::move(build)});
-  };
 
   // --- kinds ---
   crisp("line", [](Document& doc) { add_shape(doc, line_shape(20, 90, 140, 30, 6, false, false)); });
@@ -246,8 +245,8 @@ std::vector<ParityCase> parity_cases() {
   });
   for (const auto alignment : {Align::Center, Align::Inside, Align::Outside}) {
     const char* names[] = {"inside", "center", "outside"};
-    cases.push_back({std::string("line stroke ") + names[static_cast<int>(alignment)],
-                     alignment == Align::Outside ? Kind::Seam : Kind::Crisp, [alignment](Document& doc) {
+    cases.push_back({std::string("line stroke ") + names[static_cast<int>(alignment)], Kind::Crisp,
+                     [alignment](Document& doc) {
       auto shape = line_shape(24, 84, 136, 40, 8, false, true, 28, 30, 0);
       stroke(shape, 5, alignment);
       add_shape(doc, std::move(shape));
@@ -319,12 +318,35 @@ std::vector<ParityCase> parity_cases() {
   // --- stroke ---
   for (const auto alignment : {Align::Inside, Align::Center, Align::Outside}) {
     const char* names[] = {"inside", "center", "outside"};
-    cases.push_back({std::string("rectangle stroke ") + names[static_cast<int>(alignment)],
-                     alignment == Align::Outside ? Kind::Seam : Kind::Crisp, [alignment](Document& doc) {
+    cases.push_back({std::string("rectangle stroke ") + names[static_cast<int>(alignment)], Kind::Crisp,
+                     [alignment](Document& doc) {
       auto shape = rect_shape(30, 26, 100, 68);
       stroke(shape, 7, alignment);
       add_shape(doc, std::move(shape));
     }});
+  }
+  // Curved and slanted edges, where the fill and an Inside or Outside stroke share pixels.
+  for (const auto alignment : {Align::Inside, Align::Outside}) {
+    const std::string side = alignment == Align::Inside ? "inside" : "outside";
+    crisp("ellipse stroke " + side, [alignment](Document& doc) {
+      auto shape = ellipse_shape(28.5, 22, 104, 76, {250, 200, 40});
+      stroke(shape, 8, alignment);
+      add_shape(doc, std::move(shape));
+    });
+    crisp("ellipse stroke " + side + " half opacity", [alignment](Document& doc) {
+      auto shape = ellipse_shape(28.5, 22, 104, 76, {250, 200, 40});
+      stroke(shape, 8, alignment);
+      shape.stroke.opacity = 0.5;
+      add_shape(doc, std::move(shape));
+    });
+    crisp("star stroke " + side + " on a gradient with transparency", [alignment](Document& doc) {
+      auto shape = polygon_shape(80, 60, 50, 5, 45);
+      shape.fill.kind = VectorFillKind::Gradient;
+      shape.fill.gradient = gradient(true);
+      shape.fill.gradient.alpha_stops = {{0.0F, 0.4F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+      stroke(shape, 6, alignment);
+      add_shape(doc, std::move(shape));
+    });
   }
   crisp("stroke dashes round", [](Document& doc) {
     auto shape = ellipse_shape(26, 20, 108, 80);
@@ -334,7 +356,7 @@ std::vector<ParityCase> parity_cases() {
     shape.stroke.join = VectorStrokeJoin::Round;
     add_shape(doc, std::move(shape));
   });
-  seam("stroke square caps bevel", [](Document& doc) {
+  crisp("stroke square caps bevel", [](Document& doc) {
     auto shape = polygon_shape(80, 60, 46, 5, 40);
     stroke(shape, 5, Align::Outside);
     shape.stroke.cap = VectorStrokeCap::Square;
@@ -402,8 +424,8 @@ std::vector<ParityCase> parity_cases() {
     shape.density = 90;
     add_shape(doc, std::move(shape));
   });
-  // A layer-aligned gradient spans the fill's coverage: all of the canvas once Density is
-  // under 100%, and the canvas grown by the feather's reach when the shape is feathered too.
+  // A layer-aligned gradient stays on the shape when Density under 100% spreads the fill over
+  // the canvas (the rest shows the ramp's end colors), feathered or not.
   crisp("density aligned gradient", [](Document& doc) {
     auto shape = rect_shape(40, 30, 80, 60, 10);
     shape.fill.kind = VectorFillKind::Gradient;
@@ -537,7 +559,7 @@ std::vector<ParityCase> parity_cases() {
   });
 
   // --- canvas edge, combine ops, merged vectors ---
-  seam("shapes past the canvas edge", [](Document& doc) {
+  crisp("shapes past the canvas edge", [](Document& doc) {
     auto first = ellipse_shape(-30, -20, 90, 70);
     stroke(first, 6, Align::Outside);
     add_shape(doc, std::move(first));
@@ -684,7 +706,6 @@ bool differs(const Difference& difference, double zoom, Kind kind) {
   const bool whole = zoom == std::floor(zoom);
   switch (kind) {
     case Kind::Soft: return difference.mean > 0.6 || difference.over_32 > 0.0005 || difference.over_8 > 0.01;
-    case Kind::Seam: return difference.mean > 0.5 || difference.over_32 > 0.008 || difference.over_8 > 0.015;
     case Kind::Pattern: return difference.mean > 0.8 || difference.over_32 > 0.0005 || difference.over_8 > 0.003;
     case Kind::Crisp: break;
   }
@@ -1035,8 +1056,8 @@ std::string state_problems(CanvasWidget& canvas, const Document& doc, LayerId id
   } else {
     const auto expected = rgba(qimage_from_document(doc, true));
     const auto difference = compare(expected, reduce_to_document(rgba(frame.image), 2.0, expected.size()), true);
-    // Loose enough for an Outside stroke's seam and an interpolated pattern (see Kind).
-    if (difference.mean > 0.8 || difference.over_32 > 0.008 || difference.over_8 > 0.015) {
+    // The Soft and Pattern limits together (see Kind): Feather stays set while the paints change.
+    if (difference.mean > 0.8 || difference.over_32 > 0.0005 || difference.over_8 > 0.01) {
       char text[160];
       std::snprintf(text, sizeof(text), " the sharp view differs from the render (max %d, mean %.3f, over 8: %.2f%%, over 32: %.2f%%);",
                     difference.max, difference.mean, difference.over_8 * 100.0, difference.over_32 * 100.0);
