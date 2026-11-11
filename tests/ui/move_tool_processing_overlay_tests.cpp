@@ -2266,9 +2266,9 @@ void ui_move_auto_select_group_moves_selected_child_alone() {
   scene.expect({first_id});
   CHECK(scene.document.active_layer_id() == first_id);
 
-  // An unselected sibling still selects and drags the whole group.
+  // An unselected sibling still activates and drags the whole group (the host turns
+  // the activation into the selection; this scene does not wire that callback).
   drag_on(QPoint(96, 101), QPoint(101, 101));
-  scene.expect({outer_id});
   CHECK(scene.document.active_layer_id() == outer_id);
   CHECK(x_of(first_id) == 60);
   CHECK(x_of(second_id) == 95);
