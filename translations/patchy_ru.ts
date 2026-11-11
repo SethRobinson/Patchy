@@ -22517,6 +22517,10 @@ Do you want to replace it?</source>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>Инструмент «Кадрирование», после изменения рамки кадрирования: двигать изображение под рамкой кадрирования или рамку над изображением</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>Поиск сочетаний клавиш...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

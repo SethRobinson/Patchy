@@ -22453,6 +22453,10 @@ Sostituirlo?</translation>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>Strumento Taglierina, dopo aver modificato il riquadro di ritaglio: sposta l&apos;immagine sotto il riquadro di ritaglio oppure il riquadro sopra l&apos;immagine</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>Cerca scelte rapide...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

@@ -22389,6 +22389,10 @@ Do you want to replace it?</source>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>切り抜きツールで切り抜き枠を変更した後: 切り抜き枠の下で画像を動かすか、画像の上で枠を動かすかを切り替え</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>ショートカットを検索...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

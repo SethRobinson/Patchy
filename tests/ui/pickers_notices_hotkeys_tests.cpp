@@ -4722,10 +4722,11 @@ void ui_hotkey_editor_filter_commands_with_shortcuts() {
     CHECK(hotkey_row_shown(dialog, QStringLiteral("color.default")));
     CHECK(!hotkey_row_shown(dialog, QStringLiteral("tools.line")));  // ships without a key
     CHECK(hotkey_built_in_keys_shown(dialog));
-    hotkey_set_search(dialog, QStringLiteral("opacity"));
-    CHECK(hotkey_built_in_keys_shown(dialog));
+    // The search reads only the keys here (ui_hotkey_editor_filter_shortcut_keys_search).
+    hotkey_set_search(dialog, QStringLiteral("5"));
+    CHECK(hotkey_built_in_keys_shown(dialog));  // the 0-9 row
     CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
-    hotkey_set_search(dialog, QStringLiteral("new"));
+    hotkey_set_search(dialog, QStringLiteral("n"));
     CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
     CHECK(!hotkey_built_in_keys_shown(dialog));
     // Clearing the row's only key takes it off the list at once.
@@ -4756,6 +4757,89 @@ void ui_hotkey_editor_filter_commands_with_shortcuts() {
       QApplication::processEvents();
     }
     CHECK(hotkey_row_shown(dialog, QStringLiteral("file.new")));
+  });
+}
+QString hotkey_search_placeholder(QDialog& dialog) {
+  auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+  CHECK(search != nullptr);
+  return search != nullptr ? search->placeholderText() : QString();
+}
+// GitHub issue 676 follow-up: with Commands with shortcuts chosen, the search matches the keys
+// alone, by key name. One letter or a token with a digit names a key exactly ("u" is U, not Up;
+// "f1" is F1, not F12); two or more letters may start a longer name ("shi" finds Shift). Every
+// token of "ctrl+u" must be in the same chord. Other Show entries still match names.
+void ui_hotkey_editor_filter_shortcut_keys_search() {
+  with_hotkey_page([](auto&, QDialog& dialog) {
+#ifdef Q_OS_MACOS
+    const QString ctrl = QStringLiteral("cmd");
+#else
+    const QString ctrl = QStringLiteral("ctrl");
+#endif
+    const auto hue = QStringLiteral("image.hue_saturation");        // Ctrl+U
+    const auto desaturate = QStringLiteral("patchy.filters.desaturate");  // Ctrl+Shift+U
+    const auto rect = QStringLiteral("tools.rect");                  // U
+    const auto cycle_shape = QStringLiteral("tools.cycle.shape");    // Shift+U
+    const auto undo = QStringLiteral("edit.undo");                   // Ctrl+Z
+    const auto help = QStringLiteral("help.patchy_help");            // F1
+    const auto revert = QStringLiteral("file.revert");               // F12
+    const auto search_commands = QStringLiteral("Search commands or shortcuts...");
+    CHECK(hotkey_search_placeholder(dialog) == search_commands);
+    hotkey_set_search(dialog, QStringLiteral("u"));
+    CHECK(hotkey_row_shown(dialog, undo));  // All commands: the name matches
+
+    hotkey_filter_choose(dialog, QStringLiteral("Commands with shortcuts"));
+    CHECK(hotkey_search_placeholder(dialog) == QStringLiteral("Search shortcuts..."));
+    CHECK(hotkey_row_shown(dialog, hue));
+    CHECK(hotkey_row_shown(dialog, desaturate));
+    CHECK(hotkey_row_shown(dialog, rect));
+    CHECK(hotkey_row_shown(dialog, cycle_shape));
+    CHECK(!hotkey_row_shown(dialog, undo));
+    CHECK(!hotkey_row_shown(dialog, QStringLiteral("file.new")));
+    CHECK(!hotkey_built_in_keys_shown(dialog));  // Arrows (Up) and Shift do not count as U
+    // Tall enough for every match, laid out before the capture.
+    dialog.resize(dialog.width(), std::max(dialog.height(), 600));
+    for (int pass = 0; pass < 3; ++pass) {
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+      QApplication::processEvents();
+    }
+    save_widget_artifact("hotkey_editor_filter_shortcut_keys_u", dialog);
+
+    for (const auto& query : {ctrl + QStringLiteral("+u"), ctrl.toUpper() + QStringLiteral(" U")}) {
+      hotkey_set_search(dialog, query);
+      CHECK(hotkey_row_shown(dialog, hue));
+      CHECK(hotkey_row_shown(dialog, desaturate));
+      CHECK(!hotkey_row_shown(dialog, rect));
+      CHECK(!hotkey_row_shown(dialog, cycle_shape));
+      CHECK(!hotkey_row_shown(dialog, undo));
+    }
+    hotkey_set_search(dialog, QStringLiteral("shift+u"));
+    CHECK(hotkey_row_shown(dialog, desaturate));
+    CHECK(hotkey_row_shown(dialog, cycle_shape));
+    CHECK(!hotkey_row_shown(dialog, hue));
+    CHECK(!hotkey_row_shown(dialog, rect));
+    for (const auto& query : {QStringLiteral("shift"), QStringLiteral("shi")}) {
+      hotkey_set_search(dialog, query);
+      CHECK(hotkey_row_shown(dialog, cycle_shape));
+      CHECK(hotkey_row_shown(dialog, desaturate));
+      CHECK(!hotkey_row_shown(dialog, hue));
+      CHECK(hotkey_built_in_keys_shown(dialog));  // Shift+Arrows
+    }
+    hotkey_set_search(dialog, QStringLiteral("f1"));
+    CHECK(hotkey_row_shown(dialog, help));
+    CHECK(!hotkey_row_shown(dialog, revert));
+    hotkey_set_search(dialog, QStringLiteral("F12"));
+    CHECK(hotkey_row_shown(dialog, revert));
+    CHECK(!hotkey_row_shown(dialog, help));
+    hotkey_set_search(dialog, QStringLiteral("shift+up"));
+    CHECK(hotkey_built_in_keys_shown(dialog));
+    hotkey_set_search(dialog, QStringLiteral("undo"));
+    CHECK(!hotkey_row_shown(dialog, undo));
+
+    // Back on All commands, names match again and the hint is the usual one.
+    hotkey_filter_choose(dialog, QStringLiteral("All commands"));
+    CHECK(hotkey_search_placeholder(dialog) == search_commands);
+    CHECK(hotkey_row_shown(dialog, undo));
+    CHECK(!hotkey_row_shown(dialog, hue));
   });
 }
 void ui_hotkey_editor_filter_tools() {
@@ -6080,6 +6164,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_editor_search_row_stays_while_list_scrolls", ui_hotkey_editor_search_row_stays_while_list_scrolls},
       {"ui_hotkey_editor_filter_menu_commands", ui_hotkey_editor_filter_menu_commands},
       {"ui_hotkey_editor_filter_commands_with_shortcuts", ui_hotkey_editor_filter_commands_with_shortcuts},
+      {"ui_hotkey_editor_filter_shortcut_keys_search", ui_hotkey_editor_filter_shortcut_keys_search},
       {"ui_hotkey_editor_filter_tools", ui_hotkey_editor_filter_tools},
       {"ui_hotkey_editor_filter_other_commands", ui_hotkey_editor_filter_other_commands},
       {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},

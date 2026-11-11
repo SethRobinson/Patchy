@@ -22453,6 +22453,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Crop tool, once the crop box has been changed: move the image under the crop box, or the box over the image</source>
         <translation>Freistellungswerkzeug, sobald der Zuschneiderahmen geändert wurde: das Bild unter dem Zuschneiderahmen bewegen oder den Rahmen über dem Bild</translation>
     </message>
+    <message>
+        <source>Search shortcuts...</source>
+        <translation>Tastaturbefehle suchen...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
