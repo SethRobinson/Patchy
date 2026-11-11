@@ -197,13 +197,16 @@ Published earlier work, each dated before the JP member's 2008-08-18 filing:
 - **E7. US 8249391's application**, published 2009-02-26 as US 2009/0052802: after the JP
   filing, so not earlier work for it; cited for the US record only.
 
-Outcome (not decided on the scan date). Separated by design, and binding on any build: the turn
+Outcome (decided 2026-11-11). Decided 2026-11-11, after the register read: the Straighten
+button is built within the limits below; for JP 4640470 B2 it rests on E5 and E6, the same kind
+of decision as the one on the image-moves mode above.
+Separated by design, and binding on any build: the turn
 happens once, on release, never while the line is drawn (US 8249391's live transform, expired,
 and US 7679625 both turn during the input); no zoom and no box resize follow the turn, and no
 edge test (US 9158455, US 9767535); no detected line and no dial (Apple's 2012 family). Not
 separated by design: claim 1 of JP 4640470 B2, which applies in Japan only and also describes
 the Ruler's Straighten Image as it ships. A build rests, for that patent, on E5 and E6 being
-earlier than its filing date, which is a judgment this record does not make. The register read
+earlier than its filing date: the decision above, not a finding of this record. The register read
 on 2026-11-11 confirms the patent in force. Watch items: 2026-12-10, when the 17th year's fee
 falls due (late payment with a surcharge is accepted for six months after it), and 2028-08-18,
 the end of the term.

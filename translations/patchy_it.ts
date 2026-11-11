@@ -35868,6 +35868,18 @@ Bloccato: %1</translation>
         <source>Crop: the crop box moves over the image</source>
         <translation>Ritaglia: il riquadro di ritaglio si sposta sopra l&apos;immagine</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>Raddrizza</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>Raddrizza: trascina lungo qualcosa che deve essere orizzontale o verticale e il riquadro di ritaglio ruota di conseguenza (oppure trascina tenendo premuto Ctrl)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>Trascina lungo qualcosa che deve essere orizzontale o verticale</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

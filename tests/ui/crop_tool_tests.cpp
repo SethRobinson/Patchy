@@ -61,6 +61,7 @@
 #include <QToolButton>
 #include "ui/color_panel.hpp"
 #include "ui/crop_presets.hpp"
+#include "ui/ruler_tool.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/new_document_dialog.hpp"
 #include "core/pixel_depth.hpp"
@@ -4752,6 +4753,402 @@ void ui_crop_move_image_keeps_the_recorded_limits() {
   send_key(*canvas, Qt::Key_Escape);
 }
 
+// ---------------------------------------------------------------------------------------
+// Straighten (GitHub issue 702): the Crop bar's button arms one line; its release turns the
+// pending box about its center so the line is level or upright. The limits these tests pin
+// are the #702 item of the "Crop interaction" entry in docs/legal-constraints.md: the box
+// turns once, on release; no zoom, no change of size and no fit inside the canvas.
+
+QToolButton* crop_straighten_button(patchy::ui::MainWindow& window) {
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("cropStraightenButton"));
+  CHECK(button != nullptr && button->isCheckable());
+  return button;
+}
+
+struct StraightenLine {
+  QPointF start;
+  QPointF end;
+};
+
+// Presses at `from`, moves halfway and on to `to` and releases there (document pixels,
+// mapped to the screen), checking that nothing turns before the release. Returns the line's
+// ends in document pixels as the canvas read them.
+StraightenLine draw_straighten_line(patchy::ui::CanvasWidget& canvas, QPointF from, QPointF to,
+                                    Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+                                    const std::function<void()>& before_release = {}) {
+  const auto view = canvas.view_transform();
+  const auto press = view.map_to_widget(from).toPoint();
+  const auto release = view.map_to_widget(to).toPoint();
+  const auto angle = canvas.crop_session_angle();
+  const auto rect = canvas.crop_session_rect();
+  const auto view_angle = view.angle_degrees();
+  send_mouse(canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseMove, (press + release) / 2, Qt::NoButton, Qt::LeftButton, modifiers);
+  CHECK(canvas.crop_straighten_line_active());
+  send_mouse(canvas, QEvent::MouseMove, release, Qt::NoButton, Qt::LeftButton, modifiers);
+  // The box (and with the image moving, the view) waits for the release.
+  CHECK(canvas.crop_session_angle() == angle);
+  CHECK(canvas.crop_session_rect() == rect);
+  CHECK(canvas.view_transform().angle_degrees() == view_angle);
+  if (before_release) {
+    before_release();
+  }
+  send_mouse(canvas, QEvent::MouseButtonRelease, release, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+  CHECK(!canvas.crop_straighten_line_active());
+  return {view.map_to_document(QPointF(press)), view.map_to_document(QPointF(release))};
+}
+
+// The line's direction in degrees, clockwise on screen (y down): the sense of the box's angle.
+double straighten_line_degrees(const StraightenLine& line) {
+  return std::atan2(line.end.y() - line.start.y(), line.end.x() - line.start.x()) * 180.0 / std::numbers::pi;
+}
+
+double wrapped_degrees(double degrees) {
+  while (degrees > 180.0) {
+    degrees -= 360.0;
+  }
+  while (degrees <= -180.0) {
+    degrees += 360.0;
+  }
+  return degrees;
+}
+
+// A line near level, one near upright and one drawn right to left each turn an unturned box
+// by exactly the line's tilt from its nearest axis (the Ruler's rule), about the box's center:
+// size, center, zoom and pan stay, the button goes off after the line. The automatic frame
+// keeps the whole canvas when it turns: nothing shrinks it to fit inside the image.
+void ui_crop_straighten_line_levels_box_to_nearest_axis() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* button = crop_straighten_button(window);
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("activeToolInfoLabel"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("cropApplyButton"));
+  CHECK(info_label != nullptr && apply != nullptr);
+  if (mode == nullptr || button == nullptr || info_label == nullptr || apply == nullptr) {
+    return;
+  }
+  CHECK(!mode->isChecked());
+  CHECK(button->isVisible() && button->isEnabled() && !button->isChecked());
+  CHECK(button->toolTip().contains(QStringLiteral("level or upright")));
+  CHECK(button->accessibleName() == QStringLiteral("Straighten"));
+  const QRect box(300, 200, 401, 301);
+  const auto lay_out_box = [&] {
+    send_key(*canvas, Qt::Key_Escape);  // back to the canvas frame
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 200)),
+         canvas->widget_position_for_document_point(QPoint(700, 500)));
+    CHECK(canvas->crop_session_rect() == box);
+    CHECK(canvas->crop_session_angle() == 0.0);
+  };
+  lay_out_box();
+  const auto zoom = canvas->zoom();
+  const auto pan = canvas->view_transform().pan();
+  struct Case {
+    const char* name;
+    QPointF from;
+    QPointF to;
+    double axis;  // where the line goes, in its own clockwise degrees
+  };
+  const std::array<Case, 3> cases{{
+      {"near level", {150.0, 300.0}, {850.0, 374.0}, 0.0},
+      {"near upright", {480.0, 60.0}, {540.0, 700.0}, 90.0},
+      {"right to left", {880.0, 330.0}, {120.0, 300.0}, 180.0},
+  }};
+  for (const auto& test_case : cases) {
+    lay_out_box();
+    button->click();
+    QApplication::processEvents();
+    CHECK(button->isChecked() && canvas->crop_straighten_armed());
+    CHECK(window.statusBar()->currentMessage() ==
+          QStringLiteral("Drag along something that should be level or upright"));
+    CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+    const auto line = draw_straighten_line(*canvas, test_case.from, test_case.to);
+    const auto expected = wrapped_degrees(straighten_line_degrees(line) - test_case.axis);
+    const auto angle = canvas->crop_session_angle();
+    std::printf("  %-14s line %.4f deg, box %.4f deg (expected %.4f)\n", test_case.name,
+                straighten_line_degrees(line), angle, expected);
+    CHECK(std::abs(expected) > 2.0);  // the line really was tilted
+    CHECK(std::abs(angle - expected) < 1e-9);
+    // With an unturned box this is the Ruler's Straighten rule exactly.
+    CHECK(std::abs(angle - patchy::ui::ruler_straighten_degrees(
+                               patchy::ui::RulerLine{line.start, line.end, std::nullopt})) < 1e-9);
+    // Same size, same center, no zoom or pan: a turn and nothing else.
+    CHECK(canvas->crop_session_rect() == box);
+    CHECK(canvas->zoom() == zoom);
+    CHECK(canvas->view_transform().pan() == pan);
+    CHECK(canvas->crop_session_can_reset() && apply->isEnabled());
+    CHECK(info_label->text().contains(QStringLiteral("Angle:")));
+    // One line per press of the button.
+    CHECK(!button->isChecked() && !canvas->crop_straighten_armed());
+  }
+
+  // The automatic frame turns as it is: the whole canvas, corners past its edges, no fit.
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  button->click();
+  QApplication::processEvents();
+  const auto frame_line = draw_straighten_line(*canvas, {100.0, 400.0}, {900.0, 512.0});
+  CHECK(std::abs(canvas->crop_session_angle() - straighten_line_degrees(frame_line)) < 1e-9);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  CHECK(canvas->zoom() == zoom);
+  CHECK(canvas->crop_session_can_reset() && apply->isEnabled());
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// A click without a drag draws nothing and leaves the button on; Esc mid-line drops the line
+// and keeps the box and the button; Esc with the button on and no line turns it off and keeps
+// the box; the next Esc resets the box as before. The outside of the box is drawn the same
+// while the line is drawn. Ctrl held draws one line without the button; a tool switch turns
+// the button off.
+void ui_crop_straighten_click_escape_ctrl_and_tool_switch() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* button = crop_straighten_button(window);
+  if (mode == nullptr || button == nullptr) {
+    return;
+  }
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 200)),
+       canvas->widget_position_for_document_point(QPoint(700, 500)));
+  const QRect box(300, 200, 401, 301);
+  CHECK(canvas->crop_session_rect() == box);
+
+  // A click: nothing turns, the button stays on.
+  button->click();
+  QApplication::processEvents();
+  const auto at = canvas->widget_position_for_document_point(QPoint(400, 300));
+  send_mouse(*canvas, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_angle() == 0.0 && canvas->crop_session_rect() == box);
+  CHECK(button->isChecked() && canvas->crop_straighten_armed());
+
+  // Esc mid-line: the line goes, the box and the button stay; the release that follows does
+  // nothing. The shield outside the box looks the same during the line as before it.
+  const auto outside = canvas->widget_position_for_document_point(QPoint(60, 60));
+  const auto before = canvas->grab().toImage().pixelColor(outside);
+  const auto from = canvas->widget_position_for_document_point(QPoint(150, 600));
+  const auto to = canvas->widget_position_for_document_point(QPoint(850, 660));
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+  CHECK(canvas->crop_straighten_line_active());
+  const auto drawing = canvas->grab().toImage();
+  CHECK(drawing.pixelColor(outside) == before);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->crop_straighten_line_active());
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_angle() == 0.0 && canvas->crop_session_rect() == box);
+  CHECK(button->isChecked() && canvas->crop_straighten_armed());
+
+  // Esc with the button on and no line: the button goes off, the box stays.
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!button->isChecked() && !canvas->crop_straighten_armed());
+  CHECK(canvas->crop_session_rect() == box);
+
+  // Ctrl held: one line, the button untouched.
+  const auto line = draw_straighten_line(*canvas, {150.0, 600.0}, {850.0, 660.0}, Qt::ControlModifier);
+  CHECK(std::abs(canvas->crop_session_angle() - straighten_line_degrees(line)) < 1e-9);
+  CHECK(canvas->crop_session_angle() > 2.0);
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(!button->isChecked() && !canvas->crop_straighten_armed());
+
+  // Without the button or Ctrl a drag off the box rotates it as before (no line).
+  const auto turned = canvas->crop_session_angle();
+  turn_about_crop_box(*canvas, 20.0);
+  CHECK(!canvas->crop_straighten_line_active());
+  CHECK(canvas->crop_session_angle() != turned);
+
+  // Esc now resets the box to the canvas, as it always did.
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  CHECK(canvas->crop_session_angle() == 0.0);
+
+  // A tool switch ends the session and turns the button off.
+  button->click();
+  QApplication::processEvents();
+  CHECK(button->isChecked());
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!button->isChecked() && !canvas->crop_straighten_armed());
+}
+
+// A second line refines a turned box in the box's own frame: a box turned a quarter keeps
+// its quarter turn, where the Ruler's rule would turn it back upright.
+void ui_crop_straighten_second_line_refines_a_turned_box() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* button = crop_straighten_button(window);
+  if (mode == nullptr || button == nullptr) {
+    return;
+  }
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 200)),
+       canvas->widget_position_for_document_point(QPoint(700, 500)));
+  const QRect box(300, 200, 401, 301);
+  const auto zoom = canvas->zoom();
+  button->click();
+  QApplication::processEvents();
+  const auto first = draw_straighten_line(*canvas, {150.0, 300.0}, {850.0, 374.0});
+  CHECK(std::abs(canvas->crop_session_angle() - straighten_line_degrees(first)) < 1e-9);
+  button->click();
+  QApplication::processEvents();
+  const auto second = draw_straighten_line(*canvas, {150.0, 300.0}, {850.0, 386.0});
+  CHECK(std::abs(canvas->crop_session_angle() - straighten_line_degrees(second)) < 1e-9);
+  CHECK(canvas->crop_session_rect() == box && canvas->zoom() == zoom);
+
+  // A quarter turn (Shift snaps the rotate drag), then a line near level.
+  send_key(*canvas, Qt::Key_Escape);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 200)),
+       canvas->widget_position_for_document_point(QPoint(700, 500)));
+  turn_about_crop_box(*canvas, 90.0, Qt::ShiftModifier);
+  CHECK(canvas->crop_session_angle() == 90.0);
+  button->click();
+  QApplication::processEvents();
+  const auto level = draw_straighten_line(*canvas, {150.0, 300.0}, {850.0, 340.0});
+  const auto expected = wrapped_degrees(straighten_line_degrees(level) + 90.0);
+  const auto ruler = patchy::ui::ruler_straighten_degrees(patchy::ui::RulerLine{level.start, level.end, std::nullopt});
+  std::printf("  quarter turn: line %.4f deg, box %.4f deg (Ruler's rule %.4f)\n", straighten_line_degrees(level),
+              canvas->crop_session_angle(), ruler);
+  CHECK(std::abs(canvas->crop_session_angle() - expected) < 1e-9);
+  CHECK(std::abs(canvas->crop_session_angle() - ruler) > 45.0);
+  CHECK(canvas->crop_session_rect() == box && canvas->zoom() == zoom);
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// With Move Image Under Crop Box on, the same line gives the same box angle; the view takes
+// the turn (the image turns under the upright box, which keeps its place on screen), the box
+// keeps its rect and the zoom stays. A line along the box's own edge on screen then changes
+// nothing: the line is read in document pixels through the turned view.
+void ui_crop_straighten_with_move_image_turns_image_under_box() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* button = crop_straighten_button(window);
+  if (mode == nullptr || button == nullptr) {
+    return;
+  }
+  paint_tilted_horizon(window, 8.0);
+  set_crop_move_image(*mode, true);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(330, 250)),
+       canvas->widget_position_for_document_point(QPoint(690, 520)));
+  const QRect box(330, 250, 361, 271);
+  CHECK(canvas->crop_session_rect() == box);
+  const auto zoom = canvas->zoom();
+  const auto held = crop_box_on_screen(*canvas);
+
+  // Along the horizon, which runs 8 degrees clockwise through (512, 420).
+  const auto tilt = std::tan(8.0 * std::numbers::pi / 180.0);
+  button->click();
+  QApplication::processEvents();
+  const auto line =
+      draw_straighten_line(*canvas, {200.0, 420.0 - 312.0 * tilt}, {824.0, 420.0 + 312.0 * tilt});
+  const auto expected = straighten_line_degrees(line);
+  CHECK(std::abs(expected - 8.0) < 0.5);
+  CHECK(std::abs(canvas->crop_session_angle() - expected) < 1e-9);
+  CHECK(std::abs(canvas->view_transform().angle_degrees() + expected) < 1e-6);
+  CHECK(canvas->view_rotation() == 0.0);  // the user's own view angle is untouched
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.01));
+  CHECK(std::abs(crop_box_screen_degrees(crop_box_on_screen(*canvas))) < 1e-6);
+  CHECK(canvas->crop_session_rect() == box);
+  CHECK(canvas->zoom() == zoom);
+  CHECK(!button->isChecked());
+  save_image_artifact("ui_crop_straighten_move_image_leveled", window.grab().toImage());
+
+  // A line drawn level on screen lies along the box's turned axis in the document.
+  const auto center = polygon_center(held);
+  button->click();
+  QApplication::processEvents();
+  const auto view = canvas->view_transform();
+  draw_straighten_line(*canvas, view.map_to_document(center - QPointF(150.0, 40.0)),
+                       view.map_to_document(center + QPointF(150.0, -40.0)));
+  CHECK(std::abs(canvas->crop_session_angle() - expected) < 1e-6);
+  CHECK(polygons_near(crop_box_on_screen(*canvas), held, 0.05));
+  CHECK(canvas->crop_session_rect() == box && canvas->zoom() == zoom);
+
+  // Esc gives the view's angle back.
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->view_transform().angle_degrees() == 0.0);
+}
+
+// The y of the first ground pixel from the top in column `x` (the tilted horizon's ground:
+// low red, green over 80, low blue), or -1.
+int first_ground_row(const patchy::Layer& layer, int x) {
+  const auto& pixels = layer.pixels();
+  const auto bounds = layer.bounds();
+  if (x < bounds.x || x >= bounds.x + pixels.width()) {
+    return -1;
+  }
+  for (int y = 0; y < pixels.height(); ++y) {
+    const auto* pixel = pixels.pixel(x - bounds.x, y);
+    if (pixel[0] < 85 && pixel[1] > 80 && pixel[2] < 100) {
+      return y + bounds.y;
+    }
+  }
+  return -1;
+}
+
+// The commit of a box leveled along a tilted horizon comes out with the horizon level: the
+// existing rotated crop, unchanged.
+void ui_crop_straighten_commit_levels_a_tilted_edge() {
+  SettingsValueRestorer saved_mode(crop_move_image_key());
+  patchy::ui::app_settings().remove(crop_move_image_key());
+  patchy::ui::MainWindow window;
+  auto* mode = start_crop_for_move_image(window);
+  auto* canvas = require_canvas(window);
+  auto* button = crop_straighten_button(window);
+  if (mode == nullptr || button == nullptr) {
+    return;
+  }
+  paint_tilted_horizon(window, 8.0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(312, 270)),
+       canvas->widget_position_for_document_point(QPoint(712, 570)));
+  CHECK(canvas->crop_session_rect() == QRect(312, 270, 401, 301));
+  // The whole picture in view for the card shots; the box stays as it is.
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(312, 270, 401, 301));
+  const auto tilt = std::tan(8.0 * std::numbers::pi / 180.0);
+  button->click();
+  QApplication::processEvents();
+  // The card shots: the line along the horizon before the release, the box after it.
+  const auto line = draw_straighten_line(
+      *canvas, {200.0, 420.0 - 312.0 * tilt}, {824.0, 420.0 + 312.0 * tilt}, Qt::NoModifier,
+      [&window] { save_image_artifact("issue_702_straighten_line_drawn", window.grab().toImage()); });
+  CHECK(std::abs(canvas->crop_session_angle() - straighten_line_degrees(line)) < 1e-9);
+  CHECK(std::abs(canvas->crop_session_angle() - 8.0) < 0.5);
+  // The hint is gone with the line.
+  CHECK(window.statusBar()->currentMessage().isEmpty());
+  save_image_artifact("issue_702_straighten_box_turned", window.grab().toImage());
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.width() == 401 && document.height() == 301);
+  CHECK(!document.layers().empty());
+  if (document.layers().empty() || document.width() != 401) {
+    return;
+  }
+  const auto& layer = document.layers().front();
+  const auto left = first_ground_row(layer, 60);
+  const auto right = first_ground_row(layer, 340);
+  std::printf("  horizon after the commit: row %d at x=60, row %d at x=340 (tilted: %.1f px apart)\n", left, right,
+              280.0 * tilt);
+  CHECK(left > 0 && right > 0);
+  CHECK(std::abs(left - right) <= 1);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> crop_tool_tests() {
@@ -4807,5 +5204,11 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_move_image_p_key_yields_to_a_reassigned_letter",
        ui_crop_move_image_p_key_yields_to_a_reassigned_letter},
       {"ui_crop_move_image_keeps_the_recorded_limits", ui_crop_move_image_keeps_the_recorded_limits},
+      {"ui_crop_straighten_line_levels_box_to_nearest_axis", ui_crop_straighten_line_levels_box_to_nearest_axis},
+      {"ui_crop_straighten_click_escape_ctrl_and_tool_switch", ui_crop_straighten_click_escape_ctrl_and_tool_switch},
+      {"ui_crop_straighten_second_line_refines_a_turned_box", ui_crop_straighten_second_line_refines_a_turned_box},
+      {"ui_crop_straighten_with_move_image_turns_image_under_box",
+       ui_crop_straighten_with_move_image_turns_image_under_box},
+      {"ui_crop_straighten_commit_levels_a_tilted_edge", ui_crop_straighten_commit_levels_a_tilted_edge},
   };
 }

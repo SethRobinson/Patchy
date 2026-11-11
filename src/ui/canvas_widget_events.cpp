@@ -269,7 +269,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
                                                   tool_has_ctrl_tool_modifier(tool_) ||
                                                   transforming_layer_ ||
                                                   path_transform_active_ || tool_ == CanvasTool::PathSelect ||
-                                                  tool_ == CanvasTool::DirectSelect || shape_tool_active())))) {
+                                                  tool_ == CanvasTool::DirectSelect || shape_tool_active() ||
+                                                  tool_ == CanvasTool::Crop)))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -311,6 +312,17 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           pen_cursor_modifier_override_ = modifiers;
           update_tool_cursor();
           pen_cursor_modifier_override_.reset();
+        }
+      } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Crop) {
+        // Ctrl held is the Crop tool's temporary Straighten (GitHub issue 702): the cross
+        // shows with a stationary pointer; a gesture in progress keeps its cursor.
+        if (crop_session_active_ && !crop_straightening_ && !crop_dragging_out_ && !crop_rotating_ &&
+            crop_drag_handle_ == TransformHandle::None) {
+          if ((modifiers & Qt::ControlModifier) != 0) {
+            setCursor(Qt::CrossCursor);
+          } else {
+            update_tool_cursor();
+          }
         }
       } else if (key_event->key() == Qt::Key_Control && shape_tool_active()) {
         // Ctrl is a shape tool's temporary Path Select (GitHub issue 312): the arrow and the
@@ -2378,6 +2390,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Crop && crop_straightening_) {
+    // The Straighten line follows the pointer; the box waits for the release.
+    clear_move_hover_outline();
+    crop_straighten_end_ = document_position_f(event->position());
+    last_mouse_position_ = event->pos();
+    update();
+    return;
+  }
+
   if (tool_ == CanvasTool::Crop && crop_dragging_out_) {
     clear_move_hover_outline();
     update_crop_drag_out(document_position(event->pos()), event->modifiers());
@@ -2408,7 +2429,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Crop && crop_session_active_) {
     clear_move_hover_outline();
     const auto crop_handle = crop_handle_at(event->pos());
-    if (crop_handle == TransformHandle::None) {
+    if (crop_straighten_armed_ || event->modifiers().testFlag(Qt::ControlModifier)) {
+      // Straighten: a press draws a line, wherever it lands.
+      setCursor(Qt::CrossCursor);
+    } else if (crop_handle == TransformHandle::None) {
       // Off the box a drag rotates it; hint that with the nearest corner's rotate cursor.
       setCursor(transform_rotate_cursor_at(event->pos(), QRectF(crop_rect_), crop_angle_, false));
     } else {
@@ -3204,6 +3228,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       (perspective_crop_dragging_out_ || perspective_crop_drag_part_ >= 0) &&
       event->button() == Qt::LeftButton) {
     finish_perspective_crop_mouse_release(event);
+    event->accept();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop && crop_straightening_ && event->button() == Qt::LeftButton) {
+    finish_crop_straighten_line(event);
     event->accept();
     return;
   }
@@ -4653,6 +4683,18 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
 
   if (tool_ == CanvasTool::Crop && (crop_session_active_ || crop_dragging_out_)) {
+    if (event->key() == Qt::Key_Escape && crop_straightening_) {
+      // Esc mid-line drops the line only; the box and the button stay (GitHub issue 702).
+      cancel_crop_straighten_line();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Escape && crop_straighten_armed_) {
+      // An armed Straighten button with no line yet: Esc turns it off and keeps the box.
+      set_crop_straighten_armed(false);
+      event->accept();
+      return;
+    }
     if (event->key() == Qt::Key_Escape) {
       // Esc puts the box back around the canvas (Photoshop); only a tool
       // switch ends the session.
@@ -5261,7 +5303,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   finish_path_drag_rasters();  // a cancelled Path Select drag still ends on a fresh bake
   pen_handle_dragging_ = false;
   pen_session_drag_anchor_ = -1;
-  crop_dragging_out_ = crop_rotating_ = false;
+  crop_dragging_out_ = crop_rotating_ = crop_straightening_ = false;
   crop_drag_handle_ = TransformHandle::None;
   if (dragging_guide_) {
     cancel_guide_drag();
@@ -5318,6 +5360,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   // (like the transform box).
   crop_dragging_out_ = false;
   crop_rotating_ = false;
+  crop_straightening_ = false;
   crop_drag_handle_ = TransformHandle::None;
   if (was_drawing_smart_filter_mask_shape) {
     // Shape pixels are applied only on release. Losing focus before that point

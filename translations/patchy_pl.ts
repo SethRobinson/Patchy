@@ -35977,6 +35977,18 @@ Zablokowano: %1</translation>
         <source>Crop: the crop box moves over the image</source>
         <translation>Kadrowanie: ramka kadrowania przesuwa się nad obrazem</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>Wyprostuj</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>Wyprostuj: przeciągnij wzdłuż czegoś, co powinno być poziome lub pionowe, a ramka kadrowania obróci się odpowiednio (lub przeciągnij z wciśniętym klawiszem Ctrl)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>Przeciągnij wzdłuż czegoś, co powinno być poziome lub pionowe</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

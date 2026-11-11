@@ -35759,6 +35759,18 @@ Locked: %1</source>
         <source>Crop: the crop box moves over the image</source>
         <translation>자르기: 자르기 상자가 이미지 위에서 움직입니다</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>수평 맞추기: 수평이나 수직이어야 할 부분을 따라 드래그하면 자르기 상자가 그에 맞게 회전합니다(또는 Ctrl 키를 누른 채 드래그)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>수평이나 수직이어야 할 부분을 따라 드래그하세요</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

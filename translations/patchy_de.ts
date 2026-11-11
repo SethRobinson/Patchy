@@ -35868,6 +35868,18 @@ Fixiert: %1</translation>
         <source>Crop: the crop box moves over the image</source>
         <translation>Freistellen: Der Zuschneiderahmen bewegt sich über dem Bild</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>Gerade ausrichten</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>Gerade ausrichten: Ziehen Sie entlang einer Linie, die waagerecht oder senkrecht sein soll, und der Zuschneiderahmen dreht sich passend (oder ziehen Sie mit gedrückter Strg-Taste)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>Ziehen Sie entlang einer Linie, die waagerecht oder senkrecht sein soll</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

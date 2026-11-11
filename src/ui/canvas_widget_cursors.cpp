@@ -458,6 +458,11 @@ void CanvasWidget::update_tool_cursor() {
       }
       return;
     }
+    if (crop_straightening_ || (crop_session_active_ && crop_straighten_armed_)) {
+      // Straighten (GitHub issue 702): a press draws a line, wherever it lands.
+      setCursor(Qt::CrossCursor);
+      return;
+    }
     if (crop_session_active_) {
       // Session hover feedback: resize cursors over the handles, move inside,
       // and the rotate hint everywhere off the box (the straighten gesture).

@@ -42,6 +42,14 @@ struct RulerMeasurement {
 // length.
 [[nodiscard]] double ruler_straighten_degrees(const RulerLine& line);
 
+// The Crop tool's Straighten line (GitHub issue 702, docs/crop-tool-straighten.md): the clockwise box
+// angle that makes the line from `start` to `end` (document pixels, y down) level or upright
+// in a box turned `box_degrees` clockwise, whichever is nearer in the box's own frame. With
+// an unturned box this is ruler_straighten_degrees of the same line, so a second line on a
+// turned box refines its angle instead of turning it a quarter. `box_degrees` itself when
+// the line has no length. In (-180, 180].
+[[nodiscard]] double crop_straighten_degrees(QPointF start, QPointF end, double box_degrees);
+
 // `point` constrained to 45-degree steps around `anchor` (Shift), on whole pixels:
 // horizontal and vertical keep one coordinate, diagonals keep |dx| == |dy|.
 [[nodiscard]] QPointF constrain_ruler_point(QPointF anchor, QPointF point);

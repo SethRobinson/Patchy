@@ -60,6 +60,23 @@ double ruler_straighten_degrees(const RulerLine& line) {
   return target - angle;
 }
 
+double crop_straighten_degrees(QPointF start, QPointF end, double box_degrees) {
+  if (start == end) {
+    return box_degrees;
+  }
+  // Clockwise on screen (y down), the sense of the crop box's angle.
+  const auto line_degrees = std::atan2(end.y() - start.y(), end.x() - start.x()) * kDegreesPerRadian;
+  const auto target = std::round((line_degrees - box_degrees) / 90.0) * 90.0;
+  auto degrees = line_degrees - target;
+  while (degrees > 180.0) {
+    degrees -= 360.0;
+  }
+  while (degrees <= -180.0) {
+    degrees += 360.0;
+  }
+  return degrees;
+}
+
 QPointF constrain_ruler_point(QPointF anchor, QPointF point) {
   const auto dx = point.x() - anchor.x();
   const auto dy = point.y() - anchor.y();

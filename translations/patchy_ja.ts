@@ -35759,6 +35759,18 @@ Locked: %1</source>
         <source>Crop: the crop box moves over the image</source>
         <translation>切り抜き: 切り抜き枠が画像の上を動きます</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>水平補正</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>水平補正: 水平または垂直であるべきものに沿ってドラッグすると、切り抜き枠がそれに合わせて回転します（Ctrl キーを押しながらドラッグしても同じです）</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>水平または垂直であるべきものに沿ってドラッグします</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

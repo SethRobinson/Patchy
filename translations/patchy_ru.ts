@@ -35977,6 +35977,18 @@ Locked: %1</source>
         <source>Crop: the crop box moves over the image</source>
         <translation>Кадрирование: рамка кадрирования движется над изображением</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>Выровнять</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>Выровнять: проведите вдоль того, что должно быть горизонтальным или вертикальным, и рамка кадрирования повернётся по нему (или проведите с нажатой клавишей Ctrl)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>Проведите вдоль того, что должно быть горизонтальным или вертикальным</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

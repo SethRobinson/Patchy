@@ -1141,10 +1141,12 @@ void ui_crop_options_bar_groups_its_controls() {
         expect_next_to(QStringLiteral("cropHeightSpin"), QStringLiteral("cropLinkSizeButton"));
         expect_next_to(QStringLiteral("cropLinkSizeButton"), separator);
       }
-      if (const int overlay = at(QStringLiteral("cropOverlayCombo"));
-          overlay <= 0 || tokens[static_cast<std::size_t>(overlay) - 1] != separator) {
-        problem("no separator before the Overlay list");
+      // Straighten (issue 702) leads the Overlay group.
+      if (const int straighten = at(QStringLiteral("cropStraightenButton"));
+          straighten <= 0 || tokens[static_cast<std::size_t>(straighten) - 1] != separator) {
+        problem("no separator before the Straighten button");
       }
+      expect_next_to(QStringLiteral("cropStraightenButton"), QStringLiteral("cropOverlayCombo"));
       expect_next_to(QStringLiteral("cropOverlayCombo"), separator);
       expect_next_to(QStringLiteral("cropDeletePixelsCheck"), QStringLiteral("cropDeleteLayersCheck"));
       expect_next_to(QStringLiteral("cropDeleteLayersCheck"), separator);

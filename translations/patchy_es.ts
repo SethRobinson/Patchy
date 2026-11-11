@@ -35868,6 +35868,18 @@ Bloqueada: %1</translation>
         <source>Crop: the crop box moves over the image</source>
         <translation>Recortar: el cuadro de recorte se mueve sobre la imagen</translation>
     </message>
+    <message>
+        <source>Straighten</source>
+        <translation>Enderezar</translation>
+    </message>
+    <message>
+        <source>Straighten: drag along something that should be level or upright, and the crop box turns to match (or hold Ctrl and drag)</source>
+        <translation>Enderezar: arrastre a lo largo de algo que deba quedar horizontal o vertical y el cuadro de recorte gira para ajustarse (o arrastre con Ctrl pulsado)</translation>
+    </message>
+    <message>
+        <source>Drag along something that should be level or upright</source>
+        <translation>Arrastre a lo largo de algo que deba quedar horizontal o vertical</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
