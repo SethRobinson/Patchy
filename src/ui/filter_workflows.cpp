@@ -1430,13 +1430,22 @@ static void apply_curves_to_pixels_hard(PixelBuffer& pixels, Rect bounds, const 
     return;
   }
   const auto lut = build_curves_lut(settings);
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
 
-  for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
-    auto* px = pixels.pixel(x, y);
-    px[0] = lut.red[px[0]];
-    px[1] = lut.green[px[1]];
-    px[2] = lut.blue[px[2]];
-  });
+  // Row spans over the worker threads, as Levels does: the live preview redoes this for
+  // every curve change, and a single thread lagged on a large photo (#687 follow-up).
+  const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+    auto* px = pixels.row(y).data() + static_cast<std::size_t>(x_begin) * pixel_bytes;
+    for (std::int32_t x = x_begin; x < x_end; ++x, px += pixel_bytes) {
+      px[0] = lut.red[px[0]];
+      px[1] = lut.green[px[1]];
+      px[2] = lut.blue[px[2]];
+    }
+  };
+  if (apply_row_spans_in_parallel(pixels, selection, progress, apply_span)) {
+    return;
+  }
+  for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
 }
 
 static void apply_hue_saturation_to_pixels_hard(PixelBuffer& pixels, Rect bounds, const QRegion& selection,

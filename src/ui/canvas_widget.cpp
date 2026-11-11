@@ -1757,9 +1757,15 @@ void CanvasWidget::set_curves_clipping_preview(std::optional<CurvesClippingMode>
   curves_clipping_channel_ = mode.has_value() ? channel : std::nullopt;
   if (mode.has_value()) {
     wait_for_move_commit_job();  // the clipping preview scans exact composite pixels
+    // A background refresh under way (a preview dialog's frames, #687) brings the current
+    // composite and its clipping view; rendering it here as well stalled each Alt press.
+    const bool cache_has_frame =
+        document_ != nullptr && render_cache_.size() == QSize(document_->width(), document_->height());
+    const bool background_refresh_coming =
+        async_render_cache_explicit_hold_ && (async_render_cache_in_flight_ || async_render_cache_pending_ ||
+                                              async_render_cache_start_queued_);
     const bool cache_needs_refresh =
-        document_ != nullptr &&
-        (render_cache_dirty_ || render_cache_.size() != QSize(document_->width(), document_->height()));
+        document_ != nullptr && (!cache_has_frame || (render_cache_dirty_ && !background_refresh_coming));
     if (cache_needs_refresh) {
       // ensure_render_cache refreshes the clipping image after replacing the
       // source cache, so do not scan it a second time here.

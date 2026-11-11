@@ -1387,6 +1387,13 @@ namespace {
 struct AsyncCanvasFrame {
   QImage image;
   std::vector<QImage> mips;
+  // The Curves/Levels clipping view of `image` and its mip chain, when one showed as the
+  // refresh started (#687): built here so an Alt+drag on a large image costs the GUI thread
+  // no full-size scan per landed preview.
+  QImage clipping;
+  std::vector<QImage> clipping_mips;
+  std::optional<CurvesClippingMode> clipping_mode;
+  std::optional<CurvesChannel> clipping_channel;
 };
 
 void extend_display_mips(const QImage& image, std::vector<QImage>& mips, int target_level) {
@@ -1464,11 +1471,15 @@ void CanvasWidget::start_async_render_cache_refresh() {
       mip_level = std::max(mip_level, display_mip_level_for_zoom(fit * devicePixelRatioF()));
     }
   }
+  // A palette display quantizes the frame on install, so its clipping view is built there.
+  const auto clipping_mode = palette_snap_context() == nullptr ? curves_clipping_mode_ : std::nullopt;
+  const auto clipping_channel = curves_clipping_channel_;
+  const int clipping_mip_level = zoom_ < 1.0 ? display_mip_level_for_zoom(view_zoom()) : 0;
   auto* app = QApplication::instance();
   QPointer<CanvasWidget> widget(this);
   run_tracked_background_worker([app, widget, generation, snapshot_size, document_snapshot, region,
                                  base_frame = std::move(base_frame), base_mips = std::move(base_mips),
-                                 mip_level]() mutable {
+                                 mip_level, clipping_mode, clipping_channel, clipping_mip_level]() mutable {
     auto frame = std::make_shared<AsyncCanvasFrame>();
     try {
       if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
@@ -1506,6 +1517,15 @@ void CanvasWidget::start_async_render_cache_refresh() {
       }
       ZoomTraceScope trace_mips("async_refresh_mips", 0.0);
       extend_display_mips(frame->image, frame->mips, mip_level);
+      if (clipping_mode.has_value()) {
+        ZoomTraceScope trace_clipping("async_refresh_clipping", 0.0);
+        frame->clipping_mode = clipping_mode;
+        frame->clipping_channel = clipping_channel;
+        frame->clipping = render_curves_clipping_preview(
+            frame->image, *clipping_mode, clipping_channel,
+            max_blocking_fanout_workers(patchy::hardware_worker_threads()));
+        extend_display_mips(frame->clipping, frame->clipping_mips, clipping_mip_level);
+      }
     } catch (...) {
       frame.reset();
     }
@@ -1537,6 +1557,8 @@ void CanvasWidget::start_async_render_cache_refresh() {
             // GUI thread.
             if (usable && widget->async_render_cache_explicit_hold_ && widget->render_cache_dirty_) {
               widget->install_async_frame(std::move(frame->image), std::move(frame->mips), document_snapshot);
+              widget->install_async_clipping_preview(std::move(frame->clipping), std::move(frame->clipping_mips),
+                                                   frame->clipping_mode, frame->clipping_channel);
               ++widget->render_cache_diagnostics_.intermediate_refreshes;
               if (region_frame) {
                 ++widget->render_cache_diagnostics_.region_preview_refreshes;
@@ -1568,7 +1590,8 @@ void CanvasWidget::start_async_render_cache_refresh() {
           widget->render_cache_dirty_ = false;
           widget->async_render_cache_explicit_hold_ = false;
           ++widget->render_cache_diagnostics_.full_refreshes;
-          widget->refresh_curves_clipping_preview();
+          widget->install_async_clipping_preview(std::move(frame->clipping), std::move(frame->clipping_mips),
+                                                 frame->clipping_mode, frame->clipping_channel);
           if (CanvasWidget::is_component_preview(widget->layer_edit_target_)) {
             widget->mask_display_image_ = QImage();
           }
@@ -1578,6 +1601,21 @@ void CanvasWidget::start_async_render_cache_refresh() {
         },
         Qt::QueuedConnection);
   });
+}
+
+void CanvasWidget::install_async_clipping_preview(QImage clipping, std::vector<QImage> mips,
+                                                  std::optional<CurvesClippingMode> mode,
+                                                  std::optional<CurvesChannel> channel) {
+  // The worker's image is for the mode and channel that showed when it started; a change
+  // since (another tab, Alt let go) rebuilds it from the installed frame here.
+  if (!curves_clipping_mode_.has_value() || clipping.isNull() || mode != curves_clipping_mode_ ||
+      channel != curves_clipping_channel_ || clipping.size() != render_cache_.size()) {
+    refresh_curves_clipping_preview();
+    return;
+  }
+  curves_clipping_preview_image_ = std::move(clipping);
+  curves_clipping_display_mip_cache_ = std::move(mips);
+  curves_clipping_display_mip_source_key_ = curves_clipping_preview_image_.cacheKey();
 }
 
 void CanvasWidget::install_async_frame(QImage image, std::vector<QImage> mips,
@@ -1945,8 +1983,9 @@ void CanvasWidget::refresh_curves_clipping_preview() {
     curves_clipping_preview_image_ = QImage();
     return;
   }
-  curves_clipping_preview_image_ = render_curves_clipping_preview(
-      render_cache_, *curves_clipping_mode_, curves_clipping_channel_);
+  curves_clipping_preview_image_ =
+      render_curves_clipping_preview(render_cache_, *curves_clipping_mode_, curves_clipping_channel_,
+                                     max_blocking_fanout_workers(patchy::hardware_worker_threads()));
 }
 
 void CanvasWidget::ensure_move_base_cache() {
@@ -2277,7 +2316,7 @@ const QImage& CanvasWidget::curves_clipping_display_image_for_zoom() {
       break;
     }
     curves_clipping_display_mip_cache_.push_back(
-        halved_display_mip(previous));
+        halved_display_mip(previous, max_blocking_fanout_workers(patchy::hardware_worker_threads())));
   }
 
   const auto level =

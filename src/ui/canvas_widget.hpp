@@ -2057,6 +2057,10 @@ private:
   // nullopt for a full render (GitHub #601 follow-up).
   [[nodiscard]] std::optional<QRegion> async_preview_region(const Document& snapshot) const;
   void install_async_frame(QImage image, std::vector<QImage> mips, const std::shared_ptr<const Document>& snapshot);
+  // Takes a background refresh's clipping view (Curves/Levels, #687) after its frame was
+  // installed, or rebuilds it when the view changed while the refresh ran.
+  void install_async_clipping_preview(QImage clipping, std::vector<QImage> mips,
+                                      std::optional<CurvesClippingMode> mode, std::optional<CurvesChannel> channel);
   void document_changed_async_preview_impl(bool preserve_scaled_document);
   void cancel_async_render_cache_refresh() noexcept;
   void invalidate_vector_preview() noexcept;

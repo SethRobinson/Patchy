@@ -325,15 +325,22 @@ std::shared_ptr<AsyncPixelPreviewState<DestructiveAdjustmentPreviewRequest>>
 make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hooks) {
   auto preview_state =
       std::make_shared<AsyncPixelPreviewState<DestructiveAdjustmentPreviewRequest>>();
+  // The layer holds its original pixels until a render lands: an identity request then
+  // has nothing to restore, so it repaints nothing (a drag with Preview unticked, or over
+  // settings with no effect, showed the canvas busy notice for each move; #687).
+  auto showing_original = std::make_shared<bool>(true);
   // The start closure holds the state (and the state holds the closure); the
   // cycle is broken when the dialog calls close_async_pixel_preview, exactly
   // like the per-dialog workers this replaces.
-  preview_state->start = [preview_state, hooks = std::move(hooks)](
+  preview_state->start = [preview_state, showing_original, hooks = std::move(hooks)](
                              const DestructiveAdjustmentPreviewRequest& request) {
     if (request.identity) {
       preview_state->pending.reset();
       ++preview_state->generation;
-      hooks.restore_identity();
+      if (!*showing_original) {
+        *showing_original = true;
+        hooks.restore_identity();
+      }
       return;
     }
 
@@ -343,7 +350,7 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
     if (hooks.preview_render_active) {
       hooks.preview_render_active(true);
     }
-    run_tracked_background_worker([app, preview_state, generation, hooks, request] {
+    run_tracked_background_worker([app, preview_state, showing_original, generation, hooks, request] {
       auto result = std::make_shared<PixelBuffer>(*hooks.original_pixels);
       try {
         request.render(*result);
@@ -355,7 +362,7 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
       }
       QMetaObject::invokeMethod(
           app,
-          [preview_state, hooks, generation, result]() mutable {
+          [preview_state, showing_original, hooks, generation, result]() mutable {
             preview_state->in_flight = false;
             if (hooks.preview_render_active) {
               hooks.preview_render_active(false);
@@ -366,6 +373,7 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
             // preview for the whole drag (GitHub #601). An identity request
             // bumps the generation, so a render it overtook never lands.
             if (!preview_state->closed && generation == preview_state->generation && result != nullptr) {
+              *showing_original = false;
               hooks.apply_result(std::move(*result));
             }
             if (!preview_state->closed && preview_state->pending.has_value() &&
