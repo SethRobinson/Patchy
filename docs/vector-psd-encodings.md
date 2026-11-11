@@ -115,7 +115,10 @@ Photoshop opens as a shape (psd-tools' `issues/issue397.psd`; refused, the layer
 locked as unparsed and kept stale off-canvas pixels). An imported shape keeps
 Photoshop's stored pixels unless they lie wholly off the canvas while its path
 lands on it; then `finalize_vector_layers` redraws it from the path, as Photoshop
-does (that file's raster sits at 2352, 1548 on a 240x186 canvas). Patchy writes:
+does (that file's raster sits at 2352, 1548 on a 240x186 canvas). A shape with
+Feather or Density is redrawn too: the stored pixels hold neither
+([why](vector-tools-appearance.md#feather-and-density-in-files-photoshop-saved)).
+Patchy writes:
 
 u32 descriptorVersion 16 + descriptor class `strokeStyle`, 16 items in this
 exact order (PS-canonical): strokeStyleVersion (long 2), strokeEnabled,
@@ -244,7 +247,9 @@ ending on the canvas edge fades there (photoshop-vector-mask-feather.psd).
   `VectorShapeContent::feather/density` (reader drops the derived plane).
   Render (BMP-pinned): feather blurs the WHOLE rendered shape, stroke
   included, unclamped at the canvas (`feather_shape_raster`); density shows
-  the fill everywhere at (255 - density)/255 (`apply_shape_density`).
+  the fill everywhere at (255 - density)/255 (`apply_shape_density`), or with
+  a stroke the stroke's paint, over the canvas and the fill
+  ([vector-tools-appearance.md](vector-tools-appearance.md#density-with-a-stroke)).
 - Density/feather use the parameters form: section flags bit 4, then a
   parameter flags byte (bit 0 user density u8, bit 1 user feather f64, bit 2
   vector density u8 raw, bit 3 vector feather f64 BE), values in that order.

@@ -1344,7 +1344,14 @@ void finalize_vector_layers(Document& document) {
             !rasterize_vector_shape(*std::as_const(layer).vector_shape(), canvas, &document.metadata().patterns,
                                     &layer)
                  .bounds.empty();
-        if (stale_off_canvas || !has_visible_alpha(std::as_const(layer).pixels())) {
+        // Feather and Density are numbers Photoshop applies on screen: the pixels it stores
+        // are the crisp shape at Density 100% (seven probes re-saved by Photoshop 27.11,
+        // docs/vector-tools-appearance.md, "Feather and Density in files Photoshop saved").
+        // Kept as they are, such a shape opened hard-edged and without its Density tint, so
+        // it is drawn from its path instead, the way a file with no stored pixels is.
+        const bool edge_values = std::as_const(layer).vector_shape()->density != 255 ||
+                                 std::as_const(layer).vector_shape()->feather > 0.05;
+        if (stale_off_canvas || edge_values || !has_visible_alpha(std::as_const(layer).pixels())) {
           update_vector_shape_raster(layer, canvas, &document.metadata().patterns);
         } else {
           layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPhotoshop;

@@ -606,10 +606,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   auto refresh_mixed = std::make_shared<std::function<void()>>();
   // Shows the saved stroke preset the current line settings match (set below).
   auto refresh_preset_match = std::make_shared<std::function<void()>>();
+  // Picks the wording of the note under Density: it depends on whether the stroke draws.
+  auto refresh_edge_note = std::make_shared<std::function<void()>>();
   // `captured`: the caller already appended its edits (the multi-layer Arrowheads rows).
   const auto notify = [state, previous, edits, properties, batch, preview_changed, refresh_mixed,
-                       refresh_preset_match](const std::vector<std::string>& fields = {},
-                                             bool captured = false) {
+                       refresh_preset_match, refresh_edge_note](const std::vector<std::string>& fields = {},
+                                                                bool captured = false) {
     if (batch != nullptr) {
       if (!captured && fields.empty()) {
         capture_appearance_edits(*edits, properties, *previous, state->settings);
@@ -623,6 +625,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     *previous = state->settings;
     if (*refresh_mixed) (*refresh_mixed)();
     if (*refresh_preset_match) (*refresh_preset_match)();
+    if (*refresh_edge_note) (*refresh_edge_note)();
     if (preview_changed) preview_changed(state->settings);
   };
 
@@ -1413,16 +1416,22 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   density_spin->setRange(0, 100);
   density_spin->setSuffix(percent_suffix());
   density_spin->setValue(static_cast<int>(std::lround(state->settings.density * 100.0 / 255.0)));
-  density_spin->setToolTip(QObject::tr("Below 100% the fill shows through everywhere, like Photoshop's vector mask density"));
+  density_spin->setToolTip(QObject::tr("Below 100% the fill, or the stroke's color when the shape has a stroke, shows over the "
+                                       "whole canvas, like Photoshop's vector mask density"));
   configure_dialog_spinbox(density_spin, 80);
   add_spin_row(edge_form, QObject::tr("Density:"), density_spin);
   // Density below 100% shows the fill over the whole canvas, not only at the shape
   // (Photoshop's vector mask density on a shape layer, and what the file stores). The note
   // says so while that is the case (local-051 follow-up 2: it reads as a bug otherwise).
+  // With a stroke that draws, the stroke's paint is what spreads, over the canvas and as a
+  // wash over the fill (rasterize_vector_shape), and the note says that instead; it follows
+  // the stroke's width, paint and opacity as they change.
   // Like the Stroke section's note it sets no width, and while hidden its height stays as
-  // room under the section, so the dialog keeps its size.
-  auto* density_note =
-      new QLabel(QObject::tr("Below 100% the fill also shows over the whole canvas, as in Photoshop."), edge_group);
+  // room under the section, so the dialog keeps its size (its height fits either wording).
+  const QString density_fill_note = QObject::tr("Below 100% the fill also shows over the whole canvas, as in Photoshop.");
+  const QString density_stroke_note =
+      QObject::tr("Below 100% the stroke's color also shows over the whole canvas and over the fill, as in Photoshop.");
+  auto* density_note = new QLabel(density_fill_note, edge_group);
   density_note->setObjectName(QStringLiteral("shapeDensityNote"));
   density_note->setWordWrap(true);
   density_note->setAlignment(Qt::AlignLeft | Qt::AlignTop);
@@ -1433,8 +1442,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   }
   edge_form->addRow(density_note);
   auto* density_note_room = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Fixed);
-  const auto refresh_density_note = [state, density_note, density_note_room, edge_form, left_column, fill_layer_only] {
+  const auto refresh_density_note = [state, density_note, density_note_room, edge_form, left_column, fill_layer_only,
+                                     density_fill_note, density_stroke_note] {
     const bool shown = state->settings.density != 255;
+    const auto& stroke = state->settings.stroke;
+    const bool stroke_draws = stroke.enabled && stroke.width > 0.0 && stroke.opacity > 0.0 &&
+                              stroke.content.kind != VectorFillKind::None;
+    const auto& wording = stroke_draws ? density_stroke_note : density_fill_note;
+    if (density_note->text() != wording) density_note->setText(wording);
     density_note->setVisible(shown);
     // Its height is fixed once the page is built (below); a fill layer's dialog has no Edge.
     const int room = !fill_layer_only && density_note->minimumHeight() > 0
@@ -1452,6 +1467,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     refresh_density_note();
     notify({"density"});
   });
+  *refresh_edge_note = refresh_density_note;
   left_column->addWidget(edge_group);
   left_column->addSpacerItem(density_note_room);
   left_forms.push_back(edge_form);
@@ -2036,7 +2052,16 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         stroke_inside_line_hint->heightForWidth(std::max(120, stroke_form->minimumSize().width())));
     refresh_inside_line_hint();
   }
-  density_note->setFixedHeight(density_note->heightForWidth(std::max(120, edge_form->minimumSize().width())));
+  {
+    // Room for the longer of the two wordings at the Edge form's narrowest.
+    const int note_width = std::max(120, edge_form->minimumSize().width());
+    int note_height = 0;
+    for (const auto& wording : {density_fill_note, density_stroke_note}) {
+      density_note->setText(wording);
+      note_height = std::max(note_height, density_note->heightForWidth(note_width));
+    }
+    density_note->setFixedHeight(note_height);
+  }
   refresh_density_note();
   // Measure the page while EVERY per-kind row is still visible, so switching
   // a paint kind later never pushes the columns' minimum past the viewport (a

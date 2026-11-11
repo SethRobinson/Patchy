@@ -8643,10 +8643,6 @@ RGB: %2, %3, %4</translation>
         <translation>Calar:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Por debajo del 100 % el relleno se ve en toda la imagen, como la densidad de máscara vectorial de Photoshop</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>Restaurar el relleno, trazo, opacidad y borde predeterminados (la geometría se mantiene)</translation>
     </message>
@@ -15812,6 +15808,14 @@ Do you want to replace it?</source>
     <message>
         <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
         <translation>%1 no funciona en la versión web de Patchy. Para usarlo, descarga la versión de escritorio, que es gratuita para Windows, macOS y Linux.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Por debajo del 100 % el relleno, o el color del trazo si la forma tiene trazo, se ve en todo el lienzo, como la densidad de máscara vectorial de Photoshop</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Por debajo del 100 % el color del trazo también se ve en todo el lienzo y sobre el relleno, como en Photoshop.</translation>
     </message>
 </context>
 <context>

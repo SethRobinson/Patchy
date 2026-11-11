@@ -8414,10 +8414,6 @@ RGB: %2, %3, %4</translation>
         <translation>Растушёвка:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Ниже 100% заливка проявляется повсюду, как плотность векторной маски Photoshop.</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Краска:</translation>
     </message>
@@ -15868,6 +15864,14 @@ Do you want to replace it?</source>
     <message>
         <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
         <translation>%1 не работает в веб-версии Patchy. Чтобы пользоваться этой функцией, скачайте настольную версию, бесплатную для Windows, macOS и Linux.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Ниже 100% заливка, а если у фигуры есть обводка, то цвет обводки, проявляется на всём холсте, как плотность векторной маски Photoshop</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Ниже 100% цвет обводки проявляется и на всём холсте, и поверх заливки, как в Photoshop.</translation>
     </message>
 </context>
 <context>

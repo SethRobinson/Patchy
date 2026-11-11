@@ -422,6 +422,73 @@ void psd_shape_layer_feather_and_density_match_photoshop() {
                                   0.7);
 }
 
+// Once Photoshop has drawn a shape it saves the shape's crisp pixels in the layer record;
+// Feather and Density stay mask parameters that it applies on screen
+// (docs/vector-tools-appearance.md, "Feather and Density in files Photoshop saved"). Both
+// fixtures were written by Patchy and saved again by Photoshop 27.11, so their shape records
+// carry such pixels (unlike photoshop-shape-feather.psd, whose records are empty). Shown as
+// stored, the shapes opened hard-edged and without their Density tint; the reader now draws
+// them from their paths. The first also pins Density with a stroke against Photoshop's
+// flatten: the stroke's gradient washes over the canvas and the fill.
+void psd_photoshop_saved_shapes_keep_feather_and_density() {
+  // The bake may reach past the 96 x 64 canvas (shape_bake_domain); it covers all of it.
+  const auto covers_canvas = [](const Layer& layer) {
+    const auto bounds = layer.bounds();
+    return bounds.x <= 0 && bounds.y <= 0 && bounds.x + bounds.width >= 96 && bounds.y + bounds.height >= 64;
+  };
+  const auto canvas_pixel = [](const Layer& layer, int x, int y) {
+    return layer.pixels().pixel(x - layer.bounds().x, y - layer.bounds().y);
+  };
+  const auto drawn_by_patchy = [](const Layer& layer) {
+    return layer.metadata().at(patchy::kLayerMetadataVectorRasterStatus) == patchy::kVectorRasterStatusPatchy;
+  };
+  {
+    const auto check = [&](const Document& document) {
+      CHECK(document.layers().size() == 2);
+      const auto& shape = layer_at(document, 1);
+      CHECK(shape.vector_shape() != nullptr);
+      CHECK(shape.vector_shape()->density == 128);
+      CHECK(shape.vector_shape()->stroke.enabled);
+      CHECK(shape.vector_shape()->stroke.content.kind == VectorFillKind::Gradient);
+      CHECK(drawn_by_patchy(shape));
+      // The stroke's paint covers the canvas at the Density floor: red at the left edge.
+      CHECK(covers_canvas(shape));
+      const auto* corner = canvas_pixel(shape, 1, 1);
+      CHECK(corner[3] == 127 && corner[0] > 200 && corner[2] < 60);
+    };
+    const auto document = read_fixture("photoshop-shape-density-stroke.psd");
+    check(document);
+    // Measured: identical to Photoshop's flatten (before: mean 54.5, largest 107).
+    check_flatten_matches_reference(document, "photoshop-shape-density-stroke.bmp", "psd_shape_density_stroke", 0.3, 8,
+                                    0.15);
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto reread = patchy::psd::DocumentIo::read(written, {});
+    check(reread);
+    check_flatten_matches_reference(reread, "photoshop-shape-density-stroke.bmp", "psd_shape_density_stroke_rewritten",
+                                    0.3, 8, 0.15);
+  }
+  {
+    const auto document = read_fixture("photoshop-shape-edges-resaved.psd");
+    CHECK(document.layers().size() == 3);
+    const auto& soft = layer_at(document, 1);
+    CHECK(soft.vector_shape() != nullptr);
+    CHECK(std::fabs(soft.vector_shape()->feather - 3.0) < 1e-9);
+    CHECK(drawn_by_patchy(soft));
+    // The feathered shape reaches past its path (8..48): stored as saved it ended at 6.
+    CHECK(soft.bounds().x < 5);
+    const auto& dense = layer_at(document, 2);
+    CHECK(dense.vector_shape() != nullptr);
+    CHECK(dense.vector_shape()->density == 153);
+    CHECK(drawn_by_patchy(dense));
+    CHECK(covers_canvas(dense));
+    const auto corner_alpha = static_cast<int>(canvas_pixel(dense, 1, 1)[3]);
+    CHECK(corner_alpha >= 98 && corner_alpha <= 106);
+    // Measured: mean 0.32, largest 4, in the feather's blur (before: mean 48.8, largest 156).
+    check_flatten_matches_reference(document, "photoshop-shape-edges-resaved.bmp", "psd_shape_edges_resaved", 0.8, 12,
+                                    0.6);
+  }
+}
+
 // Raster mask Density/Feather (Properties panel): mask parameter bits 0/1.
 // The stored -2 plane is the unmodified painted mask; both values apply at
 // render time, the feather as a gaussian of sigma = feather pixels that
@@ -3450,6 +3517,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_vector_mask_feather_matches_photoshop_gaussian", psd_vector_mask_feather_matches_photoshop_gaussian},
       {"psd_shape_layer_feather_and_density_match_photoshop",
        psd_shape_layer_feather_and_density_match_photoshop},
+      {"psd_photoshop_saved_shapes_keep_feather_and_density", psd_photoshop_saved_shapes_keep_feather_and_density},
       {"psd_user_mask_density_and_feather_render_and_round_trip",
        psd_user_mask_density_and_feather_render_and_round_trip},
       {"psd_saved_paths_fixture_populates_document_paths", psd_saved_paths_fixture_populates_document_paths},

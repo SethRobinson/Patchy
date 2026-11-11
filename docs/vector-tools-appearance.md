@@ -36,12 +36,13 @@ reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
 Edge's Density below 100% shows the fill over the whole canvas, not only at the shape
-(Photoshop's vector mask density on a shape layer, and what the file stores). A note
-under the Density row says so while that is the case (`shapeDensityNote`: "Below 100%
-the fill also shows over the whole canvas, as in Photoshop."), built like the Stroke
-note below: no width of its own, a fixed height, and a spacer under the Edge section
-that holds its room while it is hidden. Feather and Density show the same in Dynamic
-Vector Preview ([vector-preview.md](vector-preview.md#shape-feather-and-density)).
+(Photoshop's vector mask density on a shape layer, and what the file stores), or, when
+the shape has a stroke, the stroke's paint ([Density with a stroke](#density-with-a-stroke)).
+A note under the Density row says so while that is the case (`shapeDensityNote`: "Below
+100% the fill also shows over the whole canvas, as in Photoshop.", or the stroke wording),
+built like the Stroke note below: no width of its own, a fixed height, and a spacer under
+the Edge section that holds its room while it is hidden. Feather and Density show the
+same in Dynamic Vector Preview ([vector-preview.md](vector-preview.md#shape-feather-and-density)).
 How the bake draws the fill beside a stroke, and a gradient under Density:
 [Fill and stroke on shared edge pixels](#fill-and-stroke-on-shared-edge-pixels),
 [Gradient fill and Density](#gradient-fill-and-density).
@@ -133,8 +134,8 @@ alpha under the stroke:
 
 `u` is the fill paint's own opacity where the fill is whole (an Inside stroke replaces
 fill, it never adds to it) and nothing where it is not (an Outside stroke sits beside the
-fill and the two fill the pixel); with Density under 100% the Density floor stands in for
-"nothing", and an inverted path swaps the two sides. Stacked as two independent
+fill and the two fill the pixel); an inverted path swaps the two sides, and Density does
+not enter (under a stroke the fill is never lifted). Stacked as two independent
 coverages with "over" (`u = a`, the rule until November 2026) an Outside edge pixel was
 only `1 - f + f * f` covered (75% at `f` = 0.5), a pale seam of backdrop between fill and
 stroke, and fill color showed outside an Inside stroke. It was in the baked pixels, so
@@ -182,7 +183,9 @@ the stroke's. Values of 255; ellipse / rectangle.
   seam (11 probe files equal the new render unedited, the gradient and Density ones
   too). A PSD Photoshop saved opens with Photoshop's stored pixels (2 probe files
   re-saved by Photoshop equal its own render on every pixel; `finalize_vector_layers`
-  keeps them), and an edit of the shape redraws it.
+  keeps them unless the shape has
+  [Feather or Density](#feather-and-density-in-files-photoshop-saved)), and an edit of
+  the shape redraws it.
 
 Tests: `stroke_shape_fill_and_stroke_share_edge_pixels` (Outside, Inside, half opacity,
 Density, on an ellipse and a slanted quadrilateral), the Inside and Outside cases of
@@ -205,14 +208,106 @@ render of that probe now equals Photoshop's on every pixel at all three values. 
 gradient not aligned with the layer spans the canvas in both, at any Density. Test:
 `gradient_fill_alignment_bounds_follow_the_bake`.
 
-Known difference, not changed: with Density under 100% and a stroke, Photoshop tints the
-canvas with the stroke's paint, not the fill's. At 50% a green square with a 10 px
-gradient stroke shows the stroke's ramp alone at alpha 127 outside the shape, and inside
-it the fill under a 50% wash of the stroke (as if Density blended the layer toward its
-unmasked top paint). Patchy spreads the fill and leaves the stroke as drawn.
+With a stroke the fill no longer spreads at all: [Density with a stroke](#density-with-a-stroke).
 
-Open observation (one probe, not investigated): the aligned-gradient square at Density
-50%, saved by Patchy and re-saved by Photoshop 27.11, opens in Patchy without the tint
-outside the square (Density reads back as 50; the same in the build before this change),
-while the Photoshop-authored `photoshop-shape-feather.psd` opens with its tint
-(`psd_shape_layer_feather_and_density_match_photoshop`).
+## Density with a stroke
+
+On a shape whose stroke draws, Density under 100% does not spread the fill. Photoshop
+27.11 shows
+
+    density * the shape as drawn at 100% + (1 - density) * the stroke's paint alone
+
+mixed premultiplied, with the stroke's paint spread over the whole canvas: a solid wash
+of the stroke's color, not its band or its dashes. So the canvas is tinted with the
+stroke's color, the fill sits under a wash of it, and the stroke itself is unchanged; at
+0% the canvas is the stroke's paint. Without a stroke (off, zero width, no paint, or a
+disabled path) the fill's paint is what spreads, as before (`apply_shape_density`).
+`rasterize_vector_shape` draws the shape at 100% with the fill's coverage left alone,
+feathers it, then mixes in the wash (`spread_stroke_paint`); Density 100% takes none of
+this path and is byte-identical. `vector_shape_density_spreads` tells Dynamic Vector
+Preview such a shape has no bounds to cull by.
+
+Measured over COM (November 2026) on 25 probes, a green square with a red or red to blue
+stroke on a transparent canvas, at Density 98%, 50% and 0% (`vectorMaskDensity`; bytes
+250, 128 and 0). Against the formula, built from Photoshop's own 100% and 0% renders, the
+largest difference is under 1 of 255 on 23 probes and 1.4 on the feathered one; the
+inverted path is the one exception (below):
+
+- Inside, Center and Outside strokes; 2, 10 and 30 px; dashes {2, 2} (the wash is solid).
+  Far from the shape the stroke's red is at alpha 5, 127 and 255; inside the fill the
+  pixel is 5,250,0 at 98% and 127,128,0 at 50%.
+- A gradient stroke aligned with the layer keeps its ramp on the stroke's bounds and shows
+  its end colors past them; one not aligned spans the canvas. A pattern stroke tiles the
+  canvas.
+- No fill: the wash also covers the hollow inside. A half-transparent fill or stroke
+  paint mixes by the same formula (a 50% stroke paint washes at alpha 64 at Density 50%).
+- Feather blurs the shape, not the wash. Subtract, intersect and exclude: the wash is the
+  same, under the combined shape.
+- A Color Overlay stays on the fill and the wash keeps the stroke's color: 127,0,128
+  inside a blue-overlaid fill under a red stroke at 50%.
+- The stroke's own opacity, which Photoshop ignores, thins the wash with the stroke in
+  Patchy.
+
+The split planes follow the same picture for the compositor's overlay pass: `fill_cache`
+stays the fill at 100%, and `stroke_cache` carries the wash where the fill is (an overlay
+has just covered it there) and nothing outside it, where the layer's own pixels hold the
+wash. An overlay at 100% is exact; a thinner overlay keeps a second-order trace of the
+fill under the wash.
+
+Not matched: an inverted path with a stroke. Photoshop draws it unlike anything else even
+at 100% (the stroke's color over everything outside the stroke's outer edge, a hole
+inside), and after `vectorMaskDensity` is set it shows the fill inside and the stroke's
+color outside at alpha `density` (nothing at 0%). Photoshop's own panels cannot make such
+a shape; Patchy applies the formula to its own drawing of it.
+
+Also seen at 100%, not changed: a stroke paint with transparency (a gradient whose alpha
+stops are 50%) replaces the fill beneath it in Photoshop (255,0,0 at alpha 128 on the
+band), where Patchy lets the fill show through it (128,127,0 opaque).
+
+The note under Density names what spreads: "Below 100% the stroke's color also shows over
+the whole canvas and over the fill, as in Photoshop." while the dialog's stroke draws
+(on, width and opacity above 0), the fill wording otherwise. It follows the stroke fields
+as they change and its fixed height fits either wording.
+
+Existing documents: Patchy redraws its own shapes when a file opens, so a document with
+Density under 100% and a stroke looks different from this change on, the way Photoshop
+shows it.
+
+Patchy against Photoshop on the same probes: 10 are identical at all four Density values
+(Inside, Center and Outside, 2 and 30 px, the aligned gradient, dashes, no fill, stroke
+off and the pattern stroke) and the canvas gradient and the half-transparent fill are
+within 1, where before the mean difference at 50% was 68 to 124 of 255 (only stroke off
+already matched). The rest keep only what
+they differ by at 100% (edge antialiasing on curves and combined paths up to 55, the
+feather's blur 5.4), scaled down by Density. PSDs written by the new build open in
+Photoshop 27.11 without a warning (13 of 13), and Photoshop's render of a Density 50%
+picture equals Patchy's within 1.
+
+Tests: `raster_shape_density_spreads_the_strokes_paint` (fails before the change),
+`compositor_interior_overlay_stays_under_vector_stroke` (the Density block),
+`psd_photoshop_saved_shapes_keep_feather_and_density` (Photoshop's flatten of a gradient
+stroke at Density 50%), eight Density-with-stroke documents in
+`ui_vector_preview_matches_document_render_for_shape_layers` at the strict limits, and
+`ui_shape_appearance_density_note_names_what_spreads`. Probes and scripts:
+`local-test-fixtures/vector-probe/stroke-seam/density/`.
+
+## Feather and Density in files Photoshop saved
+
+Once Photoshop has drawn a shape it saves the shape's crisp pixels in the layer record
+(record bounds are the shape and its stroke, alpha up to 255) and keeps Feather and
+Density only as mask parameters, applied on screen (section flags 0x18, `vector feather`
+and `vector density`, the derived plane in channel -2). A shape that was never drawn has
+an empty record: Photoshop's script-made fixtures, and every shape Patchy writes. The
+reader kept stored pixels as Photoshop's render whenever they had alpha, so a shape
+Photoshop had saved with Feather or Density opened hard-edged and without its tint until
+it was edited. Seven probes re-saved by Photoshop 27.11, against its own render: mean 102
+to 122 of 255 at Density 50% (114 with a stroke), 16 for Feather 4 alone (largest 179),
+and 0 with neither. `finalize_vector_layers` now draws a shape that has Feather or
+Density from its path, as it does a record with no pixels; any other shape keeps
+Photoshop's pixels. The same probes then equal Photoshop's render on every pixel
+(Density, with and without a stroke) or within 5.4 of 255 (Feather).
+
+Fixtures `photoshop-shape-density-stroke.psd` and `photoshop-shape-edges-resaved.psd`
+with Photoshop's flatten beside each ([vector-fixtures.md](vector-fixtures.md)); test
+`psd_photoshop_saved_shapes_keep_feather_and_density` (Patchy's flatten equals the first
+and is within 4 of 255 of the second; before, means of 54 and 49).

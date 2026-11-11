@@ -8414,10 +8414,6 @@ RGB: %2, %3, %4</translation>
         <translation>Wtapianie:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>Poniżej 100% wypełnienie jest widoczne wszędzie, podobnie jak gęstość maski wektorowej w Photoshopie</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Farba:</translation>
     </message>
@@ -15868,6 +15864,14 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
         <translation>%1 nie działa w internetowej wersji Patchy. Aby z tego skorzystać, pobierz wersję na komputer, bezpłatną dla Windows, macOS i Linuksa.</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>Poniżej 100% wypełnienie, a gdy kształt ma obrys, kolor obrysu, jest widoczne na całym płótnie, podobnie jak gęstość maski wektorowej w Photoshopie</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>Poniżej 100% kolor obrysu jest widoczny także na całym płótnie i na wypełnieniu, tak jak w Photoshopie.</translation>
     </message>
 </context>
 <context>

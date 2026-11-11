@@ -1805,11 +1805,13 @@ void stroke_shape_fill_and_stroke_share_edge_pixels() {
     outside.stroke.opacity = 0.5;
     check("outside at half opacity",
           measure(*path, outside, [](double g) { return std::array<double, 2>{g + (255.0 - g) * 0.5, g}; }));
-    // Density: the faint fill outside the path lies under the stroke, and the pixel stays full.
+    // Density: the stroke's paint washes over the canvas and the fill
+    // (raster_shape_density_spreads_the_strokes_paint), so the pixel stays full and the fill
+    // keeps density / 255 of its share.
     outside.stroke.opacity = 1.0;
     outside.density = 128;
     check("outside with Density",
-          measure(*path, outside, [](double g) { return std::array<double, 2>{255.0, g}; }));
+          measure(*path, outside, [](double g) { return std::array<double, 2>{255.0, g * 128.0 / 255.0}; }));
 
     // Inside: the stroke covers the fill wherever the fill is, so the edge pixel is stroke
     // color at the fill's coverage, with no fill color outside the stroke.
@@ -2223,6 +2225,203 @@ void raster_shape_feather_softens_edge_and_density_floors_alpha() {
   const auto far_alpha = static_cast<int>(dense.pixels.pixel(45, 45)[3]);
   CHECK(far_alpha >= 98 && far_alpha <= 106);
   CHECK(dense.pixels.pixel(24, 24)[3] == 255);
+}
+
+// Photoshop 27.11 (25 probes, docs/vector-tools-appearance.md, "Density with a stroke"): on a
+// shape whose stroke draws, Density under 100% gives
+//   density * the shape as drawn at 100% + (1 - density) * the stroke's paint alone,
+// premultiplied, with the stroke's paint spread over the whole clip. The canvas is tinted with
+// the stroke's color (not the fill's) and the fill sits under a wash of it. Green fill, red
+// stroke.
+void raster_shape_density_spreads_the_strokes_paint() {
+  const Rect canvas{0, 0, 96, 72};
+  using Pixel = std::array<int, 4>;
+  const auto pixel = [](const patchy::ShapeRasterResult& raster, int x, int y) -> Pixel {
+    if (raster.bounds.empty() || !raster.bounds.contains(x, y)) {
+      return {0, 0, 0, 0};
+    }
+    const auto* p = raster.pixels.pixel(x - raster.bounds.x, y - raster.bounds.y);
+    return {p[0], p[1], p[2], p[3]};
+  };
+  const auto plane_pixel = [](const patchy::PixelBuffer& plane, Rect bounds, int x, int y) -> Pixel {
+    if (plane.empty() || !bounds.contains(x, y)) {
+      return {0, 0, 0, 0};
+    }
+    const auto* p = plane.pixel(x - bounds.x, y - bounds.y);
+    return {p[0], p[1], p[2], p[3]};
+  };
+  // How far `drawn` is from density * `full` + (1 - density) * wash, premultiplied, over the
+  // whole canvas; wash(x, y) is the stroke's paint there.
+  const auto worst_error = [&](const patchy::ShapeRasterResult& full, const patchy::ShapeRasterResult& drawn,
+                               int density, const std::function<Pixel(int, int)>& wash) {
+    double worst = 0.0;
+    for (int y = canvas.y; y < canvas.y + canvas.height; ++y) {
+      for (int x = canvas.x; x < canvas.x + canvas.width; ++x) {
+        const auto a = pixel(full, x, y);
+        const auto u = wash(x, y);
+        const auto got = pixel(drawn, x, y);
+        const double alpha = (density * a[3] + (255 - density) * u[3]) / 255.0;
+        worst = std::max(worst, std::abs(got[3] - alpha));
+        for (std::size_t c = 0; c < 3; ++c) {
+          const double want = (density * a[3] * a[c] + (255 - density) * u[3] * u[c]) / (255.0 * 255.0);
+          worst = std::max(worst, std::abs(got[c] * got[3] / 255.0 - want));
+        }
+      }
+    }
+    return worst;
+  };
+  const auto red_wash = [](int, int) { return Pixel{255, 0, 0, 255}; };
+
+  patchy::VectorShapeContent base;
+  base.path.subpaths = {rect_subpath(28, 20, 68, 52, PathCombineOp::Add, 0)};
+  base.fill.kind = patchy::VectorFillKind::Solid;
+  base.fill.color = patchy::RgbColor{0, 255, 0};
+  base.stroke.enabled = true;
+  base.stroke.width = 6.0;
+  base.stroke.content.kind = patchy::VectorFillKind::Solid;
+  base.stroke.content.color = patchy::RgbColor{255, 0, 0};
+  CHECK(!patchy::vector_shape_density_spreads(base));
+
+  struct Side {
+    patchy::VectorStrokeAlignment alignment;
+    int stroke_x;  // a column inside the left side's band, on row 36
+  };
+  for (const auto side : {Side{patchy::VectorStrokeAlignment::Inside, 30}, Side{patchy::VectorStrokeAlignment::Center, 28},
+                          Side{patchy::VectorStrokeAlignment::Outside, 25}}) {
+    auto shape = base;
+    shape.stroke.alignment = side.alignment;
+    const auto full = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    CHECK(pixel(full, 4, 4)[3] == 0);
+    for (const int density : {250, 128, 0}) {
+      shape.density = static_cast<std::uint8_t>(density);
+      CHECK(patchy::vector_shape_density_spreads(shape));
+      const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+      CHECK(drawn.bounds == canvas);
+      // Far from the shape: the stroke's red at the Density floor (5, 127 and 255 in Photoshop).
+      CHECK((pixel(drawn, 4, 4) == Pixel{255, 0, 0, 255 - density}));
+      CHECK((pixel(drawn, 92, 68) == Pixel{255, 0, 0, 255 - density}));
+      // Inside the fill: the fill under a wash of the stroke (5,250 and 127,128 in Photoshop).
+      CHECK((pixel(drawn, 48, 36) == Pixel{255 - density, density, 0, 255}));
+      // On the stroke: the stroke.
+      CHECK((pixel(drawn, side.stroke_x, 36) == Pixel{255, 0, 0, 255}));
+      CHECK(worst_error(full, drawn, density, red_wash) <= 1.0);
+    }
+  }
+
+  // Edge pixels keep the rule of stroke_shape_fill_and_stroke_share_edge_pixels under the
+  // wash, and the wash is solid whatever the stroke's dashes.
+  {
+    auto shape = base;
+    LiveShapeParams params;
+    params.kind = LiveShapeKind::Ellipse;
+    params.left = 22.3;
+    params.top = 14.6;
+    params.right = 74.2;
+    params.bottom = 58.9;
+    shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    for (const bool dashed : {false, true}) {
+      for (const auto alignment : {patchy::VectorStrokeAlignment::Inside, patchy::VectorStrokeAlignment::Outside}) {
+        shape.density = 255;
+        shape.stroke.alignment = alignment;
+        shape.stroke.dashes = dashed ? std::vector<double>{2.0, 1.0} : std::vector<double>{};
+        const auto full = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+        shape.density = 128;
+        const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+        CHECK(worst_error(full, drawn, 128, red_wash) <= 1.0);
+      }
+    }
+  }
+
+  // No fill: the wash still covers the canvas and the shape's hollow inside.
+  {
+    auto shape = base;
+    shape.fill.kind = patchy::VectorFillKind::None;
+    shape.density = 128;
+    CHECK(patchy::vector_shape_density_spreads(shape));
+    const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    CHECK((pixel(drawn, 48, 36) == Pixel{255, 0, 0, 127}));
+    CHECK((pixel(drawn, 4, 4) == Pixel{255, 0, 0, 127}));
+    CHECK((pixel(drawn, 28, 36) == Pixel{255, 0, 0, 255}));
+  }
+  // Stroke off: the fill's paint is what spreads, as before.
+  {
+    auto shape = base;
+    shape.stroke.enabled = false;
+    shape.density = 128;
+    CHECK(patchy::vector_shape_density_spreads(shape));
+    const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    CHECK((pixel(drawn, 4, 4) == Pixel{0, 255, 0, 127}));
+    CHECK((pixel(drawn, 48, 36) == Pixel{0, 255, 0, 255}));
+  }
+  // The stroke's own opacity thins the wash with the stroke (Photoshop ignores that opacity
+  // altogether; Patchy applies it to both).
+  {
+    auto shape = base;
+    shape.stroke.opacity = 0.5;
+    shape.density = 128;
+    const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    const auto away = pixel(drawn, 4, 4);
+    CHECK(away[0] == 255 && away[1] == 0 && away[3] >= 63 && away[3] <= 64);
+  }
+  // A gradient aligned with the layer keeps the box it has on the stroke: its ramp runs over
+  // the stroke's bounds (25..71 here) and the rest of the canvas shows its end colors.
+  {
+    auto shape = base;
+    shape.stroke.alignment = patchy::VectorStrokeAlignment::Center;
+    shape.stroke.content.kind = patchy::VectorFillKind::Gradient;
+    shape.stroke.content.gradient.align_with_layer = true;
+    shape.stroke.content.gradient.angle_degrees = 0.0F;
+    shape.stroke.content.gradient.dither = false;
+    shape.stroke.content.gradient.color_stops = {{0.0F, patchy::RgbColor{255, 0, 0}, 0.5F},
+                                                 {1.0F, patchy::RgbColor{0, 0, 255}, 0.5F}};
+    shape.stroke.content.gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+    const auto full = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    shape.density = 128;
+    const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    const auto left = pixel(drawn, 3, 6);
+    const auto right = pixel(drawn, 92, 6);
+    const auto middle = pixel(drawn, 48, 6);
+    CHECK(left[0] >= 250 && left[2] <= 5 && left[3] == 127);
+    CHECK(right[2] >= 250 && right[0] <= 5 && right[3] == 127);
+    CHECK(std::abs(middle[0] - middle[2]) <= 24 && middle[3] == 127);
+    // On the stroke the wash and the stroke are the same paint, so the band is unchanged.
+    CHECK(pixel(drawn, 48, 20) == pixel(full, 48, 20));
+    CHECK(pixel(drawn, 28, 36) == pixel(full, 28, 36));
+  }
+  // Feather blurs the shape, not the wash.
+  {
+    auto shape = base;
+    shape.feather = 3.0;
+    const auto full = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    shape.density = 128;
+    const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    CHECK(drawn.bounds == canvas);
+    CHECK((pixel(drawn, 4, 4) == Pixel{255, 0, 0, 127}));
+    CHECK(worst_error(full, drawn, 128, red_wash) <= 1.0);
+  }
+  // The split planes for interior overlays: the fill plane stays the fill at 100%, and the
+  // stroke plane carries the wash where the fill is (an overlay covers it there), not outside
+  // the fill, where the layer's own pixels already hold it.
+  {
+    auto shape = base;
+    shape.stroke.alignment = patchy::VectorStrokeAlignment::Center;
+    const auto full = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    shape.density = 128;
+    const auto drawn = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    CHECK(!full.fill_pixels.empty() && !drawn.fill_pixels.empty() && !drawn.stroke_pixels.empty());
+    for (const auto& [x, y] : {std::pair{48, 36}, {4, 4}, {28, 36}, {31, 36}}) {
+      CHECK(plane_pixel(drawn.fill_pixels, drawn.bounds, x, y) == plane_pixel(full.fill_pixels, full.bounds, x, y));
+    }
+    CHECK((plane_pixel(drawn.stroke_pixels, drawn.bounds, 48, 36) == Pixel{255, 0, 0, 127}));
+    CHECK(plane_pixel(drawn.stroke_pixels, drawn.bounds, 4, 4)[3] == 0);
+    CHECK((plane_pixel(drawn.stroke_pixels, drawn.bounds, 29, 36) == Pixel{255, 0, 0, 255}));
+  }
+  // Density 100% is untouched by any of this.
+  {
+    auto shape = base;
+    const auto once = patchy::rasterize_vector_shape(shape, canvas, nullptr, nullptr);
+    CHECK(once.bounds.width < canvas.width && pixel(once, 48, 36) == (Pixel{0, 255, 0, 255}));
+  }
 }
 
 // Photoshop 2026 gradient fill probes (docs/gradients.md, "Gradient fill layer
@@ -2864,6 +3063,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"gradient_fill_layer_aligns_to_its_mask_bounds", gradient_fill_layer_aligns_to_its_mask_bounds},
       {"raster_shape_feather_softens_edge_and_density_floors_alpha",
        raster_shape_feather_softens_edge_and_density_floors_alpha},
+      {"raster_shape_density_spreads_the_strokes_paint", raster_shape_density_spreads_the_strokes_paint},
       {"raster_axis_aligned_rect_coverage_is_exact", raster_axis_aligned_rect_coverage_is_exact},
       {"raster_pixel_aligned_rect_shortcut_matches_reference", raster_pixel_aligned_rect_shortcut_matches_reference},
       {"vector_stroke_aligned_edges_match_photoshop", vector_stroke_aligned_edges_match_photoshop},

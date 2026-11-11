@@ -110,6 +110,11 @@ struct VectorPaintBounds {
                                                        const Layer* layer_for_pattern_anchor,
                                                        const VectorPaintBounds* paint_bounds = nullptr);
 
+// True when Density under 100% makes the shape's bake cover its whole clip: the fill's paint
+// spreads, or with a stroke the stroke's (rasterize_vector_shape). Such a shape has no bounds
+// to cull by.
+[[nodiscard]] bool vector_shape_density_spreads(const VectorShapeContent& content);
+
 // The clip update_vector_shape_raster draws a shape's coverage in: the bake domain (the
 // canvas, grown to hold a shape that reaches past it) and the feather's reach around it.
 // A layer-aligned gradient spans its paint's coverage bounds inside this clip (the path's

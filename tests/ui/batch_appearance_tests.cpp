@@ -1937,6 +1937,78 @@ void ui_shape_appearance_inside_stroke_hint_on_lines() {
   CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
 }
 
+// The note under Density names what shows over the canvas: the stroke's color while the
+// stroke draws (Density then spreads the stroke's paint and washes it over the fill, as
+// Photoshop does), the fill otherwise. It follows the stroke's width and opacity as they
+// change, hides at 100%, and the dialog keeps its size through all of it.
+void ui_shape_appearance_density_note_names_what_spreads() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id();
+  {
+    auto& layer = doc.add_layer(rectangle(id, 80, 160, {0, 0, 0, 0}, {40, 160, 70}));
+    auto content = *std::as_const(layer).vector_shape();
+    content.stroke.width = 8.0;
+    content.stroke.content.kind = VectorFillKind::Solid;
+    content.stroke.content.color = {200, 40, 40};
+    content.density = 128;
+    layer.set_vector_shape(std::move(content));
+    update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()), nullptr);
+  }
+  select_batch_layers(window, {id});
+  const QString fill_wording = QStringLiteral("Below 100% the fill also shows over the whole canvas, as in Photoshop.");
+  const QString stroke_wording = QStringLiteral(
+      "Below 100% the stroke's color also shows over the whole canvas and over the fill, as in Photoshop.");
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    QApplication::processEvents();
+    auto* note = dialog.findChild<QLabel*>(QStringLiteral("shapeDensityNote"));
+    CHECK(note != nullptr);
+    if (note == nullptr) { dialog.reject(); return; }
+    auto* density = field<QSpinBox>(dialog, "shapeDensitySpin");
+    auto* width = field<QDoubleSpinBox>(dialog, "shapeStrokeWidthSpin");
+    auto* opacity = field<QSpinBox>(dialog, "shapeStrokeOpacitySpin");
+    auto* scroll = dialog.findChild<QScrollArea*>();
+    CHECK(scroll != nullptr && scroll->widget() != nullptr);
+    const auto page_state = [&] {
+      QApplication::processEvents();
+      return std::tuple{dialog.size(), scroll->widget()->height(), scroll->verticalScrollBar()->isVisible()};
+    };
+    const auto fits = [&] { return note->height() >= note->heightForWidth(note->width()); };
+    CHECK(density->value() == 50);
+    // The stroke draws: its color is what spreads.
+    CHECK(note->isVisible() && note->text() == stroke_wording && fits());
+    const auto with_stroke = page_state();
+    save_widget_artifact("ui_shape_density_note_stroke_on", dialog);
+    // Stroke off (width 0): the fill spreads.
+    width->setValue(0.0);
+    CHECK(page_state() == with_stroke);
+    CHECK(note->isVisible() && note->text() == fill_wording && fits());
+    save_widget_artifact("ui_shape_density_note_stroke_off", dialog);
+    width->setValue(8.0);
+    CHECK(page_state() == with_stroke && note->text() == stroke_wording);
+    // A stroke at 0% opacity draws nothing either.
+    opacity->setValue(0);
+    QApplication::processEvents();
+    CHECK(note->text() == fill_wording);
+    opacity->setValue(100);
+    QApplication::processEvents();
+    CHECK(note->text() == stroke_wording && page_state() == with_stroke);
+    // At 100% there is nothing to explain; the note's room stays.
+    density->setValue(100);
+    CHECK(page_state() == with_stroke);
+    CHECK(!note->isVisible());
+    density->setValue(50);
+    CHECK(page_state() == with_stroke);
+    CHECK(note->isVisible() && note->text() == stroke_wording);
+    CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !canvas->processing_operation_active(); }));
+}
+
 // local-051: arrowhead Width and Length reach 100000% of the weight (a head up to 30000 px),
 // so a thin line can carry a large head; the fields step by a tenth of their size, the head
 // saves and reopens, and several lines still take the percent each of its own weight.
@@ -2364,6 +2436,7 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_shape_appearance_line_weight_in_geometry", ui_shape_appearance_line_weight_in_geometry},
     {"ui_line_tool_new_line_stroke_is_centered", ui_line_tool_new_line_stroke_is_centered},
     {"ui_shape_appearance_inside_stroke_hint_on_lines", ui_shape_appearance_inside_stroke_hint_on_lines},
+    {"ui_shape_appearance_density_note_names_what_spreads", ui_shape_appearance_density_note_names_what_spreads},
     {"ui_shape_appearance_arrowheads_grow_large", ui_shape_appearance_arrowheads_grow_large},
     {"ui_shape_appearance_preview_shows_only_finished_renders", ui_shape_appearance_preview_shows_only_finished_renders},
   };

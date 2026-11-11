@@ -2515,7 +2515,107 @@ Rect union_rects(Rect a, Rect b) noexcept {
   return Rect{x0, y0, x1 - x0, y1 - y0};
 }
 
+// Whether the shape's stroke draws at all.
+bool shape_stroke_draws(const VectorShapeContent& content) {
+  return content.stroke.enabled && content.stroke.width > 0.0 && content.stroke.opacity > 0.0 &&
+         content.stroke.content.kind != VectorFillKind::None && !content.path.empty() && !content.path_disabled;
+}
+
+// `a_share` of `a` plus `b_share` of `b` (straight-alpha RGBA), mixed premultiplied.
+std::array<std::uint8_t, 4> mix_premultiplied(const std::uint8_t* a, double a_share, const std::uint8_t* b,
+                                              double b_share) {
+  const double a_alpha = a_share * a[3];
+  const double b_alpha = b_share * b[3];
+  const double alpha = a_alpha + b_alpha;  // 0..255
+  std::array<std::uint8_t, 4> out{};
+  if (alpha <= 0.0) {
+    return out;
+  }
+  for (int channel = 0; channel < 3; ++channel) {
+    out[static_cast<std::size_t>(channel)] = static_cast<std::uint8_t>(
+        std::clamp<long>(std::lround((a_alpha * a[channel] + b_alpha * b[channel]) / alpha), 0L, 255L));
+  }
+  out[3] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(alpha), 0L, 255L));
+  return out;
+}
+
+// Density under 100% on a shape whose stroke draws. Photoshop 27.11 (25 probes at Density
+// 98%, 50% and 0%, docs/vector-tools-appearance.md, "Density with a stroke") shows
+//   density * the shape as drawn at 100% + (1 - density) * the stroke's paint alone,
+// premultiplied, with the stroke's paint spread over the whole clip: a solid wash, not the
+// stroke's band or its dashes, with a gradient on the stroke's own bounds. So the canvas is
+// tinted with the stroke's color and the fill sits under a wash of it; without a stroke the
+// fill's paint is what spreads (apply_shape_density). `result` is the shape at Density 100%
+// (feathered already: the wash is not blurred); `wash` is the stroke's paint over `clip` at
+// the stroke's own opacity.
+//
+// The split planes follow, for the compositor's overlay pass (interior overlays cover the
+// fill plane, then the stroke plane is stamped over them): the fill plane stays the fill at
+// 100%, and the stroke plane gains the wash where the fill is, which is where an overlay has
+// just covered it. Outside the fill the base pass already holds the wash.
+void spread_stroke_paint(ShapeRasterResult& result, std::uint8_t density, Rect clip, const PixelBuffer& wash) {
+  if (clip.empty()) {
+    return;
+  }
+  const double kept = static_cast<double>(density) / 255.0;
+  const double spread = static_cast<double>(255 - density) / 255.0;
+  static constexpr std::array<std::uint8_t, 4> kClear{};
+  const bool planes = !result.fill_pixels.empty() && !result.stroke_pixels.empty();
+  const bool matte = !result.matte_pixels.empty();
+  PixelBuffer pixels(clip.width, clip.height, PixelFormat::rgba8());
+  PixelBuffer fill_plane;
+  PixelBuffer stroke_plane;
+  PixelBuffer matte_plane;
+  if (planes) {
+    fill_plane = PixelBuffer(clip.width, clip.height, PixelFormat::rgba8());
+    stroke_plane = PixelBuffer(clip.width, clip.height, PixelFormat::rgba8());
+  }
+  if (matte) {
+    matte_plane = PixelBuffer(clip.width, clip.height, PixelFormat::rgba8());
+  }
+  const auto& shape = std::as_const(result);
+  for (std::int32_t y = 0; y < clip.height; ++y) {
+    const auto document_y = clip.y + y;
+    const bool row_inside = !shape.bounds.empty() && document_y >= shape.bounds.y &&
+                            document_y < shape.bounds.y + shape.bounds.height;
+    for (std::int32_t x = 0; x < clip.width; ++x) {
+      const auto document_x = clip.x + x;
+      const bool inside = row_inside && document_x >= shape.bounds.x && document_x < shape.bounds.x + shape.bounds.width;
+      const auto sx = document_x - shape.bounds.x;
+      const auto sy = document_y - shape.bounds.y;
+      const auto* drawn = inside ? shape.pixels.pixel(sx, sy) : kClear.data();
+      const auto* paint = wash.pixel(x, y);
+      const auto mixed = mix_premultiplied(drawn, kept, paint, spread);
+      std::memcpy(pixels.pixel(x, y), mixed.data(), 4);
+      if (planes) {
+        const auto* fill = inside ? shape.fill_pixels.pixel(sx, sy) : kClear.data();
+        const auto* stroke = inside ? shape.stroke_pixels.pixel(sx, sy) : kClear.data();
+        std::memcpy(fill_plane.pixel(x, y), fill, 4);
+        const auto stamped = mix_premultiplied(stroke, kept, paint, spread * static_cast<double>(fill[3]) / 255.0);
+        std::memcpy(stroke_plane.pixel(x, y), stamped.data(), 4);
+      }
+      if (matte) {
+        auto* out = matte_plane.pixel(x, y);
+        std::memcpy(out, mixed.data(), 4);
+        if (inside) {
+          out[3] = std::max(out[3], shape.matte_pixels.pixel(sx, sy)[3]);
+        }
+      }
+    }
+  }
+  result.bounds = clip;
+  result.pixels = std::move(pixels);
+  result.fill_pixels = std::move(fill_plane);
+  result.stroke_pixels = std::move(stroke_plane);
+  result.matte_pixels = std::move(matte_plane);
+}
+
 }  // namespace
+
+bool vector_shape_density_spreads(const VectorShapeContent& content) {
+  return content.density != 255 &&
+         (shape_stroke_draws(content) || (content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None));
+}
 
 ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect canvas,
                                          const PatternStore* patterns,
@@ -2577,6 +2677,10 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
   options.clip = raster_domain;
 
   const bool fill_on = content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None;
+  const bool stroke_on = shape_stroke_draws(content);
+  // With a stroke, Density spreads the stroke's paint, after everything else is drawn
+  // (spread_stroke_paint); without one it lifts the fill's coverage here.
+  const bool stroke_wash = stroke_on && content.density != 255;
   CoverageBuffer fill_coverage;
   // The path's own coverage (no Density, no inversion), kept for an Inside or Outside stroke.
   const VectorRasterOptions path_options = options;
@@ -2599,15 +2703,11 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
       fill_coverage = rasterize_vector_path(content.path, options);
       path_coverage = fill_coverage;
     }
-    if (content.density != 255) {
+    if (content.density != 255 && !stroke_wash) {
       fill_alignment_bounds = fill_coverage.bounds;
       fill_coverage = apply_shape_density(fill_coverage, content.density, raster_domain);
     }
   }
-  const bool stroke_on =
-      content.stroke.enabled && content.stroke.width > 0.0 && content.stroke.opacity > 0.0 &&
-      content.stroke.content.kind != VectorFillKind::None && !content.path.empty() &&
-      !content.path_disabled;
   CoverageBuffer stroke_coverage;
   // True when the stroke lies wholly inside or wholly outside the path and there is a fill
   // for it to meet (the compositing below).
@@ -2635,8 +2735,33 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
     stroke_beside_fill = band.cut_by_path && path_coverage.has_value() && !fill_coverage.bounds.empty();
   }
 
+  // The stroke's paint over the whole clip, for Density with a stroke. A gradient keeps the
+  // box it has on the stroke itself.
+  const auto spread_wash = [&] {
+    if (canvas.empty()) {
+      return;
+    }
+    auto alignment = paint_bounds ? paint_bounds->stroke : std::nullopt;
+    if (!alignment.has_value() && !stroke_coverage.bounds.empty()) {
+      alignment = stroke_coverage.bounds;
+    }
+    auto wash = paint_coverage(full_coverage(canvas), content.stroke.content, paint_bounds ? paint_bounds->canvas : canvas,
+                               patterns, layer_for_pattern_anchor, alignment);
+    if (content.stroke.opacity < 1.0) {
+      auto* bytes = wash.data().data();
+      const auto count = static_cast<std::size_t>(wash.width()) * static_cast<std::size_t>(wash.height());
+      for (std::size_t i = 0; i < count; ++i) {
+        bytes[i * 4 + 3] = static_cast<std::uint8_t>(
+            std::clamp<long>(std::lround(static_cast<double>(bytes[i * 4 + 3]) * content.stroke.opacity), 0L, 255L));
+      }
+    }
+    spread_stroke_paint(result, content.density, canvas, wash);
+  };
   const Rect bounds = union_rects(fill_coverage.bounds, stroke_coverage.bounds);
   if (bounds.empty()) {
+    if (stroke_wash) {
+      spread_wash();
+    }
     return result;
   }
   result.bounds = bounds;
@@ -2714,14 +2839,13 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
     // inside the path (Inside) or in the part outside it (Outside). So the fill alpha UNDER
     // the stroke is the fill's alpha in that part, not the pixel's average: the fill paint's
     // own opacity where the fill is (an Inside stroke replaces fill, never adds to it), and
-    // nothing, or the Density floor, where it is not (an Outside stroke sits beside the fill
-    // and the two fill the pixel). Stacked as independent coverages an Outside edge pixel was
-    // only 1 - f + f*f covered (75% at f = 0.5: a pale seam) and fill color showed outside an
-    // Inside stroke. Photoshop 27.11 probes: docs/vector-tools-appearance.md, "Fill and stroke
+    // nothing where it is not (an Outside stroke sits beside the fill and the two fill the
+    // pixel; Density never lifts the fill under a stroke). Stacked as independent coverages
+    // an Outside edge pixel was only 1 - f + f*f covered (75% at f = 0.5: a pale seam) and
+    // fill color showed outside an Inside stroke. Photoshop 27.11 probes: docs/vector-tools-appearance.md, "Fill and stroke
     // on shared edge pixels". Pixels wholly inside or outside the path, Center strokes and
     // open contours keep the plain "over", byte for byte.
     const bool stroke_in_path = content.stroke.alignment == VectorStrokeAlignment::Inside;
-    const double density_floor = static_cast<double>(255 - content.density) / 255.0;
     for (std::int32_t y = 0; y < stroke_coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(stroke_coverage.bounds.y - bounds.y + y) * out_stride +
                   static_cast<std::size_t>(stroke_coverage.bounds.x - bounds.x) * 4;
@@ -2747,7 +2871,7 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
                 fill_value > 0 ? std::min(1.0, static_cast<double>(dest[3]) / static_cast<double>(fill_value))
                                : 0.0;
             // The fill is whole on the path's side, or on the other one when inverted.
-            under_alpha = stroke_in_path != content.path_inverted ? paint_alpha : paint_alpha * density_floor;
+            under_alpha = stroke_in_path != content.path_inverted ? paint_alpha : 0.0;
           }
         }
         std::array<std::uint8_t, 3> source_rgb{stroke_row[x * 4 + 0], stroke_row[x * 4 + 1],
@@ -2827,6 +2951,9 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
   }
   if (feather_reach > 0) {
     feather_shape_raster(result, feather_radii, raster_domain, canvas);
+  }
+  if (stroke_wash) {
+    spread_wash();
   }
   return result;
 }

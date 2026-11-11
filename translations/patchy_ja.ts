@@ -8619,10 +8619,6 @@ Mixed selection</source>
         <translation>ぼかし:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
-        <translation>100% 未満では Photoshop のベクトルマスクの濃度のように塗りが全体に透けて見えます</translation>
-    </message>
-    <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
         <translation>塗り・線・不透明度・エッジを初期設定に戻します（形状はそのまま）</translation>
     </message>
@@ -15756,6 +15752,14 @@ Do you want to replace it?</source>
     <message>
         <source>%1 does not work in the web version of Patchy. To use it, download the desktop version, which is free for Windows, macOS and Linux.</source>
         <translation>%1 は Web 版の Patchy では使用できません。使用するには、Windows、macOS、Linux 向けの無料のデスクトップ版をダウンロードしてください。</translation>
+    </message>
+    <message>
+        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <translation>100% 未満では Photoshop のベクトルマスクの濃度のように、塗り（シェイプに境界線がある場合は境界線の色）がキャンバス全体に透けて見えます</translation>
+    </message>
+    <message>
+        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <translation>100% 未満では、Photoshop と同じように境界線の色がキャンバス全体と塗りの上にも透けて見えます。</translation>
     </message>
 </context>
 <context>

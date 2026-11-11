@@ -69,6 +69,8 @@ f2bf42dce8c3d975 photoshop-place-embedded-png.psd
 fe4ec469d4f39325 photoshop-saved-paths.psd
 84830b21713419a9 photoshop-shadow-conceals.psd
 020f37ab73705bf5 photoshop-shape-boolean.psd
+aa91f5e9079e2a0d photoshop-shape-density-stroke.psd
+a35f568c5b78516c photoshop-shape-edges-resaved.psd
 b3ae1cce498dd16a photoshop-shape-feather.psd
 1f1d1239b7381f25 photoshop-shape-first-ops.psd
 8dc0d900807008ea photoshop-shape-gradient.psd
