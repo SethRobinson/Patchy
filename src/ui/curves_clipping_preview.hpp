@@ -31,5 +31,11 @@ enum class CurvesClippingMode {
 [[nodiscard]] QImage render_curves_clipping_preview(
     const QImage& source, CurvesClippingMode mode,
     std::optional<CurvesChannel> active_component = std::nullopt);
+// The same image, its rows split into bands over up to `workers` threads (the canvas
+// redoes it for every preview frame of a Levels Alt+drag, #687). Byte-identical to the
+// one-thread form for any worker count.
+[[nodiscard]] QImage render_curves_clipping_preview(
+    const QImage& source, CurvesClippingMode mode,
+    std::optional<CurvesChannel> active_component, int workers);
 
 }  // namespace patchy::ui

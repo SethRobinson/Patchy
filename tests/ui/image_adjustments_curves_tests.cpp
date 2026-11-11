@@ -1170,6 +1170,315 @@ void ui_levels_alt_drag_shows_canvas_clipping_view() {
   CHECK(color_close(bright(), QColor(250, 240, 230), 4));
 }
 
+// The clipping view the canvas builds over worker bands (#687 follow-up) matches a plain
+// per-pixel reading of the rules in curves_clipping_preview.hpp, for every mode and
+// channel, with and without alpha, on one thread or several.
+void ui_curves_clipping_preview_bands_match_reference() {
+  using Mode = patchy::ui::CurvesClippingMode;
+  std::uint64_t state = 687U;
+  const auto next = [&state] {
+    state += 0x9E3779B97F4A7C15ULL;
+    auto z = state;
+    z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31U);
+  };
+  // Mostly 0 and 255, so every clipping case shows up often.
+  const auto component = [&next] {
+    const auto z = next();
+    switch (z & 3U) {
+      case 0:
+        return 0;
+      case 1:
+        return 255;
+      default:
+        return static_cast<int>((z >> 8U) & 255U);
+    }
+  };
+  const auto make = [&](QImage::Format format) {
+    QImage image(301, 700, format);
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        image.setPixelColor(x, y, QColor(component(), component(), component(), component()));
+      }
+    }
+    return image;
+  };
+  const auto reference = [](const QImage& source, Mode mode, std::optional<patchy::CurvesChannel> channel) {
+    const bool has_alpha = source.hasAlphaChannel();
+    const auto format = has_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888;
+    const auto normalized = source.convertToFormat(format);
+    const int background = mode == Mode::Shadows ? 255 : mode == Mode::Highlights ? 0 : 128;
+    const std::array<bool, 3> selected{
+        !channel || *channel == patchy::CurvesChannel::Rgb || *channel == patchy::CurvesChannel::Red,
+        !channel || *channel == patchy::CurvesChannel::Rgb || *channel == patchy::CurvesChannel::Green,
+        !channel || *channel == patchy::CurvesChannel::Rgb || *channel == patchy::CurvesChannel::Blue};
+    QImage result(normalized.size(), format);
+    const int stride = has_alpha ? 4 : 3;
+    for (int y = 0; y < normalized.height(); ++y) {
+      const auto* in = normalized.constScanLine(y);
+      auto* out = result.scanLine(y);
+      for (int x = 0; x < normalized.width(); ++x) {
+        for (int c = 0; c < 3; ++c) {
+          const int value = in[x * stride + c];
+          int shown = background;
+          if (selected[static_cast<std::size_t>(c)]) {
+            if (value == 0 && mode != Mode::Highlights) {
+              shown = 0;
+            } else if (value == 255 && mode != Mode::Shadows) {
+              shown = 255;
+            }
+          }
+          out[x * stride + c] = static_cast<uchar>(shown);
+        }
+        if (has_alpha) {
+          out[x * stride + 3] = in[x * stride + 3];
+        }
+      }
+    }
+    return result;
+  };
+
+  int compared = 0;
+  for (const auto format : {QImage::Format_RGBA8888, QImage::Format_RGB888, QImage::Format_ARGB32_Premultiplied}) {
+    const auto source = make(format);
+    for (const auto mode : {Mode::Shadows, Mode::Highlights, Mode::Both}) {
+      for (const auto channel : std::vector<std::optional<patchy::CurvesChannel>>{
+               std::nullopt, patchy::CurvesChannel::Rgb, patchy::CurvesChannel::Red, patchy::CurvesChannel::Green,
+               patchy::CurvesChannel::Blue}) {
+        const auto expected = reference(source, mode, channel);
+        CHECK(patchy::ui::render_curves_clipping_preview(source, mode, channel) == expected);
+        for (const int workers : {1, 2, 6, 64}) {
+          CHECK(patchy::ui::render_curves_clipping_preview(source, mode, channel, workers) == expected);
+          ++compared;
+        }
+      }
+    }
+  }
+  CHECK(compared == 3 * 3 * 5 * 4);
+}
+
+// With Preview unticked a Levels or Curves drag sends no preview at all (#687 follow-up):
+// the first unticked request takes the preview away and repeats would only redo that.
+// Levels' Alt clipping view still previews while it shows and goes when it ends.
+void ui_levels_and_curves_preview_off_drags_send_no_preview() {
+  patchy::ui::CurvesDialogHooks hooks;
+  hooks.clipping_changed = [](std::optional<patchy::ui::CurvesClippingMode>, patchy::CurvesChannel) {};
+  std::vector<bool> levels_states;
+  bool levels_inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
+    auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    CHECK(graph != nullptr);
+    CHECK(preview != nullptr && preview->isChecked());
+    CHECK(black != nullptr);
+    const auto at = [&](int value) { return levels_input_graph_point(*graph, value); };
+    const auto plain_drag = [&] {
+      send_mouse(*graph, QEvent::MouseButtonPress, at(black->value()), Qt::LeftButton, Qt::LeftButton);
+      for (const int value : {20, 45, 70, 30}) {
+        send_mouse(*graph, QEvent::MouseMove, at(value), Qt::NoButton, Qt::LeftButton);
+        process_events_for(50);
+      }
+      send_mouse(*graph, QEvent::MouseButtonRelease, at(30), Qt::LeftButton, Qt::NoButton);
+      process_events_for(80);
+    };
+    process_events_for(80);
+    levels_states.clear();
+
+    preview->setChecked(false);
+    process_events_for(80);
+    CHECK(levels_states == std::vector<bool>{false});
+    plain_drag();
+    black->setValue(12);
+    process_events_for(80);
+    CHECK(levels_states.size() == 1U);
+
+    // Alt: the clipping view previews while it shows, then the preview goes again.
+    send_mouse(*graph, QEvent::MouseButtonPress, at(black->value()), Qt::LeftButton, Qt::LeftButton,
+               Qt::AltModifier);
+    process_events_for(80);
+    CHECK(levels_states.size() >= 2U && levels_states.back());
+    send_mouse(*graph, QEvent::MouseMove, at(60), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    process_events_for(80);
+    send_mouse(*graph, QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    process_events_for(80);
+    CHECK(!levels_states.back());
+    const auto after_alt = levels_states.size();
+    plain_drag();
+    CHECK(levels_states.size() == after_alt);
+
+    preview->setChecked(true);
+    process_events_for(80);
+    CHECK(levels_states.back());
+    levels_inspected = true;
+    dialog->reject();
+  }));
+  const auto levels = patchy::ui::request_levels_settings(
+      nullptr, [&](bool enabled, const patchy::ui::LevelsSettings&) { levels_states.push_back(enabled); }, {},
+      nullptr, hooks);
+  CHECK(!levels.has_value());
+  CHECK(levels_inspected);
+
+  std::vector<bool> curves_states;
+  bool curves_inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("curvesGraph"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("curvesPreviewCheck"));
+    CHECK(graph != nullptr);
+    CHECK(preview != nullptr && preview->isChecked());
+    process_events_for(80);
+    curves_states.clear();
+    preview->setChecked(false);
+    process_events_for(80);
+    CHECK(curves_states == std::vector<bool>{false});
+    click_curves_graph(*graph, 64, 40);
+    process_events_for(80);
+    click_curves_graph(*graph, 192, 220);
+    process_events_for(80);
+    CHECK(curves_states.size() == 1U);
+    preview->setChecked(true);
+    process_events_for(80);
+    CHECK(curves_states.size() == 2U && curves_states.back());
+    curves_inspected = true;
+    dialog->reject();
+  }));
+  const auto curves = patchy::ui::request_curves_settings(
+      nullptr, [&](bool enabled, const patchy::ui::CurvesSettings&) { curves_states.push_back(enabled); }, {}, {},
+      hooks);
+  CHECK(!curves.has_value());
+  CHECK(curves_inspected);
+}
+
+// Levels on an image large enough that its previews refresh the canvas in the background
+// (#687 follow-up), zoomed out so the view draws from mip levels. With Preview unticked a
+// plain handle drag leaves the canvas idle: no refresh, no busy notice. An Alt+drag shows
+// the clipping view with Preview ticked or not, and it follows the handle while the
+// background refreshes land.
+void ui_levels_large_image_alt_drag_follows_handle_and_preview_off_stays_idle() {
+  constexpr int kWidth = 1500;
+  constexpr int kHeight = 900;
+  patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  const QRect dark_patch(0, 0, kWidth / 3, kHeight);
+  const QRect middle_patch(kWidth / 3, 0, kWidth / 3, kHeight);
+  const QRect bright_patch(2 * (kWidth / 3), 0, kWidth - 2 * (kWidth / 3), kHeight);
+  fill_pixel_rect(pixels, dark_patch, QColor(10, 20, 30));
+  fill_pixel_rect(pixels, middle_patch, QColor(128, 128, 128));
+  fill_pixel_rect(pixels, bright_patch, QColor(250, 240, 230));
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Photo", std::move(pixels));
+  document.set_active_layer(layer.id());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Levels Large Clipping"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  canvas->force_refresh();
+  QApplication::processEvents();
+  CHECK(canvas->view_zoom() < 1.0);
+  const auto settle = [&] {
+    for (int attempt = 0; attempt < 200 && !canvas->render_settled(); ++attempt) {
+      process_events_for(25);
+    }
+    process_events_for(50);
+  };
+  settle();
+  const auto dark = [&] { return canvas_pixel(*canvas, dark_patch.center()); };
+  const auto middle = [&] { return canvas_pixel(*canvas, middle_patch.center()); };
+  const auto bright = [&] { return canvas_pixel(*canvas, bright_patch.center()); };
+  const auto shows = [&](const std::function<QColor()>& read, QColor expected) {
+    for (int attempt = 0; attempt < 100; ++attempt) {
+      if (color_close(read(), expected, 6)) {
+        return true;
+      }
+      process_events_for(40);
+    }
+    return false;
+  };
+  CHECK(color_close(middle(), QColor(128, 128, 128), 4));
+
+  using Mode = patchy::ui::CurvesClippingMode;
+  bool inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
+    CHECK(graph != nullptr);
+    CHECK(preview != nullptr);
+    const auto send = [&](QEvent::Type type, int value, Qt::MouseButton button, Qt::MouseButtons buttons,
+                          Qt::KeyboardModifiers modifiers) {
+      send_mouse(*graph, type, levels_input_graph_point(*graph, value), button, buttons, modifiers);
+    };
+    settle();
+
+    // Preview unticked, no Alt: nothing renders and no busy notice runs.
+    preview->setChecked(false);
+    settle();
+    const auto before = canvas->render_cache_diagnostics();
+    send(QEvent::MouseButtonPress, 0, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    for (const int value : {30, 90, 140, 60}) {
+      send(QEvent::MouseMove, value, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+      process_events_for(60);
+    }
+    send(QEvent::MouseButtonRelease, 60, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    process_events_for(300);
+    const auto after = canvas->render_cache_diagnostics();
+    CHECK(after.full_refreshes == before.full_refreshes);
+    CHECK(after.live_preview_async_refreshes == before.live_preview_async_refreshes);
+    CHECK(after.partial_patches == before.partial_patches);
+    CHECK(after.processing_overlay_frames == before.processing_overlay_frames);
+    CHECK(!canvas->processing_overlay_visible());
+    CHECK(color_close(middle(), QColor(128, 128, 128), 4));
+
+    // Preview unticked, Alt: the clipping view shows and follows the handle (the middle
+    // patch clips once the black input passes 128), then the unadjusted image returns.
+    send(QEvent::MouseButtonPress, 60, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    CHECK(canvas->curves_clipping_preview_mode() == Mode::Shadows);
+    CHECK(shows(dark, QColor(Qt::black)));
+    CHECK(shows(middle, QColor(Qt::white)));
+    send(QEvent::MouseMove, 150, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    CHECK(shows(middle, QColor(Qt::black)));
+    CHECK(color_close(bright(), QColor(Qt::white), 6));
+    send(QEvent::MouseMove, 90, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    CHECK(shows(middle, QColor(Qt::white)));
+    send(QEvent::MouseButtonRelease, 90, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+    CHECK(shows(middle, QColor(128, 128, 128)));
+    CHECK(shows(dark, QColor(10, 20, 30)));
+
+    // Preview ticked: the same, through the background refreshes of the preview itself.
+    preview->setChecked(true);
+    settle();
+    const auto refreshes_before = canvas->render_cache_diagnostics().live_preview_async_refreshes;
+    send(QEvent::MouseButtonPress, 90, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    CHECK(shows(middle, QColor(Qt::white)));
+    for (const int value : {110, 135, 150}) {
+      send(QEvent::MouseMove, value, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+      process_events_for(20);
+    }
+    CHECK(shows(middle, QColor(Qt::black)));
+    send(QEvent::MouseMove, 60, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    CHECK(shows(middle, QColor(Qt::white)));
+    CHECK(shows(dark, QColor(Qt::black)));
+    CHECK(canvas->render_cache_diagnostics().live_preview_async_refreshes > refreshes_before);
+    send(QEvent::MouseButtonRelease, 60, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    CHECK(!canvas->curves_clipping_preview_mode().has_value());
+    inspected = true;
+    dialog->reject();
+  }));
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+  settle();
+  CHECK(color_close(middle(), QColor(128, 128, 128), 4));
+}
+
 void ui_hue_saturation_dialog_adjusts_selected_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -5360,6 +5669,11 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler},
       {"ui_levels_alt_drag_input_handles_report_clipping", ui_levels_alt_drag_input_handles_report_clipping},
       {"ui_levels_alt_drag_shows_canvas_clipping_view", ui_levels_alt_drag_shows_canvas_clipping_view},
+      {"ui_curves_clipping_preview_bands_match_reference", ui_curves_clipping_preview_bands_match_reference},
+      {"ui_levels_and_curves_preview_off_drags_send_no_preview",
+       ui_levels_and_curves_preview_off_drags_send_no_preview},
+      {"ui_levels_large_image_alt_drag_follows_handle_and_preview_off_stays_idle",
+       ui_levels_large_image_alt_drag_follows_handle_and_preview_off_stays_idle},
       {"ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin",
        ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},

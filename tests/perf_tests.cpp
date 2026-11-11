@@ -29,6 +29,7 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QEventLoop>
@@ -94,6 +95,7 @@
 #include <dbghelp.h>
 #include "stack_walk_frame.hpp"
 #include <tlhelp32.h>
+#include <psapi.h>
 #pragma comment(lib, "dbghelp.lib")
 #endif
 
@@ -4122,6 +4124,239 @@ void gaussian_blur_perf() {
   }
 }
 
+// GitHub issue 687 follow-up: Levels' Alt+drag clipping view on a large photo (6000 x 4000
+// by default, PATCHY_PERF_LEVELSCLIP_SIZE=WxH). Each black-handle move is timed from the
+// mouse event to the canvas showing the new clipping state at a probe on a gray ramp, with a
+// paint per poll, as a user sees it. Then the same drag with Preview unticked and no Alt
+// must render nothing: the canvas refresh and busy-notice counters must not move.
+void levels_clipping_drag_perf() {
+  isolate_perf_settings();
+#ifdef Q_OS_WIN
+  // A windowless run (ssh, offscreen) gets Windows power throttling after a few seconds of
+  // load: hybrid laptops move it to efficiency cores and every phase ran about three times
+  // slower from the second drag on. PATCHY_PERF_LEVELSCLIP_ECO=1 leaves it on.
+  if (!qEnvironmentVariableIsSet("PATCHY_PERF_LEVELSCLIP_ECO")) {
+    PROCESS_POWER_THROTTLING_STATE throttling{};
+    throttling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    throttling.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    throttling.StateMask = 0;
+    (void)SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &throttling, sizeof(throttling));
+  }
+#endif
+  std::int32_t width = 6000;
+  std::int32_t height = 4000;
+  const auto size_text = qEnvironmentVariable("PATCHY_PERF_LEVELSCLIP_SIZE");
+  if (const auto parts = size_text.split(QLatin1Char('x')); parts.size() == 2) {
+    width = std::max(512, parts[0].toInt());
+    height = std::max(512, parts[1].toInt());
+  }
+  constexpr std::int32_t kRampRows = 300;
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+  {
+    std::uint64_t state = 687U;
+    for (std::int32_t y = 0; y < height; ++y) {
+      auto* row = pixels.pixel(0, y);
+      for (std::int32_t x = 0; x < width; ++x, row += 4) {
+        if (y < kRampRows) {
+          const auto value = static_cast<std::uint8_t>((static_cast<std::int64_t>(x) * 256) / width);
+          row[0] = value;
+          row[1] = value;
+          row[2] = value;
+        } else {
+          state += 0x9E3779B97F4A7C15ULL;
+          auto z = state;
+          z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+          z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+          z ^= z >> 31U;
+          row[0] = static_cast<std::uint8_t>(z);
+          row[1] = static_cast<std::uint8_t>(z >> 8U);
+          row[2] = static_cast<std::uint8_t>(z >> 16U);
+        }
+        row[3] = 255;
+      }
+    }
+  }
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Photo", std::move(pixels));
+  document.set_active_layer(layer.id());
+
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  window.show();
+  window.add_document_session(std::move(document), QStringLiteral("Levels Clipping Perf"));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->fit_to_view();
+  const auto settle = [&] {
+    const auto deadline = Clock::now() + std::chrono::seconds(30);
+    while (!canvas->render_settled() && Clock::now() < deadline) {
+      QApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    wait_event_loop_ms(300);
+  };
+  settle();
+  // The middle of the ramp's value-100 band: black in the Shadows view once the black
+  // input passes 100, white while it is below.
+  const QPoint probe(static_cast<int>((static_cast<std::int64_t>(width) * 201) / 512), kRampRows / 2);
+  const auto probe_color = [&] {
+    const auto point = canvas->widget_position_for_document_point(probe);
+    return canvas->grab().toImage().pixelColor(point);
+  };
+  const std::function<bool(const QColor&)> dark = [](const QColor& color) {
+    return color.red() < 40 && color.green() < 40 && color.blue() < 40;
+  };
+  const std::function<bool(const QColor&)> light = [](const QColor& color) {
+    return color.red() > 215 && color.green() > 215 && color.blue() > 215;
+  };
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    QWidget* dialog = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyLevelsDialog") && widget->isVisible()) {
+        dialog = widget;
+      }
+    }
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
+    CHECK(graph != nullptr && preview != nullptr);
+    if (graph == nullptr || preview == nullptr) {
+      dialog->close();
+      return;
+    }
+    const auto at = [&](int value) {
+      const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
+      return QPointF(static_cast<double>(graph_rect.left() + std::lround(value / 255.0 * (graph_rect.width() - 1))),
+                     static_cast<double>(graph_rect.center().y()));
+    };
+    const auto send = [&](QEvent::Type type, int value, Qt::MouseButton button, Qt::MouseButtons buttons,
+                          Qt::KeyboardModifiers modifiers) {
+      const auto local = at(value);
+      QMouseEvent event(type, local, graph->mapToGlobal(local), button, buttons, modifiers);
+      QApplication::sendEvent(graph, &event);
+    };
+    const auto press = [&](int value, Qt::KeyboardModifiers modifiers) {
+      send(QEvent::MouseButtonPress, value, Qt::LeftButton, Qt::LeftButton, modifiers);
+    };
+    const auto move = [&](int value, Qt::KeyboardModifiers modifiers) {
+      send(QEvent::MouseMove, value, Qt::NoButton, Qt::LeftButton, modifiers);
+    };
+    const auto release = [&](int value, Qt::KeyboardModifiers modifiers) {
+      send(QEvent::MouseButtonRelease, value, Qt::LeftButton, Qt::NoButton, modifiers);
+    };
+    // Waits for the probe to read as `want`, painting on every poll like the screen does;
+    // -1 when it never does within ten seconds.
+    const auto wait_for = [&](const std::function<bool(const QColor&)>& want) {
+      const auto start = Clock::now();
+      const auto deadline = start + std::chrono::seconds(10);
+      while (Clock::now() < deadline) {
+        QApplication::processEvents(QEventLoop::AllEvents, 5);
+        if (want(probe_color())) {
+          return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        }
+      }
+      return -1.0;
+    };
+    const auto run_drag = [&](const char* label) {
+      press(60, Qt::AltModifier);
+      const auto first_ms = wait_for(light);
+      std::vector<double> moves;
+      for (int step = 0; step < 8; ++step) {
+        const bool to_dark = step % 2 == 0;
+        move(to_dark ? 140 : 60, Qt::AltModifier);
+        moves.push_back(wait_for(to_dark ? dark : light));
+      }
+      release(60, Qt::AltModifier);
+      auto sorted = moves;
+      std::sort(sorted.begin(), sorted.end());
+      const auto mean = std::accumulate(moves.begin(), moves.end(), 0.0) / static_cast<double>(moves.size());
+      std::cout << std::fixed << std::setprecision(1) << "[PERF] levelsclip " << label << ' ' << width << 'x'
+                << height << " threads=" << patchy::hardware_worker_threads() << " first_ms=" << first_ms
+                << " move_mean_ms=" << mean << " move_median_ms=" << sorted[sorted.size() / 2]
+                << " move_max_ms=" << sorted.back() << " moves=";
+      for (const auto ms : moves) {
+        std::cout << ms << ' ';
+      }
+#ifdef Q_OS_WIN
+      PROCESS_MEMORY_COUNTERS_EX memory{};
+      if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory),
+                                  sizeof(memory))) {
+        std::cout << "private_mb=" << memory.PrivateUsage / (1024 * 1024)
+                  << " working_set_mb=" << memory.WorkingSetSize / (1024 * 1024)
+                  << " page_faults=" << memory.PageFaultCount;
+      }
+#endif
+      std::cout << std::defaultfloat << std::setprecision(6) << '\n';
+      CHECK(first_ms >= 0.0);
+      CHECK(std::none_of(moves.begin(), moves.end(), [](double ms) { return ms < 0.0; }));
+    };
+
+    // PATCHY_PERF_LEVELSCLIP_PAUSE_MS idles between the drags, so a host that slows under
+    // sustained all-core load (a laptop past its turbo budget) can recover first.
+    const int pause_ms = std::max(0, qEnvironmentVariableIntValue("PATCHY_PERF_LEVELSCLIP_PAUSE_MS"));
+    // The process CPU an idle stretch costs: anything still running after a drag shows here.
+    const auto idle = [](int ms) {
+      const auto cpu_before = process_cpu_ms();
+      const auto wall = elapsed_ms([&] { wait_event_loop_ms(std::max(ms, 1000)); });
+      std::cout << std::fixed << std::setprecision(1) << "[PERF] levelsclip idle wall_ms=" << wall
+                << " cpu_ms=" << (process_cpu_ms() - cpu_before) << std::defaultfloat << std::setprecision(6)
+                << '\n';
+    };
+    run_drag("preview_on");
+    settle();
+    preview->setChecked(false);
+    settle();
+    idle(pause_ms);
+    run_drag("preview_off");
+    settle();
+    // Ticked again: tells a slower machine state (a laptop throttling) from a slower path.
+    preview->setChecked(true);
+    settle();
+    idle(pause_ms);
+    run_drag("preview_on_again");
+    settle();
+    preview->setChecked(false);
+    settle();
+
+    // Preview unticked, no Alt: the image does not change, so nothing may render.
+    const auto before = canvas->render_cache_diagnostics();
+    const auto plain_ms = elapsed_ms([&] {
+      press(60, Qt::NoModifier);
+      for (int step = 0; step < 8; ++step) {
+        move(step % 2 == 0 ? 140 : 60, Qt::NoModifier);
+        wait_event_loop_ms(60);
+        (void)probe_color();
+      }
+      release(60, Qt::NoModifier);
+      wait_event_loop_ms(400);
+    });
+    const auto after = canvas->render_cache_diagnostics();
+    const auto refreshes = (after.full_refreshes - before.full_refreshes) +
+                           (after.live_preview_async_refreshes - before.live_preview_async_refreshes) +
+                           (after.partial_patches - before.partial_patches);
+    const auto busy_frames = after.processing_overlay_frames - before.processing_overlay_frames;
+    std::cout << "[PERF] levelsclip preview_off_plain_drag refreshes=" << refreshes << " busy_frames=" << busy_frames
+              << " ms=" << plain_ms << '\n';
+    CHECK(refreshes == 0);
+    CHECK(busy_frames == 0);
+    inspected = true;
+    dialog->close();
+  });
+  if (auto* action = window.findChild<QAction*>(QStringLiteral("imageAdjustLevelsAction")); action != nullptr) {
+    action->trigger();
+  }
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
 // Ctrl+J over and over on a fresh document (GitHub issue 402: the UI lagged past about
 // 100 layers while the reporter duplicated a text layer). Each duplicate is timed as the
 // call itself plus the event loop and canvas settling after it, the way a held Ctrl+J
@@ -5891,6 +6126,11 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
       run_scenario("liquifydrag", liquify_drag_perf);
+      return 0;
+    }
+    // Explicit only: Levels' Alt+drag clipping view on a 6000x4000 photo (GitHub issue 687).
+    if (argc > 1 && std::string_view(argv[1]) == "levelsclip") {
+      run_scenario("levelsclip", levels_clipping_drag_perf);
       return 0;
     }
     // Explicit only: a 6000x4000 image through every Gaussian line filter (GitHub issue 564).

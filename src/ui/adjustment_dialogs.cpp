@@ -1014,9 +1014,10 @@ std::optional<Settings> request_adjustment_settings_dialog(
     connect_constraints(dialog, spins);
   }
 
+  AdjustmentPreviewGate preview_gate;
   CoalescedPreviewEmitter<AdjustmentPreviewRequest<Settings>> preview_emitter(
       dialog, [&](const AdjustmentPreviewRequest<Settings>& request) {
-        if (preview_changed) {
+        if (preview_changed && preview_gate.should_send(request.enabled)) {
           preview_changed(request.enabled, request.settings);
         }
       });
@@ -1309,9 +1310,10 @@ std::optional<LevelsSettings> request_levels_settings(
     updating = false;
   };
 
+  AdjustmentPreviewGate preview_gate;
   CoalescedPreviewEmitter<AdjustmentPreviewRequest<LevelsSettings>> preview_emitter(
       dialog, [&](const AdjustmentPreviewRequest<LevelsSettings>& request) {
-        if (preview_changed) {
+        if (preview_changed && preview_gate.should_send(request.enabled)) {
           preview_changed(request.enabled, request.settings);
         }
       });
@@ -1708,9 +1710,10 @@ std::optional<CurvesSettings> request_curves_settings(
   root->addLayout(footer);
 
   CurvesSettings dialog_settings = editor->adjustment();
+  AdjustmentPreviewGate preview_gate;
   CoalescedPreviewEmitter<AdjustmentPreviewRequest<CurvesSettings>> preview_emitter(
       dialog, [&](const AdjustmentPreviewRequest<CurvesSettings>& request) {
-        if (preview_changed) {
+        if (preview_changed && preview_gate.should_send(request.enabled)) {
           preview_changed(request.enabled, request.settings);
         }
       });
