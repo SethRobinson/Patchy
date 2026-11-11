@@ -1,12 +1,14 @@
 // The on-canvas text edit session: the layer transform it carries through entry and commit
 // (GitHub issue 373), the caret against the drawn line (384), the text box outline (385, 371),
-// the options-bar size round trip (371), a held Enter and the wheel over the box (413) and Esc
-// on the untouched placeholder (415). The reporter's sample is a local fixture
+// the options-bar size round trip (371), a held Enter and the wheel over the box (413), Esc
+// on the untouched placeholder (415) and the Size scrub with its move coalescing (700). The
+// reporter's sample is a local fixture
 // (local-test-fixtures/psd/text-rotate-issue373.psd); the committed-fixture tests build the
 // same shapes from photoshop-text-box-auto-leading.psd so they run everywhere.
 #include "core/layer_metadata.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 #include "local_psd_fixtures.hpp"
@@ -23,10 +25,14 @@
 #include <QFontDatabase>
 #include <QFontInfo>
 #include <QFontMetricsF>
+#include <QHBoxLayout>
 #include <QImage>
 #include <QKeyEvent>
+#include <QLabel>
+#include <QMouseEvent>
 #include <QPolygonF>
 #include <QScrollBar>
+#include <QSpinBox>
 #include <QWidget>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -813,10 +819,339 @@ void ui_text_escape_drops_the_untouched_placeholder() {
   }
 }
 
+// A mouse move that waits in the event queue, as window-system moves do behind a slow
+// step. The event is built when its turn comes: a QMouseEvent shares its point with the
+// pointing device until the next one is built, so on Qt 6.8 a batch of events built up
+// front and posted reports the wrong global positions (each the next one's, and the last
+// the one the first delivery rebuilt). A scrub reads the global position.
+void queue_mouse_move(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QMetaObject::invokeMethod(
+      &widget,
+      [target = &widget, position, modifiers] {
+        QMouseEvent move(QEvent::MouseMove, QPointF(position), target->mapToGlobal(QPointF(position)), Qt::NoButton,
+                         Qt::LeftButton, modifiers);
+        QApplication::sendEvent(target, &move);
+      },
+      Qt::QueuedConnection);
+}
+
+// Scrub handles apply only the newest move of an event-loop pass (GitHub #700,
+// dialog_utils.hpp): a queued burst costs two value changes instead of one per move and
+// ends on the last position; a release or a key right after a burst first applies the
+// recorded move; Shift pressed mid-burst continues from the value under the pointer.
+// Moves sent one by one (the other scrub tests) are each applied unless the test switch
+// says otherwise.
+void ui_scrub_moves_coalesce_to_the_latest_position() {
+  QWidget panel;
+  auto* row = new QHBoxLayout(&panel);
+  auto* label = new QLabel(QStringLiteral("Amount"), &panel);
+  auto* amount = new QSpinBox(&panel);
+  amount->setRange(0, 100000);
+  row->addWidget(label);
+  row->addWidget(amount);
+  row->addStretch(1);
+  patchy::ui::install_scrub_labels_in(&panel);
+  panel.resize(420, 60);
+  panel.show();
+  QApplication::processEvents();
+  struct RestoreCoalescing {
+    ~RestoreCoalescing() {
+      patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::Default);
+    }
+  } restore;
+  int changes = 0;
+  int finished = 0;
+  int value_at_finish = -1;
+  QObject::connect(amount, &QSpinBox::valueChanged, &panel, [&changes](int) { ++changes; });
+  QObject::connect(amount, &QAbstractSpinBox::editingFinished, &panel, [&] {
+    ++finished;
+    value_at_finish = amount->value();
+  });
+  const int drag_start = QApplication::startDragDistance();
+  const QPoint origin = label->rect().center();
+  const auto at = [&](int dx) { return origin + QPoint(drag_start + dx, 0); };
+  // Sent with no event-loop turn after it (the suite's send_mouse takes one, which ends the pass).
+  const auto send_move = [&](int dx, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    const QPointF position(at(dx));
+    QMouseEvent move(QEvent::MouseMove, position, label->mapToGlobal(position), Qt::NoButton, Qt::LeftButton,
+                     modifiers);
+    QApplication::sendEvent(label, &move);
+  };
+  const auto release = [&](int dx, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*label, QEvent::MouseButtonRelease, at(dx), Qt::LeftButton, Qt::NoButton, modifiers);
+  };
+  // Press, then the move that crosses the drag distance (always applied): 500 + drag_start.
+  const auto begin = [&](patchy::ui::ScrubMoveCoalescing mode) {
+    patchy::ui::set_scrub_move_coalescing_for_testing(mode);
+    amount->setValue(500);
+    QApplication::processEvents();
+    QApplication::processEvents();  // a pass a previous scrub left open has ended
+    send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+    send_move(0);
+    CHECK(amount->value() == 500 + drag_start);
+    changes = 0;
+    finished = 0;
+    value_at_finish = -1;
+  };
+  const int base = 500 + drag_start;
+
+  // A queued burst of 20 moves, plain and coalesced.
+  const auto burst = [&](patchy::ui::ScrubMoveCoalescing mode) {
+    begin(mode);
+    const auto coalesced_before = patchy::ui::scrub_moves_coalesced_for_testing();
+    for (int step = 1; step <= 20; ++step) {
+      queue_mouse_move(*label, at(step * 7));
+    }
+    QApplication::processEvents();
+    QApplication::processEvents();
+    const int during = changes;
+    CHECK(amount->value() == base + 140);
+    release(140);
+    CHECK(finished == 1);
+    CHECK(value_at_finish == base + 140);
+    return std::pair{during, patchy::ui::scrub_moves_coalesced_for_testing() - coalesced_before};
+  };
+  const auto [plain_changes, plain_coalesced] = burst(patchy::ui::ScrubMoveCoalescing::Default);
+  CHECK(plain_changes == 20);
+  CHECK(plain_coalesced == 0);
+  const auto [coalesced_changes, coalesced] = burst(patchy::ui::ScrubMoveCoalescing::AllMoves);
+  std::printf("  20 queued scrub moves: %d value changes plain, %d coalesced (%d moves recorded)\n", plain_changes,
+              coalesced_changes, coalesced);
+  // The first move applies at once; the other 19 arrive as one, the newest.
+  CHECK(coalesced_changes == 2);
+  CHECK(coalesced == 19);
+
+  // A release right after a burst: the recorded move is applied before editingFinished.
+  begin(patchy::ui::ScrubMoveCoalescing::AllMoves);
+  for (int step = 1; step <= 6; ++step) {
+    send_move(step * 5);
+  }
+  CHECK(changes == 1);
+  CHECK(amount->value() == base + 5);
+  release(30);
+  CHECK(amount->value() == base + 30);
+  CHECK(finished == 1);
+  CHECK(value_at_finish == base + 30);
+  CHECK(!patchy::ui::spin_box_scrub_active(amount));
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(changes == 2);
+  CHECK(amount->value() == base + 30);
+  CHECK(finished == 1);
+
+  // A key acts where the pointer is: it applies the recorded move first.
+  begin(patchy::ui::ScrubMoveCoalescing::AllMoves);
+  for (int step = 1; step <= 4; ++step) {
+    send_move(step * 6);
+  }
+  CHECK(amount->value() == base + 6);
+  QKeyEvent key(QEvent::KeyPress, Qt::Key_Control, Qt::ControlModifier);
+  QApplication::sendEvent(&panel, &key);
+  CHECK(amount->value() == base + 24);
+  release(24);
+  CHECK(finished == 1);
+
+  // Shift pressed in the middle of a burst: the plain moves end where the last one was,
+  // and the Shift moves count ten steps a pixel from the first of them.
+  begin(patchy::ui::ScrubMoveCoalescing::AllMoves);
+  send_move(4);
+  send_move(10);
+  CHECK(amount->value() == base + 4);
+  send_move(10, Qt::ShiftModifier);
+  CHECK(amount->value() == base + 10);
+  send_move(13, Qt::ShiftModifier);
+  send_move(16, Qt::ShiftModifier);
+  CHECK(amount->value() == base + 10);
+  release(16, Qt::ShiftModifier);
+  CHECK(amount->value() == base + 10 + 60);
+  CHECK(finished == 1);
+  CHECK(value_at_finish == base + 70);
+
+  // Off applies every move, whatever its source.
+  begin(patchy::ui::ScrubMoveCoalescing::Off);
+  for (int step = 1; step <= 5; ++step) {
+    send_move(step * 3);
+  }
+  CHECK(changes == 5);
+  release(15);
+}
+
+// The text Size label scrubbed during a live edit (GitHub #700): a burst of queued moves
+// sets the size twice instead of once per move, the session takes the size under the last
+// move and its preview follows, steps that land on the same pixel size are not applied
+// again, the scrub ends with one editingFinished, and the commit is one undo step.
+void ui_text_size_scrub_during_edit_follows_the_latest_move() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(900, 600, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  SessionWindow session;
+  open_document(session, std::move(document), QStringLiteral("Size Scrub"));
+  session.window.resize(1400, 900);
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* undo = require_action_by_text(session.window, QStringLiteral("Undo"));
+  CHECK(!undo->isEnabled());
+  // A text box dragged out with the Type tool.
+  const auto at = [&](int x, int y) { return session.canvas->widget_position_for_document_point(QPoint(x, y)); };
+  send_mouse(*session.canvas, QEvent::MouseButtonPress, at(60, 60), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*session.canvas, QEvent::MouseMove, at(400, 300), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*session.canvas, QEvent::MouseMove, at(840, 540), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*session.canvas, QEvent::MouseButtonRelease, at(840, 540), Qt::LeftButton, Qt::NoButton);
+  process_events_for(300);
+  auto* editor = live_editor(*session.canvas);
+  auto* size = session.window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(editor != nullptr);
+  CHECK(size != nullptr);
+  if (editor == nullptr || size == nullptr) {
+    return;
+  }
+  QLabel* label = nullptr;
+  for (auto* candidate : session.window.findChildren<QLabel*>()) {
+    if (candidate->isVisible() && candidate->property("optionLabel").toBool() &&
+        candidate->text() == QStringLiteral("Size")) {
+      label = candidate;
+    }
+  }
+  CHECK(label != nullptr);
+  if (label == nullptr) {
+    return;
+  }
+  editor->textCursor().insertText(QStringLiteral("Type"));
+  process_events_for(100);
+  editor->selectAll();
+  size->setValue(40.0);
+  process_events_for(200);
+  editor->selectAll();
+  CHECK(editor->property("patchy.documentTextSize").toInt() == 40);
+  const auto ink_before = preview_ink_canvas_rect(session, *editor);
+  CHECK(ink_before.has_value());
+
+  struct RestoreCoalescing {
+    ~RestoreCoalescing() {
+      patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::Default);
+    }
+  } restore;
+  int values = 0;
+  int finished = 0;
+  QObject::connect(size, &QDoubleSpinBox::valueChanged, editor, [&values](double) { ++values; });
+  QObject::connect(size, &QAbstractSpinBox::editingFinished, editor, [&finished] { ++finished; });
+  const int drag_start = QApplication::startDragDistance();
+  const QPoint origin = label->rect().center();
+  const auto generation = [&] { return editor->property("patchy.caretLayoutGeneration").toInt(); };
+
+  // Forty queued moves of four pixels (a point each): two sizes applied, the last one kept.
+  patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::AllMoves);
+  send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(patchy::ui::spin_box_scrub_active(size));
+  values = 0;
+  const auto coalesced_before = patchy::ui::scrub_moves_coalesced_for_testing();
+  const auto generation_before = generation();
+  for (int step = 1; step <= 40; ++step) {
+    queue_mouse_move(*label, origin + QPoint(drag_start + step * 4, 0));
+  }
+  QApplication::processEvents();
+  QApplication::processEvents();
+  const double expected_points = 40.0 + 0.25 * (drag_start + 160);
+  std::printf("  40 queued moves: %d sizes applied, %d recorded, size %.2f pt (expected %.2f), text %d px\n", values,
+              patchy::ui::scrub_moves_coalesced_for_testing() - coalesced_before, size->value(), expected_points,
+              editor->property("patchy.documentTextSize").toInt());
+  CHECK(values == 2);
+  CHECK(patchy::ui::scrub_moves_coalesced_for_testing() - coalesced_before == 39);
+  // Each applied size marks the session changed the same number of times.
+  const int marks_per_size = (generation() - generation_before) / 2;
+  CHECK(marks_per_size >= 1);
+  CHECK(generation() - generation_before == 2 * marks_per_size);
+  CHECK(std::abs(size->value() - expected_points) < 1e-6);
+  const auto& document_now = std::as_const(patchy::ui::MainWindowTestAccess::document(session.window));
+  const int expected_pixels = patchy::ui::text_points_to_pixels(expected_points, document_now);
+  CHECK(editor->property("patchy.documentTextSize").toInt() == expected_pixels);
+  CHECK(finished == 0);
+  send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 160, 0), Qt::LeftButton,
+             Qt::NoButton);
+  CHECK(finished == 1);
+  CHECK(!patchy::ui::spin_box_scrub_active(size));
+  CHECK(std::abs(size->value() - expected_points) < 1e-6);
+  // The preview follows without a commit: the drawn word is about twice as tall.
+  process_events_for(200);
+  CHECK(live_editor(*session.canvas) == editor);
+  const auto ink_after = preview_ink_canvas_rect(session, *editor);
+  CHECK(ink_after.has_value());
+  if (ink_before.has_value() && ink_after.has_value()) {
+    std::printf("  preview ink height %d px at 40 pt, %d px after the scrub\n", ink_before->height(),
+                ink_after->height());
+    CHECK(ink_after->height() > ink_before->height() * 3 / 2);
+  }
+
+  // Eight one-pixel moves, each applied (a quarter point a move): the text has whole
+  // pixels, so only the steps that reach a new pixel size touch the session.
+  patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::Off);
+  editor->selectAll();
+  size->setValue(60.0);
+  process_events_for(100);
+  editor->selectAll();
+  send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start, 0), Qt::NoButton, Qt::LeftButton);
+  values = 0;
+  const auto pixels_at_start = editor->property("patchy.documentTextSize").toInt();
+  const auto generation_at_start = generation();
+  int pixel_sizes = 0;
+  int last_pixels = pixels_at_start;
+  for (int step = 1; step <= 8; ++step) {
+    send_mouse(*label, QEvent::MouseMove, origin + QPoint(drag_start + step, 0), Qt::NoButton, Qt::LeftButton);
+    const int pixels = patchy::ui::text_points_to_pixels(size->value(), document_now);
+    CHECK(editor->property("patchy.documentTextSize").toInt() == pixels);
+    if (pixels != last_pixels) {
+      ++pixel_sizes;
+      last_pixels = pixels;
+    }
+  }
+  std::printf("  8 quarter-point steps: %d values, %d new pixel sizes, %d session updates\n", values, pixel_sizes,
+              generation() - generation_at_start);
+  CHECK(values == 8);
+  CHECK(pixel_sizes >= 1 && pixel_sizes < 8);
+  CHECK(generation() - generation_at_start == pixel_sizes * marks_per_size);
+  send_mouse(*label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 8, 0), Qt::LeftButton, Qt::NoButton);
+  CHECK(finished == 2);
+  const double final_points = size->value();
+  const int final_pixels = patchy::ui::text_points_to_pixels(final_points, document_now);
+  CHECK(std::abs(final_points - (60.0 + 0.25 * (drag_start + 8))) < 1e-6);
+  // The selection carries the size the field shows.
+  QTextCursor probe(editor->document());
+  probe.setPosition(2);
+  CHECK(probe.charFormat().property(QTextFormat::FontPixelSize).toInt() ==
+        std::max(8, static_cast<int>(std::round(final_pixels * session.canvas->zoom()))));
+
+  // The whole session, scrubs included, commits as one undo step.
+  commit_session(*session.canvas);
+  CHECK(live_editor(*session.canvas) == nullptr);
+  auto& committed = patchy::ui::MainWindowTestAccess::document(session.window);
+  const auto text_layer =
+      find_layer_id(committed, [](const patchy::Layer& layer) { return patchy::layer_is_text(layer); });
+  CHECK(text_layer.has_value());
+  if (text_layer.has_value()) {
+    const auto* layer = std::as_const(committed).find_layer(*text_layer);
+    const auto stored = layer->metadata().find(patchy::kLayerMetadataTextSize);
+    CHECK(stored != layer->metadata().end() && stored->second == std::to_string(final_pixels));
+  }
+  CHECK(undo->isEnabled());
+  undo->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(!find_layer_id(std::as_const(patchy::ui::MainWindowTestAccess::document(session.window)),
+                       [](const patchy::Layer& layer) { return patchy::layer_is_text(layer); })
+             .has_value());
+  CHECK(!undo->isEnabled());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_canvas_session_tests() {
   return {
+      {"ui_scrub_moves_coalesce_to_the_latest_position", ui_scrub_moves_coalesce_to_the_latest_position},
+      {"ui_text_size_scrub_during_edit_follows_the_latest_move",
+       ui_text_size_scrub_during_edit_follows_the_latest_move},
       {"ui_text_held_enter_relayouts_each_repeat", ui_text_held_enter_relayouts_each_repeat},
       {"ui_text_wheel_over_the_editor_moves_the_canvas", ui_text_wheel_over_the_editor_moves_the_canvas},
       {"ui_text_escape_drops_the_untouched_placeholder", ui_text_escape_drops_the_untouched_placeholder},

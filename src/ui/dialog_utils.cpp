@@ -547,9 +547,31 @@ bool scrub_can_warp_pointer() {
          platform != QLatin1String("minimal");
 }
 
+// Scrub move coalescing (docs/ui-conventions-dialogs.md, "Scrub move coalescing"): the test
+// switch and how many moves were only recorded.
+struct ScrubCoalescingState {
+  ScrubMoveCoalescing mode{ScrubMoveCoalescing::Default};
+  int coalesced{0};
+};
+
+ScrubCoalescingState& scrub_coalescing_state() {
+  static ScrubCoalescingState state;
+  return state;
+}
+
+class ScrubGesture;
+// The gesture holding a recorded move, for the key and button flush in SliderDragCoalescer.
+ScrubGesture* scrub_gesture_with_pending_move = nullptr;
+
 class ScrubGesture {
 public:
+  ScrubGesture() = default;
+  ScrubGesture(const ScrubGesture&) = delete;
+  ScrubGesture& operator=(const ScrubGesture&) = delete;
+  ~ScrubGesture() { drop_pending(); }
+
   void press(QAbstractSpinBox* spin, QPoint global) {
+    drop_pending();
     spin_ = spin;
     pressed_ = true;
     scrubbing_ = false;
@@ -562,10 +584,80 @@ public:
   [[nodiscard]] QAbstractSpinBox* spin() const noexcept { return spin_.data(); }
 
   // Follows the pointer; true once the drag passed the drag distance and changes the value.
-  bool move(QPoint global, Qt::KeyboardModifiers modifiers) {
+  // Every value a scrub sets runs the field's whole valueChanged chain (a text relayout and
+  // preview, a layer recomposite), and Wayland delivers every pointer motion, so only the
+  // newest move of an event-loop pass is applied (GitHub #700): the first move of a pass
+  // runs at once, later ones are recorded, and the pass end applies the latest. A scrub
+  // value depends only on the pointer position and the anchor, so a dropped move changes
+  // nothing. The one exception is a move at another rate (Shift or Alt changed): it
+  // re-anchors at the value the last move at the old rate gave and at its own position, so
+  // the recorded move is applied first and the move itself at once. A recorded move
+  // therefore always has the anchor's rate. `window_system` is the event's spontaneous():
+  // moves a test sends one by one are each applied.
+  bool move(QPoint global, Qt::KeyboardModifiers modifiers, bool window_system) {
     if (!pressed_ || spin_.isNull()) {
       return false;
     }
+    if (scrubbing_ && scrub_rate(modifiers) != anchor_rate_) {
+      flush_pending_move();
+      return apply_move(global, modifiers);
+    }
+    const auto mode = scrub_coalescing_state().mode;
+    const bool coalesce = scrubbing_ && mode != ScrubMoveCoalescing::Off &&
+                          (window_system || mode == ScrubMoveCoalescing::AllMoves);
+    if (!coalesce) {
+      drop_pending();  // an older position at the same rate: this one replaces it
+      return apply_move(global, modifiers);
+    }
+    if (!pass_active_) {
+      begin_pass();
+      drop_pending();
+      return apply_move(global, modifiers);
+    }
+    pending_ = PendingMove{global, modifiers};
+    scrub_gesture_with_pending_move = this;
+    ensure_slider_drag_coalescing();  // its app-wide filter flushes this move on a key or button
+    ++scrub_coalescing_state().coalesced;
+    return true;
+  }
+
+  // Applies the recorded move now, so the release, a key or another button acts where the
+  // pointer really is.
+  void flush_pending_move() {
+    if (!pending_.has_value()) {
+      return;
+    }
+    const auto pending = *pending_;
+    drop_pending();
+    if (pressed_ && scrubbing_ && !spin_.isNull()) {
+      (void)apply_move(pending.global, pending.modifiers);
+    }
+  }
+
+  // Ends the gesture; a scrub ends with one editingFinished, so edit-session undo paths
+  // record one step. A caller about to move focus off the field passes false: the
+  // spin box's own focus-out emits it. Returns whether the gesture scrubbed.
+  bool finish(bool emit_finished = true) {
+    flush_pending_move();
+    const bool scrubbed = pressed_ && scrubbing_;
+    pressed_ = false;
+    scrubbing_ = false;
+    if (scrubbed && !spin_.isNull()) {
+      spin_->setProperty(kScrubActiveProperty, false);
+    }
+    if (scrubbed && emit_finished && !spin_.isNull()) {
+      Q_EMIT spin_->editingFinished();
+    }
+    return scrubbed;
+  }
+
+private:
+  struct PendingMove {
+    QPoint global;
+    Qt::KeyboardModifiers modifiers;
+  };
+
+  bool apply_move(QPoint global, Qt::KeyboardModifiers modifiers) {
     const int x = global.x() + wrap_offset_;
     if (!scrubbing_) {
       if (std::abs(x - press_.x()) < QApplication::startDragDistance()) {
@@ -589,23 +681,30 @@ public:
     return true;
   }
 
-  // Ends the gesture; a scrub ends with one editingFinished, so edit-session undo paths
-  // record one step. A caller about to move focus off the field passes false: the
-  // spin box's own focus-out emits it. Returns whether the gesture scrubbed.
-  bool finish(bool emit_finished = true) {
-    const bool scrubbed = pressed_ && scrubbing_;
-    pressed_ = false;
-    scrubbing_ = false;
-    if (scrubbed && !spin_.isNull()) {
-      spin_->setProperty(kScrubActiveProperty, false);
-    }
-    if (scrubbed && emit_finished && !spin_.isNull()) {
-      Q_EMIT spin_->editingFinished();
-    }
-    return scrubbed;
+  // Queued behind the input already waiting, so the pass ends once that has been read.
+  void begin_pass() {
+    pass_active_ = true;
+    QMetaObject::invokeMethod(&pass_context_, [this] { end_pass(); }, Qt::QueuedConnection);
   }
 
-private:
+  void end_pass() {
+    pass_active_ = false;
+    if (!pending_.has_value()) {
+      return;
+    }
+    if (pressed_) {
+      begin_pass();  // moves that queue up behind this one coalesce into the next pass
+    }
+    flush_pending_move();
+  }
+
+  void drop_pending() {
+    pending_.reset();
+    if (scrub_gesture_with_pending_move == this) {
+      scrub_gesture_with_pending_move = nullptr;
+    }
+  }
+
   void wrap_pointer(QPoint global) {
     if (!scrub_can_warp_pointer()) {
       return;
@@ -634,7 +733,16 @@ private:
   double anchor_value_{0.0};
   double anchor_rate_{1.0};
   int wrap_offset_{0};
+  bool pass_active_{false};
+  std::optional<PendingMove> pending_;
+  QObject pass_context_;  // dies with the gesture, taking a queued pass end with it
 };
+
+void flush_pending_scrub_move() {
+  if (scrub_gesture_with_pending_move != nullptr) {
+    scrub_gesture_with_pending_move->flush_pending_move();
+  }
+}
 
 bool scrub_target_enabled(const QAbstractSpinBox* spin) {
   return spin != nullptr && spin->isEnabled() && !spin->isReadOnly();
@@ -667,7 +775,7 @@ protected:
         if (!gesture_.pressed()) {
           return false;
         }
-        (void)gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers());
+        (void)gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers(), mouse->spontaneous());
         return true;
       }
       case QEvent::MouseButtonRelease: {
@@ -749,7 +857,7 @@ protected:
           update_cursor(mouse->position().toPoint());
           return false;
         }
-        if (gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers())) {
+        if (gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers(), mouse->spontaneous())) {
           editor_->deselect();
         }
         return true;
@@ -898,7 +1006,7 @@ protected:
       case QEvent::MouseMove: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
         if (gesture_.pressed()) {
-          (void)gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers());
+          (void)gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers(), mouse->spontaneous());
           return true;
         }
         show_cursor(spin_at(mouse->position().toPoint()) != nullptr);
@@ -3233,12 +3341,15 @@ class SliderDragCoalescer final : public QObject {
       case QEvent::MouseButtonPress:
       case QEvent::MouseButtonRelease:
       case QEvent::MouseButtonDblClick:
+      case QEvent::ShortcutOverride:
       case QEvent::KeyPress:
       case QEvent::KeyRelease:
-        // The release (or a key) acts where the pointer really is.
+        // The release (or a key) acts where the pointer really is. A scrub's recorded
+        // move is flushed here too (ScrubGesture).
         if (!replaying_) {
           flush();
         }
+        flush_pending_scrub_move();
         return false;
       default:
         return false;
@@ -3320,6 +3431,10 @@ void set_slider_drag_coalescing_all_moves_for_testing(bool all_moves) {
 }
 
 int slider_drag_moves_coalesced_for_testing() { return SliderDragCoalescer::instance().coalesced; }
+
+void set_scrub_move_coalescing_for_testing(ScrubMoveCoalescing mode) { scrub_coalescing_state().mode = mode; }
+
+int scrub_moves_coalesced_for_testing() { return scrub_coalescing_state().coalesced; }
 
 int exec_dialog(QDialog& dialog) {
   if (unattended_dialog(dialog)) {

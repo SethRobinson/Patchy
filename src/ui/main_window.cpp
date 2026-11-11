@@ -351,6 +351,7 @@ std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor,
 double text_editor_metric_scale(const QTextEdit& editor);
 bool text_editor_uses_photoshop_layout(const QTextEdit& editor);
 double text_editor_size_display_scale(const QTextEdit& editor);
+int text_editor_document_size_for_points(const QTextEdit& editor, double points, const Document& document);
 
 bool layer_text_is_vertical(const Layer& layer);
 std::optional<QPointF> vertical_text_layer_anchor(const Layer& layer);
@@ -2681,6 +2682,14 @@ bool text_editor_uses_photoshop_layout(const QTextEdit& editor) {
 double text_editor_size_display_scale(const QTextEdit& editor) {
   const auto value = editor.property("patchy.textSizeDisplayScale").toDouble();
   return std::isfinite(value) && value > 0.01 ? value : 1.0;
+}
+
+// The whole document pixels a Size field value means for this session. The field shows the
+// effective (transform-folded) size for imported Photoshop text; the editor and stored runs
+// work in engine units, so the display scale is divided back out.
+int text_editor_document_size_for_points(const QTextEdit& editor, double points, const Document& document) {
+  return std::max(1, static_cast<int>(std::lround(text_points_to_pixels(points, document) /
+                                                  text_editor_size_display_scale(editor))));
 }
 
 // The font the options-bar combo should select for a stored family name. A style-split name
@@ -11563,6 +11572,7 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
     }
   } guard{editor};
   editor->setProperty("patchy.relayoutingTextEditor", true);
+  const UiProfileScope profile_scope("text_edit.relayout");
   const auto zoom = std::max(0.0001, canvas_->zoom());
   const auto boxed = text_flow_is_box(editor->property("patchy.documentTextFlow").toString());
   const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
@@ -12312,6 +12322,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     editor->viewport()->update();
     return;
   }
+  const UiProfileScope profile_scope("text_edit.preview");
   auto& doc = document();
   // The preview sits over the layer being edited, or over the provisional layer a new session
   // just inserted, so new text previews exactly like a re-edit.
@@ -12993,10 +13004,30 @@ void MainWindow::apply_text_size_to_active_editor() {
       text_size_spin_ != nullptr ? std::optional<double>(text_size_spin_->value()) : std::nullopt;
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   if (editor != nullptr) {
+    const UiProfileScope profile_scope("text_edit.apply_size");
+    // The field steps by a quarter point and the text by whole document pixels, so most
+    // values of a scrub land on the size the selection already has (three of four at 72
+    // ppi), and each would lay the box out and render the preview again for nothing
+    // (GitHub #700). During a scrub nothing else edits the session, so a step whose
+    // selection, pixel size, zoom and document revision all match the last one applied is
+    // skipped. A caret without a selection only sets the typing format, which leaves no
+    // trace in the revision, so it always applies.
+    constexpr auto kAppliedSizeProperty = "patchy.scrubAppliedTextSize";
+    const auto cursor = editor->textCursor();
+    const bool scrubbing = points.has_value() && spin_box_scrub_active(text_size_spin_) && cursor.hasSelection();
+    const auto step_key = [&] {
+      return QVariantList{cursor.selectionStart(), cursor.selectionEnd(),
+                          text_editor_document_size_for_points(*editor, *points, document()), canvas_->zoom(),
+                          editor->document()->revision()};
+    };
+    if (scrubbing && editor->property(kAppliedSizeProperty).toList() == step_key()) {
+      return;
+    }
     apply_text_size_to_editor(*editor, points);
     relayout_text_editor(editor, true);
     schedule_text_editor_preview(editor);
     refresh_text_color_button();
+    editor->setProperty(kAppliedSizeProperty, scrubbing ? QVariant(step_key()) : QVariant());
     return;
   }
   if (!points.has_value()) {
@@ -13009,13 +13040,9 @@ void MainWindow::apply_text_size_to_active_editor() {
 }
 
 void MainWindow::apply_text_size_to_editor(QTextEdit& editor, std::optional<double> points) {
-  // The spinbox shows the effective (transform-folded) size for imported Photoshop text; the
-  // editor and stored runs work in engine units, so divide the display scale back out.
-  const auto display_scale = text_editor_size_display_scale(editor);
-  const auto document_text_size =
-      points.has_value()
-          ? std::max(1, static_cast<int>(std::lround(text_points_to_pixels(*points, document()) / display_scale)))
-          : std::max(1, editor.property("patchy.documentTextSize").toInt());
+  const auto document_text_size = points.has_value()
+                                      ? text_editor_document_size_for_points(editor, *points, document())
+                                      : std::max(1, editor.property("patchy.documentTextSize").toInt());
   const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
   QTextCharFormat format;
   format.setProperty(QTextFormat::FontPixelSize, editor_pixel_size);
