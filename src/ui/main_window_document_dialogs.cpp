@@ -13,6 +13,7 @@
 #include "ui/theme_script_host.hpp"
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/file_info_dialog.hpp"
 #include "formats/document_trim.hpp"
@@ -1803,7 +1804,9 @@ std::size_t MainWindow::resize_canvas_without_history(Rect frame, QColor extensi
   // canvas-sized bounds, so afterwards nothing would test as off the canvas.
   const auto deleted_layers =
       delete_off_canvas_layers ? remove_layers_outside_canvas(doc, frame) : std::size_t{0};
-  resize_canvas_to_frame(doc, frame, edit_color(extension_color), crop_layers);
+  // Without the layer crop, a Background left with pixels beyond the canvas becomes "Layer 0"
+  // (GitHub issue 701).
+  resize_canvas_to_frame(doc, frame, edit_color(extension_color), crop_layers, layer_from_background_name());
   // A smaller canvas never clips an artboard: Photoshop grows it back around them
   // (docs/artboards.md, "Feature interactions").
   static_cast<void>(grow_canvas_to_artboards(doc));

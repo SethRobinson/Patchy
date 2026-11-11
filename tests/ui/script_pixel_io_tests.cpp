@@ -3,6 +3,7 @@
 // patchy.io image files.
 #include "core/document.hpp"
 #include "core/layer.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/document_flatten.hpp"
 #include "scripting_test_support.hpp"
@@ -314,6 +315,73 @@ void ui_script_resize_canvas_anchor_and_offset() {
   CHECK(backlog_contains(window, QStringLiteral("errors=thrown,thrown,thrown,thrown,thrown size=120x70")));
 }
 
+// GitHub issue 701: doc.resizeCanvas gives the result Image > Canvas Size does. A canvas that
+// only grows keeps the Background (filled with `fill`); one that leaves the Background's
+// pixels beyond the canvas makes it an ordinary "Layer 0" that keeps them; and the plain form
+// (no options, layers stay put) releases a Background that no longer matches the canvas.
+void ui_script_resize_canvas_keeping_pixels_turns_background_into_layer_0() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto background = [&document] {
+    return patchy::background_layer(std::as_const(document).layers(), document.width(), document.height());
+  };
+  const auto background_locks = patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels |
+                                patchy::kLayerLockArtboardAutonest;
+  CHECK(background() != nullptr);
+  if (background() == nullptr) {
+    return;
+  }
+  const auto background_id = background()->id();
+  const auto width = document.width();
+  const auto height = document.height();
+
+  CHECK(run_script(window, QStringLiteral(
+      "var d = app.activeDocument; d.resizeCanvas(d.width + 40, d.height + 20, {anchor: 'center', fill: '#00ff00'});")));
+  CHECK(document.width() == width + 40 && document.height() == height + 20);
+  CHECK(background() != nullptr && background()->id() == background_id);
+  CHECK(background() != nullptr && background()->pixels().width() == width + 40);
+  CHECK(background() != nullptr && background()->pixels().pixel(0, 0)[1] == 255 &&
+        background()->pixels().pixel(0, 0)[0] == 0);
+
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.resizeCanvas(400, 300, {x: -50, y: -30});")));
+  CHECK(document.width() == 400 && document.height() == 300);
+  CHECK(background() == nullptr);
+  {
+    const auto& bottom = std::as_const(document).layers().front();
+    CHECK(bottom.id() == background_id);
+    CHECK(bottom.name() == "Layer 0");
+    CHECK((patchy::layer_lock_flags(bottom) & background_locks) == 0U);
+    CHECK(bottom.bounds().x == -50 && bottom.bounds().y == -30);
+    CHECK(bottom.bounds().width == width + 40 && bottom.bounds().height == height + 20);
+    CHECK(bottom.pixels().width() == width + 40 && bottom.pixels().height() == height + 20);
+  }
+
+  // The plain form on a fresh window: only the size changes, and the Background, which no
+  // longer covers exactly the canvas, is released the same way.
+  patchy::ui::MainWindow plain_window;
+  show_window(plain_window);
+  auto& plain = patchy::ui::MainWindowTestAccess::document(plain_window);
+  const auto* plain_background =
+      patchy::background_layer(std::as_const(plain).layers(), plain.width(), plain.height());
+  CHECK(plain_background != nullptr);
+  if (plain_background == nullptr) {
+    return;
+  }
+  const auto plain_id = plain_background->id();
+  CHECK(run_script(plain_window, QStringLiteral("app.activeDocument.resizeCanvas(500, 400);")));
+  CHECK(plain.width() == 500 && plain.height() == 400);
+  CHECK(patchy::background_layer(std::as_const(plain).layers(), plain.width(), plain.height()) == nullptr);
+  {
+    const auto& bottom = std::as_const(plain).layers().front();
+    CHECK(bottom.id() == plain_id);
+    CHECK(bottom.name() == "Layer 0");
+    CHECK((patchy::layer_lock_flags(bottom) & background_locks) == 0U);
+    CHECK(bottom.bounds().x == 0 && bottom.bounds().y == 0);
+    CHECK(bottom.bounds().width == width && bottom.bounds().height == height);
+  }
+}
+
 // doc.selection.smooth and feather (GitHub issue 614) on a 16-bit document, and bad radii throw.
 void ui_script_selection_smooth_and_feather() {
   patchy::ui::MainWindow window;
@@ -368,5 +436,7 @@ std::vector<patchy::test::TestCase> script_pixel_io_tests() {
       {"ui_script_composite_pixels_match_flatten", ui_script_composite_pixels_match_flatten},
       {"ui_script_io_image_round_trips_unicode_path", ui_script_io_image_round_trips_unicode_path},
       {"ui_script_resize_canvas_anchor_and_offset", ui_script_resize_canvas_anchor_and_offset},
+      {"ui_script_resize_canvas_keeping_pixels_turns_background_into_layer_0",
+       ui_script_resize_canvas_keeping_pixels_turns_background_into_layer_0},
   };
 }

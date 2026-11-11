@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -397,7 +398,8 @@ class LayerGrowthReserve {
 void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height,
                              ResampleMethod method = ResampleMethod::Automatic);
 // Preserve off-canvas layer pixels and masks unless crop_layers is explicitly enabled.
-// Background layers still fill newly exposed canvas with extension_color.
+// The Background still fills newly exposed canvas with extension_color (see
+// resize_canvas_to_frame for which layers that is).
 void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32_t height,
                               CanvasAnchor anchor = CanvasAnchor::TopLeft,
                               EditColor extension_color = EditColor{255, 255, 255, 255},
@@ -410,9 +412,17 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
 // Canvas resize to an explicit frame in current document coordinates: the canvas becomes
 // frame.width x frame.height with the frame's top-left as the new origin, under the anchor
 // overload's layer, mask, and channel rules. A degenerate frame is a no-op.
+// The Background (background_layer, core/layer_metadata.hpp, whatever its name; also any
+// pixel layer named "Background") is rebuilt to cover the new canvas with extension_color
+// under new area, so it stays the Background. The one exception (GitHub issue 701): with
+// crop_layers off, a frame that leaves the Background's pixels beyond the new canvas keeps
+// those pixels, and the layer becomes an ordinary one through release_background, named
+// `layer_from_background_name` when that is not empty. Named so, it is only translated, like
+// every other layer, and new canvas area beside it is transparent. A Background that a
+// transparent extension_color gave an alpha channel (artboard canvas growth) is released too.
 void resize_canvas_to_frame(Document& document, Rect frame,
                             EditColor extension_color = EditColor{255, 255, 255, 255},
-                            bool crop_layers = false);
+                            bool crop_layers = false, std::string_view layer_from_background_name = {});
 // Removes every non-group layer whose bounds lie entirely outside the canvas and every
 // group emptied by that (Canvas Size's "delete layers fully off the canvas" option).
 // Layers without bounds (adjustments, never-painted layers) stay. Returns the number of
@@ -425,9 +435,9 @@ std::size_t remove_layers_outside_canvas(Document& document, Rect canvas);
 [[nodiscard]] bool crop_document(Document& document, Rect crop);
 // Crop that may extend beyond the canvas: content outside `crop` is discarded,
 // the canvas becomes crop.width x crop.height, area outside the old canvas is
-// transparent, and a pixel layer literally named "Background" is rebuilt
-// canvas-sized with extension_color under its content (the canvas-resize fill
-// rules). Returns false when the rect is degenerate.
+// transparent, and the Background (by the background_layer rule, or a pixel layer
+// literally named "Background") is rebuilt canvas-sized with extension_color under
+// its content (the canvas-resize fill rules). Returns false when the rect is degenerate.
 [[nodiscard]] bool crop_document(Document& document, Rect crop, EditColor extension_color);
 // Rotated crop: the box is `crop` rotated by angle_degrees about its center in
 // document space, and committing straightens it (result pixel q samples the
