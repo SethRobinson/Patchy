@@ -1911,8 +1911,13 @@ void CanvasWidget::write_shape_layer_path(Layer& layer, VectorPath path,
   // Bounded: this runs on EVERY anchor-drag mouse move; the full-canvas
   // recomposite it replaced was the drag's dominant cost (the re-bake can
   // move the layer's bounds, hence the old/new union).
-  document_changed_effect_bounds(old_effect_rect.united(
-      to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()))));
+  const QRegion changed = QRegion(old_effect_rect).united(
+      to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds())));
+  if (path_edit_drag_moves_points()) {
+    document_changed_drag_region(changed);
+  } else {
+    document_changed_effect_bounds(changed);
+  }
   if (path_edited_callback_) {
     path_edited_callback_();
   }

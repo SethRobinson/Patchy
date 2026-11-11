@@ -558,6 +558,57 @@ void ui_gradient_fill_handles_drag_timing() {
   }
 }
 
+// GitHub #705: Wayland delivers every pointer motion, and a Gradient Fill handle drag placed
+// the gradient for each one (and, whenever a move took longer than the preview interval, a
+// preview too), so on Linux the handle stood still for seconds with "Processing..." up and
+// then jumped. Moves queued in one event-loop pass now apply once, at the latest position,
+// and a move recorded right before the release still lands.
+void ui_gradient_fill_handle_drag_coalesces_queued_moves() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  auto* canvas = open_gradient_fill(window, patchy::GradientMethod::Linear, QPoint(100, 150), QPoint(300, 150));
+  const auto active = MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *active};
+  const auto depth = fill.depth();
+  canvas->set_drag_move_coalescing_for_testing(CanvasWidget::DragMoveCoalescing::AllMoves);
+  const auto coalesced = [canvas] { return canvas->render_cache_diagnostics().drag_moves_coalesced; };
+  const auto start = rounded(part_position(*canvas, Kind::End));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  const auto before = coalesced();
+  for (int move = 1; move <= 30; ++move) {
+    const auto position = start + QPoint(0, move);
+    QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                    QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                    Qt::LeftButton, Qt::NoModifier));
+  }
+  // The first queued move applies at once, the other 29 wait for the pass end.
+  QApplication::processEvents();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(coalesced() - before == 29);
+  CHECK(near(part_position(*canvas, Kind::End), QPointF(start + QPoint(0, 30)), 1.0));
+  // A move recorded right before the release still lands: the release applies it.
+  const auto end = start + QPoint(-20, 45);
+  const auto deliver = [canvas](QPoint position) {
+    QMouseEvent event(QEvent::MouseMove, QPointF(position), QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &event);
+  };
+  deliver(end - QPoint(0, 3));  // applied, opens a pass
+  deliver(end);                 // recorded
+  CHECK(coalesced() - before == 30);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(near(part_position(*canvas, Kind::End), QPointF(end), 1.0));
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Move Gradient End Point"));
+}
+
 // GitHub issue 663, second follow-up: ways to delete a stop that people find, and a cursor
 // for every handle part. All input goes through the window like a real mouse and keyboard.
 void ui_gradient_fill_handles_delete_stops_and_show_cursors() {
@@ -1069,5 +1120,6 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
        ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view},
       {"ui_gradient_fill_handles_show_a_presets_own_stops", ui_gradient_fill_handles_show_a_presets_own_stops},
       {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
+      {"ui_gradient_fill_handle_drag_coalesces_queued_moves", ui_gradient_fill_handle_drag_coalesces_queued_moves},
   };
 }

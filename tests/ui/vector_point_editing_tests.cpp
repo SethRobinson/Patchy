@@ -1397,6 +1397,94 @@ void ui_path_select_shape_drag_shifts_raster_and_rebakes_once() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(7, 5), Qt::LeftButton, Qt::NoButton);
 }
 
+// GitHub #678 follow-up: Wayland delivers every pointer motion, so a Path Select drag's
+// moves coalesce like a Move-tool drag's: one apply per event-loop pass at the latest
+// position, and a move recorded right before the release still lands. A step also
+// refreshes the region it changed even when that covers most of the canvas: past half of
+// it a full refresh ran instead, in the background on a large photo, and every step
+// cancelled it, so the fill stood still (cut at the canvas edge) while the outline moved.
+// The shape here reaches past the canvas edge, and its raster keeps that part as it shifts.
+void ui_path_select_drag_coalesces_moves_and_keeps_the_fill_current() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);  // 1024 x 768
+  canvas->set_view_zoom_centered(0.5);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  if (radius_spin != nullptr) {
+    radius_spin->setValue(0);
+  }
+  shape_drag(*canvas, QPoint(140, 40), QPoint(1000, 720));
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const auto layer_id = *active;
+  // Path Select moves it 200 px left, past the canvas edge; the release bakes the part
+  // off the canvas too.
+  canvas->set_snap_enabled(false);  // the shape's edges must not catch on the canvas's
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  shape_drag(*canvas, QPoint(500, 400), QPoint(300, 400));
+  const auto anchor_before = anchor_at(document, layer_id, 0).anchor_x;
+  const auto anchor_before_y = anchor_at(document, layer_id, 0).anchor_y;
+  CHECK(anchor_before < -40.0);
+  const auto bounds_before = std::as_const(document).find_layer(layer_id)->bounds();
+  CHECK(bounds_before.x <= static_cast<int>(anchor_before));
+
+  canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves);
+  const auto diagnostics = [canvas] { return canvas->render_cache_diagnostics(); };
+  QApplication::processEvents();
+  const auto start = canvas->widget_position_for_document_point(QPoint(400, 400));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  const auto before = diagnostics();
+  for (int move = 1; move <= 30; ++move) {
+    const auto position = start + QPoint(move, 0);
+    QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                    QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                    Qt::LeftButton, Qt::NoModifier));
+  }
+  // The first move applies at once and queues the drag's apply; the other 29 wait for the
+  // pass end, which hands the latest to that apply.
+  QApplication::processEvents();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  auto after = diagnostics();
+  CHECK(after.drag_moves_coalesced - before.drag_moves_coalesced == 29);
+  CHECK(after.path_drag_applies - before.path_drag_applies == 1);
+  // 30 widget px at 50% zoom.
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - (anchor_before + 60.0)) < 1.0);
+  // The fill moved in the same step: a region refresh, no full refresh, nothing pending.
+  CHECK(after.full_refreshes == before.full_refreshes);
+  CHECK(after.partial_patches > before.partial_patches);
+  CHECK(canvas->render_settled());
+  // The raster shifted with the part that was past the canvas edge.
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr && std::abs(layer->bounds().x - (bounds_before.x + 60)) <= 1);
+  CHECK(after.path_drag_rerasters == before.path_drag_rerasters);
+  // A move recorded right before the release still lands: the release applies it.
+  const auto end = start + QPoint(40, 10);
+  const auto deliver = [canvas](QPoint position) {
+    QMouseEvent event(QEvent::MouseMove, QPointF(position), QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &event);
+  };
+  deliver(end - QPoint(2, 0));  // applied, opens a pass
+  deliver(end);                 // recorded
+  CHECK(diagnostics().drag_moves_coalesced - before.drag_moves_coalesced == 30);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - (anchor_before + 80.0)) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - (anchor_before_y + 20.0)) < 1.0);
+  // The release re-bakes once, and the drag is one undo step.
+  CHECK(diagnostics().path_drag_rerasters - before.path_drag_rerasters == 1);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - anchor_before) < 0.5);
+}
+
 // GitHub issue 248, point 4: a Direct Select press on a point of a shape that
 // is not selected yet drags that point at once, on the active shape and on
 // another shape layer.
@@ -3040,6 +3128,8 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_select_drag_coalesces_queued_moves", ui_path_select_drag_coalesces_queued_moves},
       {"ui_path_select_shape_drag_shifts_raster_and_rebakes_once",
        ui_path_select_shape_drag_shifts_raster_and_rebakes_once},
+      {"ui_path_select_drag_coalesces_moves_and_keeps_the_fill_current",
+       ui_path_select_drag_coalesces_moves_and_keeps_the_fill_current},
       {"ui_direct_select_drags_points_of_unselected_shapes",
        ui_direct_select_drags_points_of_unselected_shapes},
       {"ui_path_select_anchor_drag_moves_the_whole_shape", ui_path_select_anchor_drag_moves_the_whole_shape},

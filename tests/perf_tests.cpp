@@ -34,6 +34,7 @@
 #include <QDialog>
 #include <QEventLoop>
 #include <QFile>
+#include <QLineF>
 #include <QFileInfo>
 #include <QFontComboBox>
 #include <QItemSelectionModel>
@@ -62,6 +63,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -1941,6 +1943,92 @@ void text_layer_drag_perf() {
   }
 }
 
+// Records a live drag on a real window system for the *_live scenarios: each window-system
+// move's queueing delay against its compositor timestamp, and each repaint's lag behind the
+// newest move it had seen.
+class LiveDragRecorder : public QObject {
+ public:
+  bool button_down{false};
+  bool released{false};
+  int moves{0};
+  int paints{0};
+  std::vector<double> move_delay_ms;
+  std::vector<double> paint_lag_ms;
+  std::vector<double> paint_gap_ms;
+  double last_paint_ms{-1.0};
+  double last_move_timestamp_ms{-1.0};
+  double first_move_ms{-1.0};
+  double release_ms{-1.0};
+  double release_timestamp_ms{-1.0};
+  QPointF last_move_position;
+  // Called on every repaint during the drag, after the lag is recorded.
+  std::function<void()> on_paint;
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    // steady_clock is CLOCK_MONOTONIC on Linux, the clock Wayland input timestamps use.
+    const auto now = static_cast<double>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count());
+    const auto since = [now](ulong stamp) {
+      return static_cast<double>(static_cast<std::int32_t>(
+          static_cast<std::uint32_t>(static_cast<std::uint64_t>(now)) - static_cast<std::uint32_t>(stamp)));
+    };
+    switch (event->type()) {
+      case QEvent::MouseButtonPress:
+        button_down = true;
+        break;
+      case QEvent::MouseMove:
+        if (button_down && event->spontaneous()) {
+          const auto delay = since(static_cast<QMouseEvent*>(event)->timestamp());
+          ++moves;
+          if (first_move_ms < 0.0) {
+            first_move_ms = now;
+          }
+          move_delay_ms.push_back(delay);
+          last_move_timestamp_ms = now - delay;
+          last_move_position = static_cast<QMouseEvent*>(event)->position();
+        }
+        break;
+      case QEvent::MouseButtonRelease:
+        if (button_down) {
+          button_down = false;
+          released = true;
+          release_ms = now;
+          release_timestamp_ms = now - since(static_cast<QMouseEvent*>(event)->timestamp());
+        }
+        break;
+      case QEvent::Paint:
+        if (button_down && last_move_timestamp_ms >= 0.0) {
+          ++paints;
+          paint_lag_ms.push_back(now - last_move_timestamp_ms);
+          if (last_paint_ms >= 0.0) {
+            paint_gap_ms.push_back(now - last_paint_ms);
+          }
+          last_paint_ms = now;
+          if (on_paint) {
+            on_paint();
+          }
+        }
+        break;
+      default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+};
+
+std::string live_summary(std::vector<double> values) {
+  std::ostringstream text;
+  if (values.empty()) {
+    text << "n=0";
+    return text.str();
+  }
+  std::sort(values.begin(), values.end());
+  text << std::fixed << std::setprecision(1) << "median=" << values[values.size() / 2]
+       << " p95=" << values[std::min(values.size() - 1, values.size() * 95 / 100)] << " max=" << values.back();
+  return text.str();
+}
+
 // Live drag timing on a real window system (GitHub #207, #443, #444), for a headless
 // Wayland compositor driven by a virtual pointer (docs/interactive-previews.md, "Drag
 // move coalescing"). Shows a full-screen window with one text layer under the Move
@@ -1951,80 +2039,8 @@ void text_layer_drag_perf() {
 // behind the newest move it had seen are measured. PATCHY_PERF_LIVE_COALESCE=off
 // turns the drag move coalescing off for the before-the-fix baseline.
 void text_layer_live_drag_perf() {
-  class Recorder : public QObject {
-   public:
-    bool button_down{false};
-    bool released{false};
-    int moves{0};
-    int paints{0};
-    std::vector<double> move_delay_ms;
-    std::vector<double> paint_lag_ms;
-    std::vector<double> paint_gap_ms;
-    double last_paint_ms{-1.0};
-    double last_move_timestamp_ms{-1.0};
-    double first_move_ms{-1.0};
-    double release_ms{-1.0};
-    double release_timestamp_ms{-1.0};
-
-   protected:
-    bool eventFilter(QObject* watched, QEvent* event) override {
-      // steady_clock is CLOCK_MONOTONIC on Linux, the clock Wayland input timestamps use.
-      const auto now = static_cast<double>(
-          std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count());
-      const auto since = [now](ulong stamp) {
-        return static_cast<double>(static_cast<std::int32_t>(
-            static_cast<std::uint32_t>(static_cast<std::uint64_t>(now)) - static_cast<std::uint32_t>(stamp)));
-      };
-      switch (event->type()) {
-        case QEvent::MouseButtonPress:
-          button_down = true;
-          break;
-        case QEvent::MouseMove:
-          if (button_down && event->spontaneous()) {
-            const auto delay = since(static_cast<QMouseEvent*>(event)->timestamp());
-            ++moves;
-            if (first_move_ms < 0.0) {
-              first_move_ms = now;
-            }
-            move_delay_ms.push_back(delay);
-            last_move_timestamp_ms = now - delay;
-          }
-          break;
-        case QEvent::MouseButtonRelease:
-          if (button_down) {
-            button_down = false;
-            released = true;
-            release_ms = now;
-            release_timestamp_ms = now - since(static_cast<QMouseEvent*>(event)->timestamp());
-          }
-          break;
-        case QEvent::Paint:
-          if (button_down && last_move_timestamp_ms >= 0.0) {
-            ++paints;
-            paint_lag_ms.push_back(now - last_move_timestamp_ms);
-            if (last_paint_ms >= 0.0) {
-              paint_gap_ms.push_back(now - last_paint_ms);
-            }
-            last_paint_ms = now;
-          }
-          break;
-        default:
-          break;
-      }
-      return QObject::eventFilter(watched, event);
-    }
-  };
-  const auto summary = [](std::vector<double> values) {
-    std::ostringstream text;
-    if (values.empty()) {
-      text << "n=0";
-      return text.str();
-    }
-    std::sort(values.begin(), values.end());
-    text << std::fixed << std::setprecision(1) << "median=" << values[values.size() / 2]
-         << " p95=" << values[std::min(values.size() - 1, values.size() * 95 / 100)] << " max=" << values.back();
-    return text.str();
-  };
+  using Recorder = LiveDragRecorder;
+  const auto summary = [](std::vector<double> values) { return live_summary(std::move(values)); };
 
   patchy::ui::MainWindow window;
   window.showFullScreen();
@@ -2105,6 +2121,204 @@ void text_layer_live_drag_perf() {
             << "[PERF] textdrag_live move_delay_ms " << summary(recorder.move_delay_ms) << '\n'
             << "[PERF] textdrag_live paint_lag_ms " << summary(recorder.paint_lag_ms) << '\n'
             << "[PERF] textdrag_live paint_gap_ms " << summary(recorder.paint_gap_ms) << '\n';
+}
+
+// Live canvas drags on a real window system, for the headless Wayland rig and
+// scripts/dev/wayland-popups/live-canvas-drag.sh (GitHub #678 follow-up, #705; docs/
+// interactive-previews.md, "Drag move coalescing"). PATCHY_PERF_CANVASDRAG_KIND picks one:
+//   shape     a noisy 3600x5400 "photo" (PATCHY_PERF_CANVASDRAG_DOC=WxH) with a pentagon
+//             shape over it, viewed fit to the window, dragged with Path Select
+//   gradient  a 1280x720 document with a Gradient Fill layer made by a Gradient tool drag in
+//             Fill Layer mode, its end handle dragged with the Gradient tool
+// Writes the press point to PATCHY_PERF_LIVE_READY like textdrag_live and measures each
+// window-system move's queueing delay, each repaint's lag behind the newest move, and on
+// each repaint how far the dragged thing sits from the pointer (lag_px).
+// PATCHY_PERF_LIVE_COALESCE=off turns the drag move coalescing off (the baseline).
+void canvas_live_drag_perf() {
+  const auto kind = qEnvironmentVariable("PATCHY_PERF_CANVASDRAG_KIND", QStringLiteral("shape"));
+  const bool gradient = kind == QStringLiteral("gradient");
+  patchy::ui::MainWindow window;
+  window.showFullScreen();
+  QApplication::processEvents();
+  patchy::LayerId dragged_id = 0;
+  if (gradient) {
+    patchy::ui::MainWindowTestAccess::new_document(window, 1280, 720, 72.0);
+  } else {
+    int width = 3600;
+    int height = 5400;
+    if (const auto size = qEnvironmentVariable("PATCHY_PERF_CANVASDRAG_DOC").split(QLatin1Char('x'));
+        size.size() == 2 && size[0].toInt() > 0 && size[1].toInt() > 0) {
+      width = size[0].toInt();
+      height = size[1].toInt();
+    }
+    patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer photo(width, height, patchy::PixelFormat::rgba8());
+    std::uint64_t state = 0x678;
+    for (int y = 0; y < height; ++y) {
+      auto* row = photo.pixel(0, y);
+      for (int x = 0; x < width; ++x) {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        const auto noise = static_cast<int>((state >> 59U) & 31U);
+        row[x * 4 + 0] = static_cast<std::uint8_t>(std::min(255, 60 + x * 120 / width + noise));
+        row[x * 4 + 1] = static_cast<std::uint8_t>(std::min(255, 50 + y * 100 / height + noise));
+        row[x * 4 + 2] = static_cast<std::uint8_t>(std::min(255, 40 + noise));
+        row[x * 4 + 3] = 255;
+      }
+    }
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Background", std::move(photo)));
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Polygon;
+    // His video's pentagon: about two thirds of the photo, its left corner past the canvas
+    // edge. PATCHY_PERF_CANVASDRAG_SHAPE=left,top,right,bottom (fractions) sets another.
+    std::array<double, 4> box{-0.25, 0.22, 0.7, 0.88};
+    if (const auto parts = qEnvironmentVariable("PATCHY_PERF_CANVASDRAG_SHAPE").split(QLatin1Char(','));
+        parts.size() == 4) {
+      for (std::size_t i = 0; i < box.size(); ++i) {
+        box[i] = parts[static_cast<qsizetype>(i)].toDouble();
+      }
+    }
+    params.left = width * box[0];
+    params.top = height * box[1];
+    params.right = width * box[2];
+    params.bottom = height * box[3];
+    params.polygon_sides = 5;
+    patchy::populate_live_shape_box_corners(params);
+    patchy::VectorShapeContent shape;
+    shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    shape.origination.push_back(params);
+    shape.fill.kind = patchy::VectorFillKind::Solid;
+    shape.fill.color = {140, 128, 128};
+    patchy::Layer layer(document.allocate_layer_id(), "Polygon 1", patchy::LayerKind::Pixel);
+    layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    layer.set_vector_shape(std::move(shape));
+    patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(width, height),
+                                       &std::as_const(document).metadata().patterns);
+    dragged_id = layer.id();
+    document.add_layer(std::move(layer));
+    window.add_document_session(std::move(document), QStringLiteral("Canvas Drag Perf"));
+  }
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  const auto coalesce_off = qEnvironmentVariable("PATCHY_PERF_LIVE_COALESCE") == QStringLiteral("off");
+  if (coalesce_off) {
+    canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+  }
+  canvas->fit_to_view();
+  const auto settle = [](double seconds) {
+    const auto started = Clock::now();
+    while (std::chrono::duration<double>(Clock::now() - started).count() < seconds) {
+      QApplication::processEvents();
+    }
+  };
+  settle(1.0);
+  using Part = patchy::ui::CanvasWidget::GradientHandlePart;
+  using PartKind = patchy::ui::CanvasWidget::GradientHandlePartKind;
+  QPointF press;
+  QPointF press_document;
+  if (gradient) {
+    canvas->set_tool(patchy::ui::CanvasTool::Gradient);
+    canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::FillLayer);
+    QApplication::processEvents();
+    const auto from = canvas->widget_position_for_document_point(QPoint(100, 650));
+    const auto to = canvas->widget_position_for_document_point(QPoint(1180, 100));
+    send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    for (int step = 1; step <= 10; ++step) {
+      send_mouse(*canvas, QEvent::MouseMove, from + (to - from) * step / 10, Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    settle(2.0);
+    const auto end = canvas->gradient_fill_handle_widget_position(Part{PartKind::End, -1});
+    CHECK(end.has_value());
+    if (!end.has_value()) {
+      return;
+    }
+    press = *end;
+  } else {
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    for (int row = 0; layer_list != nullptr && row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == dragged_id) {
+        layer_list->clearSelection();
+        layer_list->setCurrentItem(item);
+        item->setSelected(true);
+      }
+    }
+    canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    press_document = QPointF(document.width() * 0.4, document.height() * 0.55);
+    press = QPointF(canvas->widget_position_for_document_point(press_document.toPoint()));
+    settle(3.0);
+  }
+  const auto first_anchor = [&window, dragged_id] {
+    const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(dragged_id);
+    const auto* shape = layer != nullptr ? layer->vector_shape() : nullptr;
+    if (shape == nullptr || shape->path.subpaths.empty() || shape->path.subpaths.front().anchors.empty()) {
+      return QPointF();
+    }
+    const auto& point = shape->path.subpaths.front().anchors.front();
+    return QPointF(point.anchor_x, point.anchor_y);
+  };
+  const auto anchor_before = first_anchor();
+  LiveDragRecorder recorder;
+  std::vector<double> lag_px;
+  int stale_paints = 0;  // repaints that showed a composite older than the document
+  recorder.on_paint = [&] {
+    if (!canvas->render_settled()) {
+      ++stale_paints;
+    }
+    const auto dragged =
+        gradient ? canvas->gradient_fill_handle_widget_position(Part{PartKind::End, -1}).value_or(QPointF())
+                 : canvas->widget_position_f(press_document + (first_anchor() - anchor_before));
+    lag_px.push_back(QLineF(dragged, recorder.last_move_position).length());
+  };
+  canvas->installEventFilter(&recorder);
+  const auto screen = canvas->mapTo(&window, press.toPoint());
+  if (const auto ready_path = qEnvironmentVariable("PATCHY_PERF_LIVE_READY"); !ready_path.isEmpty()) {
+    QFile ready(ready_path);
+    if (ready.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+      ready.write(QStringLiteral("%1 %2 %3 %4\n")
+                      .arg(screen.x())
+                      .arg(screen.y())
+                      .arg(window.width())
+                      .arg(window.height())
+                      .toUtf8());
+    }
+  }
+  std::cout << "[LIVE] ready kind=" << kind.toStdString() << " x=" << screen.x() << " y=" << screen.y()
+            << " window=" << window.width() << 'x' << window.height()
+            << " platform=" << QGuiApplication::platformName().toStdString() << " qt=" << qVersion() << std::endl;
+  const auto seconds = qEnvironmentVariableIsSet("PATCHY_PERF_LIVE_SECONDS")
+                           ? qEnvironmentVariableIntValue("PATCHY_PERF_LIVE_SECONDS")
+                           : 60;
+  const auto before = canvas->render_cache_diagnostics();
+  const auto started = Clock::now();
+  while (!recorder.released && std::chrono::duration<double>(Clock::now() - started).count() < seconds) {
+    QApplication::processEvents(QEventLoop::WaitForMoreEvents, 50);
+  }
+  const auto drained = elapsed_ms([&] {
+    for (int pass = 0; pass < 5; ++pass) {
+      QApplication::processEvents();
+    }
+  });
+  canvas->removeEventFilter(&recorder);
+  const auto after = canvas->render_cache_diagnostics();
+  std::cout << std::fixed << std::setprecision(1) << "[PERF] canvasdrag_live kind=" << kind.toStdString()
+            << " coalescing=" << (coalesce_off ? "off" : "on") << " released=" << recorder.released
+            << " moves=" << recorder.moves << " paints=" << recorder.paints << " stale_paints=" << stale_paints
+            << " coalesced=" << (after.drag_moves_coalesced - before.drag_moves_coalesced)
+            << " path_drag_applies=" << (after.path_drag_applies - before.path_drag_applies)
+            << " drag_ms=" << (recorder.release_ms - recorder.first_move_ms)
+            << " release_delay_ms=" << (recorder.release_ms - recorder.release_timestamp_ms)
+            << " drain_ms=" << drained << '\n'
+            << "[PERF] canvasdrag_live move_delay_ms " << live_summary(recorder.move_delay_ms) << '\n'
+            << "[PERF] canvasdrag_live paint_lag_ms " << live_summary(recorder.paint_lag_ms) << '\n'
+            << "[PERF] canvasdrag_live paint_gap_ms " << live_summary(recorder.paint_gap_ms) << '\n'
+            << "[PERF] canvasdrag_live lag_px " << live_summary(lag_px) << '\n';
 }
 
 // Text Size scrub during a live text edit (GitHub #700): a new document, the Type tool,
@@ -6086,6 +6300,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "textdrag_live") {
       run_scenario("textdrag_live", text_layer_live_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "canvasdrag_live") {
+      run_scenario("canvasdrag_live", canvas_live_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "pickdrag") {
