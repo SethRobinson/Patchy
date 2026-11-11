@@ -1249,6 +1249,24 @@ void ui_font_english_name_comes_from_the_name_table() {
             {1, 25, 33, 1, QStringLiteral("Ke Yan Ke Tian")},
         }), yahei) == QStringLiteral("Ke Yan Ke Tian"));
 
+  // GitHub issue 691 follow-up 2 (KeYanKeTianKeAiTi-2.ttf's layout): the Windows en-US and zh-CN
+  // records hold the Chinese name, a Macintosh Chinese record holds GB2312 bytes, and the
+  // Macintosh Roman records hold the Latin name, which wins.
+  {
+    const auto keyan = QStringLiteral("\u53ef\u76d0\u53ef\u751c\u53ef\u7231\u4f53");
+    const auto keyan_table = name_table_with({
+        {1, 0, 0, 1, QStringLiteral("AaKYKTKAT")},
+        {1, 0, 0, 6, QStringLiteral("AaKYKTKAT")},
+        {1, 25, 33, 1, QStringLiteral("Aa¿ÉÑÎ¿É (·Ç)")},
+        {3, 1, 0x0409, 1, keyan},
+        {3, 1, 0x0409, 6, QStringLiteral("AaKYKTKAT")},
+        {3, 1, 0x0804, 1, keyan},
+    });
+    CHECK(english_family_name_from_name_table(keyan_table, keyan) == QStringLiteral("AaKYKTKAT"));
+    // The same table answers nothing more for the Latin name a database lists it under too.
+    CHECK(english_family_name_from_name_table(keyan_table, QStringLiteral("AaKYKTKAT")).isEmpty());
+  }
+
   // Nothing to offer: only the listed name, or no table at all.
   CHECK(english_family_name_from_name_table(name_table_with({{3, 1, 0x0804, 1, yahei}}), yahei).isEmpty());
   CHECK(english_family_name_from_name_table(QByteArray(), yahei).isEmpty());
@@ -1285,6 +1303,96 @@ void ui_font_english_name_reads_a_system_font_if_available() {
     return;
   }
   patchy::test::skip("no registered font carries a family name in two scripts");
+}
+
+// GitHub issue 691 follow-up 2: KeYanKeTianKeAiTi-2.ttf (a personal-use font, so a local
+// fixture only) names its family in Chinese in both Windows records, en-US included, and in
+// Latin ("AaKYKTKAT") in its Macintosh Roman records. Qt's Linux database lists it twice, as
+// 可盐可甜可爱体 (style Regular) and AaKYKTKAT (style 常规); Windows lists the Chinese name only.
+// Either way the picker shows one row, AaKYKTKAT, that search finds by both names.
+void ui_font_english_name_of_keyankeitian_if_available() {
+  const auto path = patchy::test::local_fixtures_root() / "fonts" / "KeYanKeTianKeAiTi-2.ttf";
+  if (!std::filesystem::exists(path)) {
+    patchy::test::skip("optional fixture missing: local-test-fixtures/fonts/KeYanKeTianKeAiTi-2.ttf");
+  }
+  const auto english = QStringLiteral("AaKYKTKAT");
+  const auto chinese = QStringLiteral("\u53ef\u76d0\u53ef\u751c\u53ef\u7231\u4f53");
+  // The file's own name table, whatever the font database makes of it.
+  const QRawFont file_face(patchy::ui::to_qstring(path), 12);
+  CHECK(file_face.isValid());
+  CHECK(patchy::ui::english_family_name_from_name_table(file_face.fontTable("name"), chinese) == english);
+
+  reset_picker_settings();
+  const EnglishFontNamesOff option_off;
+  const int id = QFontDatabase::addApplicationFont(patchy::ui::to_qstring(path));
+  CHECK(id >= 0);
+  if (id < 0) {
+    return;
+  }
+  const auto registered = QFontDatabase::applicationFontFamilies(id);
+  const auto listed = patchy::ui::font_families_without_foundries(QFontDatabase::families());
+  QStringList ours;
+  for (const auto& family : listed) {
+    if (registered.contains(family, Qt::CaseInsensitive)) {
+      ours.append(family);
+    }
+  }
+  if (!ours.contains(chinese)) {
+    // The offscreen platform on Windows lists application fonts by FreeType's ASCII family name,
+    // here seven question marks; the windows platform lists the Chinese name.
+    std::cout << "  note: this font database does not list the Chinese family name; the picker part is not run\n";
+    QFontDatabase::removeApplicationFont(id);
+    return;
+  }
+  std::cout << "  note: the database lists " << ours.join(QStringLiteral(" | ")).toStdString() << "\n";
+  patchy::ui::set_stored_show_font_names_in_english(true);
+  const auto& names = patchy::ui::font_display_names();
+  const auto row = names.row_family(chinese);
+  for (const auto& family : ours) {
+    CHECK(names.display_name(family) == english);
+    CHECK(names.row_family(family) == row);
+  }
+  const auto rows = names.without_twins(listed);
+  CHECK(rows.count(row) == 1);
+  for (const auto& family : ours) {
+    CHECK(family == row || !rows.contains(family));
+  }
+  CHECK(names.family_for_display_name(english) == row);
+  CHECK(names.matches_search(row, QStringLiteral("KYKT")));
+  CHECK(names.matches_search(row, chinese.left(3)));
+
+  // The picker: one AaKYKTKAT row, found by either name, and a document's Chinese family opens
+  // on it.
+  {
+    QWidget host;
+    auto* picker = new patchy::ui::FontPickerCombo(&host);
+    host.setGeometry(320, 240, 300, 60);
+    host.show();
+    QApplication::processEvents();
+    picker->setCurrentFont(QFont(chinese));
+    CHECK(picker->currentText() == english);
+    auto* popup = open_picker_popup(*picker);
+    CHECK(popup != nullptr);
+    auto* list = popup != nullptr ? popup->findChild<QListView*>(QStringLiteral("textFontPickerList")) : nullptr;
+    auto* search = popup != nullptr ? popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit")) : nullptr;
+    CHECK(list != nullptr && search != nullptr);
+    if (list != nullptr && search != nullptr) {
+      CHECK(list->currentIndex().data(Qt::DisplayRole).toString() == row);
+      CHECK(list->currentIndex().data(patchy::ui::kFontPickerShownNameRole).toString() == english);
+      for (const auto& text : {chinese.left(3), QStringLiteral("aakykt")}) {
+        search->setText(text);  // QTest::keyClicks takes ASCII only
+        QApplication::processEvents();
+        CHECK(family_rows(*list, false) == QStringList{row});
+      }
+      search->setText(chinese.left(2));
+      QApplication::processEvents();
+      save_widget_artifact("issue691_fu2_keyankeitian_english_name", *popup);
+      popup->close();
+      QApplication::processEvents();
+    }
+  }
+  QFontDatabase::removeApplicationFont(id);
+  reset_picker_settings();
 }
 
 // The table behind the option: a shown name leads back to exactly one listed family, a name
@@ -1332,6 +1440,35 @@ void ui_font_display_names_round_trip_to_the_listed_family() {
   CHECK(names.sorted(families) == (QStringList{QStringLiteral("Arial"), yahei, simsun, QStringLiteral("Tahoma"),
                                                QStringLiteral("Yu Gothic"), yu_medium, simhei}));
 
+  // A listed twin of the same face (Qt's Linux database lists a face's second family name as a
+  // family of its own when that name's style differs; GitHub issue 691 follow-up 2): the native
+  // family folds into the twin, which keeps its row and is found by both names. Without the
+  // same-face answer the name stays dropped, as for yu_medium above.
+  {
+    const auto keyan = QStringLiteral("\u53ef\u76d0\u53ef\u751c\u53ef\u7231\u4f53");
+    const QStringList listed{QStringLiteral("AaKYKTKAT"), QStringLiteral("Arial"), keyan, yu_medium};
+    const auto lookup = [&](const QString& family) {
+      return family == keyan ? QStringLiteral("aakyktkat") : family == yu_medium ? QStringLiteral("Arial") : QString();
+    };
+    const auto same_face = [&](const QString& family, const QString& other) {
+      return family == keyan && other == QStringLiteral("AaKYKTKAT");
+    };
+    const auto folded = patchy::ui::FontDisplayNames::build(listed, lookup, same_face);
+    CHECK(folded.display_name(keyan) == QStringLiteral("AaKYKTKAT"));
+    CHECK(folded.row_family(keyan) == QStringLiteral("AaKYKTKAT"));
+    CHECK(folded.display_name(yu_medium) == yu_medium);  // another face: dropped
+    CHECK(folded.row_family(yu_medium) == yu_medium);
+    CHECK(folded.without_twins(listed) == (QStringList{QStringLiteral("AaKYKTKAT"), QStringLiteral("Arial"), yu_medium}));
+    CHECK(folded.family_for_display_name(folded.display_name(keyan)) == QStringLiteral("AaKYKTKAT"));
+    CHECK(folded.matches_search(QStringLiteral("AaKYKTKAT"), keyan.left(2)));
+    CHECK(folded.matches_search(QStringLiteral("AaKYKTKAT"), QStringLiteral("kykt")));
+    CHECK(!folded.matches_search(QStringLiteral("Arial"), keyan.left(2)));
+    const auto unfolded = patchy::ui::FontDisplayNames::build(listed, lookup);
+    CHECK(unfolded.display_name(keyan) == keyan);
+    CHECK(unfolded.row_family(keyan) == keyan);
+    CHECK(unfolded.without_twins(listed) == listed);
+  }
+
   // Nothing to show: every answer is the family itself and the order is untouched.
   const patchy::ui::FontDisplayNames none;
   CHECK(none.empty());
@@ -1339,6 +1476,66 @@ void ui_font_display_names_round_trip_to_the_listed_family() {
   CHECK(none.family_for_display_name(QStringLiteral("Microsoft YaHei")) == QStringLiteral("Microsoft YaHei"));
   CHECK(none.sorted(families) == families);
   CHECK(!none.matches_search(yahei, QStringLiteral("yahei")));
+}
+
+// GitHub issue 691 follow-up 2: a family folded into a listed twin of the same face has no row
+// of its own; Recent, Favorites and a control set to it show the twin's row, and search by its
+// listed name finds the twin.
+void ui_font_picker_folds_a_same_face_twin() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  const EnglishFontNamesOff option_off;
+  QWidget host;
+  auto* picker = new patchy::ui::FontPickerCombo(&host);
+  host.setGeometry(320, 240, 300, 60);
+  host.show();
+  QApplication::processEvents();
+  const auto families = listed_families(*picker);
+  if (families.size() < 3) {
+    patchy::test::skip("fewer than three font families on this machine");
+  }
+  // Any two listed families stand in for a face listed under its native and its English name.
+  const auto native = families.at(0);
+  const auto twin = families.at(1);
+  const patchy::ui::ScopedFontDisplayNameLookup lookup(
+      [native, twin](const QString& listed) { return listed == native ? twin : QString(); },
+      [native, twin](const QString& family, const QString& other) { return family == native && other == twin; });
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey), QStringList{native, twin});
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerFavoriteFamiliesKey), QStringList{native});
+    settings.sync();
+  }
+  patchy::ui::set_stored_show_font_names_in_english(true);
+  picker->setCurrentFont(QFont(native));
+  CHECK(picker->currentText() == twin);
+  CHECK(picker->currentFont().families().value(0) == native);
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* list = popup != nullptr ? popup->findChild<QListView*>(QStringLiteral("textFontPickerList")) : nullptr;
+  auto* search = popup != nullptr ? popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit")) : nullptr;
+  CHECK(list != nullptr && search != nullptr);
+  if (list == nullptr || search == nullptr) {
+    return;
+  }
+  const auto all = family_rows(*list, false);
+  CHECK(!all.contains(native));
+  CHECK(all.count(twin) == 1);
+  CHECK(family_rows(*list, true) == QStringList{twin});  // Recent: both entries are one row
+  CHECK(list->currentIndex().data(Qt::DisplayRole).toString() == twin);
+  for (int row = 0; row < list->model()->rowCount(); ++row) {
+    const auto index = list->model()->index(row, 0);
+    if (index.data(Qt::DisplayRole).toString() == twin) {
+      CHECK(index.data(patchy::ui::kFontPickerFavoriteRole).toBool());
+    }
+  }
+  search->setText(native);  // QTest::keyClicks takes ASCII only
+  QApplication::processEvents();
+  CHECK(family_rows(*list, false).contains(twin));
+  CHECK(!family_rows(*list, false).contains(native));
+  popup->close();
+  QApplication::processEvents();
+  reset_picker_settings();
 }
 
 // The picker with the option off and on: off changes nothing; on, the closed control, the row and
@@ -1734,7 +1931,7 @@ void ui_font_picker_symbol_faces_show_a_readable_name() {
   }
   const auto installed = patchy::ui::font_families_without_foundries(QFontDatabase::families());
   QStringList urw;
-  for (const auto name : {QStringLiteral("Standard Symbols PS"), QStringLiteral("D050000L")}) {
+  for (const auto& name : {QStringLiteral("Standard Symbols PS"), QStringLiteral("D050000L")}) {
     if (installed.contains(name)) {
       urw.append(name);
     }
@@ -1838,8 +2035,10 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
        ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules},
       {"ui_font_english_name_comes_from_the_name_table", ui_font_english_name_comes_from_the_name_table},
       {"ui_font_english_name_reads_a_system_font_if_available", ui_font_english_name_reads_a_system_font_if_available},
+      {"ui_font_english_name_of_keyankeitian_if_available", ui_font_english_name_of_keyankeitian_if_available},
       {"ui_font_display_names_round_trip_to_the_listed_family", ui_font_display_names_round_trip_to_the_listed_family},
       {"ui_font_picker_shows_english_names_when_enabled", ui_font_picker_shows_english_names_when_enabled},
+      {"ui_font_picker_folds_a_same_face_twin", ui_font_picker_folds_a_same_face_twin},
       {"ui_preferences_show_font_names_in_english_checkbox", ui_preferences_show_font_names_in_english_checkbox},
       {"ui_font_picker_symbol_faces_show_a_readable_name", ui_font_picker_symbol_faces_show_a_readable_name},
   };

@@ -154,13 +154,17 @@ NameTableAnswer english_name_answer(const QByteArray& name_table, const QString&
   return answer;
 }
 
+QRawFont raw_font_for_family(const QString& family) {
+  return QRawFont::fromFont(QFontDatabase::font(family, QFontDatabase::styles(family).value(0), 12));
+}
+
 // The default lookup: the family's own name table, through whichever font engine the platform
 // uses. Families already named in Latin script are never opened.
 QString english_name_from_font(const QString& family) {
   if (font_name_is_latin(family)) {
     return {};
   }
-  const auto raw = QRawFont::fromFont(QFontDatabase::font(family, QFontDatabase::styles(family).value(0), 12));
+  const auto raw = raw_font_for_family(family);
   if (!raw.isValid()) {
     return {};
   }
@@ -173,11 +177,26 @@ QString english_name_from_font(const QString& family) {
   return answer.english;
 }
 
+// The default same-face check: both families open a face with the same `name` and `head`
+// tables (one file listed twice). Asked only when an English name is another listed family.
+bool same_face_from_fonts(const QString& family, const QString& other) {
+  const auto raw = raw_font_for_family(family);
+  const auto other_raw = raw_font_for_family(other);
+  if (!raw.isValid() || !other_raw.isValid()) {
+    return false;
+  }
+  const auto name = raw.fontTable("name");
+  const auto head = raw.fontTable("head");
+  return !name.isEmpty() && !head.isEmpty() && name == other_raw.fontTable("name") &&
+         head == other_raw.fontTable("head");
+}
+
 struct DisplayNameState {
   FontDisplayNames table;
   bool valid{false};
   bool connected{false};
   FontDisplayNames::Lookup lookup_override;
+  FontDisplayNames::SameFace same_face_override;
   // Lookup answers by family and style list, kept across font database changes so a font added
   // later does not reopen every family. Not used with a test lookup.
   QHash<QString, QString> english_by_family;
@@ -230,15 +249,19 @@ QString english_family_name_from_name_table(const QByteArray& name_table, const 
   return english_name_answer(name_table, listed_family).english;
 }
 
-FontDisplayNames FontDisplayNames::build(const QStringList& families, const Lookup& english_name) {
+FontDisplayNames FontDisplayNames::build(const QStringList& families, const Lookup& english_name,
+                                         const SameFace& same_face) {
   FontDisplayNames names;
   if (!english_name) {
     return names;
   }
   QSet<QString> taken;
   taken.reserve(families.size());
+  QHash<QString, QString> listed;  // case-folded listed name -> listed family
+  listed.reserve(families.size());
   for (const auto& family : families) {
     taken.insert(family.toCaseFolded());
+    listed.insert(family.toCaseFolded(), family);
   }
   for (const auto& family : families) {
     const auto shown = english_name(family).simplified();
@@ -247,7 +270,16 @@ FontDisplayNames FontDisplayNames::build(const QStringList& families, const Look
     }
     const auto key = shown.toCaseFolded();
     if (taken.contains(key)) {
-      continue;  // another family is listed or already shown under that name
+      // Another family is listed or already shown under that name. A listed twin of the same
+      // face takes this family in: one row, under the English name.
+      const auto other = listed.value(key);
+      if (!other.isEmpty() && other != family && !names.twin_.contains(other) && same_face &&
+          same_face(family, other)) {
+        names.shown_.insert(family, other);
+        names.twin_.insert(family, other);
+        names.folded_[other].append(family);
+      }
+      continue;
     }
     taken.insert(key);
     names.shown_.insert(family, shown);
@@ -270,8 +302,32 @@ bool FontDisplayNames::matches_search(const QString& family, const QString& text
   if (family.contains(text, Qt::CaseInsensitive)) {
     return true;
   }
-  const auto found = shown_.constFind(family);
-  return found != shown_.constEnd() && found->contains(text, Qt::CaseInsensitive);
+  if (const auto found = shown_.constFind(family);
+      found != shown_.constEnd() && found->contains(text, Qt::CaseInsensitive)) {
+    return true;
+  }
+  const auto folded = folded_.constFind(family);
+  return folded != folded_.constEnd() && std::ranges::any_of(*folded, [&text](const QString& name) {
+           return name.contains(text, Qt::CaseInsensitive);
+         });
+}
+
+QString FontDisplayNames::row_family(const QString& family) const {
+  return twin_.value(family, family);
+}
+
+QStringList FontDisplayNames::without_twins(const QStringList& families) const {
+  if (twin_.isEmpty()) {
+    return families;
+  }
+  QStringList kept;
+  kept.reserve(families.size());
+  for (const auto& family : families) {
+    if (!twin_.contains(family)) {
+      kept.append(family);
+    }
+  }
+  return kept;
 }
 
 QStringList FontDisplayNames::sorted(const QStringList& families) const {
@@ -312,7 +368,7 @@ const FontDisplayNames& font_display_names() {
   }
   const auto families = font_families_without_foundries(QFontDatabase::families());
   if (state.lookup_override) {
-    state.table = FontDisplayNames::build(families, state.lookup_override);
+    state.table = FontDisplayNames::build(families, state.lookup_override, state.same_face_override);
     return state.table;
   }
   state.table = FontDisplayNames::build(families, [&state](const QString& family) {
@@ -327,7 +383,7 @@ const FontDisplayNames& font_display_names() {
     const auto english = english_name_from_font(family);
     state.english_by_family.insert(cache_key, english);
     return english;
-  });
+  }, same_face_from_fonts);
   return state.table;
 }
 
@@ -342,13 +398,16 @@ FontDisplayNamesNotifier& FontDisplayNamesNotifier::instance() {
   return *notifier;
 }
 
-ScopedFontDisplayNameLookup::ScopedFontDisplayNameLookup(FontDisplayNames::Lookup lookup) {
+ScopedFontDisplayNameLookup::ScopedFontDisplayNameLookup(FontDisplayNames::Lookup lookup,
+                                                         FontDisplayNames::SameFace same_face) {
   display_name_state().lookup_override = std::move(lookup);
+  display_name_state().same_face_override = std::move(same_face);
   invalidate_display_names(true);
 }
 
 ScopedFontDisplayNameLookup::~ScopedFontDisplayNameLookup() {
   display_name_state().lookup_override = nullptr;
+  display_name_state().same_face_override = nullptr;
   invalidate_display_names(true);
 }
 

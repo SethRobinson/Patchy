@@ -101,6 +101,19 @@ Latin PostScript name. Code: `src/ui/font_display_names.{hpp,cpp}`.
 - **A shown name is unique** (`FontDisplayNames::build`): a name another family is listed or
   already shown under is dropped and that family keeps its listed name, so
   `family_for_display_name` always leads back to one family.
+- **Same-face twins fold** (issue 691 follow-up 2). Qt's fontconfig database lists a face's
+  second family name as a family of its own when that name's style differs: a font whose only
+  Latin name is in its Macintosh Roman records and whose styles are "Regular" and "常规" is
+  listed both as its Chinese family and as the Latin one. When a family's English name is a
+  listed family that opens a face with the same `name` and `head` tables (`same_face_from_fonts`,
+  asked only on such a clash), the family folds into that twin: it gets no row
+  (`without_twins`), it shows the twin's name, `row_family` maps Recent, Favorites, extra
+  sections and the popup's start row to the twin, and search on the twin reads the folded
+  family's name too. Windows lists that font once, so nothing folds there. Tests:
+  `ui_font_picker_folds_a_same_face_twin`, `ui_font_english_name_of_keyankeitian_if_available`
+  (local fixture `fonts/KeYanKeTianKeAiTi-2.ttf`, a personal-use font never committed; Qt's
+  offscreen platform on Windows lists it by FreeType's ASCII family name, seven question marks,
+  so there the test checks only the file's name table).
 - **Search** matches the listed and the shown name. The rows are ordered by shown name
   (case-insensitive) when any family has one; otherwise Qt's order stands.
 - **Closed control.** `show_row_display_name` sets the line edit to the shown name with the combo's

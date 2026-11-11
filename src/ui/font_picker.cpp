@@ -621,23 +621,26 @@ public:
     for (int row = 0; row < source->rowCount(); ++row) {
       listed.append(source->index(row, 0).data(Qt::DisplayRole).toString());
     }
-    // Ordered by the names the rows show (GitHub issue 691); Qt's order when none differs.
-    families_ = names_.sorted(font_families_without_foundries(listed));
+    // Ordered by the names the rows show (GitHub issue 691); Qt's order when none differs. A
+    // family folded into a same-face twin has no row of its own: Recent and Favorites show the
+    // twin (issue 691 follow-up 2).
+    families_ = names_.sorted(names_.without_twins(font_families_without_foundries(listed)));
     const QSet<QString> installed(families_.cbegin(), families_.cend());
-    for (const auto& family : stored_recent_font_families()) {
-      if (installed.contains(family)) {
+    for (const auto& stored : stored_recent_font_families()) {
+      if (const auto family = names_.row_family(stored); installed.contains(family) && !recent_.contains(family)) {
         recent_.append(family);
       }
     }
-    for (const auto& family : stored_favorite_font_families()) {
-      if (installed.contains(family)) {
+    for (const auto& stored : stored_favorite_font_families()) {
+      if (const auto family = names_.row_family(stored); installed.contains(family)) {
         favorites_.insert(family);
       }
     }
     // The caller's extra sections (GitHub issue 692), installed families only, each once a section.
     for (const auto& section : combo.extra_sections()) {
       FontPickerSection kept{section.title, {}, section.remove, section.remove_tooltip};
-      for (const auto& row : section.rows) {
+      for (auto row : section.rows) {
+        row.family = names_.row_family(row.family);
         if (installed.contains(row.family) &&
             std::ranges::none_of(kept.rows,
                                  [&row](const FontPickerSectionRow& other) { return other.family == row.family; })) {
@@ -1827,7 +1830,8 @@ void FontPickerCombo::showPopup() {
   rows->rebuild();
   list->clearSelection();
   list->setCurrentIndex(QModelIndex());
-  const auto start_family = row_family();
+  // A family folded into a same-face twin opens on the twin's row (issue 691 follow-up 2).
+  const auto start_family = font_display_names().row_family(row_family());
   if (rows->select_topmost_family(start_family)) {
     if (row_zone(list->currentIndex()) != kFullListZone || rows->shows_extra_section()) {
       list->scrollToTop();

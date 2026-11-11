@@ -40,11 +40,18 @@ class FontDisplayNames {
 public:
   // The English name to show for a listed family; empty or the family itself for "none".
   using Lookup = std::function<QString(const QString& family)>;
+  // Whether two listed families are one face under two names. Qt's fontconfig database lists a
+  // face's second family name as a family of its own when that name's style differs (GitHub
+  // issue 691 follow-up 2: a Latin family with a Chinese style beside the Chinese family).
+  using SameFace = std::function<bool(const QString& family, const QString& other)>;
 
   FontDisplayNames() = default;
   // `families` as the picker lists them (plain names, each once). A shown name another family
   // already goes by (listed or shown) is dropped, so every shown name leads back to one family.
-  [[nodiscard]] static FontDisplayNames build(const QStringList& families, const Lookup& english_name);
+  // The one exception: when the English name is a listed family that `same_face` says is the
+  // same face, `family` is folded into that twin (shown as its name, left out of the rows).
+  [[nodiscard]] static FontDisplayNames build(const QStringList& families, const Lookup& english_name,
+                                              const SameFace& same_face = {});
 
   [[nodiscard]] bool empty() const noexcept { return shown_.isEmpty(); }
   // The name to show for `family`: its English name when it has one, else `family`.
@@ -52,14 +59,22 @@ public:
   // The listed family a shown name stands for (case-insensitive); `name` itself when it is not a
   // shown name.
   [[nodiscard]] QString family_for_display_name(const QString& name) const;
-  // Whether the search text is part of the family's listed or shown name.
+  // Whether the search text is part of the family's listed or shown name, or the listed name of
+  // a family folded into it.
   [[nodiscard]] bool matches_search(const QString& family, const QString& text) const;
   // `families` ordered by shown name. Unchanged when no family has one.
   [[nodiscard]] QStringList sorted(const QStringList& families) const;
+  // The listed family whose row stands for `family`: its twin when it is folded into one, else
+  // `family` itself.
+  [[nodiscard]] QString row_family(const QString& family) const;
+  // `families` without the ones folded into a twin.
+  [[nodiscard]] QStringList without_twins(const QStringList& families) const;
 
 private:
   QHash<QString, QString> shown_;    // listed family -> shown name
   QHash<QString, QString> family_;   // case-folded shown name -> listed family
+  QHash<QString, QString> twin_;     // folded family -> the listed family it is shown as
+  QHash<QString, QStringList> folded_;  // twin -> the families folded into it
 };
 
 // The table for the font database's families: empty while the option is off. Built on first use
@@ -83,10 +98,11 @@ private:
 };
 
 // Tests: replaces the per-family lookup (the families' own name tables) until destroyed, so a
-// test can give any listed family a shown name. Rebuilds the table and notifies both ways.
+// test can give any listed family a shown name, and the same-face check (none by default, so a
+// shown name a listed family has is dropped). Rebuilds the table and notifies both ways.
 class ScopedFontDisplayNameLookup {
 public:
-  explicit ScopedFontDisplayNameLookup(FontDisplayNames::Lookup lookup);
+  explicit ScopedFontDisplayNameLookup(FontDisplayNames::Lookup lookup, FontDisplayNames::SameFace same_face = {});
   ~ScopedFontDisplayNameLookup();
   ScopedFontDisplayNameLookup(const ScopedFontDisplayNameLookup&) = delete;
   ScopedFontDisplayNameLookup& operator=(const ScopedFontDisplayNameLookup&) = delete;
