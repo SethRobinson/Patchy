@@ -25,8 +25,8 @@ control, with two sections of its own above Recent ("Extra sections" below). Tex
   never "Arial [TMC ]". The model keeps one row per foundry copy (Qt selects rows by its own list);
   the popup lists the family once. Recent and Favorites saved with a suffix read back plain, once.
 - Row buttons (`font_picker_row_button_rect`, `FontPickerRowButton`): every family row has the
-  favorite star at its right; Recent rows have the remove x rightmost with the star just left of
-  it. Their space is reserved on every row so names never re-elide on hover. A favorite's star is
+  favorite star at its right; Recent rows and the rows of an extra section with a `remove` action
+  (`kFontPickerRowRemovableRole`) have the remove x rightmost with the star just left of it. Their space is reserved on every row so names never re-elide on hover. A favorite's star is
   filled in `font_favorite_star` always; an empty star and the x show on the hovered row only, in
   `text_secondary` (`text_primary` over the button). `RowButtonController`, an event filter on the
   list's viewport, owns presses inside a button rect: the row is neither selected nor picked, the
@@ -52,6 +52,11 @@ the options bar's picker sets none and is unchanged.
   `kFontPickerExtraSectionRole` (the section's index, -1 elsewhere) and `kFontPickerRowNoteRole`:
   the note is drawn dim in the UI font at the right of the row and takes at most three fifths of
   the name's width.
+- A section with a `remove` action (issue 692 follow-up: "Chosen before") gives each row the
+  Recent x, with the section's own `remove_tooltip`. A click runs the action with the family and
+  drops the row from the open list (scroll kept, popup open) and from the combo's sections
+  (`remove_extra_section_row`), so the next popup leaves it out too; the family stays in the full
+  list. Sections without one have no x.
 - A popup with an extra section opens with the list at the top, on the current family's topmost
   row. A rebuild puts the selection back in the section it was in (`row_zone`).
 - Test: `ui_font_picker_extra_sections_sit_above_recent_and_follow_its_rules`.

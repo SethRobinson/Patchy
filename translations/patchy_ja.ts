@@ -15721,6 +15721,11 @@ Do you want to replace it?</source>
         <translation>以前に選択したフォント</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>以前に選択したフォントから削除</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>候補</translation>

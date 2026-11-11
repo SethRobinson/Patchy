@@ -15759,6 +15759,11 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation type="unfinished"></translation>

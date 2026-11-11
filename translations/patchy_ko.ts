@@ -15721,6 +15721,11 @@ Do you want to replace it?</source>
         <translation>이전에 선택한 글꼴</translation>
     </message>
     <message>
+        <source>Remove from Chosen before</source>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <translation>이전에 선택한 글꼴에서 제거</translation>
+    </message>
+    <message>
         <source>Suggested</source>
         <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>추천</translation>

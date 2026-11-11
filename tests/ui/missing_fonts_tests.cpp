@@ -38,6 +38,8 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMouseEvent>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStatusBar>
@@ -58,6 +60,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -3152,6 +3155,288 @@ void ui_missing_font_replacement_memory_counts_orders_and_caps() {
   CHECK(remembered_font_replacements(font).empty());
 }
 
+// The open popup of `picker` and its list (GitHub issue 692 follow-up); null when it did not open.
+std::pair<QWidget*, QListView*> open_missing_font_picker(patchy::ui::FontPickerCombo& picker) {
+  picker.showPopup();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QLatin1String(patchy::ui::kFontPickerPopupObjectName) && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  auto* list = popup == nullptr ? nullptr : popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  CHECK(list != nullptr);
+  return {popup, list};
+}
+
+// The families of the open list's rows in extra section `section` (-1: the rows outside every
+// extra section).
+QStringList missing_font_picker_section_rows(const QListView& list, int section) {
+  QStringList out;
+  const auto* model = list.model();
+  for (int row = 0; row < model->rowCount(); ++row) {
+    const auto index = model->index(row, 0);
+    if (index.data(patchy::ui::kFontPickerRowKindRole).toInt() == static_cast<int>(patchy::ui::FontPickerRowKind::family) &&
+        index.data(patchy::ui::kFontPickerExtraSectionRole).toInt() == section) {
+      out.append(index.data(Qt::DisplayRole).toString());
+    }
+  }
+  return out;
+}
+
+int missing_font_picker_row(const QListView& list, const QString& family, int section) {
+  const auto* model = list.model();
+  for (int row = 0; row < model->rowCount(); ++row) {
+    const auto index = model->index(row, 0);
+    if (index.data(patchy::ui::kFontPickerRowKindRole).toInt() == static_cast<int>(patchy::ui::FontPickerRowKind::family) &&
+        index.data(patchy::ui::kFontPickerExtraSectionRole).toInt() == section &&
+        index.data(Qt::DisplayRole).toString() == family) {
+      return row;
+    }
+  }
+  return -1;
+}
+
+// Hovers `position` in the list's viewport like a real mouse: the hover row shows the row buttons.
+void hover_missing_font_picker(QListView& list, const QPoint& position) {
+  auto* viewport = list.viewport();
+  const QPointF global = viewport->mapToGlobal(QPointF(position));
+  QHoverEvent hover(QEvent::HoverMove, QPointF(position), global, QPointF(-1, -1));
+  QApplication::sendEvent(viewport, &hover);
+  QMouseEvent move(QEvent::MouseMove, QPointF(position), global, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(viewport, &move);
+  QApplication::processEvents();
+}
+
+// GitHub issue 692 follow-up: a font picked by hand is remembered even when it is the font the
+// row started on (Wingdings for Wine Wingdings is the built-in recommendation); a row left
+// untouched still records nothing.
+void ui_missing_fonts_dialog_remembers_a_hand_pick_of_the_suggestion() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+
+  MainWindow window;
+  show_window(window);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  const auto add_document = [&](const QString& title) {
+    auto document = white_document();
+    const auto id = document.add_layer(missing_font_text_layer(document, "Headline", kMissing, 20)).id();
+    document.add_layer(missing_font_text_layer(document, "Caption", kOtherMissing, 80));
+    window.add_document_session(std::move(document), title);
+    QApplication::processEvents();
+    return id;
+  };
+  const auto run_dialog = [&](const std::function<void(QDialog&, const MissingFontRow&)>& act) {
+    auto seen = std::make_shared<int>(0);
+    handle_missing_fonts_dialog(
+        [&](QDialog& dialog) {
+          const auto row = missing_font_row_widgets(dialog, kMissing);
+          CHECK(row.picker != nullptr && row.resolve != nullptr);
+          if (row.picker == nullptr || row.resolve == nullptr) {
+            dialog.reject();
+            return;
+          }
+          act(dialog, row);
+        },
+        seen);
+    action->trigger();
+    process_events_for(200);
+    CHECK(*seen == 1);
+  };
+
+  // The font the row starts on, picked again from its list; the other row is left alone.
+  const auto first_id = add_document(QStringLiteral("Hand Pick"));
+  QString recommended;
+  bool picked = false;
+  run_dialog([&](QDialog& dialog, const MissingFontRow& row) {
+    CHECK(row.chosen_before == nullptr);
+    recommended = row.picker->currentFont().family();
+    const auto [popup, list] = open_missing_font_picker(*row.picker);
+    if (popup == nullptr || list == nullptr) {
+      dialog.reject();
+      return;
+    }
+    const int target = missing_font_picker_row(*list, recommended, -1);
+    CHECK(target >= 0);
+    if (target >= 0) {
+      const auto index = list->model()->index(target, 0);
+      list->scrollTo(index);
+      QApplication::processEvents();
+      const auto rect = list->visualRect(index);
+      const QPointer<QWidget> alive(popup);  // the pick closes the popup, which deletes itself
+      QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(rect.left() + 12, rect.center().y()));
+      QApplication::processEvents();
+      QApplication::processEvents();
+      picked = alive == nullptr || !alive->isVisible();
+    }
+    CHECK(row.picker->currentFont().family() == recommended);
+    row.resolve->click();
+  });
+  std::fprintf(stderr, "  recommended '%s', picked by hand: %d\n", qPrintable(recommended), picked ? 1 : 0);
+  CHECK(picked);
+  CHECK(!recommended.isEmpty() && layer_font(window, first_id) == recommended);
+  const auto remembered = patchy::ui::remembered_font_replacements(kMissing);
+  CHECK(remembered.size() == 1U);
+  if (remembered.size() == 1U) {
+    CHECK(remembered.front().family == recommended && remembered.front().count == 1);
+  }
+  CHECK(patchy::ui::remembered_font_replacements(kOtherMissing).empty());
+
+  // The next document's row says it was chosen before.
+  add_document(QStringLiteral("Hand Pick Again"));
+  run_dialog([&](QDialog& dialog, const MissingFontRow& row) {
+    CHECK(row.chosen_before != nullptr &&
+          row.chosen_before->text() == QStringLiteral("Chosen before: %1").arg(recommended));
+    CHECK(row.picker->currentFont().family() == recommended);
+    dialog.reject();
+  });
+}
+
+// GitHub issue 692 follow-up: the x on a "Chosen before" row forgets that one pick for this
+// missing font. The list updates in place, the font stays in the rest of the list, and the
+// next popup lists only what is left.
+void ui_missing_fonts_picker_chosen_before_x_forgets_the_pick() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const ReplacementMemoryReset memory;
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  const auto missing = screenshot_missing_font();
+  QStringList candidates;
+  for (const auto& substitute : patchy::ui::installed_text_font_substitutes(missing, QStringLiteral("Headline"))) {
+    candidates.append(substitute.family);
+  }
+  QStringList others;
+  for (const auto& family : latin_text_families()) {
+    if (!candidates.contains(family, Qt::CaseInsensitive)) {
+      others.append(family);
+    }
+  }
+  if (others.size() < 2) {
+    patchy::test::skip("fewer than two Latin font families beside the suggested ones on this host");
+  }
+  const auto often = others.at(0);
+  const auto once = others.at(1);
+  patchy::ui::record_font_replacement(missing, once);
+  patchy::ui::record_font_replacement(missing, often);
+  patchy::ui::record_font_replacement(missing, often);
+  patchy::ui::record_font_replacement(kOtherMissing, once);  // another font's pick stays
+
+  MainWindow window;
+  show_window(window);
+  auto document = white_document();
+  document.add_layer(missing_font_text_layer(document, "Headline", missing, 40));
+  window.add_document_session(std::move(document), QStringLiteral("Forget"));
+  QApplication::processEvents();
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto row = missing_font_row_widgets(dialog, missing);
+        CHECK(row.picker != nullptr);
+        if (row.picker == nullptr) {
+          dialog.reject();
+          return;
+        }
+        const auto [popup, list] = open_missing_font_picker(*row.picker);
+        if (popup == nullptr || list == nullptr) {
+          dialog.reject();
+          return;
+        }
+        list->scrollToTop();
+        QApplication::processEvents();
+        CHECK(missing_font_picker_section_rows(*list, 0) == (QStringList{often, once}));
+        // Only the "Chosen before" rows (and Recent's) have the x; the Suggested rows do not.
+        const auto* model = list->model();
+        for (int r = 0; r < model->rowCount(); ++r) {
+          const auto index = model->index(r, 0);
+          const int section = index.data(patchy::ui::kFontPickerExtraSectionRole).toInt();
+          if (section == 0) {
+            CHECK(index.data(patchy::ui::kFontPickerRowRemovableRole).toBool());
+          } else if (section > 0) {
+            CHECK(!index.data(patchy::ui::kFontPickerRowRemovableRole).toBool());
+          }
+        }
+        const int target = missing_font_picker_row(*list, once, 0);
+        CHECK(target >= 0);
+        if (target < 0) {
+          popup->close();
+          dialog.reject();
+          return;
+        }
+        const auto x_rect = patchy::ui::font_picker_row_button_rect(
+            list->visualRect(model->index(target, 0)), patchy::ui::FontPickerRowButton::remove_recent, true);
+        hover_missing_font_picker(*list, x_rect.center());
+        save_widget_artifact("issue692_missing_fonts_chosen_before_remove", *popup);
+        QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, x_rect.center());
+        QApplication::processEvents();  // the action runs queued
+        QApplication::processEvents();
+        CHECK(popup->isVisible());
+        CHECK(row.picker->currentFont().family() == often);  // the x picks nothing
+        CHECK(missing_font_picker_section_rows(*list, 0) == QStringList{often});
+        CHECK(missing_font_picker_section_rows(*list, -1).contains(once));  // still in the full list
+        const auto left = patchy::ui::remembered_font_replacements(missing);
+        CHECK(left.size() == 1U && left.front().family == often && left.front().count == 2);
+        CHECK(patchy::ui::remembered_font_replacements(kOtherMissing).size() == 1U);
+        popup->close();
+        QApplication::processEvents();
+        // The next popup lists only the pick that is left.
+        const auto sections = picker_extra_sections(*row.picker);
+        CHECK(!sections.empty());
+        if (!sections.empty()) {
+          CHECK(sections.front().title == QStringLiteral("Chosen before"));
+          CHECK(sections.front().families == QStringList{often});
+        }
+        dialog.reject();
+      },
+      seen);
+  action->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+}
+
+// GitHub issue 692 follow-up: forgetting one remembered pick removes only that one; a font left
+// with no pick leaves the stored list.
+void ui_missing_font_replacement_memory_forgets_one_pick() {
+  const ReplacementMemoryReset memory;
+  using patchy::ui::forget_font_replacement;
+  using patchy::ui::record_font_replacement;
+  using patchy::ui::remembered_font_replacements;
+  const auto font = QStringLiteral("Patchy Forget Font");
+  const auto other = QStringLiteral("Patchy Other Forget Font");
+  record_font_replacement(font, QStringLiteral("Alpha"));
+  record_font_replacement(font, QStringLiteral("Beta"));
+  record_font_replacement(font, QStringLiteral("Beta"));
+  record_font_replacement(other, QStringLiteral("Beta"));
+  forget_font_replacement(QStringLiteral("PatchyForgetFont"), QStringLiteral("beta"));  // same font, case ignored
+  auto picks = remembered_font_replacements(font);
+  CHECK(picks.size() == 1U);
+  if (picks.size() == 1U) {
+    CHECK(picks.front().family == QStringLiteral("Alpha") && picks.front().count == 1);
+  }
+  CHECK(remembered_font_replacements(other).size() == 1U);
+  forget_font_replacement(font, QStringLiteral("Gamma"));  // never chosen: nothing changes
+  forget_font_replacement(QString(), QStringLiteral("Alpha"));
+  forget_font_replacement(font, QString());
+  CHECK(remembered_font_replacements(font).size() == 1U);
+  forget_font_replacement(font, QStringLiteral("Alpha"));
+  CHECK(remembered_font_replacements(font).empty());
+  CHECK(remembered_font_replacements(other).size() == 1U);
+  forget_font_replacement(other, QStringLiteral("Beta"));
+  CHECK(!patchy::ui::app_settings().contains(QString::fromLatin1(patchy::ui::kMissingFontReplacementsKey)));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
@@ -3199,6 +3484,10 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
        ui_missing_fonts_untouched_suggestion_and_cancel_remember_nothing},
       {"ui_missing_font_replacement_memory_counts_orders_and_caps",
        ui_missing_font_replacement_memory_counts_orders_and_caps},
+      {"ui_missing_fonts_dialog_remembers_a_hand_pick_of_the_suggestion",
+       ui_missing_fonts_dialog_remembers_a_hand_pick_of_the_suggestion},
+      {"ui_missing_fonts_picker_chosen_before_x_forgets_the_pick", ui_missing_fonts_picker_chosen_before_x_forgets_the_pick},
+      {"ui_missing_font_replacement_memory_forgets_one_pick", ui_missing_font_replacement_memory_forgets_one_pick},
       {"ui_missing_fonts_dialog_shows_on_open_until_turned_off", ui_missing_fonts_dialog_shows_on_open_until_turned_off},
       {"ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show", ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show},
       {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},

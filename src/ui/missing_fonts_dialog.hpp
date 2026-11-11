@@ -3,6 +3,7 @@
 #include "core/font_substitutes.hpp"
 
 #include <QHash>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -55,6 +56,9 @@ struct MissingFontsDialogResult {
   // text_font_replacement_key(family) -> the installed family chosen for it. Unticked rows are
   // absent.
   QHash<QString, QString> replacements;
+  // The keys of the ticked rows whose font was picked by hand (in the picker's list, or a name
+  // typed into it), even when the pick is the font the row started on (issue 692 follow-up).
+  QSet<QString> picked_by_hand;
   // The "Don't show when opening documents" box, inverted (imports/showMissingFontsDialog).
   bool show_on_open{true};
 };

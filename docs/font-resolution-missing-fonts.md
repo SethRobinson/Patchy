@@ -119,9 +119,11 @@ or another document naming that font starts on it. `src/ui/font_replacement_memo
   `kMaxRememberedReplacementFonts` (100) fonts with `kMaxRememberedReplacementsPerFont` (6)
   families each; the entry chosen longest ago goes first. A damaged value reads as empty.
 - **Recording** (`remember_font_replacements`, after Resolve Fonts only). A ticked row's pick is
-  recorded when it differs from the built-in recommendation the row would start on
-  (`MissingFontEntry::recommended`), when the font is a `no_symbol_match` symbol font (its row
-  starts unticked, so any pick is by hand), or when the font already has remembered picks (going
+  recorded when it was picked by hand (the picker's `activated`: a pick in its list or a name typed
+  into it, even the font the row started on, so Wingdings chosen for Wine Wingdings counts;
+  `MissingFontsDialogResult::picked_by_hand`), when it differs from the built-in recommendation the
+  row would start on (`MissingFontEntry::recommended`), when the font is a `no_symbol_match`
+  symbol font (its row starts unticked, so any pick is by hand), or when the font already has remembered picks (going
   back to the recommendation becomes the last pick; accepting a remembered font counts once
   more). An untouched recommendation for a font with no history records nothing, so those rows
   keep their "Suggested:" line. Cancel and unticked rows record nothing: "keep the missing font"
@@ -140,11 +142,19 @@ or another document naming that font starts on it. `src/ui/font_replacement_memo
   "also a serif font" and its sans-serif and monospaced forms) minus the fonts the first section
   lists. The full list with search, filters, Recent, Favorites and the preview stays below them
   (Seth chose that over a plain list).
+- **Forgetting** (issue 692 follow-up). Each "Chosen before" row has the Recent x ("Remove from
+  Chosen before"): `forget_font_replacement` drops every remembered spelling of that family for
+  this missing font (a font left with no pick leaves the stored list), the row leaves the open list
+  and the next popup, and the font stays in the full list. The row's "Chosen before:" line and its
+  starting font change only when the dialog opens again.
 - Tests: `ui_missing_fonts_dialog_remembers_the_replacement_chosen`,
   `ui_missing_fonts_dialog_skips_a_remembered_font_that_is_not_installed`,
   `ui_missing_fonts_picker_`, `ui_replace_all_missing_fonts_uses_the_remembered_replacement`,
   `ui_missing_fonts_untouched_suggestion_and_cancel_remember_nothing`,
-  `ui_missing_font_replacement_memory_counts_orders_and_caps`. A test that resolves a hand-picked
+  `ui_missing_font_replacement_memory_counts_orders_and_caps`,
+  `ui_missing_fonts_dialog_remembers_a_hand_pick_of_the_suggestion`,
+  `ui_missing_fonts_picker_chosen_before_x_forgets_the_pick`,
+  `ui_missing_font_replacement_memory_forgets_one_pick`. A test that resolves a hand-picked
   font holds a `ReplacementMemoryReset`, or its pick starts a later test's row; the UI test main
   clears the key at startup.
 

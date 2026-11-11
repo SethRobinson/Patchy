@@ -2,6 +2,7 @@
 
 #include "ui/dialog_utils.hpp"
 #include "ui/font_picker.hpp"
+#include "ui/font_replacement_memory.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -62,6 +63,19 @@ std::vector<FontPickerSection> picker_sections(const MissingFontEntry& entry) {
   for (const auto& family : entry.chosen_before_families) {
     chosen.rows.push_back(FontPickerSectionRow{family, QString()});
   }
+  // The row's remove button forgets that pick for this missing font (issue 692 follow-up). The
+  // row lists the installed family a remembered name matched, so every remembered spelling of it
+  // goes.
+  chosen.remove = [missing = entry.family](const QString& family) {
+    for (const auto& pick : remembered_font_replacements(missing)) {
+      if (pick.family.compare(family, Qt::CaseInsensitive) == 0 ||
+          available_text_family_match(pick.family) == std::optional<QString>(family)) {
+        forget_font_replacement(missing, pick.family);
+      }
+    }
+  };
+  //: Tooltip of the x on a row of the Missing Fonts dialog's Chosen before font list section.
+  chosen.remove_tooltip = QObject::tr("Remove from Chosen before");
   //: Heading in the Missing Fonts dialog's font list: fonts Patchy suggests for this missing font.
   FontPickerSection suggested{QObject::tr("Suggested"), {}};
   for (const auto& candidate : entry.candidates) {
@@ -98,6 +112,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     const MissingFontEntry* entry;
     QCheckBox* replace;
     FontPickerCombo* picker;
+    bool picked_by_hand{false};  // the picker's activated signal: a pick in its list or a typed name
   };
   std::vector<Row> rows;
   // Enabled while at least one row is ticked (issue 463 follow-up). Cancel is the way to keep
@@ -216,6 +231,11 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     grid->addWidget(picker, grid_row, 2, Qt::AlignVCenter);
     QObject::connect(replace, &QCheckBox::toggled, picker, &QWidget::setEnabled);
     QObject::connect(replace, &QCheckBox::toggled, &dialog, [&sync_resolve_button](bool) { sync_resolve_button(); });
+    // Every pick by hand counts, the font the row started on included (issue 692 follow-up), so
+    // Resolve Fonts remembers it; setting the font from code does not emit this.
+    QObject::connect(picker, &QComboBox::activated, &dialog, [&rows, index](int) {
+      rows[static_cast<std::size_t>(index)].picked_by_hand = true;
+    });
     rows.push_back(Row{&entry, replace, picker});
   }
 
@@ -274,7 +294,11 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     }
     const auto chosen = row.picker->currentFont().family();
     if (!chosen.trimmed().isEmpty()) {
-      result.replacements.insert(text_font_replacement_key(row.entry->family), chosen);
+      const auto key = text_font_replacement_key(row.entry->family);
+      result.replacements.insert(key, chosen);
+      if (row.picked_by_hand) {
+        result.picked_by_hand.insert(key);
+      }
     }
   }
   return result;
