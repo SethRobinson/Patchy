@@ -265,7 +265,10 @@ struct ShapeSnapScene {
     canvas->set_snap_to_layers(true);
     canvas->set_snap_to_document(true);
     canvas->set_zoom(1.0);
-    canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+    // Through the tool's own action, so the toolbox and the options bar show it too.
+    require_hotkey_action(window, QStringLiteral("tools.rect"))->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
     auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
     CHECK(radius_spin != nullptr);
     if (radius_spin != nullptr) {
