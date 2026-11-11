@@ -4,7 +4,7 @@
 # (docs/interactive-previews.md, "Drag move coalescing"). Runs `patchy_perf_tests
 # canvasdrag_live` full screen on the rig and drags with the virtual pointer: the moves of
 # live-drag-moves.py (3000 on a wavy path), then a release.
-#   live-canvas-drag.sh <shape|gradient> <on|off> [pace] [hogs]
+#   live-canvas-drag.sh <shape|gradient|pathtransform> <on|off> [pace] [hogs]
 #   on|off   drag move coalescing (off is the baseline without it)
 #   pace N   a 1 ms sleep after every N moves (0 floods)
 #   hogs N   pins the app to CPU 3 beside N busy loops there, like a slower machine

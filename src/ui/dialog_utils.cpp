@@ -3426,6 +3426,18 @@ class SliderDragCoalescer final : public QObject {
   bool all_moves{false};
   int coalesced{0};
 
+  // defer_widget_drag_move and flush_widget_drag_move: the same record and flush for a widget
+  // whose moves another event filter consumes before this one sees them.
+  bool defer_from_filter(QWidget& widget, const QMouseEvent& event) {
+    filter_widget_ = &widget;
+    return defer_move(&widget, event, true);
+  }
+  void flush_from_filter() {
+    if (!replaying_) {
+      flush();
+    }
+  }
+
   bool eventFilter(QObject* watched, QEvent* event) override {
     switch (event->type()) {
       case QEvent::MouseMove:
@@ -3451,22 +3463,36 @@ class SliderDragCoalescer final : public QObject {
  private:
   explicit SliderDragCoalescer(QObject* parent) : QObject(parent) { qApp->installEventFilter(this); }
 
-  bool defer_move(QObject* watched, const QMouseEvent& event) {
+  // A pressed slider, or a widget that opted in (coalesce_widget_drag_moves, or the filter
+  // that calls defer_widget_drag_move for it) while a button is held: the drags whose moves
+  // this filter coalesces.
+  [[nodiscard]] bool dragging(const QWidget* widget, Qt::MouseButtons buttons) const {
+    if (widget == nullptr) {
+      return false;
+    }
+    if (const auto* slider = qobject_cast<const QAbstractSlider*>(widget); slider != nullptr) {
+      return slider->isSliderDown();
+    }
+    return buttons != Qt::NoButton &&
+           (widget == filter_widget_ || widget->property(kCoalesceDragMovesProperty).toBool());
+  }
+
+  bool defer_move(QObject* watched, const QMouseEvent& event, bool from_filter = false) {
     if (replaying_ || (!event.spontaneous() && !all_moves)) {
       return false;
     }
-    auto* slider = qobject_cast<QAbstractSlider*>(watched);
-    if (slider == nullptr || !slider->isSliderDown()) {
-      return false;
+    auto* widget = qobject_cast<QWidget*>(watched);
+    if (!dragging(widget, event.buttons()) || (!from_filter && widget == filter_widget_)) {
+      return false;  // not a drag, or one its own filter records (defer_widget_drag_move)
     }
     if (!pass_active_) {
-      begin_pass();  // the first move of this pass reaches the slider now
+      begin_pass();  // the first move of this pass reaches the widget now
       return false;
     }
-    if (pending_slider_ != nullptr && pending_slider_ != slider) {
+    if (pending_widget_ != nullptr && pending_widget_ != widget) {
       flush();
     }
-    pending_slider_ = slider;
+    pending_widget_ = widget;
     pending_.reset(static_cast<QMouseEvent*>(event.clone()));
     ++coalesced;
     return true;
@@ -3483,7 +3509,7 @@ class SliderDragCoalescer final : public QObject {
     if (pending_ == nullptr) {
       return;
     }
-    if (pending_slider_ != nullptr && pending_slider_->isSliderDown()) {
+    if (dragging(pending_widget_, pending_->buttons())) {
       begin_pass();  // moves that queue up behind this one coalesce into the next pass
     }
     flush();
@@ -3494,19 +3520,20 @@ class SliderDragCoalescer final : public QObject {
       return;
     }
     auto event = std::move(pending_);
-    const QPointer<QAbstractSlider> slider = pending_slider_;
-    pending_slider_ = nullptr;
-    if (slider == nullptr || !slider->isSliderDown()) {
+    const QPointer<QWidget> widget = pending_widget_;
+    pending_widget_ = nullptr;
+    if (!dragging(widget, event->buttons())) {
       return;  // the drag ended before the move ran
     }
     replaying_ = true;
-    QCoreApplication::sendEvent(slider, event.get());
+    QCoreApplication::sendEvent(widget, event.get());
     replaying_ = false;
   }
 
   bool pass_active_{false};
   bool replaying_{false};
-  QPointer<QAbstractSlider> pending_slider_;
+  QPointer<QWidget> pending_widget_;
+  QPointer<QWidget> filter_widget_;  // the last widget defer_widget_drag_move recorded for
   std::unique_ptr<QMouseEvent> pending_;
 };
 
@@ -3515,6 +3542,21 @@ class SliderDragCoalescer final : public QObject {
 void ensure_slider_drag_coalescing() {
   if (qApp != nullptr) {
     (void)SliderDragCoalescer::instance();
+  }
+}
+
+void coalesce_widget_drag_moves(QWidget& widget) {
+  widget.setProperty(kCoalesceDragMovesProperty, true);
+  ensure_slider_drag_coalescing();
+}
+
+bool defer_widget_drag_move(QWidget& widget, const QMouseEvent& event) {
+  return qApp != nullptr && SliderDragCoalescer::instance().defer_from_filter(widget, event);
+}
+
+void flush_widget_drag_move() {
+  if (qApp != nullptr) {
+    SliderDragCoalescer::instance().flush_from_filter();
   }
 }
 

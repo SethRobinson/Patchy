@@ -1923,27 +1923,33 @@ protected:
   void end_drag_move_pass();
   // Applies a recorded drag move now (presses, releases and keys call it first).
   void flush_pending_drag_move();
-  // The drags whose moves coalesce: Move tool, Free Transform, a held pick (the Pick
-  // tool or a paint tool's Alt eyedropper, GitHub #478), shape box and point handles, a
-  // Path Select or Direct Select drag of points or whole shapes (a shape tool's Ctrl drag
-  // included, GitHub #678) and a Gradient Fill handle (GitHub #705), and a Clone or Healing
-  // stroke (GitHub #597), Smudge and the toning brushes (GitHub #660), which keep every
-  // recorded position (pending_stroke_positions_).
+  // The drags whose moves coalesce (the Wayland drag rule: a drag whose move does more
+  // than move an overlay joins this list; docs/interactive-previews-drag-coalescing.md,
+  // "Rule for new drags", and ui_canvas_drag_branches_follow_the_wayland_drag_rule, which
+  // fails on a mouseMoveEvent branch nobody classified): Move tool, Free Transform, a held
+  // pick (the Pick tool or a paint tool's Alt eyedropper, GitHub #478), shape box and point
+  // handles, a Path Select or Direct Select drag of points or whole shapes (a shape tool's
+  // Ctrl drag included, GitHub #678), a path transform box handle (it re-rasterizes the
+  // shape per move), a Gradient Fill handle (GitHub #705), a marquee drag (it rebuilds the
+  // selection), the Magnetic Lasso's hover trace (an edge search per move), panning,
+  // view rotation and the scrubby zoom (each move re-lays out the view), and every paint
+  // stroke, which keeps every recorded position (pending_stroke_positions_; GitHub #597,
+  // #660, #677).
   [[nodiscard]] bool coalescing_drag_active() const noexcept {
     return moving_layer_ || dragging_transform_ || color_picking_ || shape_handle_drag_active() ||
-           path_edit_drag_moves_points() || gradient_handle_drag_.has_value() || coalescing_retouch_stroke();
+           path_edit_drag_moves_points() || path_transform_drag_handle_ != TransformHandle::None ||
+           gradient_handle_drag_.has_value() || selecting_ || magnetic_lassoing_ || panning_ || rotating_view_ ||
+           (zooming_ && zoom_scrubbing_) || coalescing_retouch_stroke();
   }
   [[nodiscard]] bool path_edit_drag_moves_points() const noexcept {
     return path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::HandleIn ||
            path_drag_mode_ == PathEditDrag::HandleOut;
   }
-  // Smudge and the toning brushes (Dodge, Burn, Sponge, Blur, Sharpen) coalesce the same
-  // way (GitHub #660), and so do Brush and Eraser strokes, whose queued moves then paint their
-  // spaced dabs in one batch (GitHub #677 follow-up).
-  [[nodiscard]] bool coalescing_retouch_stroke() const noexcept {
-    return painting_ && (retouch_source_tool_active() || toning_stroke_tool_active() || tool_ == CanvasTool::Brush ||
-                         tool_ == CanvasTool::Eraser);
-  }
+  // Every paint stroke: Clone and Healing (GitHub #597), Smudge and the toning brushes (Dodge,
+  // Burn, Sponge, Blur, Sharpen; GitHub #660), Brush and Eraser, whose queued moves then paint their spaced dabs in one
+  // batch (GitHub #677 follow-up), and Mixer Brush and Pattern Stamp (the November 2026 drag
+  // audit). Each keeps every recorded position as a folded sample.
+  [[nodiscard]] bool coalescing_retouch_stroke() const noexcept { return painting_; }
   [[nodiscard]] bool toning_stroke_tool_active() const noexcept {
     return tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
            tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush;

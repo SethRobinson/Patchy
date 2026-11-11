@@ -12200,6 +12200,12 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
           !handle->property("patchy.dragStartGlobal").isValid()) {
         break;
       }
+      // Each move re-lays out the story, and Wayland delivers every motion: only the newest
+      // move of an event-loop pass resizes (docs/interactive-previews-drag-coalescing.md).
+      if (defer_widget_drag_move(*handle, *mouse_event)) {
+        mouse_event->accept();
+        return true;
+      }
       const auto start_global = handle->property("patchy.dragStartGlobal").toPoint();
       const auto delta = mouse_event->globalPosition().toPoint() - start_global;
       const auto zoom = std::max(0.0001, canvas_->zoom());
@@ -12267,6 +12273,7 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
     }
     case QEvent::MouseButtonRelease: {
       auto* mouse_event = static_cast<QMouseEvent*>(event);
+      flush_widget_drag_move();  // a move recorded right before the release lands first
       handle->setProperty("patchy.dragStartGlobal", QVariant());
       editor->setProperty("patchy.activeTextResizeHandleName", QVariant());
       handle->releaseMouse();

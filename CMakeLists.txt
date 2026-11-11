@@ -2675,6 +2675,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/crop_tool_tests.cpp
       tests/ui/ruler_tool_tests.cpp
       tests/ui/gradient_fill_handles_tests.cpp
+      tests/ui/drag_coalescing_tests.cpp
       tests/ui/view_shortcut_keys_tests.cpp
       tests/ui/tool_palette_customize_tests.cpp
       tests/ui/layer_row_options_tests.cpp
