@@ -104,8 +104,14 @@ timeout). Test: `ui_shape_appearance_preview_shows_only_finished_renders`.
 
 Layer > New Fill Layer makes Solid Color, Gradient (FG-to-BG linear) and
 Pattern fill layers: shape layers with an empty path (whole canvas); a
-TARGETED Paths-panel row becomes the shape path (build_fill_layer),
-selections become raster masks. Library patterns join
+TARGETED work-path or saved-path row of the Paths panel becomes the shape
+path (build_fill_layer). The active layer's own path row (a shape layer's
+path, a vector mask, a text box) is targeted automatically and never
+counts, so a fill layer made with a shape layer selected spans the canvas
+(GitHub #710; `ui_new_fill_layer_spans_canvas_with_shape_layer_active`,
+`ui_new_gradient_fill_layer_clips_to_targeted_work_path`). The Gradient
+tool's Fill Layer mode builds its layer the same way.
+Selections become raster masks. Library patterns join
 the document store on use. New Gradient/Pattern Fill stages the layer;
 one history entry, only on OK; Cancel restores the document, active layer
 and pattern store. On a pathless fill layer (`fill_layer_only`) the dialog,
