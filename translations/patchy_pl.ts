@@ -36026,6 +36026,18 @@ Zablokowano: %1</translation>
         <source>Brush angle: %1</source>
         <translation>Kąt pędzla: %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>Otwórz dokument i wybierz warstwę kształtu, aby edytować jej wygląd.</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>Zakończ otwarte okno dialogowe, aby edytować kształt tutaj.</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>Zakończ transformację, aby edytować kształt tutaj.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

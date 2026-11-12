@@ -35917,6 +35917,18 @@ Bloqueada: %1</translation>
         <source>Brush angle: %1</source>
         <translation>Ángulo del pincel: %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>Abra un documento y seleccione una capa de forma para editar su aspecto.</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>Termine con el cuadro de diálogo abierto para editar la forma aquí.</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>Termine la transformación para editar la forma aquí.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

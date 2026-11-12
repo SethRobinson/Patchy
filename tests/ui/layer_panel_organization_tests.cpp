@@ -4429,6 +4429,12 @@ void ui_layer_row_badges_center_on_the_row() {
 // The vector badge owns its clicks: a real press is not a row drag start, and
 // a double-click on it never falls through to the row's Layer Style editor
 // (regression: double-clicking the badge opened Layer Style, September 2026).
+// The stay-open Shape Appearance window while it is showing (GitHub issue 694), else null.
+QDialog* shape_appearance_window_open(patchy::ui::MainWindow& window) {
+  auto* shown = window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow"));
+  return shown != nullptr && shown->isVisible() ? shown : nullptr;
+}
+
 void ui_layer_vector_badge_double_click_opens_shape_appearance() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -4448,44 +4454,29 @@ void ui_layer_vector_badge_double_click_opens_shape_appearance() {
   auto* badge = layer_list->itemWidget(item)->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton"));
   CHECK(badge != nullptr);
 
-  // The badge opens Shape Appearance one timer tick after its release, so the
-  // closer polls until the dialog exists (it fires inside the dialog's loop).
-  bool saw_style_dialog = false;
-  bool saw_appearance_dialog = false;
-  int attempts = 0;
-  std::function<void()> close_appearance_dialog = [&] {
-    if (find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) != nullptr) {
-      saw_style_dialog = true;
-    }
-    if (auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")); dialog != nullptr) {
-      saw_appearance_dialog = true;
-      dialog->reject();
-      return;
-    }
-    if (++attempts < 20) {
-      QTimer::singleShot(0, close_appearance_dialog);
-    }
+  // The badge opens the stay-open Shape Appearance window one timer tick after its release
+  // (GitHub issue 694: a window, not a dialog loop).
+  const auto window_shown = [&] {
+    return process_events_until([&] { return shape_appearance_window_open(window) != nullptr; }, 2000);
   };
 
   // A real double-click arrives as press, release, double-click, release.
   const auto center = badge->rect().center();
   send_mouse(*badge, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
   CHECK(badge->isDown());
-  QTimer::singleShot(0, close_appearance_dialog);
   send_mouse(*badge, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  CHECK(window_shown());
+  CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
+  if (auto* shown = shape_appearance_window_open(window); shown != nullptr) {
+    shown->reject();
+  }
   QApplication::processEvents();
-  CHECK(saw_appearance_dialog);
-  CHECK(!saw_style_dialog);
+  CHECK(shape_appearance_window_open(window) == nullptr);
 
-  saw_appearance_dialog = false;
-  attempts = 0;
   send_double_click(*badge, center);
   CHECK(find_inline_rename_edit(*layer_list) == nullptr);
-  QTimer::singleShot(0, close_appearance_dialog);
   send_mouse(*badge, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-  QApplication::processEvents();
-  CHECK(saw_appearance_dialog);
-  CHECK(!saw_style_dialog);
+  CHECK(window_shown());
   CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
 }
 
@@ -4565,32 +4556,40 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
     content.stroke.width = 12.0;
     layer->set_vector_shape(std::move(content));
   }
-  title.clear();
-  fill_only = false;
-  // The thumbnail opens the dialog one tick after its double-click: poll for it.
-  int attempts = 0;
-  const auto accept_fill_settings = inspect_and(true);
-  std::function<void()> poll = [&] {
-    if (find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) != nullptr) {
-      accept_fill_settings();
-    } else if (++attempts < 20) {
-      QTimer::singleShot(0, poll);
-    }
-  };
-  QTimer::singleShot(0, poll);
+  // The thumbnail opens the stay-open window one tick after its double-click (GitHub issue
+  // 694): the same Fill-only rows, titled Fill Layer Settings.
   auto* thumbnail = row != nullptr ? row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")) : nullptr;
   CHECK(thumbnail != nullptr);
   if (thumbnail != nullptr) {
     send_double_click(*thumbnail, thumbnail->rect().center());
   }
-  for (int spin = 0; spin < 10 && title.isEmpty(); ++spin) {
-    QApplication::processEvents();
+  CHECK(process_events_until([&] { return shape_appearance_window_open(window) != nullptr; }, 2000));
+  auto* fill_window = shape_appearance_window_open(window);
+  CHECK(fill_window != nullptr);
+  if (fill_window == nullptr) {
+    return;
   }
-  CHECK(title == QStringLiteral("Fill Layer Settings"));
-  CHECK(fill_only);
+  CHECK(fill_window->windowTitle() == QStringLiteral("Fill Layer Settings"));
+  CHECK(fill_window->property("fillLayerSettings").toBool());
+  auto* window_stroke = fill_window->findChild<QWidget*>(QStringLiteral("shapeStrokeWidthSpin"));
+  auto* window_feather = fill_window->findChild<QWidget*>(QStringLiteral("shapeFeatherSpin"));
+  auto* window_kind = fill_window->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+  CHECK(window_stroke != nullptr && !window_stroke->isVisibleTo(fill_window));
+  CHECK(window_feather != nullptr && !window_feather->isVisibleTo(fill_window));
+  CHECK(window_kind != nullptr && window_kind->count() == 3);
+  save_widget_artifact("ui_fill_layer_settings_window", *fill_window);
   CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
+  // An edit there leaves the stroke the layer carries alone.
+  auto* window_angle = fill_window->findChild<QSpinBox*>(QStringLiteral("shapeGradientAngleSpin"));
+  CHECK(window_angle != nullptr);
+  if (window_angle != nullptr) {
+    window_angle->setValue(window_angle->value() == 40 ? 50 : 40);
+  }
   const auto* kept = std::as_const(document).find_layer(fill_id)->vector_shape();
+  CHECK(std::abs(kept->fill.gradient.angle_degrees - (window_angle != nullptr ? window_angle->value() : 0)) < 1e-6);
   CHECK(kept->stroke.enabled && std::abs(kept->stroke.width - 12.0) < 1e-6);
+  fill_window->reject();
+  QApplication::processEvents();
 
   // The Gradient tool's Fill Layer mode makes the same kind of row.
   canvas->set_tool(patchy::ui::CanvasTool::Gradient);
@@ -4676,8 +4675,9 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   CHECK(patchy::layer_is_fill_layer(*std::as_const(document).find_layer(*document.active_layer_id())));
 
+  // The modal dialog (what New Fill Layer shows) on that layer.
   QTimer::singleShot(0, inspect(true));
-  require_action(window, "layerShapeAppearanceAction")->trigger();
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(title == QStringLiteral("Fill Layer Settings"));
   CHECK(fill_only);
@@ -4686,15 +4686,42 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   CHECK(preview_left_of_reset);
   preview_left_of_reset = false;
 
+  // The command opens the stay-open window (GitHub issue 694), titled the same way, in its
+  // window title and in the title bar it draws; its Fill section has no heading either.
+  require_action(window, "layerShapeAppearanceAction")->trigger();
+  QApplication::processEvents();
+  auto* stay_open = shape_appearance_window_open(window);
+  CHECK(stay_open != nullptr);
+  if (stay_open == nullptr) {
+    return;
+  }
+  const auto drawn_title = [stay_open] {
+    auto* label = stay_open->findChild<QLabel*>(QStringLiteral("dialogChromeTitleLabel"));
+    return label != nullptr ? label->text() : QString();
+  };
+  const auto window_fill_heading = [stay_open] {
+    auto* group = stay_open->findChild<QGroupBox*>(QStringLiteral("shapeFillGroup"));
+    return group != nullptr ? group->title() : QStringLiteral("missing");
+  };
+  CHECK(stay_open->windowTitle() == QStringLiteral("Fill Layer Settings"));
+  CHECK(drawn_title() == QStringLiteral("Fill Layer Settings"));
+  CHECK(stay_open->property("fillLayerSettings").toBool());
+  CHECK(window_fill_heading().isEmpty());
+
   // A shape layer drawn over the fill keeps the Shape Appearance title and the Fill heading.
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
        canvas->widget_position_for_document_point(QPoint(400, 300)));
   QApplication::processEvents();
   CHECK(!patchy::layer_is_fill_layer(*std::as_const(document).find_layer(*document.active_layer_id())));
+  // The open window follows the new shape: its title and heading change with it.
+  CHECK(stay_open->windowTitle() == QStringLiteral("Shape Appearance"));
+  CHECK(drawn_title() == QStringLiteral("Shape Appearance"));
+  CHECK(!stay_open->property("fillLayerSettings").toBool());
+  CHECK(window_fill_heading() == QStringLiteral("Fill"));
   title.clear();
   QTimer::singleShot(0, inspect(false));
-  require_action(window, "layerShapeAppearanceAction")->trigger();
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(title == QStringLiteral("Shape Appearance"));
   CHECK(!fill_only);
@@ -4739,56 +4766,38 @@ void ui_fill_layer_row_double_click_and_badge_open_fill_settings() {
     save_widget_artifact("ui_fill_layer_row_fill_badge", *layers_dock);
   }
 
-  // Polls for the dialog: the badge opens it one tick after its click.
-  bool saw_fill_settings = false;
-  bool saw_style_dialog = false;
-  int attempts = 0;
-  std::function<void()> close_fill_settings = [&] {
-    if (auto* style = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")); style != nullptr) {
-      saw_style_dialog = true;
-      style->reject();
-      return;
+  // Both open the stay-open window (GitHub issue 694) as the fill settings, the badge one
+  // tick after its click; neither opens Layer Style. The window is closed in between.
+  const auto opened_fill_settings = [&] {
+    const bool shown = process_events_until([&] { return shape_appearance_window_open(window) != nullptr; }, 2000);
+    auto* settings = shape_appearance_window_open(window);
+    const bool fill_settings = shown && settings != nullptr && settings->property("fillLayerSettings").toBool() &&
+                               settings->windowTitle() == QStringLiteral("Fill Layer Settings");
+    if (settings != nullptr) {
+      settings->reject();
     }
-    if (auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")); dialog != nullptr) {
-      saw_fill_settings = dialog->property("fillLayerSettings").toBool() &&
-                          dialog->windowTitle() == QStringLiteral("Fill Layer Settings");
-      dialog->reject();
-      return;
-    }
-    if (++attempts < 20) {
-      QTimer::singleShot(0, close_fill_settings);
-    }
+    QApplication::processEvents();
+    return fill_settings;
   };
 
   auto* details = fill_row()->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
   CHECK(details != nullptr);
   if (details != nullptr) {
-    QTimer::singleShot(0, close_fill_settings);
     send_double_click(*details, details->rect().center());
-    for (int spin = 0; spin < 10 && !saw_fill_settings && !saw_style_dialog; ++spin) {
-      QApplication::processEvents();
-    }
+    CHECK(opened_fill_settings());
   }
-  CHECK(saw_fill_settings);
-  CHECK(!saw_style_dialog);
+  CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
 
-  saw_fill_settings = false;
-  saw_style_dialog = false;
-  attempts = 0;
   auto* badge = fill_row()->findChild<QToolButton*>(QStringLiteral("layerFillBadgeButton"));
   CHECK(badge != nullptr);
   if (badge != nullptr) {
     const auto center = badge->rect().center();
     send_mouse(*badge, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
     CHECK(badge->isDown());
-    QTimer::singleShot(0, close_fill_settings);
     send_mouse(*badge, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-    for (int spin = 0; spin < 10 && !saw_fill_settings && !saw_style_dialog; ++spin) {
-      QApplication::processEvents();
-    }
+    CHECK(opened_fill_settings());
   }
-  CHECK(saw_fill_settings);
-  CHECK(!saw_style_dialog);
+  CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
 
   // The name keeps renaming in place.
   auto* name = fill_row()->findChild<QLabel*>(QStringLiteral("layerRowName"));
@@ -4802,7 +4811,7 @@ void ui_fill_layer_row_double_click_and_badge_open_fill_settings() {
     }
     QApplication::processEvents();
   }
-  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+  CHECK(shape_appearance_window_open(window) == nullptr);
   CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
 }
 

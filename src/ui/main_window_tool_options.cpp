@@ -4373,6 +4373,7 @@ void MainWindow::refresh_options_bar() {
   }
 
   refresh_brush_tool_windows(edit_allowed);
+  sync_shape_appearance_panel();  // a transform session or the edit lock greys it out
 
   // The numeric transform controls show only while a session is actually active
   // (Photoshop): the Move tool's passive box swaps them in the instant a handle

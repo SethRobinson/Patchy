@@ -2132,7 +2132,9 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   // the height counts the visible rows only.
   QDialog* const dialog_ptr = window_ptr;
   QWidget* const host_ptr = &host;
-  const auto fitted_dialog_size = [page, scroll, dialog_layout](const QScreen* screen) {
+  // `chrome_height`: what the window around a page adds above and below it (its title bar,
+  // margins and size grip), which counts against the screen's height too.
+  const auto fitted_dialog_size = [page, scroll, dialog_layout](const QScreen* screen, int chrome_height = 0) {
     for (auto* child : page->findChildren<QWidget*>()) {
       child->updateGeometry();
     }
@@ -2154,7 +2156,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     int max_width = std::numeric_limits<int>::max();
     if (screen != nullptr) {
       const auto available = screen->availableGeometry();
-      const auto max_height = std::max(320, available.height() - 40);
+      const auto max_height = std::max(320, available.height() - 40 - std::max(0, chrome_height));
       if (height > max_height) {
         height = max_height;
         page_width += scroll->verticalScrollBar()->sizeHint().width();
@@ -2175,7 +2177,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     const auto current = dialog_ptr->size();
     // A page inside the stay-open window: the window's own title bar and margins around it.
     const auto window_extra = host_ptr == dialog_ptr ? QSize(0, 0) : current - host_ptr->size();
-    const auto grown = current.expandedTo(fitted_dialog_size(screen) + window_extra);
+    const auto grown = current.expandedTo(fitted_dialog_size(screen, window_extra.height()) + window_extra);
     if (grown == current) {
       return;
     }
@@ -2850,7 +2852,9 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
 
   ShapeAppearanceBody body;
   body.fill_layer_only = fill_layer_only;
-  body.fitted_size = fitted_dialog_size;
+  body.fitted_size = [fitted_dialog_size](const QScreen* screen, int chrome_height) {
+    return fitted_dialog_size(screen, chrome_height);
+  };
   body.settings = [state] { return state->settings; };
   body.finish = [state, notify] {
     if (!state->settings.preview_enabled) {
@@ -2900,7 +2904,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   if (screen == nullptr) {
     screen = QGuiApplication::primaryScreen();
   }
-  dialog.resize(body.fitted_size(screen));
+  dialog.resize(body.fitted_size(screen, 0));
 
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;

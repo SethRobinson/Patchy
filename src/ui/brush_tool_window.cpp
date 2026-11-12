@@ -54,6 +54,32 @@ void BrushToolWindow::set_body(QWidget* body) {
   install_scrub_labels_in(this);
 }
 
+void BrushToolWindow::replace_body(QWidget* body) {
+  if (body_ == nullptr) {
+    set_body(body);
+    return;
+  }
+  QWidget* const old = body_;
+  const int index = content_->indexOf(old);
+  content_->removeWidget(old);
+  old->hide();
+  // Out of the window's child list at once: a lookup by object name finds the new body's
+  // widgets, never the old one's.
+  old->setParent(nullptr);
+  old->deleteLater();
+  body_ = body;
+  body->setParent(this);
+  content_->insertWidget(index < 0 ? content_->count() : index, body, 1);
+  for (auto* button : body->findChildren<QPushButton*>()) {
+    button->setAutoDefault(false);
+    button->setDefault(false);
+  }
+  leave_keys_to_canvas(*body);
+  install_scrub_labels_in(body);
+  body->setEnabled(unavailable_reason_.isEmpty());
+  body->show();
+}
+
 void BrushToolWindow::set_unavailable_reason(const QString& reason) {
   if (reason == unavailable_reason_) {
     return;

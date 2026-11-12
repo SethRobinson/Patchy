@@ -35917,6 +35917,18 @@ Verrouillé : %1</translation>
         <source>Brush angle: %1</source>
         <translation>Angle du pinceau : %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>Ouvrez un document et sélectionnez un calque de forme pour modifier son aspect.</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>Terminez la boîte de dialogue ouverte pour modifier la forme ici.</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>Terminez la transformation pour modifier la forme ici.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

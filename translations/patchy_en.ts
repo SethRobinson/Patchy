@@ -35835,6 +35835,18 @@ Locked: %1</source>
         <source>Brush angle: %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

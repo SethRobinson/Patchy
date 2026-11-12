@@ -631,43 +631,41 @@ void ui_batch_shape_editor_entries_and_document_switch() {
     auto* item = require_layer_item(*list, QString::fromStdString("Rectangle " + std::to_string(second)));
     return field<QToolButton>(*list->itemWidget(item), "layerVectorBadgeButton");
   };
-  const auto open_badge = [&](int count) {
-    bool seen = false;
-    QTimer closer;
-    QObject::connect(&closer, &QTimer::timeout, &window, [&] {
-      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog("shapeAppearanceDialog"));
-      if (!dialog) return;
-      seen = true; closer.stop();
-      CHECK(list->selectedItems().size() == count);
-      if (count > 1) CHECK(field<QLabel>(*dialog, "shapeAppearanceSelectionSummary")->text().contains("2 layers selected"));
-      dialog->reject();
-    });
-    closer.start(1);
-    badge()->click();
-    CHECK(process_events_until([&] { return seen; }));
+  // Each entry opens the stay-open Shape Appearance window (GitHub issue 694) on the
+  // selection as it is; the window is closed again before the next one.
+  const auto shape_window = [&]() -> QDialog* {
+    auto* shown = window.findChild<QDialog*>("shapeAppearanceWindow");
+    return shown != nullptr && shown->isVisible() ? shown : nullptr;
   };
-  open_badge(2);
+  const auto opened_on = [&](int count) {
+    const bool seen = process_events_until([&] { return shape_window() != nullptr; }, 2000);
+    CHECK(seen);
+    auto* shown = shape_window();
+    if (shown == nullptr) return false;
+    CHECK(list->selectedItems().size() == count);
+    auto* summary = shown->findChild<QLabel*>("shapeAppearanceSelectionSummary");
+    if (count > 1) {
+      CHECK(summary != nullptr && summary->text().contains("2 layers selected"));
+    } else {
+      CHECK(summary == nullptr);
+    }
+    shown->reject();
+    QApplication::processEvents();
+    return shape_window() == nullptr;
+  };
+  badge()->click();
+  CHECK(opened_on(2));
   select_batch_layers(window, {first});
-  open_badge(1);
+  badge()->click();
+  CHECK(opened_on(1));
   CHECK(doc.active_layer_id() == second);
   select_batch_layers(window, {first, second});
   auto* canvas = require_canvas(window);
   require_action(window, "toolPathSelectAction")->trigger();
   QApplication::processEvents();
-  bool canvas_opened = false;
-  QTimer closer;
-  QObject::connect(&closer, &QTimer::timeout, &window, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog("shapeAppearanceDialog"));
-    if (!dialog) return;
-    canvas_opened = true;
-    CHECK(list->selectedItems().size() == 2);
-    dialog->reject();
-  });
-  closer.start(1);
   send_double_click(*canvas, canvas->widget_position_for_document_point(QPoint(60, 50)));
-  CHECK(canvas_opened);
+  CHECK(opened_on(2));
   CHECK(list->selectedItems().size() == 2);
-  canvas_opened = false;
   QTimer::singleShot(0, guarded([&] {
     auto* menu = window.findChild<QMenu*>("layerContextMenu");
     CHECK(menu);
@@ -677,8 +675,7 @@ void ui_batch_shape_editor_entries_and_document_switch() {
   }));
   CHECK(QMetaObject::invokeMethod(list, "customContextMenuRequested", Qt::DirectConnection,
       Q_ARG(QPoint, list->visualItemRect(list->currentItem()).center())));
-  closer.stop();
-  CHECK(canvas_opened);
+  CHECK(opened_on(2));
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   field<QDoubleSpinBox>(window, "vectorStrokeWidthSpin")->setValue(16);
   Document other(32, 32, PixelFormat::rgba8());

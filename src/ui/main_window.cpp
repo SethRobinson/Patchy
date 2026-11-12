@@ -6426,6 +6426,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   if (brush_dynamics_button_ != nullptr) {
     brush_dynamics_button_->hide_window_for_shutdown();
   }
+  hide_shape_appearance_panel_for_shutdown();  // a Qt::Tool window as well
   // Same hazard: the animation preview is a Qt::Tool window too (closing it also stops
   // playback and restores layer visibility while the sessions are still alive).
   if (animation_preview_window_ != nullptr) {
@@ -14175,6 +14176,9 @@ void MainWindow::begin_preview_dialog_edit_lock() {
   if (preview_dialog_edit_lock_depth_ != 1) {
     return;
   }
+  // The stay-open Shape Appearance window's gesture ends here, and the window greys out
+  // until the lock is released (sync_shape_appearance_panel below).
+  end_live_shape_appearance_run();
   preview_dialog_edit_lock_canvas_ = canvas_;
   // Every session's canvas locks, not just the active one: a document in a float
   // window stays clickable while the dialog is open, and activation snap-back
@@ -14197,6 +14201,7 @@ void MainWindow::begin_preview_dialog_edit_lock() {
   }
   update_document_action_state();
   update_undo_redo_actions();
+  sync_shape_appearance_panel();
 }
 
 void MainWindow::end_preview_dialog_edit_lock() {

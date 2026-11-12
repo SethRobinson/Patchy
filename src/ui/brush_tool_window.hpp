@@ -28,6 +28,10 @@ public:
 
   // The window's content (it takes ownership); call once.
   void set_body(QWidget* body);
+  // Swaps the content for `body` (set_body when there is none yet). The old body is hidden
+  // now and deleted from the event loop, so this is safe to call while one of its own
+  // handlers is still on the stack further out (the stay-open Shape Appearance window).
+  void replace_body(QWidget* body);
   // Empty = usable. Otherwise the body is disabled under this one-line reason (the active
   // tool has no brush tip, no document is open).
   void set_unavailable_reason(const QString& reason);

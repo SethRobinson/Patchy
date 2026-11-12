@@ -35808,6 +35808,18 @@ Locked: %1</source>
         <source>Brush angle: %1</source>
         <translation>브러시 각도: %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>외형을 편집하려면 문서를 열고 모양 레이어를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>여기에서 모양을 편집하려면 열린 대화 상자를 완료하세요.</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>여기에서 모양을 편집하려면 변환을 완료하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -35917,6 +35917,18 @@ Fixiert: %1</translation>
         <source>Brush angle: %1</source>
         <translation>Pinselwinkel: %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>Öffnen Sie ein Dokument und wählen Sie eine Formebene aus, um ihre Darstellung zu bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>Schließen Sie den geöffneten Dialog ab, um die Form hier zu bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>Schließen Sie die Transformation ab, um die Form hier zu bearbeiten.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

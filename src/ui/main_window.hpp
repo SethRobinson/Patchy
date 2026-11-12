@@ -160,6 +160,9 @@ enum class PdfImportColorMode;
 enum class PdfPagesMerge;
 struct ScriptScan;
 struct ShapeAppearanceSettings;
+class ShapeAppearancePanel;
+struct ShapeAppearanceTarget;
+struct ShapeAppearanceLiveRun;
 
 namespace user_fonts {
 struct AddFontsResult;
@@ -2397,10 +2400,41 @@ private:
   // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
   // dialog for the active shape layer, and Layer > New Fill Layer creation
   // (a shape layer with an empty path = the whole canvas).
+  // Every UI entry point (menus, badge, options bar, Properties, double-clicks) opens the
+  // stay-open Shape Appearance window (ShapeAppearancePanel, docs/vector-tools-appearance-window.md).
+  bool edit_active_shape_appearance();
+  // The modal dialog under the preview-dialog edit lock: New Fill Layer's settings
+  // (record_undo false), the options bar's color and pattern pickers (`editor`), and the
+  // dialogs the stay-open window opens from its rows.
   // stroke_edit: the editor changes only the stroke, so fill layers in the selection are skipped.
-  bool edit_active_shape_appearance(bool record_undo = true,
+  bool edit_active_shape_appearance_modal(bool record_undo = true,
       std::function<std::optional<ShapeAppearanceSettings>(const ShapeAppearanceSettings&,
           std::function<void(const ShapeAppearanceSettings&)>)> editor = {}, bool stroke_edit = false);
+  // The stay-open window's host side. A target is a session id and layer ids, resolved
+  // again on every use; nothing here keeps a layer or document pointer between events.
+  [[nodiscard]] QString shape_appearance_panel_unavailable_reason() const;
+  [[nodiscard]] std::optional<ShapeAppearanceTarget> shape_appearance_panel_target();
+  // One change from the window: the first of a gesture records the undo step
+  // (commit_shape_appearance_edit), later ones rewrite the same layers in place.
+  void apply_live_shape_appearance_edit(const ShapeAppearanceSettings& settings);
+  void write_live_shape_appearance_step(ShapeAppearanceLiveRun& run, const ShapeAppearanceSettings& settings,
+                                        bool draft);
+  // Ends the window's open gesture. finish_pending_shape_appearance_edit calls it, so every
+  // history, selection, document and tab transition ends the gesture first.
+  void end_live_shape_appearance_run();
+  void run_shape_appearance_panel_child_dialog(const std::function<bool()>& body);
+  // Called from the refresh hubs (refresh_layer_controls, refresh_options_bar) and when
+  // the edit lock is taken; a no-op until the window has been opened once.
+  void sync_shape_appearance_panel();
+  void hide_shape_appearance_panel_for_shutdown();
+  // The layers `settings` changes, built from `originals` (null, locked and non-shape
+  // entries are skipped; `keep_unchanged` returns the others as they are). The document's
+  // pattern store must be the one `originals` use and is left holding what the result needs.
+  // `drafted`, when given, allows the draft bake for a large full-canvas gradient fill and
+  // reports whether any layer took it (the caller owes an exact bake).
+  [[nodiscard]] std::vector<Layer> shape_appearance_edit_layers(const std::vector<const Layer*>& originals,
+                                                               const ShapeAppearanceSettings& settings,
+                                                               bool keep_unchanged, bool* drafted = nullptr);
   void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
   [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
@@ -4030,6 +4064,9 @@ private:
   CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};
   BrushTipPicker* brush_tip_picker_{nullptr};
+  // Created on first use, a child of this window (the stay-open Shape Appearance window).
+  ShapeAppearancePanel* shape_appearance_panel_{nullptr};
+  bool shape_appearance_panel_refresh_queued_{false};
   BrushDynamicsButton* brush_dynamics_button_{nullptr};
   QString active_brush_tip_id_;
   // Session-only dynamics for the procedural Round brush. Deliberately never persisted: every

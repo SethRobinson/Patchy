@@ -49,6 +49,7 @@
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/shape_appearance_dialog.hpp"
+#include "ui/shape_appearance_panel.hpp"
 #include "ui/appearance_properties.hpp"
 #include "ui/shape_create_dialog.hpp"
 #include "ui/stroke_preset_manager_dialog.hpp"
@@ -829,7 +830,249 @@ std::vector<LayerId> MainWindow::stroke_target_shape_layer_ids() const {
   return ids;
 }
 
-bool MainWindow::edit_active_shape_appearance(bool record_undo,
+namespace {
+
+std::vector<std::pair<std::uint64_t, std::uint64_t>> layer_revisions(const Document& document,
+                                                                     const std::vector<LayerId>& ids) {
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> revisions;
+  for (const auto id : ids) {
+    const auto* layer = document.find_layer(id);
+    revisions.emplace_back(layer != nullptr ? layer->render_revision() : 0,
+                           layer != nullptr ? layer->content_revision() : 0);
+  }
+  return revisions;
+}
+
+}  // namespace
+
+// --- The stay-open Shape Appearance window (docs/vector-tools-appearance-window.md) ---
+
+bool MainWindow::edit_active_shape_appearance() {
+  if (unattended_automation()) return false;  // as the modal dialog under automation
+  const bool open = shape_appearance_panel_ != nullptr && shape_appearance_panel_->is_open();
+  if (!open) {
+    // The same refusals the dialog had; an open window just comes forward and says why.
+    if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return false; }
+    if (refuse_layer_dialog_during_transform()) return false;
+    if (!has_active_document() || canvas_ == nullptr || editable_selected_shape_layer_ids().empty()) {
+      show_status_error(tr("Select an unlocked, editable shape layer"));
+      return false;
+    }
+  }
+  finish_pending_shape_appearance_edit();
+  if (shape_appearance_panel_ == nullptr) {
+    ShapeAppearancePanelHost host;
+    host.unavailable_reason = [this] { return shape_appearance_panel_unavailable_reason(); };
+    host.target = [this] { return shape_appearance_panel_target(); };
+    host.apply = [this](const ShapeAppearanceSettings& settings) { apply_live_shape_appearance_edit(settings); };
+    host.finish_run = [this] { finish_pending_shape_appearance_edit(); };
+    host.run_child_dialog = [this](const std::function<bool()>& body) {
+      run_shape_appearance_panel_child_dialog(body);
+    };
+    host.key_target = [this]() -> QWidget* { return canvas_; };
+    shape_appearance_panel_ = new ShapeAppearancePanel(this, std::move(host));
+  }
+  shape_appearance_panel_->open();
+  return true;
+}
+
+void MainWindow::sync_shape_appearance_panel() {
+  if (shape_appearance_panel_ != nullptr) shape_appearance_panel_->sync();
+}
+
+void MainWindow::hide_shape_appearance_panel_for_shutdown() {
+  if (shape_appearance_panel_ == nullptr) return;
+  end_live_shape_appearance_run();
+  shape_appearance_panel_->hide_for_shutdown();
+}
+
+QString MainWindow::shape_appearance_panel_unavailable_reason() const {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return tr("Open a document and select a shape layer to edit its appearance.");
+  }
+  if (preview_dialog_edit_locked()) {
+    return tr("Finish the open dialog to edit the shape here.");
+  }
+  if (canvas_->free_transform_active() || canvas_->warp_transform_active() || canvas_->path_transform_active()) {
+    return tr("Finish the transform to edit the shape here.");
+  }
+  if (editable_selected_shape_layer_ids().empty()) {
+    return tr("Select an unlocked, editable shape layer");
+  }
+  return {};
+}
+
+std::optional<ShapeAppearanceTarget> MainWindow::shape_appearance_panel_target() {
+  if (!shape_appearance_panel_unavailable_reason().isEmpty()) return std::nullopt;
+  const auto& doc = std::as_const(document());
+  ShapeAppearanceTarget target;
+  target.session_id = session().session_id;
+  target.selected_count = selected_or_active_layer_ids().size();
+  target.context.selected_count = target.selected_count;
+  target.context.skipped_reason = tr("Locked layers and layers without editable shapes are skipped.");
+  for (const auto id : editable_selected_shape_layer_ids()) {
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr || layer->vector_shape() == nullptr) continue;
+    target.ids.push_back(id);
+    target.context.originals.push_back(shape_appearance_settings(*layer));
+    target.context.names.push_back(QString::fromStdString(layer->name()));
+  }
+  if (target.ids.empty()) return std::nullopt;
+  target.revisions = layer_revisions(doc, target.ids);
+
+  const auto foreground = canvas_->primary_color();
+  const auto background = canvas_->secondary_color();
+  auto& options = target.options;
+  options.initial = target.context.originals.front();
+  options.reset_defaults.fill.kind = VectorFillKind::Solid;
+  options.reset_defaults.fill.color = {static_cast<std::uint8_t>(foreground.red()),
+                                       static_cast<std::uint8_t>(foreground.green()),
+                                       static_cast<std::uint8_t>(foreground.blue())};
+  options.reset_defaults.stroke.enabled = false;
+  options.reset_defaults.stroke.width = 3.0;
+  options.reset_defaults.stroke.alignment = VectorStrokeAlignment::Inside;
+  options.gradient_library = &gradient_library();
+  options.pattern_library = &pattern_library();
+  options.document_patterns = &doc.metadata().patterns;
+  options.foreground = options.reset_defaults.fill.color;
+  options.background = {static_cast<std::uint8_t>(background.red()), static_cast<std::uint8_t>(background.green()),
+                        static_cast<std::uint8_t>(background.blue())};
+  options.units = dialog_field_units();
+  options.custom_shapes =
+      ShapeAppearanceShapeSource{[this]() -> const CustomShapeLibrary* { return &custom_shape_library_with_bundled(); },
+                                 [this](QWidget* parent) { open_custom_shape_manager(parent); }};
+  return target;
+}
+
+void MainWindow::apply_live_shape_appearance_edit(const ShapeAppearanceSettings& settings) {
+  auto* panel = shape_appearance_panel_;
+  if (panel == nullptr || !settings.edits || settings.edits->operations.empty()) return;
+  // Nothing is applied while the window is unavailable, or from a page built for other
+  // layers (its rebuild is on the way).
+  if (!shape_appearance_panel_unavailable_reason().isEmpty()) return;
+  const auto session_id = session().session_id;
+  const auto ids = editable_selected_shape_layer_ids();
+  if (!panel->page_targets(session_id, ids)) {
+    panel->sync();
+    return;
+  }
+  const auto& key = settings.edits->operations.back().key;
+  auto& run = panel->run();
+  // Another property, or layers something else changed since the run's last write: the
+  // run is over, and this change starts the next one from the layers as they are now.
+  if (run.has_value() &&
+      (run->session_id != session_id || run->ids != ids || run->key != key ||
+       run->written != layer_revisions(std::as_const(document()), run->ids))) {
+    finish_pending_shape_appearance_edit();
+  }
+  if (!run.has_value()) {
+    finish_pending_shape_appearance_edit();
+    finish_pending_layer_opacity_edit();
+    finish_pending_layer_fill_opacity_edit();
+    finish_pending_layer_blend_edit();
+    ShapeAppearanceLiveRun next;
+    next.session_id = session_id;
+    next.ids = ids;
+    next.key = key;
+    next.base_patterns = document().metadata().patterns;
+    for (const auto id : ids) {
+      if (const auto* layer = std::as_const(document()).find_layer(id)) next.bases.push_back(*layer);
+    }
+    // The undo step, and the first value. A value that changes nothing starts no run.
+    if (!commit_shape_appearance_edit(ids, settings)) return;
+    next.written = layer_revisions(std::as_const(document()), next.ids);
+    next.steps = 1;
+    run = std::move(next);
+    panel->restart_idle_timer();
+    return;
+  }
+  write_live_shape_appearance_step(*run, settings, true);
+  panel->restart_idle_timer();
+}
+
+void MainWindow::write_live_shape_appearance_step(ShapeAppearanceLiveRun& run,
+                                                  const ShapeAppearanceSettings& settings, bool draft) {
+  auto& doc = document();
+  // From the layers as the run found them: its edits are every value since then.
+  doc.metadata().patterns = run.base_patterns;
+  std::vector<const Layer*> originals;
+  for (const auto& base : run.bases) originals.push_back(&base);
+  bool drafted = false;
+  auto layers = shape_appearance_edit_layers(originals, settings, true, draft ? &drafted : nullptr);
+  for (auto& layer : layers) {
+    const auto id = layer.id();
+    if (auto* target = doc.find_layer(id)) *target = std::move(layer);
+  }
+  run.written = layer_revisions(std::as_const(doc), run.ids);
+  run.drafted = drafted;
+  run.last = settings;
+  ++run.steps;
+  if (canvas_ != nullptr) canvas_->document_changed_async_preview();
+}
+
+void MainWindow::end_live_shape_appearance_run() {
+  auto* panel = shape_appearance_panel_;
+  if (panel == nullptr || !panel->run().has_value()) return;
+  auto finished = std::move(*panel->run());
+  panel->run().reset();
+  if (has_active_document() && canvas_ != nullptr && session().session_id == finished.session_id &&
+      finished.steps > 1) {
+    // The last value was a draft bake: bake it exactly, unless something else has changed
+    // the layers since (that edit rebaked them).
+    if (finished.drafted && finished.last.has_value() &&
+        finished.written == layer_revisions(std::as_const(document()), finished.ids)) {
+      write_live_shape_appearance_step(finished, *finished.last, false);
+    }
+    canvas_->document_changed();
+    refresh_layer_thumbnails();
+    refresh_paths_panel();
+  }
+  panel->run_finished();
+  // The other controls that show these values (options bar, Properties, the Layers panel's
+  // Opacity) follow once the caller that ended the run is done.
+  if (!shape_appearance_panel_refresh_queued_) {
+    shape_appearance_panel_refresh_queued_ = true;
+    QTimer::singleShot(0, this, [this] {
+      shape_appearance_panel_refresh_queued_ = false;
+      refresh_layer_controls();
+      refresh_options_bar();
+    });
+  }
+}
+
+void MainWindow::run_shape_appearance_panel_child_dialog(const std::function<bool()>& body) {
+  auto* panel = shape_appearance_panel_;
+  if (panel == nullptr || !body) return;
+  finish_pending_shape_appearance_edit();
+  if (!has_active_document() || !shape_appearance_panel_unavailable_reason().isEmpty() ||
+      !panel->page_targets(session().session_id, editable_selected_shape_layer_ids())) {
+    panel->sync();
+    return;
+  }
+  // The dialog has its own OK and Cancel, so it runs as the modal edit does: the document
+  // locked, its changes previews, one undo step on OK and the layers put back on Cancel.
+  // The lock is also what keeps the selection, and with it this page, in place under the
+  // row's handler while the dialog's event loop runs.
+  const QPointer<ShapeAppearancePanel> guard(panel);
+  panel->begin_child_dialog();
+  // Ended after the commit, so the page takes the committed layers as its new baseline.
+  const auto end = qScopeGuard([guard] {
+    if (guard != nullptr) guard->end_child_dialog();
+  });
+  edit_active_shape_appearance_modal(
+      true,
+      [&](const ShapeAppearanceSettings&, std::function<void(const ShapeAppearanceSettings&)> preview)
+          -> std::optional<ShapeAppearanceSettings> {
+        panel->set_child_preview(std::move(preview));
+        const auto clear = qScopeGuard([guard] {
+          if (guard != nullptr) guard->set_child_preview({});
+        });
+        if (!body()) return std::nullopt;
+        return panel->page_settings();
+      });
+}
+
+bool MainWindow::edit_active_shape_appearance_modal(bool record_undo,
     std::function<std::optional<ShapeAppearanceSettings>(const ShapeAppearanceSettings&,
         std::function<void(const ShapeAppearanceSettings&)>)> editor, bool stroke_edit) {
   if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return false; }
@@ -1320,6 +1563,11 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
     }
     return;
   }
+  // A gesture still open in the Shape Appearance window ends before this one writes: its
+  // next value would otherwise be written over the handle's preview.
+  if (!previewing) {
+    finish_pending_shape_appearance_edit();
+  }
   const auto* layer = std::as_const(doc).find_layer(layer_id);
   const auto* shape = layer != nullptr && layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
   if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient) {
@@ -1449,7 +1697,7 @@ void MainWindow::create_fill_layer_with_appearance(const VectorFill& fill, const
   doc.add_layer(std::move(temporary));
   doc.set_active_layer(id);
   canvas_->document_changed();
-  if (!edit_active_shape_appearance(false)) {
+  if (!edit_active_shape_appearance_modal(false)) {
     return;
   }
   auto completed = doc;
@@ -2885,36 +3133,59 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   update_vector_swatch_icons();
 }
 
-bool MainWindow::commit_shape_appearance_edit(const std::vector<LayerId>& ids,
-                                              const ShapeAppearanceSettings& settings) {
-  if (!has_active_document() || canvas_ == nullptr) return false;
+std::vector<Layer> MainWindow::shape_appearance_edit_layers(const std::vector<const Layer*>& originals,
+                                                            const ShapeAppearanceSettings& settings,
+                                                            bool keep_unchanged, bool* drafted) {
   auto& doc = document();
-  const auto patterns = doc.metadata().patterns;
-  auto restore_patterns = qScopeGuard([&] { doc.metadata().patterns = patterns; });
-  std::vector<Layer> changed;
-  for (const auto id : ids) {
-    const auto* original = std::as_const(doc).find_layer(id);
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  // 16 and 32-bit documents render fills from the shape itself, so only 8-bit ones draft.
+  const bool may_draft = drafted != nullptr && doc.color_state().bit_depth == BitDepth::UInt8;
+  std::vector<Layer> result;
+  for (const auto* original : originals) {
     if (!original || !original->vector_shape() || !vector_lock_reason(*original).empty() ||
-        layer_id_locks_image_pixels(id)) continue;
+        layer_id_locks_image_pixels(original->id())) continue;
     const auto before = shape_appearance_settings(*original);
     const auto& layer_settings =
         shape_has_stroke_path(*original->vector_shape()) ? settings : without_stroke_edits(settings);
     const auto after = apply_shape_appearance_edits(before, layer_settings);
     auto content = assemble_shape_appearance(*original->vector_shape(), after);
     if (shape_appearance_equal(before, after) &&
-        shape_vector_appearance_equal(*original->vector_shape(), content)) continue;
+        shape_vector_appearance_equal(*original->vector_shape(), content)) {
+      if (keep_unchanged) result.push_back(*original);
+      continue;
+    }
     Layer layer = *original;
     if (!shape_vector_appearance_equal(*original->vector_shape(), content)) {
       ensure_vector_fill_patterns(doc, content, pattern_library());
+      const bool gradient_fill = content.fill.kind == VectorFillKind::Gradient;
       layer.set_vector_shape(std::move(content));
-      update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+      const bool draft =
+          may_draft && gradient_fill &&
+          update_gradient_fill_draft_raster(layer, canvas_rect, gradient_fill_alignment_bounds(layer, canvas_rect));
+      if (draft) {
+        *drafted = true;
+      } else {
+        update_vector_shape_raster(layer, canvas_rect, &doc.metadata().patterns);
+      }
       mark_layer_vector_block_dirty(layer);
       layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
     }
     if (after.layer_opacity != before.layer_opacity) layer.set_opacity(after.layer_opacity);
     if (after.fill_opacity != before.fill_opacity) layer.set_fill_opacity(after.fill_opacity);
-    changed.push_back(std::move(layer));
+    result.push_back(std::move(layer));
   }
+  return result;
+}
+
+bool MainWindow::commit_shape_appearance_edit(const std::vector<LayerId>& ids,
+                                              const ShapeAppearanceSettings& settings) {
+  if (!has_active_document() || canvas_ == nullptr) return false;
+  auto& doc = document();
+  const auto patterns = doc.metadata().patterns;
+  auto restore_patterns = qScopeGuard([&] { doc.metadata().patterns = patterns; });
+  std::vector<const Layer*> originals;
+  for (const auto id : ids) originals.push_back(std::as_const(doc).find_layer(id));
+  auto changed = shape_appearance_edit_layers(originals, settings, false);
   const auto final_patterns = doc.metadata().patterns;
   doc.metadata().patterns = patterns;
   if (changed.empty()) return false;
@@ -2963,6 +3234,9 @@ void MainWindow::finish_pending_shape_appearance_edit() {
   pending_shape_appearance_edit_ = {};
   pending_shape_appearance_property_.clear();
   if (pending) pending();
+  // The stay-open Shape Appearance window's gesture ends wherever a toolbar edit is flushed:
+  // before every history, selection, document and tab transition.
+  end_live_shape_appearance_run();
 }
 
 void MainWindow::note_inside_stroke_on_selected_lines() {
@@ -3356,8 +3630,8 @@ void MainWindow::pick_vector_solid_color(bool for_stroke) {
     if (const auto chosen = request_patchy_color(this, initial, title)) commit_mirror(*chosen);
     return;
   }
-  edit_active_shape_appearance(true, [&](const ShapeAppearanceSettings& baseline,
-                                        std::function<void(const ShapeAppearanceSettings&)> preview) {
+  edit_active_shape_appearance_modal(true, [&](const ShapeAppearanceSettings& baseline,
+                                              std::function<void(const ShapeAppearanceSettings&)> preview) {
     auto settings = baseline;
     const auto apply = [&](QColor color) {
       auto& target = for_stroke ? settings.stroke.content : settings.fill;
@@ -3477,8 +3751,8 @@ void MainWindow::pick_vector_pattern(bool for_stroke) {
   if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return; }
   if (vector_appearance_controls_live() &&
       !(for_stroke ? stroke_target_shape_layer_ids() : editable_selected_shape_layer_ids()).empty()) {
-    edit_active_shape_appearance(true, [&](const ShapeAppearanceSettings& baseline,
-                                          std::function<void(const ShapeAppearanceSettings&)> preview) {
+    edit_active_shape_appearance_modal(true, [&](const ShapeAppearanceSettings& baseline,
+                                                std::function<void(const ShapeAppearanceSettings&)> preview) {
       auto settings = baseline;
       auto& paint = for_stroke ? settings.stroke.content : settings.fill;
       const auto storage_id = request_pattern_manager(this, pattern_library(), QString::fromStdString(paint.pattern_id));

@@ -1547,6 +1547,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/default_custom_shapes.cpp
       src/ui/shape_appearance_dialog.hpp
       src/ui/shape_appearance_dialog.cpp
+      src/ui/shape_appearance_panel.hpp
+      src/ui/shape_appearance_panel.cpp
       src/ui/appearance_edits.hpp
       src/ui/appearance_edits.cpp
       src/ui/appearance_properties.hpp
@@ -2677,6 +2679,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/crop_tool_tests.cpp
       tests/ui/ruler_tool_tests.cpp
       tests/ui/gradient_fill_handles_tests.cpp
+      tests/ui/shape_appearance_panel_tests.cpp
       tests/ui/drag_coalescing_tests.cpp
       tests/ui/view_shortcut_keys_tests.cpp
       tests/ui/tool_palette_customize_tests.cpp

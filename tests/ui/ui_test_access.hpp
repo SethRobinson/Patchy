@@ -153,7 +153,11 @@ public:
 
   static void record_text_layout_metrics_for_reopened_text(MainWindow& window, Document& document);
 
+  // The modal Shape Appearance dialog (OK / Cancel under the edit lock): what New Fill
+  // Layer shows, and the rows the stay-open window builds its pages from.
   static void edit_active_shape_appearance(MainWindow& window);
+  // The stay-open Shape Appearance window, as every UI entry point opens it.
+  static void open_shape_appearance_window(MainWindow& window);
 
   // Options-bar paint mirrors (the popup pickers' backing state) and the
   // live-edit application, callable without driving the modal manager dialogs.

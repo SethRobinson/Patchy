@@ -36026,6 +36026,18 @@ Locked: %1</source>
         <source>Brush angle: %1</source>
         <translation>Угол кисти: %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>Откройте документ и выберите слой фигуры, чтобы изменить его внешний вид.</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>Завершите открытое диалоговое окно, чтобы редактировать фигуру здесь.</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>Завершите преобразование, чтобы редактировать фигуру здесь.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

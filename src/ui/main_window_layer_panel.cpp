@@ -5648,6 +5648,8 @@ void MainWindow::refresh_layer_controls() {
       cancel_layer_blend_preview();
     }
   }
+  // The stay-open Shape Appearance window follows the selection, the document and history.
+  sync_shape_appearance_panel();
   updating_layer_controls_ = true;
   const auto reset = [this] {
     if (visible_check_ != nullptr) {

@@ -75,6 +75,12 @@ entry for an effective change; no-op acceptance records none. Toolbar gestures
 also record one entry and finish against captured target IDs before selection,
 document, or history transitions. Dialog targets remain fixed.
 
+The stay-open Shape Appearance window has no Preview, Accept or Cancel: each
+gesture in it is one undo entry, applied to the eligible selected layers as
+they are when it starts, and the window follows the selection
+([vector-tools-appearance.md](vector-tools-appearance-window.md)).
+Apply All there is one gesture.
+
 All transient appearance color pickers preview across the same targets.
 Canceling a nested picker restores its opening edit checkpoint, retaining
 earlier outer-dialog edits. Gradient ramp changes preserve each target's angle,

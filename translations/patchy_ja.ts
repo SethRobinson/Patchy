@@ -35808,6 +35808,18 @@ Locked: %1</source>
         <source>Brush angle: %1</source>
         <translation>ブラシの角度: %1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>ドキュメントを開いてシェイプレイヤーを選択すると、その外観を編集できます。</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>開いているダイアログを閉じると、ここでシェイプを編集できます。</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>変形を終了すると、ここでシェイプを編集できます。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

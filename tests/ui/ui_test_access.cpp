@@ -206,6 +206,10 @@ void MainWindowTestAccess::record_text_layout_metrics_for_reopened_text(MainWind
 }
 
 void MainWindowTestAccess::edit_active_shape_appearance(MainWindow& window) {
+  window.edit_active_shape_appearance_modal();
+}
+
+void MainWindowTestAccess::open_shape_appearance_window(MainWindow& window) {
   window.edit_active_shape_appearance();
 }
 

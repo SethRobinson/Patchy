@@ -1,14 +1,19 @@
 # Shape Appearance and fill layers
 
-Split from [vector-tools.md](vector-tools.md): the Shape Appearance dialog (paint, stroke and dash presets, geometry, opacity, Edge), its worker-thread preview, and fill layers (New Fill Layer, Fill Layer Settings, 16/32-bit rendering).
+Split from [vector-tools.md](vector-tools.md): Shape Appearance (the stay-open window and the modal dialog: paint, stroke and dash presets, geometry, opacity, Edge), the dialog's worker-thread preview, and fill layers (New Fill Layer, Fill Layer Settings, 16/32-bit rendering).
+
+Related documents:
+
+- [vector-tools-appearance-window.md](vector-tools-appearance-window.md): the stay-open Shape Appearance window (following the selection, one undo step per gesture, lifetime rules).
 
 ## Appearance editing and fill layers
 
-The Shape Appearance dialog opens from the vector badge, the layer and
+Shape Appearance opens from the vector badge, the layer and
 canvas context menus ([tools.md](tools.md)), the options-bar Appearance gear, Layer >
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
-the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
+the shape's geometry. All of them open [the stay-open window](vector-tools-appearance-window.md);
+the modal dialog with the same rows is what New Fill Layer shows. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
 (`StrokeDashPreset` ids as item data, Custom last). Custom's Dash pattern field
 (`shapeStrokeDashPatternEdit`, `parse_dash_pattern_text`) takes lengths in stroke widths,
 space separated; an odd count repeats once (as SVG) and one length must be above 0.
@@ -88,9 +93,9 @@ on by default only when the corners agree. Dialogs are the reviewed route; no on
 the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
 (Edge group); all PSD-native, one undo entry.
 
-Edits preview live and restore on cancel or exception; a PSD-read
+In the modal dialog, edits preview live and restore on cancel or exception; a PSD-read
 gradient/pattern stroke stays untouched unless re-picked. The preview
-rasterizes on a worker and shows only finished renders (`edit_active_shape_appearance`,
+rasterizes on a worker and shows only finished renders (`edit_active_shape_appearance_modal`,
 local-051 follow-up): a request's outline and the pixels baked from it reach the document
 together when its render lands, so the composite, the path outline and Dynamic Vector
 Preview never pair a new outline with older pixels, and between two renders the canvas

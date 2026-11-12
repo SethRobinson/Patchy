@@ -35808,6 +35808,18 @@ Locked: %1</source>
         <source>Brush angle: %1</source>
         <translation>筆刷角度：%1</translation>
     </message>
+    <message>
+        <source>Open a document and select a shape layer to edit its appearance.</source>
+        <translation>請開啟文件並選取形狀圖層以編輯其外觀。</translation>
+    </message>
+    <message>
+        <source>Finish the open dialog to edit the shape here.</source>
+        <translation>請先完成開啟中的對話框，再在此處編輯形狀。</translation>
+    </message>
+    <message>
+        <source>Finish the transform to edit the shape here.</source>
+        <translation>請先完成變形，再在此處編輯形狀。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

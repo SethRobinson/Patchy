@@ -8,7 +8,7 @@ Rules: docs/legal-constraints.md.
 Related documents:
 
 - [vector-tools-custom-shapes.md](vector-tools-custom-shapes.md): the custom shape library (builtins, seeding, user entries), the Shapes Manager and the options-bar Shape picker, the bundled game-icons.net pack, and Photoshop .csh import.
-- [vector-tools-appearance.md](vector-tools-appearance.md): the Shape Appearance dialog (paint, stroke and dash presets, geometry, opacity, Edge), its worker-thread preview, and fill layers.
+- [vector-tools-appearance.md](vector-tools-appearance.md): Shape Appearance (the stay-open window and the modal dialog; paint, stroke and dash presets, geometry, opacity, Edge), the dialog's worker-thread preview, and fill layers.
 - [vector-psd-encodings.md](vector-psd-encodings.md): the observed PSD encodings of shape and fill layers, vector masks, strokes, live shapes and document paths.
 - [vector-tools-shape-handles.md](vector-tools-shape-handles.md): the shape tools' eight-handle resize box and the two drag points of a live Polygon and Line (GitHub #690).
 - [vector-tools-lines.md](vector-tools-lines.md): the Line tool: a line's stroke alignment, Weight and arrowheads, the arrowhead size limits, and a head longer than its line.
@@ -289,9 +289,9 @@ and vector masks (convert to a smart object or rasterize first).
 
 ## Appearance editing and fill layers
 
-The Shape Appearance dialog (paint, strokes and dash presets, geometry,
-opacity, Edge, the worker preview) and fill layers are in
-[vector-tools-appearance.md](vector-tools-appearance.md).
+Shape Appearance (the stay-open window and the modal dialog: paint, strokes
+and dash presets, geometry, opacity, Edge, the worker preview) and fill layers
+are in [vector-tools-appearance.md](vector-tools-appearance.md).
 
 ## Photoshop file encodings
 

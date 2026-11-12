@@ -169,8 +169,9 @@ struct ShapeAppearanceBodyOptions {
 
 struct ShapeAppearanceBody {
   bool fill_layer_only{false};
-  // The size of `host` that shows every visible row, capped to the screen.
-  std::function<QSize(const QScreen*)> fitted_size;
+  // The size of `host` that shows every visible row, capped to the screen. `chrome_height`
+  // is what a window around the host adds to its height (0 when the host is the window).
+  std::function<QSize(const QScreen*, int chrome_height)> fitted_size;
   std::function<ShapeAppearanceSettings()> settings;
   // The modal dialog's accepted result (turns Preview back on first).
   std::function<ShapeAppearanceSettings()> finish;

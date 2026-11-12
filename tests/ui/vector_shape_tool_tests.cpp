@@ -7053,21 +7053,15 @@ void ui_shape_layer_row_shows_vector_badge() {
   CHECK(background_row->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton")) ==
         nullptr);
 
-  // Clicking the badge opens the Shape Appearance dialog. The badge defers
-  // its open by one timer tick, so queue the reject AFTER the click: the
-  // open fires first and blocks in the dialog loop, then the reject timer
-  // fires inside that loop.
-  bool dialog_seen = false;
+  // Clicking the badge opens the stay-open Shape Appearance window (GitHub issue 694), one
+  // timer tick after the click.
   badge->click();
-  QTimer::singleShot(0, [&] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
-    dialog_seen = dialog != nullptr;
-    if (dialog != nullptr) {
-      dialog->reject();
-    }
-  });
-  QApplication::processEvents();
-  CHECK(dialog_seen);
+  const bool window_seen = process_events_until([&] {
+    auto* shown = window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow"));
+    return shown != nullptr && shown->isVisible();
+  }, 2000);
+  CHECK(window_seen);
+  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
 }
 
 void ui_paths_panel_ctrl_click_loads_selection() {
@@ -9286,16 +9280,17 @@ void ui_shape_appearance_entry_points_open_the_dialog() {
   auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
 
+  // Each opens the stay-open Shape Appearance window (GitHub issue 694) and returns at once:
+  // no dialog loop. The window is closed again between entry points.
   const auto opens_dialog = [&](const std::function<void()>& trigger) {
-    bool seen = false;
-    QTimer::singleShot(0, [&seen] {
-      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
-      seen = dialog != nullptr;
-      if (dialog != nullptr) {
-        dialog->reject();
-      }
-    });
     trigger();
+    QApplication::processEvents();
+    auto* shown = window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow"));
+    const bool seen = shown != nullptr && shown->isVisible();
+    CHECK(patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+    if (seen) {
+      shown->reject();
+    }
     QApplication::processEvents();
     return seen;
   };
