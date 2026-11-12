@@ -49,21 +49,21 @@ QString smart_object_layer_warning(const Layer& layer) {
     return {};
   }
   if (lock == "external") {
-    return QObject::tr("%1 is a smart object linked to an external file; Patchy preserves it and can update it "
+    return QObject::tr("Layer '%1' is a smart object linked to an external file; Patchy preserves it and can update it "
                        "from disk when the source file is available.")
         .arg(name);
   }
   if (lock == "filters") {
-    return QObject::tr("%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's "
+    return QObject::tr("Layer '%1' is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's "
                        "preview (rasterize the layer to edit it here).")
         .arg(name);
   }
   if (lock == "warp" || lock == "non_affine") {
-    return QObject::tr("%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows "
-                       "Photoshop's preview (rasterize the layer to edit it here).")
+    return QObject::tr("Layer '%1' is a smart object with a warp or perspective transform; Patchy preserves it and "
+                       "shows Photoshop's preview (rasterize the layer to edit it here).")
         .arg(name);
   }
-  return QObject::tr("%1 is a smart object Patchy can only preserve, not edit (%2).")
+  return QObject::tr("Layer '%1' is a smart object Patchy can only preserve, not edit (%2).")
       .arg(name, QString::fromStdString(lock));
 }
 
@@ -80,7 +80,7 @@ void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings)
         return satin.unsupported_contour_options;
       });
   if (has_unsupported_satin_contour) {
-    warnings << QObject::tr("%1 contains Photoshop Satin contour settings that Patchy cannot render or edit "
+    warnings << QObject::tr("Layer '%1' contains Photoshop Satin contour settings that Patchy cannot render or edit "
                             "(a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, "
                             "then uses the non-anti-aliased Linear contour.")
                     .arg(QString::fromStdString(layer.name()));
@@ -88,21 +88,30 @@ void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings)
 
 }
 
-void append_layer_warnings(const Layer& layer, QStringList& warnings, bool native_color_candidate) {
+// What the layer walk needs from the document, and what it counts for the document-level lines.
+struct LayerWarningContext {
+  bool native_color_candidate{false};
+  BitDepth document_depth{BitDepth::UInt8};
+  int uneditable_pixel_layers{0};
+};
+
+// Every line about one layer starts "Layer 'Name'", so the name cannot read as part of the
+// sentence (GitHub issue 712).
+void append_layer_warnings(const Layer& layer, QStringList& warnings, LayerWarningContext& context) {
   append_unrendered_style_warnings(layer, warnings);
   if (!layer.raw_psd_blending_ranges().empty() &&
       layer.blend_if_payload_status() == BlendIfPayloadStatus::Unsupported) {
-    warnings << QObject::tr("%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. "
-                            "Patchy preserves it for PSD round-trip but does not render or edit it.")
+    warnings << QObject::tr("Layer '%1' contains Photoshop Blend If data for an unsupported color mode or payload "
+                            "shape. Patchy preserves it for PSD round-trip but does not render or edit it.")
                     .arg(QString::fromStdString(layer.name()));
   }
   if (blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_group_boundary_blending_ranges())) {
-    warnings << QObject::tr("%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves "
+    warnings << QObject::tr("Layer '%1' contains Blend If data on a Photoshop group-boundary record. Patchy preserves "
                             "that boundary data but does not render or edit it.")
                     .arg(QString::fromStdString(layer.name()));
   }
   if (!layer.channel_restriction_supported()) {
-    warnings << QObject::tr("%1 contains Photoshop channel blending restrictions for an unsupported color "
+    warnings << QObject::tr("Layer '%1' contains Photoshop channel blending restrictions for an unsupported color "
                             "mode or payload shape. Patchy preserves them for PSD round-trip but does not "
                             "render or edit them.")
                     .arg(QString::fromStdString(layer.name()));
@@ -111,12 +120,12 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings, bool nativ
   if (layer.kind() == LayerKind::Group) {
     const auto unknown_blocks = unknown_layer_block_count(layer);
     if (unknown_blocks > 0) {
-      warnings << QObject::tr("%1 preserves %2 unknown PSD layer block(s).")
+      warnings << QObject::tr("Layer '%1' preserves %2 unknown PSD layer block(s).")
                        .arg(QString::fromStdString(layer.name()))
                        .arg(unknown_blocks);
     }
     for (const auto& child : layer.children()) {
-      append_layer_warnings(child, warnings, native_color_candidate);
+      append_layer_warnings(child, warnings, context);
     }
     return;
   }
@@ -128,8 +137,8 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings, bool nativ
       return found == layer.metadata().end() ? std::string{} : found->second;
     }();
     if (raster_status == "placeholder") {
-      warnings << QObject::tr("%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster "
-                              "preview because the PSD text pixels were not visible.")
+      warnings << QObject::tr("Layer '%1': extracted editable PSD text from %2, but Patchy generated a placeholder "
+                              "raster preview because the PSD text pixels were not visible.")
                        .arg(QString::fromStdString(layer.name()), source_block.isEmpty() ? QObject::tr("text data")
                                                                                          : source_block);
     }
@@ -147,34 +156,36 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings, bool nativ
     // curv / hue2 / blnc / nvrt / post / thrs / brit); only an adjustment
     // layer whose settings cannot be parsed stays Patchy-opaque.
     if (!settings.has_value()) {
-      warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
+      warnings << QObject::tr("Layer '%1' is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
                               "appear as an unsupported adjustment in other editors.")
                        .arg(QString::fromStdString(layer.name()));
-    } else if (!native_color_candidate && adjustment_depends_on_source_color_mode(*settings)) {
+    } else if (!context.native_color_candidate && adjustment_depends_on_source_color_mode(*settings)) {
       // The layer came from a CMYK document and is evaluated on its inks (InkSpace).
       // An RGB save cannot carry that meaning.
       warnings << (settings->ink_space->is_gray()
-                       ? QObject::tr("%1 came from a grayscale document and adjusts its gray channel here. "
+                       ? QObject::tr("Layer '%1' came from a grayscale document and adjusts its gray channel here. "
                                      "Patchy saves RGB files, so in the saved file Photoshop and Patchy apply "
                                      "it to RGB and its tones will look different.")
-                       : QObject::tr("%1 came from a CMYK document and adjusts its CMYK inks here. Patchy "
+                       : QObject::tr("Layer '%1' came from a CMYK document and adjusts its CMYK inks here. Patchy "
                                      "saves RGB files, so in the saved file Photoshop and Patchy apply it to "
                                      "RGB and its colors will look different."))
                       .arg(QString::fromStdString(layer.name()));
     }
   } else if (layer.kind() != LayerKind::Pixel && layer.kind() != LayerKind::Text) {
-    warnings << QObject::tr("%1 uses an unsupported layer kind and may not export as editable PSD data.")
+    warnings << QObject::tr("Layer '%1' uses an unsupported layer kind and may not export as editable PSD data.")
                      .arg(QString::fromStdString(layer.name()));
   }
 
+  // A pixel layer is editable at the document's own depth, 16 and 32 bits included, so a deep
+  // file's layers add nothing here (GitHub issue 712). Only a layer that breaks the document's
+  // format (another depth, or fewer than three channels) counts, and those share one line.
   if (layer.kind() == LayerKind::Pixel && !layer.pixels().empty() &&
-      (layer.pixels().format().bit_depth != BitDepth::UInt8 || layer.pixels().format().channels < 3)) {
-    warnings << QObject::tr("%1 uses a pixel format that can render but is not fully editable in this build.")
-                     .arg(QString::fromStdString(layer.name()));
+      (layer.pixels().format().bit_depth != context.document_depth || layer.pixels().format().channels < 3)) {
+    ++context.uneditable_pixel_layers;
   }
   const auto unknown_blocks = unknown_layer_block_count(layer);
   if (unknown_blocks > 0) {
-    warnings << QObject::tr("%1 preserves %2 unknown PSD layer block(s).")
+    warnings << QObject::tr("Layer '%1' preserves %2 unknown PSD layer block(s).")
                      .arg(QString::fromStdString(layer.name()))
                      .arg(unknown_blocks);
   }
@@ -220,8 +231,18 @@ QStringList compatibility_warnings_for_document(const Document& document) {
   }
   // Unknown image resources and embedded smart object sources round-trip unchanged and ask
   // nothing of the user, so the report does not list them (GitHub issue 669).
+  LayerWarningContext context;
+  context.native_color_candidate = native_color_candidate;
+  context.document_depth = document.color_state().bit_depth;
+  const auto first_layer_line = warnings.size();
   for (const auto& layer : document.layers()) {
-    append_layer_warnings(layer, warnings, native_color_candidate);
+    append_layer_warnings(layer, warnings, context);
+  }
+  if (context.uneditable_pixel_layers > 0) {
+    warnings.insert(first_layer_line,
+                    QObject::tr("%1 layer(s) use a pixel format that can render but is not fully editable in "
+                                "this build.")
+                        .arg(context.uneditable_pixel_layers));
   }
 
   warnings.removeDuplicates();

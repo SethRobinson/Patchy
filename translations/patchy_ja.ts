@@ -2797,26 +2797,6 @@ RGB: %2, %3, %4</translation>
         <translation>適用して閉じる</translation>
     </message>
     <message>
-        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
-        <translation>%1 は外部ファイルにリンクされたスマートオブジェクトです。Patchy はこれを保持し、ソースファイルが利用可能な場合はディスクから更新できます。</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 はスマートフィルターを持つスマートオブジェクトです。Patchy はそれらを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 はワープまたは遠近変形を持つスマートオブジェクトです。Patchy はそれを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
-        <translation>%1 は Patchy では保持のみ可能で編集できないスマートオブジェクトです (%2)。</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>%1 には、Patchy で描画または編集できない Photoshop のサテン輪郭設定（カスタムカーブまたはアンチエイリアス）が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はアンチエイリアスなしのリニア輪郭が使用されます。</translation>
-    </message>
-    <message>
         <source>Pattern &quot;%1&quot; is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
         <translation>パターン「%1」はこのドキュメントに埋め込まれていないため、別のパターンを選択するまでこのパターンを参照する効果は描画できません。</translation>
     </message>
@@ -2949,40 +2929,8 @@ RGB: %2, %3, %4</translation>
         <translation>のこぎり波</translation>
     </message>
     <message>
-        <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
-        <translation>%1 には、未対応のカラーモードまたはデータ形式の Photoshop「ブレンド条件 (Blend If)」データが含まれています。Patchy は PSD の再保存時にこのデータを保持しますが、描画や編集は行いません。</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
-        <translation>%1 には、未対応のカラーモードまたはデータ形式の Photoshop チャンネル合成制限が含まれています。Patchy は PSD の再保存時にこのデータを保持しますが、描画や編集は行いません。</translation>
-    </message>
-    <message>
-        <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
-        <translation>%1 には Photoshop のグループ境界レコードに「ブレンド条件 (Blend If)」データが含まれています。Patchy はその境界データを保持しますが、描画や編集は行いません。</translation>
-    </message>
-    <message>
-        <source>%1 preserves %2 unknown PSD layer block(s).</source>
-        <translation>%1 は不明な PSD レイヤーブロック %2 個を保持しています。</translation>
-    </message>
-    <message>
-        <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
-        <translation>%1: %2 から編集可能な PSD テキストを抽出しましたが、PSD テキストのピクセルが表示されていなかったため、Patchy は仮のラスタープレビューを生成しました。</translation>
-    </message>
-    <message>
         <source>text data</source>
         <translation>テキストデータ</translation>
-    </message>
-    <message>
-        <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
-        <translation>%1 は Patchy 独自の調整レイヤーです。Patchy の PSD では保存して開き直しても保持されますが、他のエディターでは未対応の調整として表示される場合があります。</translation>
-    </message>
-    <message>
-        <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
-        <translation>%1 は未対応のレイヤー種別を使用しているため、編集可能な PSD データとして書き出せない場合があります。</translation>
-    </message>
-    <message>
-        <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
-        <translation>%1 は描画可能ですが、このビルドでは完全には編集できないピクセル形式を使用しています。</translation>
     </message>
     <message>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
@@ -9137,16 +9085,8 @@ Mixed selection</source>
         <translation>この CMYK ファイルには、CMYK インキに作用する調整レイヤーがあります。Patchy ではそのとおりに表示されますが、保存されるのは RGB ファイルです。保存したファイルではこれらのレイヤーが RGB に適用され、色が変わります。元のファイルを残すか、保存前にこれらのレイヤーを結合してください。</translation>
     </message>
     <message>
-        <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
-        <translation>%1 は CMYK ドキュメントのもので、ここでは CMYK インキに対して調整されます。Patchy は RGB ファイルを保存するため、保存したファイルでは Photoshop でも Patchy でも RGB に適用され、色が変わります。</translation>
-    </message>
-    <message>
         <source>This grayscale file has adjustment layers that act on its gray channel. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the tones will look different. Keep the original, or merge those layers before saving.</source>
         <translation>このグレースケールファイルには、グレーチャンネルに作用する調整レイヤーがあります。Patchy ではそのとおりに表示されますが、保存されるのは RGB ファイルです。保存したファイルではこれらのレイヤーが RGB に適用され、階調が変わります。元のファイルを残すか、保存前にこれらのレイヤーを結合してください。</translation>
-    </message>
-    <message>
-        <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
-        <translation>%1 はグレースケールドキュメントのもので、ここではグレーチャンネルに対して調整されます。Patchy は RGB ファイルを保存するため、保存したファイルでは Photoshop でも Patchy でも RGB に適用され、階調が変わります。</translation>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
@@ -15753,6 +15693,66 @@ Do you want to replace it?</source>
     <message>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>100% 未満では、Photoshop と同じように境界線の色がキャンバス全体と塗りの上にも透けて見えます。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>レイヤー「%1」は外部ファイルにリンクされたスマートオブジェクトです。Patchy はこれを保持し、ソースファイルが利用可能な場合はディスクから更新できます。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>レイヤー「%1」はスマートフィルターを持つスマートオブジェクトです。Patchy はそれらを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>レイヤー「%1」はワープまたは遠近変形を持つスマートオブジェクトです。Patchy はそれを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>レイヤー「%1」は Patchy では保持のみ可能で編集できないスマートオブジェクトです (%2)。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <translation>レイヤー「%1」には、Patchy で描画または編集できない Photoshop のサテン輪郭設定（カスタムカーブまたはアンチエイリアス）が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はアンチエイリアスなしのリニア輪郭が使用されます。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <translation>レイヤー「%1」には、未対応のカラーモードまたはデータ形式の Photoshop「ブレンド条件 (Blend If)」データが含まれています。Patchy は PSD の再保存時にこのデータを保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <translation>レイヤー「%1」には Photoshop のグループ境界レコードに「ブレンド条件 (Blend If)」データが含まれています。Patchy はその境界データを保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>レイヤー「%1」には、未対応のカラーモードまたはデータ形式の Photoshop チャンネル合成制限が含まれています。Patchy は PSD の再保存時にこのデータを保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; preserves %2 unknown PSD layer block(s).</source>
+        <translation>レイヤー「%1」は不明な PSD レイヤーブロック %2 個を保持しています。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos;: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <translation>レイヤー「%1」: %2 から編集可能な PSD テキストを抽出しましたが、PSD テキストのピクセルが表示されていなかったため、Patchy は仮のラスタープレビューを生成しました。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <translation>レイヤー「%1」は Patchy 独自の調整レイヤーです。Patchy の PSD では保存して開き直しても保持されますが、他のエディターでは未対応の調整として表示される場合があります。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <translation>レイヤー「%1」はグレースケールドキュメントのもので、ここではグレーチャンネルに対して調整されます。Patchy は RGB ファイルを保存するため、保存したファイルでは Photoshop でも Patchy でも RGB に適用され、階調が変わります。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <translation>レイヤー「%1」は CMYK ドキュメントのもので、ここでは CMYK インキに対して調整されます。Patchy は RGB ファイルを保存するため、保存したファイルでは Photoshop でも Patchy でも RGB に適用され、色が変わります。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <translation>レイヤー「%1」は未対応のレイヤー種別を使用しているため、編集可能な PSD データとして書き出せない場合があります。</translation>
+    </message>
+    <message>
+        <source>%1 layer(s) use a pixel format that can render but is not fully editable in this build.</source>
+        <translation>%1 個のレイヤーが、描画可能ですがこのビルドでは完全には編集できないピクセル形式を使用しています。</translation>
     </message>
 </context>
 <context>
@@ -22391,6 +22391,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>ショートカットを検索...</translation>
     </message>
 </context>

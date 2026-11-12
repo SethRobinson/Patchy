@@ -3777,60 +3777,8 @@
         <translation>%1 copie</translation>
     </message>
     <message>
-        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
-        <translation>%1 est un objet dynamique lié à un fichier externe ; Patchy le conserve et peut le mettre à jour depuis le disque lorsque le fichier source est disponible.</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 est un objet dynamique avec des filtres dynamiques ; Patchy les conserve et affiche l&apos;aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 est un objet dynamique avec une déformation ou une transformation de perspective ; Patchy la conserve et affiche l&apos;aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
-        <translation>%1 est un objet dynamique que Patchy peut seulement conserver, sans le modifier (%2).</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>%1 contient des paramètres de contour Satin Photoshop que Patchy ne peut ni afficher ni modifier (courbe personnalisée ou lissage). Patchy les conserve jusqu&apos;à la modification des styles de calque, puis utilise le contour Linéaire sans lissage.</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
-        <translation>%1 contient des données Comparaison sur Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l&apos;aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
-    </message>
-    <message>
-        <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
-        <translation>%1 contient des données Comparaison sur dans un enregistrement de limite de groupe Photoshop. Patchy conserve ces données de limite mais ne les affiche ni ne les modifie.</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
-        <translation>%1 contient des restrictions de fusion de couches Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l&apos;aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
-    </message>
-    <message>
-        <source>%1 preserves %2 unknown PSD layer block(s).</source>
-        <translation>%1 conserve %2 bloc(s) de calque PSD inconnu(s).</translation>
-    </message>
-    <message>
-        <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
-        <translation>%1 : texte PSD modifiable extrait de %2, mais Patchy a généré un aperçu pixellisé de substitution, car les pixels du texte PSD n&apos;étaient pas visibles.</translation>
-    </message>
-    <message>
         <source>text data</source>
         <translation>données de texte</translation>
-    </message>
-    <message>
-        <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
-        <translation>%1 est un calque de réglage propre à Patchy ; il est conservé dans les PSD Patchy mais peut apparaître comme un réglage non pris en charge dans d&apos;autres éditeurs.</translation>
-    </message>
-    <message>
-        <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
-        <translation>%1 utilise un type de calque non pris en charge et pourrait ne pas s&apos;exporter sous forme de données PSD modifiables.</translation>
-    </message>
-    <message>
-        <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
-        <translation>%1 utilise un format de pixels qui peut être affiché mais n&apos;est pas entièrement modifiable dans cette version.</translation>
     </message>
     <message>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
@@ -9168,16 +9116,8 @@ RVB : %2, %3, %4</translation>
         <translation>Ce fichier CMJN contient des calques de réglage qui agissent sur ses encres CMJN. Patchy les affiche ainsi, mais il enregistre des fichiers RVB : dans un fichier enregistré, ces calques sont appliqués au RVB et les couleurs seront différentes. Conservez l&apos;original ou fusionnez ces calques avant d&apos;enregistrer.</translation>
     </message>
     <message>
-        <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
-        <translation>%1 provient d&apos;un document CMJN et règle ici ses encres CMJN. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses couleurs seront différentes.</translation>
-    </message>
-    <message>
         <source>This grayscale file has adjustment layers that act on its gray channel. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the tones will look different. Keep the original, or merge those layers before saving.</source>
         <translation>Ce fichier en niveaux de gris contient des calques de réglage qui agissent sur sa couche de gris. Patchy les affiche ainsi, mais il enregistre des fichiers RVB : dans un fichier enregistré, ces calques sont appliqués au RVB et les tons seront différents. Conservez l&apos;original ou fusionnez ces calques avant d&apos;enregistrer.</translation>
-    </message>
-    <message>
-        <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
-        <translation>%1 provient d&apos;un document en niveaux de gris et règle ici sa couche de gris. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses tons seront différents.</translation>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
@@ -15809,6 +15749,66 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Sous 100 %, la couleur du contour transparaît aussi sur toute la zone de travail et sur le fond, comme dans Photoshop.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>Le calque « %1 » est un objet dynamique lié à un fichier externe ; Patchy le conserve et peut le mettre à jour depuis le disque lorsque le fichier source est disponible.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>Le calque « %1 » est un objet dynamique avec des filtres dynamiques ; Patchy les conserve et affiche l&apos;aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>Le calque « %1 » est un objet dynamique avec une déformation ou une transformation de perspective ; Patchy la conserve et affiche l&apos;aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>Le calque « %1 » est un objet dynamique que Patchy peut seulement conserver, sans le modifier (%2).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <translation>Le calque « %1 » contient des paramètres de contour Satin Photoshop que Patchy ne peut ni afficher ni modifier (courbe personnalisée ou lissage). Patchy les conserve jusqu&apos;à la modification des styles de calque, puis utilise le contour Linéaire sans lissage.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <translation>Le calque « %1 » contient des données Comparaison sur Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l&apos;aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <translation>Le calque « %1 » contient des données Comparaison sur dans un enregistrement de limite de groupe Photoshop. Patchy conserve ces données de limite mais ne les affiche ni ne les modifie.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>Le calque « %1 » contient des restrictions de fusion de couches Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l&apos;aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; preserves %2 unknown PSD layer block(s).</source>
+        <translation>Le calque « %1 » conserve %2 bloc(s) de calque PSD inconnu(s).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos;: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <translation>Calque « %1 » : texte PSD modifiable extrait de %2, mais Patchy a généré un aperçu pixellisé de substitution, car les pixels du texte PSD n&apos;étaient pas visibles.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <translation>Le calque « %1 » est un calque de réglage propre à Patchy ; il est conservé dans les PSD Patchy mais peut apparaître comme un réglage non pris en charge dans d&apos;autres éditeurs.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <translation>Le calque « %1 » provient d&apos;un document en niveaux de gris et règle ici sa couche de gris. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses tons seront différents.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <translation>Le calque « %1 » provient d&apos;un document CMJN et règle ici ses encres CMJN. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses couleurs seront différentes.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <translation>Le calque « %1 » utilise un type de calque non pris en charge et pourrait ne pas s&apos;exporter sous forme de données PSD modifiables.</translation>
+    </message>
+    <message>
+        <source>%1 layer(s) use a pixel format that can render but is not fully editable in this build.</source>
+        <translation>%1 calque(s) utilisent un format de pixels qui peut être affiché mais n&apos;est pas entièrement modifiable dans cette version.</translation>
     </message>
 </context>
 <context>
@@ -22455,6 +22455,7 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Rechercher des raccourcis...</translation>
     </message>
 </context>

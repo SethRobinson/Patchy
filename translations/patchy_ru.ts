@@ -3853,60 +3853,8 @@
         <translation>%1 Копия</translation>
     </message>
     <message>
-        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
-        <translation>%1 — смарт-объект, связанный с внешним файлом; Patchy сохраняет его и может обновить с диска, когда исходный файл станет доступен.</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 содержит смарт-фильтры; Patchy сохраняет их и показывает изображение предпросмотра, созданное Photoshop (для редактирования здесь растрируйте слой).</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 содержит деформацию или перспективное преобразование; Patchy сохраняет смарт-объект и показывает изображение предпросмотра, созданное Photoshop (для редактирования здесь растрируйте слой).</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
-        <translation>%1 — это смарт-объект, который Patchy может только сохранять, но не редактировать (%2).</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>%1 содержит параметры контура эффекта «Глянец» Photoshop, которые Patchy не может отображать или редактировать (произвольная кривая или сглаживание). Они сохраняются до изменения стилей слоя; затем используется линейный контур без сглаживания.</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
-        <translation>%1 содержит данные «Наложение, если» Photoshop для неподдерживаемого цветового режима или структуры данных. Patchy сохраняет их при повторном сохранении PSD, но не отображает и не редактирует.</translation>
-    </message>
-    <message>
-        <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
-        <translation>%1 содержит данные «Наложение, если» в записи границы группы Photoshop. Patchy сохраняет эти данные, но не отображает и не редактирует их.</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
-        <translation>%1 содержит ограничения наложения каналов Photoshop для неподдерживаемого цветового режима или структуры данных. Patchy сохраняет их при повторном сохранении PSD, но не отображает и не редактирует.</translation>
-    </message>
-    <message>
-        <source>%1 preserves %2 unknown PSD layer block(s).</source>
-        <translation>%1 сохраняет неизвестные блоки слоя PSD: %2.</translation>
-    </message>
-    <message>
-        <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
-        <translation>%1: извлечен редактируемый текст PSD из %2, но Patchy создал предварительный просмотр растра-заполнителя, поскольку пиксели текста PSD не были видны.</translation>
-    </message>
-    <message>
         <source>text data</source>
         <translation>текстовые данные</translation>
-    </message>
-    <message>
-        <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
-        <translation>%1 является собственным корректирующим слоем Patchy; он сохраняется без изменений в PSD Patchy, но может отображаться как неподдерживаемая коррекция в других редакторах.</translation>
-    </message>
-    <message>
-        <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
-        <translation>%1 использует неподдерживаемый тип слоя и может не сохраниться в PSD в редактируемом виде.</translation>
-    </message>
-    <message>
-        <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
-        <translation>%1 использует формат пикселей, который можно визуализировать, но в этой сборке его нельзя полностью редактировать.</translation>
     </message>
     <message>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
@@ -9199,16 +9147,8 @@ RGB: %2, %3, %4</translation>
         <translation>В этом файле CMYK есть корректирующие слои, которые действуют на его краски CMYK. Patchy показывает их именно так, но сохраняет файлы RGB: в сохранённом файле эти слои будут применены к RGB, и цвета будут выглядеть иначе. Сохраните оригинал или объедините эти слои перед сохранением.</translation>
     </message>
     <message>
-        <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
-        <translation>Слой «%1» взят из документа CMYK и здесь корректирует его краски CMYK. Patchy сохраняет файлы RGB, поэтому в сохранённом файле Photoshop и Patchy применят его к RGB, и цвета будут выглядеть иначе.</translation>
-    </message>
-    <message>
         <source>This grayscale file has adjustment layers that act on its gray channel. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the tones will look different. Keep the original, or merge those layers before saving.</source>
         <translation>В этом файле в градациях серого есть корректирующие слои, которые действуют на его серый канал. Patchy показывает их именно так, но сохраняет файлы RGB: в сохранённом файле эти слои будут применены к RGB, и тона будут выглядеть иначе. Сохраните оригинал или объедините эти слои перед сохранением.</translation>
-    </message>
-    <message>
-        <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
-        <translation>Слой «%1» взят из документа в градациях серого и здесь корректирует его серый канал. Patchy сохраняет файлы RGB, поэтому в сохранённом файле Photoshop и Patchy применят его к RGB, и тона будут выглядеть иначе.</translation>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
@@ -15866,6 +15806,66 @@ Do you want to replace it?</source>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Ниже 100% цвет обводки проявляется и на всём холсте, и поверх заливки, как в Photoshop.</translation>
     </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>Слой «%1» — смарт-объект, связанный с внешним файлом; Patchy сохраняет его и может обновить с диска, когда исходный файл станет доступен.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>Слой «%1» содержит смарт-фильтры; Patchy сохраняет их и показывает изображение предпросмотра, созданное Photoshop (для редактирования здесь растрируйте слой).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>Слой «%1» содержит деформацию или перспективное преобразование; Patchy сохраняет смарт-объект и показывает изображение предпросмотра, созданное Photoshop (для редактирования здесь растрируйте слой).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>Слой «%1» — это смарт-объект, который Patchy может только сохранять, но не редактировать (%2).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <translation>Слой «%1» содержит параметры контура эффекта «Глянец» Photoshop, которые Patchy не может отображать или редактировать (произвольная кривая или сглаживание). Они сохраняются до изменения стилей слоя; затем используется линейный контур без сглаживания.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <translation>Слой «%1» содержит данные «Наложение, если» Photoshop для неподдерживаемого цветового режима или структуры данных. Patchy сохраняет их при повторном сохранении PSD, но не отображает и не редактирует.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <translation>Слой «%1» содержит данные «Наложение, если» в записи границы группы Photoshop. Patchy сохраняет эти данные, но не отображает и не редактирует их.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>Слой «%1» содержит ограничения наложения каналов Photoshop для неподдерживаемого цветового режима или структуры данных. Patchy сохраняет их при повторном сохранении PSD, но не отображает и не редактирует.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; preserves %2 unknown PSD layer block(s).</source>
+        <translation>Слой «%1» сохраняет неизвестные блоки слоя PSD: %2.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos;: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <translation>Слой «%1»: извлечен редактируемый текст PSD из %2, но Patchy создал предварительный просмотр растра-заполнителя, поскольку пиксели текста PSD не были видны.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <translation>Слой «%1» является собственным корректирующим слоем Patchy; он сохраняется без изменений в PSD Patchy, но может отображаться как неподдерживаемая коррекция в других редакторах.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <translation>Слой «%1» взят из документа в градациях серого и здесь корректирует его серый канал. Patchy сохраняет файлы RGB, поэтому в сохранённом файле Photoshop и Patchy применят его к RGB, и тона будут выглядеть иначе.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <translation>Слой «%1» взят из документа CMYK и здесь корректирует его краски CMYK. Patchy сохраняет файлы RGB, поэтому в сохранённом файле Photoshop и Patchy применят его к RGB, и цвета будут выглядеть иначе.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <translation>Слой «%1» использует неподдерживаемый тип слоя и может не сохраниться в PSD в редактируемом виде.</translation>
+    </message>
+    <message>
+        <source>%1 layer(s) use a pixel format that can render but is not fully editable in this build.</source>
+        <translation>Слоёв, использующих формат пикселей, который можно визуализировать, но нельзя полностью редактировать в этой сборке: %1.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22519,6 +22519,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Поиск сочетаний клавиш...</translation>
     </message>
 </context>

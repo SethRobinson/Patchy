@@ -3853,60 +3853,8 @@
         <translation>%1 kopia</translation>
     </message>
     <message>
-        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
-        <translation>%1 to inteligentny obiekt powiązany z plikiem zewnętrznym; Patchy zachowuje go i może aktualizować z dysku, gdy plik źródłowy jest dostępny.</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 to inteligentny obiekt z inteligentnymi filtrami; Patchy zachowuje je i wyświetla podgląd Photoshopa (rasteryzuj warstwę, aby ją tutaj edytować).</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 to inteligentny obiekt z transformacją wypaczenia lub perspektywy; Patchy zachowuje ją i wyświetla podgląd Photoshopa (rasteryzuj warstwę, aby ją tutaj edytować).</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
-        <translation>%1 to obiekt inteligentny, który Patchy może tylko zachować, ale nie edytować (%2).</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>%1 zawiera ustawienia konturów programu Photoshop Satin, których Patchy nie może renderować ani edytować (niestandardowa krzywa lub wygładzanie). Patchy zachowuje je do czasu edycji stylów warstw, a następnie używa niewygładzonego konturu liniowego.</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
-        <translation>%1 zawiera dane opcji Mieszaj gdy programu Photoshop dla nieobsługiwanego trybu kolorów lub formatu danych. Patchy zachowuje je przy ponownym zapisie PSD, ale ich nie renderuje ani nie edytuje.</translation>
-    </message>
-    <message>
-        <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
-        <translation>%1 zawiera dane opcji Mieszaj gdy w rekordzie granicy grupy programu Photoshop. Patchy zachowuje te dane, ale ich nie renderuje ani nie edytuje.</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
-        <translation>%1 zawiera ograniczenia mieszania kanałów programu Photoshop dla nieobsługiwanego trybu kolorów lub formatu danych. Patchy zachowuje je przy ponownym zapisie PSD, ale ich nie renderuje ani nie edytuje.</translation>
-    </message>
-    <message>
-        <source>%1 preserves %2 unknown PSD layer block(s).</source>
-        <translation>%1 zachowuje %2 nieznane bloki warstwy PSD.</translation>
-    </message>
-    <message>
-        <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
-        <translation>%1: wyodrębniono edytowalny tekst PSD z %2, ale Patchy wygenerował zastępczy podgląd rastrowy, ponieważ piksele tekstu PSD nie były widoczne.</translation>
-    </message>
-    <message>
         <source>text data</source>
         <translation>dane tekstowe</translation>
-    </message>
-    <message>
-        <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
-        <translation>%1 to natywna warstwa dopasowania Patchy; jest zachowywana przy ponownym zapisie PSD w Patchy, ale inne edytory mogą rozpoznać ją jako nieobsługiwane dopasowanie.</translation>
-    </message>
-    <message>
-        <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
-        <translation>%1 używa nieobsługiwanego rodzaju warstwy i może nie zostać wyeksportowany jako edytowalne dane PSD.</translation>
-    </message>
-    <message>
-        <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
-        <translation>%1 używa formatu pikseli, który może być renderowany, ale nie jest w pełni edytowalny w tej kompilacji.</translation>
     </message>
     <message>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
@@ -9199,16 +9147,8 @@ RGB: %2, %3, %4</translation>
         <translation>Ten plik CMYK zawiera warstwy dopasowania, które działają na jego farby CMYK. Patchy tak je wyświetla, ale zapisuje pliki RGB: w zapisanym pliku te warstwy zostaną zastosowane do RGB, a kolory będą wyglądać inaczej. Zachowaj oryginał albo scal te warstwy przed zapisaniem.</translation>
     </message>
     <message>
-        <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
-        <translation>Warstwa %1 pochodzi z dokumentu CMYK i tutaj koryguje jego farby CMYK. Patchy zapisuje pliki RGB, więc w zapisanym pliku Photoshop i Patchy zastosują ją do RGB, a jej kolory będą wyglądać inaczej.</translation>
-    </message>
-    <message>
         <source>This grayscale file has adjustment layers that act on its gray channel. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the tones will look different. Keep the original, or merge those layers before saving.</source>
         <translation>Ten plik w skali szarości zawiera warstwy dopasowania, które działają na jego kanał szarości. Patchy tak je wyświetla, ale zapisuje pliki RGB: w zapisanym pliku te warstwy zostaną zastosowane do RGB, a tony będą wyglądać inaczej. Zachowaj oryginał albo scal te warstwy przed zapisaniem.</translation>
-    </message>
-    <message>
-        <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
-        <translation>Warstwa %1 pochodzi z dokumentu w skali szarości i tutaj koryguje jego kanał szarości. Patchy zapisuje pliki RGB, więc w zapisanym pliku Photoshop i Patchy zastosują ją do RGB, a jej tony będą wyglądać inaczej.</translation>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
@@ -15866,6 +15806,66 @@ Czy chcesz go zastąpić?</translation>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Poniżej 100% kolor obrysu jest widoczny także na całym płótnie i na wypełnieniu, tak jak w Photoshopie.</translation>
     </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>Warstwa &apos;%1&apos; to inteligentny obiekt powiązany z plikiem zewnętrznym; Patchy zachowuje go i może aktualizować z dysku, gdy plik źródłowy jest dostępny.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>Warstwa &apos;%1&apos; to inteligentny obiekt z inteligentnymi filtrami; Patchy zachowuje je i wyświetla podgląd Photoshopa (rasteryzuj warstwę, aby ją tutaj edytować).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>Warstwa &apos;%1&apos; to inteligentny obiekt z transformacją wypaczenia lub perspektywy; Patchy zachowuje ją i wyświetla podgląd Photoshopa (rasteryzuj warstwę, aby ją tutaj edytować).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>Warstwa &apos;%1&apos; to obiekt inteligentny, który Patchy może tylko zachować, ale nie edytować (%2).</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <translation>Warstwa &apos;%1&apos; zawiera ustawienia konturów programu Photoshop Satin, których Patchy nie może renderować ani edytować (niestandardowa krzywa lub wygładzanie). Patchy zachowuje je do czasu edycji stylów warstw, a następnie używa niewygładzonego konturu liniowego.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <translation>Warstwa &apos;%1&apos; zawiera dane opcji Mieszaj gdy programu Photoshop dla nieobsługiwanego trybu kolorów lub formatu danych. Patchy zachowuje je przy ponownym zapisie PSD, ale ich nie renderuje ani nie edytuje.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <translation>Warstwa &apos;%1&apos; zawiera dane opcji Mieszaj gdy w rekordzie granicy grupy programu Photoshop. Patchy zachowuje te dane, ale ich nie renderuje ani nie edytuje.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>Warstwa &apos;%1&apos; zawiera ograniczenia mieszania kanałów programu Photoshop dla nieobsługiwanego trybu kolorów lub formatu danych. Patchy zachowuje je przy ponownym zapisie PSD, ale ich nie renderuje ani nie edytuje.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; preserves %2 unknown PSD layer block(s).</source>
+        <translation>Warstwa &apos;%1&apos; zachowuje %2 nieznane bloki warstwy PSD.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos;: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <translation>Warstwa &apos;%1&apos;: wyodrębniono edytowalny tekst PSD z %2, ale Patchy wygenerował zastępczy podgląd rastrowy, ponieważ piksele tekstu PSD nie były widoczne.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <translation>Warstwa &apos;%1&apos; to natywna warstwa dopasowania Patchy; jest zachowywana przy ponownym zapisie PSD w Patchy, ale inne edytory mogą rozpoznać ją jako nieobsługiwane dopasowanie.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <translation>Warstwa &apos;%1&apos; pochodzi z dokumentu w skali szarości i tutaj koryguje jego kanał szarości. Patchy zapisuje pliki RGB, więc w zapisanym pliku Photoshop i Patchy zastosują ją do RGB, a jej tony będą wyglądać inaczej.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <translation>Warstwa &apos;%1&apos; pochodzi z dokumentu CMYK i tutaj koryguje jego farby CMYK. Patchy zapisuje pliki RGB, więc w zapisanym pliku Photoshop i Patchy zastosują ją do RGB, a jej kolory będą wyglądać inaczej.</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <translation>Warstwa &apos;%1&apos; używa nieobsługiwanego rodzaju warstwy i może nie zostać wyeksportowana jako edytowalne dane PSD.</translation>
+    </message>
+    <message>
+        <source>%1 layer(s) use a pixel format that can render but is not fully editable in this build.</source>
+        <translation>Warstwy (%1) używają formatu pikseli, który może być renderowany, ale nie jest w pełni edytowalny w tej kompilacji.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22519,6 +22519,7 @@ Czy chcesz go zastąpić?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Wyszukaj skróty...</translation>
     </message>
 </context>

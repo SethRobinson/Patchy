@@ -3769,60 +3769,8 @@
         <translation>%1 拷貝</translation>
     </message>
     <message>
-        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
-        <translation>%1 是連結至外部檔案的智慧型物件；Patchy 會保留它，並可在來源檔案可用時從磁碟更新。</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 是含有智慧型濾鏡的智慧型物件；Patchy 會保留這些濾鏡並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 是含有彎曲或透視變形的智慧型物件；Patchy 會保留該變形並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
-    </message>
-    <message>
-        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
-        <translation>%1 是 Patchy 只能保留而無法編輯的智慧型物件 (%2)。</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>%1 含有 Patchy 無法演算或編輯的 Photoshop 緞面輪廓設定 (自訂曲線或消除鋸齒)。Patchy 會保留這些設定，直到圖層樣式被編輯為止，之後會改用未消除鋸齒的線性輪廓。</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
-        <translation>%1 含有色彩模式或資料格式不受支援的 Photoshop「混合範圍」資料。Patchy 會在重新儲存 PSD 時保留這些資料，但不會演算或編輯。</translation>
-    </message>
-    <message>
-        <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
-        <translation>%1 在 Photoshop 群組邊界記錄中含有「混合範圍」資料。Patchy 會保留該邊界資料，但不會演算或編輯。</translation>
-    </message>
-    <message>
-        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
-        <translation>%1 含有色彩模式或資料格式不受支援的 Photoshop 色版混合限制。Patchy 會在重新儲存 PSD 時保留這些設定，但不會演算或編輯。</translation>
-    </message>
-    <message>
-        <source>%1 preserves %2 unknown PSD layer block(s).</source>
-        <translation>%1 保留了 %2 個未知的 PSD 圖層區塊。</translation>
-    </message>
-    <message>
-        <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
-        <translation>%1：已從 %2 擷取可編輯的 PSD 文字，但由於 PSD 文字像素不可見，Patchy 產生了預留位置的點陣預視。</translation>
-    </message>
-    <message>
         <source>text data</source>
         <translation>文字資料</translation>
-    </message>
-    <message>
-        <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
-        <translation>%1 是 Patchy 原生的調整圖層；在 Patchy 中儲存並重新開啟 PSD 後仍可保留，但在其他編輯器中可能顯示為不受支援的調整。</translation>
-    </message>
-    <message>
-        <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
-        <translation>%1 使用不受支援的圖層類型，可能無法匯出為可編輯的 PSD 資料。</translation>
-    </message>
-    <message>
-        <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
-        <translation>%1 使用的像素格式可以演算，但在此版本中無法完整編輯。</translation>
     </message>
     <message>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
@@ -9137,16 +9085,8 @@ RGB：%2, %3, %4</translation>
         <translation>此 CMYK 檔案包含作用於 CMYK 油墨的調整圖層。Patchy 會依這種方式顯示它們，但儲存的是 RGB 檔案：在儲存後的檔案中，這些圖層會套用於 RGB，顏色會有所不同。請保留原始檔案，或在儲存前合併這些圖層。</translation>
     </message>
     <message>
-        <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
-        <translation>%1 來自 CMYK 文件，在這裡調整的是它的 CMYK 油墨。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，顏色會有所不同。</translation>
-    </message>
-    <message>
         <source>This grayscale file has adjustment layers that act on its gray channel. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the tones will look different. Keep the original, or merge those layers before saving.</source>
         <translation>此灰階檔案包含作用於灰色色版的調整圖層。Patchy 會依這種方式顯示它們，但儲存的是 RGB 檔案：在儲存後的檔案中，這些圖層會套用於 RGB，色調會有所不同。請保留原始檔案，或在儲存前合併這些圖層。</translation>
-    </message>
-    <message>
-        <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
-        <translation>%1 來自灰階文件，在這裡調整的是它的灰色色版。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，色調會有所不同。</translation>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
@@ -15753,6 +15693,66 @@ Do you want to replace it?</source>
     <message>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>低於 100% 時，筆畫顏色也會像在 Photoshop 中一樣在整個畫布和填色上透出。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>圖層「%1」是連結至外部檔案的智慧型物件；Patchy 會保留它，並可在來源檔案可用時從磁碟更新。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>圖層「%1」是含有智慧型濾鏡的智慧型物件；Patchy 會保留這些濾鏡並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>圖層「%1」是含有彎曲或透視變形的智慧型物件；Patchy 會保留該變形並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>圖層「%1」是 Patchy 只能保留而無法編輯的智慧型物件 (%2)。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <translation>圖層「%1」含有 Patchy 無法演算或編輯的 Photoshop 緞面輪廓設定 (自訂曲線或消除鋸齒)。Patchy 會保留這些設定，直到圖層樣式被編輯為止，之後會改用未消除鋸齒的線性輪廓。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <translation>圖層「%1」含有色彩模式或資料格式不受支援的 Photoshop「混合範圍」資料。Patchy 會在重新儲存 PSD 時保留這些資料，但不會演算或編輯。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <translation>圖層「%1」在 Photoshop 群組邊界記錄中含有「混合範圍」資料。Patchy 會保留該邊界資料，但不會演算或編輯。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>圖層「%1」含有色彩模式或資料格式不受支援的 Photoshop 色版混合限制。Patchy 會在重新儲存 PSD 時保留這些設定，但不會演算或編輯。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; preserves %2 unknown PSD layer block(s).</source>
+        <translation>圖層「%1」保留了 %2 個未知的 PSD 圖層區塊。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos;: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <translation>圖層「%1」：已從 %2 擷取可編輯的 PSD 文字，但由於 PSD 文字像素不可見，Patchy 產生了預留位置的點陣預視。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <translation>圖層「%1」是 Patchy 原生的調整圖層；在 Patchy 中儲存並重新開啟 PSD 後仍可保留，但在其他編輯器中可能顯示為不受支援的調整。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <translation>圖層「%1」來自灰階文件，在這裡調整的是它的灰色色版。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，色調會有所不同。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <translation>圖層「%1」來自 CMYK 文件，在這裡調整的是它的 CMYK 油墨。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，顏色會有所不同。</translation>
+    </message>
+    <message>
+        <source>Layer &apos;%1&apos; uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <translation>圖層「%1」使用不受支援的圖層類型，可能無法匯出為可編輯的 PSD 資料。</translation>
+    </message>
+    <message>
+        <source>%1 layer(s) use a pixel format that can render but is not fully editable in this build.</source>
+        <translation>有 %1 個圖層使用的像素格式可以演算，但在此版本中無法完整編輯。</translation>
     </message>
 </context>
 <context>
@@ -22391,6 +22391,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>搜尋快速鍵...</translation>
     </message>
 </context>

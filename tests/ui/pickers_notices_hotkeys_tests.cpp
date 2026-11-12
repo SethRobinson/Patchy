@@ -753,6 +753,9 @@ void ui_compatibility_report_flags_psd_text_placeholders() {
   CHECK(!warnings.isEmpty());
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("placeholder")));
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("TySh")));
+  // The line names its layer in quotes (GitHub issue 712).
+  CHECK(warnings.join(QLatin1Char('\n'))
+            .contains(QStringLiteral("Layer 'PSD Text': extracted editable PSD text from TySh")));
   // The text block is understood data (its own note above), not an unknown block.
   CHECK(!warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
 }
@@ -778,7 +781,8 @@ void ui_compatibility_report_counts_routine_photoshop_blocks_as_known() {
   document.layers().front().unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
   warnings = patchy::ui::compatibility_warnings_for_document(document);
   CHECK(warnings.size() == 1);
-  CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("Shape preserves 1 unknown PSD layer block")));
+  CHECK(!warnings.isEmpty() &&
+        warnings.front() == QStringLiteral("Layer 'Shape' preserves 1 unknown PSD layer block(s)."));
   // Document-level blocks round-trip unchanged and ask nothing of the user, so even an unknown
   // key is not listed (GitHub issue 669).
   document.layers().front().unknown_psd_blocks().pop_back();
@@ -927,7 +931,7 @@ void ui_compatibility_report_warns_about_cmyk_ink_adjustments() {
   };
   const auto ink = warnings_for(patchy::AdjustmentKind::Levels, true);
   CHECK(ink.size() == 1);
-  CHECK(!ink.isEmpty() && ink.front().contains(QStringLiteral("Ink Levels")));
+  CHECK(!ink.isEmpty() && ink.front().startsWith(QStringLiteral("Layer 'Ink Levels' came from a CMYK document")));
   CHECK(!ink.isEmpty() && ink.front().contains(QStringLiteral("CMYK")));
   // The same layer in an RGB document, and a kind that stays on RGB math, say nothing.
   CHECK(warnings_for(patchy::AdjustmentKind::Levels, false).isEmpty());
@@ -946,7 +950,8 @@ void ui_compatibility_report_warns_about_cmyk_ink_adjustments() {
   space = gray;
   const auto gray_warning = warnings_for(patchy::AdjustmentKind::Threshold, true);
   CHECK(gray_warning.size() == 1);
-  CHECK(!gray_warning.isEmpty() && gray_warning.front().contains(QStringLiteral("grayscale")));
+  CHECK(!gray_warning.isEmpty() &&
+        gray_warning.front().startsWith(QStringLiteral("Layer 'Ink Levels' came from a grayscale document")));
   CHECK(!gray_warning.isEmpty() && !gray_warning.front().contains(QStringLiteral("CMYK")));
 }
 void ui_compatibility_report_pins_native_vs_private_adjustment_kinds() {
@@ -978,7 +983,7 @@ void ui_compatibility_report_pins_native_vs_private_adjustment_kinds() {
   opaque.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
   document.add_layer(std::move(opaque));
   const auto opaque_text = patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(opaque_text.contains(QStringLiteral("Patchy-native adjustment layer")));
+  CHECK(opaque_text.contains(QStringLiteral("Layer 'Mystery' is a Patchy-native adjustment layer")));
 }
 void ui_compatibility_report_flags_cmyk_rgb_conversion() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
@@ -1028,7 +1033,7 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   imported_satin.unsupported_contour_options = true;
   const auto contour_text =
       patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(contour_text.contains(QStringLiteral("Satin contour settings")));
+  CHECK(contour_text.contains(QStringLiteral("Layer 'Styled Group' contains Photoshop Satin contour settings")));
   CHECK(contour_text.contains(QStringLiteral("custom curve or anti-aliasing")));
   CHECK(contour_text.contains(QStringLiteral("non-anti-aliased Linear contour")));
 }
@@ -1062,7 +1067,7 @@ void ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if
   child_layer.set_blend_if_payload(std::vector<std::uint8_t>(identity_range.begin(), identity_range.end()), true);
   const auto unsupported_text =
       patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(unsupported_text.contains(QStringLiteral("Blend If Layer")));
+  CHECK(unsupported_text.contains(QStringLiteral("Layer 'Blend If Layer' contains Photoshop Blend If data")));
   CHECK(unsupported_text.contains(QStringLiteral("unsupported color mode or payload shape")));
   CHECK(unsupported_text.contains(QStringLiteral("preserves it for PSD round-trip")));
   CHECK(unsupported_text.contains(QStringLiteral("does not render or edit")));
@@ -1070,7 +1075,7 @@ void ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if
   document.layers().front().raw_psd_group_boundary_blending_ranges() = supported_nondefault;
   const auto boundary_text =
       patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(boundary_text.contains(QStringLiteral("Blend If Group")));
+  CHECK(boundary_text.contains(QStringLiteral("Layer 'Blend If Group' contains Blend If data")));
   CHECK(boundary_text.contains(QStringLiteral("group-boundary record")));
   CHECK(boundary_text.contains(QStringLiteral("preserves that boundary data")));
   CHECK(boundary_text.contains(QStringLiteral("does not render or edit")));
@@ -1119,7 +1124,7 @@ void ui_compatibility_report_describes_linked_smart_object_updates() {
   layer.metadata()[patchy::kLayerMetadataSmartObject] = "linked-source-uuid";
   layer.metadata()[patchy::kLayerMetadataSmartObjectLock] = "external";
   const auto text = patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(text.contains(QStringLiteral("linked to an external file")));
+  CHECK(text.contains(QStringLiteral("Layer 'Linked Object' is a smart object linked to an external file")));
   CHECK(text.contains(QStringLiteral("can update it from disk when the source file is available")));
   CHECK(!text.contains(QStringLiteral("cannot update it from disk")));
 }
@@ -1316,6 +1321,83 @@ void ui_compatibility_report_dont_show_turns_popup_preference_off() {
   const auto unknown_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-dont-show.psd"));
   CHECK(open_and_answer(unknown_path, true));
   CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), true).toBool());
+}
+// A 16-bit file opens at its own depth with every layer editable, so the report says nothing
+// about pixel formats and does not come up (GitHub issue 712: it listed every layer). Layers
+// that break the document's depth still count, on one line for the whole document.
+void ui_compatibility_report_is_empty_for_16_bit_documents() {
+  patchy::set_deep_editing_override(true);
+  const auto restore_deep_editing = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+    settings.sync();
+  }
+  ensure_artifact_dir();
+  const auto path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("i712-16-bit-layers.psd")))
+          .absoluteFilePath();
+  {
+    patchy::Document source(320, 240, patchy::PixelFormat::rgb8());
+    source.add_pixel_layer("Background Color",
+                           solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(236, 238, 242, 255)));
+    source.add_pixel_layer("Rendered Image",
+                           solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 128)));
+    patchy::convert_document_depth(source, patchy::BitDepth::UInt16);
+    patchy::psd::DocumentIo::write_layered_rgb8_file(source, patchy::ui::to_filesystem_path(path));
+  }
+  auto document = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt16);
+  const auto depth = document.metadata().values.find("psd.depth");
+  CHECK(depth != document.metadata().values.end() && depth->second == "16");
+  CHECK(document.layers().size() == 2);
+  for (const auto& layer : std::as_const(document).layers()) {
+    CHECK(layer.pixels().format().bit_depth == patchy::BitDepth::UInt16);
+  }
+  CHECK(patchy::document_depth_problems(document).empty());
+  auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
+  // With the popup preference on, opening the file brings up no report.
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    const auto compatibility_report_done = std::make_shared<bool>(false);
+    accept_compatibility_report_when_present(compatibility_report_done);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    // The report comes up one event-loop turn after the open (#593).
+    QApplication::processEvents();
+    const bool saw_compatibility_report = *compatibility_report_done;
+    *compatibility_report_done = true;
+    CHECK(!saw_compatibility_report);
+  }
+  // Layers at another depth than their document are not editable: one line, however many.
+  for (auto& layer : document.layers()) {
+    patchy::convert_layer_depth(layer, patchy::BitDepth::UInt8);
+  }
+  warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(warnings.size() == 1);
+  CHECK(!warnings.isEmpty() && warnings.front().startsWith(QStringLiteral("2 layer(s) use a pixel format")));
+  CHECK(!warnings.join(QLatin1Char('\n')).contains(QStringLiteral("Rendered Image")));
+}
+// Photoshop 2026's own 16 and 32-bit layered files (local fixtures) reopen with nothing to
+// report either.
+void ui_compatibility_report_is_empty_for_photoshop_deep_psds_if_available() {
+  patchy::set_deep_editing_override(true);
+  const auto restore_deep_editing = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  for (const char* name : {"ps2026-16bit.psd", "ps2026-32bit.psd"}) {
+    const auto path = patchy::test::local_fixtures_root() / "psd" / name;
+    patchy::test::skip_unless_exists(path);
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    CHECK(document.color_state().bit_depth != patchy::BitDepth::UInt8);
+    const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+    if (!warnings.isEmpty()) {
+      std::fprintf(stderr, "  %s: %s\n", name, qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+    CHECK(warnings.isEmpty());
+  }
 }
 void ui_alt_left_click_samples_foreground_color() {
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -6068,6 +6150,10 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_is_empty_for_issue_646_text_psd_if_available},
       {"ui_compatibility_report_dont_show_turns_popup_preference_off",
        ui_compatibility_report_dont_show_turns_popup_preference_off},
+      {"ui_compatibility_report_is_empty_for_16_bit_documents",
+       ui_compatibility_report_is_empty_for_16_bit_documents},
+      {"ui_compatibility_report_is_empty_for_photoshop_deep_psds_if_available",
+       ui_compatibility_report_is_empty_for_photoshop_deep_psds_if_available},
       {"ui_compatibility_report_treats_native_adjustment_blocks_as_known",
        ui_compatibility_report_treats_native_adjustment_blocks_as_known},
       {"ui_compatibility_report_treats_levels_as_native_psd_adjustment",
