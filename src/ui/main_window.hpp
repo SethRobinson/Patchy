@@ -3804,7 +3804,8 @@ private:
   ToolPaletteCustomization tool_palette_customization_;
   // When tool groups open (Preferences, app_settings.hpp); the flyout buttons' openers follow it.
   ToolFlyoutOpenMode tool_flyout_open_mode_{ToolFlyoutOpenMode::Hold};
-  // Whether a group's plain letter only selects its first tool (Preferences, app_settings.hpp).
+  // Whether a group's plain letter only selects the tool its button shows, never walking the
+  // group (Preferences, app_settings.hpp).
   bool use_shift_for_tool_switch_{true};
   QAction* customize_tool_palette_action_{nullptr};
   struct LayerFooterButton {

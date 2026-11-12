@@ -35042,8 +35042,8 @@ Locked: %1</source>
         <translation>Shift キーでツールを切り替え</translation>
     </message>
     <message>
-        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
-        <translation>オンのとき、ツールグループの文字キーはグループの最初のツールを選択し、Shift と文字キーでグループ内を順に切り替えます。オフのとき、文字キーをもう一度押すとグループの次のツールに切り替わります。</translation>
+        <source>When on, a tool group&apos;s letter selects the tool the group last used and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>オンのとき、ツールグループの文字キーはグループで最後に使ったツールを選択し、Shift と文字キーでグループ内を順に切り替えます。オフのとき、文字キーをもう一度押すとグループの次のツールに切り替わります。</translation>
     </message>
     <message>
         <source>Seafoam</source>

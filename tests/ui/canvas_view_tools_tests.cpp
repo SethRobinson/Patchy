@@ -5995,8 +5995,9 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
 
 // Shift+<letter> walks a flyout in menu order from the active tool, wrapping,
 // and from the button's shown tool when the active tool is elsewhere (GitHub
-// issue 45, Photoshop's Shift+key convention). The plain letter still selects
-// the group's primary tool.
+// issue 45, Photoshop's Shift+key convention). The plain letter selects the member
+// the group's button shows, the last one used, and keeps a member that is already
+// active (GitHub issue 711).
 void ui_tool_cycle_hotkeys_walk_each_flyout() {
   auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
@@ -6031,11 +6032,18 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Healing);
   CHECK(healing_button->defaultAction() == require_action(window, "toolHealingBrushAction"));
+  // J keeps the group's active member, and from another tool comes back to it.
   require_action(window, "toolPatchAction")->trigger();
   QApplication::processEvents();
   QTest::keyClick(canvas, Qt::Key_J);
   QApplication::processEvents();
-  CHECK(canvas->tool() == patchy::ui::CanvasTool::Healing);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_J);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
 
   // A two-member group toggles; the cycle command drives the flyout button too.
   auto* gradient_button = window.findChild<QToolButton*>(QStringLiteral("gradientToolButton"));
@@ -6051,6 +6059,26 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   require_action(window, "toolCycleFillAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
+  // GitHub issue 711: Shift+G to Fill, M, then G comes back to Fill, the tool the button
+  // shows, and G again stays on it. The first member returns the same way.
+  QTest::keyClick(canvas, Qt::Key_M);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Marquee);
+  CHECK(gradient_button->defaultAction() == require_action(window, "toolFillAction"));
+  for (int press = 0; press < 2; ++press) {
+    QTest::keyClick(canvas, Qt::Key_G);
+    QApplication::processEvents();
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
+    CHECK(gradient_button->defaultAction() == require_action(window, "toolFillAction"));
+  }
+  QTest::keyClick(canvas, Qt::Key_G, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Gradient);
+  QTest::keyClick(canvas, Qt::Key_M);
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_G);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Gradient);
 
   // Shift+L walks Lasso, Polygonal Lasso, Magnetic Lasso (GitHub issue 287). The new member
   // keeps its own persistent id and ships unbound, like every member past the first.

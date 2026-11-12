@@ -35144,8 +35144,8 @@ Bloqueada: %1</translation>
         <translation>Usar Mayús para cambiar de herramienta</translation>
     </message>
     <message>
-        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
-        <translation>Si está activado, la letra de un grupo de herramientas selecciona su primera herramienta y Mayús con la letra recorre el grupo. Si está desactivado, al pulsar de nuevo la letra se pasa a la siguiente herramienta del grupo.</translation>
+        <source>When on, a tool group&apos;s letter selects the tool the group last used and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Si está activado, la letra de un grupo de herramientas selecciona la última herramienta usada del grupo y Mayús con la letra recorre el grupo. Si está desactivado, al pulsar de nuevo la letra se pasa a la siguiente herramienta del grupo.</translation>
     </message>
     <message>
         <source>Seafoam</source>
