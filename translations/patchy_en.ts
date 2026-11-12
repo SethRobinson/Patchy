@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21739,6 +21866,10 @@ Do you want to replace it?</source>
         <source>Turn the brush tip clockwise by 1 degree</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35844,6 +35975,34 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Open a document and select a shape layer to edit its appearance.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -39056,6 +39215,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

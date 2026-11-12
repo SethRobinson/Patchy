@@ -1082,6 +1082,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   apply_bound_translation(feather_selection_action);
   register_hotkey(feather_selection_action, "select.feather", QKeySequence(Qt::SHIFT | Qt::Key_F6));
   connect(feather_selection_action, &QAction::triggered, this, [this] { feather_selection_dialog(); });
+  // Select > Color Range... (GitHub issue 709, docs/color-range.md). No default key.
+  auto* color_range_action = new QAction(this);
+  color_range_action->setObjectName(QStringLiteral("selectColorRangeAction"));
+  color_range_action->setMenuRole(QAction::NoRole);
+  color_range_action->setProperty("patchy.quickMaskBlocked", true);
+  bind_action_text(color_range_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color Ra&nge..."));
+  bind_translated_status_tip(color_range_action,
+                             QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                               "Select by color: sampled colors, a hue, or highlights, midtones or shadows"));
+  apply_bound_translation(color_range_action);
+  register_hotkey(color_range_action, "select.color_range");
+  connect(color_range_action, &QAction::triggered, this, [this] { color_range_dialog(); });
+  register_document_action(color_range_action);
   for (auto* action : {select_all_action, clear_selection_action, reselect_action, inverse_selection_action,
                        quick_mask_action_,
                        grow_selection_action, similar_selection_action, expand_selection_action,
@@ -1110,6 +1123,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addSeparator();
   select_menu->addAction(select_subject_action_);
   select_menu->addAction(select_background_action_);
+  select_menu->addAction(color_range_action);
   select_menu->addSeparator();
   select_menu->addAction(quick_mask_action_);
   select_menu->addSeparator();

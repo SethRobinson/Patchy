@@ -2873,6 +2873,8 @@ private:
   void border_selection_dialog();
   void smooth_selection_dialog();
   void feather_selection_dialog();
+  // Select > Color Range... (GitHub issue 709; main_window_color_range.cpp, docs/color-range.md).
+  void color_range_dialog();
   void toggle_quick_mask_mode();
   void refresh_quick_mask_ui();
   void flip_active_layer_horizontal();

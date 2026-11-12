@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation>Couleurs échantillonnées</translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation>Rouges</translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation>Jaunes</translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation>Verts</translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation>Cyans</translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation>Bleus</translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation>Magentas</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>Tons clairs</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>Tons moyens</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>Tons foncés</translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation>Nouvelle sélection</translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation>Ajouter à la sélection</translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation>Soustraire de la sélection</translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation>Intersection avec la sélection</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>Plage de couleurs</translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation>Le blanc est sélectionné, le noir ne l&apos;est pas. Cliquez ici ou sur l&apos;image pour prélever une couleur.</translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation>Sélection :</translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation>Tolérance :</translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation>Prélever</translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation>Un clic repart de la couleur située dessous</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Ajouter</translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation>Un clic ajoute la couleur située dessous (Maj+clic)</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>Soustraire</translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation>Un clic retire la couleur située dessous (Alt+clic)</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Échantillon :</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Effacer</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>Couleurs :</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>Résultat :</translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation>Échantillonner tous les calques</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>Inverser</translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation>Cliquez sur l&apos;image ou sur l&apos;aperçu pour prélever une couleur. Maj ajoute une couleur, Alt en retire une.</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21757,6 +21884,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Turn the brush tip clockwise by 1 degree</source>
         <translation>Faire pivoter la pointe de forme de 1 degré dans le sens horaire</translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation>Sélectionner par couleur, teinte ou tonalité</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35926,6 +36057,34 @@ Verrouillé : %1</translation>
         <translation>Angle du pinceau : %1</translation>
     </message>
     <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation>Plage de co&amp;uleurs...</translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation>Sélectionner par couleur : couleurs échantillonnées, une teinte, ou tons clairs, moyens ou foncés</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation>Terminez le déplacement en cours avant d&apos;utiliser Plage de couleurs</translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation>Plage de couleurs n&apos;a rien trouvé à échantillonner</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>Plage de couleurs</translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation>Plage de couleurs n&apos;a trouvé aucun pixel correspondant</translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation>Plage de couleurs sélectionnée</translation>
+    </message>
+    <message>
         <source>Open a document and select a shape layer to edit its appearance.</source>
         <translation>Ouvrez un document et sélectionnez un calque de forme pour modifier son aspect.</translation>
     </message>
@@ -39139,6 +39298,18 @@ Verrouillé : %1</translation>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
         <translation>cssForLayers nécessite un tableau de calques de ce document.</translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation>Quittez le mode Masque avant d&apos;utiliser selectColorRange.</translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation>selectColorRange n&apos;a pas pu lire le document.</translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
+        <translation>Option selectColorRange non valide : %1.</translation>
     </message>
 </context>
 <context>

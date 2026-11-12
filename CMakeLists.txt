@@ -225,6 +225,7 @@ add_library(patchy_core
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
   src/core/selection_modify.cpp
+  src/core/color_range.cpp
   src/core/rect_utils.cpp
   src/core/smart_filter_adjustment.cpp
   src/core/smart_filter_effects.cpp
@@ -1316,6 +1317,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_selection.cpp
       src/ui/canvas_widget_selection_engines.cpp
       src/ui/canvas_widget_object_select.cpp
+      src/ui/color_range_dialog.hpp
+      src/ui/color_range_dialog.cpp
+      src/ui/main_window_color_range.cpp
       src/ui/canvas_widget_spot_healing.cpp
       src/ui/canvas_widget_red_eye.cpp
       src/ui/canvas_widget_transform.cpp
@@ -1652,6 +1656,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/script_vector_masks.cpp
       src/ui/script_vector_host.cpp
       src/ui/script_ai_selection.cpp
+      src/ui/script_color_range.cpp
       src/ui/script_pixel_io.cpp
       src/ui/vector_operations.hpp
       src/ui/vector_operations.cpp
@@ -2518,6 +2523,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
+    tests/core/color_range_tests.cpp
     tests/core/pipl_tests.cpp
     tests/core/guide_layout_tests.cpp
     tests/core/layer_alignment_tests.cpp
@@ -2644,6 +2650,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/filter_catalog_dialog_tests.cpp
       tests/ui/stylize_render_filters_ui_tests.cpp
       tests/ui/filter_dialog_selection_tests.cpp
+      tests/ui/color_range_tests.cpp
       tests/ui/layer_style_gradient_tests.cpp
       tests/ui/layer_style_gradient_tests_effects.cpp
       tests/ui/layer_style_gradient_tests_presets.cpp

@@ -184,6 +184,7 @@ int main(int argc, char** argv) {
            font_substitutes_tests,
            font_style_class_tests,
            infra_selection_tests,
+           color_range_tests,
            pipl_tests,
            vector_shape_tests,
            path_edits_tests,

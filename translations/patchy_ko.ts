@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation>샘플링한 색상</translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation>빨강 계열</translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation>노랑 계열</translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation>녹색 계열</translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation>청록 계열</translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation>파랑 계열</translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation>마젠타 계열</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>하이라이트</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>중간톤</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>그림자</translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation>새 선택 영역</translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation>선택 영역에 추가</translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation>선택 영역에서 빼기</translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation>선택 영역과 교차</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>색상 범위</translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation>흰색은 선택된 부분이고 검은색은 선택되지 않은 부분입니다. 여기나 이미지를 클릭해 색상을 샘플링하세요.</translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation>선택:</translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation>허용량:</translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation>추출</translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation>클릭하면 그 아래 색상으로 새로 시작합니다</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>추가</translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation>클릭하면 그 아래 색상을 추가합니다(Shift+클릭)</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>빼기</translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation>클릭하면 그 아래 색상을 뺍니다(Alt+클릭)</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>샘플:</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>지우기</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>결과:</translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation>모든 레이어 샘플링</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>반전</translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation>이미지나 미리 보기를 클릭해 색상을 샘플링하세요. Shift는 색상을 추가하고 Alt는 색상을 뺍니다.</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21695,6 +21822,10 @@ Do you want to replace it?</source>
         <source>Turn the brush tip clockwise by 1 degree</source>
         <translation>브러시 팁을 시계 방향으로 1도 회전</translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation>색상, 색조 또는 밝기로 선택</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35817,6 +35948,34 @@ Locked: %1</source>
         <translation>브러시 각도: %1</translation>
     </message>
     <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation>색상 범위(&amp;N)...</translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation>색상으로 선택: 샘플링한 색상, 색조 또는 하이라이트, 중간톤, 그림자</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation>색상 범위를 사용하기 전에 현재 드래그를 완료하세요</translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation>색상 범위에서 샘플링할 내용을 찾지 못했습니다</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>색상 범위</translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation>색상 범위와 일치하는 픽셀이 없습니다</translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation>색상 범위를 선택했습니다</translation>
+    </message>
+    <message>
         <source>Open a document and select a shape layer to edit its appearance.</source>
         <translation>외형을 편집하려면 문서를 열고 모양 레이어를 선택하세요.</translation>
     </message>
@@ -39026,6 +39185,18 @@ Locked: %1</source>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
         <translation>cssForLayers에는 이 문서의 레이어 배열이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation>selectColorRange를 사용하기 전에 빠른 마스크를 종료하세요.</translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation>selectColorRange가 문서를 읽지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
+        <translation>잘못된 selectColorRange 옵션: %1.</translation>
     </message>
 </context>
 <context>
