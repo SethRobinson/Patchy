@@ -4,8 +4,10 @@
 // that share their settings with the Layers gear's and the thumbnail menus. The same column's
 // "Show Fill field" (issue 680 follow-up) hides the Fill field above the list.
 #include "ui/app_settings.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/layer_row_options.hpp"
 #include "ui/layer_thumbnail_size.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/tool_palette_customization.hpp"
@@ -22,11 +24,15 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QScopeGuard>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
@@ -614,10 +620,24 @@ struct BlendRowWidgets {
     return combo != nullptr && opacity != nullptr && fill != nullptr && filter != nullptr &&
            filter_button != nullptr && lock_all != nullptr;
   }
-  // Whether the row with Fill fits one line here, the blend mode box at its narrowest.
-  [[nodiscard]] bool row_with_fill_fits_one_line() const {
-    const auto room = filter_button->geometry().right() + 1 - combo->x();
-    return combo->minimumSizeHint().width() + opacity->minimumWidth() + fill->minimumWidth() + 12 <= room;
+  // The row's room: from the blend mode box to the panel's right inset (the filter row's end).
+  [[nodiscard]] int room() const { return filter_button->geometry().right() + 1 - combo->x(); }
+  // The narrowest one-line row, the blend mode box at its narrowest: Opacity and Fill with their
+  // "Opacity: " and "Fill: " labels or without (measured from the font, whichever state shows).
+  [[nodiscard]] int one_line_minimum(bool labels, bool with_fill = true) const {
+    return combo->minimumSizeHint().width() + 6 + patchy::ui::toolbar_spinbox_width_with_prefix(opacity, labels) +
+           (with_fill ? 6 + patchy::ui::toolbar_spinbox_width_with_prefix(fill, labels) : 0);
+  }
+  // Whether the row with Fill fits one line here: with its labels, or once they are dropped
+  // (issue 693 follow-up).
+  [[nodiscard]] bool row_with_fill_fits_one_line() const { return one_line_minimum(false) <= room(); }
+  [[nodiscard]] bool labels_dropped() const {
+    return patchy::ui::toolbar_spinbox_prefix_dropped(opacity) && opacity->prefix().isEmpty();
+  }
+  // Opacity and Fill never disagree, Fill hidden or not.
+  [[nodiscard]] bool labels_agree() const {
+    return patchy::ui::toolbar_spinbox_prefix_dropped(opacity) == patchy::ui::toolbar_spinbox_prefix_dropped(fill) &&
+           opacity->prefix().isEmpty() == fill->prefix().isEmpty();
   }
   // Opacity beside the blend mode, inside the panel's right inset (the filter row's end).
   [[nodiscard]] bool opacity_shares_the_combo_line() const {
@@ -663,7 +683,8 @@ void ui_layer_rows_show_fill_option_hides_the_fill_field() {
     CHECK(kFooterWidthColumn < opening);
 
     // With Fill, the row fits the footer's width only with the blend mode box narrowed
-    // (issue 693); where even that does not fit, Opacity and Fill go under the combo.
+    // (issue 693), then with the labels dropped (its follow-up); where even that does not
+    // fit, Opacity and Fill go under the combo.
     set_column_width(window, kFooterWidthColumn);
     CHECK(column->width() == kFooterWidthColumn);
     const bool with_fill_on_one_line = row.row_with_fill_fits_one_line();
@@ -759,6 +780,318 @@ void ui_layer_rows_show_fill_option_hides_the_fill_field() {
   }
   CHECK(row.fill->geometry().center().y() == row.opacity->geometry().center().y());
   CHECK(row.fill->geometry().right() <= row.filter_button->geometry().right());
+}
+
+// GitHub issue 693 follow-up: between "the blend mode box narrows" (issue 693) and "the row
+// wraps" (issues 96 and 199), Opacity and Fill drop their "Opacity: " and "Fill: " labels, both
+// together, and take them back at the first width the labelled row fits again. The choice is a
+// function of the row's width alone (both states are measured from the font), so one pixel
+// either side of the threshold gives the same answer every time. Without their labels the
+// fields are named by their tooltips, the field still scrubs and still takes typed values, and
+// a language switch does not bring a dropped label back. With Fill hidden the rule applies to
+// Opacity alone. A row too wide for one line even without labels wraps as before, labels shown.
+void ui_layer_blend_row_drops_labels_before_wrapping() {
+  RowOptionSettingsGuard settings_guard;
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(labeled_document(), QStringLiteral("Blend Row Labels"));
+  settle();
+  QWidget* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  auto* overflow =
+      layers_dock != nullptr ? layers_dock->findChild<QScrollArea*>(QStringLiteral("rightDockOverflowScroll")) : nullptr;
+  const BlendRowWidgets row(window);
+  CHECK(column != nullptr && layers_dock != nullptr && overflow != nullptr && row.complete());
+  if (column == nullptr || layers_dock == nullptr || overflow == nullptr || !row.complete()) {
+    return;
+  }
+  auto* opacity_editor = row.opacity->findChild<QLineEdit*>();
+  CHECK(opacity_editor != nullptr);
+  if (opacity_editor == nullptr) {
+    return;
+  }
+  const auto opacity_label = QStringLiteral("Opacity: ");
+  const auto fill_label = QStringLiteral("Fill: ");
+  // The tooltips name the fields at every width, labels shown or not.
+  CHECK(row.opacity->toolTip() == QStringLiteral("Opacity"));
+  CHECK(row.fill->toolTip() == QStringLiteral("Fill"));
+  CHECK(patchy::ui::toolbar_spinbox_width_with_prefix(row.opacity, false) <
+        patchy::ui::toolbar_spinbox_width_with_prefix(row.opacity, true));
+  CHECK(patchy::ui::toolbar_spinbox_width_with_prefix(row.fill, false) <
+        patchy::ui::toolbar_spinbox_width_with_prefix(row.fill, true));
+
+  const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
+  constexpr int kWideColumn = 480;
+  set_column_width(window, kWideColumn);
+  CHECK(column->width() == kWideColumn);
+  // What the column is wider than the row by, at every width down to the compact one.
+  const auto chrome = column->width() - row.room();
+  const auto column_for_room = [chrome](int room) { return room + chrome; };
+
+  const auto check_one_line = [&](bool fill_shown) {
+    CHECK(!overflow->horizontalScrollBar()->isVisible());
+    CHECK(row.opacity_shares_the_combo_line());
+    CHECK(row.opacity->x() == row.combo->geometry().right() + 1 + 6);
+    CHECK(row.combo->width() >= row.combo->minimumSizeHint().width());
+    CHECK(row.combo->width() <= row.combo->sizeHint().width());
+    const auto edge = row.filter_button->geometry().right();
+    if (fill_shown) {
+      CHECK(row.fill->isVisible());
+      CHECK(row.fill->geometry().center().y() == row.opacity->geometry().center().y());
+      CHECK(row.fill->x() == row.opacity->geometry().right() + 1 + 6);
+      CHECK(row.fill->geometry().right() == edge);
+    } else {
+      CHECK(row.fill->isHidden());
+      CHECK(row.opacity->geometry().right() == edge);
+    }
+    CHECK(row.filter->y() > row.combo->geometry().bottom());
+  };
+  const auto check_labels_shown = [&](const QString& opacity_text, const QString& fill_text) {
+    CHECK(!row.labels_dropped() && row.labels_agree());
+    CHECK(row.opacity->prefix() == opacity_text);
+    CHECK(row.fill->prefix() == fill_text);
+    CHECK(row.opacity->width() >= patchy::ui::toolbar_spinbox_width_with_prefix(row.opacity, true));
+  };
+  const auto check_labels_dropped = [&] {
+    CHECK(row.labels_dropped() && row.labels_agree());
+    CHECK(row.opacity->prefix().isEmpty() && row.fill->prefix().isEmpty());
+    CHECK(row.opacity->text() == row.opacity->locale().toString(row.opacity->value()) + row.opacity->suffix());
+    CHECK(row.opacity->width() >= patchy::ui::toolbar_spinbox_width_with_prefix(row.opacity, false));
+    CHECK(row.opacity->toolTip() == QStringLiteral("Opacity"));
+    CHECK(row.fill->toolTip() == QStringLiteral("Fill"));
+    // The whole value shows in the narrower field, clear of the popup chevron.
+    const auto margins = opacity_editor->textMargins();
+    CHECK(opacity_editor->fontMetrics().horizontalAdvance(opacity_editor->text()) <=
+          opacity_editor->contentsRect().width() - margins.left() - margins.right() - 4);
+  };
+
+  // --- Fill shown, the stock English labels.
+  check_labels_shown(opacity_label, fill_label);
+  check_one_line(true);
+  const auto labelled = row.one_line_minimum(true);
+  const auto bare = row.one_line_minimum(false);
+  CHECK(bare < labelled);
+  // Whether a column can get narrow enough for the labels to drop before it reaches the compact
+  // width, where the panel scrolls sideways instead. Pinned where the release fonts are.
+  const bool drop_reachable = column_for_room(labelled - 1) >= compact;
+  std::printf("[INFO] fill shown: one-line row %d px with labels, %d px without; column chrome %d px, compact "
+              "column %d px\n",
+              labelled, bare, chrome, compact);
+#ifdef Q_OS_WIN
+  CHECK(drop_reachable);
+#endif
+  if (drop_reachable) {
+    // (a) The narrowest row that still holds the labels: the blend mode box at its minimum.
+    set_column_width(window, column_for_room(labelled));
+    CHECK(row.room() == labelled);
+    check_labels_shown(opacity_label, fill_label);
+    check_one_line(true);
+    CHECK(row.combo->width() == row.combo->minimumSizeHint().width());
+    save_widget_artifact("issue693_fu_blend_row_labels_shown", *layers_dock);
+
+    // (b) One pixel narrower: both labels go, the row stays one line, and the room the labels
+    // took goes back to the blend mode box.
+    set_column_width(window, column_for_room(labelled - 1));
+    CHECK(row.room() == labelled - 1);
+    check_labels_dropped();
+    check_one_line(true);
+    CHECK(row.combo->width() > row.combo->minimumSizeHint().width());
+    save_widget_artifact("issue693_fu_blend_row_labels_dropped", *layers_dock);
+
+    // The field still scrubs: a drag that starts on its left part changes the value, a pixel a
+    // step, and gives the focus back (issue 46).
+    const int drag_start = QApplication::startDragDistance();
+    const QPoint left_part(opacity_editor->textMargins().left() + 4, opacity_editor->height() / 2);
+    CHECK(row.opacity->value() == 100);
+    send_mouse(*opacity_editor, QEvent::MouseButtonPress, left_part, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseMove, left_part + QPoint(-(drag_start + 30), 0), Qt::NoButton,
+               Qt::LeftButton);
+    CHECK(row.opacity->value() == 100 - (drag_start + 30));
+    send_mouse(*opacity_editor, QEvent::MouseMove, left_part + QPoint(-30, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseButtonRelease, left_part + QPoint(-30, 0), Qt::LeftButton, Qt::NoButton);
+    settle();
+    CHECK(row.opacity->value() == 70);
+    CHECK(!row.opacity->hasFocus());
+    // A click enters editing with the number selected, and typing replaces it.
+    send_mouse(*opacity_editor, QEvent::MouseButtonPress, left_part, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseButtonRelease, left_part, Qt::LeftButton, Qt::NoButton);
+    settle();
+    CHECK(row.opacity->hasFocus());
+    CHECK(opacity_editor->hasSelectedText());
+    for (int digit = 0; digit < 2; ++digit) {
+      QKeyEvent press(QEvent::KeyPress, Qt::Key_5, Qt::NoModifier, QStringLiteral("5"));
+      QApplication::sendEvent(row.opacity, &press);
+      QKeyEvent release(QEvent::KeyRelease, Qt::Key_5, Qt::NoModifier, QStringLiteral("5"));
+      QApplication::sendEvent(row.opacity, &release);
+    }
+    send_key(*row.opacity, Qt::Key_Return);
+    settle();
+    CHECK(row.opacity->value() == 55);
+    check_labels_dropped();
+    row.opacity->clearFocus();
+    row.opacity->setValue(100);
+    QMetaObject::invokeMethod(row.opacity, "editingFinished", Qt::DirectConnection);
+    settle();
+
+    // A language switch keeps the labels dropped (German's are longer) and renames the tooltips;
+    // wide again, the German labels show.
+    CHECK(manager.set_language(QStringLiteral("de"), false));
+    set_column_width(window, column_for_room(labelled - 1));
+    CHECK(row.labels_dropped() && row.labels_agree());
+    CHECK(row.opacity->prefix().isEmpty() && row.fill->prefix().isEmpty());
+    CHECK(row.opacity->toolTip() == QStringLiteral("Deckkraft"));
+    CHECK(row.fill->toolTip() == QString::fromUtf8("Fl\xc3\xa4" "che"));
+    check_one_line(true);
+    set_column_width(window, kWideColumn);
+    check_labels_shown(QStringLiteral("Deckkraft: "), QString::fromUtf8("Fl\xc3\xa4" "che: "));
+    CHECK(manager.set_language(QStringLiteral("en"), false));
+    set_column_width(window, kWideColumn);
+    check_labels_shown(opacity_label, fill_label);
+
+    // The compact width, the narrowest the panel gets: still one line without the labels.
+    set_column_width(window, compact);
+    CHECK(bare <= row.room());
+    check_labels_dropped();
+    check_one_line(true);
+    save_widget_artifact("issue693_fu_blend_row_compact_width", *layers_dock);
+
+    // Back at the first width the labelled row fits: the labels return at once.
+    set_column_width(window, column_for_room(labelled));
+    check_labels_shown(opacity_label, fill_label);
+    check_one_line(true);
+  }
+
+  // --- Fill hidden: the rule applies to Opacity alone, and the hidden Fill follows it.
+  customize_rows(window, [](QDialog& dialog) {
+    auto* show_fill = require_child<QCheckBox>(dialog, "layerRowsShowFillCheck");
+    CHECK(show_fill != nullptr);
+    if (show_fill != nullptr) {
+      show_fill->setChecked(false);
+    }
+  });
+  set_column_width(window, compact);
+  CHECK(row.fill->isHidden());
+  if (row.one_line_minimum(true, false) <= row.room()) {
+    // English: the blend mode and the labelled Opacity fit the narrowest panel, so the label stays.
+    check_labels_shown(opacity_label, fill_label);
+    check_one_line(false);
+  }
+  // A long label, as a long translation gives: set the way a language switch sets it.
+  const auto relabel = [&](const QString& opacity_text, const QString& fill_text, int floor) {
+    patchy::ui::set_toolbar_spinbox_prefix(row.opacity, opacity_text);
+    patchy::ui::set_toolbar_spinbox_prefix(row.fill, fill_text);
+    patchy::ui::configure_toolbar_spinbox(row.opacity, floor);
+    patchy::ui::configure_toolbar_spinbox(row.fill, floor);
+    row.opacity->updateGeometry();
+    settle();
+  };
+  const auto long_opacity = QStringLiteral("Opacity of the whole layer: ");
+  const auto long_fill = QStringLiteral("Fill of the layer's pixels: ");
+  set_column_width(window, kWideColumn);
+  relabel(long_opacity, long_fill, 52);
+  set_column_width(window, kWideColumn);
+  const auto long_labelled = row.one_line_minimum(true, false);
+  const auto long_bare = row.one_line_minimum(false, false);
+  std::printf("[INFO] fill hidden, long label: one-line row %d px with the label, %d px without\n", long_labelled,
+              long_bare);
+  CHECK(column_for_room(long_labelled - 1) > compact);
+  CHECK(column_for_room(long_labelled) <= kWideColumn);
+  check_labels_shown(long_opacity, long_fill);
+  check_one_line(false);
+  set_column_width(window, column_for_room(long_labelled));
+  check_labels_shown(long_opacity, long_fill);
+  check_one_line(false);
+  set_column_width(window, column_for_room(long_labelled - 1));
+  check_labels_dropped();
+  check_one_line(false);
+  // The blend mode box is back at its full width here, so Opacity takes the spare width: the
+  // number sits at its right end with empty room left of it.
+  CHECK(row.combo->width() == row.combo->sizeHint().width());
+  CHECK(row.opacity->width() > patchy::ui::toolbar_spinbox_width_with_prefix(row.opacity, false) + 30);
+  save_widget_artifact("issue693_fu_blend_row_fill_hidden_label_dropped", *layers_dock);
+  {
+    // While the field is being edited, that empty room still scrubs (the prefix's place);
+    // the number itself selects text then.
+    const int drag_start = QApplication::startDragDistance();
+    const QPoint empty_room(opacity_editor->textMargins().left() + 6, opacity_editor->height() / 2);
+    CHECK(opacity_editor->cursorPositionAt(empty_room) == 0);
+    send_mouse(*opacity_editor, QEvent::MouseButtonPress, empty_room, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseButtonRelease, empty_room, Qt::LeftButton, Qt::NoButton);
+    settle();
+    CHECK(opacity_editor->hasSelectedText());
+    CHECK(row.opacity->value() == 100);
+    // Being edited: a drag on the number selects text and changes nothing.
+    opacity_editor->deselect();
+    QPoint number_point(-1, opacity_editor->height() / 2);
+    for (int x = 0; x < opacity_editor->width() && number_point.x() < 0; ++x) {
+      if (opacity_editor->cursorPositionAt(QPoint(x, number_point.y())) == 1) {
+        number_point.setX(x + 2);
+      }
+    }
+    CHECK(number_point.x() > empty_room.x() + 30);
+    send_mouse(*opacity_editor, QEvent::MouseButtonPress, number_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseMove, number_point + QPoint(drag_start + 20, 0), Qt::NoButton,
+               Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseButtonRelease, number_point + QPoint(drag_start + 20, 0), Qt::LeftButton,
+               Qt::NoButton);
+    settle();
+    CHECK(row.opacity->value() == 100);
+    CHECK(opacity_editor->hasSelectedText());
+    // The empty room scrubs all the same.
+    send_mouse(*opacity_editor, QEvent::MouseButtonPress, empty_room, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*opacity_editor, QEvent::MouseMove, empty_room + QPoint(-(drag_start + 20), 0), Qt::NoButton,
+               Qt::LeftButton);
+    CHECK(row.opacity->value() == 100 - (drag_start + 20));
+    send_mouse(*opacity_editor, QEvent::MouseButtonRelease, empty_room + QPoint(-(drag_start + 20), 0), Qt::LeftButton,
+               Qt::NoButton);
+    settle();
+    row.opacity->clearFocus();
+    row.opacity->setValue(100);
+    QMetaObject::invokeMethod(row.opacity, "editingFinished", Qt::DirectConnection);
+    settle();
+  }
+  set_column_width(window, compact);
+  check_labels_dropped();
+  check_one_line(false);
+  set_column_width(window, column_for_room(long_labelled));
+  check_labels_shown(long_opacity, long_fill);
+
+  // --- (c) Too wide for one line even without the labels (fields with a wide floor): the row
+  // wraps as before, Opacity under the blend mode box, and the labels show, since dropping
+  // them would not bring the row back to one line.
+  relabel(long_opacity, long_fill, 200);
+  set_column_width(window, compact);
+  CHECK(row.one_line_minimum(false, false) > row.room());
+  CHECK(row.opacity_is_under_the_combo());
+  CHECK(row.opacity->x() == row.combo->x());
+  check_labels_shown(long_opacity, long_fill);
+  CHECK(row.opacity->geometry().right() <= row.filter_button->geometry().right());
+  CHECK(row.filter->y() > row.opacity->geometry().bottom());
+  save_widget_artifact("issue693_fu_blend_row_wrapped_fill_hidden", *layers_dock);
+
+  // The same with Fill shown again: Opacity under the box, Fill beside or under Opacity.
+  customize_rows(window, [](QDialog& dialog) {
+    auto* show_fill = require_child<QCheckBox>(dialog, "layerRowsShowFillCheck");
+    CHECK(show_fill != nullptr);
+    if (show_fill != nullptr) {
+      show_fill->setChecked(true);
+    }
+  });
+  set_column_width(window, compact);
+  CHECK(row.fill->isVisible());
+  CHECK(row.opacity_is_under_the_combo());
+  CHECK(row.fill->y() >= row.opacity->y());
+  check_labels_shown(long_opacity, long_fill);
+  CHECK(row.fill->geometry().right() <= row.filter_button->geometry().right());
+  CHECK(row.filter->y() > row.fill->geometry().bottom());
+  save_widget_artifact("issue693_fu_blend_row_wrapped_fill_shown", *layers_dock);
+
+  // The stock labels and floor again: one line with the labels at the wide width.
+  relabel(opacity_label, fill_label, 52);
+  set_column_width(window, kWideColumn);
+  check_labels_shown(opacity_label, fill_label);
+  check_one_line(true);
 }
 
 // Issue 680 follow-up 2: the blend row's Opacity and Fill fields take the spare width of their
@@ -862,6 +1195,7 @@ std::vector<patchy::test::TestCase> layer_row_options_tests() {
       {"ui_layer_rows_whole_row_color_tints_rows", ui_layer_rows_whole_row_color_tints_rows},
       {"ui_layer_rows_thumbnail_combos_follow_the_menus", ui_layer_rows_thumbnail_combos_follow_the_menus},
       {"ui_layer_rows_show_fill_option_hides_the_fill_field", ui_layer_rows_show_fill_option_hides_the_fill_field},
+      {"ui_layer_blend_row_drops_labels_before_wrapping", ui_layer_blend_row_drops_labels_before_wrapping},
       {"ui_layer_blend_row_fields_reach_the_panel_edge", ui_layer_blend_row_fields_reach_the_panel_edge},
   };
 }

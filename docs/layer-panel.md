@@ -8,7 +8,7 @@ Related documents:
 - [layer-panel-row-controls.md](layer-panel-row-controls.md): the folder disclosure arrow, row and thumbnail double-clicks with inline rename, the visibility eye and its sweep, and the Layer Styles and Smart Filters rows listed under a layer.
 - [layer-panel-filter.md](layer-panel-filter.md): the filter menu beside the name field (issue 671): criteria, how they combine, Selected Only, session state.
 - [layer-panel-row-options.md](layer-panel-row-options.md): Customize Layers Panel's Rows column (issue 680): compact rows, the row tooltip switch, the whole-row color tint, Show Fill field, and the thumbnail combos kept in step with the menus.
-- [layer-panel-blend-row.md](layer-panel-blend-row.md): the blend mode, Opacity and Fill row above the list: prefix scrubs, the blend box's #693 narrowing, Opacity and Fill reaching the panel edge, the blend preview while the list is open.
+- [layer-panel-blend-row.md](layer-panel-blend-row.md): the blend mode, Opacity and Fill row above the list: prefix scrubs, the blend box's #693 narrowing, the Opacity and Fill labels dropped before the row wraps, both fields reaching the panel edge, the blend preview while the list is open.
 - [layer-drag-duplicate.md](layer-drag-duplicate.md): drags to another document, Duplicate Layer, and layer export (Quick Export as PNG, Export As...).
 
 ## Row styling

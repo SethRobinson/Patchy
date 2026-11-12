@@ -946,7 +946,19 @@ private:
       return false;
     }
     const auto prefix = spin_->property("prefix").toString();
-    return !prefix.isEmpty() && editor_->cursorPositionAt(position) < static_cast<int>(prefix.length());
+    if (!prefix.isEmpty()) {
+      return editor_->cursorPositionAt(position) < static_cast<int>(prefix.length());
+    }
+    // A dropped prefix (set_toolbar_spinbox_prefix_dropped) leaves the empty room left of the
+    // right-aligned number as the handle. The caret lands before the first character up to
+    // that character's middle, so a point that still maps there half a character and two
+    // pixels further right is clear of the number.
+    const auto text = editor_->text();
+    if (text.isEmpty() || position.x() < 0 || editor_->cursorPositionAt(position) != 0) {
+      return false;
+    }
+    const auto half_character = (editor_->fontMetrics().horizontalAdvance(text.front()) + 1) / 2;
+    return editor_->cursorPositionAt(position + QPoint(half_character + 2, 0)) == 0;
   }
 
   // SizeHor wherever a press scrubs: the prefix, and the number while it is not being
@@ -1911,6 +1923,9 @@ namespace {
 constexpr int kToolbarSpinboxChromeWidth = 14;
 constexpr auto kToolbarSpinboxMinWidthProperty = "patchy.toolbarSpinboxMinWidth";
 constexpr auto kToolbarSpinboxRefresherProperty = "patchy.toolbarSpinboxRefresherInstalled";
+// set_toolbar_spinbox_prefix's label and whether set_toolbar_spinbox_prefix_dropped hides it.
+constexpr auto kToolbarSpinboxLabelPrefixProperty = "patchy.toolbarSpinboxLabelPrefix";
+constexpr auto kToolbarSpinboxPrefixDroppedProperty = "patchy.toolbarSpinboxPrefixDropped";
 
 int toolbar_spinbox_width(int width, const QFontMetrics& metrics, const QString& min_text,
                           const QString& max_text) {
@@ -2204,6 +2219,43 @@ void select_all_on_focus(QAbstractSpinBox& spin) {
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
   configure_toolbar_spinbox_impl(spin, width);
+}
+
+void set_toolbar_spinbox_prefix(QSpinBox* spin, const QString& prefix) {
+  if (spin == nullptr) {
+    return;
+  }
+  spin->setProperty(kToolbarSpinboxLabelPrefixProperty, prefix);
+  if (!toolbar_spinbox_prefix_dropped(spin)) {
+    spin->setPrefix(prefix);
+  }
+}
+
+bool toolbar_spinbox_prefix_dropped(const QSpinBox* spin) {
+  return spin != nullptr && spin->property(kToolbarSpinboxPrefixDroppedProperty).toBool();
+}
+
+void set_toolbar_spinbox_prefix_dropped(QSpinBox* spin, bool dropped) {
+  if (spin == nullptr || toolbar_spinbox_prefix_dropped(spin) == dropped) {
+    return;
+  }
+  spin->setProperty(kToolbarSpinboxPrefixDroppedProperty, dropped);
+  spin->setPrefix(dropped ? QString() : spin->property(kToolbarSpinboxLabelPrefixProperty).toString());
+  if (spin->property(kToolbarSpinboxMinWidthProperty).isValid()) {
+    refresh_toolbar_spinbox_width(spin);
+  }
+}
+
+int toolbar_spinbox_width_with_prefix(const QSpinBox* spin, bool with_prefix) {
+  if (spin == nullptr) {
+    return 0;
+  }
+  // The label when one was recorded (it may be dropped right now), else the box's own prefix.
+  const auto label = spin->property(kToolbarSpinboxLabelPrefixProperty);
+  const auto prefix = !with_prefix ? QString() : label.isValid() ? label.toString() : spin->prefix();
+  const auto text = [spin, &prefix](int value) { return prefix + spin->locale().toString(value) + spin->suffix(); };
+  return toolbar_spinbox_width(spin->property(kToolbarSpinboxMinWidthProperty).toInt(), spin->fontMetrics(),
+                               text(spin->minimum()), text(spin->maximum()));
 }
 
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
