@@ -22391,6 +22391,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>ショートカットを検索...</translation>
     </message>
 </context>
@@ -35451,10 +35452,6 @@ Locked: %1</source>
         <translation>テキスト</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>調整または塗りつぶし</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>スマートオブジェクト</translation>
     </message>
@@ -35774,6 +35771,14 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>水平または垂直であるべきものに沿ってドラッグします</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>塗りつぶしまたは調整</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>スマートフィルターあり</translation>
     </message>
 </context>
 <context>

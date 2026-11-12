@@ -22455,6 +22455,7 @@ Möchten Sie die Datei ersetzen?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Tastaturbefehle suchen...</translation>
     </message>
 </context>
@@ -35554,10 +35555,6 @@ Fixiert: %1</translation>
         <translation>Text</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>Einstellung oder Füllung</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>Smartobjekt</translation>
     </message>
@@ -35883,6 +35880,14 @@ Fixiert: %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Ziehen Sie entlang einer Linie, die waagerecht oder senkrecht sein soll</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>Füllung oder Einstellung</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>Hat Smartfilter</translation>
     </message>
 </context>
 <context>

@@ -3875,28 +3875,39 @@ bool layer_name_matches_filter(const Layer& layer, const QString& text) {
   return text.isEmpty() || QString::fromStdString(layer.name()).contains(text, Qt::CaseInsensitive);
 }
 
+// The filter menu's Layer Type of a layer: exactly one, the one its row shows
+// (layer_content_thumbnail_tooltip's order). Text, Smart Object and shape layers are
+// pixel-kind layers that carry metadata, so LayerKind alone files them all under Pixel.
+std::uint32_t layer_list_filter_kind(const Layer& layer) {
+  if (layer.kind() == LayerKind::Group) {
+    return kLayerFilterFolder;
+  }
+  if (layer.kind() == LayerKind::Adjustment) {
+    return kLayerFilterAdjustment;
+  }
+  if (layer.kind() == LayerKind::Text || layer_is_text(layer)) {
+    return kLayerFilterText;
+  }
+  if (layer.kind() == LayerKind::SmartObject || layer_is_smart_object(layer)) {
+    return kLayerFilterSmartObject;
+  }
+  if (layer_is_fill_layer(layer)) {
+    return kLayerFilterAdjustment;
+  }
+  if (layer.kind() == LayerKind::Vector || layer_is_vector_shape(layer)) {
+    return kLayerFilterShape;
+  }
+  return kLayerFilterPixel;
+}
+
 // The filter menu's criteria (GitHub issue 671): within a group any ticked item matches, and
 // every group with a tick must match. `active_id` is listed by Selected only whatever the
 // snapshot holds; the Background (`background`, null when the document has none) counts as
-// locked, as its row shows.
+// locked, as its row shows. `layers` is the document's whole tree (Linked needs a partner).
 bool layer_matches_list_filter(const Layer& layer, const LayerListFilter& filter, std::optional<LayerId> active_id,
-                               const Layer* background) {
-  if (filter.kinds != 0U) {
-    std::uint32_t kind = kLayerFilterPixel;
-    if (layer.kind() == LayerKind::Group) {
-      kind = kLayerFilterFolder;
-    } else if (layer.kind() == LayerKind::Text) {
-      kind = kLayerFilterText;
-    } else if (layer.kind() == LayerKind::SmartObject || layer_is_smart_object(layer)) {
-      kind = kLayerFilterSmartObject;
-    } else if (layer.kind() == LayerKind::Adjustment || layer_is_fill_layer(layer)) {
-      kind = kLayerFilterAdjustment;
-    } else if (layer.kind() == LayerKind::Vector || layer_is_vector_shape(layer)) {
-      kind = kLayerFilterShape;
-    }
-    if ((filter.kinds & kind) == 0U) {
-      return false;
-    }
+                               const Layer* background, const std::vector<Layer>& layers) {
+  if (filter.kinds != 0U && (filter.kinds & layer_list_filter_kind(layer)) == 0U) {
+    return false;
   }
   if (filter.properties != 0U) {
     const auto has = [&filter](std::uint32_t bit) { return (filter.properties & bit) != 0U; };
@@ -3905,7 +3916,12 @@ bool layer_matches_list_filter(const Layer& layer, const LayerListFilter& filter
         (has(kLayerFilterHasStyle) && layer.layer_style().effect_count() > 0) ||
         (has(kLayerFilterHidden) && !layer.visible()) ||
         (has(kLayerFilterLocked) && ((layer_lock_flags(layer) & kLayerLockAll) != kLayerLockNone ||
-                                     (background != nullptr && background->id() == layer.id())));
+                                     (background != nullptr && background->id() == layer.id()))) ||
+        // Linked as the row's chain badge: a group left with one member is not linked. Only
+        // layers with a link group walk the tree.
+        (has(kLayerFilterLinked) && layer.link_group() != 0U &&
+         effective_link_group(layers, layer.id()) != 0U) ||
+        (has(kLayerFilterHasSmartFilters) && layer.smart_filter_stack() != nullptr);
     if (!matches) {
       return false;
     }
@@ -4117,7 +4133,7 @@ void MainWindow::build_layer_filter_menu() {
   add_toggle(menu, QT_TR_NOOP("Pixel"), "layerFilterPixelAction", 0, kLayerFilterPixel);
   add_toggle(menu, QT_TR_NOOP("Text"), "layerFilterTextAction", 0, kLayerFilterText);
   add_toggle(menu, QT_TR_NOOP("Shape"), "layerFilterShapeAction", 0, kLayerFilterShape);
-  add_toggle(menu, QT_TR_NOOP("Adjustment or Fill"), "layerFilterAdjustmentAction", 0, kLayerFilterAdjustment);
+  add_toggle(menu, QT_TR_NOOP("Fill or Adjustment"), "layerFilterAdjustmentAction", 0, kLayerFilterAdjustment);
   add_toggle(menu, QT_TR_NOOP("Smart Object"), "layerFilterSmartObjectAction", 0, kLayerFilterSmartObject);
   add_toggle(menu, QT_TR_NOOP("Folder"), "layerFilterFolderAction", 0, kLayerFilterFolder);
   menu->addSeparator();
@@ -4126,6 +4142,8 @@ void MainWindow::build_layer_filter_menu() {
   add_toggle(menu, QT_TR_NOOP("Has a Layer Style"), "layerFilterStyleAction", 1, kLayerFilterHasStyle);
   add_toggle(menu, QT_TR_NOOP("Hidden"), "layerFilterHiddenAction", 1, kLayerFilterHidden);
   add_toggle(menu, QT_TR_NOOP("Locked"), "layerFilterLockedAction", 1, kLayerFilterLocked);
+  add_toggle(menu, QT_TR_NOOP("Linked"), "layerFilterLinkedAction", 1, kLayerFilterLinked);
+  add_toggle(menu, QT_TR_NOOP("Has Smart Filters"), "layerFilterSmartFiltersAction", 1, kLayerFilterHasSmartFilters);
   menu->addSeparator();
   auto* colors = menu->addMenu(tr("Row Color"));
   colors->setObjectName(QStringLiteral("layerFilterColorMenu"));
@@ -4210,7 +4228,7 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel) {
     const auto* background = document_background_layer();
     const auto name_text = layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
     if (target == nullptr || !layer_name_matches_filter(*target, name_text) ||
-        !layer_matches_list_filter(*target, filter, id, background)) {
+        !layer_matches_list_filter(*target, filter, id, background, std::as_const(document()).layers())) {
       // The whole filter goes, name text and criteria (the refresh below re-reads them).
       clear_layer_list_filter_silently();
       rows_change = true;
@@ -4443,7 +4461,8 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
     const auto* background = document_background_layer();
     for (const auto id : present_ids) {
       const auto* layer = std::as_const(document()).find_layer(id);
-      if (layer == nullptr || !layer_matches_list_filter(*layer, criteria, active_id, background)) {
+      if (layer == nullptr ||
+          !layer_matches_list_filter(*layer, criteria, active_id, background, std::as_const(document()).layers())) {
         filter_matches_all = false;
       }
     }
@@ -4892,7 +4911,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   if (filter_active) {
     std::function<bool(const Layer&)> mark_included = [&](const Layer& layer) {
       bool included = layer_name_matches_filter(layer, filter_text) &&
-                      layer_matches_list_filter(layer, list_filter, filter_active_id, background_layer);
+                      layer_matches_list_filter(layer, list_filter, filter_active_id, background_layer,
+                                                doc.layers());
       for (const auto& child : layer.children()) {
         if (mark_included(child)) {
           included = true;  // No short-circuit: every subtree must be visited.

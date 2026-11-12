@@ -4,12 +4,17 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
+#include "core/smart_filter.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
+#include "local_psd_fixtures.hpp"
+#include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
@@ -23,9 +28,12 @@
 #include <QMenu>
 #include <QStatusBar>
 #include <QTabWidget>
+#include <QTextCursor>
+#include <QTextEdit>
 #include <QToolButton>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <set>
 #include <string>
@@ -233,6 +241,202 @@ void ui_layer_filter_menu_layer_types_match_any_ticked() {
   set_filter(window, "layerFilterFolderAction", false);
   CHECK(list.count() == 8);
   CHECK(!filter_button(window)->property("layerFilterActive").toBool());
+}
+
+// Text layers the Type tool makes and the ones a PSD brings are pixel-kind layers carrying
+// text metadata (issue 671 follow-up): Text lists them and Pixel leaves them out.
+void ui_layer_filter_menu_finds_type_tool_and_psd_text_layers() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  ColorSchemeRestorer restore(patchy::ui::ColorSchemePreference::Dark);
+  FilterFixture fixture;
+  auto& window = fixture.window;
+  auto& list = *fixture.list;
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(40, 60));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->textCursor().insertText(QStringLiteral("Caption"));  // replaces the selected placeholder
+  QApplication::processEvents();
+  send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+  QApplication::processEvents();
+  process_events_for(150);
+
+  QString typed_name;
+  {
+    const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto typed_id = doc.active_layer_id();
+    const auto* typed = typed_id.has_value() ? doc.find_layer(*typed_id) : nullptr;
+    CHECK(typed != nullptr && patchy::layer_is_text(*typed));
+    if (typed == nullptr) {
+      return;
+    }
+    CHECK(typed->id() != fixture.ids.title);
+    typed_name = QString::fromStdString(typed->name());
+    std::cout << "[INFO] Type tool layer '" << typed->name() << "' kind " << static_cast<int>(typed->kind())
+              << "\n";
+  }
+  CHECK(list.count() == 9);
+
+  set_filter(window, "layerFilterTextAction", true);
+  check_listed(list, {QStringLiteral("Title"), typed_name});
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+    save_widget_artifact("issue_671_text_filter_finds_type_layer", *panel);
+  }
+  set_filter(window, "layerFilterTextAction", false);
+  set_filter(window, "layerFilterPixelAction", true);
+  check_listed(list, {QStringLiteral("Background"), QStringLiteral("Paint"), QStringLiteral("Group"),
+                      QStringLiteral("Masked"), QStringLiteral("Smart")});
+  set_filter(window, "layerFilterPixelAction", false);
+
+  // A text layer Photoshop saved.
+  auto imported = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-box-text-overflow.psd"));
+  std::set<QString> text_names;
+  std::set<QString> other_names;
+  std::function<void(const std::vector<patchy::Layer>&)> collect = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      (patchy::layer_is_text(layer) ? text_names : other_names).insert(QString::fromStdString(layer.name()));
+      collect(layer.children());
+    }
+  };
+  collect(std::as_const(imported).layers());
+  CHECK(text_names.contains(QStringLiteral("Overflow Box")));
+  window.add_document_session(std::move(imported), QStringLiteral("PSD Text"));
+  QApplication::processEvents();
+  CHECK(list.count() == static_cast<int>(text_names.size() + other_names.size()));
+  set_filter(window, "layerFilterTextAction", true);
+  check_listed(list, text_names);
+  set_filter(window, "layerFilterTextAction", false);
+  set_filter(window, "layerFilterPixelAction", true);
+  for (const auto& name : listed_names(list)) {
+    CHECK(!text_names.contains(name));
+  }
+  CHECK(!listed_names(list).contains(QStringLiteral("Overflow Box")));
+  set_filter(window, "layerFilterPixelAction", false);
+}
+
+// Every layer has one Layer Type, the one its row shows: a fill layer is Fill or Adjustment
+// and not a shape, a Smart Object is not a pixel layer.
+void ui_layer_filter_menu_each_layer_has_one_type() {
+  FilterFixture fixture;
+  auto& window = fixture.window;
+  auto& list = *fixture.list;
+  make_smart_object(fixture);
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    patchy::Layer wash(doc.allocate_layer_id(), "Wash", patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{230, 200, 60};
+    wash.set_vector_shape(std::move(content));
+    wash.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(wash, patchy::Rect::from_size(kWidth, kHeight), nullptr);
+    CHECK(patchy::layer_is_fill_layer(wash));
+    doc.add_layer(std::move(wash));
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+  }
+  CHECK(list.count() == 9);
+  // The entry reads in the Layer menus' word order; its object name stays.
+  CHECK(require_action(window, "layerFilterAdjustmentAction")->text() == QStringLiteral("Fill or Adjustment"));
+
+  const std::vector<std::pair<const char*, std::set<QString>>> types{
+      {"layerFilterPixelAction",
+       {QStringLiteral("Background"), QStringLiteral("Paint"), QStringLiteral("Group"), QStringLiteral("Masked")}},
+      {"layerFilterTextAction", {QStringLiteral("Title")}},
+      {"layerFilterShapeAction", {QStringLiteral("Box")}},
+      {"layerFilterAdjustmentAction", {QStringLiteral("Tone"), QStringLiteral("Wash")}},
+      {"layerFilterSmartObjectAction", {QStringLiteral("Smart")}},
+      {"layerFilterFolderAction", {QStringLiteral("Group")}},
+  };
+  int listed_once = 0;
+  for (const auto& [action, expected] : types) {
+    set_filter(window, action, true);
+    check_listed(list, expected);
+    listed_once += list.count();
+    set_filter(window, action, false);
+  }
+  // Nine layers, each under one type; the folder is listed a second time as the parent of Masked.
+  CHECK(listed_once == 10);
+}
+
+// Properties > Linked lists the layers that have a link partner; Has Smart Filters the layers
+// carrying a Smart Filter stack.
+void ui_layer_filter_menu_linked_and_smart_filters() {
+  FilterFixture fixture;
+  auto& window = fixture.window;
+  auto& list = *fixture.list;
+  make_smart_object(fixture);
+  const auto& ids = fixture.ids;
+
+  set_filter(window, "layerFilterLinkedAction", true);
+  CHECK(list.count() == 0);
+  set_filter(window, "layerFilterLinkedAction", false);
+  patchy::ui::MainWindowTestAccess::select_layers(window, {ids.paint, ids.box}, ids.paint);
+  QApplication::processEvents();
+  require_action(window, "layerLinkAction")->trigger();
+  QApplication::processEvents();
+  {
+    const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(patchy::effective_link_group(doc.layers(), ids.paint) != 0U);
+  }
+  set_filter(window, "layerFilterLinkedAction", true);
+  check_listed(list, {QStringLiteral("Paint"), QStringLiteral("Box")});
+  // Within Properties any ticked entry matches; other groups narrow it.
+  set_filter(window, "layerFilterHiddenAction", true);
+  check_listed(list, {QStringLiteral("Paint"), QStringLiteral("Box"), QStringLiteral("Tone")});
+  set_filter(window, "layerFilterHiddenAction", false);
+  set_filter(window, "layerFilterShapeAction", true);
+  check_listed(list, {QStringLiteral("Box")});
+  set_filter(window, "layerFilterShapeAction", false);
+  set_filter(window, "layerFilterLinkedAction", false);
+
+  // A link group left with one member is not linked (its row has no chain badge).
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    doc.find_layer(ids.box)->set_link_group(0U);
+    CHECK(std::as_const(doc).find_layer(ids.paint)->link_group() != 0U);
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  }
+  set_filter(window, "layerFilterLinkedAction", true);
+  CHECK(list.count() == 0);
+  set_filter(window, "layerFilterLinkedAction", false);
+
+  set_filter(window, "layerFilterSmartFiltersAction", true);
+  CHECK(list.count() == 0);
+  {
+    patchy::SmartFilterStack stack;
+    stack.support = patchy::SmartFilterStackSupport::Supported;
+    stack.mask.linked = false;
+    patchy::SmartFilterEntry entry;
+    entry.kind = patchy::SmartFilterKind::GaussianBlur;
+    entry.native_name = "Gaussian Blur...";
+    entry.native_class_id = "GsnB";
+    entry.native_filter_id = 0x47736e42U;
+    entry.parameters = patchy::GaussianBlurSmartFilter{2.0};
+    stack.entries.push_back(std::move(entry));
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    doc.find_layer(ids.smart)->set_smart_filter_stack(std::move(stack));
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+  }
+  check_listed(list, {QStringLiteral("Smart")});
+  set_filter(window, "layerFilterSmartObjectAction", true);
+  check_listed(list, {QStringLiteral("Smart")});
+  set_filter(window, "layerFilterSmartObjectAction", false);
+  set_filter(window, "layerFilterPixelAction", true);
+  CHECK(list.count() == 0);
+  require_action(window, "layerFilterClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(list.count() == 8);
+  CHECK(!require_action(window, "layerFilterSmartFiltersAction")->isChecked());
 }
 
 void ui_layer_filter_menu_groups_and_name_text_combine() {
@@ -576,6 +780,10 @@ void ui_layer_filter_button_follows_name_field_in_narrow_column() {
 std::vector<patchy::test::TestCase> layer_filter_menu_tests() {
   return {
       {"ui_layer_filter_menu_layer_types_match_any_ticked", ui_layer_filter_menu_layer_types_match_any_ticked},
+      {"ui_layer_filter_menu_finds_type_tool_and_psd_text_layers",
+       ui_layer_filter_menu_finds_type_tool_and_psd_text_layers},
+      {"ui_layer_filter_menu_each_layer_has_one_type", ui_layer_filter_menu_each_layer_has_one_type},
+      {"ui_layer_filter_menu_linked_and_smart_filters", ui_layer_filter_menu_linked_and_smart_filters},
       {"ui_layer_filter_menu_groups_and_name_text_combine", ui_layer_filter_menu_groups_and_name_text_combine},
       {"ui_layer_filter_menu_blocks_drag_reorder", ui_layer_filter_menu_blocks_drag_reorder},
       {"ui_layer_filter_menu_canvas_reveal_clears_criteria", ui_layer_filter_menu_canvas_reveal_clears_criteria},

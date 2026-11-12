@@ -22519,6 +22519,7 @@ Czy chcesz go zastąpić?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Wyszukaj skróty...</translation>
     </message>
 </context>
@@ -35657,10 +35658,6 @@ Zablokowano: %1</translation>
         <translation>Tekst</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>Dopasowanie lub wypełnienie</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>Obiekt inteligentny</translation>
     </message>
@@ -35992,6 +35989,14 @@ Zablokowano: %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Przeciągnij wzdłuż czegoś, co powinno być poziome lub pionowe</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>Wypełnienie lub dopasowanie</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>Ma inteligentne filtry</translation>
     </message>
 </context>
 <context>

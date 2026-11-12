@@ -22437,6 +22437,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -35472,10 +35473,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation type="unfinished"></translation>
     </message>
@@ -35800,6 +35797,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>Drag along something that should be level or upright</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
