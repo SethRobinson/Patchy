@@ -3478,8 +3478,8 @@ void ui_shape_appearance_gradient_rows_indent() {
     CHECK(x_of("shapeFillColorButton") == left(fill_kind));
     CHECK(x_of("shapeFillGradientCombo") == x_of("shapeStrokeGradientCombo"));
     CHECK(x_of("shapeGradientTypeCombo") == x_of("shapeStrokeGradientTypeCombo"));
-    // GitHub issue 618: each angle field has its round dial after the - / +
-    // pair, and the dial drives the field.
+    // GitHub issue 618: each angle field has its round dial in its row (before
+    // the field since #713), and the dial drives the field.
     for (const auto* name : {"shapeGradientAngleDial", "shapeStrokeGradientAngleDial", "shapePatternAngleDial",
                              "shapeStrokePatternAngleDial"}) {
       CHECK(dialog->findChild<patchy::ui::AngleDial*>(QLatin1String(name)) != nullptr);
@@ -3513,6 +3513,119 @@ void ui_shape_appearance_gradient_rows_indent() {
     stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Solid)));
     QApplication::processEvents();
     CHECK(!stroke_block->isVisibleTo(dialog));
+    checked = true;
+    dialog->reject();
+  }));
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// GitHub #713: an angle row reads dial, field, - / +, the order Layer Style's
+// angle rows use. The dial starts the row, the steppers stay in the column the
+// Scale row keeps its steppers in, the label, dial, field and steppers share
+// one center line, and Tab reaches the dial before the field. Covers the
+// gradient and the pattern angle of both Fill and Stroke.
+void ui_shape_appearance_angle_rows_put_the_dial_before_the_field() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  make_rect_shape_layer(window, *canvas);
+  bool checked = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr && width != nullptr);
+    if (fill_kind == nullptr || stroke_paint == nullptr || width == nullptr) return;
+    const auto rect_in_dialog = [dialog](const QWidget* widget) {
+      return QRect(widget->mapTo(dialog, QPoint(0, 0)), widget->size());
+    };
+    int rows_checked = 0;
+    const auto check_row = [&](const char* block_name, const char* angle_name, const char* scale_name) {
+      auto* block = dialog->findChild<QWidget*>(QLatin1String(block_name));
+      auto* angle = dialog->findChild<QAbstractSpinBox*>(QLatin1String(angle_name));
+      auto* scale = dialog->findChild<QAbstractSpinBox*>(QLatin1String(scale_name));
+      CHECK(block != nullptr && angle != nullptr && scale != nullptr);
+      if (block == nullptr || angle == nullptr || scale == nullptr) return;
+      CHECK(block->isVisibleTo(dialog));
+      auto* inner = qobject_cast<QFormLayout*>(block->layout());
+      auto* row = angle->parentWidget();
+      auto* dial =
+          row->findChild<patchy::ui::AngleDial*>(patchy::ui::angle_dial_object_name(angle->objectName()));
+      auto* decrease = row->findChild<QWidget*>(angle->objectName() + QStringLiteral("DecreaseButton"));
+      auto* increase = row->findChild<QWidget*>(angle->objectName() + QStringLiteral("IncreaseButton"));
+      auto* scale_increase =
+          scale->parentWidget()->findChild<QWidget*>(scale->objectName() + QStringLiteral("IncreaseButton"));
+      auto* label = inner != nullptr ? qobject_cast<QLabel*>(inner->labelForField(row)) : nullptr;
+      CHECK(inner != nullptr && dial != nullptr && decrease != nullptr && increase != nullptr &&
+            scale_increase != nullptr && label != nullptr);
+      if (inner == nullptr || dial == nullptr || decrease == nullptr || increase == nullptr ||
+          scale_increase == nullptr || label == nullptr) {
+        return;
+      }
+      const QRect row_rect = rect_in_dialog(row);
+      const QRect dial_rect = rect_in_dialog(dial);
+      const QRect field_rect = rect_in_dialog(angle);
+      const QRect decrease_rect = rect_in_dialog(decrease);
+      const QRect increase_rect = rect_in_dialog(increase);
+      // Left to right: dial, field, -, +.
+      CHECK(dial_rect.left() == row_rect.left());
+      CHECK(dial_rect.right() < field_rect.left());
+      CHECK(field_rect.right() < decrease_rect.left());
+      CHECK(decrease_rect.right() < increase_rect.left());
+      // The steppers keep the column the Scale row's steppers sit in.
+      CHECK(increase_rect.right() == rect_in_dialog(scale_increase).right());
+      // The label, the dial, the field and the steppers share one center line.
+      const int row_center = row_rect.center().y();
+      const auto centered = [row_center](const QRect& rect) { return std::abs(rect.center().y() - row_center) <= 1; };
+      CHECK(centered(dial_rect));
+      CHECK(centered(field_rect));
+      CHECK(centered(decrease_rect));
+      CHECK(centered(increase_rect));
+      CHECK(label->isVisibleTo(dialog));
+      CHECK(label->alignment().testFlag(Qt::AlignVCenter));
+      CHECK(centered(rect_in_dialog(label)));
+      // Tab goes dial, then field, as the row reads.
+      QWidget* next = dial->nextInFocusChain();
+      while (next != nullptr && next != dial &&
+             (!(next->focusPolicy() & Qt::TabFocus) || !next->isVisibleTo(dialog) || !next->isEnabled())) {
+        next = next->nextInFocusChain();
+      }
+      CHECK(next == angle || (next != nullptr && next->focusProxy() == angle));
+      ++rows_checked;
+    };
+    const auto set_paint = [&](patchy::VectorFillKind kind) {
+      fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(kind)));
+      stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(kind)));
+      QApplication::processEvents();
+      QApplication::processEvents();
+    };
+    width->setValue(8.0);
+    set_paint(patchy::VectorFillKind::Gradient);
+    // The Fill group down to the stroke's gradient block, for the issue reply:
+    // taken before the checks, so a failing run still leaves its picture.
+    const auto shot = patchy::test::ui::capture_widget_artifact("issue713_shape_appearance_angle_rows", *dialog);
+    auto* stroke_block = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokeGradientBlock"));
+    QWidget* fill_group = fill_kind->parentWidget();
+    while (fill_group != nullptr && qobject_cast<QGroupBox*>(fill_group) == nullptr) {
+      fill_group = fill_group->parentWidget();
+    }
+    CHECK(fill_group != nullptr && stroke_block != nullptr && !shot.isNull());
+    if (fill_group != nullptr && stroke_block != nullptr && !shot.isNull()) {
+      const QRect fill_rect = rect_in_dialog(fill_group);
+      const QRect crop(fill_rect.left(), fill_rect.top(), fill_rect.width(),
+                       rect_in_dialog(stroke_block).bottom() + 8 - fill_rect.top());
+      patchy::test::ui::save_image_artifact("issue713_shape_appearance_angle_rows_crop", shot.copy(crop));
+    }
+    check_row("shapeFillGradientBlock", "shapeGradientAngleSpin", "shapeGradientScaleSpin");
+    check_row("shapeStrokeGradientBlock", "shapeStrokeGradientAngleSpin", "shapeStrokeGradientScaleSpin");
+    set_paint(patchy::VectorFillKind::Pattern);
+    check_row("shapeFillPatternBlock", "shapePatternAngleSpin", "shapePatternScaleSpin");
+    check_row("shapeStrokePatternBlock", "shapeStrokePatternAngleSpin", "shapeStrokePatternScaleSpin");
+    CHECK(rows_checked == 4);
     checked = true;
     dialog->reject();
   }));
@@ -9867,6 +9980,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_appearance_dash_presets_set_patterns", ui_shape_appearance_dash_presets_set_patterns},
       {"ui_shape_appearance_dash_offset_and_stroke_presets", ui_shape_appearance_dash_offset_and_stroke_presets},
       {"ui_shape_appearance_gradient_rows_indent", ui_shape_appearance_gradient_rows_indent},
+      {"ui_shape_appearance_angle_rows_put_the_dial_before_the_field",
+       ui_shape_appearance_angle_rows_put_the_dial_before_the_field},
       {"ui_shape_appearance_pattern_rows_indent", ui_shape_appearance_pattern_rows_indent},
       {"ui_options_bar_dash_combo_applies_presets", ui_options_bar_dash_combo_applies_presets},
       {"ui_stroke_preset_manager_duplicates_and_edits", ui_stroke_preset_manager_duplicates_and_edits},

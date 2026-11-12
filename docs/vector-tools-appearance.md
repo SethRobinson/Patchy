@@ -36,6 +36,9 @@ back to a solid stroke. Saved stroke presets join the built-ins in one Dashes li
 rows are a nested form in their picker row's field column (#552). The right column lines up
 the same way (#679, `align_form_columns`): Fill's and Stroke's forms share one label width, and
 the four nested gradient and pattern forms share another; the fill-only dialog measures Fill alone.
+An angle row (`add_angle_row`, #713) reads dial, field, - / +, as Layer Style's do, so its steppers
+stay in the rows' stepper column; its label is as tall as the dial, which centers the text on the row
+(QFormLayout gives a shorter label 7/4 of its height, near the row's top), and Tab follows that order.
 `pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).

@@ -584,23 +584,34 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     form->addRow(label, row);
     return row;
   };
-  // Angle fields get the round AngleDial after their - / + pair (GitHub
-  // issue 618); the dial follows the field both ways.
-  const auto add_angle_row = [&add_spin_row](QFormLayout* form, const QString& label, auto* spin) {
-    auto* row = add_spin_row(form, label, spin);
+  // Angle fields get the round AngleDial (GitHub issue 618), which follows the
+  // field both ways. The row reads dial, field, - / + (GitHub #713), the order
+  // Layer Style's angle rows use, so the steppers stay in the column the other
+  // rows keep theirs in; Tab follows that order.
+  const auto add_angle_row = [&field_rows](QFormLayout* form, const QString& label, auto* spin) {
+    auto* row = wrap_spin_with_step_buttons(spin, form->parentWidget(), label);
+    field_rows[spin] = row;
     auto* dial = new AngleDial(AngleDial::Mode::Angle, row);
     dial->setObjectName(angle_dial_object_name(spin->objectName()));
     if (auto* layout = qobject_cast<QHBoxLayout*>(row->layout()); layout != nullptr) {
-      // The field and its buttons stay level with the row's label.
-      for (int index = 0; index < layout->count(); ++index) {
-        if (auto* widget = layout->itemAt(index)->widget(); widget != nullptr) {
-          layout->setAlignment(widget, Qt::AlignTop);
-        }
-      }
-      layout->addSpacing(8);
-      layout->addWidget(dial);
+      layout->insertWidget(0, dial);
+      layout->insertSpacing(1, 8 - layout->spacing());
     }
+    // The label is as tall as the dial, so its text centers on the row with
+    // the dial and the field: QFormLayout gives a shorter label only 7/4 of
+    // its own height, which leaves it near the top of a tall row.
+    auto* row_label = new QLabel(label, form->parentWidget());
+    row_label->setBuddy(row);
+    row_label->setMinimumHeight(dial->sizeHint().height());
+    form->addRow(row_label, row);
     bind_angle_dial(*dial, *spin);
+    QWidget::setTabOrder(dial, spin);
+    QWidget* previous = spin;
+    const auto steppers = row->findChildren<QPushButton*>(Qt::FindDirectChildrenOnly);
+    for (auto* stepper : steppers) {
+      QWidget::setTabOrder(previous, stepper);
+      previous = stepper;
+    }
     return row;
   };
   // A paint's own settings form a nested block under its picker row (GitHub
