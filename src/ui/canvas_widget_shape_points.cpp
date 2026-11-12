@@ -11,8 +11,10 @@
 //
 // Legal boundary (docs/legal-constraints.md, "Shape drag points"): these are the two points
 // of the creation drag and nothing else. No point edits a corner radius, a side count or a
-// star inset, nothing is drawn but the two discs, and the center point moves the shape on
-// whole pixels without snapping to guides, the grid or other layers.
+// star inset, and nothing is drawn with the points but the two discs. The center point
+// moves the whole shape, so it snaps as every whole-shape drag does (GitHub issue 695):
+// the Move tool's scan of the polygon's bounds, both edges and the center on each axis,
+// never a feature chosen from where the drag was grabbed.
 
 #include "ui/canvas_widget.hpp"
 
@@ -47,10 +49,12 @@ constexpr double kPointReach = 8.0;
 // What a repaint of one point must cover: the disc, its ring and antialiasing.
 constexpr double kPointRepaintReach = 10.0;
 
-std::optional<CanvasWidget::ShapeLivePoints> points_from_params(LayerId layer_id, const LiveShapeParams& params) {
+std::optional<CanvasWidget::ShapeLivePoints> points_from_params(LayerId layer_id, const LiveShapeParams& params,
+                                                                int shape_group = 0) {
   CanvasWidget::ShapeLivePoints points;
   points.layer_id = layer_id;
   points.params = params;
+  points.shape_group = shape_group;
   if (live_polygon_is_regular(params)) {
     const auto center = live_polygon_center(params);
     const auto vertex = live_polygon_first_vertex(params);
@@ -105,7 +109,7 @@ std::optional<CanvasWidget::ShapeLivePoints> CanvasWidget::shape_live_points_of(
   if (!params.has_value()) {
     return std::nullopt;
   }
-  return points_from_params(layer.id(), *params);
+  return points_from_params(layer.id(), *params, groups.front());
 }
 
 std::optional<CanvasWidget::ShapeLivePoints> CanvasWidget::shape_live_points() const {
@@ -163,6 +167,17 @@ bool CanvasWidget::press_shape_point(QMouseEvent* event) {
   drag.press_widget = event->position();
   drag.press_document = document_position_f(event->position());
   drag.grab_offset = (point == ShapePoint::First ? points->first : points->second) - drag.press_document;
+  if (points->kind == ShapePointsKind::Polygon && point == ShapePoint::First) {
+    // The center moves the whole polygon: its bounds, as they are at the press, are what
+    // the drag snaps (the bounds a Ctrl drag of the same shape snaps).
+    const auto* layer = shape_resize_layer();
+    const auto* content = layer != nullptr ? layer->vector_shape() : nullptr;
+    if (content != nullptr) {
+      if (const auto bounds = shape_group_snap_bounds(content->path, points->shape_group); bounds.has_value()) {
+        drag.snap_sources.push_back(*bounds);
+      }
+    }
+  }
   drag.serial = ++shape_resize_drag_serial_;
   shape_point_drag_ = drag;
   shape_point_hover_ = point;
@@ -186,12 +201,15 @@ void CanvasWidget::update_shape_point_drag(QPointF widget_point) {
   const auto pointer = document_position_f(widget_point);
   auto edited = drag.start;
   if (drag.kind == ShapePointsKind::Polygon && drag.point == ShapePoint::First) {
-    // The center moves the polygon by the pointer's travel, on whole pixels. It does not
-    // snap to guides, the grid or other layers: a drag that picks the snapped feature from
-    // where it was grabbed is not the Move tool's reviewed snapping
-    // (docs/patent-research-alignment.md, US 9250786).
-    translate_live_shape_params(edited, std::round(pointer.x() - drag.press_document.x()),
-                                std::round(pointer.y() - drag.press_document.y()));
+    // The center moves the polygon by the pointer's travel, on whole pixels, through the
+    // snapping of every whole-shape drag (GitHub issue 695): both edges and the center of
+    // the polygon's bounds are the sources, as in the Move tool's scan, never the grabbed
+    // point alone (docs/legal-constraints.md, "Shape drag points"). An axis that snaps
+    // lands exactly on its line; the polygon's own layer is never a target.
+    const QPointF travel(std::round(pointer.x() - drag.press_document.x()),
+                         std::round(pointer.y() - drag.press_document.y()));
+    const auto total = snap_whole_shape_drag(drag.snap_sources, {drag.layer_id}, travel, false, false);
+    translate_live_shape_params(edited, total.x(), total.y());
   } else {
     // The vertex or the line's end follows the pointer through the snap targets on whole
     // pixels, as the second point of the drawing drag does.
@@ -224,6 +242,7 @@ void CanvasWidget::release_shape_point(QMouseEvent* event) {
   }
   const auto drag = *shape_point_drag_;
   shape_point_drag_.reset();
+  clear_move_snap_guides();  // a center drag's alignment guides end with it
   if (shape_point_callback_) {
     if (drag.moved && drag.current != drag.start) {
       shape_point_callback_(drag.layer_id, drag.current, ShapeResizePhase::Commit, drag.serial);
@@ -242,6 +261,7 @@ void CanvasWidget::cancel_shape_point_drag() {
   }
   const auto drag = *shape_point_drag_;
   shape_point_drag_.reset();
+  clear_move_snap_guides();
   if (drag.previewed && shape_point_callback_) {
     shape_point_callback_(drag.layer_id, drag.start, ShapeResizePhase::Cancel, drag.serial);
   }

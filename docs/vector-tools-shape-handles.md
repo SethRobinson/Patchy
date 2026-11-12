@@ -61,7 +61,8 @@ drawing points are corners it already has.
   sets the radius and `polygon_angle` exactly as the Polygon tool's center-out drag
   does (`set_live_polygon_first_vertex`, the math of `commit_polygon_drag`), so the
   polygon turns and resizes about its center. Dragging the center moves it by the
-  pointer's travel on whole pixels. Sides and Star inset never change.
+  pointer's travel on whole pixels and snaps it like a whole-shape drag (below).
+  Sides and Star inset never change.
 - **Line**: its two ends. Dragging one moves that end and leaves the other
   (`set_live_line_point`); the weight and the arrowheads stay and the box is
   refitted to the hull of the regenerated line, as when a line is drawn.
@@ -80,10 +81,23 @@ press, inside the shape included, draws a new shape; Ctrl stays the temporary Pa
 Select; a click without travel changes nothing; Esc cancels. The vertex and a
 line's end go through `snapped_document_point_f` like the second point of the
 drawing drag (whole pixels, the snap targets, their own layer's edges excluded).
-The center point does not snap to guides, the grid or other layers
-([legal](legal-constraints.md#shape-drag-points)). Shift and Alt do nothing: the
-drawing drags of Polygon and Line have no modifier rule to repeat. A point dropped
-under a pixel from the other one is ignored and the shape stays as it last was.
+Shift and Alt do nothing: the drawing drags of Polygon and Line have no modifier
+rule to repeat. A point dropped under a pixel from the other one is ignored and the
+shape stays as it last was.
+
+The center point moves the whole polygon, so it snaps as a
+[whole-shape drag](alignment.md#whole-shape-drags) does (GitHub #695, follow-up of
+2026-11-13). `update_shape_point_drag` rounds the pointer's travel to whole pixels
+and hands it to `snap_whole_shape_drag`, the step a Ctrl drag of the shape uses,
+with one source rect: the polygon's bounds at the press (`shape_group_snap_bounds`,
+the tight bounds of its curves). Both edges and the center of those bounds, on each
+axis, are compared with guides, the grid, the canvas and other layers (its own layer
+left out), and the Move tool's alignment guide shows. An axis that snaps lands
+exactly on its line; an axis that does not keeps the whole-pixel travel. View > Snap
+turns it off. The sources are always all of those features, never one chosen from
+the grabbed point and never the center alone
+([legal](legal-constraints.md#shape-drag-points)). The guides clear at the release,
+on Esc and when the document is swapped under the drag.
 
 `ShapePointCallback` carries the component's new `LiveShapeParams` through the
 box's Preview / Commit / Cancel phases. `MainWindow::handle_shape_point_edit` runs
@@ -103,5 +117,6 @@ recognizes at any angle (`recognize_live_polygon`, GitHub #643); a re-aimed line
 writes its Line origination like one whose ends were typed into Shape Appearance.
 
 Tests: tests/ui/shape_resize_handles_tests.cpp (`ui_shape_tool_`) for the box and
-the points; `live_shape_drag_points_edit_polygon_and_line_parameters` (core) for the
-parameter helpers and the PSD round trip.
+the points; `ui_shape_drag_snap_polygon_center_point_*` (tests/ui/alignment_tests.cpp)
+for the center point's snapping; `live_shape_drag_points_edit_polygon_and_line_parameters`
+(core) for the parameter helpers and the PSD round trip.

@@ -246,14 +246,17 @@ void ui_move_snap_shift_constraint_drops_pinned_axis_guide() {
 //
 // Canvas 420x300 (center 210,150). A solid pixel target at 200,60 80x60, and a
 // rectangle shape layer drawn with the Rectangle tool, 20,160 to 60,190 unless a
-// test asks for another. The Rectangle tool stays active.
+// test asks for another. The Rectangle tool stays active. With `hexagon` the shape is a
+// live hexagon drawn with the Polygon tool from its center (`shape_from`) to its first
+// vertex (`shape_to`), and the Polygon tool stays active.
 struct ShapeSnapScene {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   patchy::ui::CanvasWidget* canvas{nullptr};
   patchy::LayerId shape_id{};
 
-  explicit ShapeSnapScene(QPoint shape_from = QPoint(20, 160), QPoint shape_to = QPoint(60, 190)) {
+  explicit ShapeSnapScene(QPoint shape_from = QPoint(20, 160), QPoint shape_to = QPoint(60, 190),
+                          bool hexagon = false) {
     patchy::Document document(420, 300, patchy::PixelFormat::rgba8());
     document.add_layer(solid_layer(document, "Target", patchy::Rect{200, 60, 80, 60}, QColor(40, 180, 90)));
     show_window(window);
@@ -275,6 +278,19 @@ struct ShapeSnapScene {
       radius_spin->setValue(0);
     }
     QApplication::processEvents();
+    if (hexagon) {
+      require_hotkey_action(window, QStringLiteral("tools.polygon"))->trigger();
+      QApplication::processEvents();
+      CHECK(canvas->tool() == patchy::ui::CanvasTool::Polygon);
+      auto* sides_spin = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+      auto* inset_spin = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+      CHECK(sides_spin != nullptr && inset_spin != nullptr);
+      if (sides_spin != nullptr && inset_spin != nullptr) {
+        sides_spin->setValue(6);
+        inset_spin->setValue(0);
+      }
+      QApplication::processEvents();
+    }
     drag(*canvas, canvas->widget_position_for_document_point(shape_from),
          canvas->widget_position_for_document_point(shape_to));
     QApplication::processEvents();
@@ -569,6 +585,151 @@ void ui_shape_drag_snap_ignores_the_grab_point() {
     CHECK(corner_match->position == 200.0 && fill_match->position == 200.0);
     CHECK(corner_match->source_span == fill_match->source_span);
   }
+}
+
+// GitHub issue 695 follow-up: a live polygon dragged by its center point is a whole-shape
+// drag too. The hexagon has radius 30, its center at 40,200 and its first vertex straight
+// up: its bounds are 40 +/- 30 * cos(30 deg) by 170..230, so its edges sit off the pixel grid.
+constexpr double kHexagonHalfWidth = 25.980762113533160;
+
+bool hexagon_points_at(const patchy::ui::CanvasWidget& canvas, QPointF center) {
+  const auto points = canvas.shape_live_points();
+  return points.has_value() && points->kind == patchy::ui::CanvasWidget::ShapePointsKind::Polygon &&
+         std::abs(points->first.x() - center.x()) < 1e-6 && std::abs(points->first.y() - center.y()) < 1e-6 &&
+         std::abs(points->second.x() - center.x()) < 1e-6 && std::abs(points->second.y() - (center.y() - 30.0)) < 1e-6;
+}
+
+void ui_shape_drag_snap_polygon_center_point_lands_on_layer_edge_and_clears_guide() {
+  SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
+  ShapeSnapScene scene(QPoint(40, 200), QPoint(40, 170), /*hexagon=*/true);
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(scene.window));
+  const auto layer_count = document.layers().size();
+  const double half = kHexagonHalfWidth;
+  CHECK(rect_is(scene.bounds(), 40.0 - half, 170.0, 40.0 + half, 230.0));
+  CHECK(hexagon_points_at(*scene.canvas, QPointF(40.0, 200.0)));
+
+  // +131 by the center point: the right edge would stop at 196.98, 3.02 px short of the
+  // target's left edge (200). The center is what is held and an edge is what lands: every
+  // edge and the center of the bounds is a source, as in a Ctrl drag of the same shape.
+  scene.drag_shape(QPoint(40, 200), QPoint(131, 0), Qt::NoModifier, /*release=*/false);
+  CHECK(rect_is(scene.bounds(), 200.0 - 2.0 * half, 170.0, 200.0, 230.0));
+  const auto& match_x = scene.canvas->move_snap_match_x();
+  CHECK(match_x.has_value());
+  if (match_x.has_value()) {
+    CHECK(match_x->kind == patchy::ui::CanvasWidget::SnapMatch::Kind::Layer);
+    CHECK(match_x->position == 200.0);
+    // The guide bridges the target (top 60) and the hexagon where it landed (bottom 230).
+    CHECK(match_x->target_span.top() == 60.0 && match_x->target_span.bottom() == 120.0);
+    CHECK(rect_is(match_x->source_span, 200.0 - 2.0 * half, 170.0, 200.0, 230.0));
+  }
+  CHECK(!scene.canvas->move_snap_match_y().has_value());
+  // Mid-drag the two points ride the snapped shape.
+  CHECK(hexagon_points_at(*scene.canvas, QPointF(200.0 - half, 200.0)));
+
+  const auto guide_point = scene.canvas->widget_position_for_document_point(QPoint(200, 140));
+  const auto expected = patchy::ui::theme().canvas_snap_guide;
+  const auto guide_drawn = [&] {
+    const auto frame = scene.canvas->grab().toImage();
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (color_close(frame.pixelColor(guide_point + QPoint(dx, 0)), expected, 40)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  CHECK(guide_drawn());
+  save_widget_artifact("ui_shape_drag_snap_polygon_center_point", *scene.canvas);
+
+  scene.release(QPoint(40, 200), QPoint(131, 0));
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+  CHECK(!scene.canvas->move_snap_match_y().has_value());
+  CHECK(!guide_drawn());
+  CHECK(rect_is(scene.bounds(), 200.0 - 2.0 * half, 170.0, 200.0, 230.0));
+  // Still a live hexagon on the same layer, with nothing drawn.
+  CHECK(hexagon_points_at(*scene.canvas, QPointF(200.0 - half, 200.0)));
+  CHECK(document.layers().size() == layer_count);
+  CHECK(scene.canvas->tool() == patchy::ui::CanvasTool::Polygon);
+
+  // One undo step takes the whole snapped move back.
+  require_action_by_text(scene.window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_is(scene.bounds(), 40.0 - half, 170.0, 40.0 + half, 230.0));
+  CHECK(hexagon_points_at(*scene.canvas, QPointF(40.0, 200.0)));
+
+  // Esc mid-drag drops the guide and puts the hexagon back.
+  scene.drag_shape(QPoint(40, 200), QPoint(131, 0), Qt::NoModifier, /*release=*/false);
+  CHECK(scene.canvas->move_snap_match_x().has_value());
+  send_key(*scene.canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+  CHECK(!guide_drawn());
+  scene.release(QPoint(40, 200), QPoint(131, 0));
+  CHECK(rect_is(scene.bounds(), 40.0 - half, 170.0, 40.0 + half, 230.0));
+
+  // The vertex point is not a whole-shape drag: it shows no alignment guide.
+  scene.drag_shape(QPoint(40, 170), QPoint(0, -15), Qt::NoModifier, /*release=*/false);
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+  CHECK(!scene.canvas->move_snap_match_y().has_value());
+  scene.release(QPoint(40, 170), QPoint(0, -15));
+  CHECK(document.layers().size() == layer_count);
+}
+
+void ui_shape_drag_snap_polygon_center_point_follows_guides_and_view_snap() {
+  SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
+  ShapeSnapScene scene(QPoint(40, 200), QPoint(40, 170), /*hexagon=*/true);
+  const double half = kHexagonHalfWidth;
+  scene.canvas->set_snap_to_guides(true);
+  scene.canvas->add_guide(patchy::GuideOrientation::Vertical, 120 * 32);
+  QApplication::processEvents();
+
+  // +77: the center would stop at 117, 3 px short of the guide at 120, and lands on it.
+  scene.drag_shape(QPoint(40, 200), QPoint(77, 0), Qt::NoModifier, /*release=*/false);
+  CHECK(rect_is(scene.bounds(), 120.0 - half, 170.0, 120.0 + half, 230.0));
+  const auto& match_x = scene.canvas->move_snap_match_x();
+  CHECK(match_x.has_value());
+  if (match_x.has_value()) {
+    CHECK(match_x->kind == patchy::ui::CanvasWidget::SnapMatch::Kind::Guide);
+    CHECK(match_x->position == 120.0);
+  }
+  CHECK(!scene.canvas->move_snap_match_y().has_value());
+  scene.release(QPoint(40, 200), QPoint(77, 0));
+  CHECK(rect_is(scene.bounds(), 120.0 - half, 170.0, 120.0 + half, 230.0));
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+
+  // With nothing in reach the hexagon moves by the pointer's travel on whole pixels.
+  scene.drag_shape(QPoint(120, 200), QPoint(-50, 3), Qt::NoModifier, /*release=*/false);
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+  CHECK(!scene.canvas->move_snap_match_y().has_value());
+  scene.release(QPoint(120, 200), QPoint(-50, 3));
+  CHECK(rect_is(scene.bounds(), 70.0 - half, 173.0, 70.0 + half, 233.0));
+
+  // View > Snap off: the center stops 3 px short of the guide, where the pointer took it.
+  scene.canvas->set_snap_enabled(false);
+  scene.drag_shape(QPoint(70, 203), QPoint(47, 0), Qt::NoModifier, /*release=*/false);
+  CHECK(rect_is(scene.bounds(), 117.0 - half, 173.0, 117.0 + half, 233.0));
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+  CHECK(!scene.canvas->move_snap_match_y().has_value());
+  scene.release(QPoint(70, 203), QPoint(47, 0));
+  CHECK(rect_is(scene.bounds(), 117.0 - half, 173.0, 117.0 + half, 233.0));
+
+  // Snap back on with the guide targets off (View > Snap To > Guides): away and back to
+  // 3 px short of the guide, and still no pull.
+  scene.canvas->set_snap_enabled(true);
+  scene.canvas->set_snap_to_guides(false);
+  scene.drag_shape(QPoint(117, 203), QPoint(-40, 0));
+  CHECK(rect_is(scene.bounds(), 77.0 - half, 173.0, 77.0 + half, 233.0));
+  scene.drag_shape(QPoint(77, 203), QPoint(40, 0), Qt::NoModifier, /*release=*/false);
+  CHECK(!scene.canvas->move_snap_match_x().has_value());
+  scene.release(QPoint(77, 203), QPoint(40, 0));
+  CHECK(rect_is(scene.bounds(), 117.0 - half, 173.0, 117.0 + half, 233.0));
+
+  // The guide targets back on: the same approach lands on the guide again.
+  scene.canvas->set_snap_to_guides(true);
+  scene.drag_shape(QPoint(117, 203), QPoint(-40, 0));
+  scene.drag_shape(QPoint(77, 203), QPoint(40, 0));
+  CHECK(rect_is(scene.bounds(), 120.0 - half, 173.0, 120.0 + half, 233.0));
 }
 
 void ui_shape_drag_snap_moves_a_work_path_too() {
@@ -1109,6 +1270,10 @@ std::vector<patchy::test::TestCase> alignment_tests() {
       {"ui_shape_drag_snap_leaves_direct_select_point_drags_alone",
        ui_shape_drag_snap_leaves_direct_select_point_drags_alone},
       {"ui_shape_drag_snap_ignores_the_grab_point", ui_shape_drag_snap_ignores_the_grab_point},
+      {"ui_shape_drag_snap_polygon_center_point_lands_on_layer_edge_and_clears_guide",
+       ui_shape_drag_snap_polygon_center_point_lands_on_layer_edge_and_clears_guide},
+      {"ui_shape_drag_snap_polygon_center_point_follows_guides_and_view_snap",
+       ui_shape_drag_snap_polygon_center_point_follows_guides_and_view_snap},
       {"ui_shape_drag_snap_moves_a_work_path_too", ui_shape_drag_snap_moves_a_work_path_too},
       {"ui_move_snap_checkbox_mirrors_view_snap_action", ui_move_snap_checkbox_mirrors_view_snap_action},
       {"ui_layer_align_buttons_align_selected_layers_with_one_undo",
