@@ -469,15 +469,40 @@ void align_form_columns(const std::vector<QFormLayout*>& forms) {
 
 }  // namespace
 
-std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
-    QWidget* parent, std::function<void(const ShapeAppearanceSettings&)> preview_changed,
-    ShapeAppearanceSettings initial, ShapeAppearanceSettings reset_defaults,
-    GradientLibrary* gradient_library,
-    PatternLibrary* pattern_library, const PatternStore* document_patterns, RgbColor foreground,
-    RgbColor background, const DocumentFieldUnits& units,
-    const AppearanceDialogContext<ShapeAppearanceSettings>* batch, const ShapeAppearanceShapeSource& custom_shapes) {
-  QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("shapeAppearanceDialog"));
+ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, ShapeAppearanceBodyOptions options) {
+  // `dialog` is the widget the rows are built into: the window itself for the modal
+  // dialog, a replaceable page inside the stay-open window otherwise. Everything that
+  // must outlive a page or act on the top-level window goes through `window_ptr`.
+  QWidget& dialog = host;
+  QDialog* const window_ptr = &window;
+  const bool live = options.mode == ShapeAppearanceBodyMode::Live;
+  auto preview_changed = std::move(options.changed);
+  auto initial = std::move(options.initial);
+  const auto reset_defaults = std::move(options.reset_defaults);
+  auto* const gradient_library = options.gradient_library;
+  auto* const pattern_library = options.pattern_library;
+  const auto* const document_patterns = options.document_patterns;
+  const auto foreground = options.foreground;
+  const auto background = options.background;
+  const auto units = options.units;
+  const auto custom_shapes = options.custom_shapes;
+  // The rows read the batch context for as long as they live, which for a page is longer
+  // than the call that built it.
+  const auto batch_owner =
+      options.batch != nullptr
+          ? std::make_shared<const AppearanceDialogContext<ShapeAppearanceSettings>>(*options.batch)
+          : nullptr;
+  const auto* const batch = batch_owner.get();
+  if (batch_owner) QObject::connect(&host, &QObject::destroyed, [batch_owner] {});
+  // A dialog a row opens (color picker, Gradient Manager, Shapes Manager) runs through the
+  // host: the stay-open window locks the document around it. `body` returns false on Cancel.
+  const auto run_child = [handler = std::move(options.run_child_dialog)](const std::function<bool()>& body) {
+    if (handler) {
+      handler(body);
+    } else {
+      body();
+    }
+  };
   // Thicknesses and radii have no percent basis; positions and sizes take the
   // document extent on their axis.
   auto thickness_units = units;
@@ -486,7 +511,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   const auto pixel_field_context = [thickness_units] { return document_field_context(thickness_units, true); };
   // Every field shown in the ruler unit; a unit picked on one shows on all of them.
   std::vector<UnitSpinBox*> unit_fields;
-  dialog.setWindowTitle(QObject::tr("Shape Appearance"));
+  window.setWindowTitle(QObject::tr("Shape Appearance"));
   auto* dialog_layout = new QVBoxLayout(&dialog);
 
   // Two columns (Layer / Geometry / Edge left, Fill / Stroke right) inside a
@@ -603,6 +628,10 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   const auto properties = shape_appearance_properties();
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
   auto previous = std::make_shared<ShapeAppearanceSettings>(state->settings);
+  // What each target looked like before the edits captured so far: the layers as the
+  // dialog opened, or, in the stay-open window, as its last applied change left them.
+  auto baselines = std::make_shared<std::vector<ShapeAppearanceSettings>>(
+      batch != nullptr ? batch->originals : std::vector<ShapeAppearanceSettings>{});
   auto refresh_mixed = std::make_shared<std::function<void()>>();
   // Shows the saved stroke preset the current line settings match (set below).
   auto refresh_preset_match = std::make_shared<std::function<void()>>();
@@ -867,10 +896,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     // The popup's Shapes Manager... button opens the manager over this dialog; the list
     // follows its changes.
     auto combo_ref = std::make_shared<QPointer<CustomShapePickerCombo>>();
-    auto* shape_combo = new CustomShapePickerCombo(library, [library, manage, combo_ref, dialog_ptr = &dialog] {
-      if (manage) manage(dialog_ptr);
-      if (const auto* current = library(); current != nullptr && !combo_ref->isNull())
-        populate_custom_shape_combo(**combo_ref, *current);
+    auto* shape_combo = new CustomShapePickerCombo(library, [library, manage, combo_ref, run_child,
+                                                             dialog_ptr = window_ptr] {
+      run_child([&] {
+        if (manage) manage(dialog_ptr);
+        if (const auto* current = library(); current != nullptr && !combo_ref->isNull())
+          populate_custom_shape_combo(**combo_ref, *current);
+        return true;
+      });
     }, section.group);
     *combo_ref = shape_combo;
     shape_combo->setObjectName(QStringLiteral("shapeGeometryCustomShapeCombo"));
@@ -1263,8 +1296,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   // saved as a preset (New from Current) and presets renamed, imported or
   // deleted. Afterwards the list is rebuilt and shows the preset the gradient
   // matches, or Custom; Use Gradient picks a preset like the list does.
-  const auto add_gradient_row = [&field_rows, &dialog, state, gradient_library, preview_colors,
-                                 populate_gradient_combo, select_gradient_row](
+  const auto add_gradient_row = [&field_rows, &dialog, window_ptr, run_child, state, gradient_library,
+                                 preview_colors, populate_gradient_combo, select_gradient_row](
                                     QFormLayout* form, QWidget* parent, bool for_stroke) {
     auto* row = new QWidget(parent);
     auto* row_layout = new QHBoxLayout(row);
@@ -1284,28 +1317,31 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     row_layout->addWidget(manage);
     form->addRow(QObject::tr("Gradient:"), row);
     field_rows[combo] = row;
-    QObject::connect(manage, &QPushButton::clicked, &dialog, [=, &dialog] {
+    QObject::connect(manage, &QPushButton::clicked, &dialog, [=] {
       if (gradient_library == nullptr) return;
-      const GradientDefinition current =
-          for_stroke ? static_cast<const GradientDefinition&>(state->settings.stroke.content.gradient)
-                     : static_cast<const GradientDefinition&>(state->settings.fill.gradient);
-      auto& custom = for_stroke ? state->custom_stroke_gradient : state->custom_fill_gradient;
-      const auto selected =
-          request_gradient_manager(&dialog, *gradient_library, combo->currentData().toString(), current);
-      const bool had_custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty();
-      {
-        QSignalBlocker blocker(combo);
-        combo->clear();
-        populate_gradient_combo(combo);
-        if (had_custom_row) {
-          combo->insertItem(0, QIcon(gradient_thumbnail(custom, 112, 28, preview_colors)),
-                            QObject::tr("Custom"), QString());
+      run_child([=] {
+        const GradientDefinition current =
+            for_stroke ? static_cast<const GradientDefinition&>(state->settings.stroke.content.gradient)
+                       : static_cast<const GradientDefinition&>(state->settings.fill.gradient);
+        auto& custom = for_stroke ? state->custom_stroke_gradient : state->custom_fill_gradient;
+        const auto selected =
+            request_gradient_manager(window_ptr, *gradient_library, combo->currentData().toString(), current);
+        const bool had_custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty();
+        {
+          QSignalBlocker blocker(combo);
+          combo->clear();
+          populate_gradient_combo(combo);
+          if (had_custom_row) {
+            combo->insertItem(0, QIcon(gradient_thumbnail(custom, 112, 28, preview_colors)),
+                              QObject::tr("Custom"), QString());
+          }
         }
-      }
-      select_gradient_row(combo, current, custom);
-      if (const auto picked = selected.isEmpty() ? -1 : combo->findData(selected); picked >= 0) {
-        combo->setCurrentIndex(picked);
-      }
+        select_gradient_row(combo, current, custom);
+        if (const auto picked = selected.isEmpty() ? -1 : combo->findData(selected); picked >= 0) {
+          combo->setCurrentIndex(picked);
+        }
+        return true;
+      });
     });
     return combo;
   };
@@ -1771,25 +1807,32 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
   left_column->addStretch(1);
   right_column->addStretch(1);
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  // The stay-open window applies every change at once, so it has Close in place of OK and
+  // Cancel and no Preview box.
+  auto* buttons = new QDialogButtonBox(
+      live ? QDialogButtonBox::StandardButtons(QDialogButtonBox::Close)
+           : QDialogButtonBox::StandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel),
+      &dialog);
   auto* reset_button = buttons->addButton(QObject::tr("Reset"), QDialogButtonBox::ResetRole);
   reset_button->setObjectName(QStringLiteral("shapeAppearanceResetButton"));
   reset_button->setToolTip(QObject::tr("Restore the default fill, stroke, opacity, and edge (the geometry stays)"));
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  auto* preview_check = new QCheckBox(QObject::tr("Preview"), &dialog);
-  preview_check->setObjectName(QStringLiteral("shapeAppearancePreviewCheck"));
-  preview_check->setChecked(true);
-  // Preview sits at the left of the button row, before Reset, as in the other
-  // preview dialogs (#582). The box keeps its own stretch between Reset and OK.
+  QObject::connect(buttons, &QDialogButtonBox::accepted, window_ptr, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, window_ptr, &QDialog::reject);
   auto* footer = new QHBoxLayout();
-  footer->addWidget(preview_check);
+  if (!live) {
+    auto* preview_check = new QCheckBox(QObject::tr("Preview"), &dialog);
+    preview_check->setObjectName(QStringLiteral("shapeAppearancePreviewCheck"));
+    preview_check->setChecked(true);
+    // Preview sits at the left of the button row, before Reset, as in the other
+    // preview dialogs (#582). The box keeps its own stretch between Reset and OK.
+    footer->addWidget(preview_check);
+    QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
+      state->settings.preview_enabled = checked;
+      notify();
+    });
+  }
   footer->addWidget(buttons, 1);
   dialog_layout->addLayout(footer);
-  QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
-    state->settings.preview_enabled = checked;
-    notify();
-  });
 
 
   if (batch != nullptr && batch->selected_count > 1) {
@@ -2087,7 +2130,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   // (QWidgetItemV2), which only a widget's own updateGeometry clears (before
   // the dialog shows, the posted layout requests have not run). Clear them so
   // the height counts the visible rows only.
-  QDialog* const dialog_ptr = &dialog;
+  QDialog* const dialog_ptr = window_ptr;
+  QWidget* const host_ptr = &host;
   const auto fitted_dialog_size = [page, scroll, dialog_layout](const QScreen* screen) {
     for (auto* child : page->findChildren<QWidget*>()) {
       child->updateGeometry();
@@ -2123,13 +2167,15 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   // A paint or fill kind switch that adds rows grows the open dialog to show
   // them, up to the screen, instead of leaving a scrollbar that narrows the
   // columns (issue 552). It never shrinks: a size the user dragged larger stays.
-  const auto grow_to_fit = [dialog_ptr, fitted_dialog_size] {
+  const auto grow_to_fit = [dialog_ptr, host_ptr, fitted_dialog_size] {
     if (!dialog_ptr->isVisible()) {
       return;
     }
     const QScreen* screen = dialog_ptr->screen();
     const auto current = dialog_ptr->size();
-    const auto grown = current.expandedTo(fitted_dialog_size(screen));
+    // A page inside the stay-open window: the window's own title bar and margins around it.
+    const auto window_extra = host_ptr == dialog_ptr ? QSize(0, 0) : current - host_ptr->size();
+    const auto grown = current.expandedTo(fitted_dialog_size(screen) + window_extra);
     if (grown == current) {
       return;
     }
@@ -2236,32 +2282,37 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     notify({"fill.kind"});
   });
 
-  QObject::connect(fill_color_button, &QPushButton::clicked, &dialog, [=, &dialog] {
-    const auto saved = state->settings;
-    const auto saved_edits = *edits;
-    const auto& current = saved.fill.color;
-    bool selected = false;
-    const auto apply_color = [=](QColor color) {
-      state->settings.fill.kind = VectorFillKind::Solid;
-      state->settings.fill.color = RgbColor{
-          static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-          static_cast<std::uint8_t>(color.blue())};
-      state->stroke_paint_touched = true;
-      fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
-      notify({"fill.color"});
-    };
-    const auto chosen = request_patchy_color(
-        &dialog, QColor(current.red, current.green, current.blue), QObject::tr("Shape Fill Color"),
-        apply_color, &selected);
-    if (!chosen.has_value()) {
-      state->settings = saved;
-      *edits = saved_edits;
-      *previous = saved;
-      fill_color_button->setIcon(color_swatch_icon(saved.fill.color));
-      notify();
-    } else if (selected || batch == nullptr) {
-      apply_color(*chosen);
-    }
+  QObject::connect(fill_color_button, &QPushButton::clicked, &dialog, [=] {
+    run_child([=] {
+      const auto saved = state->settings;
+      const auto saved_edits = *edits;
+      const auto& current = saved.fill.color;
+      bool selected = false;
+      const auto apply_color = [=](QColor color) {
+        state->settings.fill.kind = VectorFillKind::Solid;
+        state->settings.fill.color = RgbColor{
+            static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+            static_cast<std::uint8_t>(color.blue())};
+        state->stroke_paint_touched = true;
+        fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
+        notify({"fill.color"});
+      };
+      const auto chosen = request_patchy_color(
+          window_ptr, QColor(current.red, current.green, current.blue), QObject::tr("Shape Fill Color"),
+          apply_color, &selected);
+      if (!chosen.has_value()) {
+        state->settings = saved;
+        *edits = saved_edits;
+        *previous = saved;
+        fill_color_button->setIcon(color_swatch_icon(saved.fill.color));
+        notify();
+        return false;
+      }
+      if (selected || batch == nullptr) {
+        apply_color(*chosen);
+      }
+      return true;
+    });
   });
   QObject::connect(fill_gradient_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     if (fill_gradient_combo->currentData().toString().isEmpty()) {
@@ -2333,32 +2384,37 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
                        : std::vector<std::string>{"stroke.enabled"});
   });
 
-  QObject::connect(stroke_color_button, &QPushButton::clicked, &dialog, [=, &dialog] {
-    const auto saved = state->settings;
-    const auto saved_edits = *edits;
-    const auto& current = saved.stroke.content.color;
-    bool selected = false;
-    const auto apply_color = [=](QColor color) {
-      state->settings.stroke.content.kind = VectorFillKind::Solid;
-      state->settings.stroke.content.color = RgbColor{
-          static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-          static_cast<std::uint8_t>(color.blue())};
-      state->stroke_paint_touched = true;
-      stroke_color_button->setIcon(color_swatch_icon(state->settings.stroke.content.color));
-      notify({"stroke.content.color"});
-    };
-    const auto chosen = request_patchy_color(
-        &dialog, QColor(current.red, current.green, current.blue), QObject::tr("Shape Stroke Color"),
-        apply_color, &selected);
-    if (!chosen.has_value()) {
-      state->settings = saved;
-      *edits = saved_edits;
-      *previous = saved;
-      stroke_color_button->setIcon(color_swatch_icon(saved.stroke.content.color));
-      notify();
-    } else if (selected || batch == nullptr) {
-      apply_color(*chosen);
-    }
+  QObject::connect(stroke_color_button, &QPushButton::clicked, &dialog, [=] {
+    run_child([=] {
+      const auto saved = state->settings;
+      const auto saved_edits = *edits;
+      const auto& current = saved.stroke.content.color;
+      bool selected = false;
+      const auto apply_color = [=](QColor color) {
+        state->settings.stroke.content.kind = VectorFillKind::Solid;
+        state->settings.stroke.content.color = RgbColor{
+            static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+            static_cast<std::uint8_t>(color.blue())};
+        state->stroke_paint_touched = true;
+        stroke_color_button->setIcon(color_swatch_icon(state->settings.stroke.content.color));
+        notify({"stroke.content.color"});
+      };
+      const auto chosen = request_patchy_color(
+          window_ptr, QColor(current.red, current.green, current.blue), QObject::tr("Shape Stroke Color"),
+          apply_color, &selected);
+      if (!chosen.has_value()) {
+        state->settings = saved;
+        *edits = saved_edits;
+        *previous = saved;
+        stroke_color_button->setIcon(color_swatch_icon(saved.stroke.content.color));
+        notify();
+        return false;
+      }
+      if (selected || batch == nullptr) {
+        apply_color(*chosen);
+      }
+      return true;
+    });
   });
   QObject::connect(stroke_align_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     state->settings.stroke.alignment =
@@ -2735,7 +2791,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     }
     *refresh_mixed = [=] {
       std::vector<ShapeAppearanceSettings> current;
-      for (const auto& original : batch->originals) current.push_back(edits->applied(original));
+      for (const auto& original : *baselines) current.push_back(edits->applied(original));
       const auto describe_paint_targets = [&](QLabel* label, bool stroke) {
         const auto kind = stroke ? state->settings.stroke.content.kind : state->settings.fill.kind;
         const auto count = std::count_if(current.begin(), current.end(), [&](const auto& value) {
@@ -2776,8 +2832,10 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   // The Fill-only dialog is that fill layer's settings (GitHub issue 580 follow-up), with one
   // fixed title for every fill type and layer name (GitHub #582 follow-up).
   if (fill_layer_only) {
-    dialog.setProperty("fillLayerSettings", true);
-    dialog.setWindowTitle(QObject::tr("Fill Layer Settings"));
+    window.setProperty("fillLayerSettings", true);
+    window.setWindowTitle(QObject::tr("Fill Layer Settings"));
+  } else if (live) {
+    window.setProperty("fillLayerSettings", false);  // the window's last page may have set it
   }
 
   // Value spins commit on Enter/arrows/focus-out only: per-keystroke preview
@@ -2790,6 +2848,51 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     spin->setKeyboardTracking(false);
   }
 
+  ShapeAppearanceBody body;
+  body.fill_layer_only = fill_layer_only;
+  body.fitted_size = fitted_dialog_size;
+  body.settings = [state] { return state->settings; };
+  body.finish = [state, notify] {
+    if (!state->settings.preview_enabled) {
+      state->settings.preview_enabled = true;
+      notify();
+    }
+    return state->settings;
+  };
+  body.rebase = [state, edits, previous, baselines, refresh_mixed,
+                 has_batch = batch != nullptr](std::vector<ShapeAppearanceSettings> current) {
+    *baselines = std::move(current);
+    edits->operations.clear();
+    if (has_batch) state->settings.edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
+    *previous = state->settings;
+    if (*refresh_mixed) (*refresh_mixed)();
+  };
+  return body;
+}
+
+std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
+    QWidget* parent, std::function<void(const ShapeAppearanceSettings&)> preview_changed,
+    ShapeAppearanceSettings initial, ShapeAppearanceSettings reset_defaults,
+    GradientLibrary* gradient_library,
+    PatternLibrary* pattern_library, const PatternStore* document_patterns, RgbColor foreground,
+    RgbColor background, const DocumentFieldUnits& units,
+    const AppearanceDialogContext<ShapeAppearanceSettings>* batch, const ShapeAppearanceShapeSource& custom_shapes) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("shapeAppearanceDialog"));
+  ShapeAppearanceBodyOptions options;
+  options.changed = std::move(preview_changed);
+  options.initial = std::move(initial);
+  options.reset_defaults = std::move(reset_defaults);
+  options.gradient_library = gradient_library;
+  options.pattern_library = pattern_library;
+  options.document_patterns = document_patterns;
+  options.foreground = foreground;
+  options.background = background;
+  options.units = units;
+  options.batch = batch;
+  options.custom_shapes = custom_shapes;
+  const auto body = build_shape_appearance_body(dialog, dialog, std::move(options));
+
   // Open at the size that shows the visible rows. Resizing here, before
   // remember_dialog_position, keeps the centering and on-screen clamp
   // working from the real size.
@@ -2797,16 +2900,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   if (screen == nullptr) {
     screen = QGuiApplication::primaryScreen();
   }
-  dialog.resize(fitted_dialog_size(screen));
+  dialog.resize(body.fitted_size(screen));
 
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  if (!state->settings.preview_enabled) {
-    state->settings.preview_enabled = true;
-    notify();
-  }
-  return state->settings;
+  return body.finish();
 }
 
 }  // namespace patchy::ui

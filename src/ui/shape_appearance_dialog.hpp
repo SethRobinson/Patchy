@@ -4,6 +4,7 @@
 #include "ui/unit_spin_box.hpp"
 #include "ui/appearance_edits.hpp"
 
+#include <QSize>
 #include <QString>
 
 #include <functional>
@@ -12,6 +13,8 @@
 #include <string>
 #include <vector>
 
+class QDialog;
+class QScreen;
 class QWidget;
 
 namespace patchy {
@@ -136,6 +139,48 @@ struct ShapeAppearanceShapeSource {
   std::function<const CustomShapeLibrary*()> library;
   std::function<void(QWidget* parent)> manage;
 };
+
+// The dialog's rows, built into `host` (docs/vector-tools-appearance.md). The modal dialog
+// below builds them into itself; the stay-open Shape Appearance window (shape_appearance_panel)
+// builds a new page for each target it follows, with `window` the top-level window around it.
+enum class ShapeAppearanceBodyMode {
+  Modal,  // Preview, Reset, OK, Cancel: changes are previews until OK
+  Live,   // Reset, Close: every change is applied at once
+};
+
+struct ShapeAppearanceBodyOptions {
+  // Fired with the full settings on every control change.
+  std::function<void(const ShapeAppearanceSettings&)> changed;
+  ShapeAppearanceSettings initial;
+  ShapeAppearanceSettings reset_defaults;
+  GradientLibrary* gradient_library{nullptr};
+  PatternLibrary* pattern_library{nullptr};
+  const PatternStore* document_patterns{nullptr};  // read while building only
+  RgbColor foreground{};
+  RgbColor background{};
+  DocumentFieldUnits units{};
+  const AppearanceDialogContext<ShapeAppearanceSettings>* batch{nullptr};  // copied
+  ShapeAppearanceShapeSource custom_shapes{};
+  ShapeAppearanceBodyMode mode{ShapeAppearanceBodyMode::Modal};
+  // Runs a dialog a row opens (color picker, Gradient Manager, Shapes Manager); `body`
+  // returns false when it was cancelled. Unset: `body` is called directly.
+  std::function<void(const std::function<bool()>& body)> run_child_dialog;
+};
+
+struct ShapeAppearanceBody {
+  bool fill_layer_only{false};
+  // The size of `host` that shows every visible row, capped to the screen.
+  std::function<QSize(const QScreen*)> fitted_size;
+  std::function<ShapeAppearanceSettings()> settings;
+  // The modal dialog's accepted result (turns Preview back on first).
+  std::function<ShapeAppearanceSettings()> finish;
+  // Live: the edits captured so far are applied. `current` is each target's appearance now;
+  // later changes are captured against it.
+  std::function<void(std::vector<ShapeAppearanceSettings> current)> rebase;
+};
+
+[[nodiscard]] ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window,
+                                                             ShapeAppearanceBodyOptions options);
 
 [[nodiscard]] std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QWidget* parent, std::function<void(const ShapeAppearanceSettings&)> preview_changed,
