@@ -90,7 +90,8 @@ Split from [scripting.md](scripting.md). Script and API identifiers are permanen
   face and size commit at every zoom (`ui_script_text_face_ignores_the_options_bar_style`,
   `ui_script_text_size_survives_low_zoom_reedit`, `ui_script_text_runs_create_and_read_back`,
   `ui_script_text_box_wraps_and_aligns`, `ui_script_set_text_runs_edits_existing_layer`).
-  Area text (`{area}`, `layer.textArea`): [area-text.md](area-text.md).
+  Area text (`{area}`, `layer.textArea`): [area-text.md](area-text.md). Text on a path
+  (`{path, pathRange}`, `layer.textPath`, `textPathRange`, `flipTextPath()`): [path-text.md](path-text.md#scripting).
 - **A script move is a Move tool move.** `layer.moveTo` and the `x`/`y` setters shift
   the bounds, then call `translate_moved_layer_metadata` on the layer and every
   descendant: the linked mask, shape model, linked vector mask, smart-object quads and

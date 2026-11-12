@@ -2,8 +2,9 @@
 
 Area text owns a copy of one closed Bézier contour. The Type tool gives existing
 text priority, then the targeted path, then an eligible visible shape under the
-pointer. Editing the source shape does not change the text boundary. Edge-following
-type is a separate feature.
+pointer. Editing the source shape does not change the text boundary. Text that runs
+along a path or a shape's edge is [text on a path](path-text.md): a click on the line
+itself starts that, a click inside the shape starts area text.
 While editing, the frame's corner and side handles scale its contour about the opposite
 corner or side (a side handle along one axis only; [text-tool.md](text-tool.md), issue 684).
 

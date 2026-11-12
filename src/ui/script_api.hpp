@@ -74,6 +74,8 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(QJSValue textRuns READ text_runs)
   Q_PROPERTY(QJSValue textBox READ text_box)
   Q_PROPERTY(QJSValue textArea READ text_area WRITE set_text_area)
+  Q_PROPERTY(QJSValue textPath READ text_path WRITE set_text_path)
+  Q_PROPERTY(QJSValue textPathRange READ text_path_range WRITE set_text_path_range)
   Q_PROPERTY(QString textAlign READ text_align WRITE set_text_align)
   Q_PROPERTY(QJSValue textParagraph READ text_paragraph WRITE set_text_paragraph)
 
@@ -83,6 +85,7 @@ public:
   [[nodiscard]] QString name() const;
   [[nodiscard]] QString id() const;
   Q_INVOKABLE void drawStrokes(const QJSValue& strokes);
+  Q_INVOKABLE void flipTextPath();
   [[nodiscard]] bool is_artboard() const;
   [[nodiscard]] QJSValue artboard() const;
   // Changes the artboard's rect or background; on a top-level group, makes it one; null
@@ -159,6 +162,11 @@ public:
   [[nodiscard]] QJSValue text_box() const;
   [[nodiscard]] QJSValue text_area() const;
   void set_text_area(const QJSValue& area);
+  // Text along a path (docs/path-text.md).
+  [[nodiscard]] QJSValue text_path() const;
+  void set_text_path(const QJSValue& path);
+  [[nodiscard]] QJSValue text_path_range() const;
+  void set_text_path_range(const QJSValue& range);
   [[nodiscard]] QString text_align() const;
   void set_text_align(const QString& align);
   [[nodiscard]] QJSValue text_paragraph() const;

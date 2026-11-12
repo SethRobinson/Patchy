@@ -15949,6 +15949,10 @@ Sostituirlo?</translation>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>Mostra le maniglie di questa sfumatura sulla tela con qualsiasi strumento finché questa finestra è aperta. Trascinale per spostare la sfumatura e le sue interruzioni. Solo una sfumatura alla volta mostra le maniglie.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>Il motore di testo conservato in questo documento non può salvare nuovo testo su un tracciato.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

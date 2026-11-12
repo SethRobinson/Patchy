@@ -182,6 +182,10 @@ const Layer* topmost_text_layer_at_recursive(const std::vector<Layer>& layers, Q
         if (TextAreaGeometry(*area).contains(document_point)) return &layer;
       } else if (layer.bounds().contains(document_point.x(), document_point.y())) {
         return &layer;
+      } else if (const auto path = text_path_in_document(layer);
+                 path && TextPathCurve(*path).nearest(document_point.x(), document_point.y()).gap <= 4.0) {
+        // Path text: its contour too, so a click on the bare part of the path opens the layer.
+        return &layer;
       }
     }
   }
@@ -2211,6 +2215,54 @@ void CanvasWidget::finish_text_layer_move() {
   if (auto finished = std::exchange(text_layer_move_finished_, {}); finished) {
     finished();
   }
+}
+
+std::optional<TextPathFrame> CanvasWidget::text_path_at(QPointF document_point) const {
+  if (!document_ || topmost_text_layer_at(document_point.toPoint())) return std::nullopt;
+  // Six screen pixels either side of the line, never under a pixel and a half of the document
+  // (the Type tool reports whole document pixels).
+  const double reach = std::max(1.5, 6.0 / std::max(0.0001, zoom()));
+  std::optional<TextPathFrame> best;
+  double best_gap = reach;
+  const auto consider = [&](const VectorPath& source) {
+    for (const auto& subpath : source.subpaths) {
+      VectorPath contour;
+      contour.subpaths.push_back(subpath);
+      contour.subpaths.front().op = PathCombineOp::Xor;
+      contour.subpaths.front().shape_group = 0;
+      if (!valid_text_path(contour)) continue;
+      const auto bounds = contour.bounds();
+      if (!bounds || document_point.x() < bounds->left - reach || document_point.x() > bounds->right + reach ||
+          document_point.y() < bounds->top - reach || document_point.y() > bounds->bottom + reach) {
+        continue;
+      }
+      const TextPathCurve curve(contour);
+      if (!curve.valid()) continue;
+      const auto nearest = curve.nearest(document_point.x(), document_point.y());
+      if (nearest.gap > best_gap) continue;
+      best_gap = nearest.gap;
+      const double count = static_cast<double>(curve.segment_count());
+      TextPathRange range{nearest.parameter, curve.closed() ? nearest.parameter + count : count};
+      // A click on the last few pixels of an open contour leaves no room: take all of it.
+      if (!curve.closed() && curve.length() - nearest.distance < 8.0) range = {0.0, count};
+      const auto normalized = normalized_text_path_range(contour, range);
+      best = TextPathFrame{std::move(contour), normalized};
+    }
+  };
+  if (target_path_visible_) {
+    if (const auto* target = path_edit_target_path()) consider(*target);
+  }
+  if (best) return best;
+  const auto visit = [&](auto&& self, const std::vector<Layer>& layers) -> void {
+    for (auto it = layers.rbegin(); it != layers.rend() && !best; ++it) {
+      if (!it->visible()) continue;
+      self(self, it->children());
+      if (best) return;
+      if (const auto* shape = it->vector_shape(); shape && !shape->path_disabled) consider(shape->path);
+    }
+  };
+  visit(visit, std::as_const(*document_).layers());
+  return best;
 }
 
 std::optional<VectorPath> CanvasWidget::text_area_at(QPoint document_point) const {

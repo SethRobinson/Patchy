@@ -15893,6 +15893,10 @@ Do you want to replace it?</source>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>이 창이 열려 있는 동안 어떤 도구에서도 이 그레이디언트의 핸들을 캔버스에 표시합니다. 핸들을 드래그하여 그레이디언트와 정지점을 옮길 수 있습니다. 한 번에 하나의 그레이디언트만 핸들을 표시합니다.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>이 문서에 보존된 텍스트 엔진은 새로운 패스 위의 텍스트를 저장할 수 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

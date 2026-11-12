@@ -509,6 +509,21 @@ interface PatchyLayer {
   /** Detached boundary in document pixels. One closed contour; null converts area text to box text. */
   textArea: PatchyVectorPath | null;
   /**
+   * Text on a path: a detached snapshot of the contour the text runs along, in document pixels,
+   * or null. Assign one open or closed contour to set the text along it (the range stays when
+   * the new contour has as many segments); null leaves a rectangular text box.
+   */
+  textPath: PatchyVectorPath | null;
+  /**
+   * Text on a path: where the text starts and ends on its contour, or null. The whole part of a
+   * value names a segment of the contour and the fraction is the place inside it, so an open
+   * contour of N segments takes 0 to N; on a closed one the end may pass the seam, at most once
+   * around (end - start <= N).
+   */
+  textPathRange: { start: number; end: number } | null;
+  /** Text on a path: reverses the contour, so the text runs back along it on the other side. */
+  flipTextPath(): void;
+  /**
    * Text layers: the first paragraph's alignment; setting it aligns every paragraph and re-renders.
    * The justify modes differ in a box's last line: left ("justify"), centered, right, or spread
    * ("justifyAll").
@@ -1262,6 +1277,13 @@ interface PatchyDocument {
     box?: { width: number; height: number };
     /** Copy a closed contour in document coordinates. Mutually exclusive with box; x/y are ignored. */
     area?: PatchyVectorPath;
+    /**
+     * Set the text along a copy of one open or closed contour in document coordinates (an open
+     * one has closed: false). Mutually exclusive with box and area; x/y are ignored.
+     */
+    path?: PatchyVectorPath;
+    /** With path: the start and end on the contour, in segment units (see layer.textPathRange). Default: all of it. */
+    pathRange?: { start: number; end: number };
     align?: 'left' | 'center' | 'right' | 'justify' | 'justifyCenter' | 'justifyRight' | 'justifyAll';
     paragraph?: { firstLineIndent?: number; startIndent?: number; endIndent?: number; spaceBefore?: number; spaceAfter?: number };
   }): PatchyLayer;

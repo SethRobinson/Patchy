@@ -14,6 +14,7 @@
 #include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
 #include "core/text_area.hpp"
+#include "core/text_path.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -1009,7 +1010,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_from_templa
     if (block.key != "TySh" && block.key != "tySh") {
       continue;
     }
-    const auto old_text = extract_engine_data_text(block.payload, text_area_for_layer(layer).has_value());
+    const auto old_text = extract_engine_data_text(block.payload, text_layer_has_contour(layer));
     if (!old_text.has_value()) {
       continue;
     }
@@ -1153,7 +1154,7 @@ double point_text_baseline_offset(const Layer& layer, const PsdTextGeometry& geo
 }
 
 double box_text_baseline_inset(const Layer& layer) {
-  if (layer_text_is_vertical(layer) || text_area_for_layer(layer)) {
+  if (layer_text_is_vertical(layer) || text_layer_has_contour(layer)) {
     return 0.0;
   }
   const auto stored = layer_metadata_value(layer, kLayerMetadataTextBoxBaselineInset);
@@ -2174,7 +2175,7 @@ void override_text_index_in_payload(std::vector<std::uint8_t>& payload, std::int
 
 std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer, const Rect& bounds) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
-  if (!text.has_value() || (text->empty() && !text_area_for_layer(layer))) {
+  if (!text.has_value() || (text->empty() && !text_layer_has_contour(layer))) {
     return std::nullopt;
   }
   auto runs = text_runs_for_layer(layer, *text);
@@ -2240,7 +2241,7 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
       inputs.box_height = std::max(1, parse_int_or(*height, bounds.height));
     }
     // The file's own fractional box, when a re-render left the box alone.
-    if (!text_area_for_layer(layer) && !should_preserve_imported_text_geometry(layer)) {
+    if (!text_layer_has_contour(layer) && !should_preserve_imported_text_geometry(layer)) {
       if (const auto file_size = box_text_file_size(layer, inputs.box_width, inputs.box_height); file_size.has_value()) {
         inputs.box_width = (*file_size)[0];
         inputs.box_height = (*file_size)[1];
@@ -2249,6 +2250,10 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
   }
   inputs.vertical = layer_text_is_vertical(layer);
   inputs.area = text_area_for_layer(layer);
+  if (auto frame = text_path_frame_for_layer(layer)) {
+    inputs.path = std::move(frame->path);
+    inputs.path_range = frame->range;
+  }
   inputs.photoshop_layout =
       layer_metadata_value(layer, kLayerMetadataTextLayoutMode).value_or(std::string_view{}) == kTextLayoutModePhotoshop;
   inputs.run_font_names.reserve(runs.size());
@@ -2262,7 +2267,7 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
 
 bool text_layer_keeps_photoshop_type_block(const Layer& layer) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
-  return text.has_value() && (!text->empty() || text_area_for_layer(layer)) && should_preserve_imported_text_geometry(layer) &&
+  return text.has_value() && (!text->empty() || text_layer_has_contour(layer)) && should_preserve_imported_text_geometry(layer) &&
          photoshop_type_tool_payload_from_template(layer, *text).has_value();
 }
 
@@ -2270,7 +2275,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
                                                                                const Rect& bounds,
                                                                                std::optional<std::int32_t> text_index_override) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
-  if (!text.has_value() || (text->empty() && !text_area_for_layer(layer))) {
+  if (!text.has_value() || (text->empty() && !text_layer_has_contour(layer))) {
     return std::nullopt;
   }
   if (should_preserve_imported_text_geometry(layer)) {
@@ -2301,7 +2306,18 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   if (text_index_override.has_value()) {
     geometry.text_index = *text_index_override;
   }
-  if (boxed_text && !warp_active && !inputs->area.has_value() && !should_preserve_imported_text_geometry(layer)) {
+  if (inputs->path.has_value()) {
+    // Photoshop records path text in the TySh as a box holding the contour's bounds, in the
+    // text-local space its transform maps (docs/path-text.md); the contour is in the Txt2 frame.
+    if (const auto contour_bounds = inputs->path->bounds()) {
+      geometry.box_bounds.left = contour_bounds->left;
+      geometry.box_bounds.top = contour_bounds->top;
+      geometry.box_bounds.right = contour_bounds->right;
+      geometry.box_bounds.bottom = contour_bounds->bottom;
+    }
+  }
+  if (boxed_text && !warp_active && !inputs->area.has_value() && !inputs->path.has_value() &&
+      !should_preserve_imported_text_geometry(layer)) {
     // The geometry was laid out on the whole-pixel box; the file's fractional size
     // (text_engine_inputs_for_layer) goes into the box's far edges.
     const auto extra_width = inputs->box_width - static_cast<double>(text_bounds.width);

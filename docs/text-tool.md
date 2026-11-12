@@ -1,6 +1,6 @@
 # Text tool and Character panel
 
-Text sessions, commit/cancel and the Character panel. See [text-render-calibration.md](text-render-calibration.md) for typography, [area-text.md](area-text.md) for shape boundaries, [warp-text.md](warp-text.md) for Warp Text, [text-outlines.md](text-outlines.md) for Convert to Shape and [testing.md](testing.md) for font registration.
+Text sessions, commit/cancel and the Character panel. See [text-render-calibration.md](text-render-calibration.md) for typography, [area-text.md](area-text.md) for shape boundaries, [path-text.md](path-text.md) for text along a path, [warp-text.md](warp-text.md) for Warp Text, [text-outlines.md](text-outlines.md) for Convert to Shape and [testing.md](testing.md) for font registration.
 
 `text_font_service` owns font resolution; `text_document` constructs the owning `QTextDocument`; `text_render` builds and draws the shared plan. MainWindow owns editor sessions, commit/cancel and layer metadata adaptation. Extend these interfaces instead of adding member-file splits.
 

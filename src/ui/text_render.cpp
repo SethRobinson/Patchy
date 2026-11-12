@@ -48,6 +48,8 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
                                     const QTransform& document_transform, QPainter& painter, bool snap = true,
                                     double strong_stroke = 0.0);
 void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter);
+void draw_path_text_plan(const TextRenderPlan& plan, QPainter& painter);
+QRectF path_text_ink_rect(const QTextDocument& document, const TextPathLinePlan& plan, double strong_stroke);
 TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const TextToolSettings& settings,
                                                const QString& rich_text_runs);
 
@@ -265,6 +267,12 @@ std::vector<TextDecorationRect> text_decorations_for_lines(const QTextDocument& 
     }
   }
   return bars;
+}
+
+// A run's colour: its format's foreground, black for a format that names none.
+QColor text_format_color(const QTextCharFormat& format) {
+  const auto color = format.foreground().color();
+  return color.isValid() ? color : QColor(Qt::black);
 }
 
 // The pen a glyph-path draw strokes with: the format's faux-bold outline, widened by Strong
@@ -545,7 +553,13 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
                                                   : snap_to_pixel_grid(document_transform_in.dx()),
                                 snap_to_pixel_grid(document_transform_in.dy()));
   double fold_scale = 1.0;
-  if (settings.photoshop_layout && !settings.area) {
+  const bool on_path = text_settings_on_path(settings);
+  if (on_path) {
+    // The contour places every glyph at a fractional spot of its own, so nothing snaps to the
+    // pixel grid: the transform is used as stored.
+    document_transform = document_transform_in;
+  }
+  if (settings.photoshop_layout && !settings.area && !on_path) {
     const auto vertical_scale =
         document_transform_in.isIdentity() ? 1.0 : std::hypot(document_transform_in.m21(), document_transform_in.m22());
     if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
@@ -581,6 +595,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       fold_scale * (std::isfinite(layout_scale_in) && layout_scale_in > 0.01 ? layout_scale_in : 1.0);
   TextRenderPlan result;
   result.area = settings.area.has_value();
+  result.path = on_path;
   result.built = build_text_render_document(settings, color, max_width, paragraph_runs, rich_text_runs,
                                             metric_scale, layout_scale, fold_scale);
   auto& document = *result.built.document;
@@ -600,7 +615,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   QRectF local_rect;
   std::vector<BoxTextLineRenderItem> line_render_items;
   PhotoshopTextLayoutPlan photoshop_plan;
-  if (settings.photoshop_layout && !settings.vertical && !settings.area) {
+  if (settings.photoshop_layout && !settings.vertical && !settings.area && !on_path) {
     photoshop_plan = photoshop_text_layout_plan(document, settings.boxed);
   }
   if (settings.vertical) {
@@ -608,6 +623,20 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     local_rect = vertical.local_rect;
     result.vertical = true;
     result.vertical_plan = std::move(vertical.plan);
+  } else if (on_path) {
+    // The first line only, in straight space; the draw pass sets it along the contour, so the
+    // raster covers the glyphs where the contour puts them.
+    result.path_plan = text_path_line_plan(document, *settings.path, settings.path_range, fold_scale);
+    result.hidden_lines = result.path_plan.hidden_lines;
+    if (result.path_plan.valid) {
+      line_render_items.push_back(result.path_plan.line);
+    }
+    const auto strong_pen = settings.anti_alias == kTextAntiAliasStrong ? kStrongAntiAliasStrokePixels : 0.0;
+    const auto ink = path_text_ink_rect(document, result.path_plan, strong_pen);
+    const auto start = result.path_plan.map(QPointF(0.0, 0.0));
+    local_rect = ink.isEmpty() ? QRectF(std::floor(start.x()), std::floor(start.y()), 1.0, 1.0)
+                               : QRectF(QPointF(std::floor(ink.left()) - 2.0, std::floor(ink.top()) - 2.0),
+                                        QPointF(std::ceil(ink.right()) + 2.0, std::ceil(ink.bottom()) + 2.0));
   } else if (settings.area) {
     auto area_plan = area_text_layout_plan(document, *settings.area, fold_scale);
     const TextAreaGeometry geometry(*settings.area, fold_scale);
@@ -706,7 +735,10 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   if (!settings.vertical && !line_render_items.empty()) {
     result.decorations = text_decorations_for_lines(document, line_render_items);
     for (const auto& bar : result.decorations) {
-      if (settings.boxed) {
+      if (on_path) {
+        // Bars are straight-space rects; the raster holds the strips they bend into.
+        local_rect = local_rect.united(result.path_plan.strip(bar.rect).boundingRect().adjusted(-1.0, -1.0, 1.0, 1.0));
+      } else if (settings.boxed) {
         // The frame keeps its origin and width (pixels-only callers place the buffer at the
         // frame corner); a bar below the last line only grows the bottom.
         local_rect.setBottom(std::max(local_rect.bottom(), std::ceil(bar.rect.bottom()) + 1.0));
@@ -736,10 +768,11 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   // 100.5 + 34.67 = 135.17 lands on 135, not on 100.5 -> 101 + 34.67 = 135.67 -> 136), so a plan
   // whose glyphs snap individually at draw time keeps its fractional line starts; the first
   // glyph's own rounding is the line-start rule.
-  const bool pixel_align_glyphs = settings.photoshop_layout && !settings.vertical && !line_render_items.empty() &&
+  const bool pixel_align_glyphs = settings.photoshop_layout && !settings.vertical && !on_path &&
+                                  !line_render_items.empty() &&
                                   document_transform.m12() == 0.0 && document_transform.m21() == 0.0 &&
                                   document_transform.m11() > 0.0 && document_transform.m22() > 0.0;
-  if (round_line_starts && !pixel_align_glyphs) {
+  if (round_line_starts && !pixel_align_glyphs && !on_path) {
     if (line_render_items.empty() || settings.vertical) {
       // No per-line plan to adjust (vertical type, drawContents fallback): the anchor rounds.
       document_transform =
@@ -853,10 +886,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
       continue;
     }
     const auto format = fragment.charFormat();
-    auto color = format.foreground().color();
-    if (!color.isValid()) {
-      color = QColor(Qt::black);
-    }
+    const auto color = text_format_color(format);
     const auto outline = glyph_outline_pen(format, color, strong_stroke);
     const bool outlined = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
     // Faux italic is a per-run flag: only this fragment's glyphs lean, sheared about the line's
@@ -1024,6 +1054,187 @@ void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter) {
   }
 }
 
+// ---- Text along a path (docs/path-text.md) ----
+//
+// The line is laid out straight (TextPathLinePlan); each glyph is then drawn through its own rigid
+// placement, turned about the middle of its advance, which sits on the contour that far along the
+// range. Photoshop 2026 captures: glyph middles advance by arc length, each glyph lies along the
+// tangent at its middle, the baseline is on the contour, a baseline shift moves a glyph along the
+// normal. A glyph with no advance of its own (a combining mark) rides with the glyph before it.
+namespace {
+
+struct PathGlyph {
+  QRawFont font;
+  quint32 index{0};
+  QPointF position;  // straight space
+  double center_x{0.0};
+  double image_scale{1.0};  // a stretched face: the unstretched image scaled in x
+};
+
+struct PathFragment {
+  QTextCharFormat format;
+  QColor color;
+  std::vector<PathGlyph> glyphs;
+};
+
+std::vector<PathFragment> path_line_fragments(const QTextBlock& block, const BoxTextLineRenderItem& item) {
+  std::vector<PathFragment> fragments;
+  const auto& line = item.line;
+  if (!block.isValid() || !line.isValid() || line.textLength() <= 0) {
+    return fragments;
+  }
+  const int line_start = block.position() + line.textStart();
+  const int line_end = line_start + line.textLength();
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0) {
+      continue;
+    }
+    const int from = std::max(fragment.position(), line_start);
+    const int to = std::min(fragment.position() + fragment.length(), line_end);
+    if (to <= from) {
+      continue;
+    }
+    PathFragment out;
+    out.format = fragment.charFormat();
+    out.color = text_format_color(out.format);
+    // The stretched-face rule of draw_line_glyphs_pixel_aligned: draw the unstretched image
+    // through the advance ratio the font really delivered.
+    QFont unstretched = out.format.font();
+    unstretched.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+    double image_scale = 1.0;
+    if (unstretched.stretch() != 100 && unstretched.stretch() != QFont::AnyStretch) {
+      const auto current = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+      unstretched.setStretch(QFont::AnyStretch);
+      const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+      if (reference > 0.0 && current > 0.0) {
+        image_scale = current / reference;
+      }
+    }
+    const bool scale_images = std::abs(image_scale - 1.0) > 1e-6;
+    const double shift = out.format.property(kTextBaselineShiftFormatProperty).toDouble();
+    for (const auto& run : fragment_glyph_runs(block, line, from, to, out.format)) {
+      const auto indexes = run.glyphIndexes();
+      const auto positions = run.positions();
+      auto glyph_font = run.rawFont();
+      double glyph_scale = 1.0;
+      if (scale_images) {
+        QFont face = unstretched;
+        if (glyph_font.familyName() != QFontInfo(unstretched).family()) {
+          face = QFont(glyph_font.familyName());
+          face.setStyleName(glyph_font.styleName());
+          face.setHintingPreference(unstretched.hintingPreference());
+        }
+        auto image_font = QRawFont::fromFont(face);
+        if (image_font.isValid()) {
+          image_font.setPixelSize(glyph_font.pixelSize());
+        }
+        if (image_font.isValid() && image_font.familyName() == glyph_font.familyName()) {
+          glyph_font = image_font;
+          glyph_scale = image_scale;
+        }
+      }
+      const auto advances = glyph_font.advancesForGlyphIndexes(indexes);
+      for (qsizetype i = 0; i < indexes.size() && i < positions.size(); ++i) {
+        PathGlyph glyph;
+        glyph.font = glyph_font;
+        glyph.index = indexes[i];
+        glyph.image_scale = glyph_scale;
+        // QGlyphRun positions omit the char format's baseline offset and are relative to the
+        // layout, so add the origin that puts the baseline at y 0.
+        glyph.position = item.block_origin + positions[i] - QPointF(0.0, shift);
+        const double advance = i < advances.size() ? advances[i].x() * glyph_scale : 0.0;
+        if (advance > 0.0 || out.glyphs.empty()) {
+          glyph.center_x = glyph.position.x() + std::max(0.0, advance) / 2.0;
+        } else {
+          glyph.center_x = out.glyphs.back().center_x;
+        }
+        out.glyphs.push_back(std::move(glyph));
+      }
+    }
+    fragments.push_back(std::move(out));
+  }
+  return fragments;
+}
+
+}  // namespace
+
+QRectF path_text_ink_rect(const QTextDocument& document, const TextPathLinePlan& plan, double strong_stroke) {
+  QRectF ink;
+  if (!plan.valid) {
+    return ink;
+  }
+  const auto block = document.findBlock(plan.line.block_position);
+  for (const auto& fragment : path_line_fragments(block, plan.line)) {
+    const auto outline = glyph_outline_pen(fragment.format, fragment.color, strong_stroke);
+    const double pad = (outline.style() != Qt::NoPen ? outline.widthF() / 2.0 : 0.0) +
+                       (fragment.format.property(kTextFauxItalicFormatProperty).toBool() ? 1.0 : 0.0);
+    for (const auto& glyph : fragment.glyphs) {
+      auto box = glyph.font.boundingRect(glyph.index);
+      if (box.isEmpty()) {
+        continue;
+      }
+      box = QRectF(box.left() * glyph.image_scale, box.top(), box.width() * glyph.image_scale, box.height());
+      if (fragment.format.property(kTextFauxItalicFormatProperty).toBool()) {
+        box.setRight(box.right() + kFauxItalicSlant * std::max(0.0, -box.top()));
+        box.setLeft(box.left() - kFauxItalicSlant * std::max(0.0, box.bottom()));
+      }
+      box = box.translated(glyph.position).adjusted(-pad, -pad, pad, pad);
+      const auto placed = plan.glyph_transform(glyph.center_x).mapRect(box);
+      ink = ink.isNull() ? placed : ink.united(placed);
+    }
+  }
+  return ink;
+}
+
+void draw_path_text_plan(const TextRenderPlan& plan, QPainter& painter) {
+  if (!plan.path_plan.valid || plan.built.document == nullptr) {
+    return;
+  }
+  const auto& path = plan.path_plan;
+  const auto block = plan.built.document->findBlock(path.line.block_position);
+  for (const auto& fragment : path_line_fragments(block, path.line)) {
+    const auto outline = glyph_outline_pen(fragment.format, fragment.color, plan.strong_stroke);
+    const bool outlined = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
+    const bool faux_italic = fragment.format.property(kTextFauxItalicFormatProperty).toBool();
+    for (const auto& glyph : fragment.glyphs) {
+      painter.save();
+      painter.setTransform(path.glyph_transform(glyph.center_x), true);
+      if (faux_italic) {
+        painter.setTransform(faux_italic_shear(0.0), true);
+      }
+      painter.translate(glyph.position);
+      if (std::abs(glyph.image_scale - 1.0) > 1e-6) {
+        painter.scale(glyph.image_scale, 1.0);
+      }
+      if (outlined) {
+        painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+        const auto outline_path = glyph.font.pathForGlyph(glyph.index);
+        painter.fillPath(outline_path, fragment.color);
+        painter.strokePath(outline_path, outline);
+      } else {
+        QGlyphRun single;
+        single.setRawFont(glyph.font);
+        single.setGlyphIndexes({glyph.index});
+        single.setPositions({QPointF(0.0, 0.0)});
+        draw_document_glyph_run(painter, QPointF(0.0, 0.0), single, fragment.color);
+      }
+      painter.restore();
+    }
+  }
+  // Underline and strikethrough bars follow the contour as strips.
+  if (!plan.decorations.empty()) {
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+    painter.setPen(Qt::NoPen);
+    for (const auto& bar : plan.decorations) {
+      painter.setBrush(bar.color);
+      painter.drawPolygon(path.strip(bar.rect));
+    }
+    painter.restore();
+  }
+}
+
 void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
   auto& document = *plan.built.document;
   if (plan.has_document_transform) {
@@ -1031,6 +1242,10 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
   }
   if (plan.vertical) {
     draw_vertical_text_plan(plan, painter);
+    return;
+  }
+  if (plan.path) {
+    draw_path_text_plan(plan, painter);
     return;
   }
   if (!plan.line_render_items.empty() || plan.area) {
@@ -1091,7 +1306,8 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
 TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const TextToolSettings& settings,
                                                const QString& rich_text_runs) {
   TextLayoutMetrics metrics;
-  if (plan.built.document == nullptr || plan.vertical || settings.vertical) {
+  // Path text has no anchor, baseline or leading to hand over: the contour places it.
+  if (plan.built.document == nullptr || plan.vertical || settings.vertical || plan.path) {
     return metrics;
   }
   const auto& document = *plan.built.document;

@@ -1365,7 +1365,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       update();
       return;
     }
-    if (text_area_at(document_point)) {
+    if (text_path_at(QPointF(document_point)) || text_area_at(document_point)) {
       if (text_requested_callback_) text_requested_callback_(document_point, QRect());
       event->accept();
       update();

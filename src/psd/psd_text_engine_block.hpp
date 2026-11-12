@@ -9,6 +9,7 @@
 
 #include "psd/engine_data.hpp"
 #include "psd/psd_text_runs.hpp"
+#include "core/text_path.hpp"
 #include "core/vector_shape.hpp"
 #include "core/document.hpp"
 
@@ -48,6 +49,10 @@ struct TextEngineInputs {
   double box_height{0.0};
   bool vertical{false};
   std::optional<VectorPath> area;
+  // Text along a path (docs/path-text.md): the contour in text-local coordinates and its range.
+  // Excludes `area`; the flow stays `boxed`, as for area text.
+  std::optional<VectorPath> path{};
+  TextPathRange path_range{};
   // The layer is laid out by Photoshop's rules (kLayerMetadataTextLayoutMode): its box frame
   // then keeps Photoshop's own first-baseline rule (the ascent) instead of the cap-height rule a
   // Qt-natural Patchy box is written with (author_frame).
@@ -121,9 +126,12 @@ struct TextParagraphComposer {
 };
 
 struct TextFrameGeometry {
-  enum class Kind { Point, Box, Area, Unsupported };
+  enum class Kind { Point, Box, Area, Path, Unsupported };
   Kind kind{Kind::Unsupported};
   std::optional<VectorPath> area;
+  // Kind::Path: the contour (one open or closed subpath) and its start/end range.
+  std::optional<VectorPath> path{};
+  TextPathRange path_range{};
   // One entry per paragraph run of the object; empty when no paragraph supplies a size.
   std::vector<TextParagraphFontSize> paragraph_font_sizes{};
   // One entry per style run of the object; empty when no run turns a feature on.

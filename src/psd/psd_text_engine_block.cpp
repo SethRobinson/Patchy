@@ -274,6 +274,74 @@ int TextEngineBlock::font_index(const std::string& postscript_name) {
   return static_cast<int>(fonts->list.size() - 1U);
 }
 
+// A path-text frame (docs/path-text.md): /0/2 holds only the type (/0 2), the start/end range
+// (/6) and an optional affine (/2); /0/1/0 is the contour, eight numbers per cubic segment.
+// Any other key (vertical type's /1, settings Patchy has not seen) leaves the layer protected.
+static TextFrameGeometry path_frame_geometry(const EngineNode& frame) {
+  const auto* settings = frame.at_path({"0", "2"});
+  if (!settings || !settings->is_dict()) return {};
+  for (const auto& entry : settings->dict) {
+    if (entry.key != "0" && entry.key != "2" && entry.key != "6") return {};
+  }
+  const auto* marker = frame.at_path({"0", "2", "6"});
+  const auto start = marker->list[0].number();
+  const auto end = marker->list[1].number();
+  if (!start || !end || !std::isfinite(*start) || !std::isfinite(*end) || !(*end > *start)) return {};
+  const auto* coords = frame.at_path({"0", "1", "0"});
+  if (!coords || !coords->is_list() || coords->list.size() < 8 || coords->list.size() % 8 != 0 ||
+      coords->list.size() > kTextPathMaxAnchors * 8U) return {};
+  std::vector<double> values;
+  values.reserve(coords->list.size());
+  for (const auto& node : coords->list) {
+    const auto value = node.number();
+    if (!value || !std::isfinite(*value) || std::abs(*value) > 1000000.0) return {};
+    values.push_back(*value);
+  }
+  // Consecutive segments share their end points; the contour is closed when the last one ends
+  // where the first starts (the frame has no closed flag).
+  for (std::size_t i = 8; i < values.size(); i += 8) {
+    if (std::abs(values[i] - values[i - 2]) > 0.0001 || std::abs(values[i + 1] - values[i - 1]) > 0.0001) return {};
+  }
+  const bool closed = std::abs(values[0] - values[values.size() - 2]) <= 0.0001 &&
+                      std::abs(values[1] - values[values.size() - 1]) <= 0.0001;
+  VectorPath path;
+  auto& sub = path.subpaths.emplace_back();
+  sub.op = PathCombineOp::Xor;
+  sub.closed = closed;
+  const std::size_t segments = values.size() / 8;
+  for (std::size_t s = 0; s < segments; ++s) {
+    const std::size_t i = s * 8;
+    PathAnchor anchor{values[i], values[i + 1], values[i], values[i + 1], values[i + 2], values[i + 3], false};
+    if (s > 0 || closed) {
+      const std::size_t previous = (s == 0 ? segments - 1 : s - 1) * 8;
+      anchor.in_x = values[previous + 4];
+      anchor.in_y = values[previous + 5];
+    }
+    sub.anchors.push_back(anchor);
+  }
+  if (!closed) {
+    const std::size_t last = (segments - 1) * 8;
+    sub.anchors.push_back({values[last + 6], values[last + 7], values[last + 4], values[last + 5],
+                           values[last + 6], values[last + 7], false});
+  }
+  if (const auto* matrix = frame.at_path({"0", "2", "2"})) {
+    if (!matrix->is_list() || matrix->list.size() != 6) return {};
+    std::array<double, 6> affine{};
+    for (std::size_t i = 0; i < affine.size(); ++i) {
+      const auto value = matrix->list[i].number();
+      if (!value || !std::isfinite(*value)) return {};
+      affine[i] = *value;
+    }
+    transform_vector_path(path, affine);
+  }
+  if (!valid_text_path(path)) return {};
+  TextFrameGeometry geometry;
+  geometry.kind = TextFrameGeometry::Kind::Path;
+  geometry.path_range = normalized_text_path_range(path, {*start, *end});
+  geometry.path = std::move(path);
+  return geometry;
+}
+
 TextFrameGeometry TextEngineBlock::object_geometry(std::size_t index) const {
   const auto fi = object_frame_index(index);
   const auto* frame_list = root_.at_path({"0", "8", "0"});
@@ -282,6 +350,9 @@ TextFrameGeometry TextEngineBlock::object_geometry(std::size_t index) const {
   const auto* marker = frame.at_path({"0", "2", "6"});
   if (!marker || !marker->is_list() || marker->list.size() != 2) return {};
   const auto mode = marker->list[0].number();
+  if (const auto* type = frame.at_path({"0", "2", "0"}); type && type->integer() == 2) {
+    return path_frame_geometry(frame);
+  }
   if (!mode || marker->list[1].number() != mode) return {};
   if (*mode == -1.0) return {TextFrameGeometry::Kind::Point, std::nullopt};
   if (*mode == -2.0) return {TextFrameGeometry::Kind::Box, std::nullopt};
@@ -676,6 +747,21 @@ void import_text_frame_geometry(Document& document) {
           layer.metadata()[kLayerMetadataTextArea] = serialize_vector_path(*geometry.area);
           layer.metadata()[kLayerMetadataTextFlow] = "box";
           layer.metadata().erase(kLayerMetadataTextGeometryProtected);
+        } else if (geometry.kind == TextFrameGeometry::Kind::Path) {
+          // The same rule as the area contour above: Patchy's own handle-link flags come back
+          // only when the native contour is exactly the one Patchy saved.
+          if (const auto stored = text_path_for_layer(std::as_const(layer)); stored &&
+              stored->subpaths.front().anchors.size() == geometry.path->subpaths.front().anchors.size()) {
+            auto linked = *geometry.path;
+            for (std::size_t a = 0; a < linked.subpaths.front().anchors.size(); ++a)
+              linked.subpaths.front().anchors[a].smooth = stored->subpaths.front().anchors[a].smooth;
+            if (linked == *stored) geometry.path = std::move(linked);
+          }
+          layer.metadata()[kLayerMetadataTextPath] = serialize_vector_path(*geometry.path);
+          layer.metadata()[kLayerMetadataTextPathRange] = serialize_text_path_range(geometry.path_range);
+          layer.metadata().erase(kLayerMetadataTextArea);
+          layer.metadata()[kLayerMetadataTextFlow] = "box";
+          layer.metadata().erase(kLayerMetadataTextGeometryProtected);
         } else if (geometry.kind == TextFrameGeometry::Kind::Unsupported) {
           layer.metadata()[kLayerMetadataTextGeometryProtected] = "true";
         }
@@ -687,6 +773,25 @@ void import_text_frame_geometry(Document& document) {
 }
 
 EngineNode TextEngineBlock::author_frame(const TextEngineInputs& inputs) const {
+  if (inputs.path && valid_text_path(*inputs.path)) {
+    // Photoshop's own path-text frame, key for key: the contour's cubic segments, the frame
+    // type and the range. It carries no /11 and no baseline rule (docs/path-text.md).
+    auto contour = engine_list();
+    const auto& sub = inputs.path->subpaths.front();
+    const auto segments = static_cast<std::size_t>(text_path_segment_count(*inputs.path));
+    for (std::size_t i = 0; i < segments; ++i) {
+      const auto& a = sub.anchors[i];
+      const auto& b = sub.anchors[(i + 1) % sub.anchors.size()];
+      for (double v : {a.anchor_x, a.anchor_y, a.out_x, a.out_y, b.in_x, b.in_y, b.anchor_x, b.anchor_y}) {
+        contour.list.push_back(engine_number(v));
+      }
+    }
+    const auto range = normalized_text_path_range(*inputs.path, inputs.path_range);
+    auto path_settings = engine_dict_of(
+        {{"0", engine_integer(2)}, {"6", engine_list_of({engine_number(range.start), engine_number(range.end)})}});
+    auto path_frame = engine_dict_of({{"1", engine_dict_of({{"0", std::move(contour)}})}, {"2", std::move(path_settings)}});
+    return engine_dict_of({{"0", std::move(path_frame)}});
+  }
   const double k = inputs.area ? 3.0 : inputs.boxed ? 2.0 : 1.0;
   auto settings = engine_dict();
   if (inputs.boxed) {

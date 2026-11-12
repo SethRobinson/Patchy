@@ -1441,9 +1441,14 @@ const VectorPath* CanvasWidget::text_area_edit_target_path() const {
   if (!document_) return nullptr;
   const auto active = std::as_const(*document_).active_layer_id();
   const auto* layer = active ? std::as_const(*document_).find_layer(*active) : nullptr;
-  if (!layer || !layer->metadata().contains(kLayerMetadataTextArea) || text_geometry_is_protected(*layer)) return nullptr;
+  if (!layer || text_geometry_is_protected(*layer) ||
+      (!layer->metadata().contains(kLayerMetadataTextArea) && !layer->metadata().contains(kLayerMetadataTextPath))) {
+    return nullptr;
+  }
   if (text_area_path_layer_ != active || text_area_path_revision_ != layer->render_revision()) {
+    // The area contour, or the contour path text runs along (docs/path-text.md).
     text_area_path_cache_ = text_area_in_document(*layer);
+    if (!text_area_path_cache_) text_area_path_cache_ = text_path_in_document(*layer);
     text_area_path_layer_ = active;
     text_area_path_revision_ = layer->render_revision();
   }
@@ -1830,16 +1835,27 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
   }
   if (text_area_edit_target_path()) {
     auto* layer = document_->find_layer(*document_->active_layer_id());
-    if (!layer || !valid_text_area(path) || !vector_lock_reason(std::as_const(*layer)).empty()) return;
+    const bool on_path = layer != nullptr && text_path_for_layer(std::as_const(*layer)).has_value();
+    const auto valid_contour = [on_path](const VectorPath& contour) {
+      return on_path ? valid_text_path(contour) : valid_text_area(contour);
+    };
+    if (!layer || !valid_contour(path) || !vector_lock_reason(std::as_const(*layer)).empty()) return;
     const auto affine = text_area_transform(std::as_const(*layer));
     bool invertible = false;
     const auto inverse = QTransform(affine[0], affine[1], affine[2], affine[3], affine[4], affine[5]).inverted(&invertible);
     if (!invertible) return;
     transform_vector_path(path, {inverse.m11(), inverse.m12(), inverse.m21(), inverse.m22(), inverse.dx(), inverse.dy()});
-    if (!valid_text_area(path)) return;
+    if (!valid_contour(path)) return;
     const auto original = *layer;
     const auto old_rect = to_qrect(layer_bounds_with_effects(std::as_const(*layer), layer->bounds()));
-    layer->metadata()[kLayerMetadataTextArea] = serialize_vector_path(path);
+    if (on_path) {
+      // The range is in segment units, so it stays where it was on the reshaped contour.
+      const auto range = text_path_range_for_layer(std::as_const(*layer), path);
+      layer->metadata()[kLayerMetadataTextPath] = serialize_vector_path(path);
+      layer->metadata()[kLayerMetadataTextPathRange] = serialize_text_path_range(range);
+    } else {
+      layer->metadata()[kLayerMetadataTextArea] = serialize_vector_path(path);
+    }
     layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
     layer->metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
     const auto bounds = path.bounds();

@@ -15949,6 +15949,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>Zeigt die Griffe dieses Verlaufs mit jedem Werkzeug auf der Leinwand, solange dieses Fenster geöffnet ist. Ziehen Sie daran, um den Verlauf und seine Unterbrechungen zu verschieben. Es zeigt immer nur ein Verlauf seine Griffe.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>Die erhaltenen Textdaten dieses Dokuments können keinen neuen Text auf einem Pfad speichern.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

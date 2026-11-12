@@ -11,6 +11,7 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "core/layer_alignment.hpp"
+#include "core/text_path.hpp"
 #include "core/perspective_planes.hpp"
 #include "core/resample.hpp"
 
@@ -457,6 +458,7 @@ public:
     QString direction;    // "auto" / "ltr" / "rtl"; empty = auto
     QSize box;            // valid = a paragraph text box of that size at `position` (wrapping)
     std::optional<VectorPath> area;  // text-owned contour in document pixels
+    std::optional<TextPathFrame> path;  // text along this contour (document pixels) and its range
     QString align;        // "left" / "center" / "right" / "justify"; empty = the default
     TextParagraphMetrics paragraph;  // indents and spacing in document px; unset fields keep the defaults
   };
@@ -484,6 +486,8 @@ public:
   // The paragraph text box size, invalid for point text.
   [[nodiscard]] QSize text_layer_box(std::int64_t session_id, LayerId layer_id) const;
   bool set_text_layer_area(std::int64_t session_id, LayerId layer_id, const std::optional<VectorPath>& area);
+  // The contour and range a text layer runs along, in document pixels; nullopt makes it box text.
+  bool set_text_layer_path(std::int64_t session_id, LayerId layer_id, const std::optional<TextPathFrame>& frame);
   // The first paragraph's alignment name ("left" when nothing is recorded); the setter aligns
   // every paragraph.
   [[nodiscard]] QString text_layer_align(std::int64_t session_id, LayerId layer_id) const;

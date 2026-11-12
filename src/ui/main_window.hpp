@@ -1,6 +1,7 @@
 #pragma once
 
 #include "color/color_management.hpp"
+#include "core/text_path.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/channel_view.hpp"
@@ -1700,8 +1701,10 @@ private:
   void sync_transform_type_buttons();
   void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true,
                    std::optional<patchy::VectorPath> requested_area = std::nullopt,
-                   std::optional<LayerId> target_text_layer = std::nullopt);
+                   std::optional<LayerId> target_text_layer = std::nullopt,
+                   std::optional<patchy::TextPathFrame> requested_path = std::nullopt);
   void set_text_editor_area(QTextEdit& editor, const std::optional<patchy::VectorPath>& document_area);
+  void set_text_editor_path(QTextEdit& editor, const std::optional<patchy::TextPathFrame>& document_frame);
   void edit_text_layer(LayerId id);
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);

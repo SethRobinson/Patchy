@@ -17,6 +17,7 @@
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
 #include "core/magnetic_lasso.hpp"
+#include "core/text_path.hpp"
 #include "core/path_point_edits.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
@@ -1202,6 +1203,11 @@ public:
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
   [[nodiscard]] std::optional<patchy::VectorPath> text_area_at(QPoint document_point) const;
+  // Text along a path (docs/path-text.md): the open or closed contour whose line passes under
+  // the Type tool at this point (the targeted path first, then the topmost visible shape), in
+  // document coordinates, with the range from the point to the end of an open contour or once
+  // around a closed one. Existing text wins, as for text_area_at.
+  [[nodiscard]] std::optional<patchy::TextPathFrame> text_path_at(QPointF document_point) const;
   [[nodiscard]] const patchy::VectorPath* text_area_edit_target_path() const;
   // Replaces the targeted path (same target rules) and re-rasterizes WITHOUT
   // arming an undo entry: preview dialogs apply through this and own the
