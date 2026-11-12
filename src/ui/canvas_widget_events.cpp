@@ -4808,6 +4808,24 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // With a brush tip that has a direction (brush_tip_has_direction: a sampled tip, the
+  // Square, a flattened Round), Left and Right turn the tip by a degree (Shift: 15),
+  // counterclockwise and clockwise (GitHub issue 708); Up and Down still nudge the layer, and
+  // a plain round tip, which has nothing to turn, keeps all four arrows for the nudge. The
+  // host owns the angle (a session value for Round and Square, the tip library's for a
+  // sampled tip). Auto-repeat is allowed: a turn records no undo step. A live stroke or drag
+  // keeps its tip, so the key is swallowed until release. A pending warp returned nothing
+  // above and keeps the keys it had.
+  if (brush_tip_has_direction() && brush_rotate_callback_ && !warping_layer_ &&
+      (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right) &&
+      (arrow_modifiers == Qt::NoModifier || arrow_modifiers == Qt::ShiftModifier)) {
+    const auto step = arrow_modifiers == Qt::ShiftModifier ? 15 : 1;
+    if (pointer_gesture_active() || brush_rotate_callback_(event->key() == Qt::Key_Left ? -step : step)) {
+      event->accept();
+      return;
+    }
+  }
+
   // With a selection tool active and a live selection, arrow keys nudge the
   // selection outline (Shift = 10px); the Move tool still nudges layer pixels.
   // Auto-repeat is allowed here so holding an arrow scrolls the selection along;

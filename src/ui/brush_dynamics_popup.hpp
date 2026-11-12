@@ -188,6 +188,10 @@ public:
   // the builtin round key MainWindow routes on. Same popup/edit flow as a bitmap tip.
   void set_round_session(const QString& round_tip_id, const patchy::BrushDynamics& dynamics,
                          double base_angle_degrees, double base_roundness);
+  // The active tip's static angle changed outside the panels (the canvas Left/Right keys,
+  // GitHub issue 708): the model and any open popup or window show it. Emits nothing; an
+  // edit still waiting on its debounce takes the angle along.
+  void set_base_angle(double degrees);
   // True while a bitmap tip is active; MainWindow::refresh_options_bar combines this with the
   // document-editability flag instead of blanket-enabling the button.
   [[nodiscard]] bool has_active_tip() const noexcept { return !tip_id_.isEmpty(); }

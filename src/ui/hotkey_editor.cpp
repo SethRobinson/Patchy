@@ -1148,10 +1148,14 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
   }
 
   auto* built_in_panel = add_category_panel(tr("Built-in canvas keys (not editable)"), true);
-  const std::array<std::pair<QString, QString>, 7> built_ins{{
+  const std::array<std::pair<QString, QString>, 8> built_ins{{
       {QStringLiteral("Space"), tr("Pan canvas (hold); while dragging, moves the selection or shape")},
       {QStringLiteral("0-9"), tr("Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)")},
       {QStringLiteral("Arrows / Shift+Arrows"), tr("Nudge layer by 1 px / 10 px")},
+      // With a brush tip that has a direction these two turn it instead (GitHub issue 708);
+      // Up and Down nudge, and so do all four with a plain round tip.
+      {QStringLiteral("Left / Right / Shift+Left / Shift+Right"),
+       tr("Brush tools: turn the brush tip by 1 degree / 15 degrees")},
       {QStringLiteral("Enter / Esc"), tr("Commit / cancel a transform or text edit")},
       {QStringLiteral("Delete / Backspace"), tr("Delete selected guides")},
       // Taken only while each letter is still on its tool (docs/hotkey-sets.md, "Crop keys").

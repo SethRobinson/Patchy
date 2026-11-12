@@ -2753,6 +2753,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
               }
               return;
             }
+            // The panel's values carry any turn made by the keys (set_base_angle), so a
+            // turn of this tip still waiting on its save is covered by this write.
+            if (pending_brush_rotation_.has_value() && pending_brush_rotation_->tip_id == tip_id) {
+              pending_brush_rotation_.reset();
+            }
             if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
               canvas_->set_brush_dynamics(dynamics);
               canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
@@ -4168,6 +4173,25 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       brush_softness->setValue(100 - stepped_brush_hardness(100 - brush_softness->value(), hardness_direction));
       statusBar()->showMessage(tr("Brush hardness: %1%").arg(100 - brush_softness->value()));
     });
+    addAction(action);
+    register_document_action(action);
+  }
+  // Left and Right turn a brush tip that has a direction by a degree, Shift by 15 (GitHub
+  // issue 708). Those are built-in canvas keys (CanvasWidget::keyPressEvent): the arrows are
+  // reserved for the canvas and mean other things to Move, the selection tools and a pending
+  // transform, so no command can hold them. The same one-degree turn is also two commands
+  // with no default key, which Keyboard Shortcuts and a shortcut set can bind; they turn any
+  // tip, a plain round one included. Tools whose strokes take no tip angle ignore them.
+  for (const auto& [object_name, text, hotkey_id, degrees] :
+       {std::tuple{"brushRotateLeftAction", QT_TR_NOOP("Rotate Brush Left"), "brush.rotate_left", -1},
+        std::tuple{"brushRotateRightAction", QT_TR_NOOP("Rotate Brush Right"), "brush.rotate_right", 1}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id), QKeySequence(), QStringLiteral("brush"));
+    const int turn = degrees;
+    connect(action, &QAction::triggered, this, [this, turn] { (void)rotate_brush_tip(turn); });
     addAction(action);
     register_document_action(action);
   }

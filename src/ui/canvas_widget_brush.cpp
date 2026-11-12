@@ -742,15 +742,37 @@ const patchy::BrushDynamics& CanvasWidget::brush_dynamics() const noexcept {
   return brush_dynamics_;
 }
 
-void CanvasWidget::set_brush_base_shape(double angle_degrees, int roundness) noexcept {
+void CanvasWidget::set_brush_base_shape(double angle_degrees, int roundness) {
+  angle_degrees = std::clamp(angle_degrees, -180.0, 360.0);
+  roundness = std::clamp(roundness, 1, 100);
+  if (angle_degrees == brush_base_angle_degrees_ && roundness == brush_base_roundness_) {
+    return;
+  }
+  // The pointer's outline and the large-brush outline draw the tip turned and flattened
+  // (GitHub issue 708), so both follow the change at once, with the pointer still.
+  const auto previous_outline =
+      brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
   invalidate_brush_overlay();
-  brush_base_angle_degrees_ = std::clamp(angle_degrees, -180.0, 360.0);
-  brush_base_roundness_ = std::clamp(roundness, 1, 100);
+  brush_base_angle_degrees_ = angle_degrees;
+  brush_base_roundness_ = roundness;
+  brush_cursor_cache_.reset();
+  update_tool_cursor();
+  invalidate_brush_hover_outline(previous_outline);
   invalidate_brush_overlay();
 }
 
 double CanvasWidget::brush_base_angle_degrees() const noexcept {
   return brush_base_angle_degrees_;
+}
+
+bool CanvasWidget::brush_tip_has_direction() const noexcept {
+  if (!tool_stroke_uses_tip_shape(tool_)) {
+    return false;
+  }
+  if (tool_paints_with_brush_tip(tool_) && (brush_tip_ != nullptr || brush_shape_ == patchy::BrushShape::Square)) {
+    return true;
+  }
+  return brush_base_roundness_ < 99 || (tool_ == CanvasTool::Brush && brush_dynamics_.active());
 }
 
 int CanvasWidget::brush_base_roundness() const noexcept {
@@ -919,6 +941,19 @@ QImage CanvasWidget::brush_tip_stamp_image(int size, int softness) const {
   return image;
 }
 
+// The axis-aligned box around a width x height outline turned by this many degrees.
+[[nodiscard]] static QSize turned_outline_box(QSize size, double degrees) {
+  if (degrees == 0.0) {
+    return size;
+  }
+  const auto radians = degrees * kPi / 180.0;
+  const auto c = std::abs(std::cos(radians));
+  const auto s = std::abs(std::sin(radians));
+  // The small slack keeps a quarter turn from rounding a whole size up by one.
+  return QSize(static_cast<int>(std::ceil(size.width() * c + size.height() * s - 1e-6)),
+               static_cast<int>(std::ceil(size.width() * s + size.height() * c - 1e-6)));
+}
+
 // Outline of a stamp scaled to target size: inside pixels (low threshold so sparse tips still
 // read) that touch an outside neighbor. White halo under a black line, readable on any
 // background; a 1px transparent margin keeps the halo unclipped.
@@ -983,11 +1018,12 @@ bool CanvasWidget::apply_brush_tip_cursor() {
     return false;
   }
 
-  // A rotated view turns the tip on screen with the document (docs/view-navigation-rotation.md).
-  const bool turned = view_rotation_degrees_ != 0.0;
-  const auto span = turned ? static_cast<int>(std::ceil(std::hypot(outline.width(), outline.height())))
-                           : std::max(outline.width(), outline.height());
-  const auto extent = std::clamp(span + 7, 17, 168);
+  // The tip's own angle turns the outline as it turns the dab (GitHub issue 708), and a
+  // rotated view turns it with the document (docs/view-navigation-rotation.md).
+  const auto turn = brush_tip_outline_turn_degrees();
+  const bool turned = turn != 0.0;
+  const auto turned_box = turned_outline_box(outline.size(), turn);
+  const auto extent = std::clamp(std::max(turned_box.width(), turned_box.height()) + 7, 17, 168);
   QPixmap pixmap(extent, extent);
   pixmap.fill(Qt::transparent);
   QPainter painter(&pixmap);
@@ -995,8 +1031,9 @@ bool CanvasWidget::apply_brush_tip_cursor() {
   const QPoint center(extent / 2, extent / 2);
   if (turned) {
     painter.save();
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter.translate(center);
-    painter.rotate(view_rotation_degrees_);
+    painter.rotate(turn);
     painter.drawImage(QPoint(-outline.width() / 2, -outline.height() / 2), outline);
     painter.restore();
   } else {
@@ -1025,6 +1062,18 @@ QSize CanvasWidget::brush_outline_display_size() const {
   return QSize(diameter, diameter);
 }
 
+double CanvasWidget::brush_tip_outline_turn_degrees() const noexcept {
+  return brush_base_angle_degrees_ + view_rotation_degrees_;
+}
+
+QSize CanvasWidget::brush_outline_screen_size() const {
+  const auto display = brush_outline_display_size();
+  if (!tool_paints_with_brush_tip(tool_) || (brush_tip_ == nullptr && brush_shape_ != patchy::BrushShape::Square)) {
+    return display;  // a circle or a flattened ellipse stays inside its diameter at any angle
+  }
+  return turned_outline_box(display, brush_tip_outline_turn_degrees());
+}
+
 bool CanvasWidget::brush_outline_uses_overlay() const {
   if (tool_ != CanvasTool::QuickSelect && !tool_uses_brush_footprint_cursor(tool_)) {
     return false;
@@ -1044,12 +1093,12 @@ bool CanvasWidget::brush_outline_uses_overlay() const {
   if (active_outline_brush_size() <= 1) {
     return false;
   }
-  const auto display = brush_outline_display_size();
+  const auto display = brush_outline_screen_size();
   return std::max(display.width(), display.height()) > 155;
 }
 
 QRect CanvasWidget::brush_hover_outline_rect() const {
-  const auto display = brush_outline_display_size();
+  const auto display = brush_outline_screen_size();
   const auto half_width = display.width() / 2 + 4;
   const auto half_height = display.height() / 2 + 4;
   return QRect(brush_hover_widget_position_.x() - half_width, brush_hover_widget_position_.y() - half_height,
@@ -1127,11 +1176,12 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
     }
     if (!brush_outline_overlay_image_.isNull()) {
       painter.setRenderHint(QPainter::Antialiasing, false);
-      if (view_rotation_degrees_ != 0.0) {
-        // A rotated view turns the tip with the document.
+      if (const auto turn = brush_tip_outline_turn_degrees(); turn != 0.0) {
+        // The tip's own angle turns it, and a rotated view turns it with the document.
         painter.save();
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
         painter.translate(QPointF(center));
-        painter.rotate(view_rotation_degrees_);
+        painter.rotate(turn);
         painter.drawImage(QPoint(-brush_outline_overlay_image_.width() / 2, -brush_outline_overlay_image_.height() / 2),
                           brush_outline_overlay_image_);
         painter.restore();
@@ -1146,12 +1196,20 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
     painter.setRenderHint(QPainter::Antialiasing, true);
     const auto radius = std::max(2.0, static_cast<double>(active_outline_brush_size()) * zoom_ / 2.0);
     const bool square = brush_shape_ == patchy::BrushShape::Square && tool_paints_with_brush_tip(tool_);
+    // A flattened round brush shows its ellipse, turned by its angle like the dab.
+    const bool flattened = !square && brush_base_roundness_ < 99 && tool_stroke_uses_tip_shape(tool_);
     const auto draw_footprint = [&](double half) {
       if (square) {
         painter.save();
         painter.translate(QPointF(center));
         painter.rotate(brush_base_angle_degrees_ + view_rotation_degrees_);
         painter.drawRect(QRectF(-half, -half, 2.0 * half, 2.0 * half));
+        painter.restore();
+      } else if (flattened) {
+        painter.save();
+        painter.translate(QPointF(center));
+        painter.rotate(brush_base_angle_degrees_ + view_rotation_degrees_);
+        painter.drawEllipse(QPointF(0.0, 0.0), half, std::max(0.5, half * brush_base_roundness_ / 100.0));
         painter.restore();
       } else {
         painter.drawEllipse(QPointF(center), half, half);

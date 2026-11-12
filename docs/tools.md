@@ -63,6 +63,11 @@ ordinary nudges. This applies to layers, pending Free Transform and Crop boxes,
 and selection outlines (`ui_layer_and_free_transform_nudges_accept_keypad_modifier`,
 `ui_crop_handles_resize_move_and_nudge`, `ui_selection_arrow_keys_nudge`).
 
+With a brush tip that has a direction (a sampled tip, the Square, a flattened Round),
+Left and Right turn the tip instead of nudging the layer (GitHub issue 708,
+[brushes-ui.md](brushes-ui.md#painting-tool-modifiers)); Up and Down still nudge, and a
+plain round tip and every other tool keep all four arrows.
+
 Layer nudges refresh the Move hover outline at the stationary pointer after the
 document update. The outline follows the new bounds, disappears if the layer
 moves away from the pointer, and returns when it moves back beneath it. A pointer

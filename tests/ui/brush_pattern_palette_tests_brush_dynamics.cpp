@@ -74,6 +74,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <QStatusBar>
+#include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include "brush_pattern_palette_test_support.hpp"
@@ -233,6 +235,332 @@ void ui_brush_tip_cursor_shows_tip_shape() {
   window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
   const auto restored_bounds = opaque_bounds(canvas->cursor().pixmap());
   CHECK(std::abs(restored_bounds.width() - restored_bounds.height()) <= 6);
+  clear_brush_tip_test_state();
+}
+
+// GitHub issue 708: with a brush tip that has a direction, Left and Right turn the tip by a
+// degree and Shift by 15, wrapping at 180, with no undo step and no layer nudge. The Square
+// keeps the angle for the session; a sampled tip's goes to the tip library once the keys rest,
+// or at once when the tip is switched. A plain round tip keeps the arrows for the nudge, Up
+// and Down always nudge, the Move tool keeps all four arrows, and the Rotate Brush commands
+// make the same one-degree turn for any tip.
+void ui_brush_arrow_keys_rotate_tip() {
+  clear_brush_tip_test_state();
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer square(document.allocate_layer_id(), "Square",
+                       solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  square.set_bounds(patchy::Rect{40, 50, 20, 20});
+  const auto square_id = document.add_layer(std::move(square)).id();
+  document.set_active_layer(square_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Rotate Brush"));
+  auto* canvas = require_canvas(window);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto origin = [&doc, square_id] {
+    const auto bounds = std::as_const(doc).find_layer(square_id)->bounds();
+    return QPoint(bounds.x, bounds.y);
+  };
+  const auto angle = [canvas] { return canvas->brush_base_angle_degrees(); };
+  const auto tap = [canvas](int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_key_press(*canvas, key, modifiers);
+    send_key_release(*canvas, key, modifiers);
+  };
+  const auto hold = [canvas](int key, int repeats, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_key_press(*canvas, key, modifiers);
+    for (int i = 0; i < repeats; ++i) {
+      QKeyEvent repeat(QEvent::KeyPress, key, modifiers, QString(), true);
+      QApplication::sendEvent(canvas, &repeat);
+      QApplication::processEvents();
+    }
+    send_key_release(*canvas, key, modifiers);
+  };
+  auto* rotate_left = window.findChild<QAction*>(QStringLiteral("brushRotateLeftAction"));
+  auto* rotate_right = window.findChild<QAction*>(QStringLiteral("brushRotateRightAction"));
+  CHECK(rotate_left != nullptr && rotate_right != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  canvas->setFocus();
+
+  // A plain round tip has nothing to turn: Left and Right nudge the layer as they always
+  // did. The commands still turn it, for whoever bound them.
+  CHECK(!canvas->brush_tip_has_direction());
+  tap(Qt::Key_Right);
+  CHECK(origin() == QPoint(41, 50));
+  tap(Qt::Key_Left);
+  CHECK(origin() == QPoint(40, 50));
+  CHECK(angle() == 0.0);
+  rotate_right->trigger();
+  CHECK(angle() == 1.0);
+  rotate_left->trigger();
+  CHECK(angle() == 0.0);
+  CHECK(origin() == QPoint(40, 50));
+
+  // The Square: Right is clockwise (the angle grows), Left counterclockwise.
+  window.set_active_brush_tip(patchy::ui::builtin_square_brush_tip_id(), false);
+  CHECK(canvas->brush_tip_has_direction());
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  tap(Qt::Key_Right);
+  CHECK(angle() == 1.0);
+  tap(Qt::Key_Right, Qt::ShiftModifier);
+  CHECK(angle() == 16.0);
+  tap(Qt::Key_Left);
+  CHECK(angle() == 15.0);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("15")));
+  // A held key keeps turning; the angle wraps at 180 into (-180, 180].
+  hold(Qt::Key_Right, 10, Qt::ShiftModifier);
+  CHECK(angle() == 180.0);
+  tap(Qt::Key_Right);
+  CHECK(angle() == -179.0);
+  tap(Qt::Key_Left);
+  CHECK(angle() == 180.0);
+  tap(Qt::Key_Left, Qt::ShiftModifier | Qt::KeypadModifier);  // macOS arrows carry the keypad flag
+  CHECK(angle() == 165.0);
+  // Ctrl and Alt are not the turn.
+  tap(Qt::Key_Right, Qt::ControlModifier);
+  tap(Qt::Key_Right, Qt::AltModifier);
+  CHECK(angle() == 165.0);
+  // Nothing moved and nothing was recorded.
+  CHECK(origin() == QPoint(40, 50));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+
+  // The Brush Dynamics popup shows the turned angle and follows the commands while open.
+  {
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+    CHECK(button != nullptr);
+    button->click();
+    QApplication::processEvents();
+    QWidget* popup = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+        popup = widget;
+      }
+    }
+    CHECK(popup != nullptr);
+    auto* spin = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsBaseAngleSpin"));
+    CHECK(spin != nullptr);
+    CHECK(spin->value() == 165);
+    rotate_left->trigger();
+    CHECK(angle() == 164.0);
+    CHECK(spin->value() == 164);
+    rotate_right->trigger();
+    rotate_right->trigger();
+    CHECK(angle() == 166.0);
+    CHECK(spin->value() == 166);
+    popup->close();
+    QApplication::processEvents();
+    // No edit of the popup's own was pending, so nothing snaps the angle back.
+    QTest::qWait(300);
+    CHECK(angle() == 166.0);
+  }
+  canvas->setFocus();
+
+  // Up and Down still nudge the layer.
+  tap(Qt::Key_Up);
+  CHECK(origin() == QPoint(40, 49));
+  CHECK(angle() == 166.0);
+
+  // A sampled tip: the canvas turns at once, the library takes the angle once the keys rest.
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  CHECK(canvas->brush_tip_has_direction());
+  CHECK(angle() == 0.0);
+  hold(Qt::Key_Right, 3);
+  tap(Qt::Key_Right, Qt::ShiftModifier);
+  CHECK(angle() == 19.0);
+  CHECK(process_events_until(
+      [&library, &tip_id] { return library.find_entry(tip_id)->base_angle_degrees == 19.0; }, 5000));
+  CHECK(angle() == 19.0);
+  {
+    QFile sidecar(brush_tip_test_storage_dir() + QStringLiteral("/") + tip_id + QStringLiteral(".json"));
+    CHECK(sidecar.open(QIODevice::ReadOnly));
+    CHECK(QJsonDocument::fromJson(sidecar.readAll()).object().value(QStringLiteral("baseAngle")).toDouble() == 19.0);
+  }
+  // Switching tips right after a turn saves the turn first; each tip keeps its own angle.
+  tap(Qt::Key_Left, Qt::ShiftModifier);
+  CHECK(angle() == 4.0);
+  window.set_active_brush_tip(patchy::ui::builtin_square_brush_tip_id(), false);
+  CHECK(library.find_entry(tip_id)->base_angle_degrees == 4.0);
+  CHECK(angle() == 166.0);
+  window.set_active_brush_tip(tip_id, false);
+  CHECK(angle() == 4.0);
+  window.set_active_brush_tip(patchy::ui::builtin_square_brush_tip_id(), false);
+  CHECK(angle() == 166.0);
+
+  // The Eraser stamps the same Square and turns it.
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  canvas->setFocus();
+  CHECK(canvas->brush_tip_has_direction());
+  tap(Qt::Key_Left);
+  CHECK(angle() == 165.0);
+  CHECK(origin() == QPoint(40, 49));
+
+  // The Clone Stamp paints round whatever the tip, so its arrows nudge.
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  canvas->setFocus();
+  CHECK(!canvas->brush_tip_has_direction());
+  tap(Qt::Key_Right);
+  CHECK(origin() == QPoint(41, 49));
+  CHECK(angle() == 165.0);
+
+  // The Move tool keeps Left and Right for the layer, and the commands leave the tip alone.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_snap_enabled(false);
+  QApplication::processEvents();
+  canvas->setFocus();
+  tap(Qt::Key_Right);
+  CHECK(origin() == QPoint(42, 49));
+  tap(Qt::Key_Left, Qt::ShiftModifier);
+  CHECK(origin() == QPoint(32, 49));
+  rotate_right->trigger();
+  CHECK(angle() == 165.0);
+  clear_brush_tip_test_state();
+}
+
+// GitHub issue 708: the pointer's outline shows the tip turned, so the keys have something to
+// show. A flat bar tip at 90 degrees is tall, a flattened Round brush is an ellipse that turns
+// with its angle, a Square turned 45 degrees is not clipped at its corners, and the canvas
+// outline of a brush past the pointer's size cap turns the same way.
+void ui_brush_cursor_outline_turns_with_tip_angle() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  canvas->setFocus();
+  // A brush size that shows this many screen pixels wide at the test window's zoom.
+  const auto size_for = [canvas](double display) {
+    return std::max(2, static_cast<int>(std::lround(display / canvas->zoom())));
+  };
+  const auto turn_by_keys = [canvas](int key, int presses) {
+    for (int i = 0; i < presses; ++i) {
+      send_key_press(*canvas, key, Qt::ShiftModifier);
+      send_key_release(*canvas, key, Qt::ShiftModifier);
+    }
+    QApplication::processEvents();
+  };
+
+  const auto opaque_bounds = [](const QPixmap& pixmap) {
+    const auto image = pixmap.toImage();
+    QRect bounds;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        if (qAlpha(image.pixel(x, y)) > 0) {
+          bounds = bounds.isNull() ? QRect(x, y, 1, 1) : bounds.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    return bounds;
+  };
+
+  // A sampled bar tip: flat, then upright after six Shift+Right presses (90 degrees), at once
+  // and with the pointer still.
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  canvas->set_brush_size(size_for(120.0));
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  const auto flat = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(flat.width() > flat.height() * 2);
+  turn_by_keys(Qt::Key_Right, 6);
+  CHECK(canvas->brush_base_angle_degrees() == 90.0);
+  const auto upright = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(upright.height() > upright.width() * 2);
+  CHECK(std::abs(upright.height() - flat.width()) <= 4);
+  save_image_artifact("ui_brush_cursor_outline_bar_tip_turned_90", canvas->cursor().pixmap().toImage());
+  turn_by_keys(Qt::Key_Left, 6);
+  CHECK(canvas->brush_base_angle_degrees() == 0.0);
+
+  // A flattened Round brush: a wide ellipse, upright after a quarter turn, a circle at 100%.
+  window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
+  canvas->set_brush_base_shape(0.0, 30);
+  const auto wide = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(wide.width() > wide.height() * 2);
+  canvas->set_brush_base_shape(90.0, 30);
+  const auto tall = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(tall.height() > tall.width() * 2);
+  canvas->set_brush_base_shape(0.0, 100);
+  const auto circle = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(std::abs(circle.width() - circle.height()) <= 2);
+
+  // A Square turned 45 degrees reaches its diagonal and keeps a clear margin in the pixmap.
+  window.set_active_brush_tip(patchy::ui::builtin_square_brush_tip_id(), false);
+  canvas->set_brush_size(size_for(80.0));
+  canvas->set_brush_base_shape(0.0, 100);
+  const auto upright_square = opaque_bounds(canvas->cursor().pixmap());
+  canvas->set_brush_base_shape(45.0, 100);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  const auto diamond_pixmap = canvas->cursor().pixmap();
+  const auto diamond = opaque_bounds(diamond_pixmap);
+  CHECK(diamond.width() > upright_square.width() * 13 / 10);
+  CHECK(diamond.left() > 0 && diamond.top() > 0 && diamond.right() < diamond_pixmap.width() - 1 &&
+        diamond.bottom() < diamond_pixmap.height() - 1);
+  canvas->set_brush_base_shape(0.0, 100);
+
+  // Past the pointer's size cap the outline is painted on the canvas: there too the bar tip
+  // turns under the keys, and the repaint leaves no stale outline behind.
+  window.set_active_brush_tip(tip_id, false);
+  canvas->set_brush_size(size_for(240.0));
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
+  const QPoint hover(canvas->width() / 2, canvas->height() / 2);
+  send_mouse(*canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  // The outline's line over the white document, in a box around the pointer (the cross at
+  // the pointer itself is left out).
+  const QRect scan = QRect(hover.x() - 135, hover.y() - 135, 271, 271).intersected(canvas->rect());
+  const auto outline_extent = [canvas, hover, scan] {
+    const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    QRect bounds;
+    for (int y = scan.top(); y <= scan.bottom(); ++y) {
+      for (int x = scan.left(); x <= scan.right(); ++x) {
+        if (std::abs(x - hover.x()) + std::abs(y - hover.y()) > 14 && QColor(image.pixel(x, y)).lightness() < 150) {
+          bounds = bounds.isNull() ? QRect(x, y, 1, 1) : bounds.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    return bounds;
+  };
+  const auto level = outline_extent();
+  CHECK(level.width() > 200);
+  CHECK(level.width() > level.height() * 2);
+  turn_by_keys(Qt::Key_Right, 3);
+  CHECK(canvas->brush_base_angle_degrees() == 45.0);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
+  const auto tilted = outline_extent();
+  // A bar turned 45 degrees is as tall as it is wide, and narrower than it was lying flat.
+  CHECK(tilted.height() > level.height() * 2);
+  CHECK(std::abs(tilted.width() - tilted.height()) <= 6);
+  CHECK(tilted.width() < level.width() - 10);
+
+  // The outline turns the way the paint does: one dab at the pointer covers the turned bar's
+  // own diagonal (down and to the right of the pointer for a clockwise turn) and leaves the
+  // other diagonal clear.
+  canvas->set_primary_color(QColor(220, 20, 40));
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, hover, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hover, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto painted = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  const auto is_paint = [&painted](QPoint point) {
+    const QColor pixel(painted.pixel(point));
+    return pixel.red() > 150 && pixel.green() < 110 && pixel.blue() < 130;
+  };
+  CHECK(is_paint(hover + QPoint(55, 55)));
+  CHECK(is_paint(hover + QPoint(-55, -55)));
+  CHECK(!is_paint(hover + QPoint(55, -55)));
+  CHECK(!is_paint(hover + QPoint(-55, 55)));
+  save_widget_artifact("ui_brush_outline_turned_tip", *canvas);
   clear_brush_tip_test_state();
 }
 
@@ -2847,6 +3175,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_outline_overlay_tracks_large_brushes", ui_brush_outline_overlay_tracks_large_brushes},
       {"ui_clone_outline_overlay_tracks_large_brushes", ui_clone_outline_overlay_tracks_large_brushes},
       {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},
+      {"ui_brush_arrow_keys_rotate_tip", ui_brush_arrow_keys_rotate_tip},
+      {"ui_brush_cursor_outline_turns_with_tip_angle", ui_brush_cursor_outline_turns_with_tip_angle},
       {"ui_brush_tip_picker_popup_offers_define_from_selection",
        ui_brush_tip_picker_popup_offers_define_from_selection},
       {"ui_brush_tip_picker_keeps_options_bar_height", ui_brush_tip_picker_keeps_options_bar_height},

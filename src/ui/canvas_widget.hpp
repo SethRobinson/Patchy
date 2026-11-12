@@ -455,8 +455,15 @@ public:
   // through a synthesized disc tip since the capsule renderer has no dab loop.
   void set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept;
   [[nodiscard]] const patchy::BrushDynamics& brush_dynamics() const noexcept;
-  void set_brush_base_shape(double angle_degrees, int roundness) noexcept;
+  // Refreshes the cursor and the outline when the shape changes: both draw the tip turned.
+  void set_brush_base_shape(double angle_degrees, int roundness);
   [[nodiscard]] double brush_base_angle_degrees() const noexcept;
+  // True when turning the tip's static angle changes what the active tool paints: a sampled
+  // tip or the Square for the tip-stamping tools, a Round brush flattened below 99% roundness
+  // for every tool whose strokes take the tip shape, or the Brush with dynamics on (roundness
+  // jitter flattens dabs along the angle). A plain round tip has no direction, so Left and
+  // Right keep nudging the layer with it (GitHub issue 708).
+  [[nodiscard]] bool brush_tip_has_direction() const noexcept;
   [[nodiscard]] int brush_base_roundness() const noexcept;
   // UI-test hook: fixes the per-stroke dynamics RNG seed so stroke artifacts are reproducible.
   void set_brush_dynamics_test_seed(std::optional<quint32> seed) noexcept;
@@ -1860,6 +1867,10 @@ public:
   // canvas's own to cancel, before Escape's layer deselection; true consumes it (the
   // host leaves a full-screen screen mode, GitHub issue 212).
   void set_unused_escape_callback(std::function<bool()> callback);
+  // Left and Right turn a brush tip that has a direction (brush_tip_has_direction, GitHub
+  // issue 708): the canvas asks the host, which owns the tip's angle, to turn it by this many
+  // degrees (negative is counterclockwise on screen). False leaves the key to the layer nudge.
+  void set_brush_rotate_callback(std::function<bool(int degrees)> callback);
   // The commands the host offers when a right-click lands on the active vector
   // shape layer (Shape Appearance, Free Transform, ...); same contract.
   void set_shape_context_actions_callback(std::function<QList<QAction*>()> callback);
@@ -3697,6 +3708,10 @@ private:
   // brush has its own diameter, separate from the paint brush).
   [[nodiscard]] int active_outline_brush_size() const noexcept;
   [[nodiscard]] QSize brush_outline_display_size() const;
+  // The outline as it lands on screen: the display size turned by the tip's angle and the
+  // view rotation (a bitmap tip's outline is drawn turned), as an axis-aligned box.
+  [[nodiscard]] QSize brush_outline_screen_size() const;
+  [[nodiscard]] double brush_tip_outline_turn_degrees() const noexcept;
   [[nodiscard]] bool brush_outline_uses_overlay() const;
   [[nodiscard]] QRect brush_hover_outline_rect() const;
   void track_brush_hover_position(QPoint widget_position);
@@ -5239,6 +5254,7 @@ private:
   std::function<QList<QAction*>()> crop_context_actions_callback_;
   std::function<QList<QAction*>()> screen_mode_context_actions_callback_;
   std::function<bool()> unused_escape_callback_;
+  std::function<bool(int)> brush_rotate_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;
   std::function<QList<QAction*>()> layer_context_actions_callback_;
   std::function<QList<QAction*>()> path_context_actions_callback_;

@@ -6400,6 +6400,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   save_panel_layout();
   // Flush any tool-option change still waiting on the save debounce; the timer
   // will not fire once the window is gone.
+  flush_pending_brush_rotation();
   save_tool_settings();
   if (color_settings_save_pending_) {
     color_settings_save_pending_ = false;
@@ -6888,6 +6889,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     return screen_mode_ == ScreenMode::Standard ? QList<QAction*>{} : QList<QAction*>{exit_full_screen_action_};
   });
   canvas->set_unused_escape_callback([this, canvas] { return canvas->window() == this && exit_full_screen_on_escape(); });
+  canvas->set_brush_rotate_callback([this, canvas](int degrees) { return canvas == canvas_ && rotate_brush_tip(degrees); });
   // A right-click on the active shape layer: the Layer > Shape and Edit menus'
   // own QActions (docs/tools.md, "Canvas right-click menu").
   canvas->set_shape_context_actions_callback([this] {
