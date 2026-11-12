@@ -15814,6 +15814,14 @@ Sostituirlo?</translation>
         <source>Update...</source>
         <translation>Aggiorna...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>Mostra maniglie della sfumatura</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>Mostra le maniglie della sfumatura di riempimento sulla tela con qualsiasi strumento finché questa finestra è aperta. Trascinale per spostare la sfumatura e le sue interruzioni.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

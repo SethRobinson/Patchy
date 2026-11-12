@@ -1,10 +1,12 @@
 #include "ui/shape_appearance_panel.hpp"
 
+#include "ui/app_settings.hpp"
 #include "ui/brush_tool_window.hpp"
 
 #include <QAbstractScrollArea>
 #include <QApplication>
 #include <QDialog>
+#include <QEvent>
 #include <QGuiApplication>
 #include <QLabel>
 #include <QLayout>
@@ -63,6 +65,7 @@ ShapeAppearancePanel::ShapeAppearancePanel(QWidget* owner, ShapeAppearancePanelH
   connect(idle_timer_, &QTimer::timeout, this, [this] {
     if (run_.has_value() && host_.finish_run) host_.finish_run();
   });
+  gradient_handles_ = app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesKey), false).toBool();
 }
 
 ShapeAppearancePanel::~ShapeAppearancePanel() = default;
@@ -81,6 +84,7 @@ void ShapeAppearancePanel::open() {
     window_ = new BrushToolWindow(QStringLiteral("shapeAppearanceWindow"), QObject::tr("Shape Appearance"),
                                   QStringLiteral("shapeAppearance/window"), owner_);
     window_->set_key_target(host_.key_target);
+    window_->installEventFilter(this);  // shown or hidden: the canvas handles follow
   }
   // Build before the first show, so the window opens at the page's size.
   if (!rebuild_blocked()) {
@@ -226,11 +230,15 @@ void ShapeAppearancePanel::build_page(ShapeAppearanceTarget target) {
   target.options.units = options.units;  // the page key compares them
   options.mode = ShapeAppearanceBodyMode::Live;
   options.batch = &target.context;
+  options.show_gradient_handles = gradient_handles_;
   // A page that was replaced is hidden and waiting to be deleted: nothing it still sends
   // may be applied.
   const QPointer<QWidget> guard(page);
   options.changed = [this, guard](const ShapeAppearanceSettings& settings) {
     if (guard != nullptr && guard == page_) changed(settings);
+  };
+  options.gradient_handles_toggled = [this, guard](bool show) {
+    if (guard != nullptr && guard == page_) set_gradient_handles(show);
   };
   options.run_child_dialog = [this, guard](const std::function<bool()>& body) {
     if (guard == nullptr || guard != page_) return;
@@ -320,6 +328,30 @@ void ShapeAppearancePanel::rebase_page() {
 void ShapeAppearancePanel::run_finished() {
   idle_timer_->stop();
   rebase_page();
+}
+
+bool ShapeAppearancePanel::gradient_handles_wanted() const {
+  return gradient_handles_ && is_open();
+}
+
+void ShapeAppearancePanel::set_gradient_handles(bool show) {
+  if (gradient_handles_ == show) {
+    return;
+  }
+  gradient_handles_ = show;
+  app_settings().setValue(QLatin1String(kShapeAppearanceGradientHandlesKey), show);
+  if (host_.gradient_handles_changed) host_.gradient_handles_changed();
+}
+
+bool ShapeAppearancePanel::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == window_ && (event->type() == QEvent::Show || event->type() == QEvent::Hide) &&
+      host_.gradient_handles_changed) {
+    // After the event: the window's visibility is what the host reads.
+    QTimer::singleShot(0, this, [this] {
+      if (host_.gradient_handles_changed) host_.gradient_handles_changed();
+    });
+  }
+  return QObject::eventFilter(watched, event);
 }
 
 void ShapeAppearancePanel::begin_child_dialog() {

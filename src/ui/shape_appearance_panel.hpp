@@ -81,7 +81,13 @@ struct ShapeAppearancePanelHost {
   std::function<void(const std::function<bool()>& body)> run_child_dialog;
   // Where the window's unclaimed keys go: the active canvas.
   std::function<QWidget*()> key_target;
+  // gradient_handles_wanted() may have changed (the box was toggled, the window was shown
+  // or hidden).
+  std::function<void()> gradient_handles_changed;
 };
+
+// The settings key of the "Show gradient handles" box (a persisted identifier).
+inline constexpr const char* kShapeAppearanceGradientHandlesKey = "shapeAppearance/showGradientHandles";
 
 class ShapeAppearancePanel : public QObject {
   Q_OBJECT
@@ -124,7 +130,16 @@ public:
   // Rebuilds waiting on the deferral run now when nothing blocks them (tests).
   void flush_pending_rebuild();
 
+  // The "Show gradient handles" box (GitHub issue 694): the canvas shows the active gradient
+  // fill's handles under any tool while the window is open and the box is ticked. The state
+  // is the window's, kept in the settings, so every page starts from it.
+  [[nodiscard]] bool gradient_handles_wanted() const;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
+  void set_gradient_handles(bool show);
   void changed(const ShapeAppearanceSettings& settings);
   void schedule_rebuild();
   void rebuild();
@@ -146,6 +161,7 @@ private:
   int child_dialog_depth_{0};
   bool applying_{false};
   bool sync_wanted_{false};
+  bool gradient_handles_{false};
 };
 
 }  // namespace patchy::ui

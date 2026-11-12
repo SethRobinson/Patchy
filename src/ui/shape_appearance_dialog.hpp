@@ -165,6 +165,11 @@ struct ShapeAppearanceBodyOptions {
   // Runs a dialog a row opens (color picker, Gradient Manager, Shapes Manager); `body`
   // returns false when it was cancelled. Unset: `body` is called directly.
   std::function<void(const std::function<bool()>& body)> run_child_dialog;
+  // Live only: the footer's "Show gradient handles" box (GitHub issue 694,
+  // docs/gradients-fill-handles.md). `gradient_handles_toggled` set adds the box, ticked as
+  // `show_gradient_handles` says; it is enabled while the fill is a gradient.
+  bool show_gradient_handles{false};
+  std::function<void(bool)> gradient_handles_toggled;
 };
 
 struct ShapeAppearanceBody {

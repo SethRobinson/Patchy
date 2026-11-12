@@ -2426,6 +2426,9 @@ private:
   // Called from the refresh hubs (refresh_layer_controls, refresh_options_bar) and when
   // the edit lock is taken; a no-op until the window has been opened once.
   void sync_shape_appearance_panel();
+  // Every canvas shows the gradient handles under any tool while the window is open with
+  // its Show gradient handles box ticked (GitHub issue 694).
+  void sync_shape_appearance_gradient_handles();
   void hide_shape_appearance_panel_for_shutdown();
   // The layers `settings` changes, built from `originals` (null, locked and non-shape
   // entries are skipped; `keep_unchanged` returns the others as they are). The document's

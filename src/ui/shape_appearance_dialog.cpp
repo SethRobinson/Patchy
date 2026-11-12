@@ -1819,6 +1819,20 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   QObject::connect(buttons, &QDialogButtonBox::accepted, window_ptr, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, window_ptr, &QDialog::reject);
   auto* footer = new QHBoxLayout();
+  // The stay-open window can show the fill gradient's on-canvas handles under any tool
+  // (GitHub issue 694). The window owns the state; a new page starts from it.
+  QCheckBox* gradient_handles_check = nullptr;
+  if (live && options.gradient_handles_toggled) {
+    gradient_handles_check = new QCheckBox(QObject::tr("Show gradient handles"), &dialog);
+    gradient_handles_check->setObjectName(QStringLiteral("shapeAppearanceGradientHandlesCheck"));
+    gradient_handles_check->setToolTip(
+        QObject::tr("Show the fill gradient's handles on the canvas with any tool while this window is open. "
+                    "Drag them to move the gradient and its stops."));
+    gradient_handles_check->setChecked(options.show_gradient_handles);
+    footer->addWidget(gradient_handles_check);
+    QObject::connect(gradient_handles_check, &QCheckBox::toggled, &dialog,
+                     [toggled = std::move(options.gradient_handles_toggled)](bool checked) { toggled(checked); });
+  }
   if (!live) {
     auto* preview_check = new QCheckBox(QObject::tr("Preview"), &dialog);
     preview_check->setObjectName(QStringLiteral("shapeAppearancePreviewCheck"));
@@ -1886,6 +1900,9 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     set_row(fill_gradient_block, gradient);
     set_row(fill_pattern_combo, pattern);
     set_row(fill_pattern_block, pattern);
+    if (gradient_handles_check != nullptr) {
+      gradient_handles_check->setEnabled(gradient);  // only a gradient fill has handles
+    }
   };
 
   // The stroke rows stay enabled: the width is the stroke switch (0 = none). The

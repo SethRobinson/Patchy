@@ -15758,6 +15758,14 @@ Do you want to replace it?</source>
         <source>Update...</source>
         <translation>更新...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>顯示漸層控點</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>此視窗開啟時，使用任何工具都會在畫布上顯示填色漸層的控點。拖曳控點可移動漸層及其色標。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

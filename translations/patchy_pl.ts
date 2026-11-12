@@ -15870,6 +15870,14 @@ Czy chcesz go zastąpić?</translation>
         <source>Update...</source>
         <translation>Aktualizuj...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>Pokaż uchwyty gradientu</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>Pokazuje uchwyty gradientu wypełnienia na płótnie przy dowolnym narzędziu, dopóki to okno jest otwarte. Przeciągnij je, aby przesunąć gradient i jego znaczniki.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

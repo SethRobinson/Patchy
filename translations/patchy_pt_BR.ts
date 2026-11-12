@@ -15814,6 +15814,14 @@ Deseja substituí-lo?</translation>
         <source>Update...</source>
         <translation>Atualizar...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>Mostrar alças do degradê</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>Mostra as alças do degradê de preenchimento na tela de pintura com qualquer ferramenta enquanto esta janela está aberta. Arraste-as para mover o degradê e suas paradas.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

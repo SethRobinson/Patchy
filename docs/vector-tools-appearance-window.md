@@ -58,6 +58,13 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
   modal edit does: the document locked, changes as previews, one undo step on OK, the layers put
   back on Cancel. The lock is also what keeps the selection, and with it the page, in place
   under the row's handler.
+- **Show gradient handles.** A box in the footer, enabled while the fill is a gradient. While
+  the window is open and it is ticked, the canvas shows the active gradient fill's handles
+  under the other tools ([gradients-fill-handles.md](gradients-fill-handles.md#under-other-tools)).
+  The state is the window's (`shapeAppearance/showGradientHandles`, off by default), so every
+  page starts from it; `gradient_handles_wanted()` is read by
+  `MainWindow::sync_shape_appearance_gradient_handles` when the box is toggled, the window is
+  shown or hidden, and from `sync_shape_appearance_panel`.
 - **Window.** Keys no field takes go to the canvas and the main window's shortcuts work while
   it is active (`BrushToolWindow`). The main window's close hides it; it does not come back at
   the next launch. Under automation (`unattended_automation`) it does not open.

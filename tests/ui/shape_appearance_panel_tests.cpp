@@ -1,9 +1,11 @@
 // The stay-open Shape Appearance window (GitHub issue 694, docs/vector-tools-appearance-window.md):
 // it opens without a dialog loop or the edit lock, applies each change at once as one undo
 // step per gesture, follows the selected shape layers, and stays safe while the selection,
-// the history and the documents change under it.
+// the history and the documents change under it. Its Show gradient handles box puts the
+// Gradient tool's handles on the canvas under the other tools (docs/gradients-fill-handles.md).
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
@@ -21,15 +23,19 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QLabel>
+#include <QLineF>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
+#include <QTest>
 #include <QTimer>
 #include <QToolButton>
+#include <QWindow>
 
 #include <cmath>
 #include <cstdio>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -518,6 +524,213 @@ void ui_shape_appearance_window_step_timing() {
   CHECK(same);
 }
 
+// The window's Show gradient handles box: the Gradient tool's handles on the active gradient
+// shape under the shape tools, Path Select and the Move tool. A press on a handle part edits
+// the gradient as one undo step; any other press, and every key the handles do not own, is
+// the tool's. Unticking the box or closing the window takes them away again.
+void ui_shape_appearance_window_shows_gradient_handles_under_other_tools() {
+  using Kind = patchy::ui::CanvasWidget::GradientHandlePartKind;
+  using Part = patchy::ui::CanvasWidget::GradientHandlePart;
+  using Cursor = patchy::ui::CanvasWidget::GradientHandleCursor;
+  using patchy::ui::CanvasTool;
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer active_tool{QStringLiteral("tools/activeTool")};
+  SettingsValueRestorer handles_setting{QStringLiteral("shapeAppearance/showGradientHandles")};
+  patchy::ui::app_settings().setValue(QStringLiteral("shapeAppearance/showGradientHandles"), false);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = Access::document(window);
+  const auto id = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  auto* panel = open_panel(window);
+  if (panel == nullptr) return;
+  // A page is rebuilt after each handle edit, so the box is looked up each time.
+  const auto box = [&] { return field<QCheckBox>(*panel, "shapeAppearanceGradientHandlesCheck"); };
+  const auto rounded = [](QPointF point) {
+    return QPoint(static_cast<int>(std::lround(point.x())), static_cast<int>(std::lround(point.y())));
+  };
+  const auto part_at = [&](Kind kind, int index = -1) {
+    const auto position = canvas->gradient_fill_handle_widget_position(Part{kind, index});
+    CHECK(position.has_value());
+    return rounded(position.value_or(QPointF()));
+  };
+  const auto line = [&] {
+    const auto handles = canvas->gradient_fill_handles();
+    CHECK(handles.has_value());
+    return handles.has_value() ? handles->line : patchy::GradientFillLine{};
+  };
+  const auto start_of = [&] { return QPointF(line().start_x, line().start_y); };
+  const auto end_of = [&] { return QPointF(line().end_x, line().end_y); };
+  const auto depth = [&] { return Access::active_session_undo_depth(window); };
+  const auto gradient = [&] { return shape_of(document, id).fill.gradient; };
+  // A click and a key the way the window system delivers them (through the top-level window).
+  auto* top = canvas->window()->windowHandle();
+  CHECK(top != nullptr);
+  if (top == nullptr) return;
+  const auto window_click = [&](QPoint position) {
+    const auto in_window = canvas->mapTo(canvas->window(), position);
+    QTest::mouseMove(top, in_window);
+    QTest::mousePress(top, Qt::LeftButton, Qt::NoModifier, in_window);
+    QTest::mouseRelease(top, Qt::LeftButton, Qt::NoModifier, in_window);
+    QApplication::processEvents();
+  };
+
+  // A solid fill has no handles: the box is there, greyed out.
+  CHECK(!box()->isEnabled() && !box()->isChecked());
+  auto* kind = field<QComboBox>(*panel, "shapeFillKindCombo");
+  kind->setCurrentIndex(kind->findData(static_cast<int>(VectorFillKind::Gradient)));
+  CHECK(shape_of(document, id).fill.kind == VectorFillKind::Gradient);
+  CHECK(box()->isEnabled());
+  // Unticked: a shape tool shows no gradient handles, as before.
+  CHECK(canvas->tool() == CanvasTool::Rectangle);
+  CHECK(!canvas->gradient_handles_forced());
+  CHECK(!canvas->gradient_fill_handles().has_value());
+
+  box()->click();
+  QApplication::processEvents();
+  CHECK(canvas->gradient_handles_forced());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("shapeAppearance/showGradientHandles")).toBool());
+  CHECK(canvas->gradient_fill_handles().has_value());
+  if (!canvas->gradient_fill_handles().has_value()) return;
+  CHECK(canvas->gradient_fill_handles()->layer_id == id);
+
+  // The Rectangle tool: a drag of the end handle moves the end, as one undo step, and draws
+  // no shape.
+  auto before = depth();
+  const auto start_before = start_of();
+  const auto end_before = end_of();
+  const auto end_widget = part_at(Kind::End);
+  drag(*canvas, end_widget, end_widget + QPoint(34, 22));
+  QApplication::processEvents();
+  CHECK(depth() == before + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Move Gradient End Point"));
+  CHECK(document.active_layer_id() == std::optional(id));
+  CHECK(QLineF(end_of(), end_before).length() > 10.0);
+  CHECK(QLineF(start_of(), start_before).length() < 1.5);
+  // The window follows: a new page with the new angle, the box still ticked.
+  for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
+  CHECK(panel_usable(*panel));
+  CHECK(box()->isChecked() && box()->isEnabled());
+  const auto shown_angle = field<QSpinBox>(*panel, "shapeGradientAngleSpin")->value();
+  const auto angle_off = std::fmod(std::abs(shown_angle - static_cast<double>(gradient().angle_degrees)), 360.0);
+  CHECK(angle_off <= 1.0 || angle_off >= 359.0);
+  // Undo puts the end back and the handles follow.
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(QLineF(end_of(), end_before).length() < 1.5);
+
+  // A press away from every handle part is the tool's: it draws a shape.
+  const auto drawn = make_rect(window, *canvas, QPoint(330, 240), QPoint(400, 290));
+  CHECK(drawn != id);
+  // That shape is solid: no handles, and the box greys out with the new page.
+  for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
+  CHECK(!canvas->gradient_fill_handles().has_value());
+  CHECK(!box()->isEnabled() && box()->isChecked());
+  select_only(window, id);
+  CHECK(canvas->gradient_fill_handles().has_value());
+
+  // Path Select: a click on the shape away from the handles selects its path; a click on
+  // the gradient line then adds a color stop and selects it, and Delete removes that stop,
+  // not the path's anchor points.
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == CanvasTool::PathSelect);
+  CHECK(canvas->gradient_fill_handles().has_value());
+  const auto corner = canvas->widget_position_for_document_point(QPoint(108, 108));
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(corner)).kind == Kind::None);
+  window_click(corner);
+  CHECK(canvas->path_edit_has_selection());
+  const auto path_before = shape_of(document, id).path;
+  const auto middle = rounded((QPointF(part_at(Kind::Start)) + QPointF(part_at(Kind::End))) / 2.0);
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(middle)).kind == Kind::Line);
+  before = depth();
+  window_click(middle);
+  CHECK(depth() == before + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Add Color Stop"));
+  CHECK(gradient().color_stops.size() == 3U);
+  CHECK(canvas->gradient_fill_selected_stop() == (std::optional<Part>(Part{Kind::ColorStop, 1})));
+  CHECK(canvas->path_edit_has_selection());  // the path is still selected: Delete has two takers
+  QTest::keyClick(top, Qt::Key_Delete);
+  QApplication::processEvents();
+  CHECK(depth() == before + 2);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Delete Color Stop"));
+  CHECK(gradient().color_stops.size() == 2U);
+  CHECK(std::as_const(document).find_layer(id) != nullptr);
+  CHECK(shape_of(document, id).path == path_before);
+
+  // The Move tool: the start handle moves the gradient's start, not the layer. Over a
+  // handle the cursor is the handle's; with Ctrl held (the tool's own press) it is not.
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == CanvasTool::Move);
+  CHECK(canvas->gradient_fill_handles().has_value());
+  send_mouse(*canvas, QEvent::MouseMove, part_at(Kind::End), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->gradient_handle_cursor() == Cursor::Move);
+  send_mouse(*canvas, QEvent::MouseMove, part_at(Kind::End), Qt::NoButton, Qt::NoButton, Qt::ControlModifier);
+  CHECK(canvas->gradient_handle_cursor() == Cursor::None);
+  before = depth();
+  const auto start_widget = part_at(Kind::Start);
+  const auto start_then = start_of();
+  drag(*canvas, start_widget, start_widget + QPoint(-18, 12));
+  QApplication::processEvents();
+  CHECK(depth() == before + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Move Gradient Start Point"));
+  CHECK(QLineF(start_of(), start_then).length() > 8.0);
+  CHECK(shape_of(document, id).path == path_before);
+  save_widget_artifact("issue694_gradient_handles_move_tool", window);
+
+  // The view tools own every press, so no handles show under them; the Gradient tool keeps
+  // its own.
+  canvas->set_tool(CanvasTool::Zoom);
+  CHECK(!canvas->gradient_fill_handles().has_value());
+  canvas->set_tool(CanvasTool::Gradient);
+  CHECK(canvas->gradient_fill_handles().has_value());
+  canvas->set_tool(CanvasTool::Move);
+  CHECK(canvas->gradient_fill_handles().has_value());
+
+  // Unticking mid-drag puts the gradient back and records nothing; the release is inert.
+  for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
+  before = depth();
+  const auto resting = gradient();
+  const auto grab = part_at(Kind::End);
+  send_mouse(*canvas, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, grab + QPoint(25, 25), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!(gradient() == resting));  // the drag previews live
+  box()->click();
+  QApplication::processEvents();
+  CHECK(!canvas->gradient_handles_forced());
+  CHECK(!canvas->gradient_fill_handles().has_value());
+  CHECK(gradient() == resting);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, grab + QPoint(25, 25), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(gradient() == resting);
+  CHECK(depth() == before);
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("shapeAppearance/showGradientHandles")).toBool());
+
+  // Ticked again, the handles are back; closing the window takes them away and opening it
+  // brings them back, the box still ticked.
+  box()->click();
+  QApplication::processEvents();
+  CHECK(canvas->gradient_fill_handles().has_value());
+  page_of(*panel)->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+  for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
+  CHECK(!panel->isVisible());
+  CHECK(!canvas->gradient_handles_forced());
+  CHECK(!canvas->gradient_fill_handles().has_value());
+  require_action(window, "layerShapeAppearanceAction")->trigger();
+  for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
+  CHECK(panel->isVisible() && box()->isChecked());
+  CHECK(canvas->gradient_handles_forced());
+  CHECK(canvas->gradient_fill_handles().has_value());
+
+  // A second document's canvas follows the box too, and shows nothing without a gradient.
+  Access::create_document(window, 320, 240);
+  QApplication::processEvents();
+  auto* second_canvas = require_canvas(window);
+  CHECK(second_canvas != canvas);
+  CHECK(second_canvas->gradient_handles_forced());
+  CHECK(!second_canvas->gradient_fill_handles().has_value());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
@@ -534,5 +747,7 @@ std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
       {"ui_shape_appearance_window_color_picker_commits_one_step",
        ui_shape_appearance_window_color_picker_commits_one_step},
       {"ui_shape_appearance_window_step_timing", ui_shape_appearance_window_step_timing},
+      {"ui_shape_appearance_window_shows_gradient_handles_under_other_tools",
+       ui_shape_appearance_window_shows_gradient_handles_under_other_tools},
   };
 }

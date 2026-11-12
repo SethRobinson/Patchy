@@ -15814,6 +15814,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Update...</source>
         <translation>Aktualisieren...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>Verlaufsgriffe anzeigen</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>Zeigt die Griffe des Füllverlaufs mit jedem Werkzeug auf der Leinwand, solange dieses Fenster geöffnet ist. Ziehen Sie daran, um den Verlauf und seine Unterbrechungen zu verschieben.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

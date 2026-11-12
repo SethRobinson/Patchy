@@ -15758,6 +15758,14 @@ Do you want to replace it?</source>
         <source>Update...</source>
         <translation>更新...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>显示渐变手柄</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>此窗口打开时，使用任何工具都会在画布上显示填充渐变的手柄。拖动手柄可移动渐变及其色标。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

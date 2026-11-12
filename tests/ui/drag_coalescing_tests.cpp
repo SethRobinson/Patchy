@@ -558,6 +558,9 @@ void ui_canvas_drag_branches_follow_the_wayland_drag_rule() {
       {"dragging_text_entry_selection_", "cheap"},
       {"edit_locked_ && !zooming_ && !selection_tool_passes_edit_lock()", "not a drag"},
       {"dragging_guide_", "cheap"},
+      {"tool_ != CanvasTool::Gradient && (gradient_handle_drag_.has_value() || gradient_handles_enabled()) && "
+       "move_gradient_fill_handle(event)",
+       "coalesced"},
       {"pen_family_tool_active()", "cheap; its path edits coalesce"},
       {"shape_temp_path_select_ && (event->buttons() & Qt::LeftButton) == 0", "not a drag"},
       {"shape_tool_active() && !drawing_shape_ && !shape_handle_drag_active()", "coalesced"},

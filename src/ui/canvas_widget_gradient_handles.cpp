@@ -167,8 +167,71 @@ void CanvasWidget::set_gradient_fill_stop_color_requested_callback(std::function
   gradient_fill_stop_color_requested_callback_ = std::move(callback);
 }
 
+bool CanvasWidget::gradient_handles_enabled() const noexcept {
+  return tool_ == CanvasTool::Gradient || gradient_handles_under_other_tool();
+}
+
+bool CanvasWidget::gradient_handles_under_other_tool() const noexcept {
+  if (!gradient_handles_forced_) {
+    return false;
+  }
+  switch (tool_) {
+    case CanvasTool::Gradient:  // its own handles, with its own rules
+    // These own every press (or only move the view), so handles shown under them could
+    // never be pressed.
+    case CanvasTool::Pan:
+    case CanvasTool::Zoom:
+    case CanvasTool::RotateView:
+    case CanvasTool::Eyedropper:
+    case CanvasTool::Ruler:
+    case CanvasTool::Artboard:
+    case CanvasTool::Crop:
+    case CanvasTool::PerspectiveCrop:
+      return false;
+    default:
+      break;
+  }
+  // A transform session owns the canvas, and a path or lasso being built by clicks owns
+  // each click.
+  return !transforming_layer_ && !warping_layer_ && !path_transform_active_ && !pen_session_active_ &&
+         !polygon_lassoing_ && !magnetic_lassoing_;
+}
+
+void CanvasWidget::set_gradient_handles_forced(bool forced) {
+  if (gradient_handles_forced_ == forced) {
+    return;
+  }
+  gradient_handles_forced_ = forced;
+  if (!forced && tool_ != CanvasTool::Gradient) {
+    // As a switch away from the Gradient tool: the drag is put back, the popup commits.
+    cancel_gradient_fill_handle_drag();
+    finish_gradient_opacity_popup(true);
+    gradient_stop_selection_.reset();
+    if (gradient_handle_hover_.kind != PartKind::None || gradient_handle_cursor_ != GradientHandleCursor::None) {
+      gradient_handle_hover_ = {};
+      gradient_handle_cursor_ = GradientHandleCursor::None;
+      update_tool_cursor();
+    }
+  }
+  update();
+}
+
+bool CanvasWidget::handle_gradient_handle_key(QKeyEvent* event) {
+  if (gradient_handles_enabled() && event->modifiers() == Qt::NoModifier &&
+      (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && !event->isAutoRepeat() &&
+      delete_selected_gradient_stop()) {
+    return true;
+  }
+  if (gradient_handle_drag_.has_value() && event->key() == Qt::Key_Escape) {
+    // Esc mid-drag puts the gradient back as it was before the press.
+    cancel_gradient_fill_handle_drag();
+    return true;
+  }
+  return false;
+}
+
 const Layer* CanvasWidget::gradient_fill_handle_layer() const {
-  if (document_ == nullptr || tool_ != CanvasTool::Gradient || quick_mask_active_ ||
+  if (document_ == nullptr || !gradient_handles_enabled() || quick_mask_active_ ||
       layer_edit_target_ != LayerEditTarget::Content) {
     return nullptr;
   }
@@ -654,8 +717,14 @@ bool CanvasWidget::move_gradient_fill_handle(QMouseEvent* event) {
   if (event->buttons() != Qt::NoButton || drawing_shape_) {
     return false;
   }
-  const auto part = gradient_fill_handle_layer() != nullptr ? gradient_fill_handle_part_at(event->position())
-                                                            : GradientHandlePart{};
+  // Under another tool Ctrl, Alt and Meta presses are that tool's (press_gradient_fill_handle
+  // lets them through), so the hover shows that tool's cursor too.
+  const bool tool_modifier_held =
+      tool_ != CanvasTool::Gradient &&
+      (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) != 0;
+  const auto part = gradient_fill_handle_layer() != nullptr && !tool_modifier_held
+                        ? gradient_fill_handle_part_at(event->position())
+                        : GradientHandlePart{};
   const bool was_hovering = gradient_handle_hover_.kind != PartKind::None;
   set_gradient_fill_handle_hover(part);
   if (part.kind == PartKind::None) {
@@ -1005,7 +1074,7 @@ bool CanvasWidget::double_click_gradient_fill_handle(QMouseEvent* event) {
 }
 
 bool CanvasWidget::show_gradient_fill_handle_tooltip(QEvent* event) {
-  if (event->type() != QEvent::ToolTip || tool_ != CanvasTool::Gradient) {
+  if (event->type() != QEvent::ToolTip || !gradient_handles_enabled()) {
     return false;
   }
   const auto* help = static_cast<QHelpEvent*>(event);

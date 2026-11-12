@@ -476,7 +476,8 @@ public:
   [[nodiscard]] GradientToolMode gradient_tool_mode() const noexcept;
   void set_gradient_fill_drawn_callback(std::function<void(QPoint, QPoint)> callback);
   // On-canvas handles of the active Gradient Fill layer or single-fill gradient shape while the
-  // Gradient tool is active (GitHub issue 663; canvas_widget_gradient_handles.cpp): the line's
+  // Gradient tool is active, or under another tool while set_gradient_handles_forced asks for
+  // them (GitHub issues 663 and 694; canvas_widget_gradient_handles.cpp): the line's
   // start and end, the color stops on one side, the opacity stops on the other, and the
   // midpoints between them. A drag previews through the edit callback (Preview, then Commit
   // with its undo name, or Cancel); `serial` names the drag so a stale call is ignored.
@@ -502,6 +503,13 @@ public:
   using GradientFillEditCallback = std::function<void(LayerId, const LayerStyleGradient&, GradientFillEditPhase,
                                                       std::uint64_t serial, const QString& undo_label)>;
   void set_gradient_fill_edit_callback(GradientFillEditCallback callback);
+  // The Shape Appearance window's "Show gradient handles" box (GitHub issue 694): while set,
+  // the handles also show and edit under the other tools (not the view tools, the Eyedropper,
+  // the Ruler, the Artboard tool or the Crop tools, which own every press). A press on a
+  // handle part edits the gradient; any other press is the tool's own. Clearing it under
+  // another tool cancels a handle drag.
+  void set_gradient_handles_forced(bool forced);
+  [[nodiscard]] bool gradient_handles_forced() const noexcept { return gradient_handles_forced_; }
   // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
   // issue 690). The box is the document rect of what the options-bar W / H fields size:
   // the active shape layer's path, or its components Path Select picked. Empty when no
@@ -3177,6 +3185,12 @@ private:
   void draw_perspective_crop_overlay(QPainter& painter) const;
   void draw_perspective_crop_up_marker(QPainter& painter, const QPolygonF& quad) const;
   // Gradient Fill handles (canvas_widget_gradient_handles.cpp, GitHub issue 663).
+  // The one gate for where the handles work: the Gradient tool, or another tool while the
+  // Shape Appearance window asks for them (set_gradient_handles_forced).
+  [[nodiscard]] bool gradient_handles_enabled() const noexcept;
+  [[nodiscard]] bool gradient_handles_under_other_tool() const noexcept;
+  // Delete or Backspace on a selected stop, Esc during a drag.
+  bool handle_gradient_handle_key(QKeyEvent* event);
   [[nodiscard]] const Layer* gradient_fill_handle_layer() const;
   [[nodiscard]] Rect gradient_fill_handle_bounds(const Layer& layer) const;
   bool press_gradient_fill_handle(QMouseEvent* event);
@@ -4377,6 +4391,7 @@ private:
   QElapsedTimer gradient_handle_preview_clock_;
   GradientHandlePart gradient_handle_hover_;
   GradientHandleCursor gradient_handle_cursor_{GradientHandleCursor::None};
+  bool gradient_handles_forced_{false};
   // The selected stop (a click on it selects it): its layer, list and index.
   struct GradientStopSelection {
     LayerId layer_id{0};

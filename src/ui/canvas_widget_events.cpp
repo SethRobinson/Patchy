@@ -432,7 +432,7 @@ bool CanvasWidget::event(QEvent* event) {
     }
     // A selected gradient stop (GitHub issue 663 follow-up) owns Delete and Backspace, so the
     // key never reaches Edit > Clear or a layer delete while one is selected.
-    if (tool_ == CanvasTool::Gradient && key_event->modifiers() == Qt::NoModifier &&
+    if (gradient_handles_enabled() && key_event->modifiers() == Qt::NoModifier &&
         (key_event->key() == Qt::Key_Delete || key_event->key() == Qt::Key_Backspace) &&
         gradient_fill_selected_stop().has_value()) {
       event->accept();
@@ -921,7 +921,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): a press on an
   // end, the line, a stop or a midpoint edits that gradient; anywhere else draws a new one.
-  if (tool_ == CanvasTool::Gradient && document_ != nullptr && event->button() == Qt::LeftButton &&
+  // Under another tool (the Shape Appearance window's Show gradient handles box, GitHub issue
+  // 694) a press on a part does the same, ahead of that tool's own handles and anchor points;
+  // anywhere else is the tool's press.
+  if (gradient_handles_enabled() && document_ != nullptr && event->button() == Qt::LeftButton &&
       press_gradient_fill_handle(event)) {
     event->accept();
     return;
@@ -2255,6 +2258,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  // Gradient handles under another tool (GitHub issue 694): a handle drag, or the hover over
+  // a handle part, comes before the tool branches below, which keep every move for themselves.
+  // A drag another gesture owns (a button is down) passes through untouched.
+  if (tool_ != CanvasTool::Gradient && (gradient_handle_drag_.has_value() || gradient_handles_enabled()) &&
+      move_gradient_fill_handle(event)) {
+    clear_move_hover_outline();
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
+
   if (pen_family_tool_active()) {
     handle_pen_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
@@ -3100,6 +3114,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  // Before the Pen and path tools, which take every release (the handles work under them too,
+  // GitHub issue 694).
+  if (gradient_handle_drag_.has_value() && release_gradient_fill_handle(event)) {
+    event->accept();
+    return;
+  }
+
   if (pen_family_tool_active()) {
     if (handle_pen_release(event)) {
       event->accept();
@@ -3205,11 +3226,6 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
-    return;
-  }
-
-  if (gradient_handle_drag_.has_value() && release_gradient_fill_handle(event)) {
-    event->accept();
     return;
   }
 
@@ -4097,7 +4113,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
       return;
     }
   }
-  if (tool_ == CanvasTool::Gradient && double_click_gradient_fill_handle(event)) {
+  if (gradient_handles_enabled() && double_click_gradient_fill_handle(event)) {
     event->accept();
     return;
   }
@@ -4348,6 +4364,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       event->accept();
       return;
     }
+  }
+
+  // Gradient handles under another tool (GitHub issue 694): the stop a press selected owns
+  // Delete and Backspace, and Esc cancels a handle drag, ahead of the path tools' own keys
+  // (which would delete the selected anchor points instead).
+  if (tool_ != CanvasTool::Gradient && handle_gradient_handle_key(event)) {
+    event->accept();
+    return;
   }
 
   // An active pen-path session owns Escape/Backspace/Delete/Enter the same way
@@ -4641,16 +4665,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     }
   }
 
-  if (tool_ == CanvasTool::Gradient && event->modifiers() == Qt::NoModifier &&
-      (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && !event->isAutoRepeat() &&
-      delete_selected_gradient_stop()) {
-    event->accept();
-    return;
-  }
-
-  if (gradient_handle_drag_.has_value() && event->key() == Qt::Key_Escape) {
-    // Esc mid-drag puts the gradient back as it was before the press.
-    cancel_gradient_fill_handle_drag();
+  if (handle_gradient_handle_key(event)) {
     event->accept();
     return;
   }

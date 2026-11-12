@@ -15796,6 +15796,14 @@ Do you want to replace it?</source>
         <source>Update...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

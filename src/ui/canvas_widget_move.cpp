@@ -218,13 +218,14 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
   if (transform_session && !transform_session_context_actions_callback_) {
     return false;
   }
-  if (!transform_session && path_edit_tool_active() &&
-      show_path_context_menu(QPointF(widget_point), global_position)) {
+  // A right-click on a gradient stop handle (GitHub issue 663 follow-up): its own menu. Ahead
+  // of the path tools' menu, since the handles can show under those tools too (GitHub issue 694).
+  if (!transform_session && gradient_handles_enabled() &&
+      show_gradient_stop_context_menu(widget_point, global_position)) {
     return true;
   }
-  // A right-click on a gradient stop handle (GitHub issue 663 follow-up): its own menu.
-  if (!transform_session && tool_ == CanvasTool::Gradient &&
-      show_gradient_stop_context_menu(widget_point, global_position)) {
+  if (!transform_session && path_edit_tool_active() &&
+      show_path_context_menu(QPointF(widget_point), global_position)) {
     return true;
   }
   auto* menu = new QMenu(this);

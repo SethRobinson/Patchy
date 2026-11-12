@@ -15870,6 +15870,14 @@ Do you want to replace it?</source>
         <source>Update...</source>
         <translation>Обновить...</translation>
     </message>
+    <message>
+        <source>Show gradient handles</source>
+        <translation>Показывать маркеры градиента</translation>
+    </message>
+    <message>
+        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
+        <translation>Показывает маркеры градиента заливки на холсте с любым инструментом, пока это окно открыто. Перетаскивайте их, чтобы перемещать градиент и его контрольные точки.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

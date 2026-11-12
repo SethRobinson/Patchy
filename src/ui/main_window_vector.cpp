@@ -870,20 +870,36 @@ bool MainWindow::edit_active_shape_appearance() {
       run_shape_appearance_panel_child_dialog(body);
     };
     host.key_target = [this]() -> QWidget* { return canvas_; };
+    host.gradient_handles_changed = [this] { sync_shape_appearance_gradient_handles(); };
     shape_appearance_panel_ = new ShapeAppearancePanel(this, std::move(host));
   }
   shape_appearance_panel_->open();
+  sync_shape_appearance_gradient_handles();
   return true;
 }
 
 void MainWindow::sync_shape_appearance_panel() {
-  if (shape_appearance_panel_ != nullptr) shape_appearance_panel_->sync();
+  if (shape_appearance_panel_ == nullptr) return;
+  shape_appearance_panel_->sync();
+  sync_shape_appearance_gradient_handles();  // a tab opened since: its canvas follows too
+}
+
+void MainWindow::sync_shape_appearance_gradient_handles() {
+  // The canvas decides where the handles can work (its tool, a transform session, the
+  // active layer); this only says the window asks for them.
+  const bool forced = shape_appearance_panel_ != nullptr && shape_appearance_panel_->gradient_handles_wanted();
+  for (const auto& target_session : sessions_) {
+    if (target_session != nullptr && target_session->canvas != nullptr) {
+      target_session->canvas->set_gradient_handles_forced(forced);
+    }
+  }
 }
 
 void MainWindow::hide_shape_appearance_panel_for_shutdown() {
   if (shape_appearance_panel_ == nullptr) return;
   end_live_shape_appearance_run();
   shape_appearance_panel_->hide_for_shutdown();
+  sync_shape_appearance_gradient_handles();
 }
 
 QString MainWindow::shape_appearance_panel_unavailable_reason() const {
