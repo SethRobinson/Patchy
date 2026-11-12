@@ -15815,12 +15815,12 @@ Do you want to replace it?</source>
         <translation>Actualizar...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>Mostrar controles del degradado</translation>
+        <source>Show handles</source>
+        <translation>Mostrar controles</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>Muestra los controles del degradado de relleno en el lienzo con cualquier herramienta mientras esta ventana está abierta. Arrástrelos para mover el degradado y sus paradas.</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>Muestra los controles de este degradado en el lienzo con cualquier herramienta mientras esta ventana está abierta. Arrástrelos para mover el degradado y sus paradas. Solo un degradado muestra sus controles a la vez.</translation>
     </message>
 </context>
 <context>

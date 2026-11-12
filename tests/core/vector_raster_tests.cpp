@@ -2749,6 +2749,106 @@ void gradient_fill_alignment_bounds_follow_the_bake() {
   CHECK(right[0] > 251 && right[3] == 127);
 }
 
+// The box a stroke's gradient is measured over (GitHub issue 694, the handles on a stroke
+// gradient): rendering the shape with that box given outright must give the bake's bytes, for
+// each stroke alignment, with and without a fill, feathered, dashed and reaching off the canvas.
+void gradient_stroke_alignment_bounds_follow_the_bake() {
+  const auto canvas = patchy::Rect::from_size(120, 90);
+  patchy::VectorShapeContent base;
+  base.fill.kind = patchy::VectorFillKind::Solid;
+  base.fill.color = patchy::RgbColor{20, 60, 200};
+  base.stroke.enabled = true;
+  base.stroke.width = 9.0;
+  base.stroke.content.kind = patchy::VectorFillKind::Gradient;
+  base.stroke.content.gradient.align_with_layer = true;
+  base.stroke.content.gradient.angle_degrees = 25.0F;
+  base.stroke.content.gradient.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F},
+                                              {1.0F, patchy::RgbColor{255, 255, 255}, 0.5F}};
+  base.stroke.content.gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  base.path.subpaths = {rect_subpath(30.0, 22.0, 90.0, 64.0, PathCombineOp::Add, 0)};
+
+  struct Case {
+    const char* name;
+    std::function<void(patchy::VectorShapeContent&)> change;
+  };
+  const std::vector<Case> cases{
+      {"inside", [](auto& c) { c.stroke.alignment = patchy::VectorStrokeAlignment::Inside; }},
+      {"center", [](auto& c) { c.stroke.alignment = patchy::VectorStrokeAlignment::Center; }},
+      {"outside", [](auto& c) { c.stroke.alignment = patchy::VectorStrokeAlignment::Outside; }},
+      {"outside, no fill",
+       [](auto& c) {
+         c.stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+         c.stroke.fill_enabled = false;
+       }},
+      {"inside, feathered",
+       [](auto& c) {
+         c.stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+         c.feather = 3.0;
+       }},
+      {"center, dashed",
+       [](auto& c) {
+         c.stroke.alignment = patchy::VectorStrokeAlignment::Center;
+         c.stroke.dashes = {2.0, 1.0};
+       }},
+      {"outside, past the canvas",
+       [](auto& c) {
+         c.stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+         c.path.subpaths = {rect_subpath(-14.0, 30.0, 60.0, 110.0, PathCombineOp::Add, 0)};
+       }},
+  };
+  for (const auto& entry : cases) {
+    auto content = base;
+    entry.change(content);
+    patchy::Layer layer(1, "Shape 1", patchy::PixelBuffer());
+    layer.set_vector_shape(content);
+    layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    const auto stroke_bounds = patchy::gradient_stroke_alignment_bounds(std::as_const(layer), canvas);
+    CHECK(!stroke_bounds.empty());
+    CHECK(!(stroke_bounds == canvas));
+    patchy::update_vector_shape_raster(layer, canvas, nullptr);
+    // The same render with the stroke's gradient box given outright.
+    // update_vector_shape_raster's domain: the coverage domain without the feather's reach.
+    patchy::VectorShapeContent unfeathered = content;
+    unfeathered.feather = 0.0;
+    const auto bake_domain = patchy::vector_shape_coverage_domain(unfeathered, canvas);
+    const patchy::VectorPaintBounds paint{canvas, std::nullopt, stroke_bounds};
+    const auto given = patchy::rasterize_vector_shape(content, bake_domain, nullptr, &layer, &paint);
+    const bool same_bounds = given.bounds == std::as_const(layer).bounds();
+    bool same_bytes = same_bounds && given.pixels.width() == std::as_const(layer).pixels().width() &&
+                      given.pixels.height() == std::as_const(layer).pixels().height();
+    for (std::int32_t y = 0; same_bytes && y < given.pixels.height(); ++y) {
+      same_bytes = std::memcmp(given.pixels.pixel(0, y), std::as_const(layer).pixels().pixel(0, y),
+                               static_cast<std::size_t>(given.pixels.width()) * 4U) == 0;
+    }
+    if (!same_bytes) {
+      std::printf("[INFO] stroke gradient bounds differ from the bake: %s\n", entry.name);
+    }
+    CHECK(same_bytes);
+    // A box one pixel off renders something else, so the comparison can tell.
+    auto shifted = stroke_bounds;
+    shifted.width += 6;
+    const patchy::VectorPaintBounds off{canvas, std::nullopt, shifted};
+    const auto moved = patchy::rasterize_vector_shape(content, bake_domain, nullptr, &layer, &off);
+    bool differs = !(moved.bounds == given.bounds);
+    for (std::int32_t y = 0; !differs && y < given.pixels.height(); ++y) {
+      differs = std::memcmp(given.pixels.pixel(0, y), moved.pixels.pixel(0, y),
+                            static_cast<std::size_t>(given.pixels.width()) * 4U) != 0;
+    }
+    CHECK(differs);
+  }
+
+  // Without Align with Layer, or with no stroke drawn, the box is the canvas.
+  patchy::Layer layer(1, "Shape 1", patchy::PixelBuffer());
+  auto content = base;
+  content.stroke.content.gradient.align_with_layer = false;
+  layer.set_vector_shape(content);
+  CHECK(patchy::gradient_stroke_alignment_bounds(std::as_const(layer), canvas) == canvas);
+  content = base;
+  content.stroke.width = 0.0;
+  layer.set_vector_shape(content);
+  CHECK(patchy::gradient_stroke_alignment_bounds(std::as_const(layer), canvas) == canvas);
+}
+
 // Stop edits from the canvas handles keep both lists sorted, track the edited stop, keep at
 // least two stops and clamp locations and midpoints like the Edit Gradient Stops dialog.
 void gradient_fill_stop_edits_keep_stops_sorted() {
@@ -3057,6 +3157,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"gradient_tool_stops_keep_a_presets_own_stops", gradient_tool_stops_keep_a_presets_own_stops},
       {"gradient_fill_line_inverts_the_drag_placement", gradient_fill_line_inverts_the_drag_placement},
       {"gradient_fill_alignment_bounds_follow_the_bake", gradient_fill_alignment_bounds_follow_the_bake},
+      {"gradient_stroke_alignment_bounds_follow_the_bake", gradient_stroke_alignment_bounds_follow_the_bake},
       {"gradient_fill_stop_edits_keep_stops_sorted", gradient_fill_stop_edits_keep_stops_sorted},
       {"gradient_fill_from_drag_renders_the_gradient_tool_drag", gradient_fill_from_drag_renders_the_gradient_tool_drag},
       {"gradient_fill_layer_geometry_matches_photoshop_probes", gradient_fill_layer_geometry_matches_photoshop_probes},

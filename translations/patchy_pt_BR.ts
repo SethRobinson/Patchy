@@ -15815,12 +15815,12 @@ Deseja substituí-lo?</translation>
         <translation>Atualizar...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>Mostrar alças do degradê</translation>
+        <source>Show handles</source>
+        <translation>Mostrar alças</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>Mostra as alças do degradê de preenchimento na tela de pintura com qualquer ferramenta enquanto esta janela está aberta. Arraste-as para mover o degradê e suas paradas.</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>Mostra as alças deste degradê na tela de pintura com qualquer ferramenta enquanto esta janela está aberta. Arraste-as para mover o degradê e suas paradas. Apenas um degradê mostra suas alças por vez.</translation>
     </message>
 </context>
 <context>

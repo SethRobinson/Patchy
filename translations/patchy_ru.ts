@@ -15871,12 +15871,12 @@ Do you want to replace it?</source>
         <translation>Обновить...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>Показывать маркеры градиента</translation>
+        <source>Show handles</source>
+        <translation>Показывать маркеры</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>Показывает маркеры градиента заливки на холсте с любым инструментом, пока это окно открыто. Перетаскивайте их, чтобы перемещать градиент и его контрольные точки.</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>Показывает маркеры этого градиента на холсте с любым инструментом, пока это окно открыто. Перетаскивайте их, чтобы перемещать градиент и его контрольные точки. Маркеры одновременно показывает только один градиент.</translation>
     </message>
 </context>
 <context>

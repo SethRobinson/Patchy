@@ -2448,15 +2448,20 @@ private:
   void handle_gradient_fill_drawn(QPoint from, QPoint to);
   // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): Preview
   // renders the edited gradient without history, Commit lands it as one undo step named
-  // `undo_label`, Cancel restores the layer as it was before the drag.
+  // `undo_label`, Cancel restores the layer as it was before the drag. `target` is the
+  // gradient edited: the fill's, or the stroke's (the Shape Appearance window's handles,
+  // GitHub issue 694).
   void handle_gradient_fill_handle_edit(LayerId layer_id, const LayerStyleGradient& gradient,
-                                        GradientFillEditPhase phase, std::uint64_t serial, const QString& undo_label);
+                                        GradientFillEditPhase phase, std::uint64_t serial, const QString& undo_label,
+                                        GradientHandleTarget target = GradientHandleTarget::Fill);
   // A double-click on a color stop handle: the color picker, previewing live.
-  void handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index);
+  void handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index,
+                                                 GradientHandleTarget target = GradientHandleTarget::Fill);
   // Stores `gradient` on the layer and bakes it: exactly, or as the fast draft
-  // (update_gradient_fill_draft_raster) for a live preview over `draft_bounds`.
+  // (update_gradient_fill_draft_raster) for a live preview of a fill over `draft_bounds`.
   void apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient,
-                                           std::optional<Rect> draft_bounds = std::nullopt);
+                                           std::optional<Rect> draft_bounds = std::nullopt,
+                                           GradientHandleTarget target = GradientHandleTarget::Fill);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();

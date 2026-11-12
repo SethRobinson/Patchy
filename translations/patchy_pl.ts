@@ -15871,12 +15871,12 @@ Czy chcesz go zastąpić?</translation>
         <translation>Aktualizuj...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>Pokaż uchwyty gradientu</translation>
+        <source>Show handles</source>
+        <translation>Pokaż uchwyty</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>Pokazuje uchwyty gradientu wypełnienia na płótnie przy dowolnym narzędziu, dopóki to okno jest otwarte. Przeciągnij je, aby przesunąć gradient i jego znaczniki.</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>Pokazuje uchwyty tego gradientu na płótnie przy dowolnym narzędziu, dopóki to okno jest otwarte. Przeciągnij je, aby przesunąć gradient i jego znaczniki. Uchwyty pokazuje naraz tylko jeden gradient.</translation>
     </message>
 </context>
 <context>

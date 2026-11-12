@@ -476,6 +476,29 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   QWidget& dialog = host;
   QDialog* const window_ptr = &window;
   const bool live = options.mode == ShapeAppearanceBodyMode::Live;
+  // The "Show handles" boxes (GitHub issue 694). The window owns the choice; a new page
+  // starts from it and the boxes of this page change this copy.
+  struct GradientHandleBoxes {
+    bool on{false};
+    bool on_stroke{false};
+    std::function<void(bool, bool)> toggled;
+  };
+  const auto handle_boxes = std::make_shared<GradientHandleBoxes>();
+  handle_boxes->on = options.show_gradient_handles;
+  handle_boxes->on_stroke = options.gradient_handles_on_stroke;
+  handle_boxes->toggled = std::move(options.gradient_handles_toggled);
+  const bool has_handle_boxes = live && static_cast<bool>(handle_boxes->toggled);
+  const auto make_handles_check = [has_handle_boxes](QWidget* parent, const char* name) -> QCheckBox* {
+    if (!has_handle_boxes) {
+      return nullptr;
+    }
+    auto* check = new QCheckBox(QObject::tr("Show handles"), parent);
+    check->setObjectName(QLatin1String(name));
+    check->setToolTip(QObject::tr("Show this gradient's handles on the canvas with any tool while this window "
+                                  "is open. Drag them to move the gradient and its stops. One gradient shows "
+                                  "its handles at a time."));
+    return check;
+  };
   auto preview_changed = std::move(options.changed);
   auto initial = std::move(options.initial);
   const auto reset_defaults = std::move(options.reset_defaults);
@@ -1378,6 +1401,10 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   auto* gradient_reverse_check = new QCheckBox(QObject::tr("Reverse"), fill_group);
   gradient_reverse_check->setObjectName(QStringLiteral("shapeGradientReverseCheck"));
   fill_gradient_form->addRow(QString(), gradient_reverse_check);
+  QCheckBox* const fill_handles_check = make_handles_check(fill_group, "shapeFillGradientHandlesCheck");
+  if (fill_handles_check != nullptr) {
+    fill_gradient_form->addRow(QString(), fill_handles_check);
+  }
 
   auto* fill_pattern_combo = new QComboBox(fill_group);
   fill_pattern_combo->setObjectName(QStringLiteral("shapeFillPatternCombo"));
@@ -1601,6 +1628,10 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   stroke_gradient_reverse_check->setObjectName(
       QStringLiteral("shapeStrokeGradientReverseCheck"));
   stroke_gradient_form->addRow(QString(), stroke_gradient_reverse_check);
+  QCheckBox* const stroke_handles_check = make_handles_check(stroke_group, "shapeStrokeGradientHandlesCheck");
+  if (stroke_handles_check != nullptr) {
+    stroke_gradient_form->addRow(QString(), stroke_handles_check);
+  }
 
   auto* stroke_pattern_combo = new QComboBox(stroke_group);
   stroke_pattern_combo->setObjectName(QStringLiteral("shapeStrokePatternCombo"));
@@ -1819,20 +1850,6 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   QObject::connect(buttons, &QDialogButtonBox::accepted, window_ptr, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, window_ptr, &QDialog::reject);
   auto* footer = new QHBoxLayout();
-  // The stay-open window can show the fill gradient's on-canvas handles under any tool
-  // (GitHub issue 694). The window owns the state; a new page starts from it.
-  QCheckBox* gradient_handles_check = nullptr;
-  if (live && options.gradient_handles_toggled) {
-    gradient_handles_check = new QCheckBox(QObject::tr("Show gradient handles"), &dialog);
-    gradient_handles_check->setObjectName(QStringLiteral("shapeAppearanceGradientHandlesCheck"));
-    gradient_handles_check->setToolTip(
-        QObject::tr("Show the fill gradient's handles on the canvas with any tool while this window is open. "
-                    "Drag them to move the gradient and its stops."));
-    gradient_handles_check->setChecked(options.show_gradient_handles);
-    footer->addWidget(gradient_handles_check);
-    QObject::connect(gradient_handles_check, &QCheckBox::toggled, &dialog,
-                     [toggled = std::move(options.gradient_handles_toggled)](bool checked) { toggled(checked); });
-  }
   if (!live) {
     auto* preview_check = new QCheckBox(QObject::tr("Preview"), &dialog);
     preview_check->setObjectName(QStringLiteral("shapeAppearancePreviewCheck"));
@@ -1880,6 +1897,38 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     });
   }
 
+  // Which Show handles box is ticked: the canvas's rule (CanvasWidget::gradient_handle_target),
+  // the chosen gradient when the fill and the stroke are both gradients, else the one there is.
+  const auto sync_handle_checks = [=] {
+    if (fill_handles_check == nullptr || stroke_handles_check == nullptr) {
+      return;
+    }
+    const bool fill_gradient = state->settings.fill.kind == VectorFillKind::Gradient;
+    const bool stroke_gradient = state->settings.stroke.enabled && state->settings.stroke.width > 0.0 &&
+                                 state->settings.stroke.content.kind == VectorFillKind::Gradient;
+    const bool on_stroke = handle_boxes->on && stroke_gradient && (handle_boxes->on_stroke || !fill_gradient);
+    const bool on_fill = handle_boxes->on && fill_gradient && !on_stroke;
+    const QSignalBlocker fill_blocker(fill_handles_check);
+    const QSignalBlocker stroke_blocker(stroke_handles_check);
+    fill_handles_check->setChecked(on_fill);
+    stroke_handles_check->setChecked(on_stroke);
+    stroke_handles_check->setEnabled(stroke_gradient);  // a stroke of no width draws nothing
+  };
+  if (fill_handles_check != nullptr && stroke_handles_check != nullptr) {
+    const auto toggle = [=](bool checked, bool stroke) {
+      handle_boxes->on = checked;
+      if (checked) {
+        handle_boxes->on_stroke = stroke;
+      }
+      sync_handle_checks();
+      handle_boxes->toggled(handle_boxes->on, handle_boxes->on_stroke);
+    };
+    QObject::connect(fill_handles_check, &QCheckBox::toggled, &dialog,
+                     [toggle](bool checked) { toggle(checked, false); });
+    QObject::connect(stroke_handles_check, &QCheckBox::toggled, &dialog,
+                     [toggle](bool checked) { toggle(checked, true); });
+  }
+
   // Per-kind row visibility.
   const auto refresh_fill_rows = [=] {
     const auto kind = static_cast<VectorFillKind>(fill_kind_combo->currentData().toInt());
@@ -1900,9 +1949,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     set_row(fill_gradient_block, gradient);
     set_row(fill_pattern_combo, pattern);
     set_row(fill_pattern_block, pattern);
-    if (gradient_handles_check != nullptr) {
-      gradient_handles_check->setEnabled(gradient);  // only a gradient fill has handles
-    }
+    sync_handle_checks();
   };
 
   // The stroke rows stay enabled: the width is the stroke switch (0 = none). The
@@ -1951,6 +1998,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       set_row(field, enabled);
     }
     set_row(stroke_dash_offset_spin, !state->settings.stroke.dashes.empty());
+    sync_handle_checks();
   };
 
   const auto sync_gradient_controls = [=] {
@@ -2396,6 +2444,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   });
   QObject::connect(stroke_width_spin, &QDoubleSpinBox::valueChanged, &dialog, [=](double value) {
     state->settings.stroke.enabled = value > 0.0;
+    sync_handle_checks();
     if (value > 0.0) state->settings.stroke.width = std::clamp(value, 0.1, 1000.0);
     // 0 leaves every shape's own width alone (a batch must not copy this one's).
     refresh_inside_line_hint();

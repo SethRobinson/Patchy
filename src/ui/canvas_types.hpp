@@ -164,6 +164,13 @@ enum class GradientToolMode {
 
 // A Gradient tool handle gesture on an existing Gradient Fill (GitHub issue 663): live
 // previews while it drags, then one Commit (one undo step) or a Cancel that restores it.
+// Which of a shape's two gradients the on-canvas handles edit (GitHub issue 694): the fill's,
+// or the stroke's (only under another tool, from the Shape Appearance window).
+enum class GradientHandleTarget {
+  Fill,
+  Stroke
+};
+
 enum class GradientFillEditPhase {
   Preview,
   Commit,

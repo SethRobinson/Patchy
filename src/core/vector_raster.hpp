@@ -134,6 +134,11 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
 // fill's coverage bounds. Rasterizes the path, so callers cache it (the Gradient tool's
 // on-canvas handles, GitHub issue 663).
 [[nodiscard]] Rect gradient_fill_alignment_bounds(const Layer& layer, Rect canvas);
+// The same for a gradient stroke (GitHub issue 694: the handles on a shape's stroke
+// gradient): the canvas without Align with Layer, or when the stroke does not draw; with it,
+// the stroke's own coverage bounds, as rasterize_vector_shape paints it. Rasterizes the
+// stroke, so callers cache it.
+[[nodiscard]] Rect gradient_stroke_alignment_bounds(const Layer& layer, Rect canvas);
 // A draft of update_vector_shape_raster for a pathless 8-bit Gradient Fill layer, for the
 // Gradient tool's handle drags (GitHub issue 663 follow-up): the ramp position is evaluated
 // exactly on a 4-pixel grid and interpolated between (exactly per pixel where a cell spans

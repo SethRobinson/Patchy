@@ -1,8 +1,9 @@
 // The stay-open Shape Appearance window (GitHub issue 694, docs/vector-tools-appearance-window.md):
 // it opens without a dialog loop or the edit lock, applies each change at once as one undo
 // step per gesture, follows the selected shape layers, and stays safe while the selection,
-// the history and the documents change under it. Its Show gradient handles box puts the
-// Gradient tool's handles on the canvas under the other tools (docs/gradients-fill-handles.md).
+// the history and the documents change under it. Its Show handles boxes put the Gradient
+// tool's handles on the canvas under the other tools, for the fill's gradient or the
+// stroke's (docs/gradients-fill-handles.md).
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
@@ -108,9 +109,11 @@ void select_only(patchy::ui::MainWindow& window, patchy::LayerId id) {
 // shape can be drawn with it open, and the window then edits that one.
 void ui_shape_appearance_window_stays_open_while_editing() {
   VectorSettingsGuard settings_guard;
-  // With nothing saved, Show gradient handles starts ticked (checked below).
+  // With nothing saved, gradient handles are on (checked below).
   SettingsValueRestorer handles_setting{QStringLiteral("shapeAppearance/showGradientHandles")};
+  SettingsValueRestorer handles_stroke_setting{QStringLiteral("shapeAppearance/gradientHandlesOnStroke")};
   patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/showGradientHandles"));
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/gradientHandlesOnStroke"));
   auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = Access::document(window);
   const auto first = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
@@ -132,12 +135,22 @@ void ui_shape_appearance_window_stays_open_while_editing() {
   CHECK(buttons->button(QDialogButtonBox::Ok) == nullptr && buttons->button(QDialogButtonBox::Cancel) == nullptr);
   CHECK(buttons->button(QDialogButtonBox::Close) != nullptr);
   CHECK(panel->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton")) != nullptr);
-  // Show gradient handles: ticked by default, greyed out on this solid shape, and the canvas
-  // is told at once (it shows nothing until the fill is a gradient).
-  auto* handles_box = panel->findChild<QCheckBox*>(QStringLiteral("shapeAppearanceGradientHandlesCheck"));
-  CHECK(handles_box != nullptr && handles_box->isChecked() && !handles_box->isEnabled());
+  // Gradient handles are on by default and the canvas is told at once. This shape is solid:
+  // the Show handles boxes sit in the Gradient rows, which are hidden, and nothing shows.
+  auto* handles_box = panel->findChild<QCheckBox*>(QStringLiteral("shapeFillGradientHandlesCheck"));
+  CHECK(handles_box != nullptr && !handles_box->isVisibleTo(panel) && !handles_box->isChecked());
   CHECK(canvas->gradient_handles_forced());
   CHECK(!canvas->gradient_fill_handles().has_value());
+  // Once the fill is a gradient its box shows, ticked, and the handles are on the canvas.
+  {
+    auto* fill_kind = field<QComboBox>(*panel, "shapeFillKindCombo");
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(VectorFillKind::Gradient)));
+    CHECK(handles_box->isVisibleTo(panel) && handles_box->isChecked());
+    CHECK(canvas->gradient_fill_handles().has_value());
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(VectorFillKind::Solid)));
+    CHECK(!handles_box->isChecked());
+    CHECK(!canvas->gradient_fill_handles().has_value());
+  }
 
   // Draw a second shape with the window open: it becomes the window's target.
   const auto second = make_rect(window, *canvas, QPoint(320, 240), QPoint(420, 300));
@@ -533,8 +546,8 @@ void ui_shape_appearance_window_step_timing() {
   CHECK(same);
 }
 
-// The window's Show gradient handles box: the Gradient tool's handles on the active gradient
-// shape under the shape tools, Path Select and the Move tool. A press on a handle part edits
+// The window's Show handles box on a fill gradient: the Gradient tool's handles on the active
+// gradient shape under the shape tools, Path Select and the Move tool. A press on a handle part edits
 // the gradient as one undo step; any other press, and every key the handles do not own, is
 // the tool's. Unticking the box or closing the window takes them away again.
 void ui_shape_appearance_window_shows_gradient_handles_under_other_tools() {
@@ -545,14 +558,16 @@ void ui_shape_appearance_window_shows_gradient_handles_under_other_tools() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer active_tool{QStringLiteral("tools/activeTool")};
   SettingsValueRestorer handles_setting{QStringLiteral("shapeAppearance/showGradientHandles")};
+  SettingsValueRestorer handles_stroke_setting{QStringLiteral("shapeAppearance/gradientHandlesOnStroke")};
   patchy::ui::app_settings().setValue(QStringLiteral("shapeAppearance/showGradientHandles"), false);
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/gradientHandlesOnStroke"));
   auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = Access::document(window);
   const auto id = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
   auto* panel = open_panel(window);
   if (panel == nullptr) return;
   // A page is rebuilt after each handle edit, so the box is looked up each time.
-  const auto box = [&] { return field<QCheckBox>(*panel, "shapeAppearanceGradientHandlesCheck"); };
+  const auto box = [&] { return field<QCheckBox>(*panel, "shapeFillGradientHandlesCheck"); };
   const auto rounded = [](QPointF point) {
     return QPoint(static_cast<int>(std::lround(point.x())), static_cast<int>(std::lround(point.y())));
   };
@@ -582,12 +597,12 @@ void ui_shape_appearance_window_shows_gradient_handles_under_other_tools() {
     QApplication::processEvents();
   };
 
-  // A solid fill has no handles: the box is there, greyed out.
-  CHECK(!box()->isEnabled() && !box()->isChecked());
+  // A solid fill has no handles: its box is with the Gradient rows, hidden.
+  CHECK(!box()->isVisibleTo(panel) && !box()->isChecked());
   auto* kind = field<QComboBox>(*panel, "shapeFillKindCombo");
   kind->setCurrentIndex(kind->findData(static_cast<int>(VectorFillKind::Gradient)));
   CHECK(shape_of(document, id).fill.kind == VectorFillKind::Gradient);
-  CHECK(box()->isEnabled());
+  CHECK(box()->isVisibleTo(panel) && box()->isEnabled() && !box()->isChecked());
   // Unticked: a shape tool shows no gradient handles, as before.
   CHECK(canvas->tool() == CanvasTool::Rectangle);
   CHECK(!canvas->gradient_handles_forced());
@@ -629,12 +644,13 @@ void ui_shape_appearance_window_shows_gradient_handles_under_other_tools() {
   // A press away from every handle part is the tool's: it draws a shape.
   const auto drawn = make_rect(window, *canvas, QPoint(330, 240), QPoint(400, 290));
   CHECK(drawn != id);
-  // That shape is solid: no handles, and the box greys out with the new page.
+  // That shape is solid: no handles, and its page hides the box.
   for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
   CHECK(!canvas->gradient_fill_handles().has_value());
-  CHECK(!box()->isEnabled() && box()->isChecked());
+  CHECK(!box()->isVisibleTo(panel) && !box()->isChecked());
   select_only(window, id);
   CHECK(canvas->gradient_fill_handles().has_value());
+  CHECK(box()->isVisibleTo(panel) && box()->isChecked());
 
   // Path Select: a click on the shape away from the handles selects its path; a click on
   // the gradient line then adds a color stop and selects it, and Delete removes that stop,
@@ -740,6 +756,163 @@ void ui_shape_appearance_window_shows_gradient_handles_under_other_tools() {
   CHECK(!second_canvas->gradient_fill_handles().has_value());
 }
 
+// A stroke's gradient has handles too (GitHub issue 694 follow-up: Seth could not reach
+// them). Each Gradient section has its own Show handles box and one gradient shows handles
+// at a time: the ticked one when the fill and the stroke are both gradients, else the one
+// there is. The handles sit on the stroke's own band and edit the stroke's gradient only.
+void ui_shape_appearance_window_shows_handles_for_a_stroke_gradient() {
+  using Kind = patchy::ui::CanvasWidget::GradientHandlePartKind;
+  using Part = patchy::ui::CanvasWidget::GradientHandlePart;
+  using Target = patchy::ui::GradientHandleTarget;
+  using patchy::ui::CanvasTool;
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer active_tool{QStringLiteral("tools/activeTool")};
+  SettingsValueRestorer handles_setting{QStringLiteral("shapeAppearance/showGradientHandles")};
+  SettingsValueRestorer handles_stroke_setting{QStringLiteral("shapeAppearance/gradientHandlesOnStroke")};
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/showGradientHandles"));
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/gradientHandlesOnStroke"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = Access::document(window);
+  const auto id = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  auto* panel = open_panel(window);
+  if (panel == nullptr) return;
+  const auto fill_box = [&] { return field<QCheckBox>(*panel, "shapeFillGradientHandlesCheck"); };
+  const auto stroke_box = [&] { return field<QCheckBox>(*panel, "shapeStrokeGradientHandlesCheck"); };
+  const auto rounded = [](QPointF point) {
+    return QPoint(static_cast<int>(std::lround(point.x())), static_cast<int>(std::lround(point.y())));
+  };
+  const auto part_at = [&](Kind kind, int index = -1) {
+    const auto position = canvas->gradient_fill_handle_widget_position(Part{kind, index});
+    CHECK(position.has_value());
+    return rounded(position.value_or(QPointF()));
+  };
+  const auto target = [&]() -> std::optional<Target> {
+    const auto handles = canvas->gradient_fill_handles();
+    return handles.has_value() ? std::optional(handles->target) : std::nullopt;
+  };
+  const auto depth = [&] { return Access::active_session_undo_depth(window); };
+  const auto settle = [] {
+    for (int pass = 0; pass < 3; ++pass) QApplication::processEvents();
+  };
+  const auto on_stroke_saved = [] {
+    return patchy::ui::app_settings().value(QStringLiteral("shapeAppearance/gradientHandlesOnStroke")).toBool();
+  };
+
+  // A solid fill with a gradient stroke: the stroke's is the only gradient, so it has the
+  // handles and its box is the ticked one.
+  field<QDoubleSpinBox>(*panel, "shapeStrokeWidthSpin")->setValue(20.0);
+  auto* paint = field<QComboBox>(*panel, "shapeStrokePaintCombo");
+  paint->setCurrentIndex(paint->findData(static_cast<int>(VectorFillKind::Gradient)));
+  settle();
+  CHECK(shape_of(document, id).stroke.enabled);
+  CHECK(shape_of(document, id).stroke.content.kind == VectorFillKind::Gradient);
+  CHECK(shape_of(document, id).fill.kind == VectorFillKind::Solid);
+  CHECK(stroke_box()->isVisibleTo(panel) && stroke_box()->isEnabled() && stroke_box()->isChecked());
+  CHECK(!fill_box()->isVisibleTo(panel) && !fill_box()->isChecked());
+  CHECK(target() == std::optional(Target::Stroke));
+  if (target() != std::optional(Target::Stroke)) return;
+  {
+    // The handles show the stroke's gradient, over the box the stroke's gradient is baked in.
+    const auto handles = canvas->gradient_fill_handles();
+    const auto* layer = std::as_const(document).find_layer(id);
+    CHECK(handles->layer_id == id);
+    CHECK(handles->gradient == shape_of(document, id).stroke.content.gradient);
+    CHECK(handles->bounds == patchy::gradient_stroke_alignment_bounds(
+                                 *layer, patchy::Rect::from_size(document.width(), document.height())));
+  }
+
+  // The Move tool: dragging the end handle changes the stroke's gradient, one undo step, and
+  // leaves the fill and the path alone. The window's stroke Angle follows.
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  const auto fill_before = shape_of(document, id).fill;
+  const auto path_before = shape_of(document, id).path;
+  const auto stroke_gradient_before = shape_of(document, id).stroke.content.gradient;
+  auto before = depth();
+  const auto end_widget = part_at(Kind::End);
+  drag(*canvas, end_widget, end_widget + QPoint(40, 26));
+  settle();
+  CHECK(depth() == before + 1);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Move Gradient End Point"));
+  CHECK(!(shape_of(document, id).stroke.content.gradient == stroke_gradient_before));
+  CHECK(shape_of(document, id).fill == fill_before);
+  CHECK(shape_of(document, id).path == path_before);
+  const auto stroke_angle = static_cast<double>(shape_of(document, id).stroke.content.gradient.angle_degrees);
+  const auto shown = field<QSpinBox>(*panel, "shapeStrokeGradientAngleSpin")->value();
+  const auto angle_off = std::fmod(std::abs(shown - stroke_angle), 360.0);
+  CHECK(angle_off <= 1.0 || angle_off >= 359.0);
+  CHECK(stroke_box()->isChecked());
+  // A click on the line adds a color stop to the stroke's gradient.
+  const auto stops_before = shape_of(document, id).stroke.content.gradient.color_stops.size();
+  const auto middle = rounded((QPointF(part_at(Kind::Start)) + QPointF(part_at(Kind::End))) / 2.0);
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(middle)).kind == Kind::Line);
+  send_mouse(*canvas, QEvent::MouseButtonPress, middle, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, middle, Qt::LeftButton, Qt::NoButton);
+  settle();
+  CHECK(shape_of(document, id).stroke.content.gradient.color_stops.size() == stops_before + 1U);
+  CHECK(Access::current_history_label(window) == QStringLiteral("Add Color Stop"));
+  CHECK(shape_of(document, id).fill == fill_before);
+  save_widget_artifact("issue694_stroke_gradient_handles", window);
+  save_widget_artifact("issue694_stroke_gradient_window", *panel);
+
+  // The fill becomes a gradient too. Nothing chose the stroke, so the fill takes the handles
+  // and the boxes say so: one ticked at a time.
+  auto* kind = field<QComboBox>(*panel, "shapeFillKindCombo");
+  kind->setCurrentIndex(kind->findData(static_cast<int>(VectorFillKind::Gradient)));
+  settle();
+  CHECK(fill_box()->isVisibleTo(panel) && fill_box()->isChecked());
+  CHECK(stroke_box()->isVisibleTo(panel) && !stroke_box()->isChecked());
+  CHECK(target() == std::optional(Target::Fill));
+  CHECK(canvas->gradient_fill_handles()->gradient == shape_of(document, id).fill.gradient);
+
+  // Ticking the stroke's box unticks the fill's and moves the handles, and back again.
+  stroke_box()->click();
+  settle();
+  CHECK(stroke_box()->isChecked() && !fill_box()->isChecked());
+  CHECK(target() == std::optional(Target::Stroke));
+  CHECK(on_stroke_saved());
+  CHECK(canvas->gradient_fill_handles()->gradient == shape_of(document, id).stroke.content.gradient);
+  fill_box()->click();
+  settle();
+  CHECK(fill_box()->isChecked() && !stroke_box()->isChecked());
+  CHECK(target() == std::optional(Target::Fill));
+  CHECK(!on_stroke_saved());
+  // Unticking the ticked box turns the handles off; neither box is ticked.
+  fill_box()->click();
+  settle();
+  CHECK(!fill_box()->isChecked() && !stroke_box()->isChecked());
+  CHECK(!canvas->gradient_handles_forced());
+  CHECK(!target().has_value());
+  stroke_box()->click();
+  settle();
+  CHECK(stroke_box()->isChecked() && !fill_box()->isChecked());
+  CHECK(target() == std::optional(Target::Stroke));
+
+  // The choice outlives a new page (another shape and back).
+  const auto other = make_rect(window, *canvas, QPoint(520, 420), QPoint(620, 490));
+  CHECK(other != id);
+  settle();
+  CHECK(!target().has_value());
+  select_only(window, id);
+  settle();
+  CHECK(stroke_box()->isChecked() && !fill_box()->isChecked());
+  CHECK(target() == std::optional(Target::Stroke));
+
+  // The Gradient tool edits fills: its handles stay on the fill whatever the boxes say.
+  canvas->set_tool(CanvasTool::Gradient);
+  CHECK(target() == std::optional(Target::Fill));
+  canvas->set_tool(CanvasTool::Move);
+  CHECK(target() == std::optional(Target::Stroke));
+
+  // A stroke of no width draws nothing: its box greys out and the fill has the handles.
+  field<QDoubleSpinBox>(*panel, "shapeStrokeWidthSpin")->setValue(0.0);
+  settle();
+  CHECK(!shape_of(document, id).stroke.enabled);
+  CHECK(!stroke_box()->isEnabled() && !stroke_box()->isChecked());
+  CHECK(fill_box()->isChecked());
+  CHECK(target() == std::optional(Target::Fill));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
@@ -758,5 +931,7 @@ std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
       {"ui_shape_appearance_window_step_timing", ui_shape_appearance_window_step_timing},
       {"ui_shape_appearance_window_shows_gradient_handles_under_other_tools",
        ui_shape_appearance_window_shows_gradient_handles_under_other_tools},
+      {"ui_shape_appearance_window_shows_handles_for_a_stroke_gradient",
+       ui_shape_appearance_window_shows_handles_for_a_stroke_gradient},
   };
 }

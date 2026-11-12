@@ -15815,12 +15815,12 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Aktualisieren...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>Verlaufsgriffe anzeigen</translation>
+        <source>Show handles</source>
+        <translation>Griffe anzeigen</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>Zeigt die Griffe des Füllverlaufs mit jedem Werkzeug auf der Leinwand, solange dieses Fenster geöffnet ist. Ziehen Sie daran, um den Verlauf und seine Unterbrechungen zu verschieben.</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>Zeigt die Griffe dieses Verlaufs mit jedem Werkzeug auf der Leinwand, solange dieses Fenster geöffnet ist. Ziehen Sie daran, um den Verlauf und seine Unterbrechungen zu verschieben. Es zeigt immer nur ein Verlauf seine Griffe.</translation>
     </message>
 </context>
 <context>

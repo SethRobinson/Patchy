@@ -15815,12 +15815,12 @@ Sostituirlo?</translation>
         <translation>Aggiorna...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>Mostra maniglie della sfumatura</translation>
+        <source>Show handles</source>
+        <translation>Mostra maniglie</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>Mostra le maniglie della sfumatura di riempimento sulla tela con qualsiasi strumento finché questa finestra è aperta. Trascinale per spostare la sfumatura e le sue interruzioni.</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>Mostra le maniglie di questa sfumatura sulla tela con qualsiasi strumento finché questa finestra è aperta. Trascinale per spostare la sfumatura e le sue interruzioni. Solo una sfumatura alla volta mostra le maniglie.</translation>
     </message>
 </context>
 <context>

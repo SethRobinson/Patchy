@@ -921,7 +921,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): a press on an
   // end, the line, a stop or a midpoint edits that gradient; anywhere else draws a new one.
-  // Under another tool (the Shape Appearance window's Show gradient handles box, GitHub issue
+  // Under another tool (the Shape Appearance window's Show handles boxes, GitHub issue
   // 694) a press on a part does the same, ahead of that tool's own handles and anchor points;
   // anywhere else is the tool's press.
   if (gradient_handles_enabled() && document_ != nullptr && event->button() == Qt::LeftButton &&

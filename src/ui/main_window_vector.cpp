@@ -888,9 +888,12 @@ void MainWindow::sync_shape_appearance_gradient_handles() {
   // The canvas decides where the handles can work (its tool, a transform session, the
   // active layer); this only says the window asks for them.
   const bool forced = shape_appearance_panel_ != nullptr && shape_appearance_panel_->gradient_handles_wanted();
+  const auto preferred = forced && shape_appearance_panel_->gradient_handles_on_stroke()
+                             ? GradientHandleTarget::Stroke
+                             : GradientHandleTarget::Fill;
   for (const auto& target_session : sessions_) {
     if (target_session != nullptr && target_session->canvas != nullptr) {
-      target_session->canvas->set_gradient_handles_forced(forced);
+      target_session->canvas->set_gradient_handles_forced(forced, preferred);
     }
   }
 }
@@ -1526,7 +1529,7 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
 }
 
 void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient,
-                                                     std::optional<Rect> draft_bounds) {
+                                                     std::optional<Rect> draft_bounds, GradientHandleTarget target) {
   auto& doc = document();
   auto* layer = doc.find_layer(layer_id);
   const auto* shape = layer != nullptr ? std::as_const(*layer).vector_shape() : nullptr;
@@ -1534,7 +1537,12 @@ void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const Lay
     return;
   }
   auto content = *shape;
-  content.fill.gradient = gradient;
+  if (target == GradientHandleTarget::Stroke) {
+    content.stroke.content.gradient = gradient;
+    draft_bounds.reset();  // the draft bakes full-canvas fills only
+  } else {
+    content.fill.gradient = gradient;
+  }
   layer->set_vector_shape(std::move(content));
   const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
   // 16 and 32-bit documents render fills from the shape itself (deep_gradient_fill_raster),
@@ -1549,11 +1557,12 @@ void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const Lay
 
 void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerStyleGradient& gradient,
                                                   GradientFillEditPhase phase, std::uint64_t serial,
-                                                  const QString& undo_label) {
+                                                  const QString& undo_label, GradientHandleTarget target) {
   if (canvas_ == nullptr || !has_active_document()) {
     gradient_fill_handle_preview_.reset();
     return;
   }
+  const bool on_stroke = target == GradientHandleTarget::Stroke;
   auto& doc = document();
   const auto session_id = session().session_id;
   const bool previewing = gradient_fill_handle_preview_.has_value() &&
@@ -1586,7 +1595,8 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
   }
   const auto* layer = std::as_const(doc).find_layer(layer_id);
   const auto* shape = layer != nullptr && layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
-  if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient) {
+  if (shape == nullptr || !shape->parts.empty() ||
+      (on_stroke ? shape->stroke.content.kind : shape->fill.kind) != VectorFillKind::Gradient) {
     if (!previewing) {
       gradient_fill_handle_preview_.reset();
     }
@@ -1607,16 +1617,19 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
   }
   if (phase == GradientFillEditPhase::Preview) {
     if (!previewing) {
+      // The bounds are for a fill's draft bake; a stroke bakes exactly.
       gradient_fill_handle_preview_ = GradientFillHandlePreview{
           session_id, layer_id, serial, *layer,
-          gradient_fill_alignment_bounds(*layer, Rect::from_size(doc.width(), doc.height()))};
+          on_stroke ? Rect{} : gradient_fill_alignment_bounds(*layer, Rect::from_size(doc.width(), doc.height()))};
     }
     // A live preview takes the draft bake and an asynchronous recomposite that never
     // cancels the one in flight (GitHub issue 663 follow-up: an exact bake and a cancelled
     // composite per move made the handles lag on large documents); the release bakes exactly.
     QElapsedTimer trace_timer;
     trace_timer.start();
-    apply_gradient_fill_handle_gradient(layer_id, gradient, gradient_fill_handle_preview_->gradient_bounds);
+    apply_gradient_fill_handle_gradient(
+        layer_id, gradient,
+        on_stroke ? std::nullopt : std::optional(gradient_fill_handle_preview_->gradient_bounds), target);
     const auto bake_ms = static_cast<double>(trace_timer.nsecsElapsed()) / 1e6;
     canvas_->document_changed_async_preview();
     if (qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TRACE") != 0) {
@@ -1628,23 +1641,26 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
   // Commit: the history snapshot must hold the layer as it was before the drag.
   restore();
   push_undo_snapshot(undo_label.isEmpty() ? tr("Edit Gradient Fill") : undo_label);
-  apply_gradient_fill_handle_gradient(layer_id, gradient);
+  apply_gradient_fill_handle_gradient(layer_id, gradient, std::nullopt, target);
   canvas_->document_changed();
   refresh_layer_list();
   refresh_layer_controls();
 }
 
-void MainWindow::handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index) {
+void MainWindow::handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index,
+                                                           GradientHandleTarget target) {
   if (canvas_ == nullptr || !has_active_document() || stop_index < 0) {
     return;
   }
   const auto* layer = std::as_const(document()).find_layer(layer_id);
   const auto* shape = layer != nullptr ? layer->vector_shape() : nullptr;
-  if (shape == nullptr || shape->fill.kind != VectorFillKind::Gradient ||
-      static_cast<std::size_t>(stop_index) >= shape->fill.gradient.color_stops.size()) {
+  const auto* paint =
+      shape == nullptr ? nullptr : target == GradientHandleTarget::Stroke ? &shape->stroke.content : &shape->fill;
+  if (paint == nullptr || paint->kind != VectorFillKind::Gradient ||
+      static_cast<std::size_t>(stop_index) >= paint->gradient.color_stops.size()) {
     return;
   }
-  const auto original = shape->fill.gradient;
+  const auto original = paint->gradient;
   const auto initial = original.color_stops[static_cast<std::size_t>(stop_index)].color;
   const auto serial = ++gradient_fill_stop_color_serial_ | (std::uint64_t{1} << 63U);
   const auto session_id = session().session_id;
@@ -1661,18 +1677,18 @@ void MainWindow::handle_gradient_fill_stop_color_requested(LayerId layer_id, int
       [&](QColor color) {
         if (color.isValid() && still_here()) {
           handle_gradient_fill_handle_edit(layer_id, with_color(color), GradientFillEditPhase::Preview, serial,
-                                           QString());
+                                           QString(), target);
         }
       });
   if (!still_here()) {
     return;
   }
   if (!chosen.has_value() || !chosen->isValid() || with_color(*chosen) == original) {
-    handle_gradient_fill_handle_edit(layer_id, original, GradientFillEditPhase::Cancel, serial, QString());
+    handle_gradient_fill_handle_edit(layer_id, original, GradientFillEditPhase::Cancel, serial, QString(), target);
     return;
   }
   handle_gradient_fill_handle_edit(layer_id, with_color(*chosen), GradientFillEditPhase::Commit, serial,
-                                   tr("Change Color Stop"));
+                                   tr("Change Color Stop"), target);
 }
 
 void MainWindow::new_pattern_fill_layer() {

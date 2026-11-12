@@ -6709,11 +6709,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   canvas->set_gradient_fill_edit_callback([this, canvas](LayerId layer_id, const LayerStyleGradient& gradient,
                                                          GradientFillEditPhase phase, std::uint64_t serial,
-                                                         const QString& undo_label) {
+                                                         const QString& undo_label, GradientHandleTarget target) {
     if (canvas != canvas_) {
       return;
     }
-    handle_gradient_fill_handle_edit(layer_id, gradient, phase, serial, undo_label);
+    handle_gradient_fill_handle_edit(layer_id, gradient, phase, serial, undo_label, target);
   });
   canvas->set_shape_resize_callback([this, canvas](LayerId layer_id, const QRectF& from, const QRectF& to,
                                                    ShapeResizePhase phase, std::uint64_t serial) {
@@ -6729,12 +6729,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     handle_shape_point_edit(layer_id, to, phase, serial);
   });
-  canvas->set_gradient_fill_stop_color_requested_callback([this, canvas](LayerId layer_id, int stop_index) {
-    if (canvas != canvas_) {
-      return;
-    }
-    handle_gradient_fill_stop_color_requested(layer_id, stop_index);
-  });
+  canvas->set_gradient_fill_stop_color_requested_callback(
+      [this, canvas](LayerId layer_id, int stop_index, GradientHandleTarget target) {
+        if (canvas != canvas_) {
+          return;
+        }
+        handle_gradient_fill_stop_color_requested(layer_id, stop_index, target);
+      });
   canvas->set_shape_create_requested_callback([this, canvas](CanvasTool tool, QPointF document_point) {
     if (canvas != canvas_) {
       return;

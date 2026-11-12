@@ -15759,12 +15759,12 @@ Do you want to replace it?</source>
         <translation>アップデート...</translation>
     </message>
     <message>
-        <source>Show gradient handles</source>
-        <translation>グラデーションのハンドルを表示</translation>
+        <source>Show handles</source>
+        <translation>ハンドルを表示</translation>
     </message>
     <message>
-        <source>Show the fill gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops.</source>
-        <translation>このウィンドウを開いている間、どのツールでも塗りのグラデーションのハンドルをキャンバスに表示します。ドラッグしてグラデーションと分岐点を移動できます。</translation>
+        <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
+        <translation>このウィンドウを開いている間、どのツールでもこのグラデーションのハンドルをキャンバスに表示します。ドラッグしてグラデーションと分岐点を移動できます。ハンドルを表示できるグラデーションは一度に 1 つです。</translation>
     </message>
 </context>
 <context>

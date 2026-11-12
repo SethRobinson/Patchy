@@ -58,13 +58,18 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
   modal edit does: the document locked, changes as previews, one undo step on OK, the layers put
   back on Cancel. The lock is also what keeps the selection, and with it the page, in place
   under the row's handler.
-- **Show gradient handles.** A box in the footer, enabled while the fill is a gradient. While
-  the window is open and it is ticked, the canvas shows the active gradient fill's handles
-  under the other tools ([gradients-fill-handles.md](gradients-fill-handles.md#under-other-tools)).
-  The state is the window's (`shapeAppearance/showGradientHandles`, on by default), so every
-  page starts from it; `gradient_handles_wanted()` is read by
-  `MainWindow::sync_shape_appearance_gradient_handles` when the box is toggled, the window is
-  shown or hidden, and from `sync_shape_appearance_panel`.
+- **Show handles.** A box under the fill's Gradient rows and one under the stroke's
+  (`shapeFillGradientHandlesCheck`, `shapeStrokeGradientHandlesCheck`), so each shows only
+  while its paint is a gradient. While the window is open and one is ticked, the canvas shows
+  that gradient's handles under the other tools
+  ([gradients-fill-handles.md](gradients-fill-handles.md#under-other-tools)). One gradient has
+  handles at a time: ticking a box unticks the other, unticking the ticked one turns the
+  handles off, and with only one gradient on the shape that one's box is the ticked one
+  (`sync_handle_checks` in the builder, the canvas's own rule). The state is the window's
+  (`shapeAppearance/showGradientHandles`, on by default, and
+  `shapeAppearance/gradientHandlesOnStroke`), so every page starts from it;
+  `MainWindow::sync_shape_appearance_gradient_handles` reads it when a box is toggled, the
+  window is shown or hidden, and from `sync_shape_appearance_panel`.
 - **Window.** Keys no field takes go to the canvas and the main window's shortcuts work while
   it is active (`BrushToolWindow`). The main window's close hides it; it does not come back at
   the next launch. Under automation (`unattended_automation`) it does not open.

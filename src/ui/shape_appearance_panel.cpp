@@ -68,6 +68,8 @@ ShapeAppearancePanel::ShapeAppearancePanel(QWidget* owner, ShapeAppearancePanelH
   // Ticked until the user unticks it: the handles are why the window is worth keeping open on
   // a gradient shape (GitHub issue 694).
   gradient_handles_ = app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesKey), true).toBool();
+  gradient_handles_on_stroke_ =
+      app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesOnStrokeKey), false).toBool();
 }
 
 ShapeAppearancePanel::~ShapeAppearancePanel() = default;
@@ -233,14 +235,15 @@ void ShapeAppearancePanel::build_page(ShapeAppearanceTarget target) {
   options.mode = ShapeAppearanceBodyMode::Live;
   options.batch = &target.context;
   options.show_gradient_handles = gradient_handles_;
+  options.gradient_handles_on_stroke = gradient_handles_on_stroke_;
   // A page that was replaced is hidden and waiting to be deleted: nothing it still sends
   // may be applied.
   const QPointer<QWidget> guard(page);
   options.changed = [this, guard](const ShapeAppearanceSettings& settings) {
     if (guard != nullptr && guard == page_) changed(settings);
   };
-  options.gradient_handles_toggled = [this, guard](bool show) {
-    if (guard != nullptr && guard == page_) set_gradient_handles(show);
+  options.gradient_handles_toggled = [this, guard](bool show, bool on_stroke) {
+    if (guard != nullptr && guard == page_) set_gradient_handles(show, on_stroke);
   };
   options.run_child_dialog = [this, guard](const std::function<bool()>& body) {
     if (guard == nullptr || guard != page_) return;
@@ -336,12 +339,14 @@ bool ShapeAppearancePanel::gradient_handles_wanted() const {
   return gradient_handles_ && is_open();
 }
 
-void ShapeAppearancePanel::set_gradient_handles(bool show) {
-  if (gradient_handles_ == show) {
+void ShapeAppearancePanel::set_gradient_handles(bool show, bool on_stroke) {
+  if (gradient_handles_ == show && gradient_handles_on_stroke_ == on_stroke) {
     return;
   }
   gradient_handles_ = show;
+  gradient_handles_on_stroke_ = on_stroke;
   app_settings().setValue(QLatin1String(kShapeAppearanceGradientHandlesKey), show);
+  app_settings().setValue(QLatin1String(kShapeAppearanceGradientHandlesOnStrokeKey), on_stroke);
   if (host_.gradient_handles_changed) host_.gradient_handles_changed();
 }
 

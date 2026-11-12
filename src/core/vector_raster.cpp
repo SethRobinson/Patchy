@@ -2616,6 +2616,37 @@ void spread_stroke_paint(ShapeRasterResult& result, std::uint8_t density, Rect c
 
 }  // namespace
 
+// Native layer flags already travel with edits, undo, duplication and PSD saves. Like fxrp
+// (the paint anchor), sn2P belongs to the owning layer, rather than to the reusable
+// stroke-style descriptor.
+[[nodiscard]] static bool layer_aligns_stroke_edges(const Layer* layer) {
+  if (layer == nullptr) {
+    return false;
+  }
+  for (const auto& block : layer->unknown_psd_blocks()) {
+    if (block.key == "sn2P" && block.payload.size() >= 4U) {
+      return std::any_of(block.payload.begin(), block.payload.begin() + 4,
+                         [](std::uint8_t byte) { return byte != 0; });
+    }
+  }
+  return false;
+}
+
+Rect gradient_stroke_alignment_bounds(const Layer& layer, Rect canvas) {
+  const auto* shape = layer.vector_shape();
+  if (shape == nullptr || !shape->parts.empty() || !shape_stroke_draws(*shape) ||
+      shape->stroke.content.kind != VectorFillKind::Gradient || !shape->stroke.content.gradient.align_with_layer) {
+    return canvas;
+  }
+  // rasterize_vector_shape's stroke band, in update_vector_shape_raster's clip. The band cuts
+  // itself by the path's coverage whether or not the caller hands that coverage in.
+  VectorRasterOptions options;
+  options.clip = vector_shape_coverage_domain(*shape, canvas);
+  options.align_stroke_edges = layer_aligns_stroke_edges(&layer);
+  const auto coverage = rasterize_vector_stroke(shape->path, shape->stroke, options);
+  return coverage.bounds.empty() ? canvas : coverage.bounds;
+}
+
 bool vector_shape_density_spreads(const VectorShapeContent& content) {
   return content.density != 255 &&
          (shape_stroke_draws(content) || (content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None));
@@ -2717,18 +2748,7 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
   // for it to meet (the compositing below).
   bool stroke_beside_fill = false;
   if (stroke_on) {
-    // Native layer flags already travel with edits, undo, duplication and PSD
-    // saves. Like fxrp (the paint anchor), sn2P belongs to the owning layer,
-    // rather than to the reusable stroke-style descriptor.
-    if (layer_for_pattern_anchor != nullptr) {
-      for (const auto& block : layer_for_pattern_anchor->unknown_psd_blocks()) {
-        if (block.key == "sn2P" && block.payload.size() >= 4U) {
-          options.align_stroke_edges = std::any_of(block.payload.begin(), block.payload.begin() + 4,
-                                                   [](std::uint8_t byte) { return byte != 0; });
-          break;
-        }
-      }
-    }
+    options.align_stroke_edges = layer_aligns_stroke_edges(layer_for_pattern_anchor);
     if (!path_coverage.has_value() && !fill_coverage.bounds.empty() &&
         content.stroke.alignment != VectorStrokeAlignment::Center) {
       path_coverage = rasterize_vector_path(content.path, path_options);

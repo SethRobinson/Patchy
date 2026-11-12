@@ -500,16 +500,22 @@ public:
 
     friend bool operator==(const GradientHandlePart&, const GradientHandlePart&) = default;
   };
-  using GradientFillEditCallback = std::function<void(LayerId, const LayerStyleGradient&, GradientFillEditPhase,
-                                                      std::uint64_t serial, const QString& undo_label)>;
+  using GradientFillEditCallback =
+      std::function<void(LayerId, const LayerStyleGradient&, GradientFillEditPhase, std::uint64_t serial,
+                         const QString& undo_label, GradientHandleTarget target)>;
   void set_gradient_fill_edit_callback(GradientFillEditCallback callback);
-  // The Shape Appearance window's "Show gradient handles" box (GitHub issue 694): while set,
-  // the handles also show and edit under the other tools (not the view tools, the Eyedropper,
+  // The Shape Appearance window's "Show handles" boxes (GitHub issue 694): while set, the
+  // handles also show and edit under the other tools (not the view tools, the Eyedropper,
   // the Ruler, the Artboard tool or the Crop tools, which own every press). A press on a
-  // handle part edits the gradient; any other press is the tool's own. Clearing it under
-  // another tool cancels a handle drag.
-  void set_gradient_handles_forced(bool forced);
+  // handle part edits the gradient; any other press is the tool's own. `preferred` is the
+  // gradient they edit when the shape's fill and stroke are both gradients; with only one,
+  // that one. The Gradient tool itself always edits the fill. A change under another tool
+  // cancels a handle drag.
+  void set_gradient_handles_forced(bool forced, GradientHandleTarget preferred = GradientHandleTarget::Fill);
   [[nodiscard]] bool gradient_handles_forced() const noexcept { return gradient_handles_forced_; }
+  [[nodiscard]] GradientHandleTarget gradient_handles_preferred_target() const noexcept {
+    return gradient_handles_preferred_;
+  }
   // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
   // issue 690). The box is the document rect of what the options-bar W / H fields size:
   // the active shape layer's path, or its components Path Select picked. Empty when no
@@ -538,7 +544,8 @@ public:
       std::function<void(LayerId, const patchy::LiveShapeParams& to, ShapeResizePhase, std::uint64_t serial)>;
   void set_shape_point_callback(ShapePointCallback callback);
   // A double-click on a color stop: MainWindow opens the color picker for that stop.
-  void set_gradient_fill_stop_color_requested_callback(std::function<void(LayerId, int)> callback);
+  void set_gradient_fill_stop_color_requested_callback(
+      std::function<void(LayerId, int, GradientHandleTarget)> callback);
   // The gradient the handles show (document space), when they are shown: the layer's own, or
   // the drag's while one is live.
   struct GradientFillHandles {
@@ -546,6 +553,7 @@ public:
     LayerStyleGradient gradient;
     Rect bounds;
     GradientFillLine line;
+    GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   [[nodiscard]] std::optional<GradientFillHandles> gradient_fill_handles() const;
   // Where a part is drawn in widget coordinates, and the part a widget point hits.
@@ -3191,6 +3199,10 @@ private:
   [[nodiscard]] bool gradient_handles_under_other_tool() const noexcept;
   // Delete or Backspace on a selected stop, Esc during a drag.
   bool handle_gradient_handle_key(QKeyEvent* event);
+  // The gradient of `layer` the handles edit now, if any.
+  [[nodiscard]] std::optional<GradientHandleTarget> gradient_handle_target(const Layer& layer) const;
+  // That gradient, for a layer gradient_fill_handle_layer returned.
+  [[nodiscard]] const LayerStyleGradient& gradient_handle_gradient(const Layer& layer) const;
   [[nodiscard]] const Layer* gradient_fill_handle_layer() const;
   [[nodiscard]] Rect gradient_fill_handle_bounds(const Layer& layer) const;
   bool press_gradient_fill_handle(QMouseEvent* event);
@@ -4385,6 +4397,7 @@ private:
     LayerStyleGradient previewed_gradient;
     bool preview_scheduled{false};
     std::uint64_t serial{0};
+    GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   std::optional<GradientFillHandleDrag> gradient_handle_drag_;
   std::uint64_t gradient_handle_drag_serial_{0};
@@ -4392,11 +4405,13 @@ private:
   GradientHandlePart gradient_handle_hover_;
   GradientHandleCursor gradient_handle_cursor_{GradientHandleCursor::None};
   bool gradient_handles_forced_{false};
-  // The selected stop (a click on it selects it): its layer, list and index.
+  GradientHandleTarget gradient_handles_preferred_{GradientHandleTarget::Fill};
+  // The selected stop (a click on it selects it): its layer, list, index and gradient.
   struct GradientStopSelection {
     LayerId layer_id{0};
     bool alpha{false};
     int index{-1};
+    GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   std::optional<GradientStopSelection> gradient_stop_selection_;
   // The open opacity popup's edit: the layer and gradient it started from, the opacity stop it
@@ -4412,10 +4427,11 @@ private:
     bool finished{false};
     std::uint64_t serial{0};
     QPointer<QWidget> popup;
+    GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   std::optional<GradientOpacityEdit> gradient_opacity_edit_;
   GradientFillEditCallback gradient_fill_edit_callback_;
-  std::function<void(LayerId, int)> gradient_fill_stop_color_requested_callback_;
+  std::function<void(LayerId, int, GradientHandleTarget)> gradient_fill_stop_color_requested_callback_;
   // A shape tool's resize-handle drag (GitHub issue 690), from the press to the release.
   struct ShapeResizeDrag {
     LayerId layer_id{0};
@@ -4461,6 +4477,7 @@ private:
     std::int32_t canvas_width{0};
     std::int32_t canvas_height{0};
     Rect bounds;
+    GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   mutable std::optional<GradientHandleBoundsCache> gradient_handle_bounds_cache_;
   // Ruler state, document space. The drag part is what the press grabbed (None: no
