@@ -21799,6 +21799,14 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>Инструмент «Кадрирование»: рамка остаётся на месте, а изображение сдвигается или поворачивается под ней</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>Повернуть отпечаток кисти на 1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>Повернуть отпечаток кисти на 1 градус по часовой стрелке</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22519,7 +22527,12 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Поиск сочетаний клавиш...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>Кисти: поворот отпечатка кисти на 1 градус/15 градусов</translation>
     </message>
 </context>
 <context>
@@ -35992,6 +36005,18 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Проведите вдоль того, что должно быть горизонтальным или вертикальным</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>Повернуть кисть влево</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>Повернуть кисть вправо</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>Угол кисти: %1</translation>
     </message>
 </context>
 <context>

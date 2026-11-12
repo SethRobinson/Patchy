@@ -21737,6 +21737,14 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>Herramienta Recortar: mantener el cuadro en su sitio y deslizar o girar la imagen detrás de él</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>Girar la punta de pincel 1 grado en sentido antihorario</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>Girar la punta de pincel 1 grado en sentido horario</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22455,7 +22463,12 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Buscar atajos...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>Herramientas de pincel: girar la punta de pincel 1 grado / 15 grados</translation>
     </message>
 </context>
 <context>
@@ -35883,6 +35896,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Arrastre a lo largo de algo que deba quedar horizontal o vertical</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>Girar pincel a la izquierda</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>Girar pincel a la derecha</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>Ángulo del pincel: %1</translation>
     </message>
 </context>
 <context>

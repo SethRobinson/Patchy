@@ -21737,6 +21737,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>Freistellungswerkzeug: Rahmen an seinem Platz halten und das Bild dahinter verschieben oder drehen</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>Die Pinselspitze um 1 Grad gegen den Uhrzeigersinn drehen</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>Die Pinselspitze um 1 Grad im Uhrzeigersinn drehen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22455,7 +22463,12 @@ Möchten Sie die Datei ersetzen?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Tastaturbefehle suchen...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>Pinselwerkzeuge: Pinselspitze um 1 Grad / 15 Grad drehen</translation>
     </message>
 </context>
 <context>
@@ -35883,6 +35896,18 @@ Fixiert: %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Ziehen Sie entlang einer Linie, die waagerecht oder senkrecht sein soll</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>Pinsel nach links drehen</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>Pinsel nach rechts drehen</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>Pinselwinkel: %1</translation>
     </message>
 </context>
 <context>

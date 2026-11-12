@@ -1174,6 +1174,10 @@ void CanvasWidget::set_unused_escape_callback(std::function<bool()> callback) {
   unused_escape_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_brush_rotate_callback(std::function<bool(int degrees)> callback) {
+  brush_rotate_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_shape_context_actions_callback(std::function<QList<QAction*>()> callback) {
   shape_context_actions_callback_ = std::move(callback);
 }

@@ -21675,6 +21675,14 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>자르기 도구: 상자를 제자리에 두고 그 뒤의 이미지를 밀거나 회전</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>브러시 팁을 시계 반대 방향으로 1도 회전</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>브러시 팁을 시계 방향으로 1도 회전</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22391,7 +22399,12 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>단축키 검색...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>브러시 도구: 브러시 팁을 1도/15도씩 회전</translation>
     </message>
 </context>
 <context>
@@ -35774,6 +35787,18 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>수평이나 수직이어야 할 부분을 따라 드래그하세요</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>브러시 왼쪽으로 회전</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>브러시 오른쪽으로 회전</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>브러시 각도: %1</translation>
     </message>
 </context>
 <context>

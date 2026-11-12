@@ -21675,6 +21675,14 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>裁剪工具：裁剪框保持不动，在其后方移动或旋转图像</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>将画笔笔尖逆时针旋转 1 度</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>将画笔笔尖顺时针旋转 1 度</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22391,7 +22399,12 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>搜索快捷键...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>画笔类工具：将画笔笔尖旋转 1 度 / 15 度</translation>
     </message>
 </context>
 <context>
@@ -35774,6 +35787,18 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>沿着应当水平或竖直的物体拖动</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>向左旋转画笔</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>向右旋转画笔</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>画笔角度：%1</translation>
     </message>
 </context>
 <context>

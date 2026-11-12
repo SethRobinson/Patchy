@@ -1133,6 +1133,18 @@ void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
   reload_open_panels();
 }
 
+void BrushDynamicsButton::set_base_angle(double degrees) {
+  if (tip_id_.isEmpty() || base_angle_degrees_ == degrees) {
+    return;
+  }
+  base_angle_degrees_ = degrees;
+  if (edit_pending()) {
+    pending_base_angle_degrees_ = degrees;
+  }
+  refresh_active_indicator();
+  reload_open_panels();
+}
+
 void BrushDynamicsButton::set_preview_tip_provider(
     std::function<std::shared_ptr<const patchy::BrushTip>(const QString& tip_id)> provider) {
   preview_tip_provider_ = std::move(provider);

@@ -21719,6 +21719,14 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22437,6 +22445,11 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -35800,6 +35813,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Drag along something that should be level or upright</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

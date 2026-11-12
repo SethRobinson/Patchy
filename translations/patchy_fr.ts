@@ -21737,6 +21737,14 @@ Voulez-vous le remplacer ?</translation>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>Outil Recadrage : garder le cadre en place et faire glisser ou pivoter l&apos;image derrière lui</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>Faire pivoter la pointe de forme de 1 degré dans le sens antihoraire</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>Faire pivoter la pointe de forme de 1 degré dans le sens horaire</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22455,7 +22463,12 @@ Voulez-vous le remplacer ?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Rechercher des raccourcis...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>Outils de pinceau : faire pivoter la pointe de forme de 1 degré / 15 degrés</translation>
     </message>
 </context>
 <context>
@@ -35883,6 +35896,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Faites glisser le long d&apos;un élément qui doit être horizontal ou vertical</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>Faire pivoter le pinceau vers la gauche</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>Faire pivoter le pinceau vers la droite</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>Angle du pinceau : %1</translation>
     </message>
 </context>
 <context>

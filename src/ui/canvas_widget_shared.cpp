@@ -1149,6 +1149,10 @@ bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept {
   }
 }
 
+bool tool_stroke_uses_tip_shape(CanvasTool tool) noexcept {
+  return tool != CanvasTool::SpotHealing && tool_uses_brush_footprint_cursor(tool);
+}
+
 bool tool_has_ctrl_temporary_move(CanvasTool tool) noexcept {
   return tool_uses_brush_footprint_cursor(tool);
 }

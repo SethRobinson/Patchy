@@ -42,6 +42,8 @@
 #include "ui/app_settings.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/brush_dynamics_popup.hpp"
+#include "ui/canvas_widget_shared.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/brush_tool_window.hpp"
 #include "ui/brush_presets.hpp"
 #include "ui/background_workers.hpp"
@@ -861,16 +863,91 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
   // popup edits propagate through the library's changed() -> re-apply path.
   if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_); entry != nullptr) {
     canvas->set_brush_dynamics(entry->dynamics);
-    canvas->set_brush_base_shape(entry->base_angle_degrees,
-                                 static_cast<int>(std::lround(entry->base_roundness)));
+    // A turn by the keys that still waits on its save wins over the stored angle.
+    const auto angle = pending_brush_rotation_.has_value() && pending_brush_rotation_->tip_id == active_brush_tip_id_
+                           ? pending_brush_rotation_->angle_degrees
+                           : entry->base_angle_degrees;
+    canvas->set_brush_base_shape(angle, static_cast<int>(std::lround(entry->base_roundness)));
   } else {
     canvas->set_brush_dynamics({});
     canvas->set_brush_base_shape(0.0, 100);
   }
 }
 
+namespace {
+
+// A tip angle as the Brush Dynamics field shows it: (-180, 180].
+[[nodiscard]] double wrapped_brush_tip_angle(double degrees) {
+  auto wrapped = std::fmod(degrees, 360.0);
+  if (wrapped > 180.0) {
+    wrapped -= 360.0;
+  } else if (wrapped <= -180.0) {
+    wrapped += 360.0;
+  }
+  return wrapped;
+}
+
+}  // namespace
+
+bool MainWindow::rotate_brush_tip(int degrees) {
+  if (canvas_ == nullptr || degrees == 0 || !tool_stroke_uses_tip_shape(canvas_->tool()) ||
+      canvas_->pointer_gesture_active()) {
+    return false;
+  }
+  // The canvas holds the angle in use, a turn still waiting on its save included.
+  const auto angle = wrapped_brush_tip_angle(canvas_->brush_base_angle_degrees() + degrees);
+  const bool session_tip = active_preset_tip_ || active_automation_brush_ || active_brush_tip_id_.isEmpty() ||
+                           is_builtin_brush_tip_id(active_brush_tip_id_);
+  if (session_tip) {
+    // Round, Square and a preset's or a script's own tip: the session's values, as the
+    // Brush Dynamics popup edits them.
+    round_brush_base_angle_degrees_ = angle;
+  } else if (brush_tip_library().find_entry(active_brush_tip_id_) != nullptr) {
+    pending_brush_rotation_ = PendingBrushRotation{active_brush_tip_id_, angle};
+    if (brush_rotation_save_timer_ == nullptr) {
+      brush_rotation_save_timer_ = new QTimer(this);
+      brush_rotation_save_timer_->setSingleShot(true);
+      brush_rotation_save_timer_->setInterval(300);
+      connect(brush_rotation_save_timer_, &QTimer::timeout, this, [this] { flush_pending_brush_rotation(); });
+    }
+    brush_rotation_save_timer_->start();
+  } else {
+    return false;
+  }
+  canvas_->set_brush_base_shape(angle, canvas_->brush_base_roundness());
+  if (brush_dynamics_button_ != nullptr) {
+    brush_dynamics_button_->set_base_angle(angle);
+  }
+  statusBar()->showMessage(
+      tr("Brush angle: %1").arg(QString::number(static_cast<int>(std::lround(angle))) + degree_suffix()));
+  return true;
+}
+
+void MainWindow::flush_pending_brush_rotation() {
+  if (brush_rotation_save_timer_ != nullptr) {
+    brush_rotation_save_timer_->stop();
+  }
+  if (!pending_brush_rotation_.has_value()) {
+    return;
+  }
+  // Cleared first: the library's changed() re-applies the active tip from the stored entry.
+  const auto pending = *pending_brush_rotation_;
+  pending_brush_rotation_.reset();
+  const auto* entry = brush_tip_library().find_entry(pending.tip_id);
+  if (entry == nullptr || entry->base_angle_degrees == pending.angle_degrees) {
+    return;
+  }
+  const auto dynamics = entry->dynamics;
+  const auto roundness = entry->base_roundness;
+  (void)brush_tip_library().set_tip_dynamics(pending.tip_id, dynamics, pending.angle_degrees, roundness);
+}
+
 void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
                                       bool apply_tool_settings) {
+  // A turn of another tip that still waits on its save goes to the library before the switch.
+  if (pending_brush_rotation_.has_value() && pending_brush_rotation_->tip_id != tip_id) {
+    flush_pending_brush_rotation();
+  }
   active_preset_tip_.reset();
   active_automation_preset_id_.clear();
   active_automation_brush_.reset();
@@ -909,6 +986,9 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
   if (brush_dynamics_button_ != nullptr) {
     if (entry != nullptr) {
       brush_dynamics_button_->set_active_entry(entry);
+      if (pending_brush_rotation_.has_value() && pending_brush_rotation_->tip_id == effective) {
+        brush_dynamics_button_->set_base_angle(pending_brush_rotation_->angle_degrees);
+      }
     } else {
       brush_dynamics_button_->set_round_session(effective, round_brush_dynamics_,
                                                 round_brush_base_angle_degrees_,

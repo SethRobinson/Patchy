@@ -2807,6 +2807,13 @@ private:
   std::uint64_t remove_object_last_selection_hash_{0};
   int remove_object_last_attempt_{-1};
   void apply_brush_tip_to_canvas(CanvasWidget* canvas);
+  // Turns the active tip's static angle by this many degrees (negative: counterclockwise on
+  // screen), wrapped into (-180, 180]: the canvas Left/Right keys and the Rotate Brush
+  // commands (GitHub issue 708). False when the active tool's strokes take no tip angle
+  // (tool_stroke_uses_tip_shape) or a stroke is live. No undo step; a sampled tip's angle is saved to the tip library once the
+  // keys rest (flush_pending_brush_rotation), Round and Square keep theirs for the session.
+  bool rotate_brush_tip(int degrees);
+  void flush_pending_brush_rotation();
   void import_brush_tips_from_abr();
   void open_brush_tip_manager(QWidget* parent = nullptr);
   // Edit > Presets and the Preferences Presets page (GitHub issue 485): the
@@ -4029,6 +4036,15 @@ private:
   patchy::BrushDynamics round_brush_dynamics_{};
   double round_brush_base_angle_degrees_{0.0};
   double round_brush_base_roundness_{100.0};
+  // A sampled tip's angle turned by the keys and not yet written to the tip library: the
+  // canvas shows it at once, the sidecar write waits for the keys to rest (a held key
+  // repeats about thirty times a second).
+  struct PendingBrushRotation {
+    QString tip_id;
+    double angle_degrees{0.0};
+  };
+  std::optional<PendingBrushRotation> pending_brush_rotation_;
+  QTimer* brush_rotation_save_timer_{nullptr};
   QComboBox* gradient_method_combo_{nullptr};
   QComboBox* gradient_mode_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};

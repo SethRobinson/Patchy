@@ -21675,6 +21675,14 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>切り抜きツール: 枠を固定したまま、その下の画像を移動または回転</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>ブラシ先端を反時計回りに 1 度回転する</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>ブラシ先端を時計回りに 1 度回転する</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22391,7 +22399,12 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>ショートカットを検索...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>ブラシ系ツール: ブラシ先端を 1 度 / 15 度回転</translation>
     </message>
 </context>
 <context>
@@ -35774,6 +35787,18 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>水平または垂直であるべきものに沿ってドラッグします</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>ブラシを左に回転</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>ブラシを右に回転</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>ブラシの角度: %1</translation>
     </message>
 </context>
 <context>

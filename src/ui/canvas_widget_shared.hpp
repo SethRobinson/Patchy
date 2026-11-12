@@ -308,6 +308,11 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept;
 // TU. Quick Select joins the overlay through its own size/cursor path.
 bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept;
 
+// Footprint tools whose strokes take the tip's static angle and roundness (every one but
+// Spot Healing, which always heals a circle): Left and Right turn the tip for them (GitHub
+// issue 708), and their outline shows a flattened Round brush as its turned ellipse.
+bool tool_stroke_uses_tip_shape(CanvasTool tool) noexcept;
+
 // Tools whose strokes stamp the active bitmap brush tip; only their cursor and
 // overlay outline trace the tip shape. Every other footprint tool strokes
 // procedurally, so its outline stays the procedural circle even while a tip is

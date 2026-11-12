@@ -21799,6 +21799,14 @@ Czy chcesz go zastąpić?</translation>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>Narzędzie Kadrowanie: ramka zostaje w miejscu, a obraz przesuwa się lub obraca pod nią</translation>
     </message>
+    <message>
+        <source>Turn the brush tip counterclockwise by 1 degree</source>
+        <translation>Obróć końcówkę pędzla o 1 stopień przeciwnie do ruchu wskazówek zegara</translation>
+    </message>
+    <message>
+        <source>Turn the brush tip clockwise by 1 degree</source>
+        <translation>Obróć końcówkę pędzla o 1 stopień zgodnie z ruchem wskazówek zegara</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -22519,7 +22527,12 @@ Czy chcesz go zastąpić?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Wyszukaj skróty...</translation>
+    </message>
+    <message>
+        <source>Brush tools: turn the brush tip by 1 degree / 15 degrees</source>
+        <translation>Narzędzia pędzla: obróć końcówkę pędzla o 1 stopień / 15 stopni</translation>
     </message>
 </context>
 <context>
@@ -35992,6 +36005,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Przeciągnij wzdłuż czegoś, co powinno być poziome lub pionowe</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Left</source>
+        <translation>Obróć pędzel w lewo</translation>
+    </message>
+    <message>
+        <source>Rotate Brush Right</source>
+        <translation>Obróć pędzel w prawo</translation>
+    </message>
+    <message>
+        <source>Brush angle: %1</source>
+        <translation>Kąt pędzla: %1</translation>
     </message>
 </context>
 <context>

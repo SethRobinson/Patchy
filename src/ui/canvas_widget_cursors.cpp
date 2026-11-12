@@ -649,7 +649,10 @@ void CanvasWidget::update_tool_cursor() {
       return;
     }
     const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
-    const auto extent = std::clamp(diameter + 5, 17, kMaxBrushCursorExtent);
+    // A turned square reaches past its side, so the pixmap takes the turned box.
+    const auto screen_size = brush_outline_screen_size();
+    const auto extent =
+        std::clamp(std::max({diameter, screen_size.width(), screen_size.height()}) + 5, 17, kMaxBrushCursorExtent);
     if (use_cached_brush_cursor(false, diameter, extent)) {
       return;
     }
@@ -660,6 +663,8 @@ void CanvasWidget::update_tool_cursor() {
     const QPoint center(extent / 2, extent / 2);
     const auto radius = std::max(2, std::min(diameter, extent - 5) / 2);
     const bool square = brush_shape_ == patchy::BrushShape::Square && tool_paints_with_brush_tip(tool_);
+    // A flattened round brush shows its ellipse, turned by its angle like the dab (issue 708).
+    const bool flattened = !square && brush_base_roundness_ < 99 && tool_stroke_uses_tip_shape(tool_);
     const auto draw_footprint = [&](int half) {
       if (square) {
         painter.save();
@@ -667,6 +672,13 @@ void CanvasWidget::update_tool_cursor() {
         // The tip's own angle, turned with a rotated view.
         painter.rotate(brush_base_angle_degrees_ + view_rotation_degrees_);
         painter.drawRect(QRectF(-half, -half, 2.0 * half, 2.0 * half));
+        painter.restore();
+      } else if (flattened) {
+        painter.save();
+        painter.translate(center);
+        painter.rotate(brush_base_angle_degrees_ + view_rotation_degrees_);
+        painter.drawEllipse(QPointF(0.0, 0.0), static_cast<double>(half),
+                            std::max(0.5, half * brush_base_roundness_ / 100.0));
         painter.restore();
       } else {
         painter.drawEllipse(center, half, half);
