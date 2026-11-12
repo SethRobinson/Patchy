@@ -746,6 +746,14 @@ const ThemePalette& light_palette() {
     // the blue of a selected one.
     light.layer_clip_badge = rgb(0x1a73e8);
 
+    // The visibility eye (issue 715). The flip turns Dark's near-white eye into a
+    // mid navy and leaves the hidden gray about where it was, so the two states
+    // sat a few steps apart and read alike. Light keeps the meaning instead: the
+    // visible eye is the strongest ink on the row, the hidden one a mid gray that
+    // still shows on a selected row's blue.
+    light.layer_eye_on = rgb(0x1c2128);
+    light.layer_eye_off = rgb(0x78808a);
+
     // The thumbnail slot ring is darker than the row in Dark; a flip would make it
     // lighter than Light's row, where it vanishes. A mid gray reads on the plain
     // row and on the blue of a selected one.

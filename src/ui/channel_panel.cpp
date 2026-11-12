@@ -375,7 +375,7 @@ QIcon ChannelPanel::row_icon(const QPixmap& thumbnail, int eye) const {
   if (eye >= 0) {
     const auto icon = simple_icon(eye != 0 ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
                                   eye != 0 ? theme().layer_eye_on : theme().layer_eye_off);
-    icon.paint(&painter, QRect(2, (size.height() - 16) / 2, 16, 16));
+    icon.paint(&painter, QRect(2, (size.height() - 18) / 2, 18, 18));
   }
   if (!thumbnail.isNull()) {
     painter.drawPixmap(QRect(QPoint(kEyeColumnWidth, 0), kThumbnailSize), thumbnail);

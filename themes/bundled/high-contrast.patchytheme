@@ -122,7 +122,7 @@
     "layer_drop_bg": "#50472e",
     "layer_depth_guide": "#292929",
     "layer_eye_on": "#f6f2e4",
-    "layer_eye_off": "#afafaf",
+    "layer_eye_off": "#868686",
     "layer_lock_badge_active": "#f2d77d",
     "layer_lock_badge_inherited": "#b5b5b5",
     "layer_thumbnail_border": "#cccccc",
