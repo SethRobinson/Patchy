@@ -2809,8 +2809,12 @@ int run_about_dialog_update_check(const QString& manifest_url, const QString& st
     auto* button = dialog.findChild<QPushButton*>(QStringLiteral("splashUpdateButton"));
     CHECK(status != nullptr);
     CHECK(button != nullptr);
-    // Hidden while the check is still out, whatever it will answer.
-    CHECK(button->isHidden());
+    // Hidden while the check is still out, whatever it will answer. A loopback manifest can
+    // answer before this callback first runs (it does on macOS and Linux); the answer sets
+    // the status line and shows the button together, so the status line tells which it is.
+    if (!status->text().startsWith(status_prefix)) {
+      CHECK(button->isHidden());
+    }
     const bool answered =
         process_events_until([&] { return status->text().startsWith(status_prefix); }, 20000);
     if (!answered) {
