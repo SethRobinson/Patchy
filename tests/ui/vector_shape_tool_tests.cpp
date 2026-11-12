@@ -5753,6 +5753,201 @@ void ui_new_gradient_fill_layer_spans_canvas() {
   CHECK(bottom.red() + 60 < top.red());
 }
 
+struct NewFillCase {
+  const char* action;
+  const char* dialog;
+  const char* layer_name;
+  patchy::VectorFillKind kind;
+  const char* artifact;  // null: no capture
+};
+
+const NewFillCase kNewFillCases[] = {
+    {"layerNewGradientFillAction", "shapeAppearanceDialog", "Gradient Fill 1", patchy::VectorFillKind::Gradient,
+     "issue710_gradient_fill"},
+    {"layerNewPatternFillAction", "shapeAppearanceDialog", "Pattern Fill 1", patchy::VectorFillKind::Pattern,
+     "issue710_pattern_fill"},
+    {"layerNewSolidColorFillAction", "patchyColorDialog", "Color Fill 1", patchy::VectorFillKind::Solid, nullptr},
+};
+
+// GitHub #710: the Paths panel auto-targets the active shape layer's own path row, and New
+// Fill Layer took any targeted row as the new layer's path. With a rectangle shape layer
+// active and the Rectangle tool still on, Gradient... opened Shape Appearance on a copy of
+// the rectangle instead of Fill Layer Settings. Only a targeted work path or saved path
+// clips a new fill layer; the active layer's own path never does.
+void ui_new_fill_layer_spans_canvas_with_shape_layer_active() {
+  for (const auto& fill_case : kNewFillCases) {
+    VectorSettingsGuard settings_guard;
+    auto&& [window, canvas] = ShownWindowFixture{};
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    // Earlier ordered tests can empty the user's pattern library.
+    document.metadata().patterns.adopt(
+        patchy::builtin_pattern_resource(patchy::builtin_pattern_presets().front().id));
+    canvas->set_primary_color(QColor(200, 30, 40));
+    canvas->set_secondary_color(QColor(20, 60, 210));
+    const auto shape_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+    CHECK(canvas->panel_path_targeted());  // the rectangle's own path row
+    const auto shape_before = *std::as_const(document).find_layer(shape_id)->vector_shape();
+    const auto layers_before = std::as_const(document).layers().size();
+    const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    const auto outside_before = canvas_pixel(*canvas, QPoint(700, 360));
+
+    const bool appearance_dialog = fill_case.artifact != nullptr;
+    QString title;
+    bool fill_only = false;
+    when_dialog_visible(QString::fromLatin1(fill_case.dialog), [&](QDialog& dialog) {
+      if (appearance_dialog) {
+        save_widget_artifact(std::string(fill_case.artifact) + "_dialog", dialog);
+        title = dialog.windowTitle();
+        auto* stroke_width = dialog.findChild<QWidget*>(QStringLiteral("shapeStrokeWidthSpin"));
+        fill_only = stroke_width != nullptr && !stroke_width->isVisibleTo(&dialog);
+      }
+      dialog.accept();
+    });
+    auto* action = window.findChild<QAction*>(QString::fromLatin1(fill_case.action));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    if (appearance_dialog) {
+      save_widget_artifact(std::string(fill_case.artifact) + "_added", window);
+      CHECK(title == QStringLiteral("Fill Layer Settings"));
+      CHECK(fill_only);
+    }
+
+    const auto& layers = std::as_const(document).layers();
+    CHECK(layers.size() == layers_before + 1);
+    const auto active = document.active_layer_id();
+    CHECK(active.has_value() && *active != shape_id);
+    const auto* layer = std::as_const(document).find_layer(*active);
+    CHECK(layer != nullptr);
+    CHECK(layer->name() == fill_case.layer_name);
+    CHECK(patchy::layer_is_fill_layer(*layer));
+    CHECK(layer->vector_shape()->path.empty());
+    CHECK(layer->vector_shape()->fill.kind == fill_case.kind);
+    const auto index_of = [&layers](patchy::LayerId id) {
+      return std::find_if(layers.begin(), layers.end(), [id](const patchy::Layer& item) { return item.id() == id; }) -
+             layers.begin();
+    };
+    CHECK(index_of(*active) > index_of(shape_id));  // above the shape
+    // The fill covers the canvas, not only the rectangle (the pattern may be pale there).
+    if (fill_case.kind != patchy::VectorFillKind::Pattern) {
+      CHECK(!color_close(canvas_pixel(*canvas, QPoint(700, 360)), outside_before, 8));
+    }
+    const auto* shape_after = std::as_const(document).find_layer(shape_id)->vector_shape();
+    CHECK(shape_after->path == shape_before.path);
+    CHECK(shape_after->fill == shape_before.fill);
+    CHECK(shape_after->stroke == shape_before.stroke);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  }
+}
+
+// GitHub #710: Cancel in the fill dialog with a shape layer active leaves the document as
+// it was, the rectangle's own fill included.
+void ui_new_fill_cancel_with_shape_layer_active_restores_document() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  document.metadata().patterns.adopt(
+      patchy::builtin_pattern_resource(patchy::builtin_pattern_presets().front().id));
+  canvas->set_primary_color(QColor(200, 30, 40));
+  canvas->set_secondary_color(QColor(20, 60, 210));
+  const auto shape_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  const auto shape_before = *std::as_const(document).find_layer(shape_id)->vector_shape();
+  const auto layers_before = std::as_const(document).layers().size();
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto inside_before = canvas_pixel(*canvas, QPoint(200, 160));
+  const auto outside_before = canvas_pixel(*canvas, QPoint(700, 360));
+  for (const auto& fill_case : kNewFillCases) {
+    bool cancelled = false;
+    when_dialog_visible(QString::fromLatin1(fill_case.dialog), [&](QDialog& dialog) {
+      cancelled = true;
+      dialog.reject();
+    });
+    auto* action = window.findChild<QAction*>(QString::fromLatin1(fill_case.action));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(cancelled);
+    CHECK(std::as_const(document).layers().size() == layers_before);
+    CHECK(document.active_layer_id() == shape_id);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+    const auto* shape_after = std::as_const(document).find_layer(shape_id)->vector_shape();
+    CHECK(shape_after->path == shape_before.path);
+    CHECK(shape_after->fill == shape_before.fill);
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), inside_before, 2));
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(700, 360)), outside_before, 2));
+  }
+}
+
+// GitHub #710: the Gradient tool's Fill Layer mode builds its layer the same way. A drag
+// with a solid shape layer active adds a Gradient Fill layer over the whole canvas.
+void ui_gradient_tool_fill_layer_drag_spans_canvas_with_shape_layer_active() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto shape_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  CHECK(std::as_const(document).find_layer(shape_id)->vector_shape()->fill.kind == patchy::VectorFillKind::Solid);
+  const auto layers_before = std::as_const(document).layers().size();
+
+  canvas->set_tool(patchy::ui::CanvasTool::Gradient);
+  canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::FillLayer);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(350, 300)),
+       canvas->widget_position_for_document_point(QPoint(650, 300)));
+  QApplication::processEvents();
+
+  CHECK(std::as_const(document).layers().size() == layers_before + 1);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value() && *active != shape_id);
+  const auto* layer = std::as_const(document).find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_fill_layer(*layer));
+  CHECK(layer->vector_shape()->path.empty());
+  CHECK(layer->vector_shape()->fill.kind == patchy::VectorFillKind::Gradient);
+}
+
+// A work path targeted in the Paths panel still clips a new Gradient Fill layer, also
+// while a shape layer is the active layer: the fill takes the work path, not the shape's.
+void ui_new_gradient_fill_layer_clips_to_targeted_work_path() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_primary_color(QColor(200, 30, 40));
+  canvas->set_secondary_color(QColor(20, 60, 210));
+  const auto shape_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+
+  // A Path-mode rect drag creates AND targets the work path.
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  shape_drag(*canvas, QPoint(400, 300), QPoint(600, 420));
+  CHECK(document.active_layer_id() == shape_id);
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(canvas->panel_path_targeted());
+
+  QString title;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    title = dialog.windowTitle();
+    dialog.accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"))->trigger();
+  QApplication::processEvents();
+
+  CHECK(title == QStringLiteral("Shape Appearance"));
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value() && *active != shape_id);
+  const auto* layer = std::as_const(document).find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->name() == "Gradient Fill 1");
+  CHECK(!patchy::layer_is_fill_layer(*layer));
+  const auto& path = layer->vector_shape()->path;
+  CHECK(path.subpaths.size() == 1);
+  CHECK(path.subpaths[0].anchors.size() == 4);
+  CHECK(std::abs(path.subpaths[0].anchors[0].anchor_x - 400.0) <= 0.5);
+  // Clipped to the work path: paint inside it, the white Background beside it.
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(500, 360)), Qt::white, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(700, 360)), Qt::white, 8));
+}
+
 // Built-in gradient preset ids (src/core/gradient_presets.cpp, persisted).
 const QString kForegroundToBackgroundId = QStringLiteral("6b31e700-0001-4f15-9d31-200000000001");
 const QString kForegroundToTransparentId = QStringLiteral("6b31e700-0002-4f15-9d31-200000000002");
@@ -9056,7 +9251,7 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
   CHECK(content->origination.size() == 1 && std::abs(content->origination[0].right - 500.0) < 0.5);
   // The options-bar defaults synced from the reset layer: the next shape is red.
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
-  shape_drag(*canvas, QPoint(600, 500), QPoint(700, 600));
+  shape_drag(*canvas, QPoint(700, 360), QPoint(700, 600));
   const auto* next = document.find_layer(*document.active_layer_id())->vector_shape();
   CHECK(next != nullptr && next->fill.kind == patchy::VectorFillKind::Solid && next->fill.color.red == 255 &&
         next->fill.color.green == 0);
@@ -9422,7 +9617,7 @@ void ui_shape_context_menu_offers_shape_commands() {
   }
 
   // Off the shape: no shape section.
-  menu = right_click(QPoint(600, 500));
+  menu = right_click(QPoint(700, 360));
   CHECK(menu == nullptr || find_action(*menu, "layerShapeAppearanceAction") == nullptr);
   if (menu != nullptr) {
     menu->close();
@@ -9712,6 +9907,14 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_path_mode_drag_previews_path_outline_only},
       {"ui_shape_geometry_edits_live_shape", ui_shape_geometry_edits_live_shape},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
+      {"ui_new_fill_layer_spans_canvas_with_shape_layer_active",
+       ui_new_fill_layer_spans_canvas_with_shape_layer_active},
+      {"ui_new_fill_cancel_with_shape_layer_active_restores_document",
+       ui_new_fill_cancel_with_shape_layer_active_restores_document},
+      {"ui_gradient_tool_fill_layer_drag_spans_canvas_with_shape_layer_active",
+       ui_gradient_tool_fill_layer_drag_spans_canvas_with_shape_layer_active},
+      {"ui_new_gradient_fill_layer_clips_to_targeted_work_path",
+       ui_new_gradient_fill_layer_clips_to_targeted_work_path},
       {"ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill",
        ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill},
       {"ui_shape_appearance_gradient_lists_select_the_matching_preset",
