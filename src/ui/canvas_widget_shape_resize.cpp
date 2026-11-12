@@ -360,8 +360,12 @@ void CanvasWidget::cancel_shape_resize_drag() {
 void CanvasWidget::abandon_shape_resize_drag() {
   // The document under the drag was swapped (undo, redo, a history jump): its preview went
   // with it, so nothing is restored and a later call for this drag is stale.
+  const bool center_drag = shape_center_drag_active();
   shape_resize_drag_.reset();
   shape_point_drag_.reset();
+  if (center_drag) {
+    clear_move_snap_guides();  // its alignment guides go with it
+  }
 }
 
 bool CanvasWidget::apply_shape_resize_cursor(QPoint widget_point) {

@@ -536,6 +536,7 @@ public:
     ShapePointsKind kind{ShapePointsKind::Polygon};
     LayerId layer_id{0};
     patchy::LiveShapeParams params;  // the live component the points edit
+    int shape_group{0};              // its shape group in the layer's path (unset during a drag)
     QPointF first;                   // document: a polygon's center, a line's start
     QPointF second;                  // document: a polygon's first vertex, a line's end
   };
@@ -2916,6 +2917,16 @@ private:
   // extra-selected layer) with the drag's applied delta taken back out, and the
   // layers that own them.
   void collect_shape_drag_snap_sources(const VectorPath& path);
+  // The snap step of every drag that moves whole shapes (Path Select, Ctrl in a shape
+  // tool, a live polygon's center point): the Move tool's scan of `sources` (the moved
+  // shapes' bounds at a zero delta) for the travel `total`, a pinned axis keeping its
+  // value, with the matches stored for the alignment-guide overlay. Returns the total
+  // to apply.
+  [[nodiscard]] QPointF snap_whole_shape_drag(const std::vector<QRectF>& sources,
+                                              const std::vector<LayerId>& exclude_ids, QPointF total, bool pinned_x,
+                                              bool pinned_y);
+  // The tight bounds of one shape group's curves, the source rect of that scan.
+  [[nodiscard]] static std::optional<QRectF> shape_group_snap_bounds(const VectorPath& path, int shape_group);
   // Applies the drag at the latest pointer position if mouse moves arrived since the
   // last apply (handle_path_edit_move queues one apply per batch of moves).
   void flush_pending_path_edit_drag();
@@ -4464,11 +4475,23 @@ private:
     QPointF press_widget;
     QPointF press_document;
     QPointF grab_offset;  // document offset from the press to the grabbed point
+    // A polygon's center drag: the polygon's bounds at the press, the snap scan's source.
+    std::vector<QRectF> snap_sources;
     bool moved{false};
     bool previewed{false};
     std::uint64_t serial{0};
   };
   std::optional<ShapePointDrag> shape_point_drag_;
+  // A drag of a live polygon's center point: it moves the whole shape, so it snaps and
+  // shows the alignment guides like every whole-shape drag (GitHub issue 695).
+  [[nodiscard]] bool shape_center_drag_active() const noexcept {
+    return shape_point_drag_.has_value() && shape_point_drag_->kind == ShapePointsKind::Polygon &&
+           shape_point_drag_->point == ShapePoint::First;
+  }
+  // A Move drag, a whole-shape path drag or a polygon's center drag owns the alignment guides.
+  [[nodiscard]] bool move_snap_guides_owned() const noexcept {
+    return moving_layer_ || path_drag_mode_ == PathEditDrag::Anchors || shape_center_drag_active();
+  }
   ShapePoint shape_point_hover_{ShapePoint::None};
   // Where draw_shape_points last painted the two points, in widget coordinates.
   mutable std::optional<std::pair<QPointF, QPointF>> shape_points_painted_;

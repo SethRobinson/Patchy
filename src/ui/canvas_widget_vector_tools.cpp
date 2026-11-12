@@ -2589,9 +2589,6 @@ QPointF CanvasWidget::snapped_shape_drag_total(const VectorPath& path, QPointF r
                                                Qt::KeyboardModifiers modifiers) {
   const bool shift = (modifiers & Qt::ShiftModifier) != 0;
   const auto constrained = shift ? constrain_drag_to_axes(raw_total) : raw_total;
-  auto total = constrained;
-  std::optional<SnapMatch> match_x;
-  std::optional<SnapMatch> match_y;
   // Snapping starts once the press has become a drag, as the Move tool's does, and
   // stays on for the rest of it.
   if (!path_drag_snap_armed_ &&
@@ -2607,31 +2604,53 @@ QPointF CanvasWidget::snapped_shape_drag_total(const VectorPath& path, QPointF r
     if (!path_drag_snap_sources_ready_) {
       collect_shape_drag_snap_sources(path);
     }
-    // Every edge and the center of every moved shape is a source, whatever point
-    // was grabbed (docs/legal-constraints.md, alignment guides): the Move tool's scan.
-    const auto snap = snapped_rects_delta_with_matches(path_drag_snap_sources_, path_drag_snap_exclude_ids_,
-                                                       constrained, false);
-    // Constrain, snap, constrain again: the pinned axis takes no correction and
-    // shows no guide (docs/alignment.md).
-    total = QPointF(pinned_x ? constrained.x() : snap.delta.x(), pinned_y ? constrained.y() : snap.delta.y());
-    const auto dropped = total - snap.delta;  // the correction the pinned axis gave back
-    const auto keep = [dropped](std::optional<SnapMatch> match) {
-      if (match.has_value()) {
-        match->source_span.translate(dropped);
-      }
-      return match;
-    };
-    if (!pinned_x) {
-      match_x = keep(snap.x);
+    return snap_whole_shape_drag(path_drag_snap_sources_, path_drag_snap_exclude_ids_, constrained, pinned_x,
+                                 pinned_y);
+  }
+  move_snap_x_.reset();
+  move_snap_y_.reset();
+  update_move_snap_guides_region();
+  return constrained;
+}
+
+QPointF CanvasWidget::snap_whole_shape_drag(const std::vector<QRectF>& sources,
+                                            const std::vector<LayerId>& exclude_ids, QPointF total, bool pinned_x,
+                                            bool pinned_y) {
+  // Every edge and the center of every moved shape is a source, whatever point
+  // was grabbed (docs/legal-constraints.md, alignment guides): the Move tool's scan.
+  const auto snap = snapped_rects_delta_with_matches(sources, exclude_ids, total, false);
+  // Constrain, snap, constrain again: the pinned axis takes no correction and
+  // shows no guide (docs/alignment.md).
+  const QPointF snapped(pinned_x ? total.x() : snap.delta.x(), pinned_y ? total.y() : snap.delta.y());
+  const auto dropped = snapped - snap.delta;  // the correction the pinned axis gave back
+  const auto keep = [dropped](std::optional<SnapMatch> match) {
+    if (match.has_value()) {
+      match->source_span.translate(dropped);
     }
-    if (!pinned_y) {
-      match_y = keep(snap.y);
+    return match;
+  };
+  move_snap_x_ = pinned_x ? std::nullopt : keep(snap.x);
+  move_snap_y_ = pinned_y ? std::nullopt : keep(snap.y);
+  update_move_snap_guides_region();
+  return snapped;
+}
+
+std::optional<QRectF> CanvasWidget::shape_group_snap_bounds(const VectorPath& path, int shape_group) {
+  std::set<std::pair<int, int>> keys;
+  for (int s = 0; s < static_cast<int>(path.subpaths.size()); ++s) {
+    const auto& subpath = path.subpaths[static_cast<std::size_t>(s)];
+    if (subpath.shape_group != shape_group) {
+      continue;
+    }
+    for (int a = 0; a < static_cast<int>(subpath.anchors.size()); ++a) {
+      keys.insert({s, a});
     }
   }
-  move_snap_x_ = std::move(match_x);
-  move_snap_y_ = std::move(match_y);
-  update_move_snap_guides_region();
-  return total;
+  std::vector<QRectF> rects;
+  if (!append_selected_shape_bounds(path, keys, QPointF(), rects) || rects.empty()) {
+    return std::nullopt;
+  }
+  return rects.front();
 }
 
 bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {

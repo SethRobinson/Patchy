@@ -951,8 +951,9 @@ bool snap_match_draws_line(const std::optional<CanvasWidget::SnapMatch>& match) 
 }  // namespace
 
 QRect CanvasWidget::move_snap_guides_widget_rect() const {
-  // A Move drag or a whole-shape path drag (GitHub issue 695) owns the guides.
-  if ((!moving_layer_ && path_drag_mode_ != PathEditDrag::Anchors) || document_ == nullptr) {
+  // A Move drag, a whole-shape path drag (GitHub issue 695) or a polygon's center drag
+  // owns the guides.
+  if (!move_snap_guides_owned() || document_ == nullptr) {
     return {};
   }
   QRect rect;
@@ -986,8 +987,7 @@ QRect CanvasWidget::move_snap_guides_widget_rect() const {
 }
 
 void CanvasWidget::draw_move_snap_guides(QPainter& painter) const {
-  if ((!moving_layer_ && path_drag_mode_ != PathEditDrag::Anchors) || document_ == nullptr ||
-      !extra_shown(ViewExtra::SmartGuides) ||
+  if (!move_snap_guides_owned() || document_ == nullptr || !extra_shown(ViewExtra::SmartGuides) ||
       (!snap_match_draws_line(move_snap_x_) && !snap_match_draws_line(move_snap_y_))) {
     return;
   }
