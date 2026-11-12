@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.34" date="2026-11-13">
+      <description>
+        <ul>
+          <li>Select &gt; Color Range: sampled colors, hue bands and tone ranges</li>
+          <li>Shape Appearance stays open while you work and shows gradient handles</li>
+          <li>Arrow keys turn a brush tip; the layer filter finds text, linked and Smart Filter layers</li>
+          <li>About offers an Update button when a newer version is found</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.33" date="2026-11-12">
       <description>
         <ul>
