@@ -2128,8 +2128,10 @@ void text_layer_live_drag_perf() {
 // interactive-previews.md, "Drag move coalescing"). PATCHY_PERF_CANVASDRAG_KIND picks one:
 //   shape     a noisy 3600x5400 "photo" (PATCHY_PERF_CANVASDRAG_DOC=WxH) with a pentagon
 //             shape over it, viewed fit to the window, dragged with Path Select
-//   gradient  a 1280x720 document with a Gradient Fill layer made by a Gradient tool drag in
-//             Fill Layer mode, its end handle dragged with the Gradient tool
+//   gradient  a 1280x720 document (PATCHY_PERF_CANVASDRAG_DOC=WxH; GitHub #714: 3580x5370)
+//             with a Gradient Fill layer made by a Gradient tool drag in Fill Layer mode,
+//             its end handle dragged with the Gradient tool. PATCHY_GRADIENT_VIEW_PREVIEW=0
+//             previews through the document, as every preview did before #714
 //   pathtransform  the shape document, the pentagon moved inside Path Select's transform box
 // Writes the press point to PATCHY_PERF_LIVE_READY like textdrag_live and measures each
 // window-system move's queueing delay, each repaint's lag behind the newest move, and on
@@ -2142,16 +2144,16 @@ void canvas_live_drag_perf() {
   window.showFullScreen();
   QApplication::processEvents();
   patchy::LayerId dragged_id = 0;
+  int width = gradient ? 1280 : 3600;
+  int height = gradient ? 720 : 5400;
+  if (const auto size = qEnvironmentVariable("PATCHY_PERF_CANVASDRAG_DOC").split(QLatin1Char('x'));
+      size.size() == 2 && size[0].toInt() > 0 && size[1].toInt() > 0) {
+    width = size[0].toInt();
+    height = size[1].toInt();
+  }
   if (gradient) {
-    patchy::ui::MainWindowTestAccess::new_document(window, 1280, 720, 72.0);
+    patchy::ui::MainWindowTestAccess::new_document(window, width, height, 72.0);
   } else {
-    int width = 3600;
-    int height = 5400;
-    if (const auto size = qEnvironmentVariable("PATCHY_PERF_CANVASDRAG_DOC").split(QLatin1Char('x'));
-        size.size() == 2 && size[0].toInt() > 0 && size[1].toInt() > 0) {
-      width = size[0].toInt();
-      height = size[1].toInt();
-    }
     patchy::Document document(width, height, patchy::PixelFormat::rgba8());
     patchy::PixelBuffer photo(width, height, patchy::PixelFormat::rgba8());
     std::uint64_t state = 0x678;
@@ -2224,8 +2226,8 @@ void canvas_live_drag_perf() {
     canvas->set_tool(patchy::ui::CanvasTool::Gradient);
     canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::FillLayer);
     QApplication::processEvents();
-    const auto from = canvas->widget_position_for_document_point(QPoint(100, 650));
-    const auto to = canvas->widget_position_for_document_point(QPoint(1180, 100));
+    const auto from = canvas->widget_position_for_document_point(QPoint(width * 100 / 1280, height * 650 / 720));
+    const auto to = canvas->widget_position_for_document_point(QPoint(width * 1180 / 1280, height * 100 / 720));
     send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
     for (int step = 1; step <= 10; ++step) {
       send_mouse(*canvas, QEvent::MouseMove, from + (to - from) * step / 10, Qt::NoButton, Qt::LeftButton);
@@ -2319,6 +2321,10 @@ void canvas_live_drag_perf() {
             << " moves=" << recorder.moves << " paints=" << recorder.paints << " stale_paints=" << stale_paints
             << " coalesced=" << (after.drag_moves_coalesced - before.drag_moves_coalesced)
             << " path_drag_applies=" << (after.path_drag_applies - before.path_drag_applies)
+            << " view_previews=" << (after.gradient_view_previews - before.gradient_view_previews)
+            << " composites="
+            << (after.full_refreshes + after.intermediate_refreshes - before.full_refreshes -
+                before.intermediate_refreshes)
             << " drag_ms=" << (recorder.release_ms - recorder.first_move_ms)
             << " release_delay_ms=" << (recorder.release_ms - recorder.release_timestamp_ms)
             << " drain_ms=" << drained << '\n'

@@ -4756,6 +4756,9 @@ private:
     Layer original;
     // The rectangle the placement is measured over (fixed while the gradient alone changes).
     Rect gradient_bounds;
+    // False while every preview went to the canvas's view-resolution preview (GitHub #714):
+    // the layer still is `original` and there is nothing to put back.
+    bool document_touched{false};
   };
   std::optional<GradientFillHandlePreview> gradient_fill_handle_preview_;
   // The layer as it was before a live resize-handle drag (GitHub issue 690), for the

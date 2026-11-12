@@ -9,7 +9,7 @@
 #   pace N   a 1 ms sleep after every N moves (0 floods)
 #   hogs N   pins the app to CPU 3 beside N busy loops there, like a slower machine
 # NATIVE=1 runs build/linux-release (the aqt Qt 6.8.3 the AppImage ships) on the host instead
-# of build/linux-flatpak-qt in the Flatpak SDK. DOC=WxH sets the shape document; PERF_ENV="A=1 B=2"
+# of build/linux-flatpak-qt in the Flatpak SDK. DOC=WxH sets the document's size; PERF_ENV="A=1 B=2"
 # passes more variables to the app. Logs land in build/wayland-popups/live-canvas-drag/.
 set -u
 export XDG_RUNTIME_DIR=/run/user/$(id -u)

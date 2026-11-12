@@ -2691,6 +2691,93 @@ void gradient_fill_line_inverts_the_drag_placement() {
   CHECK(untouched == before);
 }
 
+// The Gradient Fill handles' draft (GitHub issues 663 and 714): the whole canvas at step 1 is
+// what update_gradient_fill_draft_raster bakes and stays within a few levels of the exact
+// bake, a part at a coarser step is the same fill at that scale, and a second render of
+// the same size writes into the same buffer.
+void gradient_fill_draft_renders_a_part_at_a_coarser_scale() {
+  const auto canvas = patchy::Rect::from_size(1600, 1200);
+  patchy::Layer layer(1, "Gradient Fill 1", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  content.fill.gradient.align_with_layer = false;
+  content.fill.gradient.angle_degrees = 30.0F;
+  content.fill.gradient.color_stops = {{0.0F, patchy::RgbColor{200, 30, 30}, 0.5F},
+                                       {1.0F, patchy::RgbColor{30, 40, 210}, 0.5F}};
+  content.fill.gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  content.stroke.enabled = false;
+  layer.set_vector_shape(content);
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  CHECK(patchy::gradient_fill_draft_supported(std::as_const(layer), canvas));
+  // A small canvas bakes exactly.
+  CHECK(!patchy::gradient_fill_draft_supported(std::as_const(layer), patchy::Rect::from_size(400, 300)));
+
+  const auto same_bytes = [](const patchy::PixelBuffer& left, const patchy::PixelBuffer& right) {
+    return left.width() == right.width() && left.height() == right.height() &&
+           std::ranges::equal(left.data(), right.data());
+  };
+  const auto max_difference = [](const std::uint8_t* left, const std::uint8_t* right) {
+    int difference = 0;
+    for (int channel = 0; channel < 4; ++channel) {
+      difference = std::max(difference, std::abs(static_cast<int>(left[channel]) - static_cast<int>(right[channel])));
+    }
+    return difference;
+  };
+
+  auto drafted = layer;
+  CHECK(patchy::update_gradient_fill_draft_raster(drafted, canvas, canvas));
+  CHECK(std::as_const(drafted).bounds() == canvas);
+  patchy::PixelBuffer whole;
+  patchy::render_gradient_fill_draft(content.fill.gradient, canvas, 0, 0, 1, canvas.width, canvas.height, whole);
+  CHECK(same_bytes(std::as_const(whole), std::as_const(drafted).pixels()));
+
+  auto exact = layer;
+  patchy::update_vector_shape_raster(exact, canvas, nullptr);
+  CHECK(std::as_const(exact).bounds() == canvas);
+  int worst_against_exact = 0;
+  for (std::int32_t y = 0; y < canvas.height; y += 7) {
+    for (std::int32_t x = 0; x < canvas.width; x += 7) {
+      worst_against_exact = std::max(
+          worst_against_exact, max_difference(std::as_const(whole).pixel(x, y), std::as_const(exact).pixels().pixel(x, y)));
+    }
+  }
+  CHECK(worst_against_exact <= 4);
+
+  // A 800 x 600 part of the canvas at a quarter of its resolution: each pixel is the
+  // document pixel in the middle of its 4 x 4 block.
+  patchy::PixelBuffer part;
+  patchy::render_gradient_fill_draft(content.fill.gradient, canvas, 400, 300, 4, 200, 150, part);
+  CHECK(part.width() == 200 && part.height() == 150);
+  int worst_against_whole = 0;
+  for (std::int32_t y = 0; y < 150; ++y) {
+    for (std::int32_t x = 0; x < 200; ++x) {
+      worst_against_whole = std::max(worst_against_whole,
+                                     max_difference(std::as_const(part).pixel(x, y),
+                                                    std::as_const(whole).pixel(400 + x * 4 + 2, 300 + y * 4 + 2)));
+    }
+  }
+  CHECK(worst_against_whole <= 2);
+
+  // The next render of that size reuses the buffer.
+  const auto* storage = std::as_const(part).data().data();
+  auto turned = content.fill.gradient;
+  turned.angle_degrees = 120.0F;
+  const auto first_pixel = std::array<std::uint8_t, 4>{std::as_const(part).pixel(0, 0)[0], std::as_const(part).pixel(0, 0)[1],
+                                                       std::as_const(part).pixel(0, 0)[2], std::as_const(part).pixel(0, 0)[3]};
+  patchy::render_gradient_fill_draft(turned, canvas, 400, 300, 4, 200, 150, part);
+  CHECK(std::as_const(part).data().data() == storage);
+  CHECK(max_difference(std::as_const(part).pixel(0, 0), first_pixel.data()) > 8);
+  // Another size gets a buffer of that size.
+  patchy::render_gradient_fill_draft(turned, canvas, 0, 0, 8, 100, 75, part);
+  CHECK(part.width() == 100 && part.height() == 75);
+
+  // A fill with a path is not the draft's.
+  content.path.subpaths = {rect_subpath(10.0, 12.0, 50.0, 40.0, PathCombineOp::Add, 0)};
+  layer.set_vector_shape(content);
+  CHECK(!patchy::gradient_fill_draft_supported(std::as_const(layer), canvas));
+  CHECK(!patchy::update_gradient_fill_draft_raster(layer, canvas, canvas));
+}
+
 // The handles measure Align with Layer placements over the bounds the bake uses: the canvas
 // without alignment, a shape's coverage bounds with it.
 void gradient_fill_alignment_bounds_follow_the_bake() {
@@ -3156,6 +3243,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"gradient_tool_matches_a_fill_from_the_same_preset", gradient_tool_matches_a_fill_from_the_same_preset},
       {"gradient_tool_stops_keep_a_presets_own_stops", gradient_tool_stops_keep_a_presets_own_stops},
       {"gradient_fill_line_inverts_the_drag_placement", gradient_fill_line_inverts_the_drag_placement},
+      {"gradient_fill_draft_renders_a_part_at_a_coarser_scale", gradient_fill_draft_renders_a_part_at_a_coarser_scale},
       {"gradient_fill_alignment_bounds_follow_the_bake", gradient_fill_alignment_bounds_follow_the_bake},
       {"gradient_stroke_alignment_bounds_follow_the_bake", gradient_stroke_alignment_bounds_follow_the_bake},
       {"gradient_fill_stop_edits_keep_stops_sorted", gradient_fill_stop_edits_keep_stops_sorted},

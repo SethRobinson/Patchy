@@ -176,6 +176,12 @@ void CanvasWidget::paint_rotated_document(QPainter& painter, QRect exposed_rect,
       painter.drawImage(QRectF(patch_tool_drag_mask_bounds_.translated(patch_tool_drag_delta_)),
                         patch_tool_drag_proxy_image_, QRectF(patch_tool_drag_proxy_image_.rect()));
     }
+  } else if (gradient_fill_view_preview_drawn()) {
+    // A Gradient Fill handle edit's view-resolution preview (GitHub #714), as in paintEvent.
+    draw_full(render_cache_);
+    for (const auto& patch : gradient_view_preview_->patches) {
+      draw_patch(patch, true);
+    }
   } else {
     const bool commit_hold_engaged =
         !transform_commit_hold_image_.isNull() &&

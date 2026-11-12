@@ -40,7 +40,9 @@
 #include <QTreeWidgetItemIterator>
 #include <QWindow>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <optional>
 #include <string_view>
@@ -488,15 +490,37 @@ void ui_gradient_fill_handles_show_a_presets_own_stops() {
   CHECK(checked);
 }
 
+namespace {
+
+// Fill frames that reached the screen during a drag: view-resolution previews, and
+// background composites installed.
+int fill_frames_shown(const CanvasWidget& canvas) {
+  const auto diagnostics = canvas.render_cache_diagnostics();
+  return diagnostics.gradient_view_previews + diagnostics.intermediate_refreshes + diagnostics.full_refreshes;
+}
+
+// Waits (at most 30 s) for the canvas to show the document as it is.
+void wait_until_settled(CanvasWidget& canvas) {
+  QElapsedTimer timer;
+  timer.start();
+  while (!canvas.render_settled() && timer.elapsed() < 30000) {
+    QTest::qWait(2);
+  }
+}
+
+}  // namespace
+
 // Per-move cost of the handle drags on large documents (GitHub issue 663 follow-up: the
-// handles felt sluggish). Prints each gesture's mean milliseconds per pointer move,
-// including the repaint, and checks the drag still lands as one undo step. The large sizes
-// run only with PATCHY_GRADIENT_HANDLE_TIMING=1 (8000 x 8000 needs about 1 GB).
+// handles felt sluggish; GitHub #714: a 3580 x 5370 photo). Prints each gesture's mean
+// milliseconds per pointer move, including the repaint, how many fill frames reached the
+// screen during the drag and how long after the release the canvas settled, and checks the
+// drag still lands as one undo step. The larger sizes run only with
+// PATCHY_GRADIENT_HANDLE_TIMING=1 (they take seconds each; 8000 x 8000 needs about 1 GB).
 void ui_gradient_fill_handles_drag_timing() {
   const GradientSettingsGuard settings_guard;
   std::vector<QSize> sizes{QSize(1600, 1200)};
   if (qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TIMING") != 0) {
-    sizes = {QSize(4000, 3000), QSize(8000, 8000)};
+    sizes = {QSize(3580, 5370), QSize(4000, 3000), QSize(8000, 8000)};
   }
   for (const auto size : sizes) {
     auto&& [window, first_canvas] = ShownWindowFixture{};
@@ -521,6 +545,7 @@ void ui_gradient_fill_handles_drag_timing() {
     CHECK(canvas->gradient_fill_handles().has_value() &&
           canvas->gradient_fill_handles()->gradient.color_stops.size() == 3U);
     const auto time_drag = [&](const char* name, Part part, QPointF step) {
+      const bool view_preview = canvas->gradient_fill_view_preview_enabled_for_testing();
       const auto start = canvas->gradient_fill_handle_widget_position(part);
       CHECK(start.has_value());
       if (!start.has_value()) {
@@ -528,6 +553,11 @@ void ui_gradient_fill_handles_drag_timing() {
       }
       const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
       constexpr int kMoves = 12;
+      wait_until_settled(*canvas);
+      const auto frames_before = fill_frames_shown(*canvas);
+      const auto diagnostics_before = canvas->render_cache_diagnostics();
+      double move_ms = 0.0;
+      double repaint_ms = 0.0;
       send_mouse(*canvas, QEvent::MouseButtonPress, rounded(*start), Qt::LeftButton, Qt::LeftButton);
       // Moves arrive every 20 ms like a pointer; the cost is the wall time the event loop
       // was busy (handler, throttled previews, repaints), the waits subtracted.
@@ -535,27 +565,357 @@ void ui_gradient_fill_handles_drag_timing() {
       QElapsedTimer timer;
       timer.start();
       for (int move = 1; move <= kMoves; ++move) {
+        QElapsedTimer part_timer;
+        part_timer.start();
         send_mouse(*canvas, QEvent::MouseMove, rounded(*start + step * move), Qt::NoButton, Qt::LeftButton);
+        move_ms += static_cast<double>(part_timer.nsecsElapsed()) / 1e6;
+        part_timer.start();
         canvas->repaint();
+        repaint_ms += static_cast<double>(part_timer.nsecsElapsed()) / 1e6;
         QTest::qWait(kGapMs);
       }
       const auto per_move =
           std::max(0.0, static_cast<double>(timer.nsecsElapsed()) / 1e6 - kMoves * kGapMs) / kMoves;
+      const auto frames = fill_frames_shown(*canvas) - frames_before;
       QElapsedTimer release_timer;
       release_timer.start();
       send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(*start + step * kMoves), Qt::LeftButton,
                  Qt::NoButton);
       canvas->repaint();
       const auto release = static_cast<double>(release_timer.nsecsElapsed()) / 1e6;
-      std::fprintf(stderr, "  %dx%d %s: %.1f ms per move, %.1f ms release\n", size.width(), size.height(), name,
-                   per_move, release);
+      wait_until_settled(*canvas);
+      const auto settled = static_cast<double>(release_timer.nsecsElapsed()) / 1e6;
+      std::fprintf(stderr,
+                   "  %dx%d %s, %s: %.1f ms per move, %d fill frames in %d moves, %.1f ms release, settled "
+                   "after %.1f ms\n",
+                   size.width(), size.height(), name, view_preview ? "view previews" : "document previews", per_move,
+                   frames, kMoves, release, settled);
+      // Where the time went: the move handlers and the repaints the loop made itself (the
+      // rest is throttled previews and paints the event loop ran), and for view previews the
+      // stages of each.
+      const auto after = canvas->render_cache_diagnostics();
+      const auto previews = after.gradient_view_previews - diagnostics_before.gradient_view_previews;
+      std::fprintf(stderr, "    move handlers %.1f ms, repaints %.1f ms a move", move_ms / kMoves, repaint_ms / kMoves);
+      if (previews > 0) {
+        std::fprintf(stderr,
+                     "; %d view previews of %llu px: source %.1f ms in %d builds, raster %.2f ms each, composite "
+                     "%.2f ms each",
+                     previews, static_cast<unsigned long long>(after.gradient_view_preview_last_pixels),
+                     after.gradient_view_preview_source_ms - diagnostics_before.gradient_view_preview_source_ms,
+                     after.gradient_view_preview_source_builds - diagnostics_before.gradient_view_preview_source_builds,
+                     (after.gradient_view_preview_raster_ms - diagnostics_before.gradient_view_preview_raster_ms) /
+                         previews,
+                     (after.gradient_view_preview_composite_ms - diagnostics_before.gradient_view_preview_composite_ms) /
+                         previews);
+      }
+      std::fprintf(stderr, "\n");
       CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
     };
-    time_drag("end handle", Part{Kind::End, -1}, QPointF(0.0, -3.0));
-    time_drag("line", Part{Kind::Line, -1}, QPointF(2.0, 2.0));
-    time_drag("color stop", Part{Kind::ColorStop, 1}, QPointF(3.0, 0.0));
-    time_drag("midpoint", Part{Kind::ColorMidpoint, 1}, QPointF(2.0, 0.0));
+    // Each gesture twice: through the document, as every preview went before GitHub #714
+    // (and still goes for a fill the view preview does not take), then at view resolution.
+    for (const bool view_preview : {false, true}) {
+      canvas->set_gradient_fill_view_preview_enabled_for_testing(view_preview);
+      time_drag("end handle", Part{Kind::End, -1}, QPointF(0.0, view_preview ? 3.0 : -3.0));
+      time_drag("line", Part{Kind::Line, -1}, QPointF(2.0, 2.0) * (view_preview ? -1.0 : 1.0));
+      time_drag("color stop", Part{Kind::ColorStop, 1}, QPointF(view_preview ? -3.0 : 3.0, 0.0));
+      time_drag("midpoint", Part{Kind::ColorMidpoint, 1}, QPointF(view_preview ? -2.0 : 2.0, 0.0));
+    }
   }
+}
+
+// GitHub #714: on a 3580 x 5370 photo the end handle trailed the pointer by up to a second,
+// "Processing..." stayed up through the drag and the fill moved in jumps, because every
+// preview baked a full-size raster into the layer and recomposited the whole document. A
+// drag now previews at the view's resolution and leaves the document alone until the
+// release. Pinned by what the drag does, not by how long it takes: no bake into the layer,
+// no full composite and no background work while dragging, a preview no larger than the
+// view, the exact bake on release, and Esc putting everything back.
+void ui_gradient_fill_handle_drag_previews_at_view_resolution() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 3580;
+  constexpr int kHeight = 5370;
+  MainWindowTestAccess::create_document(window, kWidth, kHeight);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  CHECK(mode != nullptr);
+  if (mode != nullptr) {
+    mode->setCurrentIndex(1);
+  }
+  QApplication::processEvents();
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 255}}});
+  const QPointF from(kWidth * 0.2, kHeight * 0.5);
+  const QPointF to(kWidth * 0.8, kHeight * 0.5);
+  drag(*canvas, widget_at(*canvas, from), widget_at(*canvas, to));
+  QApplication::processEvents();
+  auto& document = MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!active.has_value() || !canvas->gradient_fill_handles().has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *active};
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(canvas->render_settled());
+
+  // A point well away from the line and its stops, halfway along the horizontal ramp.
+  const auto sample = widget_at(*canvas, QPointF(kWidth * 0.5, kHeight * 0.9));
+  CHECK(canvas_content_rect(*canvas).contains(sample));
+  const auto shown_at_sample = [&] { return render_widget_image(*canvas).pixelColor(sample); };
+  const QColor start_color(200, 30, 30);
+  CHECK(!color_close(shown_at_sample(), start_color, 40));
+
+  const auto layer_pixels = [&] {
+    const auto* layer = std::as_const(document).find_layer(fill.id);
+    return layer != nullptr ? layer->pixels().data().data() : nullptr;
+  };
+  const auto pixels_before = layer_pixels();
+  const auto gradient_before = fill.gradient();
+  const auto depth = fill.depth();
+  const auto before = canvas->render_cache_diagnostics();
+  const auto view_pixels = static_cast<std::uint64_t>(
+      static_cast<double>(canvas->width()) * canvas->height() * canvas->devicePixelRatioF() *
+      canvas->devicePixelRatioF());
+  const auto full_composites = [](const CanvasWidget::RenderCacheDiagnostics& diagnostics) {
+    return diagnostics.full_refreshes + diagnostics.intermediate_refreshes + diagnostics.region_preview_refreshes;
+  };
+
+  // Drag the end handle up until the ramp runs at 45 degrees: the sample point falls before
+  // the start handle, so it turns the start color.
+  const auto press = part_position(*canvas, Kind::End);
+  const QPointF target(widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.1)));
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(press), Qt::LeftButton, Qt::LeftButton);
+  constexpr int kMoves = 6;
+  for (int move = 1; move <= kMoves; ++move) {
+    send_mouse(*canvas, QEvent::MouseMove, rounded(press + (target - press) * move / kMoves), Qt::NoButton,
+               Qt::LeftButton);
+    QTest::qWait(45);  // past the preview interval, so every move previews
+  }
+  const auto during = canvas->render_cache_diagnostics();
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(during.gradient_view_previews >= before.gradient_view_previews + 3);
+  // The handle is at the pointer, and the picture under it follows.
+  CHECK(near(part_position(*canvas, Kind::End), target, 1.0));
+  CHECK(color_close(shown_at_sample(), start_color, 12));
+  // The document was left alone: the layer's raster and gradient are the ones from before.
+  CHECK(layer_pixels() == pixels_before);
+  CHECK(fill.gradient() == gradient_before);
+  CHECK(fill.depth() == depth);
+  // Nothing composited the whole document and nothing ran in the background, so no
+  // "Processing..." either.
+  CHECK(full_composites(during) == full_composites(before));
+  CHECK(during.processing_overlays_shown == before.processing_overlays_shown);
+  CHECK(canvas->render_settled());
+  // The preview rendered the view's pixels, not the document's.
+  CHECK(during.gradient_view_preview_last_pixels > 0);
+  CHECK(during.gradient_view_preview_last_pixels <= view_pixels * 4);
+  CHECK(during.gradient_view_preview_last_pixels * 8 <= static_cast<std::uint64_t>(kWidth) * kHeight);
+
+  // The release bakes exactly, once, as one undo step, and the preview stays up until the
+  // exact composite is on screen.
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(target), Qt::LeftButton, Qt::NoButton);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Move Gradient End Point"));
+  // (A document small enough to recomposite at once is settled already.)
+  CHECK(canvas->gradient_fill_view_preview_shown() || canvas->render_settled());
+  CHECK(color_close(shown_at_sample(), start_color, 12));
+  CHECK(fill.gradient() != gradient_before);
+  {
+    const auto* layer = std::as_const(document).find_layer(fill.id);
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      auto exact = *layer;
+      patchy::update_vector_shape_raster(exact, patchy::Rect::from_size(kWidth, kHeight),
+                                         &std::as_const(document).metadata().patterns);
+      CHECK(std::as_const(exact).bounds() == layer->bounds());
+      CHECK(std::ranges::equal(std::as_const(exact).pixels().data(), layer->pixels().data()));
+    }
+  }
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(color_close(shown_at_sample(), start_color, 12));
+  CHECK(!canvas->gradient_fill_view_preview_shown());
+
+  // Esc during a drag: the preview goes, the picture and the layer are as committed.
+  const auto committed = fill.gradient();
+  const auto committed_pixels = layer_pixels();
+  const auto second_press = part_position(*canvas, Kind::End);
+  const QPointF second_target(widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.9)));
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(second_press), Qt::LeftButton, Qt::LeftButton);
+  for (int move = 1; move <= 3; ++move) {
+    send_mouse(*canvas, QEvent::MouseMove, rounded(second_press + (second_target - second_press) * move / 3),
+               Qt::NoButton, Qt::LeftButton);
+    QTest::qWait(45);
+  }
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(!color_close(shown_at_sample(), start_color, 40));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->gradient_fill_view_preview_shown());
+  CHECK(color_close(shown_at_sample(), start_color, 12));
+  CHECK(fill.gradient() == committed);
+  CHECK(layer_pixels() == committed_pixels);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(canvas->render_settled());
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(second_target), Qt::LeftButton, Qt::NoButton);
+  CHECK(fill.depth() == depth + 1);
+
+  // The opacity popup previews the same way: the picture and the handles show the value
+  // while the layer keeps its gradient. Esc puts it back, Enter commits one step.
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  const auto in_window = [&](QPointF widget_point) { return canvas->mapTo(&window, rounded(widget_point)); };
+  const auto open_popup = [&]() -> QSpinBox* {
+    QTest::mouseDClick(handle, Qt::LeftButton, Qt::NoModifier, in_window(part_position(*canvas, Kind::AlphaStop, 0)));
+    QApplication::processEvents();
+    auto* popup = canvas->gradient_opacity_popup();
+    CHECK(popup != nullptr && popup->isVisible());
+    return popup != nullptr ? popup->findChild<QSpinBox*>(QStringLiteral("gradientOpacityStopSpin")) : nullptr;
+  };
+  const auto popup_key = [&](Qt::Key key) {
+    auto* popup = canvas->gradient_opacity_popup();
+    if (popup != nullptr && popup->windowHandle() != nullptr) {
+      QTest::keyClick(popup->windowHandle(), key);
+    }
+    QApplication::processEvents();
+  };
+  const auto shown_opacity = [&] {
+    const auto handles = canvas->gradient_fill_handles();
+    return handles.has_value() && !handles->gradient.alpha_stops.empty() ? handles->gradient.alpha_stops[0].opacity
+                                                                         : -1.0F;
+  };
+  if (auto* spin = open_popup(); spin != nullptr) {
+    spin->setValue(0);
+    QApplication::processEvents();
+  }
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(std::abs(shown_opacity()) < 0.001F);
+  CHECK(!color_close(shown_at_sample(), start_color, 40));  // the start color is see-through there now
+  CHECK(fill.gradient() == committed);
+  CHECK(layer_pixels() == committed_pixels);
+  popup_key(Qt::Key_Escape);
+  CHECK(canvas->gradient_opacity_popup() == nullptr);
+  CHECK(!canvas->gradient_fill_view_preview_shown());
+  CHECK(std::abs(shown_opacity() - 1.0F) < 0.001F);
+  CHECK(color_close(shown_at_sample(), start_color, 12));
+  CHECK(fill.depth() == depth + 1);
+  if (auto* spin = open_popup(); spin != nullptr) {
+    spin->setValue(0);
+    QApplication::processEvents();
+  }
+  popup_key(Qt::Key_Return);
+  CHECK(canvas->gradient_opacity_popup() == nullptr);
+  CHECK(fill.depth() == depth + 2);
+  CHECK(fill.label() == QStringLiteral("Change Opacity Stop"));
+  CHECK(std::abs(fill.gradient().alpha_stops[0].opacity) < 0.001F);
+  CHECK(!color_close(shown_at_sample(), start_color, 40));
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(!color_close(shown_at_sample(), start_color, 40));
+  CHECK(!canvas->gradient_fill_view_preview_shown());
+}
+
+// The view preview at the document's own resolution and under a rotated view (GitHub #714):
+// at 100% it renders the part of the fill on screen, a rotated view paints it through the
+// view transform, and either way the drag shows what the release then bakes.
+void ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 1400;
+  constexpr int kHeight = 1000;
+  MainWindowTestAccess::create_document(window, kWidth, kHeight);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  CHECK(mode != nullptr);
+  if (mode != nullptr) {
+    mode->setCurrentIndex(1);
+  }
+  QApplication::processEvents();
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 255}}});
+  canvas->set_zoom_centered(1.0);
+  QApplication::processEvents();
+  // Every point is placed in the part of the canvas that shows the document, as a fraction
+  // of its half size from its center, so the test does not depend on the window's size.
+  const auto content = canvas_content_rect(*canvas);
+  const QPointF center(content.center());
+  const double reach = std::min(content.width(), content.height()) * 0.5;
+  CHECK(reach > 120.0);
+  const auto at = [&](double x, double y) { return QPointF(center.x() + x * reach, center.y() + y * reach); };
+  drag(*canvas, rounded(at(-0.6, 0.0)), rounded(at(0.6, 0.0)));
+  QApplication::processEvents();
+  const auto active = MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(active.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!active.has_value() || !canvas->gradient_fill_handles().has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *active};
+  const auto full_composites = [](const CanvasWidget::RenderCacheDiagnostics& diagnostics) {
+    return diagnostics.full_refreshes + diagnostics.intermediate_refreshes + diagnostics.region_preview_refreshes;
+  };
+  // Below the line and its stops before and after either drag.
+  const auto sample = rounded(at(-0.2, 0.55));
+  // Drags the end handle to the widget point `target`, checks the picture mid-drag against
+  // the committed one, and returns the pixels the last preview rendered.
+  const auto drag_end_to = [&](QPointF target) -> std::uint64_t {
+    wait_until_settled(*canvas);
+    QApplication::processEvents();
+    const auto color_before = render_widget_image(*canvas).pixelColor(sample);
+    const auto before = canvas->render_cache_diagnostics();
+    const auto depth = fill.depth();
+    const auto press = part_position(*canvas, Kind::End);
+    send_mouse(*canvas, QEvent::MouseButtonPress, rounded(press), Qt::LeftButton, Qt::LeftButton);
+    for (int move = 1; move <= 4; ++move) {
+      send_mouse(*canvas, QEvent::MouseMove, rounded(press + (target - press) * move / 4), Qt::NoButton,
+                 Qt::LeftButton);
+      QTest::qWait(45);
+    }
+    const auto during = canvas->render_cache_diagnostics();
+    CHECK(canvas->gradient_fill_view_preview_shown());
+    CHECK(during.gradient_view_previews >= before.gradient_view_previews + 2);
+    CHECK(full_composites(during) == full_composites(before));
+    CHECK(fill.depth() == depth);
+    const auto color_previewed = render_widget_image(*canvas).pixelColor(sample);
+    CHECK(!color_close(color_previewed, color_before, 16));
+    send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(target), Qt::LeftButton, Qt::NoButton);
+    CHECK(fill.depth() == depth + 1);
+    wait_until_settled(*canvas);
+    QApplication::processEvents();
+    const auto color_committed = render_widget_image(*canvas).pixelColor(sample);
+    CHECK(!canvas->gradient_fill_view_preview_shown());
+    CHECK(color_close(color_previewed, color_committed, 10));
+    return during.gradient_view_preview_last_pixels;
+  };
+
+  // 100%: the preview is the document's own pixels, for the area on screen only.
+  const auto document_pixels = static_cast<std::uint64_t>(kWidth) * kHeight;
+  const auto view_pixels =
+      static_cast<std::uint64_t>(canvas->width() + 16) * static_cast<std::uint64_t>(canvas->height() + 16);
+  const auto upright_pixels = drag_end_to(at(0.6, -0.6));
+  CHECK(upright_pixels > 0);
+  CHECK(upright_pixels <= std::min(document_pixels, view_pixels));
+
+  // A rotated view paints the same preview through the view transform.
+  canvas->set_view_rotation(30.0);
+  QApplication::processEvents();
+  const auto rotated_pixels = drag_end_to(at(0.5, 0.3));
+  CHECK(rotated_pixels > 0 && rotated_pixels <= document_pixels);
 }
 
 // GitHub #705: Wayland delivers every pointer motion, and a Gradient Fill handle drag placed
@@ -1120,6 +1480,10 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
        ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view},
       {"ui_gradient_fill_handles_show_a_presets_own_stops", ui_gradient_fill_handles_show_a_presets_own_stops},
       {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
+      {"ui_gradient_fill_handle_drag_previews_at_view_resolution",
+       ui_gradient_fill_handle_drag_previews_at_view_resolution},
+      {"ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation",
+       ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation},
       {"ui_gradient_fill_handle_drag_coalesces_queued_moves", ui_gradient_fill_handle_drag_coalesces_queued_moves},
   };
 }

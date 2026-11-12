@@ -557,6 +557,26 @@ public:
     GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   [[nodiscard]] std::optional<GradientFillHandles> gradient_fill_handles() const;
+  // A Gradient Fill handle edit's live preview at the view's resolution (GitHub #714): the
+  // fill is rendered for the document area on screen at the display's composite level and
+  // composited from the preview-scaled document, so a preview costs what the view shows
+  // however large the document is, and the document is not touched until the commit. False,
+  // with nothing shown, when the layer or the view cannot take it (a path, layer bounds the
+  // draft does not cover, a small or 16/32-bit document, a mask or channel view): the caller
+  // previews through the document instead.
+  bool show_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds);
+  // For the commit that follows, right before its document_changed(): shows `gradient` once
+  // more and keeps that frame on screen until the recomposite of the committed document
+  // lands, instead of the frame from before the edit.
+  void hold_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds);
+  void clear_gradient_fill_view_preview();
+  [[nodiscard]] bool gradient_fill_view_preview_shown() const noexcept;
+  // Off, every preview goes through the document as before GitHub #714 (the timing test
+  // compares the two; PATCHY_GRADIENT_VIEW_PREVIEW=0 turns it off for a session).
+  void set_gradient_fill_view_preview_enabled_for_testing(bool enabled) noexcept;
+  [[nodiscard]] bool gradient_fill_view_preview_enabled_for_testing() const noexcept {
+    return gradient_view_preview_enabled_;
+  }
   // Where a part is drawn in widget coordinates, and the part a widget point hits.
   [[nodiscard]] std::optional<QPointF> gradient_fill_handle_widget_position(GradientHandlePart part) const;
   [[nodiscard]] GradientHandlePart gradient_fill_handle_part_at(QPointF widget_point) const;
@@ -3238,6 +3258,11 @@ private:
   bool show_gradient_stop_context_menu(QPoint widget_point, QPoint global_position);
   void send_gradient_fill_preview();
   void draw_gradient_fill_handles(QPainter& painter) const;
+  // Whether paint draws the view preview's patches over the composite; drops a held one
+  // once the render has settled.
+  [[nodiscard]] bool gradient_fill_view_preview_drawn();
+  // A document change the preview did not make itself ends it.
+  void note_document_changed_for_gradient_view_preview() noexcept;
   // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
   // issue 690): the Move tool's transform-controls box without its rotate stem, on the
   // active shape layer. A press on a handle square resizes; any other press draws.
@@ -4415,6 +4440,32 @@ private:
     GradientHandleTarget target{GradientHandleTarget::Fill};
   };
   std::optional<GradientFillHandleDrag> gradient_handle_drag_;
+  // The view-resolution preview on screen (show_gradient_fill_view_preview): the gradient it
+  // shows, the composite level it was rendered at, and its patches (full-resolution document
+  // rectangles; the images are at `level`). `held` keeps it after the commit until the
+  // render settles, through document notifications that leave the committed layer as it
+  // is (its revisions at the commit).
+  struct GradientFillViewPreview {
+    LayerId layer_id{0};
+    LayerStyleGradient gradient;
+    int level{0};
+    std::vector<RenderedDocumentPatch> patches;
+    bool held{false};
+    std::uint64_t held_render_revision{0};
+    std::uint64_t held_content_revision{0};
+  };
+  std::optional<GradientFillViewPreview> gradient_view_preview_;
+  // The fill's raster for those previews, allocated once and written again by each.
+  PixelBuffer gradient_view_preview_raster_;
+  // The document those previews composite: a copy at `level` without the fill's raster,
+  // valid until the document next changes.
+  struct GradientFillViewPreviewSource {
+    LayerId layer_id{0};
+    int level{0};
+    Document document;
+  };
+  std::optional<GradientFillViewPreviewSource> gradient_view_preview_source_;
+  bool gradient_view_preview_enabled_{qEnvironmentVariable("PATCHY_GRADIENT_VIEW_PREVIEW") != QLatin1String("0")};
   std::uint64_t gradient_handle_drag_serial_{0};
   QElapsedTimer gradient_handle_preview_clock_;
   GradientHandlePart gradient_handle_hover_;
