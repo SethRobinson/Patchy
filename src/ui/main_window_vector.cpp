@@ -1569,22 +1569,27 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
                           gradient_fill_handle_preview_->session_id == session_id &&
                           gradient_fill_handle_preview_->layer_id == layer_id &&
                           gradient_fill_handle_preview_->serial == serial;
-  // Puts the layer back as it was before this drag's first preview.
+  // Previews that only went to the canvas's view preview left the layer alone.
+  const bool view_previewing = previewing && !gradient_fill_handle_preview_->document_touched;
+  // Puts the layer back as it was before this drag's first preview; true when it had changed.
   const auto restore = [&] {
     if (!previewing) {
       return false;
     }
     auto* layer = doc.find_layer(layer_id);
-    if (layer != nullptr) {
+    const bool touched = gradient_fill_handle_preview_->document_touched;
+    if (layer != nullptr && touched) {
       *layer = gradient_fill_handle_preview_->original;
     }
     gradient_fill_handle_preview_.reset();
-    return layer != nullptr;
+    return layer != nullptr && touched;
   };
   if (phase == GradientFillEditPhase::Cancel) {
     if (restore()) {
       canvas_->document_changed();
       refresh_layer_controls();
+    } else if (view_previewing) {
+      canvas_->clear_gradient_fill_view_preview();
     }
     return;
   }
@@ -1605,6 +1610,8 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
   if (preview_dialog_edit_locked() || !vector_lock_reason(*layer).empty() || layer_id_locks_image_pixels(layer_id)) {
     if (restore()) {
       canvas_->document_changed();
+    } else if (view_previewing) {
+      canvas_->clear_gradient_fill_view_preview();
     }
     if (phase == GradientFillEditPhase::Commit) {
       if (preview_dialog_edit_locked()) {
@@ -1622,26 +1629,48 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
           session_id, layer_id, serial, *layer,
           on_stroke ? Rect{} : gradient_fill_alignment_bounds(*layer, Rect::from_size(doc.width(), doc.height()))};
     }
-    // A live preview takes the draft bake and an asynchronous recomposite that never
-    // cancels the one in flight (GitHub issue 663 follow-up: an exact bake and a cancelled
-    // composite per move made the handles lag on large documents); the release bakes exactly.
     QElapsedTimer trace_timer;
     trace_timer.start();
+    const bool trace = qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TRACE") != 0;
+    // A fill the draft covers previews on the canvas at the view's resolution and leaves
+    // the document alone (GitHub #714: a full-size draft and a full composite per preview
+    // still took the event loop on a 19 Mpx photo). Once a preview has gone through the
+    // document, the rest of the edit does too.
+    if (!on_stroke && !gradient_fill_handle_preview_->document_touched &&
+        canvas_->show_gradient_fill_view_preview(layer_id, gradient, gradient_fill_handle_preview_->gradient_bounds)) {
+      if (trace) {
+        std::fprintf(stderr, "[gradient handles] view preview %.1f ms, %llu px\n",
+                     static_cast<double>(trace_timer.nsecsElapsed()) / 1e6,
+                     static_cast<unsigned long long>(
+                         canvas_->render_cache_diagnostics().gradient_view_preview_last_pixels));
+      }
+      return;
+    }
+    gradient_fill_handle_preview_->document_touched = true;
+    // Otherwise a live preview takes the draft bake and an asynchronous recomposite that never
+    // cancels the one in flight (GitHub issue 663 follow-up: an exact bake and a cancelled
+    // composite per move made the handles lag on large documents); the release bakes exactly.
     apply_gradient_fill_handle_gradient(
         layer_id, gradient,
         on_stroke ? std::nullopt : std::optional(gradient_fill_handle_preview_->gradient_bounds), target);
     const auto bake_ms = static_cast<double>(trace_timer.nsecsElapsed()) / 1e6;
     canvas_->document_changed_async_preview();
-    if (qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TRACE") != 0) {
+    if (trace) {
       std::fprintf(stderr, "[gradient handles] bake %.1f ms, invalidate %.1f ms\n", bake_ms,
                    static_cast<double>(trace_timer.nsecsElapsed()) / 1e6 - bake_ms);
     }
     return;
   }
   // Commit: the history snapshot must hold the layer as it was before the drag.
+  const auto view_bounds = view_previewing ? gradient_fill_handle_preview_->gradient_bounds : Rect{};
   restore();
   push_undo_snapshot(undo_label.isEmpty() ? tr("Edit Gradient Fill") : undo_label);
   apply_gradient_fill_handle_gradient(layer_id, gradient, std::nullopt, target);
+  if (view_previewing) {
+    // The view preview stays up, showing the committed gradient, until the exact
+    // composite lands; the frame under it is still the one from before the drag.
+    canvas_->hold_gradient_fill_view_preview(layer_id, gradient, view_bounds);
+  }
   canvas_->document_changed();
   refresh_layer_list();
   refresh_layer_controls();

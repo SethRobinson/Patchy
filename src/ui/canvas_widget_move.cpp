@@ -1763,6 +1763,7 @@ Document* CanvasWidget::preview_scaled_document_for_level(int level) {
 }
 
 void CanvasWidget::clear_preview_scaled_document() noexcept {
+  gradient_view_preview_source_.reset();  // a scaled copy of the same document
   cancel_move_preview();
   move_nest_preview_document_.reset();
   preview_scaled_document_.reset();

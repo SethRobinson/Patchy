@@ -404,6 +404,7 @@ void CanvasWidget::end_processing_operation() {
 }
 
 void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
+  note_document_changed_for_gradient_view_preview();
   invalidate_vector_preview();
   mark_object_select_embedding_unverified();
   if (document_changed_reason_callback_) {
@@ -1088,6 +1089,36 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       // offset (Patch Source shows only the outline); the heal is one-shot at release.
       draw_scaled_image(render_cache_);
       draw_patch_tool_drag_preview(painter);
+    } else if (gradient_fill_view_preview_drawn()) {
+      // A Gradient Fill handle edit (GitHub #714): the composite from before the edit, and
+      // over the area on screen the document as the edited gradient makes it, rendered at
+      // the view's resolution. The old frame is drawn only where no patch covers it (a
+      // patch may be transparent where that frame is not, and under the patches it would
+      // be drawn for nothing); the patches then go straight onto the backdrop.
+      // A patch ends at the document's edge or past the view's, so a partly covered pixel
+      // at its edge needs no old frame under it either.
+      QRegion uncovered(target_rect.toAlignedRect().intersected(exposed_rect));
+      for (const auto& patch : gradient_view_preview_->patches) {
+        uncovered -= widget_rect_for_document_rect(QRectF(patch.document_rect)).toAlignedRect();
+      }
+      if (!uncovered.isEmpty()) {
+        painter.save();
+        painter.setClipRegion(uncovered, Qt::IntersectClip);
+        draw_scaled_image(render_cache_);
+        painter.restore();
+      }
+      for (const auto& patch : gradient_view_preview_->patches) {
+        if (gradient_view_preview_->level == 0) {
+          draw_document_patch(patch, false);
+          continue;
+        }
+        const auto patch_target = widget_rect_for_document_rect(QRectF(patch.document_rect));
+        if (patch.image.isNull() || patch_target.toAlignedRect().intersected(exposed_rect).isEmpty()) {
+          continue;
+        }
+        const QImage shown = proof_display_image(patch.image);
+        painter.drawImage(patch_target, shown, QRectF(shown.rect()));
+      }
     } else {
       // Committed Free Transform whose render-cache refresh has not landed yet:
       // keep the commit-time preview frame on screen instead of the stale

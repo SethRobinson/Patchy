@@ -510,6 +510,18 @@ struct CanvasRenderCacheDiagnostics {
   // cell_pixel_tests): bounded by a small multiple of its output pixels however far a
   // handle stretches the cells (GitHub issue 299).
   std::uint64_t warp_preview_last_cell_tests{0};
+  // Gradient Fill handle previews rendered at the view's resolution without touching the
+  // document, and the pixels the latest one rendered at its own level (GitHub #714: bounded
+  // by the view, never the whole layer).
+  int gradient_view_previews{0};
+  std::uint64_t gradient_view_preview_last_pixels{0};
+  // Where those previews spent their time, in milliseconds summed over all of them: the
+  // scaled copy of the document (built gradient_view_preview_source_builds times, once per
+  // edit and zoom level), the fill's raster, and the composite of the area on screen.
+  int gradient_view_preview_source_builds{0};
+  double gradient_view_preview_source_ms{0.0};
+  double gradient_view_preview_raster_ms{0.0};
+  double gradient_view_preview_composite_ms{0.0};
   // Every Warp Transform preview render. A drag renders once per painted frame,
   // however many mouse moves queued up before it (GitHub #298).
   int warp_preview_renders{0};

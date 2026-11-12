@@ -15,9 +15,12 @@
 
 #include "core/blend_math.hpp"
 #include "core/gradient_fill_drag.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_types.hpp"
+#include "ui/canvas_widget_shared.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/theme_palette.hpp"
 
 #include <QApplication>
@@ -278,8 +281,226 @@ std::optional<GradientHandleTarget> CanvasWidget::gradient_handle_target(const L
 
 const LayerStyleGradient& CanvasWidget::gradient_handle_gradient(const Layer& layer) const {
   const auto* shape = layer.vector_shape();
-  return gradient_handle_target(layer) == GradientHandleTarget::Stroke ? shape->stroke.content.gradient
-                                                                       : shape->fill.gradient;
+  if (gradient_handle_target(layer) == GradientHandleTarget::Stroke) {
+    return shape->stroke.content.gradient;
+  }
+  // A live edit shown through the view preview has not reached the layer yet (GitHub #714):
+  // the handles, the stop colors and the opacity popup follow the gradient on screen.
+  if (gradient_view_preview_.has_value() && !gradient_view_preview_->held &&
+      gradient_view_preview_->layer_id == layer.id()) {
+    return gradient_view_preview_->gradient;
+  }
+  return shape->fill.gradient;
+}
+
+namespace {
+
+// Whether `id` is `layer` or inside it, and whether a group on the way down to it has
+// layer effects (they read the group's whole alpha, the fill's included).
+bool find_with_styled_ancestor(const Layer& layer, LayerId id, bool& styled_ancestor) {
+  if (layer.id() == id) {
+    return true;
+  }
+  for (const auto& child : layer.children()) {
+    if (find_with_styled_ancestor(child, id, styled_ancestor)) {
+      styled_ancestor = styled_ancestor || !layer.layer_style().empty();
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
+bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient,
+                                                   Rect gradient_bounds) {
+  if (document_ == nullptr || !gradient_view_preview_enabled_ || !isVisible() || width() <= 0 || height() <= 0) {
+    return false;
+  }
+  const auto& document = std::as_const(*document_);
+  const QRect canvas_rect(0, 0, document.width(), document.height());
+  // The patches go over the composite as it is shown, so the view must be showing that
+  // composite: no mask or channel picture, no palette display, no clipping view.
+  if (render_cache_.isNull() || render_cache_.size() != canvas_rect.size() ||
+      document.color_state().bit_depth != BitDepth::UInt8 || palette_snap_context() != nullptr ||
+      curves_clipping_mode_.has_value() || mask_display_mode_ != MaskDisplayMode::None || quick_mask_active_ ||
+      !channel_view_is_composite(channel_view_) ||
+      layer_edit_target_ != LayerEditTarget::Content || transforming_layer_ || warping_layer_ || moving_layer_ ||
+      tiling_preview_enabled_) {
+    return false;
+  }
+  const auto* layer = document.find_layer(layer_id);
+  if (layer == nullptr ||
+      !gradient_fill_draft_supported(*layer, Rect::from_size(document.width(), document.height())) ||
+      layer->bounds() != Rect::from_size(document.width(), document.height())) {
+    return false;
+  }
+  // Layer effects on the fill, or on a group around it, read the layer's edge (a stroke, an
+  // inner shadow, a gradient overlay aligned with the layer), so the raster then keeps the
+  // fill's whole extent. They also read the fill's silhouette, which for a gradient with
+  // transparent stops is a plane only the exact bake makes: that case previews through the
+  // document.
+  bool styled = !layer->layer_style().empty();
+  for (const auto& top : document.layers()) {
+    if (find_with_styled_ancestor(top, layer_id, styled)) {
+      break;
+    }
+  }
+  if (styled) {
+    for (int sample = 0; sample <= 64; ++sample) {
+      if (gradient_stop_opacity(gradient, static_cast<float>(sample) / 64.0F, true) < 0.999F) {
+        return false;
+      }
+    }
+  }
+  // The display's composite level, as the Warp preview picks it (GitHub #200, #298): one
+  // level down between 50% and 100%, where full resolution is up to twice the screen's
+  // pixels each way.
+  int level = preview_composite_level_for_zoom(view_zoom());
+  if (level == 0 && view_zoom() < 1.0) {
+    level = 1;
+  }
+  // The document at that level, built once per edit. The fill's own raster is left out:
+  // every preview supplies it, so scaling the one in the layer down would be wasted work
+  // proportional to the document.
+  QElapsedTimer stage_timer;
+  stage_timer.start();
+  const auto stage_ms = [&stage_timer] {
+    const auto elapsed = static_cast<double>(stage_timer.nsecsElapsed()) / 1e6;
+    stage_timer.start();
+    return elapsed;
+  };
+  if (!gradient_view_preview_source_.has_value() || gradient_view_preview_source_->layer_id != layer_id ||
+      gradient_view_preview_source_->level != level) {
+    ++render_cache_diagnostics_.gradient_view_preview_source_builds;
+    Document source(document);
+    if (auto* fill = source.find_layer(layer_id); fill != nullptr) {
+      fill->set_pixels(PixelBuffer());
+    }
+    if (!preview_scale_cache_) {
+      preview_scale_cache_ = std::make_shared<PreviewScaleCache>();
+    }
+    gradient_view_preview_source_ = GradientFillViewPreviewSource{
+        layer_id, level, build_preview_scaled_document(source, level, preview_scale_cache_.get())};
+  }
+  render_cache_diagnostics_.gradient_view_preview_source_ms += stage_ms();
+  const Document& composite_document = gradient_view_preview_source_->document;
+  const auto* composite_layer = composite_document.find_layer(layer_id);
+  if (composite_layer == nullptr) {
+    return false;
+  }
+  auto covered = warp_preview_view_rect(0.0);
+  if (level >= 1) {
+    covered = rect_aligned_to_mip_grid(covered, level).intersected(canvas_rect);
+  }
+  const QRect composite_canvas(0, 0, composite_document.width(), composite_document.height());
+  const auto patch_rect =
+      (level >= 1 ? preview_scaled_document_rect(covered, level) : covered).intersected(composite_canvas);
+
+  GradientFillViewPreview preview;
+  preview.layer_id = layer_id;
+  preview.gradient = gradient;
+  preview.level = level;
+  if (!patch_rect.isEmpty()) {
+    // The fill is rendered for the area on screen only, or whole under layer effects.
+    const QRect raster_rect = styled ? composite_canvas : patch_rect;
+    const std::int32_t step = std::int32_t{1} << level;
+    render_gradient_fill_draft(gradient, gradient_bounds, raster_rect.x() * step, raster_rect.y() * step, step,
+                               raster_rect.width(), raster_rect.height(), gradient_view_preview_raster_);
+    render_cache_diagnostics_.gradient_view_preview_raster_ms += stage_ms();
+    preview.patches = qimage_patch_from_document_rect_with_layer_pixels_banded(
+        composite_document, patch_rect, true, layer_id, gradient_view_preview_raster_,
+        Rect{raster_rect.x(), raster_rect.y(), raster_rect.width(), raster_rect.height()});
+    for (auto& patch : preview.patches) {
+      // A scaled patch is only ever drawn, and Qt scales a premultiplied image faster; a
+      // full-resolution one may go through the deep-zoom pixel renderer, which reads RGBA.
+      patch.image = patch.image.convertToFormat(level >= 1 ? QImage::Format_ARGB32_Premultiplied
+                                                           : QImage::Format_RGBA8888);
+      if (level >= 1) {
+        // Full-resolution document_rect for the paint math; the image is its mip.
+        patch.document_rect = QRect(patch.document_rect.x() << level, patch.document_rect.y() << level,
+                                    patch.document_rect.width() << level, patch.document_rect.height() << level)
+                                  .intersected(canvas_rect);
+      }
+    }
+    render_cache_diagnostics_.gradient_view_preview_composite_ms += stage_ms();
+    render_cache_diagnostics_.gradient_view_preview_last_pixels =
+        static_cast<std::uint64_t>(raster_rect.width()) * static_cast<std::uint64_t>(raster_rect.height());
+  } else {
+    render_cache_diagnostics_.gradient_view_preview_last_pixels = 0;
+  }
+  ++render_cache_diagnostics_.gradient_view_previews;
+  gradient_view_preview_ = std::move(preview);
+  update();
+  return true;
+}
+
+void CanvasWidget::hold_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient,
+                                                   Rect gradient_bounds) {
+  if (!gradient_view_preview_.has_value() || gradient_view_preview_->layer_id != layer_id) {
+    clear_gradient_fill_view_preview();
+    return;
+  }
+  // The throttle may have left an older gradient on screen: the held frame shows the
+  // committed one.
+  if (gradient_view_preview_->gradient != gradient &&
+      !show_gradient_fill_view_preview(layer_id, gradient, gradient_bounds)) {
+    clear_gradient_fill_view_preview();
+    return;
+  }
+  const auto* layer = document_ != nullptr ? std::as_const(*document_).find_layer(layer_id) : nullptr;
+  if (layer == nullptr) {
+    clear_gradient_fill_view_preview();
+    return;
+  }
+  gradient_view_preview_->held = true;
+  gradient_view_preview_->held_render_revision = layer->render_revision();
+  gradient_view_preview_->held_content_revision = layer->content_revision();
+}
+
+void CanvasWidget::clear_gradient_fill_view_preview() {
+  if (!gradient_view_preview_.has_value()) {
+    return;
+  }
+  gradient_view_preview_.reset();
+  update();
+}
+
+bool CanvasWidget::gradient_fill_view_preview_shown() const noexcept {
+  return gradient_view_preview_.has_value();
+}
+
+void CanvasWidget::set_gradient_fill_view_preview_enabled_for_testing(bool enabled) noexcept {
+  gradient_view_preview_enabled_ = enabled;
+}
+
+bool CanvasWidget::gradient_fill_view_preview_drawn() {
+  if (!gradient_view_preview_.has_value()) {
+    return false;
+  }
+  if (gradient_view_preview_->held && render_settled() && !processing_operation_active()) {
+    // The committed document's composite is on screen now.
+    gradient_view_preview_.reset();
+    return false;
+  }
+  return true;
+}
+
+void CanvasWidget::note_document_changed_for_gradient_view_preview() noexcept {
+  gradient_view_preview_source_.reset();
+  if (!gradient_view_preview_.has_value()) {
+    return;
+  }
+  if (gradient_view_preview_->held && document_ != nullptr) {
+    // The commit's own notification, and any other that leaves the committed layer as it
+    // is: the held frame still shows that layer; the settled render replaces it.
+    const auto* layer = std::as_const(*document_).find_layer(gradient_view_preview_->layer_id);
+    if (layer != nullptr && layer->render_revision() == gradient_view_preview_->held_render_revision &&
+        layer->content_revision() == gradient_view_preview_->held_content_revision) {
+      return;
+    }
+  }
+  gradient_view_preview_.reset();
 }
 
 Rect CanvasWidget::gradient_fill_handle_bounds(const Layer& layer) const {
@@ -854,6 +1075,10 @@ bool CanvasWidget::release_gradient_fill_handle(QMouseEvent* event) {
       }
     }
   }
+  // The drag is over: a view preview nobody committed (held) or cancelled goes with it.
+  if (gradient_view_preview_.has_value() && !gradient_view_preview_->held) {
+    gradient_view_preview_.reset();
+  }
   gradient_handle_hover_ = {};
   set_gradient_fill_handle_hover(gradient_fill_handle_layer() != nullptr
                                      ? gradient_fill_handle_part_at(event->position())
@@ -878,6 +1103,9 @@ void CanvasWidget::cancel_gradient_fill_handle_drag() {
     gradient_fill_edit_callback_(drag.layer_id, drag.original, GradientFillEditPhase::Cancel, drag.serial, QString(),
                                  drag.target);
   }
+  if (gradient_view_preview_.has_value() && !gradient_view_preview_->held) {
+    gradient_view_preview_.reset();
+  }
   gradient_handle_hover_ = {};
   gradient_handle_cursor_ = GradientHandleCursor::None;
   update_tool_cursor();
@@ -888,6 +1116,7 @@ void CanvasWidget::abandon_gradient_fill_handle_drag() {
   // The document under the drag was swapped (undo, redo, a history jump): its preview went
   // with it, so nothing is restored and a later call for this drag is stale.
   gradient_handle_drag_.reset();
+  gradient_view_preview_.reset();
   gradient_handle_hover_ = {};
   gradient_handle_cursor_ = GradientHandleCursor::None;
   gradient_handle_bounds_cache_.reset();

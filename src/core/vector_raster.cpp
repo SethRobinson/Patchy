@@ -1889,38 +1889,83 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
 }
 
-bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_bounds) {
-  const auto* shape = std::as_const(layer).vector_shape();
+bool gradient_fill_draft_supported(const Layer& layer, Rect canvas) {
+  const auto* shape = layer.vector_shape();
   constexpr std::int64_t kExactBelowPixels = 1024 * 1024;
-  if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient ||
-      !(shape->path.empty() || shape->path_disabled) || shape->path_inverted || shape->feather > 0.05 ||
-      shape->density != 255 || !shape->stroke.fill_enabled || canvas.width <= 0 || canvas.height <= 0 ||
-      static_cast<std::int64_t>(canvas.width) * canvas.height < kExactBelowPixels) {
+  return shape != nullptr && shape->parts.empty() && shape->fill.kind == VectorFillKind::Gradient &&
+         (shape->path.empty() || shape->path_disabled) && !shape->path_inverted && !(shape->feather > 0.05) &&
+         shape->density == 255 && shape->stroke.fill_enabled && canvas.width > 0 && canvas.height > 0 &&
+         static_cast<std::int64_t>(canvas.width) * canvas.height >= kExactBelowPixels;
+}
+
+bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_bounds) {
+  if (!gradient_fill_draft_supported(std::as_const(layer), canvas)) {
     return false;
   }
-  const auto& gradient = shape->fill.gradient;
-  constexpr int kTable = 4096;
-  std::vector<std::array<std::uint8_t, 4>> table(kTable);
-  for (int index = 0; index < kTable; ++index) {
-    const auto position = static_cast<float>(index) / static_cast<float>(kTable - 1);
-    const auto color = gradient_color(gradient, position, true);
-    const auto opacity = gradient_stop_opacity(gradient, position, true);
-    table[static_cast<std::size_t>(index)] = {
-        color.red, color.green, color.blue,
-        static_cast<std::uint8_t>(std::clamp<long>(std::lround(255.0 * static_cast<double>(opacity)), 0L, 255L))};
+  PixelBuffer pixels;
+  render_gradient_fill_draft(std::as_const(layer).vector_shape()->fill.gradient, gradient_bounds, canvas.x, canvas.y,
+                             1, canvas.width, canvas.height, pixels);
+  layer.set_pixels(std::move(pixels));
+  layer.set_bounds(canvas);
+  return true;
+}
+
+void render_gradient_fill_draft(const LayerStyleGradient& gradient, Rect gradient_bounds, std::int32_t origin_x,
+                                std::int32_t origin_y, std::int32_t step, std::int32_t width, std::int32_t height,
+                                PixelBuffer& out) {
+  if (width <= 0 || height <= 0) {
+    out = PixelBuffer();
+    return;
   }
+  step = std::max<std::int32_t>(step, 1);
+  constexpr int kTable = 4096;
+  // The color table depends on the ramp alone, not on where it is placed: a drag of an end
+  // or of the line changes only the placement, so its previews share one table (building
+  // it was most of a view-sized preview, GitHub #714). Keyed on the gradient with its
+  // placement fields set aside; one entry per thread.
+  struct DraftTable {
+    LayerStyleGradient ramp;
+    std::vector<std::array<std::uint8_t, 4>> colors;
+  };
+  thread_local DraftTable cached;
+  auto ramp = gradient;
+  ramp.angle_degrees = 0.0F;
+  ramp.scale = 1.0F;
+  ramp.offset_x_percent = 0.0F;
+  ramp.offset_y_percent = 0.0F;
+  ramp.align_with_layer = false;
+  if (cached.colors.size() != static_cast<std::size_t>(kTable) || !(cached.ramp == ramp)) {
+    cached.colors.resize(static_cast<std::size_t>(kTable));
+    for (int index = 0; index < kTable; ++index) {
+      const auto position = static_cast<float>(index) / static_cast<float>(kTable - 1);
+      const auto color = gradient_color(gradient, position, true);
+      const auto opacity = gradient_stop_opacity(gradient, position, true);
+      cached.colors[static_cast<std::size_t>(index)] = {
+          color.red, color.green, color.blue,
+          static_cast<std::uint8_t>(std::clamp<long>(std::lround(255.0 * static_cast<double>(opacity)), 0L, 255L))};
+    }
+    cached.ramp = std::move(ramp);
+  }
+  // The strips read it from other threads, which have their own thread_local.
+  const auto& table = cached.colors;
   constexpr std::int32_t kStep = 4;
-  const auto width = canvas.width;
-  const auto height = canvas.height;
   const auto grid_width = width / kStep + 2;
   const auto grid_height = height / kStep + 2;
   std::vector<float> grid(static_cast<std::size_t>(grid_width) * static_cast<std::size_t>(grid_height));
+  // Output pixel (x, y) is the document pixel in the middle of its step x step block.
+  const auto half_step = step / 2;
   const auto exact = [&](std::int32_t x, std::int32_t y) {
-    return gradient_position(gradient, gradient_bounds, canvas.x + x, canvas.y + y, GradientSpanBasis::CenterChord);
+    return gradient_position(gradient, gradient_bounds, origin_x + x * step + half_step,
+                             origin_y + y * step + half_step, GradientSpanBasis::CenterChord);
   };
-  const auto run_rows = [](std::int32_t rows, const std::function<void(std::int32_t, std::int32_t)>& work) {
-    const int workers = std::min(max_blocking_fanout_workers(std::clamp(hardware_worker_threads(), 1, 16)),
-                                 std::max(1, rows / 16));
+  // A strip is worth a thread only with enough work in it: a view-sized preview (GitHub
+  // #714) takes a few strips, where sixteen cost more to start than to run. A grid point
+  // (an exact ramp position) costs about what forty interpolated pixels do.
+  const auto run_rows = [](std::int32_t rows, std::int64_t work_units,
+                           const std::function<void(std::int32_t, std::int32_t)>& work) {
+    const int workers = std::min({max_blocking_fanout_workers(std::clamp(hardware_worker_threads(), 1, 16)),
+                                  std::max(1, rows / 16),
+                                  static_cast<int>(std::clamp<std::int64_t>(work_units / 65536, 1, 16))});
     if (workers < 2) {
       work(0, rows);
       return;
@@ -1935,7 +1980,8 @@ bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_
       future.get();
     }
   };
-  run_rows(grid_height, [&](std::int32_t begin, std::int32_t end) {
+  const auto grid_work = static_cast<std::int64_t>(grid_width) * grid_height * 40;
+  run_rows(grid_height, grid_work, [&](std::int32_t begin, std::int32_t end) {
     for (std::int32_t gy = begin; gy < end; ++gy) {
       for (std::int32_t gx = 0; gx < grid_width; ++gx) {
         grid[static_cast<std::size_t>(gy) * static_cast<std::size_t>(grid_width) + static_cast<std::size_t>(gx)] =
@@ -1943,13 +1989,16 @@ bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_
       }
     }
   });
-  PixelBuffer pixels(width, height, PixelFormat::rgba8());
-  auto* out = pixels.data().data();
-  const auto stride = pixels.stride_bytes();
+  if (out.width() != width || out.height() != height || out.format() != PixelFormat::rgba8()) {
+    out = PixelBuffer(width, height, PixelFormat::rgba8());
+  }
+  // Detached here, on the launching thread; the strips only write their rows.
+  auto* bytes = out.data().data();
+  const auto stride = out.stride_bytes();
   constexpr float kScale = static_cast<float>(kTable - 1);
-  run_rows(height, [&](std::int32_t begin, std::int32_t end) {
+  run_rows(height, static_cast<std::int64_t>(width) * height, [&](std::int32_t begin, std::int32_t end) {
     for (std::int32_t y = begin; y < end; ++y) {
-      auto* row = out + static_cast<std::size_t>(y) * stride;
+      auto* row = bytes + static_cast<std::size_t>(y) * stride;
       const auto gy = y / kStep;
       const auto fy = static_cast<float>(y - gy * kStep) / static_cast<float>(kStep);
       const auto* top = grid.data() + static_cast<std::size_t>(gy) * static_cast<std::size_t>(grid_width);
@@ -1975,9 +2024,6 @@ bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_
       }
     }
   });
-  layer.set_pixels(std::move(pixels));
-  layer.set_bounds(canvas);
-  return true;
 }
 
 Rect gradient_fill_alignment_bounds(const Layer& layer, Rect canvas) {

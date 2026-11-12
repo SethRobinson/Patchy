@@ -149,6 +149,19 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
 // not a full-canvas gradient fill (a path, feather, density, parts) or the canvas is small
 // enough to bake exactly; the drag's release always bakes exactly.
 bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_bounds);
+// Whether the draft applies to this layer on this canvas (update_gradient_fill_draft_raster
+// returns true for it).
+[[nodiscard]] bool gradient_fill_draft_supported(const Layer& layer, Rect canvas);
+// The draft's pixels for part of a fill at a coarser scale, for a drag preview at the
+// view's resolution (GitHub #714): pixel (i, j) of `out` is `gradient` at document pixel
+// (origin_x + i * step + step / 2, origin_y + j * step + step / 2), so step 1 gives the
+// document's own pixels and step 2^n the fill as the n-th preview scale level shows it.
+// `gradient_bounds` is gradient_fill_alignment_bounds in document pixels. `out` is reused
+// when it already is width x height rgba8 (a drag allocates it once), so the cost follows
+// the pixels asked for and never the document's size.
+void render_gradient_fill_draft(const LayerStyleGradient& gradient, Rect gradient_bounds, std::int32_t origin_x,
+                                std::int32_t origin_y, std::int32_t step, std::int32_t width, std::int32_t height,
+                                PixelBuffer& out);
 // For a shape layer that keeps the pixels its file carried (a PSD import whose raster
 // has visible alpha is not re-baked): works out the effect silhouette from the shape
 // and stores it beside those pixels, or clears it when coverage and alpha agree.

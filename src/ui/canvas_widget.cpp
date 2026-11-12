@@ -348,6 +348,9 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   clear_preview_scaled_document();
   preview_scale_cache_.reset();
   clear_transform_commit_hold();  // a held commit frame belongs to the outgoing state
+  gradient_view_preview_.reset();
+  gradient_view_preview_source_.reset();
+  gradient_view_preview_raster_ = PixelBuffer();
   cancel_move_commit_job();
   active_document_path_.reset();
   last_saved_path_target_.reset();
