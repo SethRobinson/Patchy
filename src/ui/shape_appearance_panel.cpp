@@ -65,7 +65,9 @@ ShapeAppearancePanel::ShapeAppearancePanel(QWidget* owner, ShapeAppearancePanelH
   connect(idle_timer_, &QTimer::timeout, this, [this] {
     if (run_.has_value() && host_.finish_run) host_.finish_run();
   });
-  gradient_handles_ = app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesKey), false).toBool();
+  // Ticked until the user unticks it: the handles are why the window is worth keeping open on
+  // a gradient shape (GitHub issue 694).
+  gradient_handles_ = app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesKey), true).toBool();
 }
 
 ShapeAppearancePanel::~ShapeAppearancePanel() = default;

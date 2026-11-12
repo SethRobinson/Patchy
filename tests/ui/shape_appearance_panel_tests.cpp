@@ -108,6 +108,9 @@ void select_only(patchy::ui::MainWindow& window, patchy::LayerId id) {
 // shape can be drawn with it open, and the window then edits that one.
 void ui_shape_appearance_window_stays_open_while_editing() {
   VectorSettingsGuard settings_guard;
+  // With nothing saved, Show gradient handles starts ticked (checked below).
+  SettingsValueRestorer handles_setting{QStringLiteral("shapeAppearance/showGradientHandles")};
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/showGradientHandles"));
   auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = Access::document(window);
   const auto first = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
@@ -129,6 +132,12 @@ void ui_shape_appearance_window_stays_open_while_editing() {
   CHECK(buttons->button(QDialogButtonBox::Ok) == nullptr && buttons->button(QDialogButtonBox::Cancel) == nullptr);
   CHECK(buttons->button(QDialogButtonBox::Close) != nullptr);
   CHECK(panel->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton")) != nullptr);
+  // Show gradient handles: ticked by default, greyed out on this solid shape, and the canvas
+  // is told at once (it shows nothing until the fill is a gradient).
+  auto* handles_box = panel->findChild<QCheckBox*>(QStringLiteral("shapeAppearanceGradientHandlesCheck"));
+  CHECK(handles_box != nullptr && handles_box->isChecked() && !handles_box->isEnabled());
+  CHECK(canvas->gradient_handles_forced());
+  CHECK(!canvas->gradient_fill_handles().has_value());
 
   // Draw a second shape with the window open: it becomes the window's target.
   const auto second = make_rect(window, *canvas, QPoint(320, 240), QPoint(420, 300));

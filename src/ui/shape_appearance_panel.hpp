@@ -161,7 +161,7 @@ private:
   int child_dialog_depth_{0};
   bool applying_{false};
   bool sync_wanted_{false};
-  bool gradient_handles_{false};
+  bool gradient_handles_{true};
 };
 
 }  // namespace patchy::ui

@@ -61,7 +61,7 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
 - **Show gradient handles.** A box in the footer, enabled while the fill is a gradient. While
   the window is open and it is ticked, the canvas shows the active gradient fill's handles
   under the other tools ([gradients-fill-handles.md](gradients-fill-handles.md#under-other-tools)).
-  The state is the window's (`shapeAppearance/showGradientHandles`, off by default), so every
+  The state is the window's (`shapeAppearance/showGradientHandles`, on by default), so every
   page starts from it; `gradient_handles_wanted()` is read by
   `MainWindow::sync_shape_appearance_gradient_handles` when the box is toggled, the window is
   shown or hidden, and from `sync_shape_appearance_panel`.

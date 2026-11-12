@@ -19,7 +19,7 @@ With the Gradient tool active (either mode) and a Gradient Fill layer or single-
 
 ## Under other tools
 
-The Shape Appearance window's **Show gradient handles** box (GitHub issue 694, [vector-tools-appearance-window.md](vector-tools-appearance-window.md)) shows the same handles without the Gradient tool. `MainWindow::sync_shape_appearance_gradient_handles` sets `CanvasWidget::set_gradient_handles_forced` on every canvas while the window is open and the box is ticked (settings key `shapeAppearance/showGradientHandles`, off by default); the canvas decides the rest.
+The Shape Appearance window's **Show gradient handles** box (GitHub issue 694, [vector-tools-appearance-window.md](vector-tools-appearance-window.md)) shows the same handles without the Gradient tool. `MainWindow::sync_shape_appearance_gradient_handles` sets `CanvasWidget::set_gradient_handles_forced` on every canvas while the window is open and the box is ticked (settings key `shapeAppearance/showGradientHandles`, on by default: Seth's decision, November 2026); the canvas decides the rest.
 
 - One gate: `gradient_handles_enabled()` is the Gradient tool, or `gradient_handles_under_other_tool()`. Every handle entry point reads it (`gradient_fill_handle_layer`, the press, double-click, tooltip, key and context-menu checks), so nothing else names the tool.
 - Not under the tools that own every press or only move the view (Hand, Zoom, Rotate View, Eyedropper, Ruler, Artboard, Crop, Perspective Crop), and not during a Free Transform, Warp or path transform, an open Pen path, or a Polygonal or Magnetic Lasso being clicked out.
