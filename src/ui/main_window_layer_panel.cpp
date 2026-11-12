@@ -2026,7 +2026,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   visibility->setChecked(layer.visible());
   update_layer_visibility_button(visibility, layer.visible());
   visibility->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  visibility->setIconSize(QSize(16, 16));
+  // A 20 px eye (it was 16, issue 715) in the 22 px the stylesheet leaves inside the button's
+  // 1 px border; the button, and with it the hit zone and the row height, stay as they were.
+  visibility->setIconSize(QSize(20, 20));
   visibility->setFixedSize(22, 22);
   visibility->setEnabled(ancestors_visible);
   if (list_parent != nullptr) {
@@ -2414,7 +2416,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     button->setText(QString());
     button->setIcon(simple_icon(visible ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
                                 visible ? theme().layer_eye_on : theme().layer_eye_off));
-    button->setIconSize(QSize(15, 15));
+    button->setIconSize(QSize(16, 16));
     button->setFixedSize(20, 20);
     button->setFocusPolicy(Qt::NoFocus);
     set_themed_style(*button, nested_button_style);

@@ -2691,6 +2691,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/view_shortcut_keys_tests.cpp
       tests/ui/tool_palette_customize_tests.cpp
       tests/ui/layer_row_options_tests.cpp
+      tests/ui/layer_eye_icon_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/deep_operation_audit_tests.cpp

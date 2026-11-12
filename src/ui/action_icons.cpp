@@ -270,16 +270,28 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
     painter.drawEllipse(QRectF(8.0, 8.0, 16.0, 16.0));
     painter.setPen(QPen(accent, 4.5, Qt::SolidLine, Qt::RoundCap));
     painter.drawArc(QRectF(8.0, 8.0, 16.0, 16.0), 200 * 16, 140 * 16);
-  } else if (text == QStringLiteral("eye") || text == QStringLiteral("eyeOff")) {
-    QPainterPath eye;
-    eye.moveTo(5.5, 16.0);
-    eye.cubicTo(9.0, 9.5, 23.0, 9.5, 26.5, 16.0);
-    eye.cubicTo(23.0, 22.5, 9.0, 22.5, 5.5, 16.0);
+  } else if (text == QStringLiteral("eye")) {
+    // Visible (GitHub issue 715): a tall open almond with a small solid pupil and clear space
+    // around it, so it reads as an open eye at 16 px and on a 2x screen alike.
+    painter.setPen(QPen(accent, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPainterPath eye(QPointF(3.0, 16.0));
+    eye.cubicTo(9.0, 6.0, 23.0, 6.0, 29.0, 16.0);
+    eye.cubicTo(23.0, 26.0, 9.0, 26.0, 3.0, 16.0);
     painter.drawPath(eye);
-    painter.drawEllipse(QPointF(16.0, 16.0), 3.8, 3.8);
-    if (text == QStringLiteral("eyeOff")) {
-      painter.drawLine(QPointF(7.0, 25.0), QPointF(25.0, 7.0));
-    }
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(accent);
+    painter.drawEllipse(QPointF(16.0, 16.0), 3.6, 3.6);
+  } else if (text == QStringLiteral("eyeOff")) {
+    // Hidden: a closed lid with three lashes, in a thinner line. Its outline differs from the
+    // open eye's, so the two states tell apart by shape before color (the old mark was the same
+    // eye with a slash through it).
+    painter.setPen(QPen(accent, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPainterPath lid(QPointF(3.5, 13.0));
+    lid.cubicTo(9.0, 21.5, 23.0, 21.5, 28.5, 13.0);
+    painter.drawPath(lid);
+    painter.drawLine(QPointF(16.0, 19.4), QPointF(16.0, 23.8));
+    painter.drawLine(QPointF(9.0, 17.8), QPointF(6.9, 21.4));
+    painter.drawLine(QPointF(23.0, 17.8), QPointF(25.1, 21.4));
   } else if (text == QStringLiteral("film")) {
     // Film strip: the frame area with a sprocket-hole column along each edge.
     painter.drawRect(QRect(6, 8, 20, 16));

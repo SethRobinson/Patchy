@@ -17,6 +17,8 @@ palette in src/ui/theme_palette.cpp:
   syntax colors, the red/green/yellow status roles) are left alone so their
   meaning survives.
 - Alpha is preserved.
+- ROLE_OVERRIDES then replaces the few roles a theme's ramp leaves too close to
+  a neighbour (the visibility eye's on and off colors, GitHub issue 715).
 
 The Dark anchors below are the lightness landmarks of the Dark palette: borders
 (0.12), window (0.15), panels (0.21 to 0.37), disabled text (0.45), mid grays,
@@ -79,6 +81,17 @@ DESCRIPTIONS = {
     "dracula": "Patchy in the purple-tinted Dracula colors.",
     "gruvbox-dark": "Patchy in the warm Gruvbox Dark colors.",
     "high-contrast": "Black panels, white text and amber highlights, for the most contrast.",
+}
+
+
+# Hand-picked values that replace the derived ones, per theme. The ramps of the two
+# themes below squeeze the top of the range, which left the hidden layer eye
+# (layer_eye_off) too close to the visible one (layer_eye_on) on a layer row;
+# ui_layer_eye_hidden_reads_weaker_in_every_theme holds every theme to the same
+# separation.
+ROLE_OVERRIDES = {
+    "medium-gray": {"layer_eye_on": "#ffffff", "layer_eye_off": "#8c8c8c"},
+    "high-contrast": {"layer_eye_off": "#868686"},
 }
 
 
@@ -153,6 +166,10 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for stem, name, anchors, accent_hue, sat_scale in THEMES:
         roles = {role: color_hex(transform(value, anchors, accent_hue, sat_scale)) for role, value in dark.items()}
+        for role, value in ROLE_OVERRIDES.get(stem, {}).items():
+            if role not in roles:
+                raise SystemExit(f"{stem}: override for unknown role {role}")
+            roles[role] = value
         document = {"format": 1, "name": name, "description": DESCRIPTIONS[stem], "base": "dark", "roles": roles}
         path = OUT / f"{stem}.patchytheme"
         path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8", newline="\n")
