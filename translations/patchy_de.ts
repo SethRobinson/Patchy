@@ -15810,6 +15810,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Unter 100 % scheint die Konturfarbe auch über die ganze Arbeitsfläche und über die Füllung durch, wie in Photoshop.</translation>
     </message>
+    <message>
+        <source>Update...</source>
+        <translation>Aktualisieren...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22455,6 +22459,7 @@ Möchten Sie die Datei ersetzen?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Tastaturbefehle suchen...</translation>
     </message>
 </context>

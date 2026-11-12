@@ -32,7 +32,27 @@ this order. Every key is permanent; `src/ui/app_settings.hpp` has accessors for 
   panel still says an update is available.
 
 The About window and the connector's own check (below) ignore the interval and the skipped
-version: neither raises a prompt.
+version: neither raises a prompt by itself.
+
+## The About window's Update button
+
+Help > About runs its own check (`PatchySplashDialog::begin_update_check`,
+`src/ui/splash_dialog.cpp`) and shows the result on its status line. When the check finds a
+newer version, an **Update...** button (`splashUpdateButton`) appears under that line, left
+of Close.
+
+- Clicking it closes About and then opens the same prompt as the startup check:
+  `show_about_splash` takes a callback, and `MainWindow::show_about` passes one that calls
+  `show_update_available`. The splash knows nothing of MainWindow or the per-platform advice.
+- The callback runs only after the About dialog is destroyed. Update Now can close Patchy to
+  install ("Flow" step 4), which must not happen under a modal dialog still on the stack.
+- It is an explicit request, so `updates/skippedVersion` does not apply: the prompt opens
+  for a skipped version too, and only its own "Don't ask again" checkbox changes the
+  stored value.
+- The button stays hidden for every other result (up to date, a failed check, an
+  unsupported platform), when `update_checks_available()` is false (the web build, a store
+  build, `PATCHY_NO_UPDATE_CHECK=1`: no check runs), and for a caller that passes no
+  callback.
 
 ## Flow
 
@@ -264,7 +284,10 @@ had not loaded yet would be the new build.
   `ui_update_startup_check_honors_stored_interval` (a loopback manifest server),
   `ui_update_preference_offers_daily_interval` and
   `ui_update_prompt_skip_version_silences_until_a_newer_one` cover the interval and the
-  skipped version.
+  skipped version. `ui_about_dialog_update_button_hands_over_the_newer_version`,
+  `ui_about_dialog_update_button_stays_hidden_without_an_update` and
+  `ui_about_update_button_opens_the_update_prompt_for_a_skipped_version` cover the About
+  window's button against a loopback manifest server.
 - `scripts\release\verify-windows-package.ps1` runs `InstallPatchy.ps1 -UpdateCheckRoot`:
   the process wait, the locked-file check, setting a file in use aside (renamed,
   recorded in the manifest, removed by the next install) on stand-in files in a scratch

@@ -15754,6 +15754,10 @@ Do you want to replace it?</source>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>100% 未満では、Photoshop と同じように境界線の色がキャンバス全体と塗りの上にも透けて見えます。</translation>
     </message>
+    <message>
+        <source>Update...</source>
+        <translation>アップデート...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22391,6 +22395,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>ショートカットを検索...</translation>
     </message>
 </context>

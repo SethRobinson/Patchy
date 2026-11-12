@@ -15810,6 +15810,10 @@ Sostituirlo?</translation>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Sotto il 100% il colore della traccia traspare anche su tutto il quadro e sul riempimento, come in Photoshop.</translation>
     </message>
+    <message>
+        <source>Update...</source>
+        <translation>Aggiorna...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22455,6 +22459,7 @@ Sostituirlo?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Cerca scelte rapide...</translation>
     </message>
 </context>

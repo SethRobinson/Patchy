@@ -15754,6 +15754,10 @@ Do you want to replace it?</source>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>低於 100% 時，筆畫顏色也會像在 Photoshop 中一樣在整個畫布和填色上透出。</translation>
     </message>
+    <message>
+        <source>Update...</source>
+        <translation>更新...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22391,6 +22395,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>搜尋快速鍵...</translation>
     </message>
 </context>

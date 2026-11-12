@@ -15866,6 +15866,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Poniżej 100% kolor obrysu jest widoczny także na całym płótnie i na wypełnieniu, tak jak w Photoshopie.</translation>
     </message>
+    <message>
+        <source>Update...</source>
+        <translation>Aktualizuj...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22519,6 +22523,7 @@ Czy chcesz go zastąpić?</translation>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Wyszukaj skróty...</translation>
     </message>
 </context>

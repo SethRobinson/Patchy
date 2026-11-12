@@ -15866,6 +15866,10 @@ Do you want to replace it?</source>
         <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>Ниже 100% цвет обводки проявляется и на всём холсте, и поверх заливки, как в Photoshop.</translation>
     </message>
+    <message>
+        <source>Update...</source>
+        <translation>Обновить...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22519,6 +22523,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
         <translation>Поиск сочетаний клавиш...</translation>
     </message>
 </context>
