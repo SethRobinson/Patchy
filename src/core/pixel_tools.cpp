@@ -2,8 +2,12 @@
 
 #include "core/blend_math.hpp"
 #include "core/hdr_color.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pixel_shape_style.hpp"
 #include "core/pixel_tools_internal.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
 #include "core/worker_budget.hpp"
 
 #include <algorithm>
@@ -2857,6 +2861,241 @@ Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOpt
     return dirty;
   }
   return render_shape(document, layer_id, rect, options, erase, ShapeKind::Ellipse);
+}
+
+// --- Pixels-mode shapes with their own fill and stroke (core/pixel_shape_style.hpp) -------------
+
+bool pixel_shape_style_is_classic(const PixelShapeStyle& style) noexcept {
+  if (!style.stroke) {
+    return true;  // a fill alone (or nothing at all, which the classic path refuses the same way)
+  }
+  return !style.fill && style.dashes == StrokeDashPreset::Solid &&
+         style.alignment == VectorStrokeAlignment::Center;
+}
+
+VectorStroke pixel_shape_stroke(const EditOptions& options, const PixelShapeStyle& style) {
+  VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = static_cast<double>(std::max(1, options.brush_size));
+  stroke.alignment = style.alignment;
+  // The classic outline is a distance band around the shape, which is a round join.
+  stroke.join = VectorStrokeJoin::Round;
+  apply_stroke_dash_preset(stroke, style.dashes);
+  return stroke;
+}
+
+PixelShapeCoverage pixel_shape_coverage(Rect rect, ShapeKind kind, const EditOptions& options,
+                                        const PixelShapeStyle& style, Rect clip) {
+  PixelShapeCoverage result;
+  rect = normalized_rect(rect);
+  if (rect.empty() || clip.empty() || (!style.fill && !style.stroke)) {
+    return result;
+  }
+
+  // The shape the classic renderer measures: the whole pixels of `rect`.
+  LiveShapeParams params;
+  params.left = static_cast<double>(rect.x);
+  params.top = static_cast<double>(rect.y);
+  params.right = static_cast<double>(rect.x) + static_cast<double>(rect.width);
+  params.bottom = static_cast<double>(rect.y) + static_cast<double>(rect.height);
+  if (kind == ShapeKind::Ellipse) {
+    params.kind = LiveShapeKind::Ellipse;
+  } else {
+    const auto radius = std::clamp(static_cast<double>(options.shape_corner_radius), 0.0,
+                                   static_cast<double>(std::min(rect.width, rect.height)) / 2.0);
+    params.kind = radius > 0.0 ? LiveShapeKind::RoundedRectangle : LiveShapeKind::Rectangle;
+    params.corner_radii = {radius, radius, radius, radius};
+  }
+  populate_live_shape_box_corners(params);
+  VectorPath path;
+  path.subpaths = generate_live_shape_subpaths(params);
+  if (path.empty()) {
+    return result;
+  }
+
+  // Soft: the classic renderer eases coverage over a band of half the stroke width times
+  // Soft, centered on each edge. A gaussian of a fifth of that band has the same 10% to 90%
+  // width; under about 0.6 px the box radii are zero and the edge stays plain antialiasing.
+  const auto stroke = pixel_shape_stroke(options, style);
+  const auto softness = static_cast<double>(std::clamp(options.brush_softness, 0, 100)) / 100.0;
+  const auto band = stroke.width * 0.5 * softness;
+  const auto radii = band > 1.0 ? mask_feather_box_radii(band / 5.0) : std::array<std::int32_t, 3>{};
+  const std::int32_t blur_reach = radii[0] + radii[1] + radii[2];
+  const auto stroke_reach = !style.stroke                                          ? 0.0
+                            : style.alignment == VectorStrokeAlignment::Inside ? 0.0
+                            : style.alignment == VectorStrokeAlignment::Center ? stroke.width * 0.5
+                                                                               : stroke.width;
+  const auto reach = static_cast<std::int32_t>(std::ceil(stroke_reach)) + 1 + blur_reach;
+  const Rect domain{rect.x - reach, rect.y - reach, rect.width + 2 * reach, rect.height + 2 * reach};
+  const auto wanted = intersect_rect(domain, clip);
+  if (wanted.empty()) {
+    return result;
+  }
+  // Rasterize what the caller reads plus the blur's reach, so it blurs real coverage.
+  const auto raster_clip = intersect_rect(
+      domain, Rect{wanted.x - blur_reach, wanted.y - blur_reach, wanted.width + 2 * blur_reach,
+                   wanted.height + 2 * blur_reach});
+  VectorRasterOptions raster_options;
+  raster_options.clip = raster_clip;
+
+  const auto plane_of = [&](const CoverageBuffer& coverage) {
+    const auto out_width = static_cast<std::size_t>(wanted.width);
+    std::vector<std::uint8_t> plane(out_width * static_cast<std::size_t>(wanted.height), 0);
+    const auto source = intersect_rect(coverage.bounds, raster_clip);
+    if (source.empty() || coverage.pixels.empty()) {
+      return plane;
+    }
+    if (blur_reach <= 0) {
+      const auto copied = intersect_rect(source, wanted);
+      for (std::int32_t y = copied.y; y < copied.y + copied.height; ++y) {
+        const auto row = coverage.pixels.row(y - coverage.bounds.y);
+        std::copy_n(row.data() + (copied.x - coverage.bounds.x), static_cast<std::size_t>(copied.width),
+                    plane.data() + static_cast<std::size_t>(y - wanted.y) * out_width +
+                        static_cast<std::size_t>(copied.x - wanted.x));
+      }
+      return plane;
+    }
+    const auto blur_width = static_cast<std::size_t>(raster_clip.width);
+    std::vector<std::uint16_t> wide(blur_width * static_cast<std::size_t>(raster_clip.height), 0);
+    for (std::int32_t y = source.y; y < source.y + source.height; ++y) {
+      const auto row = coverage.pixels.row(y - coverage.bounds.y);
+      auto* out = wide.data() + static_cast<std::size_t>(y - raster_clip.y) * blur_width +
+                  static_cast<std::size_t>(source.x - raster_clip.x);
+      const auto* in = row.data() + (source.x - coverage.bounds.x);
+      for (std::int32_t x = 0; x < source.width; ++x) {
+        out[x] = static_cast<std::uint16_t>(in[x] * 257U);
+      }
+    }
+    mask_feather_blur(wide, raster_clip.width, raster_clip.height, radii);
+    for (std::int32_t y = 0; y < wanted.height; ++y) {
+      const auto* in = wide.data() + static_cast<std::size_t>(wanted.y + y - raster_clip.y) * blur_width +
+                       static_cast<std::size_t>(wanted.x - raster_clip.x);
+      auto* out = plane.data() + static_cast<std::size_t>(y) * out_width;
+      for (std::int32_t x = 0; x < wanted.width; ++x) {
+        out[x] = static_cast<std::uint8_t>((in[x] + 128U) / 257U);
+      }
+    }
+    return plane;
+  };
+
+  result.bounds = wanted;
+  if (style.fill) {
+    result.fill = plane_of(rasterize_vector_path(path, raster_options));
+  }
+  if (style.stroke) {
+    result.stroke = plane_of(rasterize_vector_stroke(path, stroke, raster_options));
+  }
+  return result;
+}
+
+Rect draw_styled_shape(Document& document, LayerId layer_id, Rect rect, const EditOptions& options,
+                       const PixelShapeStyle& style, ShapeKind kind, bool erase) {
+  rect = normalized_rect(rect);
+  if (rect.empty()) {
+    return {};
+  }
+  auto* layer = paintable_layer(document, layer_id);
+  if (layer == nullptr) {
+    return {};
+  }
+  if (erase && !options.lock_transparent_pixels) {
+    ensure_alpha_for_erase(*layer);
+  }
+
+  auto clip = canvas_rect(document);
+  if (options.selection.has_value()) {
+    clip = intersect_rect(clip, *options.selection);
+  }
+  const auto coverage = pixel_shape_coverage(rect, kind, options, style, clip);
+  if (coverage.bounds.empty()) {
+    return {};
+  }
+  const auto plane_width = static_cast<std::size_t>(coverage.bounds.width);
+  const auto covered = [&](std::int32_t x, std::int32_t y) {
+    const auto index = static_cast<std::size_t>(y - coverage.bounds.y) * plane_width +
+                       static_cast<std::size_t>(x - coverage.bounds.x);
+    return std::pair<std::uint8_t, std::uint8_t>{coverage.fill.empty() ? std::uint8_t{0} : coverage.fill[index],
+                                                 coverage.stroke.empty() ? std::uint8_t{0} : coverage.stroke[index]};
+  };
+  // The layer grows to the painted pixels only, not to the blur's and the stroke's reach.
+  Rect affected;
+  for (std::int32_t y = coverage.bounds.y; y < coverage.bounds.y + coverage.bounds.height; ++y) {
+    std::int32_t first = -1;
+    std::int32_t last = -1;
+    for (std::int32_t x = coverage.bounds.x; x < coverage.bounds.x + coverage.bounds.width; ++x) {
+      const auto [fill, stroke] = covered(x, y);
+      if (fill != 0 || stroke != 0) {
+        first = first < 0 ? x : first;
+        last = x;
+      }
+    }
+    if (first >= 0) {
+      affected = unite_rect(affected, Rect{first, y, last - first + 1, 1});
+    }
+  }
+  if (affected.empty()) {
+    return {};
+  }
+  if (!erase && !options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(*layer, affected);
+  }
+
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  affected = intersect_rect(affected, bounds);
+  if (affected.empty()) {
+    return {};
+  }
+
+  // One write per pixel: where the stroke's edge crosses the fill, the stroke is laid over the
+  // fill first and the mix is written at the shared opacity.
+  auto fill_options = options;
+  fill_options.deep_primary.reset();
+  fill_options.primary = style.fill_color;
+  fill_options.primary_gain = style.fill_gain;
+  auto stroke_options = fill_options;
+  stroke_options.primary = style.stroke_color;
+  stroke_options.primary_gain = style.stroke_gain;
+  auto mixed_options = stroke_options;
+  const auto mix = [](std::uint8_t over, std::uint8_t under, float over_weight) {
+    return clamp_byte(static_cast<float>(over) * over_weight + static_cast<float>(under) * (1.0F - over_weight));
+  };
+
+  bool wrote = false;
+  for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
+    auto row = pixels.row(y - bounds.y);
+    for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
+      const auto [fill, stroke] = covered(x, y);
+      if (fill == 0 && stroke == 0) {
+        continue;
+      }
+      const auto selected_coverage = selection_coverage(options, x, y);
+      if (selected_coverage <= 0.0F) {
+        continue;
+      }
+      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
+      const auto fill_coverage = static_cast<float>(fill) / 255.0F;
+      const auto stroke_coverage = static_cast<float>(stroke) / 255.0F;
+      if (stroke == 0) {
+        wrote = write_pixel(pixels, px, fill_options, erase, fill_coverage * selected_coverage) || wrote;
+      } else if (fill == 0 || stroke == 255) {
+        wrote = write_pixel(pixels, px, stroke_options, erase, stroke_coverage * selected_coverage) || wrote;
+      } else {
+        const auto total = stroke_coverage + fill_coverage * (1.0F - stroke_coverage);
+        const auto stroke_weight = stroke_coverage / total;
+        mixed_options.primary = EditColor{mix(style.stroke_color.r, style.fill_color.r, stroke_weight),
+                                          mix(style.stroke_color.g, style.fill_color.g, stroke_weight),
+                                          mix(style.stroke_color.b, style.fill_color.b, stroke_weight),
+                                          mix(style.stroke_color.a, style.fill_color.a, stroke_weight)};
+        mixed_options.primary_gain =
+            style.stroke_gain * stroke_weight + style.fill_gain * (1.0F - stroke_weight);
+        wrote = write_pixel(pixels, px, mixed_options, erase, total * selected_coverage) || wrote;
+      }
+    }
+    report_edit_progress(options);
+  }
+  return wrote ? affected : Rect{};
 }
 
 bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::uint16_t channels,

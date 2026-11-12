@@ -52,6 +52,7 @@
 #include "ui/shape_appearance_panel.hpp"
 #include "ui/appearance_properties.hpp"
 #include "ui/shape_create_dialog.hpp"
+#include "ui/shape_pixel_options.hpp"
 #include "ui/stroke_preset_manager_dialog.hpp"
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/theme_palette.hpp"
@@ -2366,6 +2367,13 @@ void MainWindow::update_vector_swatch_icons() {
   if (vector_stroke_swatch_button_ != nullptr) {
     vector_stroke_swatch_button_->setIcon(
         options_bar_swatch_icon(current_vector_stroke_paint_, *vector_stroke_swatch_button_));
+  }
+  // The Pixels-mode Rectangle and Ellipse swatches (GitHub issue 716): each paint's own
+  // color, or the foreground color it follows.
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->show_swatches(
+        canvas_ != nullptr ? canvas_->primary_color() : foreground_color_,
+        [this](const VectorFill& paint, const QToolButton& button) { return options_bar_swatch_icon(paint, button); });
   }
 }
 

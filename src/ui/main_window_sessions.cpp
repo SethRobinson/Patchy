@@ -33,6 +33,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/shape_pixel_options.hpp"
 #include "ui/animation_preview_window.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
@@ -258,10 +259,10 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_marquee_corner_radius(current_marquee_corner_radius_);
   session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
   session->canvas->set_selection_antialias(current_selection_antialias_);
-  session->canvas->set_fill_shapes(current_fill_shapes_);
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->apply_to_canvas(*session->canvas);
+  }
   session->canvas->set_shape_corner_radius(current_shape_corner_radius_);
-  session->canvas->set_shape_style(current_shape_style_);
-  session->canvas->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   session->canvas->set_vector_tool_mode(current_vector_tool_mode_);
   session->canvas->set_pen_auto_add_delete(current_pen_auto_add_delete_);
   if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {
@@ -503,10 +504,10 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
-  canvas_->set_fill_shapes(current_fill_shapes_);
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->apply_to_canvas(*canvas_);
+  }
   canvas_->set_shape_corner_radius(current_shape_corner_radius_);
-  canvas_->set_shape_style(current_shape_style_);
-  canvas_->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   canvas_->set_healing_diffusion(current_healing_diffusion_);
   canvas_->set_local_adjustment_strength(current_local_adjustment_strength_);
   canvas_->set_smudge_strength(current_smudge_strength_);

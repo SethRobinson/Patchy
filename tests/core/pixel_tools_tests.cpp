@@ -4,6 +4,7 @@
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/palette.hpp"
+#include "core/pixel_shape_style.hpp"
 #include "core/pixel_tools.hpp"
 #include "test_harness.hpp"
 #include <algorithm>
@@ -24,6 +25,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <span>
@@ -578,6 +580,213 @@ void tool_ellipse_draws_and_writes_artifact() {
   const auto dirty = patchy::draw_ellipse(document, layer_id, patchy::Rect{12, 10, 30, 22}, options, false);
   CHECK(!dirty.empty());
   write_bmp_artifact("tool_ellipse", document);
+}
+
+// GitHub issue 716: a Pixels-mode Rectangle or Ellipse with a fill and a stroke of their own.
+// The two styles the classic renderer always drew stay with it; every other style paints the
+// fill, then the stroke over it with the stroke's alignment and dashes, each pixel once.
+void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
+  const patchy::EditColor red{220, 30, 30, 255};
+  const patchy::EditColor blue{30, 60, 220, 255};
+  const patchy::Rect rect{40, 30, 100, 80};  // the pixels 40..139 by 30..109
+  struct Scene {
+    patchy::Document document{200, 160, patchy::PixelFormat::rgb8()};
+    patchy::LayerId layer_id{};
+  };
+  const auto make_scene = [](std::uint8_t alpha) {
+    auto scene = std::make_unique<Scene>();
+    patchy::PixelBuffer pixels(200, 160, patchy::PixelFormat::rgba8());
+    pixels.clear(alpha);
+    scene->layer_id = scene->document.add_pixel_layer("Paint", std::move(pixels)).id();
+    return scene;
+  };
+  const auto styled = [&](bool fill, bool stroke,
+                          patchy::VectorStrokeAlignment alignment = patchy::VectorStrokeAlignment::Center,
+                          patchy::StrokeDashPreset dashes = patchy::StrokeDashPreset::Solid) {
+    patchy::PixelShapeStyle style;
+    style.fill = fill;
+    style.stroke = stroke;
+    style.fill_color = red;
+    style.stroke_color = blue;
+    style.alignment = alignment;
+    style.dashes = dashes;
+    return style;
+  };
+  const auto pixel = [](Scene& scene, std::int32_t x, std::int32_t y) {
+    const auto* layer = std::as_const(scene.document).find_layer(scene.layer_id);
+    const auto bounds = layer->bounds();
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+      return patchy::EditColor{0, 0, 0, 0};
+    }
+    const auto* px = layer->pixels().pixel(x - bounds.x, y - bounds.y);
+    return patchy::EditColor{px[0], px[1], px[2], px[3]};
+  };
+  const auto is = [](patchy::EditColor actual, patchy::EditColor expected) {
+    return actual.a == 255 && std::abs(actual.r - expected.r) <= 2 && std::abs(actual.g - expected.g) <= 2 &&
+           std::abs(actual.b - expected.b) <= 2;
+  };
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 10;
+
+  // What stays with the classic renderer.
+  CHECK(patchy::pixel_shape_style_is_classic(styled(true, false)));
+  CHECK(patchy::pixel_shape_style_is_classic(styled(false, true)));
+  CHECK(!patchy::pixel_shape_style_is_classic(styled(true, true)));
+  CHECK(!patchy::pixel_shape_style_is_classic(styled(false, true, patchy::VectorStrokeAlignment::Inside)));
+  CHECK(!patchy::pixel_shape_style_is_classic(styled(false, true, patchy::VectorStrokeAlignment::Outside)));
+  CHECK(!patchy::pixel_shape_style_is_classic(
+      styled(false, true, patchy::VectorStrokeAlignment::Center, patchy::StrokeDashPreset::Dashed)));
+
+  {
+    // Both, centered: the fill inside, the stroke 5 px either side of the outline, with the
+    // round corners the classic outline has.
+    auto scene = make_scene(0);
+    const auto dirty = patchy::draw_styled_shape(scene->document, scene->layer_id, rect, options,
+                                                 styled(true, true), patchy::ShapeKind::Rectangle, false);
+    CHECK(dirty.x == 35 && dirty.y == 25 && dirty.width == 110 && dirty.height == 90);
+    CHECK(is(pixel(*scene, 90, 70), red));
+    CHECK(is(pixel(*scene, 50, 70), red));
+    CHECK(is(pixel(*scene, 42, 70), blue));
+    CHECK(is(pixel(*scene, 37, 70), blue));
+    CHECK(pixel(*scene, 33, 70).a == 0);
+    CHECK(is(pixel(*scene, 90, 112), blue));
+    CHECK(is(pixel(*scene, 37, 27), blue));   // inside the corner's round join
+    CHECK(pixel(*scene, 35, 25).a == 0);     // its square corner is not painted
+    write_bmp_artifact("tool_styled_shape_both", scene->document);
+  }
+  {
+    // Inside: all 10 px inside the outline; Outside: all 10 px outside it.
+    auto inside = make_scene(0);
+    CHECK(!patchy::draw_styled_shape(inside->document, inside->layer_id, rect, options,
+                                     styled(false, true, patchy::VectorStrokeAlignment::Inside),
+                                     patchy::ShapeKind::Rectangle, false)
+               .empty());
+    CHECK(pixel(*inside, 38, 70).a == 0);
+    CHECK(is(pixel(*inside, 41, 70), blue));
+    CHECK(is(pixel(*inside, 48, 70), blue));
+    CHECK(pixel(*inside, 52, 70).a == 0);
+    CHECK(pixel(*inside, 90, 70).a == 0);
+    auto outside = make_scene(0);
+    CHECK(!patchy::draw_styled_shape(outside->document, outside->layer_id, rect, options,
+                                     styled(false, true, patchy::VectorStrokeAlignment::Outside),
+                                     patchy::ShapeKind::Rectangle, false)
+               .empty());
+    CHECK(pixel(*outside, 42, 70).a == 0);
+    CHECK(is(pixel(*outside, 38, 70), blue));
+    CHECK(is(pixel(*outside, 31, 70), blue));
+    CHECK(pixel(*outside, 28, 70).a == 0);
+  }
+  {
+    // Dashed: the top edge alternates stroke and gap; the ellipse takes the same style.
+    auto scene = make_scene(0);
+    CHECK(!patchy::draw_styled_shape(
+               scene->document, scene->layer_id, rect, options,
+               styled(false, true, patchy::VectorStrokeAlignment::Center, patchy::StrokeDashPreset::Dashed),
+               patchy::ShapeKind::Rectangle, false)
+               .empty());
+    int dashes = 0;
+    int gaps = 0;
+    bool in_dash = false;
+    for (std::int32_t x = 45; x < 135; ++x) {
+      const bool dash = pixel(*scene, x, 30).a > 128;
+      if (dash && !in_dash) {
+        ++dashes;
+      } else if (!dash && in_dash) {
+        ++gaps;
+      }
+      in_dash = dash;
+    }
+    CHECK(dashes >= 2);
+    CHECK(gaps >= 2);
+    write_bmp_artifact("tool_styled_shape_dashed", scene->document);
+
+    auto ellipse = make_scene(0);
+    CHECK(!patchy::draw_styled_shape(ellipse->document, ellipse->layer_id, rect, options,
+                                     styled(true, true, patchy::VectorStrokeAlignment::Inside),
+                                     patchy::ShapeKind::Ellipse, false)
+               .empty());
+    CHECK(is(pixel(*ellipse, 90, 70), red));
+    CHECK(is(pixel(*ellipse, 44, 70), blue));
+    CHECK(pixel(*ellipse, 37, 70).a == 0);
+    CHECK(pixel(*ellipse, 44, 34).a == 0);  // inside the box, outside the ellipse
+  }
+  {
+    // One coat: at half opacity the stroke over the fill is the stroke at half alpha.
+    auto scene = make_scene(0);
+    auto style = styled(true, true);
+    style.fill_color.a = 128;
+    style.stroke_color.a = 128;
+    CHECK(!patchy::draw_styled_shape(scene->document, scene->layer_id, rect, options, style,
+                                     patchy::ShapeKind::Rectangle, false)
+               .empty());
+    const auto overlap = pixel(*scene, 42, 70);
+    CHECK(std::abs(overlap.a - 128) <= 1 && std::abs(overlap.b - blue.b) <= 2 && std::abs(overlap.r - blue.r) <= 2);
+    const auto inner = pixel(*scene, 90, 70);
+    CHECK(std::abs(inner.a - 128) <= 1 && std::abs(inner.r - red.r) <= 2);
+  }
+  {
+    // The selection clips it, and erasing removes the fill and the stroke alike.
+    auto scene = make_scene(0);
+    auto clipped = options;
+    clipped.selection = patchy::Rect{0, 0, 60, 160};
+    const auto dirty = patchy::draw_styled_shape(scene->document, scene->layer_id, rect, clipped, styled(true, true),
+                                                 patchy::ShapeKind::Rectangle, false);
+    CHECK(!dirty.empty() && dirty.x + dirty.width <= 60);
+    CHECK(is(pixel(*scene, 50, 70), red));
+    CHECK(pixel(*scene, 90, 70).a == 0);
+
+    auto opaque = make_scene(255);
+    CHECK(!patchy::draw_styled_shape(opaque->document, opaque->layer_id, rect, options, styled(true, true),
+                                     patchy::ShapeKind::Rectangle, true)
+               .empty());
+    CHECK(pixel(*opaque, 90, 70).a == 0);
+    CHECK(pixel(*opaque, 37, 70).a == 0);
+    CHECK(pixel(*opaque, 20, 70).a == 255);
+  }
+  {
+    // The coverage planes the mask writer composites: one per paint the style draws, and Soft
+    // blurs them (a 20 px stroke at Soft 100% is partly covered a pixel inside its outer edge).
+    const patchy::Rect clip{0, 0, 200, 160};
+    const auto both = patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, options, styled(true, true), clip);
+    CHECK(!both.bounds.empty());
+    const auto count = static_cast<std::size_t>(both.bounds.width) * static_cast<std::size_t>(both.bounds.height);
+    CHECK(both.fill.size() == count && both.stroke.size() == count);
+    const auto stroke_only =
+        patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, options, styled(false, true), clip);
+    CHECK(stroke_only.fill.empty() && !stroke_only.stroke.empty());
+
+    auto wide = options;
+    wide.brush_size = 20;
+    const auto at = [](const patchy::PixelShapeCoverage& coverage, std::int32_t x, std::int32_t y) {
+      return coverage.stroke[static_cast<std::size_t>(y - coverage.bounds.y) *
+                                 static_cast<std::size_t>(coverage.bounds.width) +
+                             static_cast<std::size_t>(x - coverage.bounds.x)];
+    };
+    const auto outside = styled(false, true, patchy::VectorStrokeAlignment::Outside);
+    const auto hard = patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, wide, outside, clip);
+    CHECK(at(hard, 21, 70) == 255);
+    wide.brush_softness = 100;
+    const auto soft = patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, wide, outside, clip);
+    CHECK(at(soft, 30, 70) == 255);
+    CHECK(at(soft, 21, 70) > 40 && at(soft, 21, 70) < 230);
+  }
+  {
+    // A 16-bit layer takes the same shape at its own depth.
+    Scene scene;
+    patchy::PixelBuffer pixels(200, 160, patchy::with_bit_depth(patchy::PixelFormat::rgba8(), patchy::BitDepth::UInt16));
+    pixels.clear(0);
+    scene.layer_id = scene.document.add_pixel_layer("Paint 16", std::move(pixels)).id();
+    CHECK(!patchy::draw_styled_shape(scene.document, scene.layer_id, rect, options, styled(true, true),
+                                     patchy::ShapeKind::Rectangle, false)
+               .empty());
+    const auto* layer = std::as_const(scene.document).find_layer(scene.layer_id);
+    const auto bounds = layer->bounds();
+    std::array<float, 4> value{};
+    patchy::load_rgba_row(layer->pixels(), 70 - bounds.y, 90 - bounds.x, 1, patchy::DeepDomain::Encoded, value);
+    CHECK(std::abs(value[0] - 220.0F) < 1.0F && std::abs(value[2] - 30.0F) < 1.0F && value[3] > 254.0F);
+    patchy::load_rgba_row(layer->pixels(), 70 - bounds.y, 42 - bounds.x, 1, patchy::DeepDomain::Encoded, value);
+    CHECK(std::abs(value[0] - 30.0F) < 1.0F && std::abs(value[2] - 220.0F) < 1.0F && value[3] > 254.0F);
+  }
 }
 
 void tool_filled_ellipse_uses_direct_fill_and_writes_artifact() {
@@ -2284,6 +2493,8 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_line_draws_and_writes_artifact", tool_line_draws_and_writes_artifact},
       {"tool_rectangle_draws_outline_and_writes_artifact", tool_rectangle_draws_outline_and_writes_artifact},
       {"tool_ellipse_draws_and_writes_artifact", tool_ellipse_draws_and_writes_artifact},
+      {"tool_styled_shape_paints_fill_stroke_dashes_and_alignment",
+       tool_styled_shape_paints_fill_stroke_dashes_and_alignment},
       {"tool_filled_ellipse_uses_direct_fill_and_writes_artifact",
        tool_filled_ellipse_uses_direct_fill_and_writes_artifact},
       {"tool_thick_ellipse_outline_avoids_buildup", tool_thick_ellipse_outline_avoids_buildup},

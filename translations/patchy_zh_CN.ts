@@ -35987,6 +35987,54 @@ Locked: %1</source>
         <source>Finish the transform to edit the shape here.</source>
         <translation>请先完成变换，再在此处编辑形状。</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>仅填充：绘制形状的内部</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>仅描边：绘制形状的轮廓</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>填充和描边：绘制内部和轮廓</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>以像素绘制的形状的填充颜色：前景色或自己的颜色</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>描边宽度 (画笔大小)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>以像素绘制的形状的描边颜色：前景色或自己的颜色</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>描边虚线。虚线预设使用平头端点；点状预设使用圆头端点</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>内部</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>外部</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>描边相对于形状轮廓的位置：内部、居中或外部</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>形状长宽比的宽度部分</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>形状长宽比的高度部分</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

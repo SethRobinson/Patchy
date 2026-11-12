@@ -308,7 +308,6 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {content_aware_move_object_selection_check_, QT_TR_NOOP("Object Selection")},
       {select_subject_button_, QT_TR_NOOP("Select Subject")},
       {remove_background_button_, QT_TR_NOOP("Remove Background")},
-      {ctx.fill_shapes, QT_TR_NOOP("Fill")},
   };
   for (const auto& [widget, source] : translated_widgets) {
     bind_widget_text(widget, source);

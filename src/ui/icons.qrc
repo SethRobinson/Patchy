@@ -82,6 +82,9 @@
     <file alias="selection-edges.svg">icons/selection-edges.svg</file>
     <file alias="default-colors.svg">icons/default-colors.svg</file>
     <file alias="swap-colors.svg">icons/swap-colors.svg</file>
+    <file alias="shape-draw-both.svg">icons/shape-draw-both.svg</file>
+    <file alias="shape-draw-fill.svg">icons/shape-draw-fill.svg</file>
+    <file alias="shape-draw-stroke.svg">icons/shape-draw-stroke.svg</file>
     <file alias="swap-dimensions.svg">icons/swap-dimensions.svg</file>
     <file alias="crop-straighten.svg">icons/crop-straighten.svg</file>
     <file alias="selection-new.svg">icons/selection-new.svg</file>

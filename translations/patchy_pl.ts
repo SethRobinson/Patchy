@@ -36205,6 +36205,54 @@ Zablokowano: %1</translation>
         <source>Finish the transform to edit the shape here.</source>
         <translation>Zakończ transformację, aby edytować kształt tutaj.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>Tylko wypełnienie: maluje wnętrze kształtu</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>Tylko obrys: maluje kontur kształtu</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>Wypełnienie i obrys: maluje wnętrze i kontur</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Kolor wypełnienia kształtów rysowanych jako piksele: kolor narzędzia lub własny kolor</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>Szerokość obrysu (rozmiar pędzla)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Kolor obrysu kształtów rysowanych jako piksele: kolor narzędzia lub własny kolor</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>Kreski obrysu. Kreski mają płaskie zakończenia, kropki zaokrąglone zakończenia</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>Wewnątrz</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>Na zewnątrz</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>Położenie obrysu względem konturu kształtu: wewnątrz, na środku lub na zewnątrz</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>Szerokość w proporcjach kształtu</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>Wysokość w proporcjach kształtu</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

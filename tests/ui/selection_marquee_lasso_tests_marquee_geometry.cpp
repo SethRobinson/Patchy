@@ -868,11 +868,11 @@ void ui_shape_fill_and_corner_radius_apply_to_new_documents() {
   CHECK(vector_mode != nullptr);
   vector_mode->setCurrentIndex(2);
 
-  auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
+  auto* fill_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
-  CHECK(fill_check != nullptr);
+  CHECK(fill_only != nullptr);
   CHECK(radius_spin != nullptr);
-  fill_check->setChecked(true);
+  fill_only->click();
   radius_spin->setValue(7);
   QApplication::processEvents();
   CHECK(canvas->fill_shapes());
@@ -913,15 +913,19 @@ void ui_shape_tool_fixed_size_and_ratio_options_work() {
   auto* style = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
   auto* width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));
   auto* height = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedHeightSpin"));
+  auto* ratio_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("shapeRatioWidthSpin"));
+  auto* ratio_height = window.findChild<QDoubleSpinBox*>(QStringLiteral("shapeRatioHeightSpin"));
   CHECK(style != nullptr);
   CHECK(width != nullptr);
   CHECK(height != nullptr);
+  CHECK(ratio_width != nullptr);
+  CHECK(ratio_height != nullptr);
   CHECK(style->isVisible());
   CHECK(style->currentText() == QStringLiteral("Normal"));
 
-  auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
-  CHECK(fill_check != nullptr);
-  fill_check->setChecked(true);
+  auto* fill_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
+  CHECK(fill_only != nullptr);
+  fill_only->click();
   canvas->set_primary_color(Qt::black);
   canvas->set_brush_opacity(100);
   canvas->set_brush_softness(0);
@@ -958,9 +962,10 @@ void ui_shape_tool_fixed_size_and_ratio_options_work() {
 
   // Fixed Ratio: the drag follows the cursor but keeps W:H proportions.
   require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  // The ratio has its own unitless pair (GitHub issue 716).
   style->setCurrentText(QStringLiteral("Fixed Ratio"));
-  width->setValue(2);
-  height->setValue(1);
+  ratio_width->setValue(2);
+  ratio_height->setValue(1);
   QApplication::processEvents();
   CHECK(canvas->shape_style() == patchy::ui::CanvasWidget::MarqueeStyle::FixedRatio);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),

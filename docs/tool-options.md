@@ -93,9 +93,11 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | same | Fill and Stroke paint (by pattern/gradient id), Stroke width (0 = off; stored as Stroke on plus the last real width), Line weight | `vectorFill*`, `vectorStroke*`, `vectorLineWeight` | yes | yes |
 | same, Path/Direct Select | Combine (`vectorCombineCombo`) | none | no | no (session) |
 | Line | arrowheads (`lineArrow*Button`) | `lineArrowStart`, `lineArrowEnd` | yes | yes |
-| Rectangle, Ellipse (Pixels) | Fill (`shapeFillCheck`) | `shapeFill` | no | yes |
+| Rectangle, Ellipse (Pixels) | Fill only / Stroke only / Both (`shapeDraw*Button`; GitHub issue 716) | `shapeDrawMode` (token: `stroke`, `fill`, `both`). `shapeFill`, the Fill checkbox these replaced, is read when no mode is saved (checked was Fill only) and still written (true unless Stroke only) | no | yes |
+| Rectangle, Ellipse (Pixels) | Fill and Stroke color (`shapePixel*SwatchButton`), dashes, alignment | `shapePixelFillColor`, `shapePixelStrokeColor` (`#rrggbb`; empty follows the foreground color), `shapePixelStrokeDashes` (a dash preset token), `shapePixelStrokeAlign` (token: `inside`, `center`, `outside`) | new (issue 716) | yes |
+| Rectangle, Ellipse (Pixels) | Stroke width, Opacity, Soft (`shapePixelStrokeWidthSpin`, `shapePixelOpacitySpin`, `shapePixelSoftSpin`) | the brush family's `brushSize`, `brushOpacity`, `brushSoftness` (mirrors of those fields) | no | yes |
 | Rectangle | Radius (`shapeCornerRadiusSpin`) | `shapeCornerRadius` | yes | yes |
-| Rect, Ellipse (Pixels) | Style, W, H (`shapeStyleCombo`, `shapeFixed*`) | none | no | no (session) |
+| Rect, Ellipse (Pixels) | Style, its ratio pair and its pixel pair (`shapeStyleCombo`, `shapeRatio*`, `shapeFixed*`) | none | no | no (session) |
 | Pen | Auto Add/Delete | `penAutoAddDelete` | yes | yes |
 | Polygon | Sides, Star inset | `polygonSides`, `polygonStarInset` | yes | yes |
 | Custom Shape | Shape (by shape id) | `customShapeId` | yes | yes |

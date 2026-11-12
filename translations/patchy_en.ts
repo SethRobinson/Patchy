@@ -36014,6 +36014,54 @@ Locked: %1</source>
         <source>Finish the transform to edit the shape here.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

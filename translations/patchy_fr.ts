@@ -36096,6 +36096,54 @@ Verrouillé : %1</translation>
         <source>Finish the transform to edit the shape here.</source>
         <translation>Terminez la transformation pour modifier la forme ici.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>Fond seul : peint l&apos;intérieur de la forme</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>Contour seul : peint le bord de la forme</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>Fond et contour : peint l&apos;intérieur et le bord</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Couleur de fond des formes dessinées en pixels : la couleur de premier plan ou une couleur propre</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>Épaisseur du contour (la taille du pinceau)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Couleur de contour des formes dessinées en pixels : la couleur de premier plan ou une couleur propre</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>Tirets du contour. Les tirets utilisent des extrémités plates, les points des extrémités arrondies</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>Intérieur</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>Extérieur</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>Position du contour par rapport au bord de la forme : à l&apos;intérieur, centré ou à l&apos;extérieur</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>Largeur du rapport d&apos;aspect de la forme</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>Hauteur du rapport d&apos;aspect de la forme</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

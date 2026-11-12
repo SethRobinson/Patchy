@@ -14,6 +14,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pixel_shape_style.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
@@ -31,6 +32,7 @@
 #include <QGradient>
 #include <QImage>
 #include <QLinearGradient>
+#include <QList>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
@@ -119,14 +121,138 @@ QBrush sampled_gradient_preview_brush(GradientMethod method, QPointF a, QPointF 
   return brush;
 }
 
+// Whether the classic signed-distance shape renderer draws this Pixels-mode style: a fill
+// alone, or a solid stroke alone centered on the outline (patchy::pixel_shape_style_is_classic).
+bool shape_style_is_classic(const ShapePixelStyle& style) noexcept {
+  return style.mode == ShapeDrawMode::Fill ||
+         (style.mode == ShapeDrawMode::Stroke && style.dashes == patchy::StrokeDashPreset::Solid &&
+          style.alignment == patchy::VectorStrokeAlignment::Center);
+}
+
+// The style for the core renderer. `options.primary` is the foreground color with the tool's
+// opacity in its alpha; a color of the style's own takes that alpha and a plain gain.
+patchy::PixelShapeStyle core_shape_style(const ShapePixelStyle& style, const EditOptions& options) {
+  patchy::PixelShapeStyle core;
+  core.fill = style.mode != ShapeDrawMode::Stroke;
+  core.stroke = style.mode != ShapeDrawMode::Fill;
+  const auto resolve = [&options](const std::optional<QColor>& own, patchy::EditColor& color, float& gain) {
+    color = options.primary;
+    gain = options.primary_gain;
+    if (own.has_value()) {
+      color.r = static_cast<std::uint8_t>(own->red());
+      color.g = static_cast<std::uint8_t>(own->green());
+      color.b = static_cast<std::uint8_t>(own->blue());
+      gain = 1.0F;
+    }
+  };
+  resolve(style.fill_color, core.fill_color, core.fill_gain);
+  resolve(style.stroke_color, core.stroke_color, core.stroke_gain);
+  core.alignment = style.alignment;
+  core.dashes = style.dashes;
+  return core;
+}
+
+// The drag preview of a Pixels-mode Rectangle or Ellipse: the fill, then the stroke as a pen
+// `pen_width` wide. The two classic styles draw exactly what they always did; the others add
+// the stroke's dashes (a pen's dash lengths are in pen widths, like the stroke's) and its
+// alignment, by drawing the pen's center line half a width inside or outside the outline.
+void paint_pixel_shape_preview(QPainter& painter, bool ellipse, QRect shape_rect, double corner_radius,
+                               const ShapePixelStyle& style, QColor fill, QColor stroke, int pen_width) {
+  if (shape_style_is_classic(style)) {
+    if (style.mode == ShapeDrawMode::Fill) {
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(fill);
+    } else {
+      QPen pen(stroke);
+      pen.setWidth(pen_width);
+      pen.setCosmetic(false);
+      painter.setPen(pen);
+      painter.setBrush(Qt::NoBrush);
+    }
+    if (ellipse) {
+      painter.drawEllipse(shape_rect);
+    } else if (corner_radius > 0.0) {
+      const auto clamped = std::min(corner_radius, std::min(shape_rect.width(), shape_rect.height()) / 2.0);
+      painter.drawRoundedRect(shape_rect, clamped, clamped);
+    } else {
+      painter.drawRect(shape_rect);
+    }
+    return;
+  }
+
+  const QRectF outline(shape_rect);
+  const auto radius =
+      ellipse ? 0.0 : std::min(std::max(0.0, corner_radius), std::min(outline.width(), outline.height()) / 2.0);
+  const auto draw = [&painter, ellipse](const QRectF& rect, double rect_radius) {
+    if (ellipse) {
+      painter.drawEllipse(rect);
+    } else if (rect_radius > 0.0) {
+      painter.drawRoundedRect(rect, rect_radius, rect_radius);
+    } else {
+      painter.drawRect(rect);
+    }
+  };
+  if (style.mode != ShapeDrawMode::Stroke) {
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(fill);
+    draw(outline, radius);
+  }
+  const auto width = static_cast<double>(std::max(1, pen_width));
+  const auto inset = style.alignment == patchy::VectorStrokeAlignment::Inside    ? width / 2.0
+                     : style.alignment == patchy::VectorStrokeAlignment::Outside ? -width / 2.0
+                                                                                 : 0.0;
+  const auto line = outline.adjusted(inset, inset, -inset, -inset);
+  if (line.width() <= 0.0 || line.height() <= 0.0) {
+    // An inside stroke wider than the shape covers all of it.
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(stroke);
+    draw(outline, radius);
+    return;
+  }
+  patchy::VectorStroke settings;
+  settings.join = patchy::VectorStrokeJoin::Round;
+  patchy::apply_stroke_dash_preset(settings, style.dashes);
+  QPen pen(stroke);
+  pen.setWidthF(width);
+  pen.setCosmetic(false);
+  pen.setJoinStyle(Qt::RoundJoin);
+  pen.setCapStyle(settings.cap == patchy::VectorStrokeCap::Round    ? Qt::RoundCap
+                  : settings.cap == patchy::VectorStrokeCap::Square ? Qt::SquareCap
+                                                                    : Qt::FlatCap);
+  if (!settings.dashes.empty() && settings.dashes.size() % 2U == 0U) {
+    QList<qreal> pattern;
+    for (const auto length : settings.dashes) {
+      pattern.push_back(length);
+    }
+    pen.setDashPattern(pattern);
+  }
+  painter.setPen(pen);
+  painter.setBrush(Qt::NoBrush);
+  draw(line, radius > 0.0 ? std::max(0.0, radius - inset) : 0.0);
+}
+
 }  // namespace
 
 void CanvasWidget::set_fill_shapes(bool fill_shapes) noexcept {
-  fill_shapes_ = fill_shapes;
+  shape_pixel_style_.mode = fill_shapes ? ShapeDrawMode::Fill : ShapeDrawMode::Stroke;
 }
 
 bool CanvasWidget::fill_shapes() const noexcept {
-  return fill_shapes_;
+  return shape_pixel_style_.mode == ShapeDrawMode::Fill;
+}
+
+void CanvasWidget::set_shape_pixel_style(const ShapePixelStyle& style) {
+  if (shape_pixel_style_ == style) {
+    return;
+  }
+  shape_pixel_style_ = style;
+  if (drawing_shape_ && (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse)) {
+    update();
+  }
+}
+
+const ShapePixelStyle& CanvasWidget::shape_pixel_style() const noexcept {
+  return shape_pixel_style_;
 }
 
 void CanvasWidget::set_shape_corner_radius(int radius) noexcept {
@@ -425,37 +551,18 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
             source_painter.setPen(pen);
             source_painter.setBrush(Qt::NoBrush);
             source_painter.drawLine(a, b);
-          } else if (tool_ == CanvasTool::Rectangle) {
-            if (fill_shapes_) {
-              source_painter.setPen(Qt::NoPen);
-              source_painter.setBrush(gray);
-            } else {
-              QPen pen(gray);
-              pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
-              pen.setCosmetic(false);
-              source_painter.setPen(pen);
-              source_painter.setBrush(Qt::NoBrush);
-            }
-            const auto shape_rect = normalized_rect(a, b);
-            if (shape_corner_radius_ > 0) {
-              const auto radius = static_cast<double>(shape_corner_radius_) * zoom_;
-              const auto clamped = std::min(radius, std::min(shape_rect.width(), shape_rect.height()) / 2.0);
-              source_painter.drawRoundedRect(shape_rect, clamped, clamped);
-            } else {
-              source_painter.drawRect(shape_rect);
-            }
-          } else if (tool_ == CanvasTool::Ellipse) {
-            if (fill_shapes_) {
-              source_painter.setPen(Qt::NoPen);
-              source_painter.setBrush(gray);
-            } else {
-              QPen pen(gray);
-              pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
-              pen.setCosmetic(false);
-              source_painter.setPen(pen);
-              source_painter.setBrush(Qt::NoBrush);
-            }
-            source_painter.drawEllipse(normalized_rect(a, b));
+          } else if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) {
+            // Each paint as the gray the edit writes: the fill's and the stroke's own colors
+            // when they have one (GitHub issue 716), else the foreground's.
+            const auto gray_of = [this, alpha](const std::optional<QColor>& own) {
+              const auto own_value = mask_value_from_color(own.value_or(primary_color_));
+              return QColor(own_value, own_value, own_value, alpha);
+            };
+            paint_pixel_shape_preview(
+                source_painter, tool_ == CanvasTool::Ellipse, normalized_rect(a, b),
+                tool_ == CanvasTool::Rectangle ? static_cast<double>(shape_corner_radius_) * zoom_ : 0.0,
+                shape_pixel_style_, gray_of(shape_pixel_style_.fill_color), gray_of(shape_pixel_style_.stroke_color),
+                std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
           }
         }
       }
@@ -613,39 +720,15 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
     painter.drawLine(a, b);
-  } else if (tool_ == CanvasTool::Rectangle) {
-    if (fill_shapes_) {
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(QColor(primary_color_.red(), primary_color_.green(), primary_color_.blue(),
-                              std::clamp(brush_opacity_ * 2, 60, 180)));
-    } else {
-      QPen pen(primary_color_);
-      pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
-      pen.setCosmetic(false);
-      painter.setPen(pen);
-      painter.setBrush(Qt::NoBrush);
-    }
-    const auto preview_rect = normalized_rect(a, b);
-    if (shape_corner_radius_ > 0) {
-      const auto radius = static_cast<double>(shape_corner_radius_) * zoom_;
-      const auto clamped = std::min(radius, std::min(preview_rect.width(), preview_rect.height()) / 2.0);
-      painter.drawRoundedRect(preview_rect, clamped, clamped);
-    } else {
-      painter.drawRect(preview_rect);
-    }
-  } else if (tool_ == CanvasTool::Ellipse) {
-    if (fill_shapes_) {
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(QColor(primary_color_.red(), primary_color_.green(), primary_color_.blue(),
-                              std::clamp(brush_opacity_ * 2, 60, 180)));
-    } else {
-      QPen pen(primary_color_);
-      pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
-      pen.setCosmetic(false);
-      painter.setPen(pen);
-      painter.setBrush(Qt::NoBrush);
-    }
-    painter.drawEllipse(normalized_rect(a, b));
+  } else if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) {
+    // The fill previews translucent so the artwork under it shows; the stroke in its color.
+    const auto fill = shape_pixel_style_.fill_color.value_or(primary_color_);
+    paint_pixel_shape_preview(
+        painter, tool_ == CanvasTool::Ellipse, normalized_rect(a, b),
+        tool_ == CanvasTool::Rectangle ? static_cast<double>(shape_corner_radius_) * zoom_ : 0.0,
+        shape_pixel_style_, QColor(fill.red(), fill.green(), fill.blue(), std::clamp(brush_opacity_ * 2, 60, 180)),
+        shape_pixel_style_.stroke_color.value_or(primary_color_),
+        std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
   }
 }
 
@@ -1109,7 +1192,7 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
   }
 
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
-                              fill_shapes_,
+                              fill_shapes(),
                               active_layer_locks_transparent_pixels(), *this);
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -1130,7 +1213,7 @@ QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
 
   return to_qrect(patchy::draw_gradient(
       *document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
-      edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
+      edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes(),
                    active_layer_locks_transparent_pixels(), *this),
       current_gradient_options()));
 }
@@ -1158,10 +1241,24 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
   }
 
   const auto rect = normalized_rect(from, to);
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
-                              fill_shapes_,
+  // The classic renderer paints one color: the fill's or the stroke's own, else the foreground
+  // (GitHub issue 716). Every other style draws through the vector rasterizers.
+  const auto& style = shape_pixel_style_;
+  const bool classic = shape_style_is_classic(style);
+  const auto& own_color = style.mode == ShapeDrawMode::Fill ? style.fill_color : style.stroke_color;
+  const bool classic_own_color = classic && own_color.has_value();
+  auto options = edit_options(classic_own_color ? *own_color : primary_color_, secondary_color_, brush_size_,
+                              brush_opacity_, brush_softness_, style.mode == ShapeDrawMode::Fill,
                               active_layer_locks_transparent_pixels(), *this);
+  if (classic_own_color) {
+    options.primary_gain = 1.0F;  // the foreground's Intensity belongs to the foreground color
+  }
   options.shape_corner_radius = shape_corner_radius_;
+  if (!classic) {
+    return to_qrect(patchy::draw_styled_shape(*document_, *document_->active_layer_id(), to_core_rect(rect), options,
+                                              core_shape_style(style, options), patchy::ShapeKind::Rectangle,
+                                              erase));
+  }
   // Single-pass shape rendering composites each pixel once, so no buildup gate is needed; the gate
   // only matters for the crisp 1px-outline legacy path, which paints overlapping line segments.
   if (brush_opacity_ < 100) {
@@ -1185,9 +1282,21 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
   }
 
   const auto rect = normalized_rect(from, to);
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
-                              fill_shapes_,
+  // As draw_rectangle: one color through the classic renderer, else the vector rasterizers.
+  const auto& style = shape_pixel_style_;
+  const bool classic = shape_style_is_classic(style);
+  const auto& own_color = style.mode == ShapeDrawMode::Fill ? style.fill_color : style.stroke_color;
+  const bool classic_own_color = classic && own_color.has_value();
+  auto options = edit_options(classic_own_color ? *own_color : primary_color_, secondary_color_, brush_size_,
+                              brush_opacity_, brush_softness_, style.mode == ShapeDrawMode::Fill,
                               active_layer_locks_transparent_pixels(), *this);
+  if (classic_own_color) {
+    options.primary_gain = 1.0F;
+  }
+  if (!classic) {
+    return to_qrect(patchy::draw_styled_shape(*document_, *document_->active_layer_id(), to_core_rect(rect), options,
+                                              core_shape_style(style, options), patchy::ShapeKind::Ellipse, erase));
+  }
   // Only the crisp 1px-outline legacy path needs the buildup gate (see draw_rectangle).
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -1211,7 +1320,7 @@ QRect CanvasWidget::flood_fill(QPoint start) {
 
   // The Fill tool has its own Opacity/Soft/Tol/Contiguous (options bar), independent of the
   // brush: build the options at full brush opacity and let apply_fill_settings scale them.
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, 100, brush_softness_, fill_shapes_,
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, 100, brush_softness_, fill_shapes(),
                               active_layer_locks_transparent_pixels(), *this);
   apply_fill_settings(options, *this);
   return to_qrect(patchy::flood_fill(*document_, *document_->active_layer_id(), start.x(), start.y(), options));
@@ -1275,7 +1384,10 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
 }
 
 QRect CanvasWidget::draw_mask_rectangle(QPoint from, QPoint to, bool erase) {
-  if (!fill_shapes_ && shape_corner_radius_ <= 0 && std::max(1, brush_size_) <= 1) {
+  // The crisp 1 px outline is brush segments in the foreground gray: the classic stroke in
+  // the foreground color only.
+  if (shape_style_is_classic(shape_pixel_style_) && shape_pixel_style_.mode == ShapeDrawMode::Stroke &&
+      !shape_pixel_style_.stroke_color.has_value() && shape_corner_radius_ <= 0 && std::max(1, brush_size_) <= 1) {
     const auto rect = normalized_rect(from, to);
     QRect dirty;
     dirty = dirty.united(draw_mask_line(rect.topLeft(), rect.topRight(), erase));
@@ -1288,7 +1400,8 @@ QRect CanvasWidget::draw_mask_rectangle(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_mask_ellipse(QPoint from, QPoint to, bool erase) {
-  if (!fill_shapes_ && std::max(1, brush_size_) <= 1) {
+  if (shape_style_is_classic(shape_pixel_style_) && shape_pixel_style_.mode == ShapeDrawMode::Stroke &&
+      !shape_pixel_style_.stroke_color.has_value() && std::max(1, brush_size_) <= 1) {
     const auto rect = normalized_rect(from, to);
     constexpr int kSamples = 720;
     const auto rx = std::max(1.0, static_cast<double>(rect.width()) / 2.0);
@@ -1321,12 +1434,64 @@ QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind 
     return {};
   }
 
+  const auto& style = shape_pixel_style_;
   patchy::EditOptions options;
-  options.fill_shapes = fill_shapes_;
+  options.fill_shapes = style.mode == ShapeDrawMode::Fill;
   options.brush_size = brush_size_;
   options.brush_softness = brush_softness_;
   if (kind == patchy::ShapeKind::Rectangle) {
     options.shape_corner_radius = shape_corner_radius_;
+  }
+  const auto gray_of = [this, erase](const std::optional<QColor>& own) {
+    return erase ? std::uint8_t{0} : mask_value_from_color(own.value_or(primary_color_));
+  };
+  if (!shape_style_is_classic(style)) {
+    // A fill and a stroke of their own (GitHub issue 716): the same coverage planes the layer
+    // renderer composites, written as the two paints' grays, the stroke over the fill.
+    const auto coverage = patchy::pixel_shape_coverage(
+        to_core_rect(rect), kind, options, core_shape_style(style, options),
+        to_core_rect(QRect(0, 0, document_->width(), document_->height())));
+    const auto covered = to_qrect(coverage.bounds);
+    if (covered.isEmpty()) {
+      return {};
+    }
+    auto styled_target = active_grayscale_edit_target(covered);
+    if (!styled_target.has_value() || styled_target->pixels == nullptr) {
+      return {};
+    }
+    const auto target_bounds = styled_target->bounds;
+    const auto fill_value = static_cast<float>(gray_of(style.fill_color));
+    const auto stroke_value = static_cast<float>(gray_of(style.stroke_color));
+    const auto shape_opacity = static_cast<float>(brush_opacity_) / 100.0F;
+    const auto plane_width = static_cast<std::size_t>(coverage.bounds.width);
+    QRect styled_dirty;
+    for (int y = covered.top(); y <= covered.bottom(); ++y) {
+      for (int x = covered.left(); x <= covered.right(); ++x) {
+        const auto index = static_cast<std::size_t>(y - coverage.bounds.y) * plane_width +
+                           static_cast<std::size_t>(x - coverage.bounds.x);
+        const auto fill = coverage.fill.empty() ? 0.0F : static_cast<float>(coverage.fill[index]) / 255.0F;
+        const auto stroke = coverage.stroke.empty() ? 0.0F : static_cast<float>(coverage.stroke[index]) / 255.0F;
+        const auto total = stroke + fill * (1.0F - stroke);
+        const QPoint document_point(x, y);
+        if (total <= 0.0F || !selection_allows(document_point)) {
+          continue;
+        }
+        auto amount = shape_opacity * total;
+        if (selection_clips_grayscale_edits()) {
+          amount *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+        }
+        if (amount <= 0.0F) {
+          continue;
+        }
+        const auto value = static_cast<std::uint8_t>(std::clamp(
+            std::lround((stroke_value * stroke + fill_value * fill * (1.0F - stroke)) / total), 0L, 255L));
+        auto* px = styled_target->pixels->pixel(x - target_bounds.x(), y - target_bounds.y());
+        blend_mask_at(styled_target->pixels->format(), px, value, amount);
+        styled_dirty = styled_dirty.united(QRect(document_point, QSize(1, 1)));
+      }
+      tick_processing_operation();
+    }
+    return styled_dirty;
   }
   const auto params = patchy::make_shape_coverage_params(to_core_rect(rect), options, kind);
   const auto margin = params.fill ? (params.band * 0.5 + 1.0)
@@ -1343,7 +1508,7 @@ QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind 
     return {};
   }
   const auto bounds = target->bounds;
-  const auto value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
+  const auto value = gray_of(style.mode == ShapeDrawMode::Fill ? style.fill_color : style.stroke_color);
   const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
   QRect dirty;
   for (int y = affected.top(); y <= affected.bottom(); ++y) {
