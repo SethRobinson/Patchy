@@ -730,12 +730,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   tool_flyout_open_label->setBuddy(tool_flyout_open_combo);
   application_form->addRow(tool_flyout_open_label, tool_flyout_open_combo);
   // Whether a tool group's letter needs Shift to walk its tools (GitHub issue 628). On by
-  // default; off, pressing the letter again moves to the group's next tool. Applies on OK.
+  // default: the letter selects the tool the group last used (GitHub issue 711). Off,
+  // pressing the letter again moves to the group's next tool. Applies on OK.
   auto* use_shift_tool_switch_check = new WrappingCheckBox(tr("Use Shift for tool switch"), application_group);
   use_shift_tool_switch_check->setObjectName(QStringLiteral("preferencesUseShiftForToolSwitchCheck"));
   use_shift_tool_switch_check->setToolTip(
-      tr("When on, a tool group's letter selects its first tool and Shift with the letter moves "
-         "through the group. When off, pressing the letter again moves to the group's next tool."));
+      tr("When on, a tool group's letter selects the tool the group last used and Shift with the "
+         "letter moves through the group. When off, pressing the letter again moves to the group's "
+         "next tool."));
   use_shift_tool_switch_check->setChecked(use_shift_for_tool_switch_);
   application_form->addRow(new QLabel(application_group), use_shift_tool_switch_check);
   // Customize Tool Palette under the tool palette settings (GitHub issue 213), on a line of

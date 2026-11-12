@@ -205,9 +205,10 @@ void ui_ruler_tool_joins_pick_flyout() {
   CHECK(canvas->tool() == CanvasTool::Eyedropper);
   QTest::keyClick(canvas, Qt::Key_I, Qt::ShiftModifier);
   QApplication::processEvents();
+  // The plain letter keeps the group's active tool (GitHub issue 711).
   QTest::keyClick(canvas, Qt::Key_I);
   QApplication::processEvents();
-  CHECK(canvas->tool() == CanvasTool::Eyedropper);
+  CHECK(canvas->tool() == CanvasTool::Ruler);
 }
 
 // A drag draws the line and the bar reads it out (angle counterclockwise positive, H

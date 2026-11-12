@@ -35143,8 +35143,8 @@ Fixiert: %1</translation>
         <translation>Umschalttaste zum Werkzeugwechsel verwenden</translation>
     </message>
     <message>
-        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
-        <translation>Wenn aktiviert, wählt der Buchstabe einer Werkzeuggruppe ihr erstes Werkzeug, und Umschalt mit dem Buchstaben wechselt durch die Gruppe. Wenn deaktiviert, wechselt erneutes Drücken des Buchstabens zum nächsten Werkzeug der Gruppe.</translation>
+        <source>When on, a tool group&apos;s letter selects the tool the group last used and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Wenn aktiviert, wählt der Buchstabe einer Werkzeuggruppe das zuletzt verwendete Werkzeug der Gruppe, und Umschalt mit dem Buchstaben wechselt durch die Gruppe. Wenn deaktiviert, wechselt erneutes Drücken des Buchstabens zum nächsten Werkzeug der Gruppe.</translation>
     </message>
     <message>
         <source>Seafoam</source>

@@ -35041,8 +35041,8 @@ Locked: %1</source>
         <translation>使用 Shift 键切换工具</translation>
     </message>
     <message>
-        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
-        <translation>开启时，工具组的字母键选择组内第一个工具，Shift 加字母键在组内依次切换。关闭时，再次按字母键切换到组内下一个工具。</translation>
+        <source>When on, a tool group&apos;s letter selects the tool the group last used and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>开启时，工具组的字母键选择组内上次使用的工具，Shift 加字母键在组内依次切换。关闭时，再次按字母键切换到组内下一个工具。</translation>
     </message>
     <message>
         <source>Seafoam</source>

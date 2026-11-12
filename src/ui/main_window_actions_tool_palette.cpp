@@ -466,10 +466,23 @@ private:
   std::function<void()> on_left_double_click_;
 };
 
-// Watches the shortcut a tool group's first member fires (GitHub issue 628): when the key is
-// the group's own plain letter and `handle` takes it, the member's own trigger is skipped.
-// Any other key the member carries (a user's own binding) passes through untouched. A held
-// letter does not repeat, so holding it never spins through the group.
+// How a key moves through a tool group (configure_tool_flyout's step_group).
+enum class ToolGroupStep {
+  // Shift+letter: the member after the active one; from a tool outside the group, the member
+  // after the one the button shows.
+  Cycle,
+  // The plain letter with "Use Shift for tool switch" off (GitHub issue 628): the member after
+  // the active one; from a tool outside the group, the member the button shows.
+  Walk,
+  // The plain letter with it on (GitHub issue 711): the member the button shows; a member that
+  // is already active stays, picked again.
+  Select,
+};
+
+// Watches the shortcut a tool group's first member fires (GitHub issues 628 and 711): when the
+// key is the group's own plain letter and `handle` takes it, the member's own trigger is
+// skipped. Any other key the member carries (a user's own binding) passes through untouched.
+// A held letter does not repeat, so holding it never spins through the group.
 class ToolGroupLetterFilter final : public QObject {
 public:
   ToolGroupLetterFilter(QAction* member, QKeySequence letter, std::function<bool()> handle)
@@ -1514,10 +1527,11 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   // actions that share a sequence, so the members carry no Shift default of their
   // own; a user override that puts Shift+<letter> back on a member wins through
   // the registry's resolution and suppresses the cycle default.
-  // With Preferences' "Use Shift for tool switch" off (GitHub issue 628) the group's plain
-  // letter, which the first member carries, walks the group too: from a tool outside the
-  // group it selects the member the button shows, from a member the next one, wrapping.
-  // Only that letter is taken over; a key the user bound to a member still selects it.
+  // The group's plain letter, which the first member carries, selects the member the button
+  // shows (the last one used) from a tool outside the group, never the first member as such
+  // (GitHub issue 711). Pressed again in the group it keeps the active member, or with
+  // Preferences' "Use Shift for tool switch" off (GitHub issue 628) moves to the next one,
+  // wrapping. Only that letter is taken over; a key the user bound to a member still selects it.
   const auto configure_tool_flyout = [this, &cluster](QToolBar* palette, QMenu* menu, QToolButton* button,
                                                       QAction* default_action, const QList<QAction*>& actions,
                                                       const char* cycle_source, const char* cycle_object_name,
@@ -1584,10 +1598,12 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // Listed after the members so the flyout shows the key that walks it.
     menu->addSeparator();
     menu->addAction(cycle);
-    // The cycle walks the members the flyout shows (ToolPaletteLayout::cycle_members). From a
-    // tool outside the group, the cycle steps past the member the button shows and the plain
-    // letter (with Shift not required) selects it.
-    const auto step_group = [this, button, all_members = actions](bool from_outside_selects_shown) {
+    // The keys move through the members the flyout shows (ToolPaletteLayout::cycle_members).
+    // From a tool outside the group, the cycle steps past the member the button shows and the
+    // plain letter selects it. Select triggers the active member again rather than doing
+    // nothing, so the letter acts as a second pick of that tool does (it ends a transform or
+    // a text edit, as the first member's own shortcut always did).
+    const auto step_group = [this, button, all_members = actions](ToolGroupStep step) {
       const auto members =
           tool_palette_layout_ != nullptr ? tool_palette_layout_->cycle_members(button) : all_members;
       if (members.isEmpty()) {
@@ -1601,20 +1617,32 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
       }
       if (current < 0) {
         const auto shown = static_cast<int>(members.indexOf(button->defaultAction()));
-        if (from_outside_selects_shown && shown >= 0) {
+        if (step != ToolGroupStep::Cycle && shown >= 0) {
           members[shown]->trigger();
           return true;
         }
         current = shown;
+      } else if (step == ToolGroupStep::Select) {
+        members[current]->trigger();
+        return true;
       }
       members[(current + 1) % members.size()]->trigger();
       return true;
     };
-    QObject::connect(cycle, &QAction::triggered, button, [step_group] { step_group(false); });
+    QObject::connect(cycle, &QAction::triggered, button, [step_group] { step_group(ToolGroupStep::Cycle); });
     if (!cycle_shortcut.isEmpty()) {
-      new ToolGroupLetterFilter(default_action, QKeySequence(cycle_shortcut[0].key()), [this, step_group] {
-        return !use_shift_for_tool_switch_ && step_group(true);
-      });
+      new ToolGroupLetterFilter(
+          default_action, QKeySequence(cycle_shortcut[0].key()), [this, step_group, default_action] {
+            if (!use_shift_for_tool_switch_) {
+              return step_group(ToolGroupStep::Walk);
+            }
+            // A first member hidden from the palette keeps its key for itself: Hand hidden
+            // still pans with H (GitHub issue 304).
+            if (tool_palette_layout_ != nullptr && tool_palette_layout_->tool_hidden(default_action)) {
+              return false;
+            }
+            return step_group(ToolGroupStep::Select);
+          });
     }
     // Each member's own plain button, shown instead of the group's when it holds one tool or
     // with no tool groups (GitHub issue 499).

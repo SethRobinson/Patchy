@@ -118,8 +118,8 @@ inline constexpr std::array<ToolFlyoutOpenMode, 3> kToolFlyoutOpenModes{
 void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode);
 
 // Whether a tool group needs Shift with its letter to walk its tools (GitHub issue 628;
-// docs/tool-flyouts.md). On (the default): the plain letter selects the group's first tool
-// and Shift+letter cycles. Off: the plain letter also walks the group. Stored under
+// docs/tool-flyouts.md). On (the default): the plain letter selects the tool the group's
+// button shows and Shift+letter cycles. Off: the plain letter also walks the group. Stored under
 // `preferences/useShiftForToolSwitch` (a compatibility contract) as false only; on is no key.
 [[nodiscard]] bool stored_use_shift_for_tool_switch();
 void set_stored_use_shift_for_tool_switch(bool use_shift);

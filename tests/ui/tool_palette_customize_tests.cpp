@@ -1373,12 +1373,12 @@ void ui_tool_palette_dialog_lists_every_palette_tool() {
   CHECK(ran);
 }
 
-// GitHub issue 628: Preferences > Application > Use Shift for tool switch. On (the default) a
-// group's plain letter selects its first tool and Shift+letter cycles. Off, the plain letter
-// selects the tool the group's button shows when another group's tool is active and then
-// walks the group, wrapping; Shift+letter still cycles, hidden members stay skipped, and a key
-// the user bound to a member still selects that member. The artifact is the Application page
-// with the box, the issue's AFTER shot.
+// GitHub issue 628: Preferences > Application > Use Shift for tool switch. Either way a
+// group's plain letter selects the tool the group's button shows when another group's tool is
+// active (GitHub issue 711). On (the default) the letter then keeps that tool and Shift+letter
+// cycles. Off, the letter walks the group, wrapping; Shift+letter still cycles. Hidden members
+// stay skipped, and a key the user bound to a member still selects that member. The artifact
+// is the Application page with the box, the issue's AFTER shot.
 void ui_tool_group_plain_letter_walks_without_shift() {
   CustomizationSettingsGuard settings_guard;
   const auto shift_key = QStringLiteral("preferences/useShiftForToolSwitch");
@@ -1405,7 +1405,8 @@ void ui_tool_group_plain_letter_walks_without_shift() {
     CHECK(marquee_button != nullptr);
     CHECK(window.use_shift_for_tool_switch());
 
-    // On: M selects Marquee, from the group too; Shift+M cycles.
+    // On: M selects the tool the button shows and keeps it from inside the group; Shift+M
+    // cycles.
     select("toolBrushAction");
     press(Qt::Key_M);
     CHECK(canvas->tool() == CanvasTool::Marquee);
@@ -1413,6 +1414,16 @@ void ui_tool_group_plain_letter_walks_without_shift() {
     CHECK(canvas->tool() == CanvasTool::Marquee);
     press(Qt::Key_M, Qt::ShiftModifier);
     CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+    select("toolBrushAction");
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+    CHECK(marquee_button != nullptr &&
+          marquee_button->defaultAction() == require_action(window, "toolEllipticalMarqueeAction"));
+    // The first tool, picked again, is the one the letter returns to.
+    select("toolMarqueeAction");
+    select("toolBrushAction");
     press(Qt::Key_M);
     CHECK(canvas->tool() == CanvasTool::Marquee);
 
@@ -1504,33 +1515,62 @@ void ui_tool_group_plain_letter_walks_without_shift() {
       CHECK(canvas->tool() == expected);
     }
 
-    // Back on, at once: the plain letter selects the first tool again.
+    // Back on, at once: the plain letter stops walking and keeps the group's tool.
     window.set_use_shift_for_tool_switch(true);
     CHECK(!patchy::ui::app_settings().contains(shift_key));
     select("toolMagneticLassoAction");
     press(Qt::Key_L);
-    CHECK(canvas->tool() == CanvasTool::Lasso);
+    CHECK(canvas->tool() == CanvasTool::MagneticLasso);
+    select("toolBrushAction");
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::MagneticLasso);
+    // A member hidden from the palette is not the tool the button shows, so the letter
+    // selects the one that is.
+    auto* lasso_button = button_named(window, "lassoToolButton");
+    CHECK(lasso_button != nullptr);
+    customization.hidden_tools = {QStringLiteral("tools.magnetic_lasso")};
+    window.apply_tool_palette_customization(customization);
+    settle();
+    CHECK(lasso_button != nullptr && lasso_button->defaultAction() == require_action(window, "toolLassoAction"));
+    select("toolBrushAction");
     press(Qt::Key_L);
     CHECK(canvas->tool() == CanvasTool::Lasso);
+    // The first member hidden keeps its key for itself (GitHub issue 304), whatever the
+    // button shows.
+    customization.hidden_tools = {QStringLiteral("tools.lasso")};
+    window.apply_tool_palette_customization(customization);
+    settle();
+    CHECK(lasso_button != nullptr &&
+          lasso_button->defaultAction() == require_action(window, "toolPolygonalLassoAction"));
+    select("toolBrushAction");
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::Lasso);
+    CHECK(lasso_button != nullptr &&
+          lasso_button->defaultAction() == require_action(window, "toolPolygonalLassoAction"));
+    window.apply_tool_palette_customization(ToolPaletteCustomization{});
+    settle();
   }
 
-  // A key the user bound to a member keeps selecting that member.
+  // A key the user bound to a member keeps selecting that member, with the preference off and
+  // on, from another group's tool and from a member of its own group.
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(polygon_lasso_key, QStringLiteral("L"));
     settings.sync();
   }
-  patchy::ui::set_stored_use_shift_for_tool_switch(false);
-  {
+  for (const bool use_shift : {false, true}) {
+    patchy::ui::set_stored_use_shift_for_tool_switch(use_shift);
     auto&& [window, canvas] = ShownWindowFixture{};
-    CHECK(!window.use_shift_for_tool_switch());
+    CHECK(window.use_shift_for_tool_switch() == use_shift);
     CHECK(require_action(window, "toolPolygonalLassoAction")->shortcut() == QKeySequence(Qt::Key_L));
-    require_action(window, "toolBrushAction")->trigger();
-    QApplication::processEvents();
-    for (int i = 0; i < 2; ++i) {
-      QTest::keyClick(canvas, Qt::Key_L);
+    for (const char* from : {"toolBrushAction", "toolMagneticLassoAction"}) {
+      require_action(window, from)->trigger();
       QApplication::processEvents();
-      CHECK(canvas->tool() == CanvasTool::PolygonLasso);
+      for (int i = 0; i < 2; ++i) {
+        QTest::keyClick(canvas, Qt::Key_L);
+        QApplication::processEvents();
+        CHECK(canvas->tool() == CanvasTool::PolygonLasso);
+      }
     }
   }
 }
