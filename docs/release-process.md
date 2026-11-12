@@ -58,7 +58,10 @@ bump.
    both even when the first fails. Windows runs `opt-dev` on the first idle offload host,
    so this PC stays free. A launch of only these targets skips the metainfo preflight (the
    pending bump would fail it).
-2. Judge each target by its `.exit` marker and the summary at the end of
+2. Wait with `scripts\release\watch-release.ps1`, here and for every later launch
+   ([waiting rules](release-process-scripts.md#waiting-on-targets): a check-in at least
+   every 25 minutes, never one hand-written wait as the only wake-up). Judge each target by
+   its `.exit` marker and the summary at the end of
    `build\release-logs\<target>.log`; the suites log is
    `build\release-logs\rehearse-<target>-suites.log`. Exit 75 means a host was busy or
    locked: rerun that target alone.
