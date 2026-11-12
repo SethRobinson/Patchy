@@ -245,7 +245,13 @@ private:
 // the row wraps only once even that does not fit one line. Grow widgets (Opacity
 // and Fill, the issue 680 follow-up) count at their minimum width and share
 // their line's spare width equally, so a line holding one ends at the row's
-// right edge, the edge the name filter row and the layer list reach.
+// right edge, the edge the name filter row and the layer list reach. Grow
+// widgets with a droppable prefix (set_toolbar_spinbox_prefix) give it up, all
+// together, when that keeps the row on one line the shrink widget alone could
+// not hold (GitHub issue 693 follow-up); a row that wraps anyway keeps them.
+// Whether they are dropped follows from the row's width alone, measured from
+// the font for both states, and changes none of the sizes the row reports, so
+// the choice cannot feed back into the width it was made from.
 class WrappingControlRowLayout final : public WrappingPanelRowLayout {
 public:
   explicit WrappingControlRowLayout(int spacing) { setSpacing(spacing); }
@@ -297,11 +303,15 @@ public:
     QLayout::setGeometry(rect);
     const auto area = contentsRect();
     const auto visible = visible_items();
+    const auto prefixes = prefixes_at(area.width());
+    // Before any geometry: a dropped prefix lowers the widget's own minimum width.
+    apply_prefixes(prefixes);
     const auto starts = line_starts(area.width());
     // One line the natural widths overflow: the shrink widget gives up the difference.
-    const auto squeeze = starts.size() == 1
-                             ? std::clamp(run_width(visible, 0, visible.size()) - area.width(), 0, shrink_room(visible))
-                             : 0;
+    const auto squeeze =
+        starts.size() == 1
+            ? std::clamp(run_width(visible, 0, visible.size(), prefixes) - area.width(), 0, shrink_room(visible))
+            : 0;
     auto y = area.y();
     for (std::size_t line = 0; line < starts.size(); ++line) {
       const auto first = starts[line];
@@ -314,7 +324,7 @@ public:
       bool stretches = false;
       for (auto position = first; position < last; ++position) {
         auto* line_item = item(visible[position]);
-        used += item_width(visible[position]) - (is_shrink(line_item) ? squeeze : 0);
+        used += item_width(visible[position], prefixes) - (is_shrink(line_item) ? squeeze : 0);
         growers += is_grow(line_item) ? 1 : 0;
         stretches = stretches || is_stretch(line_item);
       }
@@ -325,7 +335,7 @@ public:
         auto* line_item = item(visible[position]);
         const auto hint = line_item->sizeHint();
         const auto remaining = std::max(0, area.right() + 1 - x);
-        auto natural = item_width(visible[position]) - (is_shrink(line_item) ? squeeze : 0);
+        auto natural = item_width(visible[position], prefixes) - (is_shrink(line_item) ? squeeze : 0);
         if (is_grow(line_item)) {
           // Equal shares; the last grow widget takes the rounding remainder.
           ++grown;
@@ -341,6 +351,10 @@ public:
   }
 
 private:
+  // Whether the grow widgets show their prefixes. Every size the row reports is measured
+  // with them shown; Dropped only ever applies to a row laid out on one line.
+  enum class Prefixes { Shown, Dropped };
+
   [[nodiscard]] bool is_stretch(QLayoutItem* candidate) const {
     return (stretch_widget_ != nullptr && candidate->widget() == stretch_widget_) ||
            (stretch_layout_ != nullptr && candidate->layout() == stretch_layout_);
@@ -361,7 +375,36 @@ private:
     }
     return 0;
   }
-  [[nodiscard]] int item_width(int index) const {
+  // A grow widget's narrowest width, with its prefix or without. Measured from the font for
+  // either state, whichever the widget shows right now.
+  [[nodiscard]] static int grow_width(const QWidget* widget, Prefixes prefixes) {
+    if (const auto* spin = qobject_cast<const QSpinBox*>(widget); spin != nullptr) {
+      return toolbar_spinbox_width_with_prefix(spin, prefixes == Prefixes::Shown);
+    }
+    return widget->minimumWidth();
+  }
+  // The prefixes drop only where that turns a wrapped row into one line: the row with them
+  // does not fit even with the shrink widget at its narrowest, the row without them does.
+  [[nodiscard]] Prefixes prefixes_at(int width) const {
+    const auto visible = visible_items();
+    if (visible.empty()) {
+      return Prefixes::Shown;
+    }
+    const auto room = width + shrink_room(visible);
+    return run_width(visible, 0, visible.size()) > room &&
+                   run_width(visible, 0, visible.size(), Prefixes::Dropped) <= room
+               ? Prefixes::Dropped
+               : Prefixes::Shown;
+  }
+  // Every grow widget follows, hidden ones too, so no two ever disagree.
+  void apply_prefixes(Prefixes prefixes) const {
+    for (auto* widget : grow_widgets_) {
+      if (auto* spin = qobject_cast<QSpinBox*>(widget); spin != nullptr) {
+        set_toolbar_spinbox_prefix_dropped(spin, prefixes == Prefixes::Dropped);
+      }
+    }
+  }
+  [[nodiscard]] int item_width(int index, Prefixes prefixes = Prefixes::Shown) const {
     auto* candidate = item(index);
     if (stretch_layout_ != nullptr && candidate->layout() == stretch_layout_) {
       // The stretching widget at its minimum, the rest at their natural widths.
@@ -380,16 +423,17 @@ private:
       return width + std::max(0, shown - 1) * stretch_layout_->spacing();
     }
     if (is_grow(candidate)) {
-      return candidate->widget()->minimumWidth();
+      return grow_width(candidate->widget(), prefixes);
     }
     return is_stretch(candidate) ? std::max(stretch_minimum_, candidate->minimumSize().width())
                                  : candidate->sizeHint().width();
   }
   // Natural width of the visible items [first, last) on one line.
-  [[nodiscard]] int run_width(const std::vector<int>& visible, std::size_t first, std::size_t last) const {
+  [[nodiscard]] int run_width(const std::vector<int>& visible, std::size_t first, std::size_t last,
+                              Prefixes prefixes = Prefixes::Shown) const {
     int width = 0;
     for (auto position = first; position < last; ++position) {
-      width += item_width(visible[position]);
+      width += item_width(visible[position], prefixes);
     }
     return width + static_cast<int>(last > first ? last - first - 1 : 0) * spacing();
   }
@@ -406,7 +450,7 @@ private:
     if (visible.empty()) {
       return {};
     }
-    if (run_width(visible, 0, visible.size()) - shrink_room(visible) <= width) {
+    if (run_width(visible, 0, visible.size(), prefixes_at(width)) - shrink_room(visible) <= width) {
       return {0};
     }
     std::vector<std::size_t> starts{0};
@@ -1840,10 +1884,11 @@ void MainWindow::create_docks() {
   // name and Opacity/Fill are prefixed spin boxes with the toolbar popup
   // slider, so the panel spends one line here instead of three. When the
   // stack is narrower than that line, the combo narrows first (GitHub issue
-  // 693). Once it is down to its minimum (long translated prefixes), Opacity
-  // and Fill wrap onto a second line instead of raising the dock's minimum
-  // width, and Fill onto a third in a narrower column (GitHub issue 199). No
-  // extra side insets: the panel margin alone places the row.
+  // 693). Once it is down to its minimum, Opacity and Fill drop their prefixes
+  // (the 693 follow-up). Only a row that is too wide even then wraps Opacity
+  // and Fill, prefixes shown, onto a second line instead of raising the dock's
+  // minimum width, and Fill onto a third in a narrower column (GitHub issue
+  // 199). No extra side insets: the panel margin alone places the row.
   auto* blend_opacity_row = new WrappingControlRowLayout(6);
   auto* blend_combo = new PopupAwareComboBox(layers_panel);
   blend_combo_ = blend_combo;
@@ -1867,7 +1912,10 @@ void MainWindow::create_docks() {
   opacity_spin_->setObjectName(QStringLiteral("layerOpacitySpin"));
   opacity_spin_->setRange(0, 100);
   opacity_spin_->setValue(100);
-  opacity_spin_->setPrefix(tr("Opacity: "));
+  // The prefix is the field's label. The row drops it, with Fill's, before it would wrap
+  // (GitHub issue 693 follow-up); the tooltip names the field either way.
+  set_toolbar_spinbox_prefix(opacity_spin_, tr("Opacity: "));
+  bind_tooltip(opacity_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Opacity"));
   opacity_spin_->setSuffix(percent_suffix());
   // Opacity and Fill share the line's spare width, so the row ends at the panel's right
   // edge (issue 680 follow-up): their measured width is a minimum here, not fixed.
@@ -1884,7 +1932,8 @@ void MainWindow::create_docks() {
   fill_opacity_spin_->setObjectName(QStringLiteral("layerFillOpacitySpin"));
   fill_opacity_spin_->setRange(0, 100);
   fill_opacity_spin_->setValue(100);
-  fill_opacity_spin_->setPrefix(tr("Fill: "));
+  set_toolbar_spinbox_prefix(fill_opacity_spin_, tr("Fill: "));
+  bind_tooltip(fill_opacity_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fill"));
   fill_opacity_spin_->setSuffix(percent_suffix());
   fill_opacity_spin_->setProperty(kToolbarSpinboxStretchProperty, true);
   configure_toolbar_spinbox(fill_opacity_spin_, 52);
@@ -1903,12 +1952,16 @@ void MainWindow::create_docks() {
     if (opacity_spin_ == nullptr || fill_opacity_spin_ == nullptr) {
       return;
     }
-    opacity_spin_->setPrefix(tr("Opacity: "));
-    fill_opacity_spin_->setPrefix(tr("Fill: "));
+    // The new labels show only while the row has not dropped them; the row measures both
+    // states again on its next layout and drops or restores them for the new widths.
+    set_toolbar_spinbox_prefix(opacity_spin_, tr("Opacity: "));
+    set_toolbar_spinbox_prefix(fill_opacity_spin_, tr("Fill: "));
     // Re-measures the minimum width for the translated prefixes; the popup
     // install inside is a guarded no-op on repeat calls.
     configure_toolbar_spinbox(opacity_spin_, 52);
     configure_toolbar_spinbox(fill_opacity_spin_, 52);
+    // A dropped label changes no width of the box itself, so ask for the layout.
+    opacity_spin_->updateGeometry();
     // Deferred so the blend combo's own retranslation (which can change its
     // minimum width) lands before the stack minimum is re-measured.
     QTimer::singleShot(0, this, [this] { update_right_dock_minimum_width(); });

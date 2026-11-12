@@ -5106,19 +5106,27 @@ void ui_layer_fill_opacity_control_updates_active_layer() {
 
 // The width a layout gives a widget it does not stretch: its hint within its own limits.
 // A blend row item's natural width as the row counts it: Opacity and Fill (grow widgets, issue
-// 680 follow-up) at their minimum width, the rest at their layout hints.
+// 680 follow-up) at their measured width with their "Opacity: " and "Fill: " labels, whether
+// the row shows them right now or has dropped them (issue 693 follow-up); the rest at their
+// layout hints.
 int layout_item_width(QWidget& widget) {
-  if (qobject_cast<QAbstractSpinBox*>(&widget) != nullptr) {
-    return widget.minimumWidth();
+  if (const auto* spin = qobject_cast<const QSpinBox*>(&widget); spin != nullptr) {
+    return patchy::ui::toolbar_spinbox_width_with_prefix(spin, true);
   }
   return QWidgetItem(&widget).sizeHint().width();
+}
+
+// The same without the labels: what Opacity and Fill need once the row has dropped them.
+int unlabelled_item_width(const QSpinBox& spin) {
+  return patchy::ui::toolbar_spinbox_width_with_prefix(&spin, false);
 }
 
 // GitHub issue 96: until the user picks a width, the right column opens at
 // the narrowest width its panels fit without scrolling, so a long translated
 // row leaves no gap beside the footer buttons. Polish wrapped the blend row
 // there; since GitHub issue 693 the blend mode box narrows and the row holds
-// one line whenever its narrowest form fits.
+// one line whenever its narrowest form fits, with its labels or (the 693
+// follow-up) without them.
 void ui_right_dock_opens_at_content_width_without_gap() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
@@ -5144,9 +5152,14 @@ void ui_right_dock_opens_at_content_width_without_gap() {
   const auto row_room = filter_button->geometry().right() + 1 - combo->x();
   const auto one_line_minimum =
       combo->minimumSizeHint().width() + layout_item_width(*opacity) + layout_item_width(*fill) + 12;
-  if (one_line_minimum <= row_room) {
+  const auto unlabelled_minimum =
+      combo->minimumSizeHint().width() + unlabelled_item_width(*opacity) + unlabelled_item_width(*fill) + 12;
+  if (unlabelled_minimum <= row_room) {
     CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
     CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
+    // The labels show wherever the labelled row fits, and only there.
+    CHECK(patchy::ui::toolbar_spinbox_prefix_dropped(opacity) == (one_line_minimum > row_room));
+    CHECK(patchy::ui::toolbar_spinbox_prefix_dropped(fill) == patchy::ui::toolbar_spinbox_prefix_dropped(opacity));
   } else {
     CHECK(opacity->y() > combo->geometry().bottom());
   }
@@ -5162,8 +5175,11 @@ void ui_right_dock_opens_at_content_width_without_gap() {
 // is narrower than the one-line row, so long translated prefixes (Russian
 // "Непрозрачность:", Polish "Wypełnienie:") no longer hold the right dock
 // wider than the rest of the panel needs. Since GitHub issue 693 the blend mode
-// box narrows first, so the row wraps only where its narrowest form does not fit:
-// at the opening width that is still Russian, no longer Polish.
+// box narrows first, and since its follow-up Opacity and Fill then drop those
+// prefixes, so the row wraps only where it does not fit one line even without
+// them. At the opening width Russian, which wrapped, now holds one line without
+// its prefixes; no stock language wraps at any width the panel reaches, so the
+// wrap itself is checked last, with fields given a wide floor.
 void ui_layer_blend_row_wraps_in_narrow_panel() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
@@ -5183,6 +5199,15 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     const auto one_line_width = layout_item_width(*combo) + layout_item_width(*opacity) + layout_item_width(*fill) + 12;
     const auto one_line_minimum =
         combo->minimumSizeHint().width() + layout_item_width(*opacity) + layout_item_width(*fill) + 12;
+    // The same once Opacity and Fill have dropped their prefixes.
+    const auto unlabelled_minimum =
+        combo->minimumSizeHint().width() + unlabelled_item_width(*opacity) + unlabelled_item_width(*fill) + 12;
+    const auto prefixes_dropped = [opacity, fill] {
+      CHECK(patchy::ui::toolbar_spinbox_prefix_dropped(fill) == patchy::ui::toolbar_spinbox_prefix_dropped(opacity));
+      CHECK(opacity->prefix().isEmpty() == patchy::ui::toolbar_spinbox_prefix_dropped(opacity));
+      CHECK(fill->prefix().isEmpty() == opacity->prefix().isEmpty());
+      return patchy::ui::toolbar_spinbox_prefix_dropped(opacity);
+    };
 
     const auto content_minimum = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
     patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, content_minimum);
@@ -5193,15 +5218,21 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     // stretches to the panel's right inset, the edge every row must stay inside.
     const auto content_right = filter_button->geometry().right();
     const auto content_width = content_right + 1 - combo->x();
-    const auto wrapped = one_line_minimum > content_width;
+    const auto dropped = one_line_minimum > content_width && unlabelled_minimum <= content_width;
+    const auto wrapped = unlabelled_minimum > content_width;
     std::cout << "[INFO] " << code.toStdString() << ": blend row " << one_line_width << " px, narrowest "
-              << one_line_minimum << " px, room " << content_width << " px at the opening width\n";
+              << one_line_minimum << " px, without prefixes " << unlabelled_minimum << " px, room " << content_width
+              << " px at the opening width\n";
 #ifdef Q_OS_WIN
-    // Russian misses one line by a few pixels: pinned where the release fonts are.
+    // Russian misses one line with its prefixes by a few pixels: pinned where the release fonts are.
     if (code == QStringLiteral("ru")) {
-      CHECK(wrapped);
+      CHECK(dropped);
+    }
+    if (code == QStringLiteral("en")) {
+      CHECK(!dropped && !wrapped);
     }
 #endif
+    CHECK(prefixes_dropped() == dropped);
     if (wrapped) {
       CHECK(opacity->y() > combo->geometry().bottom());
       CHECK(opacity->x() == combo->x());
@@ -5216,45 +5247,83 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     CHECK(filter->y() > fill->geometry().bottom());
     save_widget_artifact("ui_layer_blend_row_wraps_" + code.toStdString(), *dock);
 
-    // The panel's compact width: the long prefixes wrap there in every font, Opacity
-    // under the blend mode box at its full width, Fill beside or under Opacity.
-    patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
-        window, patchy::ui::MainWindowTestAccess::right_dock_compact_width(window));
+    // The panel's compact width: too narrow for the prefixes in every language and font, so
+    // they are dropped there and the row holds one line; it would wrap only if even that
+    // did not fit, Opacity under the blend mode box at its full width.
+    const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
+    patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, compact);
     for (int pass = 0; pass < 3; ++pass) {
       QApplication::processEvents();
     }
     const auto compact_right = filter_button->geometry().right();
-    const auto compact_wrapped = one_line_minimum > compact_right + 1 - combo->x();
+    const auto compact_room = compact_right + 1 - combo->x();
+    const auto compact_wrapped = unlabelled_minimum > compact_room;
+    CHECK(prefixes_dropped() == (one_line_minimum > compact_room && !compact_wrapped));
     if (code != QStringLiteral("en")) {
-      CHECK(compact_wrapped);
+      CHECK(one_line_minimum > compact_room);
     }
+#ifdef Q_OS_WIN
+    CHECK(!compact_wrapped);
+    CHECK(prefixes_dropped());
+#endif
     if (compact_wrapped) {
       CHECK(opacity->y() > combo->geometry().bottom());
       CHECK(opacity->x() == combo->x());
       CHECK(fill->y() >= opacity->y());
-      CHECK(combo->width() == std::min(layout_item_width(*combo), compact_right + 1 - combo->x()));
+      CHECK(combo->width() == std::min(layout_item_width(*combo), compact_room));
+    } else {
+      CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+      CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
+      CHECK(opacity->x() > combo->geometry().right());
+      CHECK(fill->geometry().right() == compact_right);
     }
     CHECK(combo->geometry().right() <= compact_right);
     CHECK(fill->geometry().right() <= compact_right);
     CHECK(filter->y() > fill->geometry().bottom());
+    save_widget_artifact("ui_layer_blend_row_compact_" + code.toStdString(), *dock);
 
-    // Wide enough for the whole row: back on one line.
+    // Wide enough for the whole row: one line with the prefixes back.
     patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
         window, content_minimum + std::max(0, one_line_width - content_width) + 40);
     QApplication::processEvents();
     QApplication::processEvents();
     const auto wide_right = filter_button->geometry().right();
+    CHECK(!prefixes_dropped());
     CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
     CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
     CHECK(opacity->x() > combo->geometry().right());
     CHECK(fill->geometry().right() <= wide_right);
     CHECK(filter->y() > combo->geometry().bottom());
+
+    // The wrap itself (GitHub issues 96 and 199): fields too wide for one line even without
+    // their prefixes (a floor no prefix changes) go under the blend mode box at the compact
+    // width, Fill beside or under Opacity, and keep their prefixes there.
+    patchy::ui::configure_toolbar_spinbox(opacity, 180);
+    patchy::ui::configure_toolbar_spinbox(fill, 180);
+    opacity->updateGeometry();
+    patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, compact);
+    for (int pass = 0; pass < 4; ++pass) {
+      QApplication::processEvents();
+    }
+    const auto wrapped_right = filter_button->geometry().right();
+    CHECK(combo->minimumSizeHint().width() + unlabelled_item_width(*opacity) + unlabelled_item_width(*fill) + 12 >
+          wrapped_right + 1 - combo->x());
+    CHECK(!prefixes_dropped());
+    CHECK(opacity->y() > combo->geometry().bottom());
+    CHECK(opacity->x() == combo->x());
+    CHECK(fill->y() >= opacity->y());
+    CHECK(combo->width() == std::min(layout_item_width(*combo), wrapped_right + 1 - combo->x()));
+    CHECK(combo->geometry().right() <= wrapped_right);
+    CHECK(fill->geometry().right() <= wrapped_right);
+    CHECK(filter->y() > fill->geometry().bottom());
+    save_widget_artifact("ui_layer_blend_row_wraps_wide_fields_" + code.toStdString(), *dock);
   }
 }
 
 // GitHub issue 199: below the width the column opens at, the Layers panel
 // rows wrap instead of clipping: the footer buttons narrow and then wrap one
-// at a time (#213 follow-up), Fill drops under Opacity, and the name filter takes a line of its
+// at a time (#213 follow-up), Opacity and Fill drop their prefixes to stay beside the blend
+// mode box (#693 follow-up; they wrapped under it before), and the name filter takes a line of its
 // own. The compact width (every row wrapped) sits far under the opening width,
 // and there every control is whole, apart, and inside the panel, with no
 // sideways scroll. Narrower than that the panel scrolls sideways.
@@ -5326,7 +5395,25 @@ void ui_layer_panel_compact_width_keeps_controls_whole() {
       }
       CHECK(panel->rect().contains(rect));
       if (control.natural_width) {
-        CHECK(rect.width() >= std::min(widget->sizeHint().width(), widget->maximumWidth()));
+        // Opacity and Fill are sized for their text by configure_toolbar_spinbox (their minimum
+        // width, with or without the prefix the row may have dropped), not by Qt's own hint.
+        // The blend mode box may be narrowed, down to its minimum, to keep the row on one line
+        // (GitHub issue 693); before the labels could drop the row wrapped here and it kept its hint.
+        const auto natural = qobject_cast<QAbstractSpinBox*>(widget) != nullptr
+                                 ? widget->minimumWidth()
+                                 : qobject_cast<QComboBox*>(widget) != nullptr
+                                       ? widget->minimumSizeHint().width()
+                                       : std::min(widget->sizeHint().width(), widget->maximumWidth());
+        CHECK(rect.width() >= natural);
+      }
+      if (auto* spin = qobject_cast<QSpinBox*>(widget); spin != nullptr) {
+        // The whole value shows, clear of the popup chevron.
+        auto* editor = spin->findChild<QLineEdit*>();
+        CHECK(editor != nullptr);
+        const auto margins = editor->textMargins();
+        CHECK(editor->fontMetrics().horizontalAdvance(editor->text()) <=
+              editor->contentsRect().width() - margins.left() - margins.right() - 4);
+        CHECK(rect.width() >= patchy::ui::toolbar_spinbox_width_with_prefix(spin, !spin->prefix().isEmpty()));
       }
       if (auto* button = qobject_cast<QAbstractButton*>(widget); button != nullptr) {
         CHECK(rect.width() >= button->iconSize().width() + 4);
@@ -5370,7 +5457,9 @@ void ui_layer_panel_compact_width_keeps_controls_whole() {
 // 346 px column and at the 293 px of #680's screenshot. The box never gets narrower than
 // the default mode's name needs; a longer name ends in "..." there, its tooltip gives the
 // whole name, and the open list keeps every name whole. At the opening width the row is
-// what it was: the box as wide as its longest name.
+// what it was: the box as wide as its longest name. Where even the narrowest box does not
+// fit beside the labelled fields (German at these widths), Opacity and Fill drop their
+// "Opacity: " and "Fill: " labels and the row still holds one line (issue 693 follow-up).
 void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
   using Access = patchy::ui::MainWindowTestAccess;
   auto& manager = patchy::ui::LocalizationManager::instance();
@@ -5429,6 +5518,9 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
     const auto opacity_width = layout_item_width(*opacity);
     const auto fill_width = layout_item_width(*fill);
     const auto one_line_minimum = shrink_minimum + opacity_width + fill_width + 12;
+    // The same once the fields have dropped their labels.
+    const auto unlabelled_minimum =
+        shrink_minimum + unlabelled_item_width(*opacity) + unlabelled_item_width(*fill) + 12;
 
     for (const int width : {346, 293}) {
       Access::set_right_dock_stack_width(window, width);
@@ -5450,10 +5542,15 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
       }
 #endif
       CHECK(!overflow->horizontalScrollBar()->isVisible());
+      // The labels show exactly where the labelled row fits; both fields agree.
+      const bool dropped = patchy::ui::toolbar_spinbox_prefix_dropped(opacity);
+      CHECK(patchy::ui::toolbar_spinbox_prefix_dropped(fill) == dropped);
+      CHECK(dropped == (!fits && unlabelled_minimum <= content_width));
+      CHECK(opacity->prefix().isEmpty() == dropped && fill->prefix().isEmpty() == dropped);
       // Opacity and Fill are never narrowed, clipped or hidden; spare width widens them.
       CHECK(opacity->isVisible() && fill->isVisible());
-      CHECK(opacity->width() >= opacity_width);
-      CHECK(fill->width() >= fill_width);
+      CHECK(opacity->width() >= (dropped ? unlabelled_item_width(*opacity) : opacity_width));
+      CHECK(fill->width() >= (dropped ? unlabelled_item_width(*fill) : fill_width));
       CHECK(fill->geometry().right() <= content_right);
       CHECK(combo->geometry().right() <= content_right);
       CHECK(combo->width() >= shrink_minimum);
@@ -5467,8 +5564,17 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
         // The row ends where the filter row does (issue 680 follow-up).
         CHECK(fill->geometry().right() == content_right);
         CHECK(combo->displayed_text() == normal_name);
+      } else if (dropped) {
+        // Too narrow for the smallest box beside the labelled fields: without the labels the
+        // row holds one line and ends where the filter row does.
+        CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+        CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
+        CHECK(opacity->x() == combo->geometry().right() + 1 + 6);
+        CHECK(fill->x() == opacity->geometry().right() + 1 + 6);
+        CHECK(combo->width() == std::min(natural, content_width - opacity->width() - fill->width() - 12));
+        CHECK(fill->geometry().right() == content_right);
       } else {
-        // Too narrow even for the smallest box: the row wraps as before (#96, #199).
+        // Too narrow even without the labels: the row wraps as before (#96, #199).
         CHECK(opacity->y() > combo->geometry().bottom());
         CHECK(opacity->x() == combo->x());
       }
@@ -5504,6 +5610,7 @@ void ui_layer_blend_row_stays_on_one_line_in_narrow_panel() {
     settle();
     CHECK(combo->width() == natural);
     CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
+    CHECK(!patchy::ui::toolbar_spinbox_prefix_dropped(opacity) && !patchy::ui::toolbar_spinbox_prefix_dropped(fill));
   }
 }
 

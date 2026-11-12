@@ -85,6 +85,17 @@ inline constexpr char kToolbarSpinboxWidthSampleProperty[] = "patchy.toolbarSpin
 // measured width a minimum instead of a fixed width, so its layout can widen the box (the
 // Layers panel's Opacity and Fill fields reach the panel's right edge, issue 680 follow-up).
 inline constexpr char kToolbarSpinboxStretchProperty[] = "patchy.toolbarSpinboxStretch";
+// A toolbar spin box whose prefix gives way when its row runs out of room (the Layers panel's
+// "Opacity: " and "Fill: ", GitHub issue 693 follow-up). `set_toolbar_spinbox_prefix` replaces
+// setPrefix: it records the label and shows it unless the prefix is dropped, so a language
+// switch never brings a dropped label back. `set_toolbar_spinbox_prefix_dropped` hides or
+// restores it and re-measures the box. `toolbar_spinbox_width_with_prefix` is the measured
+// width of the box with or without its label, from the font and whichever state shows, so a
+// layout decides from both before it changes anything.
+void set_toolbar_spinbox_prefix(QSpinBox* spin, const QString& prefix);
+void set_toolbar_spinbox_prefix_dropped(QSpinBox* spin, bool dropped);
+[[nodiscard]] bool toolbar_spinbox_prefix_dropped(const QSpinBox* spin);
+[[nodiscard]] int toolbar_spinbox_width_with_prefix(const QSpinBox* spin, bool with_prefix);
 // Set this bool property on an integer toolbar spin box to give its popup slider the
 // SliderCurve::FineLowEnd response (curved_slider.hpp) for size-like ranges.
 inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSliderCurved";
@@ -106,7 +117,8 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 //   I-beam shows. A scrub that started on an unfocused field gives focus back.
 // `install_prefix_scrub` gives a prefixed spin box with no label (Layers panel
 // Opacity/Fill) the field handle and makes its prefix text a label-like handle whose
-// click also enters editing. `install_scrub_labels_in` walks a
+// click also enters editing; so is the empty room left of the number, which is all that
+// is left of the handle once the prefix is dropped. `install_scrub_labels_in` walks a
 // container's layout (nested layouts, child containers, QScrollArea contents and
 // QTabWidget pages included) and pairs every QLabel with letters in its text with the
 // spin box it names: the label's buddy when that is a spin box, else the next item in
