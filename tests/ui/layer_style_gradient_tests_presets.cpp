@@ -10,6 +10,7 @@
 #include "ui/tool_palette_customization.hpp"
 #include "ui/fill_dialog.hpp"
 #include "ui/selection_modify_dialogs.hpp"
+#include "ui/color_range_dialog.hpp"
 #include "ui/layer_lock_dialog.hpp"
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/perspective_planes_dialog.hpp"
@@ -1592,6 +1593,24 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::request_selection_smooth_radius(nullptr, 1);
     grab_dialog(QStringLiteral("patchyFeatherSelectionDialog"), "feather_selection");
     (void)patchy::ui::request_selection_feather_radius(nullptr, 5.0);
+    grab_dialog(QStringLiteral("patchyColorRangeDialog"), "color_range");
+    {
+      patchy::ui::ColorRangeSettings color_range;
+      color_range.range.samples = {patchy::ColorRangeSample{80, 140, 220, false},
+                                   patchy::ColorRangeSample{200, 60, 40, true}};
+      patchy::ui::ColorRangeDialogHooks color_range_hooks;
+      color_range_hooks.source_image = [](bool) {
+        QImage picture(96, 72, QImage::Format_RGBA8888);
+        picture.fill(QColor(80, 140, 220));
+        for (int y = 20; y < 52; ++y) {
+          for (int x = 30; x < 66; ++x) {
+            picture.setPixelColor(x, y, QColor(200, 60, 40));
+          }
+        }
+        return picture;
+      };
+      (void)patchy::ui::request_color_range_settings(nullptr, color_range, color_range_hooks);
+    }
     grab_dialog(QStringLiteral("layerLocksDialog"), "layer_locks");
     (void)patchy::ui::request_layer_locks(
         nullptr, {patchy::ui::LayerLockChoice::On, patchy::ui::LayerLockChoice::Off, patchy::ui::LayerLockChoice::Mixed,
@@ -1643,7 +1662,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 42);
+  CHECK(captured == 44);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

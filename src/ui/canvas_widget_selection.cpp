@@ -2176,6 +2176,24 @@ void CanvasWidget::finish_quick_mask_edit() {
   }
 }
 
+void CanvasWidget::apply_selection_mask(QRect bounds, QImage alpha, SelectionMode operation, QString history_label) {
+  if (document_ == nullptr) {
+    return;
+  }
+  selection_edges_visible_ = true;
+  capture_selection_before_edit();
+  const auto previous_operation = selection_operation_;
+  selection_operation_ = operation;
+  // An empty or all-zero mask is an empty candidate: Replace deselects, the other
+  // operations keep or clear the selection as their boolean says.
+  combine_selection_from_mask(bounds, std::move(alpha));
+  selection_operation_ = previous_operation;
+  record_selection_history(std::move(history_label), selection_snapshot_before_edit());
+  clear_selection_before_edit();
+  refresh_info_display();
+  update();
+}
+
 void CanvasWidget::combine_selection_from_region(const QRegion& candidate) {
   // Replace ignores the selection before the edit, so a soft one (an
   // anti-aliased Lasso) must not route each marquee drag move through a mask

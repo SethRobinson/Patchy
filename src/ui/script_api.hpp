@@ -257,6 +257,8 @@ public:
   // Select > Smooth (radius 1..500) and Select > Feather (0.1..1000); no-ops without a selection.
   Q_INVOKABLE void smooth(double radius);
   Q_INVOKABLE void feather(double radius);
+  // Select > Color Range (script_color_range.cpp, docs/color-range.md).
+  Q_INVOKABLE void selectColorRange(const QJSValue& options);
   Q_INVOKABLE void fromPath(const QJSValue& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue toPath(const QJSValue& options = QJSValue()) const;
   // The selection as an 8-bit coverage plane, and back (script_pixel_io.cpp).

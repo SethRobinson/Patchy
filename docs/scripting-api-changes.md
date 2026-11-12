@@ -23,6 +23,15 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-12 (addition): `doc.selection.selectColorRange(options)` is Select > Color Range (GitHub
+issue 709, [color-range.md](color-range.md)): a soft selection from each pixel's own color.
+Options: `range` (`"sampled"`, the default, or `"reds"`, `"yellows"`, `"greens"`, `"cyans"`,
+`"blues"`, `"magentas"`, `"highlights"`, `"midtones"`, `"shadows"`; permanent tokens), `colors` and
+`subtractColors` (arrays of `"#rrggbb"` strings, at most 32 in all; `"sampled"` needs at least one
+color), `fuzziness` (whole number 0 to 200, default 40), `invert`, `operation` (`"replace"`, `"add"`,
+`"subtract"`, `"intersect"`) and `sampleAllLayers` (default true). It throws on an unknown option,
+range or color and on a value out of range, before the selection changes. Works at 8, 16 and 32
+bits. Pinned by `ui_script_select_color_range_selects_by_color`.
 2026-11-11 (behavioral): `doc.resizeCanvas` no longer leaves the Background's name and locks on a
 layer that stopped being the Background (GitHub issue 701,
 [background-layer.md](background-layer.md#canvas-changes)). With options, a resize that leaves the

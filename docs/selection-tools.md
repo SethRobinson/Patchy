@@ -1,6 +1,6 @@
 # Selection tools: Marquee, Quick Select, Polygonal and Magnetic Lasso, marching ants
 
-Deep reference for the selection-tool engines. The summary in [legal-constraints.md](legal-constraints.md) is binding; read it before touching Quick Select or Magnetic Lasso behavior.
+Deep reference for the selection-tool engines. The summary in [legal-constraints-selection.md](legal-constraints-selection.md) is binding; read it before touching Quick Select, Magnetic Lasso or Color Range behavior.
 
 Related documents:
 
@@ -8,6 +8,7 @@ Related documents:
 - [selection-tools-regions.md](selection-tools-regions.md): the traced and cached marching-ants outline, per-pixel selection lookups, combination with the pre-gesture snapshot, Select > Inverse of a soft selection, and Edit > Stroke Selection.
 - [lasso-tools.md](lasso-tools.md): the Polygonal Lasso and the Magnetic Lasso's live-wire tracing.
 - [selection-modify.md](selection-modify.md): Select > Smooth and Select > Feather (issue 614).
+- [color-range.md](color-range.md): Select > Color Range (issue 709): the color, hue and tone rules, the dialog, the script call.
 
 ## Behavior the selection tools share
 

@@ -1,6 +1,6 @@
 # Automatic selection: Select Subject and the Object Selection tool
 
-Photoshop-style automatic selection that runs on the CPU only, so it works on every desktop Patchy supports without a GPU. The binding patent rules are the "Automatic selection" bullet in [legal-constraints.md](legal-constraints.md); the claim record is in [patent-research-selection.md](patent-research-selection.md). Read both before changing how prompts, masks or modes reach a network.
+Photoshop-style automatic selection that runs on the CPU only, so it works on every desktop Patchy supports without a GPU. The binding patent rules are the "Automatic selection" bullet in [legal-constraints-selection.md](legal-constraints-selection.md); the claim record is in [patent-research-selection.md](patent-research-selection.md). Read both before changing how prompts, masks or modes reach a network.
 
 Related documents:
 

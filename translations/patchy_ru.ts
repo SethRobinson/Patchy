@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation>По образцам</translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation>Красные</translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation>Желтые</translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation>Зелёные</translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation>Голубые</translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation>Синие</translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation>Пурпурные</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>Светлые тона</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>Средние тона</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>Тени</translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation>Новое выделение</translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation>Добавить к выделению</translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation>Вычесть из выделения</translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation>Пересечение с выделением</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>Цветовой диапазон</translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation>Белое выделено, чёрное нет. Щёлкните здесь или по изображению, чтобы взять образец цвета.</translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation>Выделить:</translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation>Разброс:</translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation>Взять</translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation>Щелчок начинает заново с цвета под указателем</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Добавить</translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation>Щелчок добавляет цвет под указателем (Shift+щелчок)</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>Вычесть</translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation>Щелчок убирает цвет под указателем (Alt+щелчок)</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Образец:</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Очистить</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>Цвета:</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>Результат:</translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation>Образец со всех слоёв</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>Инвертировать</translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation>Щёлкните по изображению или предпросмотру, чтобы взять образец цвета. Shift добавляет цвет, Alt убирает.</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21811,6 +21938,10 @@ Do you want to replace it?</source>
         <source>Turn the brush tip clockwise by 1 degree</source>
         <translation>Повернуть отпечаток кисти на 1 градус по часовой стрелке</translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation>Выделить по цвету, цветовому тону или яркости</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36026,6 +36157,34 @@ Locked: %1</source>
         <source>Brush angle: %1</source>
         <translation>Угол кисти: %1</translation>
     </message>
+    <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation>&amp;Цветовой диапазон...</translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation>Выделить по цвету: по образцам, по цветовому тону или светлые, средние тона и тени</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation>Завершите текущее перетаскивание перед использованием цветового диапазона</translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation>Цветовой диапазон не нашёл, что взять за образец</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>Цветовой диапазон</translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation>Цветовой диапазон не нашёл подходящих пикселей</translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation>Цветовой диапазон выделен</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39232,6 +39391,18 @@ Locked: %1</source>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
         <translation>cssForLayers требует массив слоёв этого документа.</translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation>Выйдите из быстрой маски, прежде чем использовать selectColorRange.</translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation>selectColorRange не удалось прочитать документ.</translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
+        <translation>Недопустимый параметр selectColorRange: %1.</translation>
     </message>
 </context>
 <context>
