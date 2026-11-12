@@ -3339,7 +3339,7 @@ patchy::BrushShape CanvasWidget::dab_stroke_brush_shape() const noexcept {
 
 EditOptions CanvasWidget::current_brush_edit_options(const EffectiveBrushInput& brush) const {
   const auto opacity = tool_ == CanvasTool::MixerBrush ? 100 : brush.opacity;
-  return edit_options(primary_color_, secondary_color_, brush.size, opacity, brush.softness, fill_shapes_,
+  return edit_options(primary_color_, secondary_color_, brush.size, opacity, brush.softness, fill_shapes(),
                       active_layer_locks_transparent_pixels(), *this, brush.roundness, brush.angle_degrees);
 }
 

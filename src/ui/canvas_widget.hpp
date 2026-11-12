@@ -916,6 +916,10 @@ public:
   [[nodiscard]] bool snap_transforms_to_pixel_grid() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
   [[nodiscard]] bool fill_shapes() const noexcept;
+  // The whole Pixels-mode shape style (GitHub issue 716); set_fill_shapes sets only its draw
+  // mode, Fill or Stroke.
+  void set_shape_pixel_style(const ShapePixelStyle& style);
+  [[nodiscard]] const ShapePixelStyle& shape_pixel_style() const noexcept;
   void set_shape_corner_radius(int radius) noexcept;
   [[nodiscard]] int shape_corner_radius() const noexcept;
   void set_fill_opacity(int opacity) noexcept;
@@ -4150,7 +4154,7 @@ private:
   bool quick_select_sample_all_layers_{false};
   bool quick_select_enhance_edge_{false};
   bool show_transform_controls_{true};
-  bool fill_shapes_{false};
+  ShapePixelStyle shape_pixel_style_;
   int shape_corner_radius_{0};
   int fill_opacity_{100};
   int fill_softness_{0};

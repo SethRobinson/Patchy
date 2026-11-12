@@ -35987,6 +35987,54 @@ Locked: %1</source>
         <source>Finish the transform to edit the shape here.</source>
         <translation>変形を終了すると、ここでシェイプを編集できます。</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>塗りのみ: シェイプの内側を描きます</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>線のみ: シェイプの輪郭を描きます</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>塗りと線: 内側と輪郭を描きます</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>ピクセルとして描くシェイプの塗りの色: 描画色、または独自の色</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>線の太さ (ブラシサイズ)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>ピクセルとして描くシェイプの線の色: 描画色、または独自の色</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>線の破線。破線のプリセットはバット先端、点のプリセットは丸い先端を使います</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>内側</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>外側</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>シェイプの輪郭に対する線の位置: 内側、中央、または外側</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>シェイプの縦横比の幅</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>シェイプの縦横比の高さ</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

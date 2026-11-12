@@ -136,7 +136,6 @@ struct ActionBuildContext {
   QAction* brush_larger_action{nullptr};
   QAction* brush_much_smaller_action{nullptr};
   QAction* brush_much_larger_action{nullptr};
-  QCheckBox* fill_shapes{nullptr};
 };
 
 }  // namespace patchy::ui

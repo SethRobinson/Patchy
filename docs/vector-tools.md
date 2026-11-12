@@ -44,7 +44,7 @@ enter the document store at commit (`ensure_vector_fill_patterns`, honoring
 the [Patt-block refusal](vector-psd-encodings.md#shape-and-fill-layer-structure)). Kind and preset ids persist under
 vectorFill*/vectorStrokePaint* keys; gradient/pattern PLACEMENT resets each
 launch. The controls also serve Path Select / Direct Select and next-shape
-defaults; [width 0 = no stroke](options-bar.md#shape-tool-rows) (bar,
+defaults; [width 0 = no stroke](options-bar-shape-rows.md#shape-tool-rows) (bar,
 dialog); multi-shape edits: [batch appearance](batch-appearance.md).
 
 A bare click with Rectangle, Ellipse, Polygon, or Custom Shape opens the

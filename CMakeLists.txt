@@ -1553,6 +1553,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/shape_appearance_dialog.cpp
       src/ui/shape_appearance_panel.hpp
       src/ui/shape_appearance_panel.cpp
+      src/ui/shape_pixel_options.hpp
+      src/ui/shape_pixel_options.cpp
       src/ui/appearance_edits.hpp
       src/ui/appearance_edits.cpp
       src/ui/appearance_properties.hpp

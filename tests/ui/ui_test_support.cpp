@@ -1491,6 +1491,10 @@ void cleanup_after_visual_test() {
         "tools/brushMode",
         "tools/brushAirbrush", "tools/brushTip", "tools/brushPreset", "tools/eraserSize", "tools/eraserOpacity",
         "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill",
+        // The Rectangle and Ellipse Pixels row (GitHub issue 716): a test that picked a draw
+        // mode, a color, dashes or an alignment must not start the next test's window with it.
+        "tools/shapeDrawMode", "tools/shapePixelFillColor", "tools/shapePixelStrokeColor",
+        "tools/shapePixelStrokeDashes", "tools/shapePixelStrokeAlign",
         // The foreground/background pair (GitHub issue 339): a test that picked a color must
         // not start the next test's window painting in it.
         "tools/foregroundColor", "tools/backgroundColor",

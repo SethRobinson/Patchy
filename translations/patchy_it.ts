@@ -36096,6 +36096,54 @@ Bloccato: %1</translation>
         <source>Finish the transform to edit the shape here.</source>
         <translation>Completa la trasformazione per modificare la forma qui.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>Solo riempimento: dipinge l&apos;interno della forma</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>Solo traccia: dipinge il contorno della forma</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>Riempimento e traccia: dipinge l&apos;interno e il contorno</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Colore di riempimento delle forme disegnate come pixel: il colore di primo piano o un colore proprio</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>Spessore traccia (la dimensione del pennello)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Colore della traccia delle forme disegnate come pixel: il colore di primo piano o un colore proprio</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>Tratteggio della traccia. I tratteggi usano estremità piatte; i punti usano estremità arrotondate</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>Interno</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>Esterno</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>Posizione della traccia rispetto al contorno della forma: all&apos;interno, centrata o all&apos;esterno</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>Parte di larghezza delle proporzioni della forma</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>Parte di altezza delle proporzioni della forma</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -8515,7 +8515,7 @@ void ui_shape_size_controls_follow_move_and_properties_selection() {
   CHECK(std::abs(properties_height->value() - 60.0) < 0.5);
 }
 
-void ui_shape_style_row_is_pixel_only_and_greys_size_at_normal() {
+void ui_shape_style_row_is_pixel_only_and_hides_size_at_normal() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
@@ -8536,18 +8536,30 @@ void ui_shape_style_row_is_pixel_only_and_greys_size_at_normal() {
   mode_combo->setCurrentIndex(2);  // Pixels
   QApplication::processEvents();
   CHECK(style_combo->isVisible());
-  CHECK(fixed_width->isVisible());
   CHECK(style_combo->currentIndex() == 0);  // Normal
-  CHECK(!fixed_width->isEnabled());
-  CHECK(!fixed_height->isEnabled());
+  // Normal hides the size fields (GitHub issue 716; it greyed them before), Fixed Size
+  // shows the pixel pair and Fixed Ratio a ratio pair of its own.
+  auto* ratio_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("shapeRatioWidthSpin"));
+  CHECK(ratio_width != nullptr);
+  CHECK(!fixed_width->isVisible());
+  CHECK(!fixed_height->isVisible());
+  CHECK(ratio_width != nullptr && !ratio_width->isVisible());
+  style_combo->setCurrentIndex(2);  // Fixed Size
+  QApplication::processEvents();
+  CHECK(fixed_width->isVisible() && fixed_width->isEnabled());
+  CHECK(fixed_height->isVisible() && fixed_height->isEnabled());
+  CHECK(ratio_width != nullptr && !ratio_width->isVisible());
   style_combo->setCurrentIndex(1);  // Fixed Ratio
-  CHECK(fixed_width->isEnabled());
-  CHECK(fixed_height->isEnabled());
+  QApplication::processEvents();
+  CHECK(!fixed_width->isVisible());
+  CHECK(ratio_width != nullptr && ratio_width->isVisible() && ratio_width->isEnabled());
   style_combo->setCurrentIndex(0);
-  CHECK(!fixed_width->isEnabled());
+  QApplication::processEvents();
+  CHECK(!fixed_width->isVisible());
+  CHECK(ratio_width != nullptr && !ratio_width->isVisible());
   mode_combo->setCurrentIndex(0);
 
-  // The marquee's twin row hides its size fields at Normal instead (GitHub issue 602).
+  // The marquee's twin row does the same (GitHub issue 602).
   auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
   auto* marquee_width = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedWidthSpin"));
   CHECK(marquee_style != nullptr && marquee_width != nullptr);
@@ -8594,7 +8606,7 @@ void ui_options_bar_never_shows_pixel_widgets_in_shape_mode() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
-  auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
+  auto* fill_check = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
   CHECK(options_bar != nullptr && fill_check != nullptr && style_combo != nullptr &&
@@ -9370,14 +9382,15 @@ void ui_options_bar_mode_combo_stays_first_for_shape_tools() {
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
-  auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  // The Pixels row's Opacity (GitHub issue 716; the brush's own field before).
+  auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("shapePixelOpacitySpin"));
   auto* fill_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
   CHECK(mode_combo != nullptr && brush_opacity != nullptr && fill_swatch != nullptr);
   const auto shape_position = mode_combo->mapTo(&window, QPoint(0, 0));
   CHECK(!brush_opacity->isVisible());
   CHECK(shape_position.x() < fill_swatch->mapTo(&window, QPoint(0, 0)).x());
 
-  mode_combo->setCurrentIndex(2);  // Pixels: the brush trio appears AFTER Mode
+  mode_combo->setCurrentIndex(2);  // Pixels: its row appears AFTER Mode
   QApplication::processEvents();
   CHECK(brush_opacity->isVisible());
   CHECK(mode_combo->mapTo(&window, QPoint(0, 0)) == shape_position);
@@ -10067,8 +10080,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_size_controls_follow_move_and_properties_selection},
       {"ui_shape_size_row_shows_in_shape_mode_only", ui_shape_size_row_shows_in_shape_mode_only},
       {"ui_shape_context_menu_offers_shape_commands", ui_shape_context_menu_offers_shape_commands},
-      {"ui_shape_style_row_is_pixel_only_and_greys_size_at_normal",
-       ui_shape_style_row_is_pixel_only_and_greys_size_at_normal},
+      {"ui_shape_style_row_is_pixel_only_and_hides_size_at_normal",
+       ui_shape_style_row_is_pixel_only_and_hides_size_at_normal},
       {"ui_options_bar_never_shows_pixel_widgets_in_shape_mode",
        ui_options_bar_never_shows_pixel_widgets_in_shape_mode},
       {"ui_path_overlay_follows_move_drag", ui_path_overlay_follows_move_drag},

@@ -36096,6 +36096,54 @@ Bloqueada: %1</translation>
         <source>Finish the transform to edit the shape here.</source>
         <translation>Termine la transformación para editar la forma aquí.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>Solo relleno: pinta el interior de la forma</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>Solo trazo: pinta el contorno de la forma</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>Relleno y trazo: pinta el interior y el contorno</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Color de relleno de las formas dibujadas como píxeles: el color frontal o un color propio</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>Grosor del trazo (el tamaño del pincel)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Color de trazo de las formas dibujadas como píxeles: el color frontal o un color propio</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>Guiones del trazo. Los guiones usan terminaciones planas; los puntos usan terminaciones redondeadas</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>Interior</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>Exterior</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>Posición del trazo respecto al contorno de la forma: por dentro, centrado o por fuera</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>Parte de anchura de la proporción de la forma</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>Parte de altura de la proporción de la forma</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -36096,6 +36096,54 @@ Fixiert: %1</translation>
         <source>Finish the transform to edit the shape here.</source>
         <translation>Schließen Sie die Transformation ab, um die Form hier zu bearbeiten.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>Nur Fläche: das Innere der Form malen</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>Nur Kontur: den Umriss der Form malen</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>Fläche und Kontur: das Innere und den Umriss malen</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Flächenfarbe für als Pixel gezeichnete Formen: die Vordergrundfarbe oder eine eigene Farbe</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>Konturbreite (die Pinselgröße)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Konturfarbe für als Pixel gezeichnete Formen: die Vordergrundfarbe oder eine eigene Farbe</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>Striche der Kontur. Strichvorgaben verwenden abgeflachte Abschlüsse, Punktvorgaben runde Abschlüsse</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>Innen</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>Außen</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>Lage der Kontur am Umriss der Form: innen, mittig oder außen</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>Breitenanteil des Seitenverhältnisses der Form</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>Höhenanteil des Seitenverhältnisses der Form</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

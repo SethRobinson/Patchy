@@ -116,6 +116,7 @@ class ToolPaletteFooter;
 class ToolPaletteLayout;
 class ArtboardPresetPicker;
 struct StrokeStylePreset;
+struct ShapePixelOptions;
 enum class LayerCtrlClickTarget;
 }  // namespace patchy::ui
 class QShowEvent;
@@ -4666,11 +4667,11 @@ private:
   int current_crop_overlay_{1};
   int current_crop_overlay_orientation_{0};
   bool current_crop_overlay_while_dragging_{false};
-  bool current_fill_shapes_{false};
   int current_shape_corner_radius_{0};
-  MarqueeStyle current_shape_style_{MarqueeStyle::Normal};
-  int current_shape_width_{1024};
-  int current_shape_height_{768};
+  // The Rectangle and Ellipse tools' Pixels-mode options (GitHub issue 716): the draw mode,
+  // the fill and stroke colors, dashes, alignment and the Style with its size pairs, with
+  // the controls that set them (ui/shape_pixel_options.hpp). Made by build_options_bar.
+  std::unique_ptr<ShapePixelOptions> shape_pixel_options_;
   VectorToolMode current_vector_tool_mode_{VectorToolMode::Shape};
   bool current_pen_auto_add_delete_{true};
   int current_fill_opacity_{100};

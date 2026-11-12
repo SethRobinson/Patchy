@@ -1,6 +1,8 @@
 #include <QSplitter>
 #include <QWindow>
 #include "ui/main_window.hpp"
+
+#include "ui/shape_pixel_options.hpp"
 #include "ui/quick_mask_trace.hpp"
 #include "ui/options_flow_layout.hpp"
 #include "support/startup_trace.hpp"

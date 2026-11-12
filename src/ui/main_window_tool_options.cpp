@@ -70,6 +70,7 @@
 #include "ui/layer_lock_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/shape_appearance_dialog.hpp"
+#include "ui/shape_pixel_options.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
 #include "ui/stroke_preset_manager_dialog.hpp"
@@ -2345,6 +2346,12 @@ void MainWindow::refresh_color_buttons() {
   stash_active_colors();
   const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
   const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : background_color_;
+  // The Pixels-mode shape swatches show the foreground color until they have their own.
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->show_swatches(primary_color, [this](const VectorFill& paint, const QToolButton& button) {
+      return options_bar_swatch_icon(paint, button);
+    });
+  }
   if (gradient_library_ != nullptr) {
     gradient_library_->set_preview_colors(gradient_preview_colors(primary_color, secondary_color));
   }
@@ -2754,11 +2761,12 @@ void MainWindow::load_tool_settings() {
     const QSignalBlocker blocker(corner_radius);
     corner_radius->setValue(current_marquee_corner_radius_);
   }
-  current_fill_shapes_ = stored_bool(settings, "tools/shapeFill", current_fill_shapes_);
-  canvas_->set_fill_shapes(current_fill_shapes_);
-  if (auto* fill_shapes = findChild<QCheckBox*>(QStringLiteral("shapeFillCheck")); fill_shapes != nullptr) {
-    const QSignalBlocker blocker(fill_shapes);
-    fill_shapes->setChecked(current_fill_shapes_);
+  // The Pixels-mode shape style (GitHub issue 716); tools/shapeFill, the old Fill checkbox,
+  // seeds the draw mode when no mode was saved yet.
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->load(settings);
+    shape_pixel_options_->apply_to_canvas(*canvas_);
+    shape_pixel_options_->sync_style_controls();
   }
   canvas_->set_quick_select_size(
       settings.value(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size()).toInt());
@@ -3496,7 +3504,9 @@ void MainWindow::save_tool_settings() const {
     }
   }
   settings.setValue(QStringLiteral("tools/marqueeCornerRadius"), current_marquee_corner_radius_);
-  settings.setValue(QStringLiteral("tools/shapeFill"), current_fill_shapes_);
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->save(settings);
+  }
   settings.setValue(QStringLiteral("tools/mixerWet"), current_mixer_wet_);
   settings.setValue(QStringLiteral("tools/mixerLoad"), current_mixer_load_);
   settings.setValue(QStringLiteral("tools/mixerMix"), current_mixer_mix_);
@@ -4186,12 +4196,15 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
   if (options_flow_container_ == nullptr) {
     return;
   }
-  // The rows depend on the vector mode, the live shape layer, the crop and marquee
-  // styles and the registered widgets; the active tool does not change them.
+  // The rows depend on the vector mode, the live shape layer, the crop, marquee and
+  // Pixels-mode shape styles and the registered widgets; the active tool does not change them.
+  const auto shape_size_style =
+      shape_pixel_options_ != nullptr ? shape_pixel_options_->size_style : MarqueeStyle::Normal;
   const auto key = static_cast<qint64>(live_shape) | (static_cast<qint64>(current_vector_tool_mode_) << 1) |
                    (static_cast<qint64>(current_crop_style_) << 4) |
                    (static_cast<qint64>(current_marquee_style_) << 6) |
-                   (static_cast<qint64>(option_actions_.size()) << 8);
+                   (static_cast<qint64>(shape_size_style) << 8) |
+                   (static_cast<qint64>(option_actions_.size()) << 10);
   if (key == options_bar_rows_key_) {
     return;
   }
@@ -4212,7 +4225,8 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
       const bool tool_matches =
           widget_tools.empty() || std::find(widget_tools.begin(), widget_tools.end(), tool) != widget_tools.end();
       return tool_matches && vector_option_widget_visible(rules, widget) && crop_option_widget_visible(widget) &&
-             marquee_option_widget_visible(widget);
+             marquee_option_widget_visible(widget) &&
+             (shape_pixel_options_ == nullptr || shape_pixel_options_->widget_visible(widget));
     };
     const auto stray = stray_option_separators(option_actions_, in_row);
     QSet<QWidget*> row;
@@ -4298,6 +4312,7 @@ void MainWindow::refresh_options_bar() {
     const auto tool_matches = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
     return tool_matches && !transform_session_active && vector_option_widget_visible(mode_rules, widget) &&
            crop_option_widget_visible(widget) && marquee_option_widget_visible(widget) &&
+           (shape_pixel_options_ == nullptr || shape_pixel_options_->widget_visible(widget)) &&
            !(collapse_sliders && widget->property(kOptionsBarCollapsibleProperty).toBool());
   };
   const auto stray_separators = stray_option_separators(option_actions_, tool_visibility);
@@ -4338,10 +4353,9 @@ void MainWindow::refresh_options_bar() {
     if (widget->objectName() == QStringLiteral("mixerMixSpin")) {
       enabled = enabled && current_mixer_wet_ > 0;
     }
-    // Style Normal ignores the size fields, so they stay greyed across refreshes.
-    if (widget->objectName() == QStringLiteral("shapeFixedWidthSpin") ||
-        widget->objectName() == QStringLiteral("shapeFixedHeightSpin")) {
-      enabled = enabled && current_shape_style_ != CanvasWidget::MarqueeStyle::Normal;
+    // Pixels-mode shapes: Stroke only greys the Fill group, Fill only the Stroke group.
+    if (shape_pixel_options_ != nullptr) {
+      enabled = enabled && shape_pixel_options_->widget_enabled(widget);
     }
     if (widget->objectName() == QStringLiteral("selectionFixedWidthSpin") ||
         widget->objectName() == QStringLiteral("selectionFixedHeightSpin")) {
@@ -4841,6 +4855,10 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
     QSignalBlocker blocker(brush_softness);
     brush_softness->setValue(canvas_->brush_softness());
+  }
+  // The Rectangle and Ellipse Pixels row mirrors the size, opacity and softness.
+  if (shape_pixel_options_ != nullptr) {
+    shape_pixel_options_->sync_brush_fields(*canvas_);
   }
   if (auto* brush_smoothing = findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
       brush_smoothing != nullptr) {

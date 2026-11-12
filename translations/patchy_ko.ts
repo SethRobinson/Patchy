@@ -35987,6 +35987,54 @@ Locked: %1</source>
         <source>Finish the transform to edit the shape here.</source>
         <translation>여기에서 모양을 편집하려면 변환을 완료하세요.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>채우기만: 도형의 안쪽을 칠합니다</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>획만: 도형의 윤곽선을 칠합니다</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>채우기와 획: 안쪽과 윤곽선을 칠합니다</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>픽셀로 그리는 도형의 채우기 색상: 전경색 또는 자체 색상</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>획 너비 (브러시 크기)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>픽셀로 그리는 도형의 획 색상: 전경색 또는 자체 색상</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>획 점선. 점선 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡을 사용합니다</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>안쪽</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>바깥쪽</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>도형 윤곽선에서 획이 놓이는 위치: 안쪽, 중앙 또는 바깥쪽</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>도형 종횡비의 너비 값</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>도형 종횡비의 높이 값</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

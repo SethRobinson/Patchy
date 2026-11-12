@@ -36205,6 +36205,54 @@ Locked: %1</source>
         <source>Finish the transform to edit the shape here.</source>
         <translation>Завершите преобразование, чтобы редактировать фигуру здесь.</translation>
     </message>
+    <message>
+        <source>Fill only: paint the inside of the shape</source>
+        <translation>Только заливка: закрашивает внутреннюю часть фигуры</translation>
+    </message>
+    <message>
+        <source>Stroke only: paint the outline of the shape</source>
+        <translation>Только обводка: рисует контур фигуры</translation>
+    </message>
+    <message>
+        <source>Fill and stroke: paint the inside and the outline</source>
+        <translation>Заливка и обводка: закрашивает внутреннюю часть и рисует контур</translation>
+    </message>
+    <message>
+        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Цвет заливки фигур, рисуемых пикселями: основной цвет или собственный цвет</translation>
+    </message>
+    <message>
+        <source>Stroke width (the brush size)</source>
+        <translation>Толщина обводки (размер кисти)</translation>
+    </message>
+    <message>
+        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
+        <translation>Цвет обводки фигур, рисуемых пикселями: основной цвет или собственный цвет</translation>
+    </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
+        <translation>Штрихи обводки. Штриховые наборы используют плоские концы, точечные наборы используют круглые концы</translation>
+    </message>
+    <message>
+        <source>Inside</source>
+        <translation>Внутри</translation>
+    </message>
+    <message>
+        <source>Outside</source>
+        <translation>Снаружи</translation>
+    </message>
+    <message>
+        <source>Where the stroke sits on the shape&apos;s outline: inside it, centered on it, or outside it</source>
+        <translation>Положение обводки относительно контура фигуры: внутри, по центру или снаружи</translation>
+    </message>
+    <message>
+        <source>Width part of the shape&apos;s aspect ratio</source>
+        <translation>Ширина в пропорциях фигуры</translation>
+    </message>
+    <message>
+        <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation>Высота в пропорциях фигуры</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

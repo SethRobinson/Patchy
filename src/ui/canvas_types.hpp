@@ -4,6 +4,7 @@
 // Persisted enum values are append-only. CanvasWidget keeps aliases for callers.
 #include "core/layer.hpp"
 #include "core/document_channel.hpp"
+#include "core/vector_shape.hpp"
 
 #include <QColor>
 #include <QImage>
@@ -278,6 +279,22 @@ enum class MarqueeStyle {
   Normal,
   FixedRatio,
   FixedSize
+};
+
+// What the Rectangle and Ellipse tools paint in Pixels mode (GitHub issue 716; the options
+// bar's Fill only, Stroke only and Both buttons). Saved as tools/shapeDrawMode by token.
+enum class ShapeDrawMode : std::uint8_t { Stroke, Fill, Both };
+
+// The Pixels-mode shape style: the draw mode, a fill and a stroke color of their own (unset
+// follows the foreground color, as these tools always painted), and the stroke's dashes and
+// alignment. The stroke's width is the brush size. docs/tools.md, "Shapes in Pixels mode".
+struct ShapePixelStyle {
+  ShapeDrawMode mode{ShapeDrawMode::Stroke};
+  std::optional<QColor> fill_color;
+  std::optional<QColor> stroke_color;
+  patchy::StrokeDashPreset dashes{patchy::StrokeDashPreset::Solid};
+  patchy::VectorStrokeAlignment alignment{patchy::VectorStrokeAlignment::Center};
+  friend bool operator==(const ShapePixelStyle&, const ShapePixelStyle&) = default;
 };
 
 enum class PatchToolMode {
