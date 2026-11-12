@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation>取樣顏色</translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation>紅色</translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation>黃色</translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation>綠色</translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation>藍色</translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation>洋紅</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>亮部</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>中間調</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>陰影</translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation>新增選取範圍</translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation>增加至選取範圍</translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation>從選取範圍中減去</translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation>與選取範圍相交</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>顏色範圍</translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation>白色為已選取，黑色為未選取。按一下此處或影像以取樣顏色。</translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation>選取:</translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation>顏色容許度:</translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation>選取</translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation>按一下後從其下方的顏色重新開始</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>增加</translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation>按一下後增加其下方的顏色（Shift+按一下）</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>減去</translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation>按一下後去掉其下方的顏色（Alt+按一下）</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>樣本:</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>清除</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>顏色:</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>結果:</translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation>取樣全部圖層</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>反轉</translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation>按一下影像或預覽以取樣顏色。Shift 增加顏色，Alt 去掉顏色。</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21675,6 +21802,10 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>裁切工具：裁切框保持不動，在其後方移動或旋轉影像</translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation>依顏色、色相或明暗選取</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35776,6 +35907,34 @@ Locked: %1</source>
         <source>Drag along something that should be level or upright</source>
         <translation>沿著應該水平或垂直的物體拖曳</translation>
     </message>
+    <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation>顏色範圍(&amp;N)...</translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation>依顏色選取：取樣顏色、色相，或亮部、中間調、陰影</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation>請先完成目前的拖曳，再使用顏色範圍</translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation>顏色範圍找不到可取樣的內容</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>顏色範圍</translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation>顏色範圍找不到相符的像素</translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation>已選取顏色範圍</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38974,6 +39133,18 @@ Locked: %1</source>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
         <translation>cssForLayers 需要由此文件的圖層組成的陣列。</translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation>使用 selectColorRange 前請先結束快速遮色片。</translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation>selectColorRange 無法讀取文件。</translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
+        <translation>無效的 selectColorRange 選項：%1。</translation>
     </message>
 </context>
 <context>

@@ -750,6 +750,10 @@ public:
   // Expand does, before the Feather (Content-Aware Move's Object Selection).
   void apply_automatic_selection_mask(QRect bounds, QImage alpha, SelectionMode operation, QString history_label,
                                       int grow_pixels = 0);
+  // Combines a coverage mask (document coordinates, Grayscale8) with the selection by the
+  // plain boolean as one undo entry, exactly as given: no Feather, no Anti-alias threshold
+  // (Select > Color Range, docs/color-range.md). An empty mask selects nothing.
+  void apply_selection_mask(QRect bounds, QImage alpha, SelectionMode operation, QString history_label);
   // Select Object (selection right-click menu): the selection's bounding box as one Object
   // Selection box prompt; the object found replaces the selection. False on failure.
   bool select_object_in_selection();

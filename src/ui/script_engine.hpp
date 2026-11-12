@@ -50,6 +50,7 @@ class QTimer;
 
 namespace patchy {
 class FilterRegistry;
+struct ColorRangeOptions;
 struct FilterInvocation;
 }  // namespace patchy
 
@@ -352,6 +353,11 @@ public:
   // Select > Smooth and Select > Feather on the session's selection (GitHub issue 614).
   void smooth_selection(std::int64_t session_id, int radius);
   void feather_selection(std::int64_t session_id, double radius);
+  // doc.selection.selectColorRange (script_color_range.cpp, docs/color-range.md): the mask of
+  // the merged image or the active layer, combined with the selection (`operation`: 0 replace,
+  // 1 add, 2 subtract, 3 intersect). Returns the error for the script, empty on success.
+  QString select_color_range(std::int64_t session_id, const ColorRangeOptions& options, int operation,
+                             bool sample_all_layers);
   [[nodiscard]] QRegion selection_region(std::int64_t session_id) const;
   [[nodiscard]] bool has_selection(std::int64_t session_id) const;
   // The selection's gray8 coverage over `rect` (0 outside it), and the selection replaced by a

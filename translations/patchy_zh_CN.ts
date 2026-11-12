@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation>取样颜色</translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation>红色</translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation>黄色</translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation>绿色</translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation>蓝色</translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation>洋红</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>高光</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>中间调</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>阴影</translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation>新选区</translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation>添加到选区</translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation>从选区减去</translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation>与选区交叉</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>色彩范围</translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation>白色为已选择，黑色为未选择。单击此处或图像以取样颜色。</translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation>选择:</translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation>颜色容差:</translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation>拾取</translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation>单击后从其下方的颜色重新开始</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>添加</translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation>单击后添加其下方的颜色（Shift+单击）</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>减去</translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation>单击后去掉其下方的颜色（Alt+单击）</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>样本:</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>清除</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>颜色:</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>结果:</translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation>对所有图层取样</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>反向</translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation>单击图像或预览以取样颜色。Shift 添加颜色，Alt 去掉颜色。</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21675,6 +21802,10 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>裁剪工具：裁剪框保持不动，在其后方移动或旋转图像</translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation>按颜色、色相或明暗选择</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35776,6 +35907,34 @@ Locked: %1</source>
         <source>Drag along something that should be level or upright</source>
         <translation>沿着应当水平或竖直的物体拖动</translation>
     </message>
+    <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation>色彩范围(&amp;N)...</translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation>按颜色选择：取样颜色、色相，或高光、中间调、阴影</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation>请先完成当前拖动，再使用色彩范围</translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation>色彩范围找不到可取样的内容</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>色彩范围</translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation>色彩范围未找到匹配的像素</translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation>已选择色彩范围</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38974,6 +39133,18 @@ Locked: %1</source>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
         <translation>cssForLayers 需要一个由本文档图层组成的数组。</translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation>使用 selectColorRange 前请先退出快速蒙版。</translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation>selectColorRange 无法读取文档。</translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
+        <translation>无效的 selectColorRange 选项：%1。</translation>
     </message>
 </context>
 <context>

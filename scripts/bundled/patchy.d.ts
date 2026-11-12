@@ -845,6 +845,24 @@ interface PatchySelection {
   /** Select > Feather: softens the selection edge by `radius` px (0.1..1000). Same rules as smooth. */
   feather(radius: number): void;
   /**
+   * Select > Color Range: selects pixels by their own color, with a soft edge.
+   * `range` (default "sampled") is "sampled" (the colors in `colors`, less those in
+   * `subtractColors`; "#rrggbb" strings, at most 32 in all, at least one in `colors`), a hue
+   * band ("reds", "yellows", "greens", "cyans", "blues", "magentas"), or a tone range
+   * ("highlights", "midtones", "shadows"). `fuzziness` (whole number 0..200, default 40): for
+   * sampled colors the RGB distance at which a color stops being selected (colors within half
+   * of it are fully selected, 0 = exact matches only); for the other ranges the width of the
+   * soft edge. `invert` selects everything else. `operation` (default "replace") combines the
+   * result with the selection. `sampleAllLayers` (default true) reads the merged document;
+   * false reads the active layer alone. Clear pixels are never selected (unless inverted).
+   * Throws for an unknown option, range or color, or a value out of range.
+   */
+  selectColorRange(options: {
+    range?: "sampled" | "reds" | "yellows" | "greens" | "cyans" | "blues" | "magentas" | "highlights" | "midtones" |
+      "shadows";
+    colors?: string[]; subtractColors?: string[]; fuzziness?: number; invert?: boolean;
+    operation?: "replace" | "add" | "subtract" | "intersect"; sampleAllLayers?: boolean}): void;
+  /**
    * True when this build ships automatic selection (desktop builds with the bundled models,
    * and the web build, whose first objectSelect downloads the models). selectSubject and
    * objectSelect throw when it is false.

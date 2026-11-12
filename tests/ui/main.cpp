@@ -402,6 +402,7 @@ int main(int argc, char* argv[]) {
            filter_catalog_dialog_tests,
            stylize_render_filters_ui_tests,
            filter_dialog_selection_tests,
+           color_range_ui_tests,
            layer_style_gradient_tests,
            destructive_filters_gallery_tests,
            pickers_notices_hotkeys_tests,

@@ -94,6 +94,133 @@
     </message>
 </context>
 <context>
+    <name>ColorRangeDialog</name>
+    <message>
+        <source>Sampled Colors</source>
+        <translation>サンプルした色</translation>
+    </message>
+    <message>
+        <source>Reds</source>
+        <translation>レッド系</translation>
+    </message>
+    <message>
+        <source>Yellows</source>
+        <translation>イエロー系</translation>
+    </message>
+    <message>
+        <source>Greens</source>
+        <translation>グリーン系</translation>
+    </message>
+    <message>
+        <source>Cyans</source>
+        <translation>シアン系</translation>
+    </message>
+    <message>
+        <source>Blues</source>
+        <translation>ブルー系</translation>
+    </message>
+    <message>
+        <source>Magentas</source>
+        <translation>マゼンタ系</translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation>ハイライト</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>中間調</translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation>シャドウ</translation>
+    </message>
+    <message>
+        <source>New Selection</source>
+        <translation>新規選択</translation>
+    </message>
+    <message>
+        <source>Add to Selection</source>
+        <translation>選択範囲に追加</translation>
+    </message>
+    <message>
+        <source>Subtract from Selection</source>
+        <translation>選択範囲から削除</translation>
+    </message>
+    <message>
+        <source>Intersect with Selection</source>
+        <translation>選択範囲と交差</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>色域指定</translation>
+    </message>
+    <message>
+        <source>White is selected, black is not. Click here or on the image to sample a color.</source>
+        <translation>白は選択部分、黒は選択されていない部分です。ここか画像をクリックして色をサンプルします。</translation>
+    </message>
+    <message>
+        <source>Select:</source>
+        <translation>選択:</translation>
+    </message>
+    <message>
+        <source>Fuzziness:</source>
+        <translation>許容量:</translation>
+    </message>
+    <message>
+        <source>Pick</source>
+        <translation>取得</translation>
+    </message>
+    <message>
+        <source>A click starts over from the color under it</source>
+        <translation>クリックした位置の色から選び直します</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>追加</translation>
+    </message>
+    <message>
+        <source>A click adds the color under it (Shift+click)</source>
+        <translation>クリックした位置の色を追加します (Shift+クリック)</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>除外</translation>
+    </message>
+    <message>
+        <source>A click takes the color under it out (Alt+click)</source>
+        <translation>クリックした位置の色を除外します (Alt+クリック)</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>サンプル:</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>クリア</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>色:</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>結果:</translation>
+    </message>
+    <message>
+        <source>Sample All Layers</source>
+        <translation>すべてのレイヤーを対象</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>反転</translation>
+    </message>
+    <message>
+        <source>Click the image or the preview to sample a color. Shift adds a color, Alt takes one out.</source>
+        <translation>画像またはプレビューをクリックして色をサンプルします。Shift で色を追加、Alt で色を除外します。</translation>
+    </message>
+</context>
+<context>
     <name>FillDialog</name>
     <message>
         <source>Foreground Color</source>
@@ -21675,6 +21802,10 @@ Do you want to replace it?</source>
         <source>Crop tool: keep the box in place and slide or turn the picture behind it</source>
         <translation>切り抜きツール: 枠を固定したまま、その下の画像を移動または回転</translation>
     </message>
+    <message>
+        <source>Select by color, hue or tone</source>
+        <translation>色、色相、明るさで選択</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -35776,6 +35907,34 @@ Locked: %1</source>
         <source>Drag along something that should be level or upright</source>
         <translation>水平または垂直であるべきものに沿ってドラッグします</translation>
     </message>
+    <message>
+        <source>Color Ra&amp;nge...</source>
+        <translation>色域指定(&amp;N)...</translation>
+    </message>
+    <message>
+        <source>Select by color: sampled colors, a hue, or highlights, midtones or shadows</source>
+        <translation>色で選択: サンプルした色、色相、またはハイライト、中間調、シャドウ</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before using Color Range</source>
+        <translation>色域指定を使う前に現在のドラッグを終了してください</translation>
+    </message>
+    <message>
+        <source>Color Range found nothing to sample</source>
+        <translation>色域指定でサンプルできる内容がありません</translation>
+    </message>
+    <message>
+        <source>Color Range</source>
+        <translation>色域指定</translation>
+    </message>
+    <message>
+        <source>Color Range found no matching pixels</source>
+        <translation>色域指定に一致するピクセルがありません</translation>
+    </message>
+    <message>
+        <source>Selected a color range</source>
+        <translation>色域を選択しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -38974,6 +39133,18 @@ Locked: %1</source>
     <message>
         <source>cssForLayers needs an array of layers of this document.</source>
         <translation>cssForLayers にはこのドキュメントのレイヤーの配列が必要です。</translation>
+    </message>
+    <message>
+        <source>Exit Quick Mask before using selectColorRange.</source>
+        <translation>selectColorRange を使う前にクイックマスクを終了してください。</translation>
+    </message>
+    <message>
+        <source>selectColorRange could not read the document.</source>
+        <translation>selectColorRange でドキュメントを読み取れませんでした。</translation>
+    </message>
+    <message>
+        <source>Invalid selectColorRange option: %1.</source>
+        <translation>selectColorRange のオプションが無効です: %1。</translation>
     </message>
 </context>
 <context>
