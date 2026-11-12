@@ -11102,35 +11102,37 @@ void ui_layer_opacity_digit_keys_with_move_tool() {
   Access::select_layers(window, ids, ids.back());
   QApplication::processEvents();
   const auto depth_before = Access::active_session_undo_depth(window);
+  // A digit reaches the layers through the opacity field's coalescing timer, so wait for the
+  // value, never a fixed pause: a busy host (an ARM64 release run) overran 60 ms. The limit
+  // stays inside the canvas's 800 ms two-digit window for the digit that follows.
+  const auto layers_reach = [&opacity_of, &ids](int percent) {
+    return process_events_until(
+        [&] { return opacity_of(ids.front()) == percent && opacity_of(ids.back()) == percent; }, 600);
+  };
 
   send_key(*canvas, Qt::Key_5);
-  process_events_for(60);
-  CHECK(opacity_of(ids.front()) == 50 && opacity_of(ids.back()) == 50);
+  CHECK(layers_reach(50));
   CHECK(opacity_spin->value() == 50);
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 50%"));
   send_key(*canvas, Qt::Key_7);  // inside the pair window: 57%
-  process_events_for(60);
-  CHECK(opacity_of(ids.front()) == 57 && opacity_of(ids.back()) == 57);
+  CHECK(layers_reach(57));
   CHECK(opacity_spin->value() == 57);
   // The run stays open past the field's own short pause and ends a second after the last digit.
   process_events_for(400);
   CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
   process_events_for(900);
   send_key(*canvas, Qt::Key_0);
-  process_events_for(60);
-  CHECK(opacity_of(ids.front()) == 100 && opacity_spin->value() == 100);
+  CHECK(layers_reach(100));
+  CHECK(opacity_spin->value() == 100);
   send_key(*canvas, Qt::Key_5);  // "0" then "5" is 5%
-  process_events_for(60);
-  CHECK(opacity_of(ids.front()) == 5 && opacity_of(ids.back()) == 5);
+  CHECK(layers_reach(5));
   process_events_for(1100);
   CHECK(Access::active_session_undo_depth(window) == depth_before + 2);
   // "00" is a layer's 0%, as in Photoshop (GitHub issue 562); a lone 0 stays 100%.
   send_key(*canvas, Qt::Key_0);
-  process_events_for(60);
-  CHECK(opacity_of(ids.front()) == 100);
+  CHECK(layers_reach(100));
   send_key(*canvas, Qt::Key_0);
-  process_events_for(60);
-  CHECK(opacity_of(ids.front()) == 0 && opacity_of(ids.back()) == 0);
+  CHECK(layers_reach(0));
   CHECK(opacity_spin->value() == 0);
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 0%"));
   process_events_for(1100);
@@ -11222,8 +11224,8 @@ void ui_opacity_digit_keys_work_from_panels() {
   layer_list->setFocus(Qt::OtherFocusReason);
   CHECK(process_events_until([layer_list] { return QApplication::focusWidget() == layer_list; }));
   QTest::keyClick(layer_list, Qt::Key_5);
-  process_events_for(60);
-  CHECK(opacity_of(upper_id) == 50);
+  // The layer follows through the opacity field's coalescing timer: wait for it, not 60 ms.
+  CHECK(process_events_until([&opacity_of, upper_id] { return opacity_of(upper_id) == 50; }));
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 50%"));
 }
 

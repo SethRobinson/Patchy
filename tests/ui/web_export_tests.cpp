@@ -727,7 +727,12 @@ void ui_web_export_engine_drops_stale_requests() {
   CHECK(engine.encodes_started() <= 3);
   CHECK(engine.cached(current.signature).has_value());
   CHECK(!engine.cached(stale_png).has_value());
-  CHECK(!reported.empty() && reported.back() == current.signature);
+  // The current job is reported once. It need not be the last report: the lanes are
+  // independent, so the second lane's job that was already running can finish after it.
+  CHECK(std::count(reported.begin(), reported.end(), current.signature) == 1);
+  CHECK(std::all_of(reported.begin(), reported.end(), [&](const QString& signature) {
+    return signature == current.signature || signature == stale[0].signature || signature == stale[1].signature;
+  }));
   const auto result = engine.cached(current.signature);
   CHECK(result.has_value() && result->bytes != nullptr && !result->bytes->empty());
   CHECK(result.has_value() && result->decoded.size() == QSize(320, 240));
