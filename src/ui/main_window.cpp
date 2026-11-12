@@ -14658,7 +14658,9 @@ void MainWindow::refresh_convert_for_smart_filters_action_state() {
 }
 
 void MainWindow::show_about() {
-  show_about_splash(this);
+  // The About dialog's Update button is an explicit request, so the prompt opens even for a
+  // version the user chose not to be asked about at startup (updates/skippedVersion).
+  show_about_splash(this, [this](const UpdateInfo& update) { show_update_available(update); });
 }
 
 }  // namespace patchy::ui

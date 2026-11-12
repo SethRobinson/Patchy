@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <optional>
 
 #include "patchy_version.hpp"
 
@@ -90,7 +91,10 @@ public:
   static constexpr int kDialogWidth = 650;
   static constexpr int kMinimumDialogHeight = 435;
 
-  explicit PatchySplashDialog(QWidget* parent = nullptr) : QDialog(parent) {
+  // `offers_update`: the caller can open the update prompt, so a check that finds a newer
+  // version shows the Update button.
+  explicit PatchySplashDialog(QWidget* parent = nullptr, bool offers_update = false)
+      : QDialog(parent), offers_update_(offers_update) {
     setObjectName(QStringLiteral("patchySplashScreen"));
     // About always opens centered on the app; a remembered spot is never wanted.
     mark_dialog_always_centered(*this);
@@ -155,6 +159,16 @@ public:
         min-width: 120px;
       }
       QPushButton#splashOpenSettingsFolderButton:hover, QPushButton#splashOpenDataFolderButton:hover {
+        background: @splash_button_hover_bg;
+      }
+      QPushButton#splashUpdateButton {
+        background: @splash_button_bg;
+        color: @splash_body_text;
+        border: 1px solid @splash_button_border;
+        padding: 5px 18px;
+        min-width: 74px;
+      }
+      QPushButton#splashUpdateButton:hover {
         background: @splash_button_hover_bg;
       }
       QPushButton#splashCloseButton {
@@ -355,16 +369,31 @@ public:
 
     copy->addStretch(1);
 
-    auto* bottom = new QHBoxLayout();
-    bottom->setContentsMargins(0, 0, 0, 0);
-    bottom->setSpacing(12);
-    copy->addLayout(bottom);
-
+    // The status line has the column's whole width, above the buttons: beside Update and
+    // Close it wrapped after three words, and a failed check's message ran to many lines.
     status_ = new QLabel(QObject::tr("Patchy is ready."), this);
     status_->setObjectName(QStringLiteral("splashStatus"));
     status_->setTextFormat(Qt::PlainText);
     status_->setWordWrap(true);
-    bottom->addWidget(status_, 1);
+    copy->addWidget(status_);
+
+    auto* bottom = new QHBoxLayout();
+    bottom->setContentsMargins(0, 0, 0, 0);
+    bottom->setSpacing(12);
+    copy->addLayout(bottom);
+    bottom->addStretch(1);
+
+    // Hidden until the update check finds a newer version (show_update_offer). While
+    // hidden it is no auto-default button, so it cannot become the one Enter presses.
+    update_button_ = new QPushButton(QObject::tr("Update..."), this);
+    update_button_->setObjectName(QStringLiteral("splashUpdateButton"));
+    update_button_->setAutoDefault(false);
+    update_button_->hide();
+    connect(update_button_, &QPushButton::clicked, this, [this] {
+      requested_update_ = offered_update_;
+      accept();
+    });
+    bottom->addWidget(update_button_, 0);
 
     auto* close = new QPushButton(QObject::tr("Close"), this);
     close->setObjectName(QStringLiteral("splashCloseButton"));
@@ -382,8 +411,7 @@ public:
         child->ensurePolished();
       }
     }
-    layout->activate();
-    setFixedHeight(std::max(kMinimumDialogHeight, layout->totalHeightForWidth(ui_text_length(kDialogWidth))));
+    fit_height_to_content();
 
     // The X every chrome dialog has in its upper right, so About closes the
     // same way as the other Help dialogs (GitHub issue 107). It floats over
@@ -408,10 +436,16 @@ public:
     request_update_check(this, QStringLiteral(PATCHY_VERSION), [dialog_guard](UpdateCheckResult result) {
       if (dialog_guard != nullptr) {
         dialog_guard->set_status(update_check_status_text(result));
+        if (result.update.has_value()) {
+          dialog_guard->show_update_offer(*result.update);
+        }
       }
     });
   }
 #endif
+
+  // The update the user asked for with the Update button, once the dialog has closed.
+  [[nodiscard]] std::optional<UpdateInfo> requested_update() const { return requested_update_; }
 
   void set_status(const QString& text) {
     if (status_ != nullptr) {
@@ -456,6 +490,30 @@ protected:
   }
 
 private:
+  // Shows the Update button for a newer version the check found. The status line above it
+  // may have wrapped with its new text, so the height is fitted again.
+  void show_update_offer(const UpdateInfo& update) {
+    if (!offers_update_ || update_button_ == nullptr) {
+      return;
+    }
+    offered_update_ = update;
+    update_button_->setAutoDefault(true);
+    update_button_->show();
+    fit_height_to_content();
+  }
+
+  // As tall as the content at the fixed width, and never shorter than it already was.
+  void fit_height_to_content() {
+    auto* content = layout();
+    if (content == nullptr) {
+      return;
+    }
+    content->activate();
+    fitted_height_ = std::max({kMinimumDialogHeight, fitted_height_,
+                               content->totalHeightForWidth(ui_text_length(kDialogWidth))});
+    setFixedHeight(fitted_height_);
+  }
+
   void place_close_glyph() {
     if (close_glyph_ != nullptr) {
       close_glyph_->move(width() - close_glyph_->width() - 4, 4);
@@ -464,26 +522,40 @@ private:
 
   QToolButton* close_glyph_{nullptr};
   QLabel* status_{nullptr};
+  QPushButton* update_button_{nullptr};
+  bool offers_update_{false};
+  int fitted_height_{0};
+  std::optional<UpdateInfo> offered_update_;
+  std::optional<UpdateInfo> requested_update_;
   bool dragging_{false};
   QPoint drag_position_;
 };
 
 }  // namespace
 
-void show_about_splash(QWidget* parent) {
-  PatchySplashDialog splash(parent);
+void show_about_splash(QWidget* parent, std::function<void(const UpdateInfo&)> open_update) {
+  std::optional<UpdateInfo> requested_update;
+  {
+    PatchySplashDialog splash(parent, static_cast<bool>(open_update));
 #ifndef Q_OS_WASM
-  // The web build always runs the latest deployed site, so there is no update
-  // to check for; the status label keeps its "Patchy is ready." text. The same
-  // goes for a store build, where the store delivers updates.
-  if (update_checks_available()) {
-    splash.begin_update_check();
-  }
+    // The web build always runs the latest deployed site, so there is no update
+    // to check for; the status label keeps its "Patchy is ready." text. The same
+    // goes for a store build, where the store delivers updates.
+    if (update_checks_available()) {
+      splash.begin_update_check();
+    }
 #endif
-  // exec_dialog centers the dialog on its owner clamped to the screen (a raw
-  // parent-centered move could push the Close button below a low main window)
-  // and remembers a position the user dragged it to.
-  exec_dialog(splash);
+    // exec_dialog centers the dialog on its owner clamped to the screen (a raw
+    // parent-centered move could push the Close button below a low main window)
+    // and remembers a position the user dragged it to.
+    exec_dialog(splash);
+    requested_update = splash.requested_update();
+  }
+  // The About dialog is destroyed by now: the update prompt can close Patchy to install
+  // (docs/auto-update.md), which must not happen under a modal dialog still on the stack.
+  if (requested_update.has_value() && open_update) {
+    open_update(*requested_update);
+  }
 }
 
 }  // namespace patchy::ui

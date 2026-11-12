@@ -27,6 +27,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/update_installer.hpp"
+#include "ui/splash_dialog.hpp"
 #include "ui/connector_freshness.hpp"
 #include "ui/ai_control_paths.hpp"
 #include "ui/appimage_environment.hpp"
@@ -2786,6 +2787,167 @@ void ui_update_checks_can_be_switched_off() {
   CHECK(settings.value(QStringLiteral("updates/checkOnStartup"), false).toBool());
 }
 
+// A manifest that offers `version` on every platform, for the About dialog tests below.
+QByteArray about_update_manifest(const char* version) {
+  return QByteArray(R"({"platforms": {"windows": {"version": "V", "download_url": "https://rtsoft.com/w.exe"},
+                                       "windows-arm64": {"version": "V", "download_url": "https://rtsoft.com/wa.exe"},
+                                       "macos": {"version": "V", "download_url": "https://rtsoft.com/m.dmg"},
+                                       "linux": {"version": "V", "download_url": "https://rtsoft.com/l.flatpak"}}})")
+      .replace("V", version);
+}
+
+// Opens Help > About's dialog against the manifest at `manifest_url`, waits until its status
+// line starts with `status_prefix`, hands the dialog and its Update button to `inspect`, and
+// closes it unless `inspect` already did. Returns how often `open_update` ran.
+int run_about_dialog_update_check(const QString& manifest_url, const QString& status_prefix, bool with_callback,
+                                  const std::function<void(QDialog&, QPushButton&)>& inspect,
+                                  std::optional<patchy::ui::UpdateInfo>* requested = nullptr) {
+  const UpdateManifestUrlOverride override(manifest_url);
+  bool inspected = false;
+  when_dialog_visible(QStringLiteral("patchySplashScreen"), [&](QDialog& dialog) {
+    auto* status = dialog.findChild<QLabel*>(QStringLiteral("splashStatus"));
+    auto* button = dialog.findChild<QPushButton*>(QStringLiteral("splashUpdateButton"));
+    CHECK(status != nullptr);
+    CHECK(button != nullptr);
+    // Hidden while the check is still out, whatever it will answer.
+    CHECK(button->isHidden());
+    const bool answered =
+        process_events_until([&] { return status->text().startsWith(status_prefix); }, 20000);
+    if (!answered) {
+      fprintf(stderr, "  About status stayed \"%s\", want one starting \"%s\"\n", qPrintable(status->text()),
+              qPrintable(status_prefix));
+    }
+    CHECK(answered);
+    inspect(dialog, *button);
+    inspected = true;
+    if (dialog.isVisible()) {
+      dialog.accept();
+    }
+  });
+  int calls = 0;
+  if (with_callback) {
+    patchy::ui::show_about_splash(nullptr, [&](const patchy::ui::UpdateInfo& update) {
+      ++calls;
+      if (requested != nullptr) {
+        *requested = update;
+      }
+      // The About dialog is gone before the update prompt would open: that prompt can
+      // close Patchy to install, which must not happen under a modal dialog.
+      CHECK(find_top_level_dialog(QStringLiteral("patchySplashScreen")) == nullptr);
+    });
+  } else {
+    patchy::ui::show_about_splash();
+  }
+  CHECK(inspected);
+  return calls;
+}
+
+// The About dialog reports a newer version; its Update button (shown only then) closes the
+// dialog and hands that update to the caller, who opens the normal update prompt.
+void ui_about_dialog_update_button_hands_over_the_newer_version() {
+  ManifestServer server(about_update_manifest("9.9"));
+  std::optional<patchy::ui::UpdateInfo> requested;
+  const int calls = run_about_dialog_update_check(
+      server.manifest_url(), QStringLiteral("Update available"), true,
+      [](QDialog& dialog, QPushButton& button) {
+        auto* status = dialog.findChild<QLabel*>(QStringLiteral("splashStatus"));
+        auto* close = dialog.findChild<QPushButton*>(QStringLiteral("splashCloseButton"));
+        CHECK(status != nullptr && status->text() == QStringLiteral("Update available: Patchy 9.9."));
+        CHECK(close != nullptr);
+        CHECK(!button.isHidden());
+        CHECK(button.isVisible());
+        CHECK(button.text() == QStringLiteral("Update..."));
+        QApplication::processEvents();
+        // Under the status line and left of Close, at its full size; the status line fits
+        // on one line, and the dialog still holds its content at the fixed width.
+        CHECK(button.width() >= button.sizeHint().width());
+        CHECK(button.height() >= button.sizeHint().height());
+        CHECK(status->geometry().bottom() < button.geometry().top());
+        CHECK(status->height() < 2 * status->fontMetrics().lineSpacing());
+        CHECK(button.geometry().right() < close->geometry().left());
+        CHECK(button.geometry().top() == close->geometry().top());
+        CHECK(dialog.rect().contains(button.geometry()));
+        CHECK(dialog.height() >= dialog.layout()->totalHeightForWidth(dialog.width()));
+        save_widget_artifact("ui_about_dialog_update_button", dialog);
+        button.click();
+        CHECK(!dialog.isVisible());
+      },
+      &requested);
+  CHECK(server.requests() == 1);
+  CHECK(calls == 1);
+  CHECK(requested.has_value());
+  if (requested.has_value()) {
+    CHECK(requested->version == QStringLiteral("9.9"));
+    CHECK(requested->download_url.isValid());
+  }
+}
+
+// No button when there is nothing to install, when the check failed, when the caller cannot
+// open the update prompt, and when update checks are off (a store build's switch).
+void ui_about_dialog_update_button_stays_hidden_without_an_update() {
+  const auto expect_hidden = [](QDialog&, QPushButton& button) { CHECK(button.isHidden()); };
+  {
+    ManifestServer server(about_update_manifest("0.0.1"));
+    CHECK(run_about_dialog_update_check(server.manifest_url(), QStringLiteral("Patchy is up to date"), true,
+                                        expect_hidden) == 0);
+    CHECK(server.requests() == 1);
+  }
+  {
+    // Nothing listens on this loopback port: a NetworkError.
+    CHECK(run_about_dialog_update_check(QStringLiteral("http://127.0.0.1:1/latest_version.json"),
+                                        QStringLiteral("Update check failed"), true, expect_hidden) == 0);
+  }
+  {
+    ManifestServer server(about_update_manifest("9.9"));
+    CHECK(run_about_dialog_update_check(server.manifest_url(), QStringLiteral("Update available"), false,
+                                        expect_hidden) == 0);
+  }
+  {
+    const EnvironmentVariableRestorer restore_switch("PATCHY_NO_UPDATE_CHECK");
+    qputenv("PATCHY_NO_UPDATE_CHECK", "1");
+    ManifestServer server(about_update_manifest("9.9"));
+    CHECK(run_about_dialog_update_check(server.manifest_url(), QStringLiteral("Patchy is ready."), true,
+                                        [&](QDialog&, QPushButton& button) {
+                                          process_events_for(300);
+                                          CHECK(button.isHidden());
+                                        }) == 0);
+    CHECK(server.requests() == 0);
+  }
+}
+
+// Help > About's Update button opens the same prompt as the startup check, after the About
+// dialog has closed. It is an explicit request, so a version the user chose not to be asked
+// about at startup still opens it, and the stored choice is left alone.
+void ui_about_update_button_opens_the_update_prompt_for_a_skipped_version() {
+  SettingsValueRestorer restore_skipped(QStringLiteral("updates/skippedVersion"));
+  patchy::ui::set_stored_update_skipped_version(QStringLiteral("9.9"));
+  ManifestServer server(about_update_manifest("9.9"));
+  const UpdateManifestUrlOverride override(server.manifest_url());
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_prompt = false;
+  when_dialog_visible(QStringLiteral("patchySplashScreen"), [&](QDialog& about) {
+    auto* button = about.findChild<QPushButton*>(QStringLiteral("splashUpdateButton"));
+    CHECK(button != nullptr);
+    CHECK(process_events_until([&] { return !button->isHidden(); }, 20000));
+    when_dialog_visible(QStringLiteral("updateAvailableMessageBox"), [&](QDialog& prompt) {
+      CHECK(find_top_level_dialog(QStringLiteral("patchySplashScreen")) == nullptr);
+      auto* box = qobject_cast<QMessageBox*>(&prompt);
+      CHECK(box != nullptr);
+      CHECK(box->text().contains(QStringLiteral("Patchy 9.9 is available")));
+      CHECK(prompt.parentWidget() == &window);
+      saw_prompt = true;
+      prompt.reject();
+    });
+    button->click();
+  });
+  require_action(window, "helpAboutAction")->trigger();
+  CHECK(saw_prompt);
+  CHECK(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")) == nullptr);
+  CHECK(patchy::ui::stored_update_skipped_version() == QStringLiteral("9.9"));
+}
+
 // GitHub issue 551: Preferences sets what opening a GIMP file does with text layers painted on
 // after their text was set (imports/xcfPaintedTextLayers), "Ask every time" first.
 void ui_preferences_xcf_painted_text_combo_saves_the_choice() {
@@ -5000,6 +5162,12 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_update_preference_defaults_startup_check_setting_to_enabled", ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_update_checks_can_be_switched_off", ui_update_checks_can_be_switched_off},
+      {"ui_about_dialog_update_button_hands_over_the_newer_version",
+       ui_about_dialog_update_button_hands_over_the_newer_version},
+      {"ui_about_dialog_update_button_stays_hidden_without_an_update",
+       ui_about_dialog_update_button_stays_hidden_without_an_update},
+      {"ui_about_update_button_opens_the_update_prompt_for_a_skipped_version",
+       ui_about_update_button_opens_the_update_prompt_for_a_skipped_version},
       {"ui_preferences_wheel_over_unfocused_control_scrolls_the_page", ui_preferences_wheel_over_unfocused_control_scrolls_the_page},
       {"ui_preferences_xcf_painted_text_combo_saves_the_choice", ui_preferences_xcf_painted_text_combo_saves_the_choice},
       {"ui_preferences_tiff_pages_combo_saves_the_choice", ui_preferences_tiff_pages_combo_saves_the_choice},

@@ -39,7 +39,7 @@
         <translation>此 AppImage 不含 Patchy 的 .desktop 檔案</translation>
     </message>
     <message>
-        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <source>This AppImage's desktop file has no Exec line</source>
         <translation>此 AppImage 的 .desktop 檔案沒有 Exec 行</translation>
     </message>
     <message>
@@ -59,7 +59,7 @@
         <translation>無法移除 %1</translation>
     </message>
     <message>
-        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <source>The AppImage's file name cannot be used in a menu entry</source>
         <translation>AppImage 的檔案名稱無法用於選單項目</translation>
     </message>
 </context>
@@ -85,11 +85,11 @@
         <translation>此書籍掃描是由較新版本的 Patchy 儲存的。</translation>
     </message>
     <message>
-        <source>The book scan&apos;s manifest names a scan outside its folder.</source>
+        <source>The book scan's manifest names a scan outside its folder.</source>
         <translation>書籍掃描的資訊清單參照了其資料夾以外的掃描。</translation>
     </message>
     <message>
-        <source>The book scan&apos;s manifest could not be written to %1.</source>
+        <source>The book scan's manifest could not be written to %1.</source>
         <translation>無法將書籍掃描的資訊清單寫入 %1。</translation>
     </message>
 </context>
@@ -184,7 +184,7 @@
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <source>Mode and Opacity set the new layer's blend mode and opacity</source>
         <translation>模式和不透明度會設定新圖層的混合模式和不透明度</translation>
     </message>
     <message>
@@ -226,16 +226,16 @@
         <translation>GEGL 濾鏡只能在 RGB 圖層上執行。</translation>
     </message>
     <message>
-        <source>Patchy&apos;s GEGL helper could not be started.</source>
+        <source>Patchy's GEGL helper could not be started.</source>
         <translation>無法啟動 Patchy 的 GEGL 輔助程式。</translation>
     </message>
     <message>
         <source>The GEGL filter %1 failed. %2</source>
-        <extracomment>%1 is GEGL&apos;s operation name, %2 what the helper reported.</extracomment>
+        <extracomment>%1 is GEGL's operation name, %2 what the helper reported.</extracomment>
         <translation>GEGL 濾鏡 %1 失敗。%2</translation>
     </message>
     <message>
-        <source>Patchy&apos;s GEGL helper is missing from its program folder.</source>
+        <source>Patchy's GEGL helper is missing from its program folder.</source>
         <translation>Patchy 的程式資料夾中缺少 GEGL 輔助程式。</translation>
     </message>
     <message>
@@ -311,18 +311,18 @@
         <translation>色調對應</translation>
     </message>
     <message>
-        <source>Patchy&apos;s GEGL could not be loaded. %1</source>
+        <source>Patchy's GEGL could not be loaded. %1</source>
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>無法載入 Patchy 的 GEGL。%1</translation>
     </message>
     <message>
         <source>Filter from GEGL%1 (gegl.org), GPL-3</source>
-        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <extracomment>%1 is GEGL's version with a leading space (" 0.4.72"), or nothing when it is not known.</extracomment>
         <translation>來自 GEGL%1 的濾鏡 (gegl.org)，GPL-3</translation>
     </message>
     <message>
         <source>Filter from GEGL%1 (gegl.org)</source>
-        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <extracomment>%1 is GEGL's version with a leading space (" 0.4.72"), or nothing when it is not known.</extracomment>
         <translation>來自 GEGL%1 的濾鏡 (gegl.org)</translation>
     </message>
     <message>
@@ -330,11 +330,11 @@
         <translation>關於 GEGL</translation>
     </message>
     <message>
-        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP&apos;s filters.</source>
+        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP's filters.</source>
         <translation>GEGL (Generic Graphics Library) 是免費、開放原始碼的影像處理引擎，像素格式由 babl 處理。它是 GIMP 濾鏡背後的引擎。</translation>
     </message>
     <message numerus="yes">
-        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy&apos;s own dialogs. GIMP is not needed.</source>
+        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy's own dialogs. GIMP is not needed.</source>
         <translation>
             <numerusform>Patchy 內含自行建置的 GEGL，並在「濾鏡 &gt; GEGL 濾鏡」中提供其中 %n 個操作，於 Patchy 自己的對話方塊中執行。不需要 GIMP。</numerusform>
         </translation>
@@ -344,7 +344,7 @@
         <translation>GEGL 與 babl 由 Øyvind Kolås 以及 GEGL 與 GIMP 的貢獻者開發。</translation>
     </message>
     <message>
-        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL&apos;s GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy&apos;s GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
+        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL's GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy's GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
         <translation>GEGL 與 babl 以 GNU LGPL 第 3 版或更新版本發布。標示 GPL-3 的濾鏡來自 GEGL 的 GPL-3 模組，採用 GNU GPL 第 3 版或更新版本。其授權文字隨 Patchy 提供，Patchy 所用 GEGL 的完整原始碼為 PatchyGeglSources.zip，隨每個 Patchy 版本一同發布。</translation>
     </message>
     <message>
@@ -387,15 +387,15 @@
         <translation>加入不可見浮水印</translation>
     </message>
     <message>
-        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <source>Hides a short message in the active layer's pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
         <translation>使用 Adobe TrustMark 在目前圖層的像素中隱藏一則短訊息。它能承受大多數縮放、JPEG 壓縮與分享，改動小到看不出來。</translation>
     </message>
     <message>
-        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy's File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
         <translation>TrustMark 沒有金鑰：任何擁有免費 TrustMark 讀取器的人（包括 Patchy 的「檔案資訊」）都能讀出訊息。用它來標記影像或指向影像的記錄，而不是隱藏資訊或單憑它證明所有權。</translation>
     </message>
     <message>
-        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <source>How much error correction protects the message. Standard is TrustMark's default.</source>
         <translation>用於保護訊息的錯誤更正強度。「標準」是 TrustMark 的預設值。</translation>
     </message>
     <message>
@@ -419,7 +419,7 @@
         <translation>強度：</translation>
     </message>
     <message>
-        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <source>100% is TrustMark's default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
         <translation>100% 是 TrustMark 的預設值。數值越低越不明顯，但越容易遺失；Adobe 為印刷品使用 150%。</translation>
     </message>
     <message>
@@ -435,7 +435,7 @@
         <translation>剩餘 %1/%2 個字元</translation>
     </message>
     <message>
-        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <source>Needs the watermark models (Adobe's, MIT License): a %1 MB download from %2.</source>
         <translation>需要浮水印模型（Adobe 提供，MIT 授權）：從 %2 下載 %1 MB。</translation>
     </message>
 </context>
@@ -474,7 +474,7 @@
         <translation>影像像素</translation>
     </message>
     <message>
-        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <source>Keep the layer's pixels from being painted or edited</source>
         <translation>防止繪畫或編輯圖層像素</translation>
     </message>
     <message>
@@ -585,7 +585,7 @@
         <translation>保留向量圖層的可編輯性</translation>
     </message>
     <message>
-        <source>These layers keep their own effects and stay separate in a vector merge. Turning off &quot;Keep vector layers editable&quot; rasterizes merged artwork.</source>
+        <source>These layers keep their own effects and stay separate in a vector merge. Turning off "Keep vector layers editable" rasterizes merged artwork.</source>
         <translation>這些圖層會保留各自的效果，在向量合併時維持獨立。關閉「保留向量圖層的可編輯性」會將合併的圖像點陣化。</translation>
     </message>
     <message>
@@ -625,11 +625,11 @@
         <translation>保留的向量資料無法編輯。</translation>
     </message>
     <message>
-        <source>This compound vector&apos;s opacity requires it to stay separate.</source>
+        <source>This compound vector's opacity requires it to stay separate.</source>
         <translation>此複合向量的不透明度要求它保持獨立。</translation>
     </message>
     <message>
-        <source>This group&apos;s appearance prevents moving shapes across its boundary.</source>
+        <source>This group's appearance prevents moving shapes across its boundary.</source>
         <translation>此群組的外觀不允許跨越群組邊界移動形狀。</translation>
     </message>
     <message>
@@ -851,7 +851,7 @@
         <translation>開啟指定檔案，將其儲存至 &lt;path&gt; (格式依副檔名決定)，然後結束。以無人值守模式執行：會隱藏提示，且不會重複使用執行中的實體。</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
+        <source>With --export: append this text to every text layer, re-rendering each through Patchy's text engine, before saving.</source>
         <translation>搭配 --export：在儲存前將此文字附加到每個文字圖層，並透過 Patchy 的文字引擎重新演算每個圖層。</translation>
     </message>
     <message>
@@ -1859,7 +1859,7 @@
         <translation>Aseprite cel 資料解壓縮失敗</translation>
     </message>
     <message>
-        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel&apos;s Load Palette File instead.</source>
+        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel's Load Palette File instead.</source>
         <translation>這是 Adobe 色票調色盤檔案（.ase），不是 Aseprite 影像。請改從「調色盤」面板的「載入調色盤檔案」載入。</translation>
     </message>
     <message>
@@ -2091,7 +2091,7 @@
         <translation>無法初始化 HEIF 解碼選項</translation>
     </message>
     <message>
-        <source>This HEIF image&apos;s dimensions are not supported</source>
+        <source>This HEIF image's dimensions are not supported</source>
         <translation>不支援此 HEIF 影像的尺寸</translation>
     </message>
     <message>
@@ -2211,7 +2211,7 @@
         <translation>JPEG XR 浮點數列超過編解碼器緩衝區上限</translation>
     </message>
     <message>
-        <source>This JPEG XR image&apos;s dimensions are not supported</source>
+        <source>This JPEG XR image's dimensions are not supported</source>
         <translation>不支援此 JPEG XR 影像的尺寸</translation>
     </message>
     <message>
@@ -2411,7 +2411,7 @@
         <translation>有一個 PDF 影像的透明度遮色片過大而無法讀入；該影像已以不透明方式讀入。</translation>
     </message>
     <message>
-        <source>A PDF image&apos;s transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
+        <source>A PDF image's transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
         <translation>有一個 PDF 影像的透明度遮色片使用 Patchy 無法解碼的編解碼器；該影像已以不透明方式讀入。</translation>
     </message>
     <message>
@@ -2483,7 +2483,7 @@
         <translation>Proton 紋理使用未知的 RTPACK 壓縮類型</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s zlib payload is damaged</source>
+        <source>Proton texture's zlib payload is damaged</source>
         <translation>Proton 紋理的 zlib 承載資料已損壞</translation>
     </message>
     <message>
@@ -2495,15 +2495,15 @@
         <translation>無法開啟 PVRTC 壓縮的 Proton 紋理；請先以 RTPack -8888 重新匯出來源影像</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded payload is neither a JPEG nor raw RGB pixels</source>
+        <source>Proton texture's embedded payload is neither a JPEG nor raw RGB pixels</source>
         <translation>Proton 紋理的內嵌承載資料既不是 JPEG 也不是原始 RGB 像素</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded JPEG could not be read</source>
+        <source>Proton texture's embedded JPEG could not be read</source>
         <translation>無法讀取 Proton 紋理的內嵌 JPEG</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded JPEG could not be decoded</source>
+        <source>Proton texture's embedded JPEG could not be decoded</source>
         <translation>無法解碼 Proton 紋理的內嵌 JPEG</translation>
     </message>
     <message>
@@ -2527,7 +2527,7 @@
         <translation>記錄的原始高度無效；改用紋理高度</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s first mip level does not match the texture size</source>
+        <source>Proton texture's first mip level does not match the texture size</source>
         <translation>Proton 紋理的第一個 mip 層級與紋理尺寸不符</translation>
     </message>
     <message>
@@ -2539,7 +2539,7 @@
         <translation>無法將空白文件寫入為 Proton 紋理</translation>
     </message>
     <message>
-        <source>JPEG-encoded Proton textures need the application&apos;s JPEG encoder, which is not installed</source>
+        <source>JPEG-encoded Proton textures need the application's JPEG encoder, which is not installed</source>
         <translation>JPEG 編碼的 Proton 紋理需要應用程式的 JPEG 編碼器，但尚未安裝</translation>
     </message>
     <message>
@@ -2699,7 +2699,7 @@
         <translation>SVG 沒有可用的 width/height 或 viewBox；已以 300 x 150 開啟</translation>
     </message>
     <message>
-        <source>SVG canvas was scaled down to Patchy&apos;s 30000 px document limit</source>
+        <source>SVG canvas was scaled down to Patchy's 30000 px document limit</source>
         <translation>SVG 版面已縮小至 Patchy 的 30000 px 文件上限</translation>
     </message>
     <message>
@@ -2731,7 +2731,7 @@
         <translation>無法為 SVG 匯出編碼內嵌的 PNG</translation>
     </message>
     <message>
-        <source>A pattern fill&apos;s tile was missing and exported as gray</source>
+        <source>A pattern fill's tile was missing and exported as gray</source>
         <translation>圖樣填滿的拼貼遺失，已匯出為灰色</translation>
     </message>
     <message>
@@ -3703,7 +3703,7 @@
         </translation>
     </message>
     <message>
-        <source>Delete brush tip &quot;%1&quot;?</source>
+        <source>Delete brush tip "%1"?</source>
         <translation>要刪除筆尖「%1」嗎？</translation>
     </message>
     <message numerus="yes">
@@ -3797,7 +3797,7 @@
         <translation>Patchy 已保留其可理解的可編輯資料，並標示出可能與 Photoshop 或其他 PSD 編輯器不同的部分。</translation>
     </message>
     <message>
-        <source>Don&apos;t show this again</source>
+        <source>Don't show this again</source>
         <translation>不再顯示</translation>
     </message>
     <message>
@@ -4229,7 +4229,7 @@
         <translation>分割相片</translation>
     </message>
     <message>
-        <source>The folder &quot;%1&quot; could not be created.</source>
+        <source>The folder "%1" could not be created.</source>
         <translation>無法建立資料夾「%1」。</translation>
     </message>
     <message>
@@ -4981,7 +4981,7 @@
         <translation>壓縮（RTPACK zlib 容器）</translation>
     </message>
     <message>
-        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack&apos;s rule): a transparent image is written lossless instead.</source>
+        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack's rule): a transparent image is written lossless instead.</source>
         <translation>紋理會填補為 2 的次方，並將真實尺寸記錄在標頭中，因此再次開啟時會回到真實尺寸。JPEG 只適用於沒有透明度的影像（RTPack 的規則）：透明影像會改以無失真方式寫入。</translation>
     </message>
     <message>
@@ -5093,11 +5093,11 @@
         <translation>字體遺失時，將該文字匯出為影像，而不以替代字體取代</translation>
     </message>
     <message>
-        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer&apos;s pixels instead.</source>
+        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer's pixels instead.</source>
         <translation>不勾選時，使用未安裝字體的文字會以替代字體寫成可編輯文字，因此外觀可能和版面不同。勾選時，該文字會改以圖層像素的影像寫入。</translation>
     </message>
     <message>
-        <source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source>
+        <source>The page is sized from the document's resolution, so it prints at the image's own size.</source>
         <translation>頁面尺寸取自文件的解析度，因此會以影像本身的尺寸列印。</translation>
     </message>
     <message>
@@ -5402,11 +5402,11 @@
         <translation>請輸入預設集的名稱。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <source>"%1" is a built-in preset. Choose another name.</source>
         <translation>「%1」是內建預設集，請選擇其他名稱。</translation>
     </message>
     <message>
-        <source>Replace the preset &quot;%1&quot;?</source>
+        <source>Replace the preset "%1"?</source>
         <translation>要取代預設集「%1」嗎？</translation>
     </message>
     <message>
@@ -5414,7 +5414,7 @@
         <translation>刪除描圖預設集</translation>
     </message>
     <message>
-        <source>Delete the preset &quot;%1&quot;?</source>
+        <source>Delete the preset "%1"?</source>
         <translation>要刪除預設集「%1」嗎？</translation>
     </message>
     <message>
@@ -5422,7 +5422,7 @@
         <translation>圖層樣式</translation>
     </message>
     <message>
-        <source>Pattern &quot;%1&quot; is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
+        <source>Pattern "%1" is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
         <translation>圖樣「%1」沒有內嵌在這份文件中，因此在你選擇其他圖樣之前，參照它的效果無法顯示。</translation>
     </message>
     <message>
@@ -5438,7 +5438,7 @@
         <translation>以可編輯的預設值取代</translation>
     </message>
     <message>
-        <source>This folder&apos;s closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
+        <source>This folder's closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
         <translation>這個資料夾的 PSD 結束記錄含有獨立的混合範圍資料。Patchy 會原封不動保留該邊界資料；下方的控制項只會編輯可見的資料夾記錄。</translation>
     </message>
     <message>
@@ -5588,7 +5588,7 @@
         <translation>未勾選的色版會保留下方的圖層，而不進行合成</translation>
     </message>
     <message>
-        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file&apos;s color mode</source>
+        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file's color mode</source>
         <translation>這個圖層保留了 Patchy 無法針對此檔案色彩模式編輯的 Photoshop 色版限制</translation>
     </message>
     <message>
@@ -5612,7 +5612,7 @@
         <translation>將內部效果混合成群組</translation>
     </message>
     <message>
-        <source>Put the layer&apos;s blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
+        <source>Put the layer's blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
         <translation>讓圖層的混合模式作用在覆蓋、緞面和內光暈之上，而不是讓它們以各自的模式混合</translation>
     </message>
     <message>
@@ -5780,7 +5780,7 @@
         <translation>疊印</translation>
     </message>
     <message>
-        <source>Blend the stroke against the layer&apos;s own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
+        <source>Blend the stroke against the layer's own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
         <translation>讓筆畫與圖層本身的內容混合。關閉時，筆畫會將該區域的內容挖空，並與下方的圖層混合，就像 Photoshop 一樣</translation>
     </message>
     <message>
@@ -5856,7 +5856,7 @@
         <translation>圖層穿透陰影</translation>
     </message>
     <message>
-        <source>Hide the shadow under the layer&apos;s own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
+        <source>Hide the shadow under the layer's own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
         <translation>將陰影隱藏在圖層本身的形狀下方，讓它不會從挖空或半透明的內容透出來，就像 Photoshop 一樣</translation>
     </message>
     <message>
@@ -6008,11 +6008,11 @@
         <translation>遺失字體</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate the font &quot;%1&quot;. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>Patchy can't locate the font "%1". Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>Patchy 找不到字體「%1」。編輯這個 PSD 點陣預視時會以其他字體取代。要繼續嗎？</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <source>Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy 找不到這些字體：%1。編輯這個 PSD 點陣預視時會以其他字體取代。要繼續嗎？</translation>
     </message>
     <message>
@@ -6336,11 +6336,11 @@
         <translation>Patchy 已保留不支援的 Photoshop 混合範圍資料，但不會顯示 (%1 筆圖層資料、%2 筆群組邊界記錄)。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: invalid Gaussian blur radius; effect skipped</source>
+        <source>Layer '%1': invalid Gaussian blur radius; effect skipped</source>
         <translation>圖層「%1」：高斯模糊半徑無效，已略過此效果</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: Gaussian blur could not be applied; original pixels kept</source>
+        <source>Layer '%1': Gaussian blur could not be applied; original pixels kept</source>
         <translation>圖層「%1」：無法套用高斯模糊，已保留原始像素</translation>
     </message>
     <message>
@@ -7142,7 +7142,7 @@ RGB：%2, %3, %4</translation>
         <translation>以影像開啟</translation>
     </message>
     <message>
-        <source>Open the selected pattern&apos;s texture as a new image</source>
+        <source>Open the selected pattern's texture as a new image</source>
         <translation>將所選圖樣的紋理開啟為新影像</translation>
     </message>
     <message>
@@ -7172,7 +7172,7 @@ RGB：%2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Delete pattern &quot;%1&quot;?</source>
+        <source>Delete pattern "%1"?</source>
         <translation>要刪除圖樣「%1」嗎？</translation>
     </message>
     <message numerus="yes">
@@ -7192,7 +7192,7 @@ RGB：%2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Could not load the selected pattern&apos;s texture.</source>
+        <source>Could not load the selected pattern's texture.</source>
         <translation>無法載入所選圖樣的紋理。</translation>
     </message>
     <message>
@@ -7354,7 +7354,7 @@ RGB：%2, %3, %4</translation>
         <translation>請至少選取一個頁面。</translation>
     </message>
     <message>
-        <source>Some artwork could not be kept editable; reimport with &quot;Flattened image per page&quot; for an exact copy.</source>
+        <source>Some artwork could not be kept editable; reimport with "Flattened image per page" for an exact copy.</source>
         <translation>部分圖稿無法保持可編輯狀態，若需要完全相同的複本，請改用「每頁一張平面化影像」重新匯入。</translation>
     </message>
     <message>
@@ -7390,7 +7390,7 @@ RGB：%2, %3, %4</translation>
         <translation>印表機無法使用</translation>
     </message>
     <message>
-        <source>Windows cannot read the settings for &quot;%1&quot;. The printer driver may need to be repaired or reinstalled.</source>
+        <source>Windows cannot read the settings for "%1". The printer driver may need to be repaired or reinstalled.</source>
         <translation>Windows 無法讀取「%1」的設定。印表機驅動程式可能需要修復或重新安裝。</translation>
     </message>
     <message>
@@ -7934,7 +7934,7 @@ RGB：%2, %3, %4</translation>
         <translation>與圖層對齊</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
+        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
         <translation>將並排格點固定在圖層的位置；取消勾選則固定在文件原點</translation>
     </message>
     <message>
@@ -8019,7 +8019,7 @@ RGB：%2, %3, %4</translation>
         <translation>GitHub：%1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
+        <source>Seth's site: %1</source>
         <translation>Seth 的網站：%1</translation>
     </message>
     <message>
@@ -8133,7 +8133,7 @@ RGB：%2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Delete style &quot;%1&quot;?</source>
+        <source>Delete style "%1"?</source>
         <translation>要刪除樣式「%1」嗎？</translation>
     </message>
     <message numerus="yes">
@@ -8415,7 +8415,7 @@ RGB：%2, %3, %4</translation>
         <translation>刪除外觀</translation>
     </message>
     <message>
-        <source>Delete Look &quot;%1&quot;?</source>
+        <source>Delete Look "%1"?</source>
         <translation>要刪除外觀「%1」嗎？</translation>
     </message>
     <message>
@@ -8551,7 +8551,7 @@ RGB：%2, %3, %4</translation>
         <translation>保持寬高比例</translation>
     </message>
     <message>
-        <source>Softens the whole shape, stroke included, like Photoshop&apos;s vector mask feather</source>
+        <source>Softens the whole shape, stroke included, like Photoshop's vector mask feather</source>
         <translation>像 Photoshop 的向量遮色片羽化一樣柔化整個形狀（包括筆畫）</translation>
     </message>
     <message>
@@ -8717,7 +8717,7 @@ RGB：%2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>About %1 GB of memory, more than half of this computer&apos;s %2 GB. Fewer pages or a lower resolution will open faster.</source>
+        <source>About %1 GB of memory, more than half of this computer's %2 GB. Fewer pages or a lower resolution will open faster.</source>
         <translation>約需 %1 GB 記憶體，超過這台電腦 %2 GB 的一半。減少頁數或降低解析度可以更快開啟。</translation>
     </message>
     <message>
@@ -8931,11 +8931,11 @@ RGB：%2, %3, %4</translation>
         <translation>同時刪除完全位於版面之外的圖層</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <source>Patchy can't locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy 找不到這些字體：%1。這些字體沒有其文字所需的字符：%2。編輯這個 PSD 點陣預視時會以其他字體取代。要繼續嗎？</translation>
     </message>
     <message>
-        <source>The font &quot;%1&quot; has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>The font "%1" has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>字體「%1」沒有這段文字所需的字符。編輯這個 PSD 點陣預視時會以其他字體取代。要繼續嗎？</translation>
     </message>
     <message>
@@ -9165,7 +9165,7 @@ RGB：%2, %3, %4</translation>
         <translation>32 位元影像已轉換為每色版 16 位元：網頁版最多編輯 16 位元。</translation>
     </message>
     <message>
-        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <source>This document's preserved text engine cannot store new area text.</source>
         <translation>此文件保留的文字引擎無法儲存新的形狀內文字。</translation>
     </message>
     <message>
@@ -9189,8 +9189,8 @@ RGB：%2, %3, %4</translation>
         <translation>DDS 像素格式的位元遮罩超出了像素大小</translation>
     </message>
     <message>
-        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
-        <translation>不是 DDS 紋理：缺少 &apos;DDS &apos; 簽章</translation>
+        <source>Not a DDS texture: the 'DDS ' signature is missing</source>
+        <translation>不是 DDS 紋理：缺少 'DDS ' 簽章</translation>
     </message>
     <message>
         <source>DDS texture is truncated: the header is incomplete</source>
@@ -9789,7 +9789,7 @@ RGB：%2, %3, %4</translation>
         <translation>軟體:</translation>
     </message>
     <message>
-        <source>The file also carries a maker note: the camera maker&apos;s private data, which often includes serial numbers.</source>
+        <source>The file also carries a maker note: the camera maker's private data, which often includes serial numbers.</source>
         <translation>此檔案還包含製造商附註：即相機製造商的私有資料，其中通常包含序號。</translation>
     </message>
     <message>
@@ -10121,7 +10121,7 @@ RGB：%2, %3, %4</translation>
         <translation>壓縮力度:</translation>
     </message>
     <message>
-        <source>Patchy does not use JPEG XL&apos;s patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
+        <source>Patchy does not use JPEG XL's patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
         <translation>Patchy 不使用 JPEG XL 的修補和點編碼工具，因此包含重複文字或小點的影像可能比使用其他編碼器時稍大。</translation>
     </message>
     <message>
@@ -10137,7 +10137,7 @@ RGB：%2, %3, %4</translation>
         <translation>CMYK 影像：已透過描述檔 %1 轉換為 RGB</translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
+        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
         <translation>檔案的 CMYK 描述檔 %1 與 CMYK 儲存所用的工作 CMYK 描述檔 %2 不同</translation>
     </message>
     <message>
@@ -10393,7 +10393,7 @@ RGB：%2, %3, %4</translation>
         <translation>此版本的 Patchy 無法解碼 HEIC 影像。</translation>
     </message>
     <message>
-        <source>This build of Patchy cannot decode HEIC images because the system&apos;s libheif library is not installed. Install it and try again.
+        <source>This build of Patchy cannot decode HEIC images because the system's libheif library is not installed. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif1
 Fedora: sudo dnf install libheif</source>
         <translation>系統未安裝 libheif 程式庫，因此此版本的 Patchy 無法解碼 HEIC 影像。請安裝後再試一次。
@@ -10405,7 +10405,7 @@ Fedora: sudo dnf install libheif</translation>
         <translation>已安裝的 libheif 程式庫版本過舊，因此此版本的 Patchy 無法解碼 HEIC 影像。Patchy 需要 libheif 1.12 或更新版本。</translation>
     </message>
     <message>
-        <source>The system&apos;s libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
+        <source>The system's libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation>系統的 libheif 程式庫沒有 HEVC 解碼器外掛程式，因此 Patchy 無法解碼 HEIC 影像。請安裝後再試一次。
@@ -10413,7 +10413,7 @@ Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
-        <source>This HEIC image&apos;s bit depth is not supported by the installed libheif library.</source>
+        <source>This HEIC image's bit depth is not supported by the installed libheif library.</source>
         <translation>已安裝的 libheif 程式庫不支援此 HEIC 影像的位元深度。</translation>
     </message>
     <message>
@@ -10461,7 +10461,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>請輸入 %1 到 %2 ppi 之間的解析度。</translation>
     </message>
     <message>
-        <source>Indexed color needs &quot;Flattened image per page&quot;: shapes, text and images cannot be converted to a palette.</source>
+        <source>Indexed color needs "Flattened image per page": shapes, text and images cannot be converted to a palette.</source>
         <translation>索引色彩需要「每頁一張平面化影像」：形狀、文字與影像無法轉換為調色盤。</translation>
     </message>
     <message>
@@ -10573,7 +10573,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>深</translation>
     </message>
     <message>
-        <source>Shallow cuts through the layers below to the bottom of this layer&apos;s group; Deep cuts through to the Background, or to transparency without one</source>
+        <source>Shallow cuts through the layers below to the bottom of this layer's group; Deep cuts through to the Background, or to transparency without one</source>
         <translation>淺：穿透下方圖層直到此圖層所在群組的底部；深：穿透到背景，沒有背景時穿透到透明</translation>
     </message>
     <message>
@@ -10619,7 +10619,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>取代為：</translation>
     </message>
     <message>
-        <source>Don&apos;t show when opening documents</source>
+        <source>Don't show when opening documents</source>
         <translation>開啟文件時不顯示</translation>
     </message>
     <message>
@@ -10639,15 +10639,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>文字圖層。此電腦上遺失字體：%1。</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <source>The TIFF's Photoshop layer records are damaged</source>
         <translation>TIFF 中的 Photoshop 圖層記錄已損毀</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <source>The TIFF's Photoshop layer data mixes byte orders</source>
         <translation>TIFF 中的 Photoshop 圖層資料混用了位元組順序</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <source>The TIFF's Photoshop layer data is cut short</source>
         <translation>TIFF 中的 Photoshop 圖層資料不完整</translation>
     </message>
     <message>
@@ -10659,7 +10659,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>不是 Patchy 可讀取圖層的 TIFF 檔案</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s first directory is damaged</source>
+        <source>The TIFF's first directory is damaged</source>
         <translation>TIFF 的第一個目錄已損毀</translation>
     </message>
     <message>
@@ -10667,7 +10667,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>TIFF 中沒有 Photoshop 圖層資料</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <source>The TIFF's first directory lacks its image size or color layout</source>
         <translation>TIFF 的第一個目錄缺少影像尺寸或色彩配置</translation>
     </message>
     <message>
@@ -10675,7 +10675,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Patchy 只能讀取 8 位元、16 位元或 32 位元浮點的 TIFF 圖層</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <source>The TIFF's Photoshop layer data holds no layers</source>
         <translation>TIFF 中的 Photoshop 圖層資料不含任何圖層</translation>
     </message>
     <message>
@@ -10683,7 +10683,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>此 TIFF 以 IBM PC 位元組順序儲存圖層，其中部分圖層資料的形式 Patchy 尚無法轉換。Patchy 已將其略去，因此某些圖層的外觀可能與 Photoshop 中不同。</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <source>The TIFF's Photoshop layer data is too large</source>
         <translation>TIFF 中的 Photoshop 圖層資料過大</translation>
     </message>
     <message>
@@ -10735,7 +10735,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Photoshop 與 Patchy 會開啟圖層；其他應用程式顯示平面化影像。不保留圖層時，Patchy 會儲存一份平面化副本，此文件仍保留其圖層。</translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>檔案的 CMYK 描述檔 %1 與 CMYK 校樣以及 JPEG、TIFF 和 PDF 的 CMYK 儲存所用的工作 CMYK 描述檔 %2 不同</translation>
     </message>
     <message>
@@ -11078,23 +11078,23 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>刪除所有智慧型濾鏡</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <source>Patchy can't render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
         <translation>Patchy 無法算繪隨後會執行的所有智慧型濾鏡。在 Photoshop 中開啟檔案時，Photoshop 會算繪它們。</translation>
     </message>
     <message>
-        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or hide all Smart Filters.</source>
         <translation>隱藏這個濾鏡後，仍會有 Patchy 無法算繪的智慧型濾鏡在執行。請先隱藏或刪除那些濾鏡，或隱藏所有智慧型濾鏡。</translation>
     </message>
     <message>
-        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or delete all Smart Filters.</source>
         <translation>刪除這個濾鏡後，仍會有 Patchy 無法算繪的智慧型濾鏡在執行。請先隱藏或刪除那些濾鏡，或刪除所有智慧型濾鏡。</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <source>Patchy can't edit this filter's settings. It is preserved unchanged.</source>
         <translation>Patchy 無法編輯這個濾鏡的設定。它會原樣保留。</translation>
     </message>
     <message>
-        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <source>This stack runs Smart Filters that Patchy can't render, so their settings can't change here. Hide or delete those filters first.</source>
         <translation>這個堆疊執行了 Patchy 無法算繪的智慧型濾鏡，因此無法在此變更其設定。請先隱藏或刪除那些濾鏡。</translation>
     </message>
     <message>
@@ -11366,7 +11366,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: "Radius 3 px".</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11550,7 +11550,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>已防止自動巢狀進出工作區域</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop's Color and Vibrance). They have no effect here and are saved unchanged.</source>
         <translation>部分調整圖層使用了 Patchy 尚無法套用的類型（例如 Photoshop 的顏色和自然飽和度）。它們在此處沒有作用，並會原樣儲存。</translation>
     </message>
     <message>
@@ -11624,7 +11624,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>重新連結...</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
+        <source>Used by layer "%1"</source>
         <translation>由圖層「%1」使用</translation>
     </message>
     <message numerus="yes">
@@ -12011,7 +12011,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>內容憑證：</translation>
     </message>
     <message>
-        <source>The file&apos;s metadata declares no watermark.</source>
+        <source>The file's metadata declares no watermark.</source>
         <translation>檔案的中繼資料未宣告浮水印。</translation>
     </message>
     <message>
@@ -12067,7 +12067,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>展開智慧型濾鏡列</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe's, MIT License): a %1 MB download from %2, made only when you ask.</source>
         <translation>Adobe TrustMark 是持久 Content Credentials 背後的開放浮水印，需要浮水印模型（Adobe 提供，MIT 授權）：從 %2 下載 %1 MB，僅在你要求時下載。</translation>
     </message>
     <message>
@@ -12103,7 +12103,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>ICC 描述檔 (*.icc *.icm)</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <source>"%1" is not an RGB profile Patchy can use.</source>
         <translation>「%1」不是 Patchy 可以使用的 RGB 描述檔。</translation>
     </message>
     <message>
@@ -12180,7 +12180,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Saved</source>
-        <comment>new document template group of the user&apos;s own presets</comment>
+        <comment>new document template group of the user's own presets</comment>
         <translation>已儲存</translation>
     </message>
     <message>
@@ -12188,7 +12188,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>未命名-1</translation>
     </message>
     <message>
-        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <source>The document's tab title and the file name Save As suggests</source>
         <translation>文件的分頁標題，也是「另存新檔」建議的檔名</translation>
     </message>
     <message>
@@ -12361,7 +12361,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>向左或向右拖曳以縮放。按一下放大，按住 %ALT% 按一下縮小。按住空白鍵或使用滑鼠中鍵平移。</translation>
     </message>
     <message>
-        <source>Don&apos;t Show Again</source>
+        <source>Don't Show Again</source>
         <translation>不再顯示</translation>
     </message>
     <message>
@@ -12441,7 +12441,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>部分圖層只在其下方圖層所在之處顯示（與 GIMP 的合成方式一致），已作為該圖層的剪裁遮色片開啟。</translation>
     </message>
     <message>
-        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <source>Layers in GIMP's Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP 擦除或分割模式的圖層已變為遮色片：每個圖層下方的圖層都放入以其命名的群組中，並在其擦除之處加以遮蓋。</translation>
     </message>
     <message>
@@ -12577,7 +12577,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Camera Raw 濾鏡</translation>
     </message>
     <message>
-        <source>Neutralize the layer&apos;s average color</source>
+        <source>Neutralize the layer's average color</source>
         <translation>中和圖層的平均顏色</translation>
     </message>
     <message>
@@ -12702,7 +12702,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>View &gt; Extras shows and hides the items ticked here.
-Each item&apos;s own View setting still applies.</source>
+Each item's own View setting still applies.</source>
         <translation>檢視 &gt; 額外內容會顯示或隱藏此處勾選的項目。
 每個項目自己的檢視設定仍然適用。</translation>
     </message>
@@ -12759,7 +12759,7 @@ Each item&apos;s own View setting still applies.</source>
         </translation>
     </message>
     <message>
-        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <source>Don't show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>開啟文件時不顯示（可在 偏好設定 &gt; 應用程式 中重新開啟）</translation>
     </message>
     <message>
@@ -12787,7 +12787,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>匯出為網頁格式</translation>
     </message>
     <message>
-        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <source>Sizes are the real encoded files at each format's own settings and update as you change them.</source>
         <translation>大小為依各格式自身設定實際編碼後的檔案大小，變更設定時會更新。</translation>
     </message>
     <message>
@@ -12907,7 +12907,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>遮色片隱藏區域的不透明度。低於 100% 時圖層會透過這些區域顯示。</translation>
     </message>
     <message>
-        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <source>Softens the mask's edges by this many pixels</source>
         <translation>以此像素數柔化遮色片邊緣</translation>
     </message>
     <message numerus="yes">
@@ -13099,7 +13099,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>加入一張小預覽圖（約 5 到 10 KB），部分檢視器和檔案瀏覽器會顯示它。適用於任何中繼資料選項：選擇「無」時，檔案只包含縮圖。</translation>
     </message>
     <message>
-        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document's File Info.</source>
         <translation>Patchy 作為建立程式、匯出日期和一筆記錄項目，與偏好設定中的「基本」寫入的相同。不包含文件檔案資訊中的任何內容。</translation>
     </message>
     <message>
@@ -13163,7 +13163,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>拖曳影像可在平面上移動，拖曳角可縮放，拖曳圓形控點可旋轉。按 Enter 放置，按 Esc 移除。</translation>
     </message>
     <message>
-        <source>Drag the image onto a plane. It takes on that plane&apos;s perspective.</source>
+        <source>Drag the image onto a plane. It takes on that plane's perspective.</source>
         <translation>將影像拖曳到平面上。它會採用該平面的透視。</translation>
     </message>
     <message>
@@ -13339,7 +13339,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>繪畫顏色</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons' commands stay in the menus.</source>
         <translation>勾選圖層面板顯示的按鈕，拖曳它們或使用「上移」和「下移」設定順序。隱藏按鈕的命令仍在選單中。</translation>
     </message>
     <message>
@@ -13367,7 +13367,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>顯示其他圖層</translation>
     </message>
     <message>
-        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <source>Show the document's other layers behind this one; edits still go only to this layer</source>
         <translation>在此圖層後面顯示文件的其他圖層；編輯仍只寫入此圖層</translation>
     </message>
     <message>
@@ -13404,12 +13404,12 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Patchy</source>
-        <comment>Layers buttons preset: Patchy&apos;s own default</comment>
+        <comment>Layers buttons preset: Patchy's own default</comment>
         <translation>Patchy</translation>
     </message>
     <message>
         <source>Custom</source>
-        <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
+        <comment>Layers buttons preset: the user's own arrangement</comment>
         <translation>自訂</translation>
     </message>
     <message>
@@ -13507,7 +13507,7 @@ Each item&apos;s own View setting still applies.</source>
         </translation>
     </message>
     <message>
-        <source>Delete shape &quot;%1&quot;?</source>
+        <source>Delete shape "%1"?</source>
         <translation>要刪除形狀「%1」嗎？</translation>
     </message>
     <message numerus="yes">
@@ -13605,7 +13605,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>圖示大小:</translation>
     </message>
     <message>
-        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <source>Size of the Layers panel's buttons, relative to the interface scale.</source>
         <translation>圖層面板按鈕的大小，相對於介面縮放。</translation>
     </message>
     <message>
@@ -13813,7 +13813,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>不使用工具群組：每個工具都有自己的按鈕</translation>
     </message>
     <message>
-        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP's.</source>
         <translation>部分文字圖層帶有 GIMP 輪廓。它們仍可編輯，輪廓轉為筆畫效果，文字由 Patchy 自行繪製，因此可能與 GIMP 略有不同。</translation>
     </message>
     <message>
@@ -14077,11 +14077,11 @@ Each item&apos;s own View setting still applies.</source>
         <translation>刪除筆畫預設集</translation>
     </message>
     <message>
-        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <source>Delete stroke preset "%1"?</source>
         <translation>刪除筆畫預設集「%1」？</translation>
     </message>
     <message>
-        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <source>A stroke preset named "%1" already exists.</source>
         <translation>已有名為「%1」的筆畫預設集。</translation>
     </message>
     <message>
@@ -14383,7 +14383,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>將目前設定寫入預設集檔案</translation>
     </message>
     <message>
-        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <source>A preset named "%1" already exists. Replace it?</source>
         <translation>名為「%1」的預設集已存在。要取代嗎?</translation>
     </message>
     <message>
@@ -14635,7 +14635,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>羽化選取範圍</translation>
     </message>
     <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers' pixels.</source>
         <translation>Patchy 能夠重現的 GIMP 圖層效果（高斯模糊、色階和色相-飽和度等顏色濾鏡，以及 Patchy 內含的 GEGL 濾鏡，如遮色片銳利化、泛光和雜訊）已套用到其圖層的像素上。</translation>
     </message>
     <message>
@@ -14712,19 +14712,19 @@ Each item&apos;s own View setting still applies.</source>
         <translation>羽化半徑:</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s image data is damaged</source>
+        <source>The TIFF's image data is damaged</source>
         <translation>TIFF 的影像資料已損毀</translation>
     </message>
     <message>
-        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <source>Patchy cannot read this TIFF's sample layout</source>
         <translation>Patchy 無法讀取此 TIFF 的取樣配置</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <source>The TIFF's image data is cut short or damaged; the missing part opened empty.</source>
         <translation>TIFF 的影像資料不完整或已損毀；缺少的部分以空白開啟。</translation>
     </message>
     <message>
-        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <source>Some of the TIFF's extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>已略過 TIFF 的部分額外色版：一份文件最多保留 56 個色版。</translation>
     </message>
     <message>
@@ -14732,7 +14732,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>TIFF 中沒有可開啟的頁面</translation>
     </message>
     <message>
-        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <source>The pages' extra channels were left out: they belong to single pages, not the layered document.</source>
         <translation>已略過頁面的額外色版：它們屬於單一頁面，而非分層文件。</translation>
     </message>
     <message>
@@ -14769,7 +14769,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Pages Patchy could not read were left out: %1</source>
-        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <extracomment>%1 lists page numbers, such as "3, 5".</extracomment>
         <translation>已略過 Patchy 無法讀取的頁面：%1</translation>
     </message>
     <message>
@@ -14847,16 +14847,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>掃描器傳送的影像不完整</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>每個可見的最上層圖層會成為一個影格，最上方的圖層排在最前面。隱藏的圖層會略過。名為 &quot;all&quot; 的圖層不作為一個影格，而是繪製在每個影格中；名為 &quot;all&quot; 的群組中的每個圖層各成一個影格。名稱結尾含有時間的圖層（例如「blink 0.25s」）會覆寫該影格的預設延遲。動畫會無限循環播放。</translation>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named "all" is drawn in every frame instead of being one, and each layer inside a group named "all" is its own frame. A layer name ending in a time, like "blink 0.25s", overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>每個可見的最上層圖層會成為一個影格，最上方的圖層排在最前面。隱藏的圖層會略過。名為 "all" 的圖層不作為一個影格，而是繪製在每個影格中；名為 "all" 的群組中的每個圖層各成一個影格。名稱結尾含有時間的圖層（例如「blink 0.25s」）會覆寫該影格的預設延遲。動畫會無限循環播放。</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>每個可見的頂層圖層產生一個影格，從最上面的圖層開始。名為 &quot;all&quot; 的圖層不作為一個影格，而是繪製在每個影格中；名為 &quot;all&quot; 的群組中的每個圖層各成一個影格。名稱結尾的時間（如 &quot;blink 0.033s&quot;）指定該影格的顯示時長。播放次數包含首次播放。</translation>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named "all" is drawn in every frame instead of being one, and each layer inside a group named "all" is its own frame. A name ending in a time, like "blink 0.033s", sets that frame's delay. Play count includes the first play.</source>
+        <translation>每個可見的頂層圖層產生一個影格，從最上面的圖層開始。名為 "all" 的圖層不作為一個影格，而是繪製在每個影格中；名為 "all" 的群組中的每個圖層各成一個影格。名稱結尾的時間（如 "blink 0.033s"）指定該影格的顯示時長。播放次數包含首次播放。</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
-        <translation>每個可見的頂層圖層成為一個影格，最上面的圖層在前。名為 &quot;all&quot; 的圖層不作為一個影格，而是繪製在每個影格中；名為 &quot;all&quot; 的群組中的每個圖層各成一個影格。</translation>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named "all" is drawn in every frame instead of being one, and each layer inside a group named "all" is its own frame.</source>
+        <translation>每個可見的頂層圖層成為一個影格，最上面的圖層在前。名為 "all" 的圖層不作為一個影格，而是繪製在每個影格中；名為 "all" 的群組中的每個圖層各成一個影格。</translation>
     </message>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
@@ -14865,7 +14865,7 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <extracomment>Save dialog: the typed name got the picked file type's extension and that file exists</extracomment>
         <translation>%1 已存在。
 要取代它嗎?</translation>
     </message>
@@ -14950,7 +14950,7 @@ Do you want to replace it?</source>
         <translation>多頁 TIFF 僅開啟了第一頁(可在偏好設定中變更)</translation>
     </message>
     <message>
-        <source>Don&apos;t ask again</source>
+        <source>Don't ask again</source>
         <translation>不再詢問</translation>
     </message>
     <message>
@@ -14962,7 +14962,7 @@ Do you want to replace it?</source>
         <translation>單位</translation>
     </message>
     <message>
-        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <source>Needs "Mouse wheel scrolls the palette" on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>需要開啟「放不下時用滑鼠滾輪捲動面板」：否則只能靠它們找到放不下的工具。</translation>
     </message>
     <message>
@@ -15011,7 +15011,7 @@ Do you want to replace it?</source>
         <translation>指標停留在列上時顯示圖層名稱、不透明度和鎖定的提示。</translation>
     </message>
     <message>
-        <source>How a layer&apos;s color label shows: a strip at the row&apos;s left edge, or a tint over the whole row.</source>
+        <source>How a layer's color label shows: a strip at the row's left edge, or a tint over the whole row.</source>
         <translation>圖層顏色標籤的顯示方式：列左邊緣的色條，或為整列著色。</translation>
     </message>
     <message>
@@ -15183,7 +15183,7 @@ Do you want to replace it?</source>
         <translation>依紙張厚度位移內層紙張</translation>
     </message>
     <message>
-        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet&apos;s pages move toward the fold by one paper thickness.</source>
+        <source>Nested sheets push the inner pages outward when folded (creep). Each inner sheet's pages move toward the fold by one paper thickness.</source>
         <translation>套疊的紙張摺起後，內層頁面會向外推出（稱為「摺疊位移」）。每一層內層紙張的頁面向摺縫移動一個紙張厚度。</translation>
     </message>
     <message>
@@ -15323,7 +15323,7 @@ Do you want to replace it?</source>
         <translation>Patchy 會請印表機以短邊翻轉。</translation>
     </message>
     <message>
-        <source>If the print dialog has a two-sided setting, choose short-edge binding (sometimes called &quot;flip up&quot;).</source>
+        <source>If the print dialog has a two-sided setting, choose short-edge binding (sometimes called "flip up").</source>
         <translation>如果列印對話方塊中有雙面設定，請選擇短邊裝訂（有時稱為「上翻」）。</translation>
     </message>
     <message>
@@ -15339,7 +15339,7 @@ Do you want to replace it?</source>
         <translation>另一面顯示 %1 和 %2。</translation>
     </message>
     <message>
-        <source>Second side upside down? Turn on &quot;Backs print upside down&quot; and print again.</source>
+        <source>Second side upside down? Turn on "Backs print upside down" and print again.</source>
         <translation>第二面是倒的？請開啟「背面倒置列印」，然後重新列印。</translation>
     </message>
     <message numerus="yes">
@@ -15559,7 +15559,7 @@ Do you want to replace it?</source>
         <translation>每一頁</translation>
     </message>
     <message>
-        <source>Prints each page&apos;s number in the book under it. Blank pages added to fill the last sheet get no number.</source>
+        <source>Prints each page's number in the book under it. Blank pages added to fill the last sheet get no number.</source>
         <translation>在每頁下方列印它在書中的頁碼。為湊滿最後一張紙而加入的空白頁不編號。</translation>
     </message>
     <message>
@@ -15619,7 +15619,7 @@ Do you want to replace it?</source>
         <translation>圖層清單上方、不透明度旁的「填滿」欄位。隱藏後，混合模式和不透明度在較窄的面板中可排成一列。</translation>
     </message>
     <message>
-        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or &quot;Separate documents&quot; will be faster.</source>
+        <source>One canvas of %1 x %2 px, which is very large: it will be slow to open and edit. Fewer pages, a lower resolution or "Separate documents" will be faster.</source>
         <translation>一個 %1 x %2 px 的畫布，尺寸非常大：開啟和編輯都會很慢。減少頁數、降低解析度或選擇「個別文件」會更快。</translation>
     </message>
     <message>
@@ -15627,47 +15627,47 @@ Do you want to replace it?</source>
         <translation>一個 %1 x %2 px 的畫布。</translation>
     </message>
     <message>
-        <source>Inside keeps the stroke within the line&apos;s Weight. Choose Center or Outside to make the line thicker.</source>
+        <source>Inside keeps the stroke within the line's Weight. Choose Center or Outside to make the line thicker.</source>
         <translation>「內部」會將筆畫限制在線條的線寬之內。選擇「置中」或「外部」可讓線條變粗。</translation>
     </message>
     <message>
         <source>same character widths</source>
-        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.</extracomment>
         <translation>字元寬度相同</translation>
     </message>
     <message>
         <source>similar design</source>
-        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.</extracomment>
         <translation>設計相似</translation>
     </message>
     <message>
         <source>also a serif font</source>
-        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.</extracomment>
         <translation>同為襯線字型</translation>
     </message>
     <message>
         <source>also a sans-serif font</source>
-        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.</extracomment>
         <translation>同為無襯線字型</translation>
     </message>
     <message>
         <source>also a monospaced font</source>
-        <extracomment>Beside a suggested font in the Missing Fonts dialog&apos;s font list: why it is suggested.</extracomment>
+        <extracomment>Beside a suggested font in the Missing Fonts dialog's font list: why it is suggested.</extracomment>
         <translation>同為等寬字型</translation>
     </message>
     <message>
         <source>Chosen before</source>
-        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts the user picked for this missing font earlier.</extracomment>
+        <extracomment>Heading in the Missing Fonts dialog's font list: fonts the user picked for this missing font earlier.</extracomment>
         <translation>先前選擇過</translation>
     </message>
     <message>
         <source>Remove from Chosen before</source>
-        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog&apos;s Chosen before font list section.</extracomment>
+        <extracomment>Tooltip of the x on a row of the Missing Fonts dialog's Chosen before font list section.</extracomment>
         <translation>從先前選擇過中移除</translation>
     </message>
     <message>
         <source>Suggested</source>
-        <extracomment>Heading in the Missing Fonts dialog&apos;s font list: fonts Patchy suggests for this missing font.</extracomment>
+        <extracomment>Heading in the Missing Fonts dialog's font list: fonts Patchy suggests for this missing font.</extracomment>
         <translation>建議</translation>
     </message>
     <message>
@@ -15687,72 +15687,136 @@ Do you want to replace it?</source>
         <translation>%1 無法在網頁版 Patchy 中使用。如需使用，請下載桌面版，Windows、macOS 與 Linux 皆可免費使用。</translation>
     </message>
     <message>
-        <source>Below 100% the fill, or the stroke&apos;s color when the shape has a stroke, shows over the whole canvas, like Photoshop&apos;s vector mask density</source>
+        <source>Below 100% the fill, or the stroke's color when the shape has a stroke, shows over the whole canvas, like Photoshop's vector mask density</source>
         <translation>低於 100% 時，填色（形狀有筆畫時為筆畫顏色）會像 Photoshop 的向量遮色片濃度一樣在整個畫布上透出</translation>
     </message>
     <message>
-        <source>Below 100% the stroke&apos;s color also shows over the whole canvas and over the fill, as in Photoshop.</source>
+        <source>Below 100% the stroke's color also shows over the whole canvas and over the fill, as in Photoshop.</source>
         <translation>低於 100% 時，筆畫顏色也會像在 Photoshop 中一樣在整個畫布和填色上透出。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <source>Layer '%1' is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
         <translation>圖層「%1」是連結至外部檔案的智慧型物件；Patchy 會保留它，並可在來源檔案可用時從磁碟更新。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <source>Layer '%1' is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's preview (rasterize the layer to edit it here).</source>
         <translation>圖層「%1」是含有智慧型濾鏡的智慧型物件；Patchy 會保留這些濾鏡並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <source>Layer '%1' is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop's preview (rasterize the layer to edit it here).</source>
         <translation>圖層「%1」是含有彎曲或透視變形的智慧型物件；Patchy 會保留該變形並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; is a smart object Patchy can only preserve, not edit (%2).</source>
+        <source>Layer '%1' is a smart object Patchy can only preserve, not edit (%2).</source>
         <translation>圖層「%1」是 Patchy 只能保留而無法編輯的智慧型物件 (%2)。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <source>Layer '%1' contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
         <translation>圖層「%1」含有 Patchy 無法演算或編輯的 Photoshop 緞面輪廓設定 (自訂曲線或消除鋸齒)。Patchy 會保留這些設定，直到圖層樣式被編輯為止，之後會改用未消除鋸齒的線性輪廓。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <source>Layer '%1' contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>圖層「%1」含有色彩模式或資料格式不受支援的 Photoshop「混合範圍」資料。Patchy 會在重新儲存 PSD 時保留這些資料，但不會演算或編輯。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <source>Layer '%1' contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
         <translation>圖層「%1」在 Photoshop 群組邊界記錄中含有「混合範圍」資料。Patchy 會保留該邊界資料，但不會演算或編輯。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <source>Layer '%1' contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
         <translation>圖層「%1」含有色彩模式或資料格式不受支援的 Photoshop 色版混合限制。Patchy 會在重新儲存 PSD 時保留這些設定，但不會演算或編輯。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; preserves %2 unknown PSD layer block(s).</source>
+        <source>Layer '%1' preserves %2 unknown PSD layer block(s).</source>
         <translation>圖層「%1」保留了 %2 個未知的 PSD 圖層區塊。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <source>Layer '%1': extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
         <translation>圖層「%1」：已從 %2 擷取可編輯的 PSD 文字，但由於 PSD 文字像素不可見，Patchy 產生了預留位置的點陣預視。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <source>Layer '%1' is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>圖層「%1」是 Patchy 原生的調整圖層；在 Patchy 中儲存並重新開啟 PSD 後仍可保留，但在其他編輯器中可能顯示為不受支援的調整。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <source>Layer '%1' came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
         <translation>圖層「%1」來自灰階文件，在這裡調整的是它的灰色色版。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，色調會有所不同。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <source>Layer '%1' came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
         <translation>圖層「%1」來自 CMYK 文件，在這裡調整的是它的 CMYK 油墨。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，顏色會有所不同。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <source>Layer '%1' uses an unsupported layer kind and may not export as editable PSD data.</source>
         <translation>圖層「%1」使用不受支援的圖層類型，可能無法匯出為可編輯的 PSD 資料。</translation>
     </message>
     <message>
         <source>%1 layer(s) use a pixel format that can render but is not fully editable in this build.</source>
         <translation>有 %1 個圖層使用的像素格式可以演算，但在此版本中無法完整編輯。</translation>
+    </message>
+<message>
+        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>%1 是連結至外部檔案的智慧型物件；Patchy 會保留它，並可在來源檔案可用時從磁碟更新。</translation>
+    </message>
+    <message>
+        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's preview (rasterize the layer to edit it here).</source>
+        <translation>%1 是含有智慧型濾鏡的智慧型物件；Patchy 會保留這些濾鏡並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
+    </message>
+    <message>
+        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop's preview (rasterize the layer to edit it here).</source>
+        <translation>%1 是含有彎曲或透視變形的智慧型物件；Patchy 會保留該變形並顯示 Photoshop 的預視 (若要在此編輯，請將圖層點陣化)。</translation>
+    </message>
+    <message>
+        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>%1 是 Patchy 只能保留而無法編輯的智慧型物件 (%2)。</translation>
+    </message>
+    <message>
+        <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
+        <translation>%1 含有 Patchy 無法演算或編輯的 Photoshop 緞面輪廓設定 (自訂曲線或消除鋸齒)。Patchy 會保留這些設定，直到圖層樣式被編輯為止，之後會改用未消除鋸齒的線性輪廓。</translation>
+    </message>
+    <message>
+        <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
+        <translation>%1 含有色彩模式或資料格式不受支援的 Photoshop「混合範圍」資料。Patchy 會在重新儲存 PSD 時保留這些資料，但不會演算或編輯。</translation>
+    </message>
+    <message>
+        <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
+        <translation>%1 在 Photoshop 群組邊界記錄中含有「混合範圍」資料。Patchy 會保留該邊界資料，但不會演算或編輯。</translation>
+    </message>
+    <message>
+        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>%1 含有色彩模式或資料格式不受支援的 Photoshop 色版混合限制。Patchy 會在重新儲存 PSD 時保留這些設定，但不會演算或編輯。</translation>
+    </message>
+    <message>
+        <source>%1 preserves %2 unknown PSD layer block(s).</source>
+        <translation>%1 保留了 %2 個未知的 PSD 圖層區塊。</translation>
+    </message>
+    <message>
+        <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
+        <translation>%1：已從 %2 擷取可編輯的 PSD 文字，但由於 PSD 文字像素不可見，Patchy 產生了預留位置的點陣預視。</translation>
+    </message>
+    <message>
+        <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
+        <translation>%1 是 Patchy 原生的調整圖層；在 Patchy 中儲存並重新開啟 PSD 後仍可保留，但在其他編輯器中可能顯示為不受支援的調整。</translation>
+    </message>
+    <message>
+        <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
+        <translation>%1 使用不受支援的圖層類型，可能無法匯出為可編輯的 PSD 資料。</translation>
+    </message>
+    <message>
+        <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
+        <translation>%1 使用的像素格式可以演算，但在此版本中無法完整編輯。</translation>
+    </message>
+    <message>
+        <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
+        <translation>%1 來自 CMYK 文件，在這裡調整的是它的 CMYK 油墨。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，顏色會有所不同。</translation>
+    </message>
+    <message>
+        <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
+        <translation>%1 來自灰階文件，在這裡調整的是它的灰色色版。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，色調會有所不同。</translation>
+    </message>
+    <message>
+        <source>Update...</source>
+        <translation>更新...</translation>
     </message>
 </context>
 <context>
@@ -15890,7 +15954,7 @@ Do you want to replace it?</source>
         <translation>掃描器正被其他程式使用，或仍在完成上一個工作。請關閉其他程式或稍候片刻，然後再試一次。</translation>
     </message>
     <message>
-        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often "scanner" or "lp"), or install the device rules from your distribution's SANE or libgphoto2 package, then log in again.</source>
         <translation>此使用者帳戶無權使用該裝置。請將您的帳戶加入掃描器群組（通常是「scanner」或「lp」），或安裝發行版 SANE 或 libgphoto2 套件中的裝置規則，然後重新登入。</translation>
     </message>
     <message>
@@ -16039,88 +16103,88 @@ Do you want to replace it?</source>
         <translation>此版本不支援主題檔案格式 %1（應為 %2）。</translation>
     </message>
     <message>
-        <source>Theme file is missing a valid &quot;base&quot; (must be &quot;dark&quot; or &quot;light&quot;).</source>
-        <translation>主題檔案缺少有效的 &quot;base&quot;（必須為 &quot;dark&quot; 或 &quot;light&quot;）。</translation>
+        <source>Theme file is missing a valid "base" (must be "dark" or "light").</source>
+        <translation>主題檔案缺少有效的 "base"（必須為 "dark" 或 "light"）。</translation>
     </message>
     <message>
-        <source>Theme file&apos;s &quot;roles&quot; is not an object.</source>
-        <translation>主題檔案的 &quot;roles&quot; 不是物件。</translation>
+        <source>Theme file's "roles" is not an object.</source>
+        <translation>主題檔案的 "roles" 不是物件。</translation>
     </message>
     <message>
-        <source>Unknown color role &quot;%1&quot; (ignored).</source>
-        <translation>未知的顏色角色 &quot;%1&quot;（已忽略）。</translation>
+        <source>Unknown color role "%1" (ignored).</source>
+        <translation>未知的顏色角色 "%1"（已忽略）。</translation>
     </message>
     <message>
-        <source>Invalid color &quot;%1&quot; for role &quot;%2&quot; (expected #RRGGBB or #RRGGBBAA).</source>
-        <translation>角色 &quot;%2&quot; 的顏色 &quot;%1&quot; 無效（應為 #RRGGBB 或 #RRGGBBAA）。</translation>
+        <source>Invalid color "%1" for role "%2" (expected #RRGGBB or #RRGGBBAA).</source>
+        <translation>角色 "%2" 的顏色 "%1" 無效（應為 #RRGGBB 或 #RRGGBBAA）。</translation>
     </message>
     <message>
-        <source>Theme file &quot;%1&quot; could not be read.</source>
-        <translation>無法讀取主題檔案 &quot;%1&quot;。</translation>
+        <source>Theme file "%1" could not be read.</source>
+        <translation>無法讀取主題檔案 "%1"。</translation>
     </message>
     <message>
-        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
-        <translation>&quot;recolorIcons&quot; 必須是 true 或 false(已忽略)。</translation>
+        <source>"recolorIcons" must be true or false (ignored).</source>
+        <translation>"recolorIcons" 必須是 true 或 false(已忽略)。</translation>
     </message>
     <message>
-        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
-        <translation>&quot;iconScaling&quot; 必須是 &quot;smooth&quot; 或 &quot;nearest&quot;(已忽略)。</translation>
+        <source>"iconScaling" must be "smooth" or "nearest" (ignored).</source>
+        <translation>"iconScaling" 必須是 "smooth" 或 "nearest"(已忽略)。</translation>
     </message>
     <message>
-        <source>&quot;backdrop&quot; is not an object (ignored).</source>
-        <translation>&quot;backdrop&quot; 不是物件(已忽略)。</translation>
+        <source>"backdrop" is not an object (ignored).</source>
+        <translation>"backdrop" 不是物件(已忽略)。</translation>
     </message>
     <message>
-        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
-        <translation>背景模式 &quot;%1&quot; 不是 &quot;tile&quot;、&quot;stretch&quot; 或 &quot;center&quot;(改為並排)。</translation>
+        <source>Backdrop mode "%1" is not "tile", "stretch" or "center" (tiling instead).</source>
+        <translation>背景模式 "%1" 不是 "tile"、"stretch" 或 "center"(改為並排)。</translation>
     </message>
     <message>
         <source>The theme package has no theme.json.</source>
         <translation>佈景主題套件中沒有 theme.json。</translation>
     </message>
     <message>
-        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
-        <translation>圖示 &quot;%1&quot; 與任何內建圖示都不相符(已忽略)。</translation>
+        <source>Icon "%1" matches no built-in icon (ignored).</source>
+        <translation>圖示 "%1" 與任何內建圖示都不相符(已忽略)。</translation>
     </message>
     <message>
-        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
-        <translation>圖示 &quot;%1&quot; 不是 SVG、PNG 或 BMP 檔案(已忽略)。</translation>
+        <source>Icon "%1" is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>圖示 "%1" 不是 SVG、PNG 或 BMP 檔案(已忽略)。</translation>
     </message>
     <message>
-        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
-        <translation>無法讀取圖示 &quot;%1&quot;(已忽略)。</translation>
+        <source>Icon "%1" could not be read (ignored).</source>
+        <translation>無法讀取圖示 "%1"(已忽略)。</translation>
     </message>
     <message>
-        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
-        <translation>音效 &quot;%1&quot; 不對應任何音效事件(已忽略)。</translation>
+        <source>Sound "%1" names no sound event (ignored).</source>
+        <translation>音效 "%1" 不對應任何音效事件(已忽略)。</translation>
     </message>
     <message>
-        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
-        <translation>音效 &quot;%1&quot; 不是 WAV 檔案(已忽略)。</translation>
+        <source>Sound "%1" is not a WAV file (ignored).</source>
+        <translation>音效 "%1" 不是 WAV 檔案(已忽略)。</translation>
     </message>
     <message>
-        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
-        <translation>背景影像 &quot;%1&quot; 不在套件中(已忽略)。</translation>
+        <source>Backdrop image "%1" is not in the package (ignored).</source>
+        <translation>背景影像 "%1" 不在套件中(已忽略)。</translation>
     </message>
     <message>
-        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
-        <translation>無法讀取背景影像 &quot;%1&quot;(已忽略)。</translation>
+        <source>Backdrop image "%1" could not be read (ignored).</source>
+        <translation>無法讀取背景影像 "%1"(已忽略)。</translation>
     </message>
     <message>
-        <source>Theme folder &quot;%1&quot; could not be read.</source>
-        <translation>無法讀取佈景主題資料夾 &quot;%1&quot;。</translation>
+        <source>Theme folder "%1" could not be read.</source>
+        <translation>無法讀取佈景主題資料夾 "%1"。</translation>
     </message>
     <message>
-        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
-        <translation>佈景主題套件 &quot;%1&quot; 含有指向套件外的路徑:%2</translation>
+        <source>Theme package "%1" holds a path outside the package: %2</source>
+        <translation>佈景主題套件 "%1" 含有指向套件外的路徑:%2</translation>
     </message>
     <message>
-        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
-        <translation>佈景主題套件 &quot;%1&quot; 超出佈景主題套件的限制。</translation>
+        <source>Theme package "%1" is larger than the theme package limits.</source>
+        <translation>佈景主題套件 "%1" 超出佈景主題套件的限制。</translation>
     </message>
     <message>
-        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
-        <translation>佈景主題資料夾 &quot;%1&quot; 中沒有可讀取的 theme.json。</translation>
+        <source>Theme folder "%1" has no readable theme.json.</source>
+        <translation>佈景主題資料夾 "%1" 中沒有可讀取的 theme.json。</translation>
     </message>
     <message>
         <source>The theme package is larger than the theme package limits.</source>
@@ -16143,40 +16207,40 @@ Do you want to replace it?</source>
         <translation>佈景主題套件含有指向套件外的路徑:%1</translation>
     </message>
     <message>
-        <source>Could not create the folder &quot;%1&quot;.</source>
-        <translation>無法建立資料夾 &quot;%1&quot;。</translation>
+        <source>Could not create the folder "%1".</source>
+        <translation>無法建立資料夾 "%1"。</translation>
     </message>
     <message>
-        <source>Could not write &quot;%1&quot;.</source>
-        <translation>無法寫入 &quot;%1&quot;。</translation>
+        <source>Could not write "%1".</source>
+        <translation>無法寫入 "%1"。</translation>
     </message>
     <message>
-        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
-        <translation>事件 &quot;%1&quot; 不是佈景主題事件(已忽略)。</translation>
+        <source>Event "%1" is not a theme event (ignored).</source>
+        <translation>事件 "%1" 不是佈景主題事件(已忽略)。</translation>
     </message>
     <message>
-        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
-        <translation>音效 &quot;%1&quot; 不是套件中的 WAV 檔案(已忽略)。</translation>
+        <source>Sound "%1" is not a WAV file in the package (ignored).</source>
+        <translation>音效 "%1" 不是套件中的 WAV 檔案(已忽略)。</translation>
     </message>
     <message>
-        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
-        <translation>效果 &quot;%1&quot; 不是佈景主題效果(已忽略)。</translation>
+        <source>Effect "%1" is not a theme effect (ignored).</source>
+        <translation>效果 "%1" 不是佈景主題效果(已忽略)。</translation>
     </message>
     <message>
-        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
-        <translation>精靈圖像 &quot;%1&quot; 不在套件中(已忽略)。</translation>
+        <source>Sprite image "%1" is not in the package (ignored).</source>
+        <translation>精靈圖像 "%1" 不在套件中(已忽略)。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; must be text (ignored).</source>
-        <translation>&quot;%1&quot; 必須是文字(已忽略)。</translation>
+        <source>"%1" must be text (ignored).</source>
+        <translation>"%1" 必須是文字(已忽略)。</translation>
     </message>
     <message>
-        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
-        <translation>&quot;minPatchyVersion&quot; 必須是類似 &quot;1.20&quot; 的版本號(已忽略)。</translation>
+        <source>"minPatchyVersion" must be a version such as "1.20" (ignored).</source>
+        <translation>"minPatchyVersion" 必須是類似 "1.20" 的版本號(已忽略)。</translation>
     </message>
     <message>
-        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
-        <translation>圖示 &quot;%1&quot; 參照了其外部的檔案或位址(已忽略)。</translation>
+        <source>Icon "%1" refers to files or addresses outside itself (ignored).</source>
+        <translation>圖示 "%1" 參照了其外部的檔案或位址(已忽略)。</translation>
     </message>
 </context>
 <context>
@@ -16186,18 +16250,18 @@ Do you want to replace it?</source>
         <translation>佈景主題指令碼錯誤:%1</translation>
     </message>
     <message>
-        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <source>the theme's scripts kept running too long and were turned off</source>
         <translation>佈景主題指令碼多次執行過久,已被關閉</translation>
     </message>
     <message>
-        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <source>the theme's scripts used too much processor time and were turned off</source>
         <translation>佈景主題指令碼佔用過多處理器時間,已被關閉</translation>
     </message>
 </context>
 <context>
     <name>VectorPreview</name>
     <message>
-        <source>Dynamic Vector Preview: using the document&apos;s pixel view.</source>
+        <source>Dynamic Vector Preview: using the document's pixel view.</source>
         <translation>動態向量預視:使用文件的像素檢視。</translation>
     </message>
     <message>
@@ -16256,7 +16320,7 @@ Do you want to replace it?</source>
         <translation>未檢查</translation>
     </message>
     <message>
-        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
         <translation>有些浮水印（例如 Google SynthID 和 Digimarc）只能用其擁有者的工具讀取，因此這裡的任何掃描都找不到它們。未找到僅表示上面的類型都沒有找到。</translation>
     </message>
 </context>
@@ -16426,8 +16490,8 @@ Do you want to replace it?</source>
         <translation>忽略圖層名稱中的時間</translation>
     </message>
     <message>
-        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
-        <translation>每個影格都按上方的影格間隔播放，略過圖層名稱結尾的 &quot;0.25s&quot; 這類時間。僅限預視：匯出仍使用名稱中的時間。</translation>
+        <source>Plays every frame for the frame delay above and skips times like "0.25s" at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>每個影格都按上方的影格間隔播放，略過圖層名稱結尾的 "0.25s" 這類時間。僅限預視：匯出仍使用名稱中的時間。</translation>
     </message>
     <message>
         <source>Play hidden layers</source>
@@ -16442,15 +16506,15 @@ Do you want to replace it?</source>
         <translation>「設定時間」寫在圖層名稱結尾的時間。</translation>
     </message>
     <message>
-        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>將選取的圖層（勾選「套用到所有圖層」時為所有頂層圖層）重新命名，使名稱以此影格時間結尾，如 &quot;blink 0.25s&quot;。</translation>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like "blink 0.25s".</source>
+        <translation>將選取的圖層（勾選「套用到所有圖層」時為所有頂層圖層）重新命名，使名稱以此影格時間結尾，如 "blink 0.25s"。</translation>
     </message>
     <message>
         <source>Remove Time</source>
         <translation>移除時間</translation>
     </message>
     <message>
-        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <source>Removes the frame time from the end of the selected layers' names, or of every top-level layer's name with Apply to all layers.</source>
         <translation>移除選取的圖層（勾選「套用到所有圖層」時為所有頂層圖層）名稱結尾的影格時間。</translation>
     </message>
     <message>
@@ -16486,8 +16550,8 @@ Do you want to replace it?</source>
         <translation>影格間隔:</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>影格就是頂層圖層，由上到下，與動畫 GIF、WebP 和 PNG 匯出寫入的順序相同。名為 &quot;all&quot; 的圖層不作為一個影格，而是繪製在每個影格中；名為 &quot;all&quot; 的群組中的每個圖層各成一個影格。圖層名稱結尾的時間（如 &quot;blink 0.25s&quot;）指定該影格的顯示時長。</translation>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named "all" is drawn in every frame instead of being one, and each layer inside a group named "all" is its own frame. A layer name ending in a time, like "blink 0.25s", sets that frame's delay.</source>
+        <translation>影格就是頂層圖層，由上到下，與動畫 GIF、WebP 和 PNG 匯出寫入的順序相同。名為 "all" 的圖層不作為一個影格，而是繪製在每個影格中；名為 "all" 的群組中的每個圖層各成一個影格。圖層名稱結尾的時間（如 "blink 0.25s"）指定該影格的顯示時長。</translation>
     </message>
     <message>
         <source>Reverse Selected Layers</source>
@@ -16576,7 +16640,7 @@ Do you want to replace it?</source>
         <translation>重新開始...</translation>
     </message>
     <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <source>Delete this folder's book scans and scan a new book here</source>
         <translation>刪除此資料夾中的書籍掃描，並在這裡掃描新書</translation>
     </message>
     <message>
@@ -16604,7 +16668,7 @@ Do you want to replace it?</source>
         <translation>磁碟空間不足：僅剩 %1 GB。以 300 dpi 掃描彩色書籍約需 2 到 4 GB 的空間。</translation>
     </message>
     <message>
-        <source>Check the outline of the book and drag the two spine lines onto the spine&apos;s edges.</source>
+        <source>Check the outline of the book and drag the two spine lines onto the spine's edges.</source>
         <translation>檢查書本的輪廓，並將兩條書背線拖曳到書背的邊緣。</translation>
     </message>
     <message>
@@ -16916,13 +16980,13 @@ Do you want to replace it?</source>
         <translation>未命名</translation>
     </message>
     <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <source>This folder holds "%1" (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
         <translation>
             <numerusform>此資料夾包含「%1」（%n 次掃描），可以匯出。「繼續這本書」可檢查並匯出它；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <source>This folder holds "%1" (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
         <translation>
             <numerusform>此資料夾包含「%1」（目前已掃描 %n 次）。「繼續這本書」會從上次停下的地方繼續；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
         </translation>
@@ -16936,7 +17000,7 @@ Do you want to replace it?</source>
         <translation>新書將儲存在此資料夾中。</translation>
     </message>
     <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <source>Delete the %n scan(s) of "%1" in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
         <translation>
             <numerusform>刪除 %2 中「%1」的 %n 次掃描，並在那裡開始新書？資料夾中的其他檔案（例如匯出的 PDF）會保留。此動作無法復原。</numerusform>
         </translation>
@@ -16954,7 +17018,7 @@ Do you want to replace it?</source>
         <translation>無法開啟掃描器。</translation>
     </message>
     <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <source>Try "Use the system scan dialog for each scan" in step 1.</source>
         <translation>請在第 1 步中嘗試「每次掃描都使用系統掃描對話方塊」。</translation>
     </message>
     <message>
@@ -17100,7 +17164,7 @@ Do you want to replace it?</source>
         <translation>編輯掃描</translation>
     </message>
     <message>
-        <source>Show this page&apos;s scan with its boxes, to adjust them or scan it again</source>
+        <source>Show this page's scan with its boxes, to adjust them or scan it again</source>
         <translation>顯示此頁的掃描及其框，以便調整或重新掃描</translation>
     </message>
     <message>
@@ -17112,7 +17176,7 @@ Do you want to replace it?</source>
         <translation>已重新掃描第 %1 次掃描。</translation>
     </message>
     <message>
-        <source>Editing the cover: drag its outline and the two spine lines onto the spine&apos;s edges, or press Rescan Cover.</source>
+        <source>Editing the cover: drag its outline and the two spine lines onto the spine's edges, or press Rescan Cover.</source>
         <translation>正在編輯封面：將輪廓和兩條書背線拖到書背邊緣，或按「重新掃描封面」。</translation>
     </message>
     <message>
@@ -17260,7 +17324,7 @@ Do you want to replace it?</source>
         <translation>檢查並匯出</translation>
     </message>
     <message>
-        <source>Shown in the PDF&apos;s document properties</source>
+        <source>Shown in the PDF's document properties</source>
         <translation>顯示在 PDF 的文件屬性中</translation>
     </message>
     <message>
@@ -17757,7 +17821,7 @@ Do you want to replace it?</source>
         <translation>重設此區段</translation>
     </message>
     <message>
-        <source>Reset this section&apos;s settings to their defaults</source>
+        <source>Reset this section's settings to their defaults</source>
         <translation>將此區段的設定還原為預設值</translation>
     </message>
     <message>
@@ -17784,7 +17848,7 @@ Do you want to replace it?</source>
 <context>
     <name>patchy::ui::BrushTipLibrary</name>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>無法開啟「%1」。</translation>
     </message>
     <message>
@@ -17792,11 +17856,11 @@ Do you want to replace it?</source>
         <translation>筆刷 %1</translation>
     </message>
     <message>
-        <source>Could not save brush &quot;%1&quot;.</source>
+        <source>Could not save brush "%1".</source>
         <translation>無法儲存筆刷「%1」。</translation>
     </message>
     <message>
-        <source>No brush tips could be imported from &quot;%1&quot;.</source>
+        <source>No brush tips could be imported from "%1".</source>
         <translation>無法從「%1」匯入任何筆刷筆尖。</translation>
     </message>
 </context>
@@ -18122,11 +18186,11 @@ Do you want to replace it?</source>
         <translation>在文字上繪製之前,請先選取一般像素圖層</translation>
     </message>
     <message>
-        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>智慧型物件的內容無法繪製。請點陣化該圖層以編輯其像素。</translation>
     </message>
     <message>
-        <source>Shape layers can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Shape layers can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>形狀圖層無法繪製。請點陣化該圖層以編輯其像素。</translation>
     </message>
     <message>
@@ -18286,11 +18350,11 @@ Do you want to replace it?</source>
         <translation>請選取可編輯的像素圖層以進行變形</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can&apos;t be transformed. Rasterize the layer first.</source>
+        <source>This smart object is preview-only and can't be transformed. Rasterize the layer first.</source>
         <translation>這個智慧型物件僅供預視,無法進行變形。請先點陣化該圖層。</translation>
     </message>
     <message>
-        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <source>This layer's vector data is preserved but can't be edited.</source>
         <translation>這個圖層的向量資料已保留,但無法編輯。</translation>
     </message>
     <message>
@@ -18346,19 +18410,19 @@ Do you want to replace it?</source>
         <translation>請選取可編輯的像素圖層以進行彎曲</translation>
     </message>
     <message>
-        <source>Text layers use Warp Text (the Type tool&apos;s Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
+        <source>Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
         <translation>文字圖層請使用彎曲文字(文字工具的「彎曲...」按鈕)。若需自訂網格,請先轉換為智慧型物件或點陣化。</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can&apos;t be warped. Rasterize the layer first.</source>
+        <source>This smart object is preview-only and can't be warped. Rasterize the layer first.</source>
         <translation>這個智慧型物件僅供預視,無法彎曲。請先點陣化該圖層。</translation>
     </message>
     <message>
-        <source>Shape layers and vector masks can&apos;t be warped. Convert to a smart object or rasterize first.</source>
+        <source>Shape layers and vector masks can't be warped. Convert to a smart object or rasterize first.</source>
         <translation>形狀圖層和向量圖遮色片無法彎曲。請先轉換為智慧型物件或點陣化。</translation>
     </message>
     <message>
-        <source>This smart object&apos;s contents can&apos;t be decoded for warping</source>
+        <source>This smart object's contents can't be decoded for warping</source>
         <translation>無法解碼這個智慧型物件的內容以進行彎曲</translation>
     </message>
     <message>
@@ -18730,7 +18794,7 @@ Do you want to replace it?</source>
         <translation>請先點陣化圖層再進行扭曲</translation>
     </message>
     <message>
-        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <source>A smart object in perspective can't be warped. Rasterize the layer first.</source>
         <translation>透視狀態的智慧型物件無法彎曲。請先點陣化圖層。</translation>
     </message>
     <message>
@@ -19002,11 +19066,11 @@ Do you want to replace it?</source>
         <translation>物件選取未在輪廓內找到物件；保留輪廓</translation>
     </message>
     <message>
-        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <source>Drag to move the gradient's start point. Shift keeps the angle in 15-degree steps.</source>
         <translation>拖曳可移動漸層的起點。按住 Shift 可讓角度維持 15 度間隔。</translation>
     </message>
     <message>
-        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <source>Drag to move the gradient's end point. Shift keeps the angle in 15-degree steps.</source>
         <translation>拖曳可移動漸層的終點。按住 Shift 可讓角度維持 15 度間隔。</translation>
     </message>
     <message>
@@ -19122,7 +19186,7 @@ Do you want to replace it?</source>
         <translation>不透明度中點：%1%</translation>
     </message>
     <message>
-        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <source>Click to add a color stop here (on the opacity stops' side, an opacity stop), or drag to move the gradient.</source>
         <translation>按一下可在此處增加色標（在不透明度色標一側則增加不透明度色標），拖曳可移動漸層。</translation>
     </message>
     <message>
@@ -19150,7 +19214,7 @@ Do you want to replace it?</source>
         <translation>此處的不透明度...</translation>
     </message>
     <message>
-        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <source>Set the gradient's opacity at this color stop (adds an opacity stop here when there is none)</source>
         <translation>設定漸層在此色標處的不透明度（此處沒有不透明度色標時會增加一個）</translation>
     </message>
     <message>
@@ -20328,7 +20392,7 @@ Do you want to replace it?</source>
         <translation>新增以圖樣填滿的圖層</translation>
     </message>
     <message>
-        <source>Remove the layer&apos;s color label</source>
+        <source>Remove the layer's color label</source>
         <translation>移除圖層的色彩標籤</translation>
     </message>
     <message>
@@ -20656,19 +20720,19 @@ Do you want to replace it?</source>
         <translation>更柔和的差異化</translation>
     </message>
     <message>
-        <source>Take only the layer&apos;s hue</source>
+        <source>Take only the layer's hue</source>
         <translation>僅採用圖層的色相</translation>
     </message>
     <message>
-        <source>Take only the layer&apos;s saturation</source>
+        <source>Take only the layer's saturation</source>
         <translation>僅採用圖層的飽和度</translation>
     </message>
     <message>
-        <source>Take the layer&apos;s hue and saturation</source>
+        <source>Take the layer's hue and saturation</source>
         <translation>採用圖層的色相和飽和度</translation>
     </message>
     <message>
-        <source>Take only the layer&apos;s brightness</source>
+        <source>Take only the layer's brightness</source>
         <translation>僅採用圖層的亮度</translation>
     </message>
     <message>
@@ -20696,7 +20760,7 @@ Do you want to replace it?</source>
         <translation>選取主體以外的全部</translation>
     </message>
     <message>
-        <source>Select the layer&apos;s opaque pixels</source>
+        <source>Select the layer's opaque pixels</source>
         <translation>選取圖層的不透明像素</translation>
     </message>
     <message>
@@ -21252,11 +21316,11 @@ Do you want to replace it?</source>
         <translation>只顯示畫布，或恢復工具列</translation>
     </message>
     <message>
-        <source>Show the image&apos;s upper-left corner</source>
+        <source>Show the image's upper-left corner</source>
         <translation>顯示影像的左上角</translation>
     </message>
     <message>
-        <source>Show the image&apos;s lower-right corner</source>
+        <source>Show the image's lower-right corner</source>
         <translation>顯示影像的右下角</translation>
     </message>
     <message>
@@ -21392,7 +21456,7 @@ Do you want to replace it?</source>
         <translation>投在圖層後方的陰影效果</translation>
     </message>
     <message>
-        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <source>Take the layer's effects to paste elsewhere</source>
         <translation>取出圖層的效果以貼到別處</translation>
     </message>
     <message>
@@ -21404,7 +21468,7 @@ Do you want to replace it?</source>
         <translation>移除所選圖層的全部效果</translation>
     </message>
     <message>
-        <source>Turn the layer&apos;s effects on or off</source>
+        <source>Turn the layer's effects on or off</source>
         <translation>開啟或關閉圖層的效果</translation>
     </message>
     <message>
@@ -21528,7 +21592,7 @@ Do you want to replace it?</source>
         <translation>帶花飾的字形</translation>
     </message>
     <message>
-        <source>The font&apos;s alternate letter designs</source>
+        <source>The font's alternate letter designs</source>
         <translation>字型的替代字母設計</translation>
     </message>
     <message>
@@ -21636,19 +21700,19 @@ Do you want to replace it?</source>
         <translation>將筆刷放大 10 像素</translation>
     </message>
     <message>
-        <source>Lower the tool&apos;s opacity by 1%</source>
+        <source>Lower the tool's opacity by 1%</source>
         <translation>將工具不透明度降低 1%</translation>
     </message>
     <message>
-        <source>Raise the tool&apos;s opacity by 1%</source>
+        <source>Raise the tool's opacity by 1%</source>
         <translation>將工具不透明度提高 1%</translation>
     </message>
     <message>
-        <source>Lower the tool&apos;s opacity by 10%</source>
+        <source>Lower the tool's opacity by 10%</source>
         <translation>將工具不透明度降低 10%</translation>
     </message>
     <message>
-        <source>Raise the tool&apos;s opacity by 10%</source>
+        <source>Raise the tool's opacity by 10%</source>
         <translation>將工具不透明度提高 10%</translation>
     </message>
     <message>
@@ -21664,7 +21728,7 @@ Do you want to replace it?</source>
         <translation>插入預留位置填充文字</translation>
     </message>
     <message>
-        <source>Put the layers&apos; position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
+        <source>Put the layers' position, size, colors and fonts on the clipboard as style sheet text for a web page</source>
         <translation>將圖層的位置、大小、顏色和字型作為網頁樣式表文字放到剪貼簿</translation>
     </message>
     <message>
@@ -21798,7 +21862,7 @@ Do you want to replace it?</source>
     <name>patchy::ui::FontPickerCombo</name>
     <message>
         <source>The quick brown fox jumps over the lazy dog. 0123456789</source>
-        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font&apos;s Latin glyph coverage).</extracomment>
+        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font's Latin glyph coverage).</extracomment>
         <translation>The quick brown fox jumps over the lazy dog. 0123456789</translation>
     </message>
     <message>
@@ -21922,8 +21986,8 @@ Do you want to replace it?</source>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
     <message>
-        <source>G&apos;MIC Filter Library</source>
-        <translation>G&apos;MIC 濾鏡庫</translation>
+        <source>G'MIC Filter Library</source>
+        <translation>G'MIC 濾鏡庫</translation>
     </message>
     <message>
         <source>Search filters...</source>
@@ -21934,8 +21998,8 @@ Do you want to replace it?</source>
         <translation>重設</translation>
     </message>
     <message>
-        <source>Filters from G&apos;MIC %1 (gmic.eu)</source>
-        <translation>來自 G&apos;MIC %1 的濾鏡 (gmic.eu)</translation>
+        <source>Filters from G'MIC %1 (gmic.eu)</source>
+        <translation>來自 G'MIC %1 的濾鏡 (gmic.eu)</translation>
     </message>
     <message>
         <source>Select a filter</source>
@@ -21978,38 +22042,38 @@ Do you want to replace it?</source>
         <translation>濾鏡處理的圖層。為單張影像設計的濾鏡會依序套用到每個所選圖層；為多個圖層設計的濾鏡（例如 Blend 濾鏡）會將它們組合起來。鎖定的圖層以及文字、形狀和智慧型物件圖層只會被讀取，絕不會被變更。</translation>
     </message>
     <message>
-        <source>About G&apos;MIC...</source>
-        <translation>關於 G&apos;MIC...</translation>
+        <source>About G'MIC...</source>
+        <translation>關於 G'MIC...</translation>
     </message>
     <message>
-        <source>About G&apos;MIC</source>
-        <translation>關於 G&apos;MIC</translation>
+        <source>About G'MIC</source>
+        <translation>關於 G'MIC</translation>
     </message>
     <message>
-        <source>G&apos;MIC %1</source>
-        <translation>G&apos;MIC %1</translation>
+        <source>G'MIC %1</source>
+        <translation>G'MIC %1</translation>
     </message>
     <message numerus="yes">
-        <source>G&apos;MIC (GREYC&apos;s Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
+        <source>G'MIC (GREYC's Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
         <translation>
-            <numerusform>G&apos;MIC（GREYC&apos;s Magic for Image Computing）是免費的開放原始碼影像處理架構。Patchy 內建它的直譯器與其標準程式庫中的 %n 個濾鏡，並在這個 Patchy 對話方塊中執行。</numerusform>
+            <numerusform>G'MIC（GREYC's Magic for Image Computing）是免費的開放原始碼影像處理架構。Patchy 內建它的直譯器與其標準程式庫中的 %n 個濾鏡，並在這個 Patchy 對話方塊中執行。</numerusform>
         </translation>
     </message>
     <message>
-        <source>G&apos;MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
-        <translation>G&apos;MIC 由 David Tschumperlé 與法國卡昂 GREYC 實驗室的 Image Team 開發，其中的濾鏡由許多貢獻者撰寫。大多數濾鏡會在設定的最後註明作者。</translation>
+        <source>G'MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
+        <translation>G'MIC 由 David Tschumperlé 與法國卡昂 GREYC 實驗室的 Image Team 開發，其中的濾鏡由許多貢獻者撰寫。大多數濾鏡會在設定的最後註明作者。</translation>
     </message>
     <message>
-        <source>How to say it: its author pronounces it like the English word &quot;gimmick&quot;, a nod to the magic in its name, and says any pronunciation is fine.</source>
+        <source>How to say it: its author pronounces it like the English word "gimmick", a nod to the magic in its name, and says any pronunciation is fine.</source>
         <translation>讀法：作者把它念成英文單字「gimmick」，呼應名稱中的「魔法」，並表示怎麼念都可以。</translation>
     </message>
     <message>
-        <source>G&apos;MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G&apos;MIC team.</source>
-        <translation>G&apos;MIC 以 CeCILL-C 授權條款發布，其授權文字隨 Patchy 一併提供。關於 Patchy 如何執行濾鏡的問題請向 Patchy 回報，而不是 G&apos;MIC 團隊。</translation>
+        <source>G'MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G'MIC team.</source>
+        <translation>G'MIC 以 CeCILL-C 授權條款發布，其授權文字隨 Patchy 一併提供。關於 Patchy 如何執行濾鏡的問題請向 Patchy 回報，而不是 G'MIC 團隊。</translation>
     </message>
     <message>
-        <source>Visit the G&apos;MIC website (gmic.eu)</source>
-        <translation>造訪 G&apos;MIC 網站 (gmic.eu)</translation>
+        <source>Visit the G'MIC website (gmic.eu)</source>
+        <translation>造訪 G'MIC 網站 (gmic.eu)</translation>
     </message>
 </context>
 <context>
@@ -22073,7 +22137,7 @@ Do you want to replace it?</source>
         <translation>級</translation>
     </message>
     <message>
-        <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
+        <source>Scales the color's light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
         <translation>縮放顏色的光量：+1 級加倍，-1 級減半。在 32 位元圖層上繪畫時使用；8 位元和 16 位元文件使用基礎顏色。</translation>
     </message>
     <message>
@@ -22220,7 +22284,7 @@ Do you want to replace it?</source>
         <translation>匯出...</translation>
     </message>
     <message>
-        <source>Exported &quot;%1&quot;.</source>
+        <source>Exported "%1".</source>
         <translation>已匯出「%1」。</translation>
     </message>
     <message>
@@ -22317,7 +22381,7 @@ Do you want to replace it?</source>
         <translation>將顯示的快速鍵儲存到可保留或分享的檔案</translation>
     </message>
     <message>
-        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <source>Imported "%1" as the set "%2". Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
         <translation>已將「%1」匯入為方案「%2」。命令：%3。此版本 Patchy 沒有而略過的命令：%4。無法使用而略過的按鍵：%5。按一下「確定」套用。</translation>
     </message>
     <message>
@@ -22325,7 +22389,7 @@ Do you want to replace it?</source>
         <translation>方案名稱：</translation>
     </message>
     <message>
-        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <source>A shortcut set named "%1" already exists. Choose another name.</source>
         <translation>已有名為「%1」的快速鍵方案。請換一個名稱。</translation>
     </message>
     <message>
@@ -22337,7 +22401,7 @@ Do you want to replace it?</source>
         <translation>刪除快速鍵方案</translation>
     </message>
     <message>
-        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <source>Delete the shortcut set "%1"? Patchy's default shortcuts take its place.</source>
         <translation>刪除快速鍵方案「%1」？將改用 Patchy 的預設快速鍵。</translation>
     </message>
     <message>
@@ -22363,22 +22427,22 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>All commands</source>
-        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: every command.</extracomment>
+        <extracomment>Preferences &gt; Hotkeys "Show" box: every command.</extracomment>
         <translation>所有指令</translation>
     </message>
     <message>
         <source>Menu commands</source>
-        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands found in the menus.</extracomment>
+        <extracomment>Preferences &gt; Hotkeys "Show" box: only the commands found in the menus.</extracomment>
         <translation>選單指令</translation>
     </message>
     <message>
         <source>Commands with shortcuts</source>
-        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands that have a key.</extracomment>
+        <extracomment>Preferences &gt; Hotkeys "Show" box: only the commands that have a key.</extracomment>
         <translation>有快速鍵的指令</translation>
     </message>
     <message>
         <source>Other commands</source>
-        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
+        <extracomment>Preferences &gt; Hotkeys "Show" box: commands outside the menus that are not tools.</extracomment>
         <translation>其他指令</translation>
     </message>
     <message>
@@ -22391,7 +22455,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Search shortcuts...</source>
-        <extracomment>Preferences &gt; Hotkeys search hint while Show is &quot;Commands with shortcuts&quot;: the search then looks only at the keys.</extracomment>
+        <extracomment>Preferences &gt; Hotkeys search hint while Show is "Commands with shortcuts": the search then looks only at the keys.</extracomment>
         <translation>搜尋快速鍵...</translation>
     </message>
 </context>
@@ -22410,7 +22474,7 @@ Do you want to replace it?</source>
         <translation>顯示外掛程式視窗</translation>
     </message>
     <message>
-        <source>Brings the plug-in&apos;s window back in front of Patchy.</source>
+        <source>Brings the plug-in's window back in front of Patchy.</source>
         <translation>將外掛程式視窗重新移到 Patchy 前面。</translation>
     </message>
     <message>
@@ -22422,13 +22486,13 @@ Do you want to replace it?</source>
         <translation>強制停止外掛程式</translation>
     </message>
     <message>
-        <source>Ends the plug-in without applying it. Use it only if the plug-in&apos;s window has stopped responding.</source>
+        <source>Ends the plug-in without applying it. Use it only if the plug-in's window has stopped responding.</source>
         <extracomment>Tooltip of the stop button while a plug-in is loading or waits for the user in its own window.</extracomment>
         <translation>不套用並直接結束外掛程式。僅在外掛程式視窗停止回應時使用。</translation>
     </message>
     <message>
         <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
-        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <extracomment>%1 is the plug-in's name; shown while its own settings window is open.</extracomment>
         <translation>%1 已在自己的視窗中開啟。請在那裡調整設定，然後按下其 OK 按鈕，將其套用到此圖層。</translation>
     </message>
     <message>
@@ -22495,7 +22559,7 @@ Do you want to replace it?</source>
         <translation>仿粗體</translation>
     </message>
     <message>
-        <source>Thicken the current face synthetically instead of switching to the family&apos;s bold face</source>
+        <source>Thicken the current face synthetically instead of switching to the family's bold face</source>
         <translation>以合成方式加粗目前的字體,而不切換到字體家族的粗體字</translation>
     </message>
     <message>
@@ -22503,7 +22567,7 @@ Do you want to replace it?</source>
         <translation>仿斜體</translation>
     </message>
     <message>
-        <source>Slant the current face synthetically instead of switching to the family&apos;s italic face</source>
+        <source>Slant the current face synthetically instead of switching to the family's italic face</source>
         <translation>以合成方式傾斜目前的字體,而不切換到字體家族的斜體字</translation>
     </message>
     <message>
@@ -23307,7 +23371,7 @@ Do you want to replace it?</source>
         <translation>取消圖層群組</translation>
     </message>
     <message>
-        <source>Release the selected folder&apos;s layers into their parent</source>
+        <source>Release the selected folder's layers into their parent</source>
         <translation>將選取資料夾中的圖層釋放到上層資料夾</translation>
     </message>
     <message>
@@ -25192,7 +25256,7 @@ RGB: -
         <translation>Affinity 影像圖層</translation>
     </message>
     <message numerus="yes">
-        <source>This document places %n image file(s) as Affinity &quot;Image&quot; layers.</source>
+        <source>This document places %n image file(s) as Affinity "Image" layers.</source>
         <translation>
             <numerusform>此文件以 Affinity「影像」圖層的形式置入了 %n 個影像檔案。</numerusform>
         </translation>
@@ -25474,7 +25538,7 @@ RGB: -
         <translation>儲存 PDF 圖層</translation>
     </message>
     <message>
-        <source>How should this document&apos;s layers be written to the PDF?</source>
+        <source>How should this document's layers be written to the PDF?</source>
         <translation>這個文件的圖層要如何寫入 PDF？</translation>
     </message>
     <message>
@@ -26082,27 +26146,27 @@ Save your work and close Patchy before running the installer.</source>
         <translation>要點陣化圖層嗎？</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
+        <source>"%1" is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
         <translation>「%1」是文字圖層：它的像素會依文字重新產生，因此 %2 所做的變更會在下次編輯文字時遺失。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
+        <source>"%1" is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
         <translation>「%1」是形狀圖層：它的像素會依形狀重新產生，因此 %2 所做的變更會在下次編輯形狀時遺失。</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can&apos;t be edited again.</source>
+        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can't be edited again.</source>
         <translation>將圖層轉換為智慧型物件可保持文字可編輯，或將它點陣化成一般像素。點陣化後的文字無法再次編輯。</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can't be edited as a vector again.</source>
         <translation>將圖層轉換為智慧型物件可保持形狀可編輯，或將它點陣化成一般像素。點陣化後的形狀無法再以向量方式編輯。</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can&apos;t be edited again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can't be edited again.</source>
         <translation>將圖層點陣化成一般像素才能使用 %1。點陣化後的文字無法再次編輯。</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can't be edited as a vector again.</source>
         <translation>將圖層點陣化成一般像素才能使用 %1。點陣化後的形狀無法再以向量方式編輯。</translation>
     </message>
     <message>
@@ -26230,7 +26294,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>以此狀態建立新文件</translation>
     </message>
     <message>
-        <source>Created new document from &quot;%1&quot;</source>
+        <source>Created new document from "%1"</source>
         <translation>已從「%1」建立新文件</translation>
     </message>
     <message>
@@ -26576,7 +26640,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>移除影格時間</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; will open as a new image when the Layer Style dialog closes</source>
+        <source>"%1" will open as a new image when the Layer Style dialog closes</source>
         <translation>「%1」會在圖層樣式對話框關閉後以新影像開啟</translation>
     </message>
     <message>
@@ -26584,7 +26648,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>將圖樣開啟為影像</translation>
     </message>
     <message>
-        <source>Opened pattern &quot;%1&quot; as a new image</source>
+        <source>Opened pattern "%1" as a new image</source>
         <translation>已將圖樣「%1」開啟為新影像</translation>
     </message>
     <message>
@@ -26788,7 +26852,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>沒有可清除的內容</translation>
     </message>
     <message>
-        <source>Text and smart object layers can&apos;t be cleared. Deselect first, then Delete removes the layer.</source>
+        <source>Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer.</source>
         <translation>文字和智慧型物件圖層無法清除。請先取消選取，然後按 Delete 即可刪除該圖層。</translation>
     </message>
     <message>
@@ -27320,7 +27384,7 @@ Y：%2
         <translation>部分圖層包含色盤以外的顏色，因此畫布會顯示靠齊色盤後的結果 (濾鏡、調整、貼上和文字都可能造成這種情形)。</translation>
     </message>
     <message>
-        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers&apos; original colors?</source>
+        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers' original colors?</source>
         <translation>要將靠齊後的顏色永久保留以維持色盤化的外觀，還是回復圖層的原始顏色？</translation>
     </message>
     <message>
@@ -27382,7 +27446,7 @@ Y：%2
         <translation>所有索引影像都這樣處理</translation>
     </message>
     <message>
-        <source>Editing with the image&apos;s palette</source>
+        <source>Editing with the image's palette</source>
         <translation>正在使用影像的色盤編輯</translation>
     </message>
     <message numerus="yes">
@@ -27532,7 +27596,7 @@ Y：%2
         <translation>與圖層對齊</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
+        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
         <translation>將並排格點錨定至圖層的位置，取消勾選則錨定至文件原點</translation>
     </message>
     <message>
@@ -27696,7 +27760,7 @@ Y：%2
         <translation>將圖層縮圖縮放至圖層內容</translation>
     </message>
     <message>
-        <source>When enabled, layer thumbnails crop to the layer&apos;s visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
+        <source>When enabled, layer thumbnails crop to the layer's visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
         <translation>啟用時，圖層縮圖會裁切至圖層的可見像素，而不是預視整個版面，讓小圖層也能填滿縮圖。</translation>
     </message>
     <message>
@@ -27728,7 +27792,7 @@ Y：%2
         <translation>轉換為像素圖層</translation>
     </message>
     <message>
-        <source>Affinity documents place image files as &quot;Image&quot; layers. Smart objects keep each placed file&apos;s full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
+        <source>Affinity documents place image files as "Image" layers. Smart objects keep each placed file's full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
         <translation>Affinity 文件會將影像檔案置入為「Image」圖層。智慧型物件會保留每個置入檔案的完整解析度原稿，供重新編輯和 PSD 匯出使用；像素圖層則只保留置入尺寸下的像素。</translation>
     </message>
     <message>
@@ -28092,7 +28156,7 @@ Y：%2
         <translation>要儲存變更嗎？</translation>
     </message>
     <message>
-        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <source>Save changes to "%1" before closing?</source>
         <translation>關閉前要儲存對「%1」的變更嗎？</translation>
     </message>
     <message>
@@ -28124,11 +28188,11 @@ Y：%2
         <translation>已將智慧型物件內容匯出至 %1</translation>
     </message>
     <message>
-        <source>This smart object has Smart Filters; Patchy keeps Photoshop&apos;s preview (rasterize to edit pixels)</source>
+        <source>This smart object has Smart Filters; Patchy keeps Photoshop's preview (rasterize to edit pixels)</source>
         <translation>這個智慧型物件含有智慧型濾鏡；Patchy 會保留 Photoshop 的預視（點陣化後才能編輯像素）</translation>
     </message>
     <message>
-        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop&apos;s preview</source>
+        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop's preview</source>
         <translation>這個智慧型物件含有彎曲或透視變形；Patchy 會保留 Photoshop 的預視</translation>
     </message>
     <message>
@@ -28136,7 +28200,7 @@ Y：%2
         <translation>這個智慧型物件只能保留，無法編輯</translation>
     </message>
     <message>
-        <source>This smart object&apos;s contents are not embedded in the document</source>
+        <source>This smart object's contents are not embedded in the document</source>
         <translation>這個智慧型物件的內容並未內嵌在文件中</translation>
     </message>
     <message>
@@ -28148,7 +28212,7 @@ Y：%2
         <translation>正在編輯連結檔案。儲存（%CTRL%+S）會寫入 %1 並更新 %2</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
+        <source>Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
         <translation>Patchy 無法重新編碼 %1 內容；請使用「匯出智慧型物件內容」或點陣化該圖層</translation>
     </message>
     <message>
@@ -28164,7 +28228,7 @@ Y：%2
         <translation>正在編輯智慧型物件內容。儲存（%CTRL%+S）會將內容套用回 %1</translation>
     </message>
     <message>
-        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>智慧型物件內容無法繪製。請點陣化圖層才能編輯它的像素。</translation>
     </message>
     <message>
@@ -28172,15 +28236,15 @@ Y：%2
         <translation>要在智慧型物件上繪製嗎？</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a smart object, so its pixels can&apos;t be painted directly.</source>
+        <source>"%1" is a smart object, so its pixels can't be painted directly.</source>
         <translation>「%1」是智慧型物件，因此無法直接在它的像素上繪製。</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels, or open the smart object&apos;s contents in their own tab and draw there.</source>
+        <source>Rasterize the layer to paint on its pixels, or open the smart object's contents in their own tab and draw there.</source>
         <translation>請點陣化圖層以便在像素上繪製，或在個別標籤中開啟智慧型物件的內容再進行繪製。</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels. This smart object&apos;s contents can&apos;t be edited in Patchy.</source>
+        <source>Rasterize the layer to paint on its pixels. This smart object's contents can't be edited in Patchy.</source>
         <translation>請點陣化圖層以便在像素上繪製。這個智慧型物件的內容無法在 Patchy 中編輯。</translation>
     </message>
     <message>
@@ -28204,7 +28268,7 @@ Y：%2
         <translation>無法將內容重新編碼為 %1</translation>
     </message>
     <message>
-        <source>These contents can&apos;t be re-encoded</source>
+        <source>These contents can't be re-encoded</source>
         <translation>這些內容無法重新編碼</translation>
     </message>
     <message>
@@ -28662,7 +28726,7 @@ Y：%2
         <translation>請將形狀圖層放入群組，然後將向量圖遮色片套用到該群組。</translation>
     </message>
     <message>
-        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <source>This layer's vector data is preserved but can't be edited.</source>
         <translation>此圖層的向量資料已保留，但無法編輯。</translation>
     </message>
     <message>
@@ -29026,7 +29090,7 @@ Y：%2
         <translation>旋轉拉丁字母（直排文字）</translation>
     </message>
     <message>
-        <source>Lay Latin letters on their side along the column instead of upright (Photoshop&apos;s Standard Vertical Roman Alignment)</source>
+        <source>Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)</source>
         <translation>讓拉丁字母沿欄側躺而不是直立（Photoshop 的 Standard Vertical Roman Alignment）</translation>
     </message>
     <message>
@@ -29038,7 +29102,7 @@ Y：%2
         <translation>目前形狀的寬度</translation>
     </message>
     <message>
-        <source>Keep the shape&apos;s width and height in proportion</source>
+        <source>Keep the shape's width and height in proportion</source>
         <translation>保持形狀的寬高比例</translation>
     </message>
     <message>
@@ -29062,7 +29126,7 @@ Y：%2
         <translation>形狀外觀...</translation>
     </message>
     <message>
-        <source>Edit the active shape layer&apos;s fill, stroke, opacity, and edge</source>
+        <source>Edit the active shape layer's fill, stroke, opacity, and edge</source>
         <translation>編輯目前形狀圖層的填色、筆畫、不透明度和邊緣</translation>
     </message>
     <message>
@@ -29212,7 +29276,7 @@ Y：%2
         <translation>拖曳時顯示變形數值</translation>
     </message>
     <message>
-        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point&apos;s position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
+        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point's position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
         <translation>在移動、縮放或旋轉時於指標旁顯示小型讀數：參考點的位置與偏移量、寬度與高度及縮放百分比，或角度及其轉動量。</translation>
     </message>
     <message>
@@ -29352,7 +29416,7 @@ Y：%2
         <translation>將變形對齊至像素格線</translation>
     </message>
     <message>
-        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop's "Snap Vector Tools and Transforms to Pixel Grid". Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
         <translation>在任意變形列中輸入的位置與大小會落在整數像素上，與 Photoshop 的「將向量工具和變形對齊至像素格線」相同。旋轉的變形不會對齊。關閉時，輸入的小數（例如 3.4 px）會保留，並重新取樣像素。</translation>
     </message>
     <message>
@@ -29380,7 +29444,7 @@ Y：%2
         <translation>色調匹配</translation>
     </message>
     <message>
-        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <source>How strongly the fill's brightness is smoothed to its own edges (0 keeps the raw fill)</source>
         <translation>填色亮度向自身邊緣平滑的強度 (0 保留原始填色)</translation>
     </message>
     <message>
@@ -29424,7 +29488,7 @@ Y：%2
         <translation>已使用最近邊緣移除物件 (來源 %1/%2)</translation>
     </message>
     <message>
-        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <source>Softens the fill's edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
         <translation>在選取範圍自身羽化之外,向外柔化填色邊緣。填色範圍會隨羽化擴大,選取範圍緊貼邊緣時請保持較小</translation>
     </message>
     <message>
@@ -29432,7 +29496,7 @@ Y：%2
         <translation>複製到新圖層</translation>
     </message>
     <message>
-        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <source>Copies this variation's filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
         <translation>將此變化的填色範圍複製到上方的新隱藏圖層,以便保留並比較多個變化</translation>
     </message>
     <message>
@@ -29544,7 +29608,7 @@ Y：%2
         </translation>
     </message>
     <message>
-        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <source>How far a pixel's color may differ from the clicked color and still be filled</source>
         <translation>像素顏色與點按顏色相差多少仍會被填滿</translation>
     </message>
     <message>
@@ -29568,7 +29632,7 @@ Y：%2
         <translation>首行縮排:</translation>
     </message>
     <message>
-        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <source>Indent of each paragraph's first line; negative with a left indent makes a hanging indent</source>
         <translation>每個段落首行的縮排；搭配左縮排使用負值可形成凸排</translation>
     </message>
     <message>
@@ -29576,7 +29640,7 @@ Y：%2
         <translation>左縮排:</translation>
     </message>
     <message>
-        <source>Space between the box edge and every line&apos;s start</source>
+        <source>Space between the box edge and every line's start</source>
         <translation>文字框邊緣與每行起始位置之間的間距</translation>
     </message>
     <message>
@@ -29584,7 +29648,7 @@ Y：%2
         <translation>右縮排:</translation>
     </message>
     <message>
-        <source>Space between every line&apos;s end and the box edge</source>
+        <source>Space between every line's end and the box edge</source>
         <translation>每行結尾與文字框邊緣之間的間距</translation>
     </message>
     <message>
@@ -29628,15 +29692,15 @@ Y：%2
         <translation>請先刪除智慧型濾鏡，再將這個智慧型物件轉換為圖層</translation>
     </message>
     <message>
-        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <source>A warped or perspective Smart Object can't be converted to layers; rasterize it instead</source>
         <translation>彎曲或透視的智慧型物件無法轉換為圖層；請改為點陣化</translation>
     </message>
     <message>
-        <source>The smart object&apos;s contents have no layers to convert</source>
+        <source>The smart object's contents have no layers to convert</source>
         <translation>智慧型物件的內容中沒有可轉換的圖層</translation>
     </message>
     <message>
-        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
+        <source>The contents contain Smart Filters, which can't be moved out of the Smart Object yet</source>
         <translation>內容中包含智慧型濾鏡，目前還無法將其移出智慧型物件</translation>
     </message>
     <message>
@@ -29743,7 +29807,7 @@ Y：%2
     </message>
     <message>
         <source>%1 via Patchy</source>
-        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in's name.</extracomment>
         <translation>%1 (透過 Patchy)</translation>
     </message>
     <message>
@@ -29787,12 +29851,12 @@ Y：%2
         <translation>刪除主題</translation>
     </message>
     <message>
-        <source>Delete the theme &quot;%1&quot;? Its file is removed from the themes folder.</source>
-        <translation>刪除主題 &quot;%1&quot;？其檔案將從主題資料夾中移除。</translation>
+        <source>Delete the theme "%1"? Its file is removed from the themes folder.</source>
+        <translation>刪除主題 "%1"？其檔案將從主題資料夾中移除。</translation>
     </message>
     <message>
-        <source>Could not delete &quot;%1&quot;.</source>
-        <translation>無法刪除 &quot;%1&quot;。</translation>
+        <source>Could not delete "%1".</source>
+        <translation>無法刪除 "%1"。</translation>
     </message>
     <message>
         <source>Import Theme</source>
@@ -29803,7 +29867,7 @@ Y：%2
         <translation>Patchy 主題 (*.patchytheme)</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>無法開啟「%1」。</translation>
     </message>
     <message>
@@ -29966,44 +30030,44 @@ Y：%2
         <translation>置入的位置或大小超出範圍</translation>
     </message>
     <message>
-        <source>text layer &quot;%1&quot;</source>
-        <translation>文字圖層 &quot;%1&quot;</translation>
+        <source>text layer "%1"</source>
+        <translation>文字圖層 "%1"</translation>
     </message>
     <message>
-        <source>pixel layer &quot;%1&quot;</source>
-        <translation>像素圖層 &quot;%1&quot;</translation>
+        <source>pixel layer "%1"</source>
+        <translation>像素圖層 "%1"</translation>
     </message>
     <message>
-        <source>smart object &quot;%1&quot;</source>
-        <translation>智慧型物件 &quot;%1&quot;</translation>
+        <source>smart object "%1"</source>
+        <translation>智慧型物件 "%1"</translation>
     </message>
     <message>
-        <source>adjustment layer &quot;%1&quot; and the layers below it</source>
-        <translation>調整圖層 &quot;%1&quot; 及其下方的圖層</translation>
+        <source>adjustment layer "%1" and the layers below it</source>
+        <translation>調整圖層 "%1" 及其下方的圖層</translation>
     </message>
     <message>
-        <source>the blend mode of &quot;%1&quot; and the layers below it</source>
-        <translation>&quot;%1&quot; 的混合模式及其下方的圖層</translation>
+        <source>the blend mode of "%1" and the layers below it</source>
+        <translation>"%1" 的混合模式及其下方的圖層</translation>
     </message>
     <message>
-        <source>shape layer &quot;%1&quot; (its styles or fill options)</source>
-        <translation>形狀圖層 &quot;%1&quot; (其樣式或填色選項)</translation>
+        <source>shape layer "%1" (its styles or fill options)</source>
+        <translation>形狀圖層 "%1" (其樣式或填色選項)</translation>
     </message>
     <message>
-        <source>group &quot;%1&quot; (its styles or masks)</source>
-        <translation>圖層群組 &quot;%1&quot; (其樣式或遮色片)</translation>
+        <source>group "%1" (its styles or masks)</source>
+        <translation>圖層群組 "%1" (其樣式或遮色片)</translation>
     </message>
     <message>
-        <source>clipping mask group &quot;%1&quot;</source>
-        <translation>剪裁遮色片群組 &quot;%1&quot;</translation>
+        <source>clipping mask group "%1"</source>
+        <translation>剪裁遮色片群組 "%1"</translation>
     </message>
     <message>
-        <source>the layer mask on &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; 上的圖層遮色片</translation>
+        <source>the layer mask on "%1"</source>
+        <translation>"%1" 上的圖層遮色片</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; (merged under an adjustment layer or blend mode)</source>
-        <translation>&quot;%1&quot; (合併至調整圖層或混合模式之下)</translation>
+        <source>"%1" (merged under an adjustment layer or blend mode)</source>
+        <translation>"%1" (合併至調整圖層或混合模式之下)</translation>
     </message>
     <message numerus="yes">
         <source>%1 and %n more</source>
@@ -30136,7 +30200,7 @@ Baked into images: %1.</source>
         <translation>裁切框寬度</translation>
     </message>
     <message>
-        <source>Keep the crop box&apos;s width and height in proportion</source>
+        <source>Keep the crop box's width and height in proportion</source>
         <translation>保持裁切框寬高比例</translation>
     </message>
     <message>
@@ -30280,7 +30344,7 @@ Baked into images: %1.</source>
         <translation>已將圖示儲存到 %1</translation>
     </message>
     <message numerus="yes">
-        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <source>%n recovered document(s) could not be moved to this session's recovery folder; the copies stay in %1</source>
         <translation>
             <numerusform>%n 個已復原的文件無法移至此工作階段的復原資料夾；副本保留在 %1</numerusform>
         </translation>
@@ -30458,7 +30522,7 @@ Baked into images: %1.</source>
         <translation>下載的檔案不在 Patchy 尋找的位置</translation>
     </message>
     <message>
-        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool&apos;s options bar.</source>
+        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool's options bar.</source>
         <translation>刪除已下載的高品質模型。之後物件選取將使用內建模型；你可以隨時在該工具的選項列中重新下載。</translation>
     </message>
     <message>
@@ -30546,16 +30610,16 @@ You can still download it in your browser.</source>
 您仍然可以在瀏覽器中下載。</translation>
     </message>
     <message>
-        <source>G&apos;&amp;MIC Filter Library...</source>
-        <translation>G&apos;MIC 濾鏡庫(&amp;M)...</translation>
+        <source>G'&amp;MIC Filter Library...</source>
+        <translation>G'MIC 濾鏡庫(&amp;M)...</translation>
     </message>
     <message>
-        <source>Browse and apply filters from the G&apos;MIC library</source>
-        <translation>瀏覽並套用 G&apos;MIC 庫中的濾鏡</translation>
+        <source>Browse and apply filters from the G'MIC library</source>
+        <translation>瀏覽並套用 G'MIC 庫中的濾鏡</translation>
     </message>
     <message>
-        <source>This G&apos;MIC filter is not available</source>
-        <translation>此 G&apos;MIC 濾鏡無法使用</translation>
+        <source>This G'MIC filter is not available</source>
+        <translation>此 G'MIC 濾鏡無法使用</translation>
     </message>
     <message>
         <source>Rasterize the Smart Object before using %1</source>
@@ -30566,8 +30630,8 @@ You can still download it in your browser.</source>
         <translation>濾鏡未傳回任何影像。</translation>
     </message>
     <message>
-        <source>G&apos;MIC Filter Library</source>
-        <translation>G&apos;MIC 濾鏡庫</translation>
+        <source>G'MIC Filter Library</source>
+        <translation>G'MIC 濾鏡庫</translation>
     </message>
     <message>
         <source>%1 could not be applied.
@@ -30590,7 +30654,7 @@ You can still download it in your browser.</source>
         <translation>%1 處理這些圖層需要約 %2 MB 記憶體，超出此電腦可提供的範圍。請減少輸入圖層或使用較小的影像。</translation>
     </message>
     <message>
-        <source>Don&apos;t ask again about version %1</source>
+        <source>Don't ask again about version %1</source>
         <translation>不再詢問版本 %1</translation>
     </message>
     <message>
@@ -30696,7 +30760,7 @@ You can still download it in your browser.</source>
         <translation>CMYK 描述檔</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not a CMYK profile Patchy can use.</source>
+        <source>"%1" is not a CMYK profile Patchy can use.</source>
         <translation>「%1」不是 Patchy 可以使用的 CMYK 描述檔。</translation>
     </message>
     <message>
@@ -30908,7 +30972,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>僅用黑墨印刷黑色文字和灰色區域，讓小字在印刷時保持清晰。彩色區域照常透過描述檔分色。</translation>
     </message>
     <message>
-        <source>Don&apos;t show this again</source>
+        <source>Don't show this again</source>
         <translation>不再顯示</translation>
     </message>
     <message>
@@ -30985,12 +31049,12 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>上次濾鏡：%1</translation>
     </message>
     <message>
-        <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
-        <translation>G&apos;MIC 濾鏡庫（近 400 個濾鏡）包含在 Windows、macOS 與 Linux 的 Patchy 桌面版中。</translation>
+        <source>The G'MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
+        <translation>G'MIC 濾鏡庫（近 400 個濾鏡）包含在 Windows、macOS 與 Linux 的 Patchy 桌面版中。</translation>
     </message>
     <message>
-        <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>
-        <translation>近 400 個 G&apos;MIC 濾鏡，見 Patchy 桌面版</translation>
+        <source>Nearly 400 G'MIC filters, in the desktop version of Patchy</source>
+        <translation>近 400 個 G'MIC 濾鏡，見 Patchy 桌面版</translation>
     </message>
     <message>
         <source>Rotate Layer &amp;Right</source>
@@ -31485,7 +31549,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>旋轉與翻轉(&amp;T)</translation>
     </message>
     <message>
-        <source>Shows the desktop&apos;s own title bar and window frame instead of Patchy&apos;s window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
+        <source>Shows the desktop's own title bar and window frame instead of Patchy's window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
         <translation>顯示桌面本身的標題列和視窗框架，而不是功能表列中 Patchy 的視窗控制按鈕。桌面在全域功能表列中顯示應用程式功能表時預設開啟。下次啟動 Patchy 時生效。</translation>
     </message>
     <message>
@@ -31517,7 +31581,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>使用 Esc 鍵提交文字</translation>
     </message>
     <message>
-        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar&apos;s Cancel button discards the edit. When off, Esc cancels the edit.</source>
+        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar's Cancel button discards the edit. When off, Esc cancels the edit.</source>
         <translation>開啟時，Esc 鍵會像 %CTRL%+Enter 一樣套用正在輸入的文字，選項列的「取消」按鈕會放棄編輯。關閉時，Esc 鍵會取消編輯。</translation>
     </message>
     <message>
@@ -31569,7 +31633,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>文字 &gt; 解析遺失的字體 可隨時開啟同一對話框。</translation>
     </message>
     <message>
-        <source>The following fonts are missing for text layer &quot;%1&quot;: %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
+        <source>The following fonts are missing for text layer "%1": %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
         <translation>文字圖層「%1」遺失下列字體：%2。將變形現有像素，而非重新算繪。是否繼續？</translation>
     </message>
     <message numerus="yes">
@@ -31607,11 +31671,11 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>每天</translation>
     </message>
     <message>
-        <source>Width part of the selection&apos;s aspect ratio</source>
+        <source>Width part of the selection's aspect ratio</source>
         <translation>選取範圍長寬比的寬度部分</translation>
     </message>
     <message>
-        <source>Height part of the selection&apos;s aspect ratio</source>
+        <source>Height part of the selection's aspect ratio</source>
         <translation>選取範圍長寬比的高度部分</translation>
     </message>
     <message>
@@ -31695,7 +31759,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>此 CMYK 檔案已在影像 &gt; 模式 &gt; CMYK 校樣中開啟。</translation>
     </message>
     <message>
-        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file's inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
         <translation>CMYK 校樣是一種模擬。Patchy 在 RGB 中編輯：開啟時將檔案的油墨轉換為 RGB，透過 CMYK 色彩描述檔顯示印刷效果，儲存時再轉換回 CMYK。因此顏色和油墨數值可能與 Photoshop 等真正的 CMYK 編輯器略有不同。CMYK PSD 中未變更的圖層會保留原始油墨。</translation>
     </message>
     <message>
@@ -31735,7 +31799,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>已從應用程式選單移除 Patchy</translation>
     </message>
     <message>
-        <source>Don&apos;t Ask Again</source>
+        <source>Don't Ask Again</source>
         <translation>不再詢問</translation>
     </message>
     <message>
@@ -32001,7 +32065,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>變形控制項</translation>
     </message>
     <message>
-        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <source>Artboards can't be cleared. Deselect first, then Delete removes the artboard.</source>
         <translation>工作區域無法清除。請先取消選取，然後按 Delete 即可刪除該工作區域。</translation>
     </message>
     <message>
@@ -32297,7 +32361,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>解析度:</translation>
     </message>
     <message>
-        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <source>Resolution of the result in pixels per inch; blank keeps the document's</source>
         <translation>結果的解析度 (像素/英寸); 留空則保留文件的解析度</translation>
     </message>
     <message>
@@ -32369,7 +32433,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>透視裁切: 拖出一個框或按一下四個角, 然後把各個角或邊拖到區域的邊緣上。在內部拖曳可移動它, 在角的外側拖曳可旋轉它 (按住 Shift 以 15 度為間隔)。箭頭標示結果的頂部。按 Enter 裁切並拉正, 按 Esc 清除四個角。</translation>
     </message>
     <message>
-        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <source>Size of the tool palette's icons and buttons, relative to the interface scale.</source>
         <translation>工具面板圖示和按鈕的大小，相對於介面縮放。</translation>
     </message>
     <message>
@@ -32406,7 +32470,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>加入不可見浮水印(&amp;V)...</translation>
     </message>
     <message>
-        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <source>Hide a short message that anyone can read in the active layer's pixels with Adobe TrustMark</source>
         <translation>使用 Adobe TrustMark 在目前圖層的像素中隱藏一則任何人都能讀取的短訊息</translation>
     </message>
     <message>
@@ -32510,7 +32574,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>儲存時加入不可見浮水印：</translation>
     </message>
     <message>
-        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <source>Only the saved file's pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
         <translation>只標記儲存後檔案中的像素；開啟的文件及其記錄不會改變。PNG、JPEG、WebP、BMP、JPEG XL、AVIF 與無圖層的 TIFF 會被標記，轉存也是如此。帶圖層的檔案（PSD、PSB、帶圖層的 TIFF）不會被標記，因為那會在你不知情時改變圖層像素。小於 128 像素的影像以及已帶有你的文字的影像會被略過。</translation>
     </message>
     <message>
@@ -32662,7 +32726,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>物件選取高品質模型：未下載（來自 %2 的 %1 MB）</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe's, MIT License; %1 MB from %2). File Info's Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
         <translation>下載 Adobe TrustMark 浮水印模型（Adobe 提供，MIT 授權；來自 %2 的 %1 MB）。之後檔案資訊的掃描浮水印可讀取 TrustMark 浮水印，影像 &gt; 加入隱形浮水印可加入浮水印。</translation>
     </message>
     <message>
@@ -32802,20 +32866,20 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>校正後的瞳孔變暗多少</translation>
     </message>
     <message>
-        <source>shape layer &quot;%1&quot;</source>
-        <translation>形狀圖層 &quot;%1&quot;</translation>
+        <source>shape layer "%1"</source>
+        <translation>形狀圖層 "%1"</translation>
     </message>
     <message>
-        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
-        <translation>&quot;%1&quot; 的混合模式（僅 Krita 可讀取）</translation>
+        <source>the blend mode of "%1" (only Krita reads it)</source>
+        <translation>"%1" 的混合模式（僅 Krita 可讀取）</translation>
     </message>
     <message>
-        <source>the layer style of &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; 的圖層樣式</translation>
+        <source>the layer style of "%1"</source>
+        <translation>"%1" 的圖層樣式</translation>
     </message>
     <message>
-        <source>the blending options of &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; 的混合選項</translation>
+        <source>the blending options of "%1"</source>
+        <translation>"%1" 的混合選項</translation>
     </message>
     <message>
         <source>32-bit channels (saved at 16 bits)</source>
@@ -32846,7 +32910,7 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>部分內容將被烘焙</translation>
     </message>
     <message>
-        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document's content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
 
 Changed: %1.</source>
         <translation>OpenRaster 會保留圖層、群組、不透明度和混合模式，但此文件中的部分內容無法依原樣儲存。要繼續儲存，並將這些內容烘焙到圖層像素中或將其省略嗎？若要讓所有內容保持可編輯，請同時儲存一份 Photoshop 文件 (.psd)。
@@ -32858,7 +32922,7 @@ Changed: %1.</source>
         <translation>不支援的混合模式</translation>
     </message>
     <message numerus="yes">
-        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <source>%1 files can't store these blend modes: %2 (%n layer(s)).</source>
         <translation>
             <numerusform>%1 檔案無法儲存以下混合模式：%2（%n 個圖層）。</numerusform>
         </translation>
@@ -33052,11 +33116,11 @@ The open document keeps its blend modes either way.</source>
         <translation>請輸入預設集的名稱。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <source>"%1" is a built-in preset. Choose another name.</source>
         <translation>「%1」是內建預設集，請選擇其他名稱。</translation>
     </message>
     <message>
-        <source>Replace the preset &quot;%1&quot;?</source>
+        <source>Replace the preset "%1"?</source>
         <translation>要取代預設集「%1」嗎？</translation>
     </message>
     <message>
@@ -33064,7 +33128,7 @@ The open document keeps its blend modes either way.</source>
         <translation>刪除參考線版面預設集</translation>
     </message>
     <message>
-        <source>Delete the preset &quot;%1&quot;?</source>
+        <source>Delete the preset "%1"?</source>
         <translation>要刪除預設集「%1」嗎？</translation>
     </message>
     <message>
@@ -33384,11 +33448,11 @@ The open document keeps its blend modes either way.</source>
         <translation>圖層遮色片內容</translation>
     </message>
     <message>
-        <source>Changed the vector mask&apos;s density and feather</source>
+        <source>Changed the vector mask's density and feather</source>
         <translation>已變更向量圖遮色片的濃度和羽化</translation>
     </message>
     <message>
-        <source>Changed the layer mask&apos;s density and feather</source>
+        <source>Changed the layer mask's density and feather</source>
         <translation>已變更圖層遮色片的濃度和羽化</translation>
     </message>
     <message>
@@ -33404,7 +33468,7 @@ The open document keeps its blend modes either way.</source>
         <translation>匯出圖示範本...</translation>
     </message>
     <message>
-        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme's icons/ folder from.</source>
         <translation>將每個內建圖示以 SVG 檔案寫入一個資料夾,作為佈景主題 icons/ 資料夾的起點。</translation>
     </message>
     <message>
@@ -33416,8 +33480,8 @@ The open document keeps its blend modes either way.</source>
         <translation>播放佈景主題套件內含的音效,例如儲存完成時。沒有音效的佈景主題保持靜音。</translation>
     </message>
     <message>
-        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
-        <translation>要刪除佈景主題 &quot;%1&quot; 嗎?其資料夾會移到資源回收筒。</translation>
+        <source>Delete the theme "%1"? Its folder is moved to the trash.</source>
+        <translation>要刪除佈景主題 "%1" 嗎?其資料夾會移到資源回收筒。</translation>
     </message>
     <message>
         <source>Patchy themes (*.patchytheme *.zip)</source>
@@ -33526,7 +33590,7 @@ The open document keeps its blend modes either way.</source>
         <translation>允許</translation>
     </message>
     <message>
-        <source>Don&apos;t Allow</source>
+        <source>Don't Allow</source>
         <translation>不允許</translation>
     </message>
     <message>
@@ -33534,7 +33598,7 @@ The open document keeps its blend modes either way.</source>
         <translation>佈景主題</translation>
     </message>
     <message>
-        <source>Run this theme&apos;s scripts</source>
+        <source>Run this theme's scripts</source>
         <translation>執行此佈景主題的指令碼</translation>
     </message>
     <message>
@@ -33546,8 +33610,8 @@ The open document keeps its blend modes either way.</source>
         <translation>色彩與佈景主題</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
-        <translation>&quot;%1&quot; 適用於 Patchy %2 或更新版本。目前是 Patchy %3，因此佈景主題的部分內容可能無法如預期顯示或運作。</translation>
+        <source>"%1" is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>"%1" 適用於 Patchy %2 或更新版本。目前是 Patchy %3，因此佈景主題的部分內容可能無法如預期顯示或運作。</translation>
     </message>
     <message>
         <source>Could not be loaded</source>
@@ -33582,7 +33646,7 @@ The open document keeps its blend modes either way.</source>
         <translation>深色與淺色</translation>
     </message>
     <message>
-        <source>Matches the system&apos;s light or dark setting</source>
+        <source>Matches the system's light or dark setting</source>
         <translation>跟隨系統的淺色或深色設定</translation>
     </message>
     <message>
@@ -33650,15 +33714,15 @@ The open document keeps its blend modes either way.</source>
         <translation>即使如此，仍只應允許您信任的人所製作佈景主題中的指令碼。</translation>
     </message>
     <message>
-        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
-        <translation>佈景主題 &quot;%1&quot; 包含指令碼。要允許執行嗎？</translation>
+        <source>The theme "%1" includes scripts. Allow them to run?</source>
+        <translation>佈景主題 "%1" 包含指令碼。要允許執行嗎？</translation>
     </message>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>佈景主題指令碼無法開啟您的檔案或文件，也無法使用網際網路。但為了安全起見，只應在您信任的人所製作的佈景主題中允許它們。</translation>
     </message>
     <message>
-        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <source>How a tool group's menu opens: press and hold its button, click it, or rest the pointer on it.</source>
         <translation>工具群組選單的開啟方式：按住按鈕、按一下按鈕，或將指標停在按鈕上。</translation>
     </message>
     <message>
@@ -34066,7 +34130,7 @@ Locked: %1</source>
         <translation>下載安裝程式</translation>
     </message>
     <message>
-        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <source>Size of the interface's text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
         <translation>介面文字的大小，可設為預設大小的 %1 到 %2。上方的介面縮放會縮放所有內容，此設定只縮放文字。下次啟動 Patchy 時生效。</translation>
     </message>
     <message>
@@ -34382,7 +34446,7 @@ Locked: %1</source>
         <translation>新增文字圖層副本</translation>
     </message>
     <message>
-        <source>Don&apos;t ask again</source>
+        <source>Don't ask again</source>
         <translation>不再詢問</translation>
     </message>
     <message>
@@ -34826,7 +34890,7 @@ Locked: %1</source>
         <translation>請先選取文字圖層。</translation>
     </message>
     <message>
-        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <source>Could not convert "%1" to a shape.</source>
         <translation>無法將「%1」轉換為形狀。</translation>
     </message>
     <message>
@@ -34850,7 +34914,7 @@ Locked: %1</source>
         <translation>彩色表情符號沒有外框，已略過。</translation>
     </message>
     <message>
-        <source>Could not outline &quot;%1&quot;.</source>
+        <source>Could not outline "%1".</source>
         <translation>無法為「%1」建立外框。</translation>
     </message>
     <message>
@@ -34938,8 +35002,8 @@ Locked: %1</source>
         <translation>縮放、旋轉或扭曲選取範圍外框，不移動像素</translation>
     </message>
     <message>
-        <source>Copied to &quot;%1&quot;</source>
-        <translation>已複製到 &quot;%1&quot;</translation>
+        <source>Copied to "%1"</source>
+        <translation>已複製到 "%1"</translation>
     </message>
     <message>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
@@ -34950,11 +35014,11 @@ Locked: %1</source>
         <translation>平滑(&amp;M)...</translation>
     </message>
     <message>
-        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <source>Round off the selection's corners and drop small specks and holes</source>
         <translation>圓化選取範圍的轉角，並移除小雜點和小孔</translation>
     </message>
     <message>
-        <source>Soften the selection&apos;s edge</source>
+        <source>Soften the selection's edge</source>
         <translation>柔化選取範圍的邊緣</translation>
     </message>
     <message>
@@ -34978,7 +35042,7 @@ Locked: %1</source>
         <translation>羽化(&amp;H)...</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <source>Patchy can't edit %1 contents itself.</source>
         <translation>Patchy 無法自行編輯 %1 內容。</translation>
     </message>
     <message>
@@ -35042,7 +35106,7 @@ Locked: %1</source>
         <translation>使用 Shift 鍵切換工具</translation>
     </message>
     <message>
-        <source>When on, a tool group&apos;s letter selects the tool the group last used and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <source>When on, a tool group's letter selects the tool the group last used and Shift with the letter moves through the group. When off, pressing the letter again moves to the group's next tool.</source>
         <translation>開啟時，工具群組的字母鍵選取群組內上次使用的工具，Shift 加字母鍵在群組內依序切換。關閉時，再按一次字母鍵會切換到群組內下一個工具。</translation>
     </message>
     <message>
@@ -35102,7 +35166,7 @@ Locked: %1</source>
         <translation>旋轉角度:</translation>
     </message>
     <message>
-        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <source>The view's angle, clockwise. Only the view turns; the image does not change</source>
         <translation>檢視的角度，順時針。只旋轉檢視，影像不變</translation>
     </message>
     <message>
@@ -35260,7 +35324,7 @@ Locked: %1</source>
         <translation>作用中圖層不是像素圖層；請選擇「新增圖層」作為目標。</translation>
     </message>
     <message>
-        <source>The active layer&apos;s pixels are locked; choose New layer as the target.</source>
+        <source>The active layer's pixels are locked; choose New layer as the target.</source>
         <translation>作用中圖層的像素已鎖定；請選擇「新增圖層」作為目標。</translation>
     </message>
     <message>
@@ -35476,7 +35540,7 @@ Locked: %1</source>
         <translation>清除篩選</translation>
     </message>
     <message>
-        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <source>How smooth the text's edges are (anti-aliasing)</source>
         <translation>文字邊緣的平滑程度（消除鋸齒）</translation>
     </message>
     <message>
@@ -35541,7 +35605,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>%1: select a layer first</source>
-        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <extracomment>%1 is the command or tool that needs a target layer, for example "Stroke Selection".</extracomment>
         <translation>%1：請先選取一個圖層</translation>
     </message>
     <message>
@@ -35701,7 +35765,7 @@ Locked: %1</source>
         <translation>正在完成第 %1 頁，共 %2 頁...</translation>
     </message>
     <message>
-        <source>Inside keeps this stroke within the line&apos;s Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
+        <source>Inside keeps this stroke within the line's Weight. Choose Center or Outside under Align in Shape Appearance to make the line thicker.</source>
         <translation>「內部」會將此筆畫限制在線條的線寬之內。在「形狀外觀」的「對齊」中選擇「置中」或「外部」可讓線條變粗。</translation>
     </message>
     <message>
@@ -35709,7 +35773,7 @@ Locked: %1</source>
         <translation>圖層的寬度</translation>
     </message>
     <message>
-        <source>Keep the layer&apos;s width and height in proportion</source>
+        <source>Keep the layer's width and height in proportion</source>
         <translation>保持圖層的寬高比例</translation>
     </message>
     <message>
@@ -35780,7 +35844,15 @@ Locked: %1</source>
         <source>Has Smart Filters</source>
         <translation>有智慧型濾鏡</translation>
     </message>
-</context>
+<message>
+        <source>When on, a tool group's letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group's next tool.</source>
+        <translation>開啟時，工具群組的字母鍵選取群組內第一個工具，Shift 加字母鍵在群組內依序切換。關閉時，再按一次字母鍵會切換到群組內下一個工具。</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>調整或填色</translation>
+    </message>
+    </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
     <message>
@@ -36016,7 +36088,7 @@ Locked: %1</source>
         <translation>由模型選擇</translation>
     </message>
     <message>
-        <source>Match the canvas requests the canvas&apos;s shape and scales the result to fit it</source>
+        <source>Match the canvas requests the canvas's shape and scales the result to fit it</source>
         <translation>「符合畫布」依畫布比例要求，並縮放結果以符合畫布</translation>
     </message>
     <message>
@@ -36200,15 +36272,15 @@ Locked: %1</source>
         <translation>剪貼簿</translation>
     </message>
     <message>
-        <source>The key is never written to Patchy&apos;s settings file, and Patchy sends it only to OpenAI.</source>
+        <source>The key is never written to Patchy's settings file, and Patchy sends it only to OpenAI.</source>
         <translation>金鑰絕不會寫入 Patchy 的設定檔，Patchy 只會將它傳送給 OpenAI。</translation>
     </message>
     <message>
-        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential &quot;com.rtsoft.patchy.openai&quot;. Only your Windows account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential "com.rtsoft.patchy.openai". Only your Windows account can read it. Untick "Remember the key on this computer" to delete it.</source>
         <translation>Patchy 會將金鑰儲存在 Windows 認證管理員的「Windows 認證」中，作為一般認證「com.rtsoft.patchy.openai」。只有您的 Windows 帳戶能讀取它。取消勾選「在此電腦上記住金鑰」即可刪除。</translation>
     </message>
     <message>
-        <source>Patchy saves the key in your login keychain as the password item &quot;com.rtsoft.patchy.openai&quot; (account &quot;api-key&quot;), which the Keychain Access app shows. Only your macOS account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <source>Patchy saves the key in your login keychain as the password item "com.rtsoft.patchy.openai" (account "api-key"), which the Keychain Access app shows. Only your macOS account can read it. Untick "Remember the key on this computer" to delete it.</source>
         <translation>Patchy 會將金鑰儲存在您的登入鑰匙圈中，作為密碼項目「com.rtsoft.patchy.openai」(帳號「api-key」)，可在「鑰匙圈存取」App 中查看。只有您的 macOS 帳戶能讀取它。取消勾選「在此電腦上記住金鑰」即可刪除。</translation>
     </message>
     <message>
@@ -36236,7 +36308,7 @@ Locked: %1</source>
         <translation>影像已收到，但對應的文件已關閉。</translation>
     </message>
     <message>
-        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick &quot;Remember the key on this computer&quot; to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
+        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick "Remember the key on this computer" to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
         <translation>Patchy 會將金鑰儲存在檔案 %1 中。該檔案未加密：只有您的使用者帳戶能開啟它，但以您的身分執行的任何程式都能讀取它。取消勾選「在此電腦上記住金鑰」即可刪除該檔案。您也可以改為設定環境變數 OPENAI_API_KEY，對話方塊開啟時會讀取它。</translation>
     </message>
     <message>
@@ -36340,7 +36412,7 @@ Locked: %1</source>
         <translation>GIF 的透明度每個像素只有開或關，因此柔和的邊緣會變得生硬</translation>
     </message>
     <message>
-        <source>OpenAI&apos;s reply held no animation.</source>
+        <source>OpenAI's reply held no animation.</source>
         <translation>OpenAI 的回應中沒有動畫。</translation>
     </message>
     <message numerus="yes">
@@ -36430,7 +36502,7 @@ Locked: %1</source>
         <translation>OpenAI 傳回了 Patchy 無法讀取的回應。</translation>
     </message>
     <message>
-        <source>OpenAI&apos;s reply held no image.</source>
+        <source>OpenAI's reply held no image.</source>
         <translation>OpenAI 的回應中沒有影像。</translation>
     </message>
     <message>
@@ -36450,7 +36522,7 @@ Locked: %1</source>
         <translation>OpenAI 目前正在限制此金鑰的要求。請稍候再試。</translation>
     </message>
     <message>
-        <source>OpenAI&apos;s safety system declined this request. Try rewording the prompt or using other images.</source>
+        <source>OpenAI's safety system declined this request. Try rewording the prompt or using other images.</source>
         <translation>OpenAI 的安全系統拒絕了此要求。請嘗試改寫提示詞或使用其他影像。</translation>
     </message>
     <message>
@@ -36458,7 +36530,7 @@ Locked: %1</source>
         <translation>此模型需要經過驗證的 OpenAI 組織。請完成驗證後再試。</translation>
     </message>
     <message>
-        <source>This API key cannot use the chosen model. Pick the other model, or check the key&apos;s project permissions.</source>
+        <source>This API key cannot use the chosen model. Pick the other model, or check the key's project permissions.</source>
         <translation>此 API 金鑰無法使用所選模型。請選擇另一個模型，或檢查該金鑰的專案權限。</translation>
     </message>
     <message>
@@ -36538,7 +36610,7 @@ Locked: %1</source>
         <translation>OpenAI 拒絕描述該影像：%1</translation>
     </message>
     <message>
-        <source>The image below goes to OpenAI&apos;s %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
+        <source>The image below goes to OpenAI's %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
         <translation>下方影像會傳送到 OpenAI 的 %1 模型，由它在此處寫出詳細描述。不會在文件中加入任何內容。</translation>
     </message>
     <message>
@@ -36630,7 +36702,7 @@ Locked: %1</source>
         <translation>融合：</translation>
     </message>
     <message>
-        <source>How much of the original next to the new area takes OpenAI&apos;s version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI&apos;s whole picture</source>
+        <source>How much of the original next to the new area takes OpenAI's version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI's whole picture</source>
         <translation>新區域旁邊的原圖有多少部分改用 OpenAI 的版本，再過渡到原圖：0% 將原圖保留到邊緣，100% 使用 OpenAI 的整張圖片</translation>
     </message>
     <message>
@@ -36646,7 +36718,7 @@ Locked: %1</source>
         <translation>GIF（256 色）</translation>
     </message>
     <message>
-        <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
+        <source>GIF uses OpenAI's animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
         <translation>GIF 使用 OpenAI 的動畫模式，所有影格共用 256 種顏色。全彩會把各影格當成一張全彩圖片請求，再切成圖層，並保留柔和的透明度；影格數會無條件進位以填滿網格。</translation>
     </message>
     <message>
@@ -36704,7 +36776,7 @@ Locked: %1</source>
         <translation>擷取</translation>
     </message>
     <message>
-        <source>Build the palette from the image&apos;s colors</source>
+        <source>Build the palette from the image's colors</source>
         <translation>從影像的顏色建立調色盤</translation>
     </message>
     <message>
@@ -36720,7 +36792,7 @@ Locked: %1</source>
         <translation>拷貝</translation>
     </message>
     <message>
-        <source>Copy the selected color&apos;s hex code to the clipboard</source>
+        <source>Copy the selected color's hex code to the clipboard</source>
         <translation>將選取顏色的十六進位碼拷貝到剪貼簿</translation>
     </message>
     <message>
@@ -36960,7 +37032,7 @@ Locked: %1</source>
         <translation>按住 %CTRL% 按一下或按 %CTRL%+Enter，可以將路徑載入為選取範圍；拖移可以重新排序。</translation>
     </message>
     <message>
-        <source>This is the document&apos;s clipping path.</source>
+        <source>This is the document's clipping path.</source>
         <translation>這是文件的剪裁路徑。</translation>
     </message>
     <message>
@@ -36968,7 +37040,7 @@ Locked: %1</source>
         <translation>暫時的工作路徑。按兩下可以將它儲存為具名路徑。</translation>
     </message>
     <message>
-        <source>The active layer&apos;s path (shape or vector mask).</source>
+        <source>The active layer's path (shape or vector mask).</source>
         <translation>作用中圖層的路徑 (形狀或向量圖遮色片)。</translation>
     </message>
 </context>
@@ -36979,19 +37051,19 @@ Locked: %1</source>
         <translation>未命名圖樣</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>無法開啟「%1」。</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot;.</source>
+        <source>Could not read "%1".</source>
         <translation>無法讀取「%1」。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to import safely.</source>
+        <source>"%1" is too large to import safely.</source>
         <translation>「%1」太大，無法安全地讀入。</translation>
     </message>
     <message>
-        <source>Could not import patterns from &quot;%1&quot;. The file is not a supported Photoshop PAT file or is damaged.</source>
+        <source>Could not import patterns from "%1". The file is not a supported Photoshop PAT file or is damaged.</source>
         <translation>無法從「%1」讀入圖樣。這個檔案不是支援的 Photoshop PAT 檔案，或是已經損毀。</translation>
     </message>
     <message>
@@ -37007,35 +37079,35 @@ Locked: %1</source>
         <translation>圖樣 %1</translation>
     </message>
     <message>
-        <source>Skipped pattern &quot;%1&quot; because its pixels could not be decoded.</source>
+        <source>Skipped pattern "%1" because its pixels could not be decoded.</source>
         <translation>已略過圖樣「%1」，因為無法解碼它的像素。</translation>
     </message>
     <message>
-        <source>Pattern &quot;%1&quot; used an id already assigned to different pixels; it was imported with a new id.</source>
+        <source>Pattern "%1" used an id already assigned to different pixels; it was imported with a new id.</source>
         <translation>圖樣「%1」使用的 id 已經指定給其他像素，因此以新的 id 讀入。</translation>
     </message>
     <message>
-        <source>Could not save pattern &quot;%1&quot;.</source>
+        <source>Could not save pattern "%1".</source>
         <translation>無法儲存圖樣「%1」。</translation>
     </message>
     <message>
-        <source>No patterns could be imported from &quot;%1&quot;.</source>
+        <source>No patterns could be imported from "%1".</source>
         <translation>無法從「%1」讀入任何圖樣。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
+        <source>"%1" is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
         <translation>「%1」太大，無法作為圖樣使用 (寬度或高度超過 30,000 像素)。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to use as a pattern (over 8 million pixels).</source>
+        <source>"%1" is too large to use as a pattern (over 8 million pixels).</source>
         <translation>「%1」太大，無法作為圖樣使用 (超過 800 萬像素)。</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot; as an image.</source>
+        <source>Could not read "%1" as an image.</source>
         <translation>無法將「%1」讀取為影像。</translation>
     </message>
     <message>
-        <source>Animated image &quot;%1&quot;: imported the first frame only.</source>
+        <source>Animated image "%1": imported the first frame only.</source>
         <translation>動畫影像「%1」：只讀入了第一個影格。</translation>
     </message>
     <message>
@@ -37273,7 +37345,7 @@ Locked: %1</source>
         <translation>從目前的視窗設定圖示</translation>
     </message>
     <message>
-        <source>Captures the running script&apos;s window (or the active image) as this script&apos;s icon.</source>
+        <source>Captures the running script's window (or the active image) as this script's icon.</source>
         <translation>擷取執行中指令碼的視窗 (或作用中的影像) 作為這個指令碼的圖示。</translation>
     </message>
     <message>
@@ -37369,7 +37441,7 @@ Locked: %1</source>
         <translation>指定快速鍵...</translation>
     </message>
     <message>
-        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <source>Opens Preferences &gt; Hotkeys at this script's row.</source>
         <translation>開啟「偏好設定 &gt; 快速鍵」並定位到此指令碼所在列。</translation>
     </message>
     <message>
@@ -37380,8 +37452,8 @@ Locked: %1</source>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
     <message>
-        <source>Invalid color: %1 (use &quot;#rrggbb&quot; or a named color)</source>
-        <translation>無效的顏色：%1 (請使用 &quot;#rrggbb&quot; 或顏色名稱)</translation>
+        <source>Invalid color: %1 (use "#rrggbb" or a named color)</source>
+        <translation>無效的顏色：%1 (請使用 "#rrggbb" 或顏色名稱)</translation>
     </message>
     <message>
         <source>The layer no longer exists.</source>
@@ -37796,7 +37868,7 @@ Locked: %1</source>
         <translation>停止指令碼</translation>
     </message>
     <message>
-        <source>Stop &quot;%1&quot;?</source>
+        <source>Stop "%1"?</source>
         <translation>要停止「%1」嗎？</translation>
     </message>
     <message>
@@ -37888,12 +37960,12 @@ Locked: %1</source>
         <translation>showDialog：spec.fields 必須是陣列</translation>
     </message>
     <message>
-        <source>showDialog: every field needs a non-empty &quot;key&quot;</source>
-        <translation>showDialog：每個欄位都需要非空白的 &quot;key&quot;</translation>
+        <source>showDialog: every field needs a non-empty "key"</source>
+        <translation>showDialog：每個欄位都需要非空白的 "key"</translation>
     </message>
     <message>
-        <source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, color, folder, or file)</source>
-        <translation>showDialog：不明的欄位類型 &quot;%1&quot; (請使用 number、slider、checkbox、choice、text、color、folder 或 file)</translation>
+        <source>showDialog: unknown field type "%1" (use number, slider, checkbox, choice, text, color, folder, or file)</source>
+        <translation>showDialog：不明的欄位類型 "%1" (請使用 number、slider、checkbox、choice、text、color、folder 或 file)</translation>
     </message>
     <message>
         <source>Choose Color</source>
@@ -37924,20 +37996,20 @@ Locked: %1</source>
         <translation>工作路徑</translation>
     </message>
     <message>
-        <source>textOrientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
-        <translation>textOrientation 必須為 &apos;horizontal&apos; 或 &apos;vertical&apos;。</translation>
+        <source>textOrientation must be 'horizontal' or 'vertical'.</source>
+        <translation>textOrientation 必須為 'horizontal' 或 'vertical'。</translation>
     </message>
     <message>
-        <source>textDirection must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
-        <translation>textDirection 必須為 &apos;auto&apos;、&apos;ltr&apos; 或 &apos;rtl&apos;。</translation>
+        <source>textDirection must be 'auto', 'ltr' or 'rtl'.</source>
+        <translation>textDirection 必須為 'auto'、'ltr' 或 'rtl'。</translation>
     </message>
     <message>
-        <source>orientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
-        <translation>orientation 必須為 &apos;horizontal&apos; 或 &apos;vertical&apos;。</translation>
+        <source>orientation must be 'horizontal' or 'vertical'.</source>
+        <translation>orientation 必須為 'horizontal' 或 'vertical'。</translation>
     </message>
     <message>
-        <source>direction must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
-        <translation>direction 必須為 &apos;auto&apos;、&apos;ltr&apos; 或 &apos;rtl&apos;。</translation>
+        <source>direction must be 'auto', 'ltr' or 'rtl'.</source>
+        <translation>direction 必須為 'auto'、'ltr' 或 'rtl'。</translation>
     </message>
     <message>
         <source>exportPdf needs one open document or an array of them.</source>
@@ -37956,15 +38028,15 @@ Locked: %1</source>
         <translation>其中一個文件已不再開啟。</translation>
     </message>
     <message>
-        <source>exportPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
-        <translation>exportPdf 的 imageQuality 必須是 &quot;lossless&quot;、&quot;high&quot;、&quot;medium&quot; 或 &quot;low&quot;。</translation>
+        <source>exportPdf imageQuality must be "lossless", "high", "medium", or "low".</source>
+        <translation>exportPdf 的 imageQuality 必須是 "lossless"、"high"、"medium" 或 "low"。</translation>
     </message>
     <message>
         <source>removeObject: unknown option %1.</source>
         <translation>removeObject：不明的選項 %1。</translation>
     </message>
     <message>
-        <source>removeObject needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <source>removeObject needs the document's active layer (set doc.activeLayer first).</source>
         <translation>removeObject 需要文件的作用中圖層（請先設定 doc.activeLayer）。</translation>
     </message>
     <message>
@@ -37984,8 +38056,8 @@ Locked: %1</source>
         <translation>%1: layers 必須是此文件圖層的非空陣列。</translation>
     </message>
     <message>
-        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
-        <translation>%1: alignTo 必須為 &quot;selection&quot; 或 &quot;canvas&quot;。</translation>
+        <source>%1: alignTo must be "selection" or "canvas".</source>
+        <translation>%1: alignTo 必須為 "selection" 或 "canvas"。</translation>
     </message>
     <message>
         <source>%1: unknown option %2.</source>
@@ -38164,24 +38236,24 @@ Locked: %1</source>
         <translation>%1 需要一個輸出路徑。</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
-        <translation>patchy.scripts.install：選項必須是類似 {hotkey: &quot;Ctrl+Alt+D&quot;} 的物件。</translation>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: "Ctrl+Alt+D"}.</source>
+        <translation>patchy.scripts.install：選項必須是類似 {hotkey: "Ctrl+Alt+D"} 的物件。</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
-        <translation>patchy.scripts.install：hotkey 必須是類似 &quot;Ctrl+Alt+D&quot; 的字串。</translation>
+        <source>patchy.scripts.install: hotkey must be a string such as "Ctrl+Alt+D".</source>
+        <translation>patchy.scripts.install：hotkey 必須是類似 "Ctrl+Alt+D" 的字串。</translation>
     </message>
     <message>
-        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
-        <translation>patchy.scripts：&quot;%1&quot; 處沒有指令碼（請先安裝或呼叫 rescan()）。</translation>
+        <source>patchy.scripts: no script at "%1" (install it or call rescan() first).</source>
+        <translation>patchy.scripts："%1" 處沒有指令碼（請先安裝或呼叫 rescan()）。</translation>
     </message>
     <message>
-        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
-        <translation>patchy.scripts：&quot;%1&quot; 不是 Patchy 可以綁定的快速鍵（請使用 Qt 的可攜式寫法，例如 &quot;Ctrl+Alt+D&quot;）。</translation>
+        <source>patchy.scripts: "%1" is not a shortcut Patchy can bind (use Qt's portable spelling, such as "Ctrl+Alt+D").</source>
+        <translation>patchy.scripts："%1" 不是 Patchy 可以綁定的快速鍵（請使用 Qt 的可攜式寫法，例如 "Ctrl+Alt+D"）。</translation>
     </message>
     <message>
-        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
-        <translation>patchy.scripts：指令碼路徑必須是使用者指令碼資料夾內的 .js 檔案路徑（&quot;Mine/export.js&quot;），而不是 &quot;%1&quot;。</translation>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder ("Mine/export.js"), not "%1".</source>
+        <translation>patchy.scripts：指令碼路徑必須是使用者指令碼資料夾內的 .js 檔案路徑（"Mine/export.js"），而不是 "%1"。</translation>
     </message>
     <message>
         <source>patchy.scripts: could not create the folder for %1.</source>
@@ -38244,8 +38316,8 @@ Locked: %1</source>
         <translation>無效的 removeBackground 選項：%1。</translation>
     </message>
     <message>
-        <source>setFileInfo needs an object such as {title: &quot;Harbor&quot;}.</source>
-        <translation>setFileInfo 需要一個物件，例如 {title: &quot;Harbor&quot;}。</translation>
+        <source>setFileInfo needs an object such as {title: "Harbor"}.</source>
+        <translation>setFileInfo 需要一個物件，例如 {title: "Harbor"}。</translation>
     </message>
     <message>
         <source>setFileInfo: %1 must be %2.</source>
@@ -38296,12 +38368,12 @@ Locked: %1</source>
         <translation>無法下載高品質模型：%1</translation>
     </message>
     <message>
-        <source>G&apos;MIC filters are not available in this build.</source>
-        <translation>此版本不提供 G&apos;MIC 濾鏡。</translation>
+        <source>G'MIC filters are not available in this build.</source>
+        <translation>此版本不提供 G'MIC 濾鏡。</translation>
     </message>
     <message>
-        <source>Unknown G&apos;MIC filter: %1</source>
-        <translation>未知的 G&apos;MIC 濾鏡: %1</translation>
+        <source>Unknown G'MIC filter: %1</source>
+        <translation>未知的 G'MIC 濾鏡: %1</translation>
     </message>
     <message>
         <source>applyGmic: %1 is not a valid value for %2.</source>
@@ -38324,12 +38396,12 @@ Locked: %1</source>
         <translation>applyGmic: 未知的 inputLayers 值 %1。</translation>
     </message>
     <message>
-        <source>G&apos;MIC filter %1 was cancelled.</source>
-        <translation>G&apos;MIC 濾鏡 %1 已取消。</translation>
+        <source>G'MIC filter %1 was cancelled.</source>
+        <translation>G'MIC 濾鏡 %1 已取消。</translation>
     </message>
     <message>
-        <source>G&apos;MIC filter %1 failed: %2</source>
-        <translation>G&apos;MIC 濾鏡 %1 失敗: %2</translation>
+        <source>G'MIC filter %1 failed: %2</source>
+        <translation>G'MIC 濾鏡 %1 失敗: %2</translation>
     </message>
     <message>
         <source>CMYK values are percentages from 0 to 100</source>
@@ -38352,12 +38424,12 @@ Locked: %1</source>
         <translation>工作區域不能使版面大於 %1 x %1 px。</translation>
     </message>
     <message>
-        <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
-        <translation>exportPdf pages 必須是 &quot;artboards&quot;、&quot;groups&quot; 或 &quot;canvas&quot;。</translation>
+        <source>exportPdf pages must be "artboards", "groups" or "canvas".</source>
+        <translation>exportPdf pages 必須是 "artboards"、"groups" 或 "canvas"。</translation>
     </message>
     <message>
-        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
-        <translation>未知的面板 &quot;%1&quot;。面板：%2。</translation>
+        <source>Unknown panel "%1". Panels: %2.</source>
+        <translation>未知的面板 "%1"。面板：%2。</translation>
     </message>
     <message>
         <source>Unknown layer color label: %1</source>
@@ -38400,8 +38472,8 @@ Locked: %1</source>
         <translation>trim 的選項必須是物件。</translation>
     </message>
     <message>
-        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
-        <translation>trim 的 basedOn 必須是 &quot;transparent&quot;、&quot;topLeft&quot; 或 &quot;bottomRight&quot;。</translation>
+        <source>trim basedOn must be one of "transparent", "topLeft", "bottomRight".</source>
+        <translation>trim 的 basedOn 必須是 "transparent"、"topLeft" 或 "bottomRight"。</translation>
     </message>
     <message>
         <source>trim does not apply to a document with artboards.</source>
@@ -38428,8 +38500,8 @@ Locked: %1</source>
         <translation>無法執行 TrustMark：%1</translation>
     </message>
     <message>
-        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
-        <translation>addInvisibleWatermark 的選項必須是物件，例如 {text: &quot;Patchy&quot;}。</translation>
+        <source>addInvisibleWatermark options must be an object such as {text: "Patchy"}.</source>
+        <translation>addInvisibleWatermark 的選項必須是物件，例如 {text: "Patchy"}。</translation>
     </message>
     <message>
         <source>addInvisibleWatermark: unknown schema %1.</source>
@@ -38484,28 +38556,28 @@ Locked: %1</source>
         <translation>無法加入浮水印：%1</translation>
     </message>
     <message>
-        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
-        <translation>setWatermarkPreferences 接受物件，例如 {addOnSave: &quot;ask&quot;}。</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: "ask"}.</source>
+        <translation>setWatermarkPreferences 接受物件，例如 {addOnSave: "ask"}。</translation>
     </message>
     <message>
         <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
         <translation>setWatermarkPreferences：text 必須是最多 %1 個字元的可列印 ASCII。</translation>
     </message>
     <message>
-        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
-        <translation>setWatermarkPreferences：addOnSave 必須是 &quot;never&quot;、&quot;ask&quot; 或 &quot;always&quot;。</translation>
+        <source>setWatermarkPreferences: addOnSave must be "never", "ask" or "always".</source>
+        <translation>setWatermarkPreferences：addOnSave 必須是 "never"、"ask" 或 "always"。</translation>
     </message>
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences：未知選項 %1。</translation>
     </message>
     <message>
-        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
-        <translation>setSaveMetadataPreferences 接受物件，例如 {mode: &quot;basic&quot;}。</translation>
+        <source>setSaveMetadataPreferences takes an object such as {mode: "basic"}.</source>
+        <translation>setSaveMetadataPreferences 接受物件，例如 {mode: "basic"}。</translation>
     </message>
     <message>
-        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
-        <translation>setSaveMetadataPreferences：mode 必須是 &quot;none&quot;、&quot;basic&quot; 或 &quot;personal&quot;。</translation>
+        <source>setSaveMetadataPreferences: mode must be "none", "basic" or "personal".</source>
+        <translation>setSaveMetadataPreferences：mode 必須是 "none"、"basic" 或 "personal"。</translation>
     </message>
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
@@ -38516,16 +38588,16 @@ Locked: %1</source>
         <translation>convertToProfile 的選項必須是物件。</translation>
     </message>
     <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent 必須是 &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot; 或 &quot;absolute-colorimetric&quot;。</translation>
+        <source>intent must be "perceptual", "relative-colorimetric", "saturation" or "absolute-colorimetric".</source>
+        <translation>intent 必須是 "perceptual"、"relative-colorimetric"、"saturation" 或 "absolute-colorimetric"。</translation>
     </message>
     <message>
         <source>blackPointCompensation must be true or false.</source>
         <translation>blackPointCompensation 必須是 true 或 false。</translation>
     </message>
     <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile 接受 &quot;sRGB&quot; 或 RGB 描述檔檔案的路徑：%1</translation>
+        <source>convertToProfile takes "sRGB" or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile 接受 "sRGB" 或 RGB 描述檔檔案的路徑：%1</translation>
     </message>
     <message>
         <source>Convert an Indexed document to RGB Color first.</source>
@@ -38560,15 +38632,15 @@ Locked: %1</source>
         <translation>newDocument 的 name 必須包含可用於檔名的字元。</translation>
     </message>
     <message>
-        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
-        <translation>newDocument 的 colorMode 必須為 &quot;rgb&quot; 或 &quot;cmykProof&quot;。</translation>
+        <source>newDocument colorMode must be "rgb" or "cmykProof".</source>
+        <translation>newDocument 的 colorMode 必須為 "rgb" 或 "cmykProof"。</translation>
     </message>
     <message>
         <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
         <translation>CMYK 校樣需要 CMYK 描述檔。請在偏好設定中選擇。</translation>
     </message>
     <message>
-        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <source>redEye needs the document's active layer (set doc.activeLayer first).</source>
         <translation>redEye 需要文件的作用中圖層（請先設定 doc.activeLayer）。</translation>
     </message>
     <message>
@@ -38612,7 +38684,7 @@ Locked: %1</source>
         <translation>trim 的 tolerance 必須是 0 到 255 之間的數字。</translation>
     </message>
     <message>
-        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <source>toolPalette: unknown value "%1".</source>
         <translation>toolPalette：未知的值「%1」。</translation>
     </message>
     <message>
@@ -38624,8 +38696,8 @@ Locked: %1</source>
         <translation>encodeForWeb 無法編碼：%1</translation>
     </message>
     <message>
-        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
-        <translation>%1：第 %2 段的 %3 必須是 &apos;%4&apos;、&apos;%5&apos; 或 &apos;none&apos;。</translation>
+        <source>%1: run %2 %3 must be '%4', '%5' or 'none'.</source>
+        <translation>%1：第 %2 段的 %3 必須是 '%4'、'%5' 或 'none'。</translation>
     </message>
     <message>
         <source>checkPlane: pass four [x, y] corners.</source>
@@ -38656,8 +38728,8 @@ Locked: %1</source>
         <translation>perspective.paste: plane 必須是四個 [x, y] 角點或平面索引，source 必須是此文件的圖層。</translation>
     </message>
     <message>
-        <source>perspective.paste: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
-        <translation>perspective.paste: placement 為 &quot;fill&quot;、&quot;fit&quot; 或 {x, y, scale, rotation}。</translation>
+        <source>perspective.paste: placement is "fill", "fit" or {x, y, scale, rotation}.</source>
+        <translation>perspective.paste: placement 為 "fill"、"fit" 或 {x, y, scale, rotation}。</translation>
     </message>
     <message>
         <source>perspective.paste: placement needs finite x and y and a positive scale.</source>
@@ -38688,11 +38760,11 @@ Locked: %1</source>
         <translation>perspective.clone: from 必須是 sourcePlane（預設為 plane）上的 [x, y] 點。</translation>
     </message>
     <message>
-        <source>perspective.paint: color is &quot;#rrggbb&quot; or [r, g, b].</source>
-        <translation>perspective.paint: color 為 &quot;#rrggbb&quot; 或 [r, g, b]。</translation>
+        <source>perspective.paint: color is "#rrggbb" or [r, g, b].</source>
+        <translation>perspective.paint: color 為 "#rrggbb" 或 [r, g, b]。</translation>
     </message>
     <message>
-        <source>%1: the first point is past the plane&apos;s horizon.</source>
+        <source>%1: the first point is past the plane's horizon.</source>
         <translation>%1: 第一個點位於平面的地平線之外。</translation>
     </message>
     <message>
@@ -38704,7 +38776,7 @@ Locked: %1</source>
         <translation>patchy.perspective 編輯使用中的文件（請先呼叫 doc.activate()）。</translation>
     </message>
     <message>
-        <source>patchy.perspective: the plane&apos;s corners cannot be a plane (%1).</source>
+        <source>patchy.perspective: the plane's corners cannot be a plane (%1).</source>
         <translation>patchy.perspective: 平面的角點無法構成平面（%1）。</translation>
     </message>
     <message>
@@ -38736,8 +38808,8 @@ Locked: %1</source>
         <translation>perspective.placeLayer: placement 需要有限的 x 和 y 以及正的 scale。</translation>
     </message>
     <message>
-        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
-        <translation>perspective.placeLayer: placement 為 &quot;fill&quot;、&quot;fit&quot; 或 {x, y, scale, rotation}。</translation>
+        <source>perspective.placeLayer: placement is "fill", "fit" or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement 為 "fill"、"fit" 或 {x, y, scale, rotation}。</translation>
     </message>
     <message>
         <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
@@ -38748,8 +38820,8 @@ Locked: %1</source>
         <translation>perspective.placeLayer: 圖層為空。</translation>
     </message>
     <message>
-        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
-        <translation>perspective.clone: sample 為 &quot;current&quot;、&quot;currentAndBelow&quot; 或 &quot;all&quot;。</translation>
+        <source>perspective.clone: sample is "current", "currentAndBelow" or "all".</source>
+        <translation>perspective.clone: sample 為 "current"、"currentAndBelow" 或 "all"。</translation>
     </message>
     <message>
         <source>resizeCanvas anchor must be one of %1.</source>
@@ -38772,7 +38844,7 @@ Locked: %1</source>
         <translation>使用錨點或位移調整版面尺寸之前，請先點陣化智慧型濾鏡和智慧型物件。</translation>
     </message>
     <message>
-        <source>%1: unknown option &quot;%2&quot;.</source>
+        <source>%1: unknown option "%2".</source>
         <translation>%1：不明的選項「%2」。</translation>
     </message>
     <message>
@@ -38804,7 +38876,7 @@ Locked: %1</source>
         <translation>%1 的選項必須是物件。</translation>
     </message>
     <message>
-        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <source>setMask: operation must be "replace", "add", "subtract" or "intersect".</source>
         <translation>setMask：operation 必須是「replace」、「add」、「subtract」或「intersect」。</translation>
     </message>
     <message>
@@ -38836,7 +38908,7 @@ Locked: %1</source>
         <translation>readImage：無法讀取 %1（%2）。</translation>
     </message>
     <message>
-        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <source>writeImage: unsupported image format "%1".</source>
         <translation>writeImage：不支援的影像格式「%1」。</translation>
     </message>
     <message>
@@ -38876,24 +38948,24 @@ Locked: %1</source>
         <translation>沒有可旋轉檢視的開啟文件。</translation>
     </message>
     <message>
-        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
-        <translation>setSaveMetadataPreferences：dataMining 必須是 &quot;&quot; 或 PLUS Data Mining URI。</translation>
+        <source>setSaveMetadataPreferences: dataMining must be "" or a PLUS Data Mining URI.</source>
+        <translation>setSaveMetadataPreferences：dataMining 必須是 "" 或 PLUS Data Mining URI。</translation>
     </message>
     <message>
-        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
-        <translation>&quot;&quot; 或 PLUS Data Mining URI，例如 &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</translation>
+        <source>"" or a PLUS Data Mining URI such as "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING"</source>
+        <translation>"" 或 PLUS Data Mining URI，例如 "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING"</translation>
     </message>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup 必須為 0 或正整數</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
-        <translation>textAlign 必須是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos; 或 &apos;justifyAll&apos;。</translation>
+        <source>textAlign must be 'left', 'center', 'right', 'justify', 'justifyCenter', 'justifyRight' or 'justifyAll'.</source>
+        <translation>textAlign 必須是 'left'、'center'、'right'、'justify'、'justifyCenter'、'justifyRight' 或 'justifyAll'。</translation>
     </message>
     <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
-        <translation>align 必須是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos; 或 &apos;justifyAll&apos;。</translation>
+        <source>align must be 'left', 'center', 'right', 'justify', 'justifyCenter', 'justifyRight' or 'justifyAll'.</source>
+        <translation>align 必須是 'left'、'center'、'right'、'justify'、'justifyCenter'、'justifyRight' 或 'justifyAll'。</translation>
     </message>
     <message>
         <source>buildBookPdf needs a book scan folder and an output path.</source>
@@ -38904,16 +38976,16 @@ Locked: %1</source>
         <translation>buildBookPdf 無法開啟 %1: %2</translation>
     </message>
     <message>
-        <source>buildBookPdf mode must be &quot;color&quot;, &quot;gray&quot; or &quot;bw&quot;.</source>
-        <translation>buildBookPdf mode 必須是 &quot;color&quot;、&quot;gray&quot; 或 &quot;bw&quot;。</translation>
+        <source>buildBookPdf mode must be "color", "gray" or "bw".</source>
+        <translation>buildBookPdf mode 必須是 "color"、"gray" 或 "bw"。</translation>
     </message>
     <message>
-        <source>buildBookPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
-        <translation>buildBookPdf imageQuality 必須是 &quot;lossless&quot;、&quot;high&quot;、&quot;medium&quot; 或 &quot;low&quot;。</translation>
+        <source>buildBookPdf imageQuality must be "lossless", "high", "medium", or "low".</source>
+        <translation>buildBookPdf imageQuality 必須是 "lossless"、"high"、"medium" 或 "low"。</translation>
     </message>
     <message>
-        <source>buildBookPdf pageSize must be &quot;median&quot;, &quot;largest&quot;, &quot;cover&quot; or [width, height] in inches.</source>
-        <translation>buildBookPdf pageSize 必須是 &quot;median&quot;、&quot;largest&quot;、&quot;cover&quot; 或以英吋為單位的 [width, height]。</translation>
+        <source>buildBookPdf pageSize must be "median", "largest", "cover" or [width, height] in inches.</source>
+        <translation>buildBookPdf pageSize 必須是 "median"、"largest"、"cover" 或以英吋為單位的 [width, height]。</translation>
     </message>
     <message>
         <source>viewCenter needs an object with finite x and y numbers.</source>
@@ -38983,52 +39055,52 @@ Locked: %1</source>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
     <message>
-        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
-        <translation>%1：選項 &quot;%2&quot; 必須是 %3 到 %4 之間的整數。</translation>
+        <source>%1: option "%2" must be an integer from %3 to %4.</source>
+        <translation>%1：選項 "%2" 必須是 %3 到 %4 之間的整數。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be true or false.</source>
-        <translation>%1：選項 &quot;%2&quot; 必須是 true 或 false。</translation>
+        <source>%1: option "%2" must be true or false.</source>
+        <translation>%1：選項 "%2" 必須是 true 或 false。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be a string.</source>
-        <translation>%1：選項 &quot;%2&quot; 必須是字串。</translation>
+        <source>%1: option "%2" must be a string.</source>
+        <translation>%1：選項 "%2" 必須是字串。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be one of %3.</source>
-        <translation>%1：選項 &quot;%2&quot; 必須是 %3 之一。</translation>
+        <source>%1: option "%2" must be one of %3.</source>
+        <translation>%1：選項 "%2" 必須是 %3 之一。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
-        <translation>%1：選項 &quot;%2&quot; 不適用於 .%3 檔案。</translation>
+        <source>%1: option "%2" does not apply to a .%3 file.</source>
+        <translation>%1：選項 "%2" 不適用於 .%3 檔案。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
-        <translation>%1：選項 &quot;%2&quot; 必須是由 %3 中的尺寸組成的非空陣列。</translation>
+        <source>%1: option "%2" must be a non-empty array of sizes from %3.</source>
+        <translation>%1：選項 "%2" 必須是由 %3 中的尺寸組成的非空陣列。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
-        <translation>%1：選項 &quot;%2&quot; 必須是由 0 到 255 之間的整數組成的 {x, y} 物件。</translation>
+        <source>%1: option "%2" must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1：選項 "%2" 必須是由 0 到 255 之間的整數組成的 {x, y} 物件。</translation>
     </message>
     <message>
         <source>%1: options must be an object such as {quality: 85}.</source>
         <translation>%1：選項必須是類似 {quality: 85} 的物件。</translation>
     </message>
     <message>
-        <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
-        <translation>%1: blackInkOnly 需要 colorMode: &quot;cmyk&quot;。</translation>
+        <source>%1: blackInkOnly needs colorMode: "cmyk".</source>
+        <translation>%1: blackInkOnly 需要 colorMode: "cmyk"。</translation>
     </message>
     <message>
-        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
-        <translation>%1：layers 需要 colorMode: &quot;rgb&quot;；含圖層的 TIFF 會以 RGB 儲存。</translation>
+        <source>%1: layers needs colorMode: "rgb"; a TIFF with layers is saved in RGB.</source>
+        <translation>%1：layers 需要 colorMode: "rgb"；含圖層的 TIFF 會以 RGB 儲存。</translation>
     </message>
     <message>
-        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
-        <translation>%1：PNG 的 colors、dither 和 ditherAmount 需要 pngColors: &quot;palette&quot;。</translation>
+        <source>%1: colors, dither and ditherAmount need pngColors: "palette" for PNG.</source>
+        <translation>%1：PNG 的 colors、dither 和 ditherAmount 需要 pngColors: "palette"。</translation>
     </message>
     <message>
-        <source>%1: an animated PNG is full color, so animate cannot be combined with pngColors: &quot;palette&quot;.</source>
-        <translation>%1：動畫 PNG 為全彩，因此 animate 不能與 pngColors: &quot;palette&quot; 同時使用。</translation>
+        <source>%1: an animated PNG is full color, so animate cannot be combined with pngColors: "palette".</source>
+        <translation>%1：動畫 PNG 為全彩，因此 animate 不能與 pngColors: "palette" 同時使用。</translation>
     </message>
 </context>
 <context>
@@ -39074,7 +39146,7 @@ Locked: %1</source>
         <translation>GitHub：%1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
+        <source>Seth's site: %1</source>
         <translation>Seth 的網站：%1</translation>
     </message>
     <message>
@@ -39098,8 +39170,8 @@ Locked: %1</source>
         <translation>免費 · Windows、macOS和Linux</translation>
     </message>
     <message>
-        <source>More features, nearly 400 G&apos;MIC filters, faster editing, and full access to your system fonts.</source>
-        <translation>更多功能、近 400 個 G&apos;MIC 濾鏡、更快的編輯速度，以及完整使用系統字型。</translation>
+        <source>More features, nearly 400 G'MIC filters, faster editing, and full access to your system fonts.</source>
+        <translation>更多功能、近 400 個 G'MIC 濾鏡、更快的編輯速度，以及完整使用系統字型。</translation>
     </message>
     <message>
         <source>Remove from Recent Files</source>
@@ -39221,7 +39293,7 @@ Locked: %1</source>
         <translation>Photoshop 樣式 (*.asl)</translation>
     </message>
     <message numerus="yes">
-        <source>Exported %n style(s) to &quot;%1&quot;.</source>
+        <source>Exported %n style(s) to "%1".</source>
         <translation>
             <numerusform>已將 %n 個樣式轉存至「%1」。</numerusform>
         </translation>
@@ -39242,19 +39314,19 @@ Locked: %1</source>
         <translation>未命名樣式</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>無法開啟「%1」。</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot;.</source>
+        <source>Could not read "%1".</source>
         <translation>無法讀取「%1」。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to import safely.</source>
+        <source>"%1" is too large to import safely.</source>
         <translation>「%1」太大，無法安全匯入。</translation>
     </message>
     <message>
-        <source>Could not import styles from &quot;%1&quot;. The file is not a supported Photoshop ASL file or is damaged.</source>
+        <source>Could not import styles from "%1". The file is not a supported Photoshop ASL file or is damaged.</source>
         <translation>無法從「%1」匯入樣式。此檔案不是支援的 Photoshop ASL 檔案，或是已經損毀。</translation>
     </message>
     <message>
@@ -39266,15 +39338,15 @@ Locked: %1</source>
         <translation>樣式 %1</translation>
     </message>
     <message>
-        <source>Style &quot;%1&quot; used an id already assigned to a different style; it was imported with a new id.</source>
+        <source>Style "%1" used an id already assigned to a different style; it was imported with a new id.</source>
         <translation>樣式「%1」使用的 id 已指定給其他樣式，因此以新的 id 匯入。</translation>
     </message>
     <message>
-        <source>Could not save style &quot;%1&quot;.</source>
+        <source>Could not save style "%1".</source>
         <translation>無法儲存樣式「%1」。</translation>
     </message>
     <message>
-        <source>No styles could be imported from &quot;%1&quot;.</source>
+        <source>No styles could be imported from "%1".</source>
         <translation>無法從「%1」匯入任何樣式。</translation>
     </message>
     <message>
@@ -39282,7 +39354,7 @@ Locked: %1</source>
         <translation>沒有可轉存的樣式。</translation>
     </message>
     <message>
-        <source>Could not write &quot;%1&quot;.</source>
+        <source>Could not write "%1".</source>
         <translation>無法寫入「%1」。</translation>
     </message>
     <message>
