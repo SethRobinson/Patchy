@@ -17,7 +17,7 @@ These entries are in [legal-constraints-selection.md](legal-constraints-selectio
 - [Quick Select: one solve on mouse release](legal-constraints-selection.md#selection-tools)
 - [Automatic selection (Select Subject, Object Selection, their script calls)](legal-constraints-selection.md#selection-tools)
 - [Magnetic Lasso](legal-constraints-selection.md#selection-tools)
-- [Color Range](legal-constraints-selection.md#color-range): linear rules on each pixel's own color; no Gaussian or clustered color model, no range mask on an adjustment
+- [Color Range](legal-constraints-selection.md#color-range) (decided 2026-11-12, ships as built): linear rules on each pixel's own color; no Gaussian or clustered color model, no range mask on an adjustment
 
 ## Filters and Smart Objects
 
