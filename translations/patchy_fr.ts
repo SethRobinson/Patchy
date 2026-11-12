@@ -35555,10 +35555,6 @@ Verrouillé : %1</translation>
         <translation>Texte</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>Réglage ou remplissage</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>Objet dynamique</translation>
     </message>
@@ -35884,6 +35880,14 @@ Verrouillé : %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Faites glisser le long d&apos;un élément qui doit être horizontal ou vertical</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>Remplissage ou réglage</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>A des filtres dynamiques</translation>
     </message>
 </context>
 <context>

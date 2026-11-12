@@ -35555,10 +35555,6 @@ Bloccato: %1</translation>
         <translation>Testo</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>Regolazione o riempimento</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>Oggetto avanzato</translation>
     </message>
@@ -35884,6 +35880,14 @@ Bloccato: %1</translation>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Trascina lungo qualcosa che deve essere orizzontale o verticale</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>Riempimento o regolazione</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>Ha filtri avanzati</translation>
     </message>
 </context>
 <context>

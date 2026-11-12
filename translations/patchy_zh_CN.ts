@@ -35452,10 +35452,6 @@ Locked: %1</source>
         <translation>文字</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>调整或填充</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>智能对象</translation>
     </message>
@@ -35775,6 +35771,14 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>沿着应当水平或竖直的物体拖动</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>填充或调整</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>有智能滤镜</translation>
     </message>
 </context>
 <context>

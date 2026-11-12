@@ -35658,10 +35658,6 @@ Locked: %1</source>
         <translation>Текст</translation>
     </message>
     <message>
-        <source>Adjustment or Fill</source>
-        <translation>Коррекция или заливка</translation>
-    </message>
-    <message>
         <source>Smart Object</source>
         <translation>Смарт-объект</translation>
     </message>
@@ -35993,6 +35989,14 @@ Locked: %1</source>
     <message>
         <source>Drag along something that should be level or upright</source>
         <translation>Проведите вдоль того, что должно быть горизонтальным или вертикальным</translation>
+    </message>
+    <message>
+        <source>Fill or Adjustment</source>
+        <translation>Заливка или коррекция</translation>
+    </message>
+    <message>
+        <source>Has Smart Filters</source>
+        <translation>Есть смарт-фильтры</translation>
     </message>
 </context>
 <context>
