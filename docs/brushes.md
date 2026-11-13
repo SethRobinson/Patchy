@@ -9,6 +9,7 @@ Related documents:
 - [brush-dynamics.md](brush-dynamics.md): the Photoshop-compatible brush dynamics and their `BrushDynamicControl` sources (an append-only enum).
 - [brushes-ui.md](brushes-ui.md): the tip picker and Brush Tips manager, the floating Brush Tips window, footprint cursors and the brush overlay, and the modifiers every footprint-cursor tool shares (Ctrl Move, Shift line, the Left/Right tip rotation keys, stroke points as pixel indices).
 - [brushes-local-adjustments.md](brushes-local-adjustments.md): Dodge, Burn, Sponge, Blur and Sharpen, their fixed algorithms, the Alt swap, and the Photoshop calibration of the Dodge/Burn ranges and of Blur and Sharpen.
+- [color-replacement.md](color-replacement.md): the Color Replacement tool in the Brush flyout, a brush that repaints pixels matching a sampled color with the foreground color (Hue, Saturation, Color or Luminosity), using the Brush's tip, Size and Soft.
 
 ## Core stamping engine
 

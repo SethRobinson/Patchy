@@ -1704,7 +1704,8 @@ void ui_tool_palette_footer_items_hide_and_preview() {
     // sits (GitHub issue 213 follow-up): measured on the drawn pixels, since a padding that
     // only widens the column leaves right-aligned text flush with the edge.
     CHECK(tree->verticalScrollBar()->isVisible());
-    for (const auto* name : {"Move Tools", "Brush"}) {
+    // A group row and a plain tool's row (the Brush sits in a group with Color Replacement).
+    for (const auto* name : {"Move Tools", "Eraser"}) {
       if (auto* row = tree_row(*tree, QLatin1String(name)); row != nullptr) {
         const int gap = shortcut_gap_before_right_edge(*tree, *row);
         if (gap < 12) {
@@ -3244,10 +3245,11 @@ void ui_tool_flyout_click_mode_hands_the_click_on() {
   window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Click);
   auto* marquee_button = button_named(window, "marqueeToolButton");
   auto* lasso_button = button_named(window, "lassoToolButton");
-  auto* brush_button = button_named(window, "brushToolButton");
+  // The Eraser is a plain tool (the Brush shares a flyout with Color Replacement, GitHub issue 720).
+  auto* eraser_button = button_named(window, "eraserToolButton");
   auto* marquee = require_action(window, "toolMarqueeAction");
   auto* lasso = require_action(window, "toolLassoAction");
-  auto* brush = require_action(window, "toolBrushAction");
+  auto* eraser = require_action(window, "toolEraserAction");
   auto* hand = require_action(window, "toolHandAction");
   // Clicks the Marquee group, then presses at `global` while its flyout is open.
   const auto open_and_press_at = [&](QPoint global) {
@@ -3271,12 +3273,12 @@ void ui_tool_flyout_click_mode_hands_the_click_on() {
     CHECK(pressed);
   };
 
-  // A plain tool: the Brush.
+  // A plain tool: the Eraser.
   hand->trigger();
   settle();
-  open_and_press_at(brush_button->mapToGlobal(brush_button->rect().center()));
+  open_and_press_at(eraser_button->mapToGlobal(eraser_button->rect().center()));
   settle();
-  CHECK(brush->isChecked());
+  CHECK(eraser->isChecked());
   CHECK(QApplication::activePopupWidget() == nullptr);
 
   // Another group: its flyout opens and selects the tool it shows.

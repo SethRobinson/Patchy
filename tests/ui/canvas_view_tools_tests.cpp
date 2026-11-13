@@ -7130,7 +7130,8 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   // smudge/dodge buttons that historically lacked the indicator.
   for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
                            "stampToolButton", "healingToolButton", "detailToolButton", "toneToolButton",
-                           "shapeToolButton", "pathSelectToolButton", "penToolButton", "typeToolButton"}) {
+                           "shapeToolButton", "pathSelectToolButton", "penToolButton", "typeToolButton",
+                           "brushToolButton"}) {
     auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
     CHECK(button != nullptr);
     CHECK(button->property("toolFlyout").toBool());
@@ -7261,6 +7262,7 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
       {"toolCycleShapeAction", "tools.cycle.shape"},     {"toolCycleMoveAction", "tools.cycle.move"},
       {"toolCycleCropAction", "tools.cycle.crop"},
       {"toolCyclePickAction", "tools.cycle.pick"},      {"toolCycleTypeAction", "tools.cycle.type"},
+      {"toolCycleBrushAction", "tools.cycle.brush"},
   };
   for (const auto& [object_name, id] : cycles) {
     auto* action = require_action(window, object_name);
@@ -8723,6 +8725,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolCropAction", "Crop"},
       {"toolPerspectiveCropAction", "Perspective Crop"},
       {"toolBrushAction", "Brush"},
+      {"toolColorReplacementAction", "Color Replacement"},
       {"toolCloneAction", "Clone"},
       {"toolPatternStampAction", "Pattern Stamp"},
       {"toolHealingBrushAction", "Healing Brush"},

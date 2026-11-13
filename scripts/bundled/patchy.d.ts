@@ -732,6 +732,31 @@ interface PatchyLayer {
     darkenAmount?: number;
   }): { pupilPixels: number; x: number; y: number; width: number; height: number };
   /**
+   * The Color Replacement tool: one stroke with a round tip through `points` (document pixels)
+   * that repaints the pixels matching a sampled color with `color`, keeping alpha. `sampling`
+   * picks the compared color: "continuous" (default) the pixel under each dab's center as the
+   * stroke began, "once" the pixel under the first dab, "background" the `backgroundColor`
+   * (required then). `limits`: "discontiguous" every matching pixel under the tip, "contiguous"
+   * (default) those connected to the dab's center, "findEdges" connected ones that also stop at
+   * abrupt color steps. `mode` is the blend the paint uses (default "color"). `tolerance` is
+   * 0..100 (default 30; 0 = exact matches), `size` 1..1024 (default 40), `hardness` 0..100
+   * (default 100), `antiAlias` softens the replaced area's edge (default true). A selection
+   * limits the change. The layer must be the active layer. Returns the changed bounds (all
+   * zero when nothing matched); throws on an unknown option or a value out of range.
+   */
+  replaceColor(options: {
+    points: Array<{ x: number; y: number }>;
+    color: string;
+    size?: number;
+    hardness?: number;
+    mode?: "hue" | "saturation" | "color" | "luminosity";
+    sampling?: "continuous" | "once" | "background";
+    backgroundColor?: string;
+    limits?: "discontiguous" | "contiguous" | "findEdges";
+    tolerance?: number;
+    antiAlias?: boolean;
+  }): { x: number; y: number; width: number; height: number };
+  /**
    * A copy of the layer's pixels (empty layers report width/height 0). Layers
    * that store opaque 8-bit RGB (photos opened from JPEG and similar) are
    * returned expanded to RGBA with alpha 255.

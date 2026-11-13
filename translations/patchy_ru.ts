@@ -19448,6 +19448,22 @@ Do you want to replace it?</source>
         <source>Resize layer</source>
         <translation>Изменить размер слоя</translation>
     </message>
+    <message>
+        <source>Color Replacement needs an open document</source>
+        <translation>Для инструмента «Замена цвета» нужен открытый документ</translation>
+    </message>
+    <message>
+        <source>Color Replacement is unavailable while editing a mask or channel</source>
+        <translation>Инструмент «Замена цвета» недоступен при редактировании маски или канала</translation>
+    </message>
+    <message>
+        <source>Color Replacement needs an editable pixel layer</source>
+        <translation>Для инструмента «Замена цвета» нужен редактируемый пиксельный слой</translation>
+    </message>
+    <message>
+        <source>Color replacement</source>
+        <translation>Замена цвета</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -21957,6 +21973,14 @@ Do you want to replace it?</source>
     <message>
         <source>Move text on a path to the other side of the path</source>
         <translation>Переместить текст на контуре на другую сторону контура</translation>
+    </message>
+    <message>
+        <source>Paint over one color to replace it with the foreground color</source>
+        <translation>Закрасить цвет, чтобы заменить его основным цветом</translation>
+    </message>
+    <message>
+        <source>Switch between the Brush and Color Replacement tools</source>
+        <translation>Переключаться между инструментами «Кисть» и «Замена цвета»</translation>
     </message>
 </context>
 <context>
@@ -36253,6 +36277,70 @@ Locked: %1</source>
         <source>Cylinder</source>
         <translation>Цилиндр</translation>
     </message>
+    <message>
+        <source>Which part of the foreground color replaces the matching pixels&apos; own: its hue, its saturation, both (Color), or its lightness (Luminosity)</source>
+        <translation>Какая часть основного цвета заменяет соответствующую часть цвета подходящих пикселей: цветовой тон, насыщенность, оба (Цветность) или яркость (Яркость)</translation>
+    </message>
+    <message>
+        <source>Sampling:</source>
+        <translation>Проба:</translation>
+    </message>
+    <message>
+        <source>The color that gets replaced: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>Какой цвет заменяется: «Непрерывно» берёт цвет под указателем при перетаскивании, «Однократно» — цвет в начале мазка, «Образец фона» — фоновый цвет</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>Непрерывно</translation>
+    </message>
+    <message>
+        <source>Once</source>
+        <translation>Однократно</translation>
+    </message>
+    <message>
+        <source>Background Swatch</source>
+        <translation>Образец фона</translation>
+    </message>
+    <message>
+        <source>Limits:</source>
+        <translation>Ограничения:</translation>
+    </message>
+    <message>
+        <source>Which matching pixels change: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>Какие подходящие пиксели меняются: «Все пиксели» — любые под кистью, «Смежные пиксели» — только связанные с указателем, «Выделение краев» — связанные, с сохранением резких краёв</translation>
+    </message>
+    <message>
+        <source>Discontiguous</source>
+        <translation>Все пиксели</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Выделение краев</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be replaced; 0% replaces exact matches only</source>
+        <translation>Насколько цвет должен быть близок к взятому образцу, чтобы его заменить; 0% заменяет только точные совпадения</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the replaced area</source>
+        <translation>Смягчить край заменённой области</translation>
+    </message>
+    <message>
+        <source>Paint over a color to replace it with the foreground color. Only pixels close to the color under the center of the brush change.</source>
+        <translation>Закрасьте цвет, чтобы заменить его основным цветом. Меняются только пиксели, близкие к цвету под центром кисти.</translation>
+    </message>
+    <message>
+        <source>Brush Tools</source>
+        <translation>Инструменты кисти</translation>
+    </message>
+    <message>
+        <source>Color Replacement</source>
+        <translation>Замена цвета</translation>
+    </message>
+    <message>
+        <source>Cycle Brush Tools</source>
+        <translation>Сменить инструмент кисти</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39471,6 +39559,50 @@ Locked: %1</source>
     <message>
         <source>Invalid selectColorRange option: %1.</source>
         <translation>Недопустимый параметр selectColorRange: %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: pass {points, color} and optional settings.</source>
+        <translation>replaceColor: передайте {points, color} и необязательные параметры.</translation>
+    </message>
+    <message>
+        <source>replaceColor: %1 must be a number from %2 to %3.</source>
+        <translation>replaceColor: %1 должно быть числом от %2 до %3.</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown %1 value.</source>
+        <translation>replaceColor: неизвестное значение %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>replaceColor: points должен быть массивом от 1 до 100000 точек {x, y}.</translation>
+    </message>
+    <message>
+        <source>replaceColor: color must be a color string.</source>
+        <translation>replaceColor: color должен быть строкой цвета.</translation>
+    </message>
+    <message>
+        <source>replaceColor: backgroundColor must be a color string.</source>
+        <translation>replaceColor: backgroundColor должен быть строкой цвета.</translation>
+    </message>
+    <message>
+        <source>replaceColor: antiAlias must be true or false.</source>
+        <translation>replaceColor: antiAlias должен быть true или false.</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown option %1.</source>
+        <translation>replaceColor: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>replaceColor: для sampling &quot;background&quot; нужен backgroundColor.</translation>
+    </message>
+    <message>
+        <source>replaceColor needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>replaceColor требует активный слой документа (сначала задайте doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>replaceColor needs an editable pixel layer.</source>
+        <translation>replaceColor требует редактируемый пиксельный слой.</translation>
     </message>
 </context>
 <context>

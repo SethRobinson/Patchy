@@ -98,6 +98,7 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
     case CanvasTool::Sponge:
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
+    case CanvasTool::ColorReplace:
     case CanvasTool::Eraser:
       return true;
     default:
@@ -105,6 +106,8 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   }
 }
 
+// The brushes that share the toning stroke plumbing (press, spacing, release): Dodge, Burn,
+// Sponge, Blur, Sharpen, and Color Replacement, which paints through its own segment function.
 bool is_local_adjustment_tool(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Dodge:
@@ -112,6 +115,7 @@ bool is_local_adjustment_tool(CanvasTool tool) noexcept {
     case CanvasTool::Sponge:
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
+    case CanvasTool::ColorReplace:
       return true;
     default:
       return false;
@@ -1028,6 +1032,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::Sponge:
       case CanvasTool::BlurBrush:
       case CanvasTool::SharpenBrush:
+      case CanvasTool::ColorReplace:
       case CanvasTool::Text:
       case CanvasTool::TypeMask:
       case CanvasTool::Pen:
@@ -1268,7 +1273,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (is_local_adjustment_tool(effective_tool)) {
     if (editing_grayscale_target()) {
-      report_status_error(tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
+      report_status_error(effective_tool == CanvasTool::ColorReplace
+                              ? tr("Color Replacement is unavailable while editing a mask or channel")
+                              : tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
       return;
     }
     // Alt (Ctrl in the GIMP-style tool modifiers) at the press paints the stroke with the
@@ -1291,6 +1298,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         break;
       case CanvasTool::SharpenBrush:
         label = tr("Sharpen brush");
+        break;
+      case CanvasTool::ColorReplace:
+        label = tr("Color replacement");
         break;
       default:
         break;
@@ -1970,7 +1980,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 // Blur and Sharpen place their own dabs by distance; brushes under 20 px are unaffected.
 bool CanvasWidget::toning_segment_waits_for_spacing(QPoint from, QPoint to) const {
   const auto operation = local_adjustment_operation();
-  if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush) {
+  if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush ||
+      operation == CanvasTool::ColorReplace) {
     return false;
   }
   const auto spacing = std::max(1.0, static_cast<double>(effective_brush_input().size) / 10.0);
@@ -5875,6 +5886,7 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
       case CanvasTool::Sponge:
       case CanvasTool::BlurBrush:
       case CanvasTool::SharpenBrush:
+      case CanvasTool::ColorReplace:
         return CanvasTool::Eraser;
       default:
         break;

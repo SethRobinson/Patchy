@@ -2,6 +2,7 @@
 
 // Canvas values shared by tools, document sessions and window controllers.
 // Persisted enum values are append-only. CanvasWidget keeps aliases for callers.
+#include "core/color_replace.hpp"
 #include "core/layer.hpp"
 #include "core/document_channel.hpp"
 #include "core/document_path.hpp"
@@ -11,6 +12,7 @@
 #include <QColor>
 #include <QImage>
 #include <QPoint>
+#include <QPointF>
 #include <QRect>
 #include <QRectF>
 #include <QRegion>
@@ -22,6 +24,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -106,7 +109,10 @@ enum class CanvasTool {
   RotateView,
   // November 2026 Type Mask (append-only: values ride persisted settings). Shares the Type
   // tool's editor; its commit makes a selection from the letters (docs/type-mask.md).
-  TypeMask
+  TypeMask,
+  // November 2026 Color Replacement (append-only: values ride persisted settings). A brush
+  // that repaints pixels matching a sampled color (docs/color-replacement.md).
+  ColorReplace
 };
 
 // The tools that open the inline text editor on a click: Type and Type Mask.
@@ -623,6 +629,18 @@ struct TransformedImage {
   // renderer's work measure (GitHub issue 299: a stretched cell must not test its
   // whole bounding box).
   std::uint64_t cell_pixel_tests{0};
+};
+
+// One Color Replacement stroke for scripts (CanvasWidget::apply_color_replace_stroke,
+// docs/color-replacement.md): points in document pixels, a round tip.
+struct ColorReplaceScriptStroke {
+  std::vector<QPointF> points;
+  int size{40};
+  int softness{0};
+  QColor foreground{Qt::black};
+  QColor background{Qt::white};
+  patchy::ColorReplaceOptions options{};
+  patchy::ColorReplaceSampling sampling{patchy::ColorReplaceSampling::Continuous};
 };
 
 }  // namespace patchy::ui

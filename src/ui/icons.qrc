@@ -122,6 +122,7 @@
     <file alias="tool-patch.svg">icons/tool-patch.svg</file>
     <file alias="tool-content-aware-move.svg">icons/tool-content-aware-move.svg</file>
     <file alias="tool-red-eye.svg">icons/tool-red-eye.svg</file>
+    <file alias="tool-color-replace.svg">icons/tool-color-replace.svg</file>
     <file alias="tool-crop.svg">icons/tool-crop.svg</file>
     <file alias="tool-perspective-crop.svg">icons/tool-perspective-crop.svg</file>
     <file alias="tool-ruler.svg">icons/tool-ruler.svg</file>

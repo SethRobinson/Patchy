@@ -120,6 +120,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.brush");
     case CanvasTool::MixerBrush:
       return QStringLiteral("tools.mixer_brush");
+    case CanvasTool::ColorReplace:
+      return QStringLiteral("tools.color_replacement");
     case CanvasTool::Clone:
       return QStringLiteral("tools.clone");
     case CanvasTool::PatternStamp:
@@ -244,6 +246,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::TypeMask:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type, then commit: the letters become a selection and no layer is made. "
              "Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.");
+    case CanvasTool::ColorReplace:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paint over a color to replace it with the foreground color. Only pixels "
+             "close to the color under the center of the brush change.");
     default:
       return nullptr;
   }
@@ -350,6 +355,7 @@ const char* paint_tool_hint_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::MixerBrush:
+    case CanvasTool::ColorReplace:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: Shift+click draws a line, %PICK_KEY%+click picks a color, "
              "%ALT%+right-drag changes size and softness.");
     case CanvasTool::Clone:
@@ -1332,6 +1338,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::MixerBrush:
       name = "tool-mixer-brush";
       break;
+    case CanvasTool::ColorReplace:
+      name = "tool-color-replace";
+      break;
     case CanvasTool::Clone:
       name = "tool-clone";
       break;
@@ -1726,8 +1735,22 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                         "toolCycleCropAction", "tools.cycle.crop", QKeySequence(Qt::SHIFT | Qt::Key_C));
   ++cluster;
 
-  add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B), cluster)
-      ->setChecked(true);
+  // Brush and Color Replacement share a slot (GitHub issue 720; docs/color-replacement.md). The
+  // group button keeps the Brush tool's brushToolButton name.
+  auto* brush_tools_menu = new ToolFlyoutMenu(tr("Brush Tools"), tool_palette);
+  brush_tools_menu->setObjectName(QStringLiteral("brushToolMenu"));
+  bind_widget_text(brush_tools_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush Tools"));
+  auto* brush_tool_action =
+      create_flyout_tool_action(brush_tools_menu, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B));
+  auto* color_replace_action = create_flyout_tool_action(brush_tools_menu, tr("Color Replacement"),
+                                                         CanvasTool::ColorReplace, QKeySequence());
+  auto* brush_tool_button = new QToolButton(tool_palette);
+  brush_tool_button->setObjectName(QStringLiteral("brushToolButton"));
+  configure_tool_flyout(tool_palette, brush_tools_menu, brush_tool_button, brush_tool_action,
+                        {brush_tool_action, color_replace_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Brush Tools"),
+                        "toolCycleBrushAction", "tools.cycle.brush", QKeySequence(Qt::SHIFT | Qt::Key_B));
+  brush_tool_action->setChecked(true);
   add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E), cluster);
   auto* gradient_menu = new ToolFlyoutMenu(tr("Fill Tools"), tool_palette);
   gradient_menu->setObjectName(QStringLiteral("gradientToolMenu"));

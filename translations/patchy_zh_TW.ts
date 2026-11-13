@@ -19324,6 +19324,22 @@ Do you want to replace it?</source>
         <source>Resize layer</source>
         <translation>調整圖層大小</translation>
     </message>
+    <message>
+        <source>Color Replacement needs an open document</source>
+        <translation>顏色取代工具需要一個已開啟的文件</translation>
+    </message>
+    <message>
+        <source>Color Replacement is unavailable while editing a mask or channel</source>
+        <translation>編輯遮色片或色版時無法使用顏色取代工具</translation>
+    </message>
+    <message>
+        <source>Color Replacement needs an editable pixel layer</source>
+        <translation>顏色取代工具需要可編輯的像素圖層</translation>
+    </message>
+    <message>
+        <source>Color replacement</source>
+        <translation>顏色取代</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -21833,6 +21849,14 @@ Do you want to replace it?</source>
     <message>
         <source>Move text on a path to the other side of the path</source>
         <translation>將路徑上的文字移到路徑的另一側</translation>
+    </message>
+    <message>
+        <source>Paint over one color to replace it with the foreground color</source>
+        <translation>在一種顏色上塗抹，將其取代為前景色</translation>
+    </message>
+    <message>
+        <source>Switch between the Brush and Color Replacement tools</source>
+        <translation>在筆刷工具和顏色取代工具之間切換</translation>
     </message>
 </context>
 <context>
@@ -36035,6 +36059,70 @@ Locked: %1</source>
         <source>Cylinder</source>
         <translation>圓柱體</translation>
     </message>
+    <message>
+        <source>Which part of the foreground color replaces the matching pixels&apos; own: its hue, its saturation, both (Color), or its lightness (Luminosity)</source>
+        <translation>用前景色的哪一部分取代相符像素的對應部分: 色相、飽和度、兩者 (顏色) 或亮度 (明度)</translation>
+    </message>
+    <message>
+        <source>Sampling:</source>
+        <translation>取樣:</translation>
+    </message>
+    <message>
+        <source>The color that gets replaced: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>要取代的顏色: 「連續」在拖移時取指標下的顏色，「一次」取筆觸起點的顏色，「背景色票」取背景色</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>連續</translation>
+    </message>
+    <message>
+        <source>Once</source>
+        <translation>一次</translation>
+    </message>
+    <message>
+        <source>Background Swatch</source>
+        <translation>背景色票</translation>
+    </message>
+    <message>
+        <source>Limits:</source>
+        <translation>限制:</translation>
+    </message>
+    <message>
+        <source>Which matching pixels change: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>哪些相符的像素會改變: 「非連續的」為筆刷下的所有相符像素，「連續的」僅為與指標相連的像素，「尋找邊緣」為相連的像素並保持銳利的邊緣</translation>
+    </message>
+    <message>
+        <source>Discontiguous</source>
+        <translation>非連續的</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>尋找邊緣</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be replaced; 0% replaces exact matches only</source>
+        <translation>顏色與取樣顏色要多接近才會被取代；0% 只取代完全相符的顏色</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the replaced area</source>
+        <translation>柔化被取代區域的邊緣</translation>
+    </message>
+    <message>
+        <source>Paint over a color to replace it with the foreground color. Only pixels close to the color under the center of the brush change.</source>
+        <translation>在一種顏色上塗抹即可將其取代為前景色。只有與筆刷中心下的顏色相近的像素會改變。</translation>
+    </message>
+    <message>
+        <source>Brush Tools</source>
+        <translation>筆刷工具</translation>
+    </message>
+    <message>
+        <source>Color Replacement</source>
+        <translation>顏色取代</translation>
+    </message>
+    <message>
+        <source>Cycle Brush Tools</source>
+        <translation>循環切換筆刷工具</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39245,6 +39333,50 @@ Locked: %1</source>
     <message>
         <source>Invalid selectColorRange option: %1.</source>
         <translation>無效的 selectColorRange 選項：%1。</translation>
+    </message>
+    <message>
+        <source>replaceColor: pass {points, color} and optional settings.</source>
+        <translation>replaceColor: 請傳入 {points, color} 和選用設定。</translation>
+    </message>
+    <message>
+        <source>replaceColor: %1 must be a number from %2 to %3.</source>
+        <translation>replaceColor: %1 必須是 %2 到 %3 之間的數字。</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown %1 value.</source>
+        <translation>replaceColor: 未知的 %1 值。</translation>
+    </message>
+    <message>
+        <source>replaceColor: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>replaceColor: points 必須是包含 1 到 100000 個 {x, y} 點的陣列。</translation>
+    </message>
+    <message>
+        <source>replaceColor: color must be a color string.</source>
+        <translation>replaceColor: color 必須是顏色字串。</translation>
+    </message>
+    <message>
+        <source>replaceColor: backgroundColor must be a color string.</source>
+        <translation>replaceColor: backgroundColor 必須是顏色字串。</translation>
+    </message>
+    <message>
+        <source>replaceColor: antiAlias must be true or false.</source>
+        <translation>replaceColor: antiAlias 必須是 true 或 false。</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown option %1.</source>
+        <translation>replaceColor: 未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>replaceColor: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>replaceColor: sampling &quot;background&quot; 需要 backgroundColor。</translation>
+    </message>
+    <message>
+        <source>replaceColor needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>replaceColor 需要文件的作用中圖層（請先設定 doc.activeLayer）。</translation>
+    </message>
+    <message>
+        <source>replaceColor needs an editable pixel layer.</source>
+        <translation>replaceColor 需要可編輯的像素圖層。</translation>
     </message>
 </context>
 <context>

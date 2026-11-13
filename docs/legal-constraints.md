@@ -7,7 +7,7 @@ These docs and the records they link are engineering comparisons: each states wh
 Related documents:
 
 - [legal-constraints-filters.md](legal-constraints-filters.md): the filter, Smart Object, retouching and G'MIC entries, indexed below under "Filters and Smart Objects" and "G'MIC engine".
-- [legal-constraints-selection.md](legal-constraints-selection.md): the selection tool and command entries (Quick Select, automatic selection, Magnetic Lasso, Color Range), indexed below under "Selection tools".
+- [legal-constraints-selection.md](legal-constraints-selection.md): the selection tool and command entries (Quick Select, automatic selection, Magnetic Lasso, Color Range) and the Color Replacement tool, indexed below under "Selection tools".
 - [legal-licensing.md](legal-licensing.md): licensing, file formats and codecs, trademarks, bundled assets, the GEGL bundle and the Flatpak's scanner and camera libraries.
 
 ## Selection tools
@@ -18,6 +18,7 @@ These entries are in [legal-constraints-selection.md](legal-constraints-selectio
 - [Automatic selection (Select Subject, Object Selection, their script calls)](legal-constraints-selection.md#selection-tools)
 - [Magnetic Lasso](legal-constraints-selection.md#selection-tools)
 - [Color Range](legal-constraints-selection.md#color-range) (decided 2026-11-12, ships as built): linear rules on each pixel's own color; no Gaussian or clustered color model, no range mask on an adjustment
+- [Color Replacement tool](legal-constraints-selection.md#color-replacement-tool) (a brush; decided 2026-11-13, ships as built; [record](patent-research-color-replacement.md)): one sampled RGB point per dab, repainted at once
 
 ## Filters and Smart Objects
 

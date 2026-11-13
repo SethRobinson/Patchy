@@ -2039,6 +2039,46 @@ bool ScriptEngineHost::red_eye(std::int64_t session_id, LayerId layer_id, QPoint
   return true;
 }
 
+bool ScriptEngineHost::color_replace(std::int64_t session_id, LayerId layer_id,
+                                     const ColorReplaceScriptStroke& stroke, QRect* changed) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  if (session->document.find_layer(layer_id) == nullptr) {
+    throw_js_error(tr("The layer no longer exists."));
+    return false;
+  }
+  const auto active_id = std::as_const(session->document).active_layer_id();
+  if (!active_id.has_value() || *active_id != layer_id) {
+    throw_js_error(tr("replaceColor needs the document's active layer (set doc.activeLayer first)."));
+    return false;
+  }
+  auto* canvas = session->canvas;
+  if (!prepare_mutation(session_id)) {
+    return false;
+  }
+  session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  const auto result = canvas->apply_color_replace_stroke(stroke);
+  if (!result.ok) {
+    throw_js_error(result.error.isEmpty() ? tr("replaceColor needs an editable pixel layer.") : result.error);
+    return false;
+  }
+  if (changed != nullptr) {
+    *changed = result.changed;
+  }
+  if (!result.changed.isEmpty()) {
+    note_pixels_changed(session_id, result.changed);
+  }
+  return true;
+}
+
 namespace {
 
 // The Align/Distribute preamble both services share: the session must be

@@ -128,6 +128,8 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"tools.eraser", "Shift+E"},
     HotkeySetEntry{"tools.clone", "C"},
     HotkeySetEntry{"tools.fill", "Shift+B"},
+    // GIMP has no Color Replacement tool, and Shift+B is its Bucket Fill.
+    HotkeySetEntry{"tools.cycle.brush", ""},
     HotkeySetEntry{"tools.smudge", "S"},
     HotkeySetEntry{"tools.blur", "Shift+U"},
     HotkeySetEntry{"tools.dodge", "Shift+D"},

@@ -19386,6 +19386,22 @@ Do you want to replace it?</source>
         <source>Resize layer</source>
         <translation>Cambiar tamaño de capa</translation>
     </message>
+    <message>
+        <source>Color Replacement needs an open document</source>
+        <translation>Sustitución de color necesita un documento abierto</translation>
+    </message>
+    <message>
+        <source>Color Replacement is unavailable while editing a mask or channel</source>
+        <translation>Sustitución de color no está disponible mientras se edita una máscara o un canal</translation>
+    </message>
+    <message>
+        <source>Color Replacement needs an editable pixel layer</source>
+        <translation>Sustitución de color necesita una capa de píxeles editable</translation>
+    </message>
+    <message>
+        <source>Color replacement</source>
+        <translation>Sustitución de color</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -21895,6 +21911,14 @@ Do you want to replace it?</source>
     <message>
         <source>Move text on a path to the other side of the path</source>
         <translation>Pasar el texto de un trazado al otro lado del trazado</translation>
+    </message>
+    <message>
+        <source>Paint over one color to replace it with the foreground color</source>
+        <translation>Pintar sobre un color para sustituirlo por el color frontal</translation>
+    </message>
+    <message>
+        <source>Switch between the Brush and Color Replacement tools</source>
+        <translation>Alternar entre las herramientas Pincel y Sustitución de color</translation>
     </message>
 </context>
 <context>
@@ -36144,6 +36168,70 @@ Bloqueada: %1</translation>
         <source>Cylinder</source>
         <translation>Cilindro</translation>
     </message>
+    <message>
+        <source>Which part of the foreground color replaces the matching pixels&apos; own: its hue, its saturation, both (Color), or its lightness (Luminosity)</source>
+        <translation>Qué parte del color frontal sustituye a la de los píxeles coincidentes: su tono, su saturación, ambos (Color) o su luminosidad (Luminosidad)</translation>
+    </message>
+    <message>
+        <source>Sampling:</source>
+        <translation>Muestreo:</translation>
+    </message>
+    <message>
+        <source>The color that gets replaced: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>El color que se sustituye: Continuo toma el color bajo el puntero al arrastrar, Una vez el color donde empieza el trazo, Muestra de fondo el color de fondo</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>Continuo</translation>
+    </message>
+    <message>
+        <source>Once</source>
+        <translation>Una vez</translation>
+    </message>
+    <message>
+        <source>Background Swatch</source>
+        <translation>Muestra de fondo</translation>
+    </message>
+    <message>
+        <source>Limits:</source>
+        <translation>Límites:</translation>
+    </message>
+    <message>
+        <source>Which matching pixels change: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>Qué píxeles coincidentes cambian: No contiguo todos los que están bajo el pincel, Contiguo solo los conectados con el puntero, Hallar bordes los conectados manteniendo nítidos los bordes definidos</translation>
+    </message>
+    <message>
+        <source>Discontiguous</source>
+        <translation>No contiguo</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Hallar bordes</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be replaced; 0% replaces exact matches only</source>
+        <translation>Cuánto debe parecerse un color al color muestreado para sustituirse; 0% sustituye solo las coincidencias exactas</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the replaced area</source>
+        <translation>Suavizar el borde del área sustituida</translation>
+    </message>
+    <message>
+        <source>Paint over a color to replace it with the foreground color. Only pixels close to the color under the center of the brush change.</source>
+        <translation>Pinte sobre un color para sustituirlo por el color frontal. Solo cambian los píxeles parecidos al color situado bajo el centro del pincel.</translation>
+    </message>
+    <message>
+        <source>Brush Tools</source>
+        <translation>Herramientas de pincel</translation>
+    </message>
+    <message>
+        <source>Color Replacement</source>
+        <translation>Sustitución de color</translation>
+    </message>
+    <message>
+        <source>Cycle Brush Tools</source>
+        <translation>Alternar herramientas de pincel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39358,6 +39446,50 @@ Bloqueada: %1</translation>
     <message>
         <source>Invalid selectColorRange option: %1.</source>
         <translation>Opción de selectColorRange no válida: %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: pass {points, color} and optional settings.</source>
+        <translation>replaceColor: pase {points, color} y ajustes opcionales.</translation>
+    </message>
+    <message>
+        <source>replaceColor: %1 must be a number from %2 to %3.</source>
+        <translation>replaceColor: %1 debe ser un número de %2 a %3.</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown %1 value.</source>
+        <translation>replaceColor: valor desconocido para %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>replaceColor: points debe ser una matriz de 1 a 100000 puntos {x, y}.</translation>
+    </message>
+    <message>
+        <source>replaceColor: color must be a color string.</source>
+        <translation>replaceColor: color debe ser una cadena de color.</translation>
+    </message>
+    <message>
+        <source>replaceColor: backgroundColor must be a color string.</source>
+        <translation>replaceColor: backgroundColor debe ser una cadena de color.</translation>
+    </message>
+    <message>
+        <source>replaceColor: antiAlias must be true or false.</source>
+        <translation>replaceColor: antiAlias debe ser true o false.</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown option %1.</source>
+        <translation>replaceColor: opción desconocida %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>replaceColor: sampling &quot;background&quot; necesita backgroundColor.</translation>
+    </message>
+    <message>
+        <source>replaceColor needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>replaceColor necesita la capa activa del documento (establezca primero doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>replaceColor needs an editable pixel layer.</source>
+        <translation>replaceColor necesita una capa de píxeles editable.</translation>
     </message>
 </context>
 <context>

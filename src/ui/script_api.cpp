@@ -1663,6 +1663,127 @@ QJSValue ScriptLayerObject::redEye(const QJSValue& options) {
   return result;
 }
 
+// The Color Replacement tool through the session's canvas (the layer must be the active one):
+// one stroke with a round tip. Strict: an unknown key or a value of the wrong kind throws
+// before anything is painted.
+QJSValue ScriptLayerObject::replaceColor(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto fail = [this](const QString& message) {
+    host_.throw_js_error(message);
+    return QJSValue();
+  };
+  if (!options.isObject()) {
+    return fail(ScriptEngineHost::tr("replaceColor: pass {points, color} and optional settings."));
+  }
+  ColorReplaceScriptStroke stroke;
+  bool has_color = false;
+  bool has_background = false;
+  int hardness = 100;
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    const auto number_in = [&](int minimum, int maximum, int* out) {
+      if (!value.isNumber() || !std::isfinite(value.toNumber()) || value.toNumber() < minimum ||
+          value.toNumber() > maximum) {
+        host_.throw_js_error(
+            ScriptEngineHost::tr("replaceColor: %1 must be a number from %2 to %3.").arg(key).arg(minimum).arg(maximum));
+        return false;
+      }
+      *out = static_cast<int>(std::lround(value.toNumber()));
+      return true;
+    };
+    const auto token = [&](const auto& parse, auto* out) {
+      const auto parsed = value.isString() ? parse(value.toString().toStdString()) : std::nullopt;
+      if (!parsed.has_value()) {
+        host_.throw_js_error(ScriptEngineHost::tr("replaceColor: unknown %1 value.").arg(key));
+        return false;
+      }
+      *out = *parsed;
+      return true;
+    };
+    if (key == QLatin1String("points")) {
+      const auto length = value.isArray() ? value.property(QStringLiteral("length")).toInt() : 0;
+      if (length < 1 || length > 100000) {
+        return fail(ScriptEngineHost::tr("replaceColor: points must be an array of 1 to 100000 {x, y} points."));
+      }
+      stroke.points.reserve(static_cast<std::size_t>(length));
+      for (int index = 0; index < length; ++index) {
+        const auto point = value.property(static_cast<quint32>(index));
+        const auto x = point.property(QStringLiteral("x"));
+        const auto y = point.property(QStringLiteral("y"));
+        if (!point.isObject() || !x.isNumber() || !y.isNumber() || !std::isfinite(x.toNumber()) ||
+            !std::isfinite(y.toNumber()) || std::abs(x.toNumber()) > 100000.0 || std::abs(y.toNumber()) > 100000.0) {
+          return fail(ScriptEngineHost::tr("replaceColor: points must be an array of 1 to 100000 {x, y} points."));
+        }
+        stroke.points.emplace_back(x.toNumber(), y.toNumber());
+      }
+    } else if (key == QLatin1String("color")) {
+      if (!value.isString() || !parse_color(host_, value.toString(), &stroke.foreground)) {
+        return value.isString() ? QJSValue() : fail(ScriptEngineHost::tr("replaceColor: color must be a color string."));
+      }
+      has_color = true;
+    } else if (key == QLatin1String("backgroundColor")) {
+      if (!value.isString() || !parse_color(host_, value.toString(), &stroke.background)) {
+        return value.isString()
+                   ? QJSValue()
+                   : fail(ScriptEngineHost::tr("replaceColor: backgroundColor must be a color string."));
+      }
+      has_background = true;
+    } else if (key == QLatin1String("size")) {
+      if (!number_in(1, kMaxBrushSize, &stroke.size)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("hardness")) {
+      if (!number_in(0, 100, &hardness)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("tolerance")) {
+      if (!number_in(patchy::kMinColorReplaceTolerance, patchy::kMaxColorReplaceTolerance,
+                     &stroke.options.tolerance)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("antiAlias")) {
+      if (!value.isBool()) {
+        return fail(ScriptEngineHost::tr("replaceColor: antiAlias must be true or false."));
+      }
+      stroke.options.anti_alias = value.toBool();
+    } else if (key == QLatin1String("mode")) {
+      if (!token(patchy::color_replace_mode_from_token, &stroke.options.mode)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("sampling")) {
+      if (!token(patchy::color_replace_sampling_from_token, &stroke.sampling)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("limits")) {
+      if (!token(patchy::color_replace_limits_from_token, &stroke.options.limits)) {
+        return QJSValue();
+      }
+    } else {
+      return fail(ScriptEngineHost::tr("replaceColor: unknown option %1.").arg(key));
+    }
+  }
+  if (stroke.points.empty() || !has_color) {
+    return fail(ScriptEngineHost::tr("replaceColor: pass {points, color} and optional settings."));
+  }
+  if (stroke.sampling == patchy::ColorReplaceSampling::BackgroundSwatch && !has_background) {
+    return fail(ScriptEngineHost::tr("replaceColor: sampling \"background\" needs backgroundColor."));
+  }
+  stroke.softness = 100 - hardness;
+  QRect changed;
+  if (!host_.color_replace(session_id_, layer_id_, stroke, &changed)) {
+    return QJSValue();
+  }
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("x"), changed.x());
+  result.setProperty(QStringLiteral("y"), changed.y());
+  result.setProperty(QStringLiteral("width"), changed.width());
+  result.setProperty(QStringLiteral("height"), changed.height());
+  return result;
+}
+
 QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   ImageTraceOptions trace_options;
