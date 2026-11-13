@@ -59,8 +59,24 @@ Findings, each from a capture:
   flag at all. The same on an open arc and on an ellipse, for text made over the Action Manager
   and for text made in Photoshop's window (Type tool clicked on a saved path).
   `photoshop-path-flip-drag.psd` is the window-made text saved after the gesture: plain path
-  text. How Photoshop 2025 and earlier stored a flip they did draw is not known (no such file
-  has been captured, and none of the local fixture files holds a path frame).
+  text.
+- **Photoshop 2025 draws a flip and stores it as a frame key** (26.9.0, November 2026, over
+  the Action Manager; the same arc and ellipse as above). Setting `flip` true in the layer
+  descriptor redraws the text on the other side of the line, running back from the range's
+  END point: the stretch of path it covers is the same, walked the other way. The saved frame
+  differs from the unflipped save's only by `/0/2/11 << /0 true /22 .025 >>` (the contour and
+  the range are unchanged). The same dictionary holds the other path
+  options that version draws: the effect (`pathTypeEffect` Skew is `/11 << /1 1 /22 .025 >>`)
+  and the alignment to the path (center is `/11 << /2 2 /22 .025 >>`); `pathTypeSpacing` is
+  not stored and changes nothing. A frame with none of them set has no `/11`.
+  `photoshop-path-2025-flip-arc.psd`, `-flip-center.psd` (centered paragraph),
+  `-flip-cal.psd` (capital I bars), `-flip-ellipse.psd` and `photoshop-path-2025-skew.psd`
+  are these saves.
+- **Photoshop 2026 turns a 2025 flip into a reversed path when it opens the file**, with no
+  prompt: the flipped arc reads back with its first anchor at (500, 300) and the range
+  0.1..0.8, the flipped ellipse with the range 1.5..3.5 (0.5..2.5 counted from the other
+  end), `flip` false, and a re-layout draws the text where Photoshop 2025 drew it. So a
+  reversed contour is the one form both versions draw flipped.
 - **Vertical type on a path** stacks upright glyphs along the line and adds a frame key
   (below). Patchy does not set vertical type on paths.
 
@@ -85,16 +101,23 @@ text object names. A path frame, key for key as Photoshop 2026 writes it:
   text made in its window by clicking a path keeps that path's document coordinates and gets
   `[ 1.0 0.0 0.0 1.0 -80.0 -135.0 ]` for a text origin at (80, 135), the corner of the path's
   bounds. Its range starts at the clicked point and ends at the path's end.
-- `/0/2/1 2`: vertical type. A path frame has no `/0/2/11` and no baseline rule.
+- `/0/2/1 2`: vertical type. A path frame has no baseline rule.
+- `/0/2/11`: the path options of Photoshop 2025 and earlier (above): `/0` the flip, `/1` the
+  effect, `/2` the alignment to the path, `/22 .025` always beside them. Photoshop 2026 never
+  writes this key.
 
 The layer's `TySh` records a box (`/ShapeType 1`) whose `/BoxBounds` are the contour's bounds
 in text-local coordinates, and its transform maps text-local space into the document.
 
 **Reading.** `TextEngineBlock::object_geometry` returns `Kind::Path` with the contour and the
-normalized range for a frame whose `/0/2` holds only the keys `0`, `2` and `6`, whose range is
-finite with the end past the start, and whose segments join. Any other path frame (vertical
-type, a key not listed here, a reversed range) stays `Unsupported`: the layer keeps its saved
-pixels and native data and is protected from editing, as before. An untouched imported layer
+normalized range for a frame whose `/0/2` holds only the keys `0`, `2`, `6` and `11`, whose
+range is finite with the end past the start, and whose segments join. Of `/11` it accepts the
+flip, `/22`, and an effect and alignment of 0: a flip of true is read as the contour reversed
+with `reversed_text_path_range` of the stored range, which is what Photoshop 2026 makes of the
+same frame. Any other path frame (vertical type, a Skew or other effect, an alignment other
+than the baseline, a key not listed here, a reversed range) stays `Unsupported`: the layer
+keeps its saved pixels and native data and is protected from editing, as before. An untouched
+imported layer keeps its frame, flip key included, when the document is saved again, and
 keeps Photoshop's raster until it is edited. The named-key engine of Photoshop CS-era files is
 not read for path frames: those layers stay protected.
 
@@ -130,8 +153,9 @@ and side for a point.
 (`reversed_text_path`, `reversed_text_path_range`): the text then runs back along the same
 stretch on the other side of the line. The file holds an ordinary path frame, so Photoshop
 shows the flipped text without needing a flag. This is also the only form Photoshop 2026 draws
-flipped: its own flip flag is neither drawn nor saved (see the captures above), so there is no
-Photoshop flip record for Patchy to write or to read.
+flipped: its own flip flag is neither drawn nor saved, and it rewrites Photoshop 2025's flip
+key into a reversed contour on open (see the captures above). Patchy therefore reads the 2025
+key and never writes it: an edited layer is saved with the reversed contour and no `/11`.
 
 ## Layout and drawing
 

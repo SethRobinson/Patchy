@@ -274,14 +274,36 @@ int TextEngineBlock::font_index(const std::string& postscript_name) {
   return static_cast<int>(fonts->list.size() - 1U);
 }
 
-// A path-text frame (docs/path-text.md): /0/2 holds only the type (/0 2), the start/end range
-// (/6) and an optional affine (/2); /0/1/0 is the contour, eight numbers per cubic segment.
-// Any other key (vertical type's /1, settings Patchy has not seen) leaves the layer protected.
+// A path-text frame (docs/path-text.md): /0/2 holds the type (/0 2), the start/end range (/6),
+// an optional affine (/2) and, from Photoshop 2025 and earlier, the path-type options (/11);
+// /0/1/0 is the contour, eight numbers per cubic segment. Of the options Patchy reads the flip
+// (/11/0 true): the text runs back from the range's end on the other side of the line, which
+// is the contour reversed, the form Photoshop 2026 itself turns such a frame into on open. Any
+// other key (vertical type's /1, a path-type effect or alignment, settings Patchy has not
+// seen) leaves the layer protected.
 static TextFrameGeometry path_frame_geometry(const EngineNode& frame) {
   const auto* settings = frame.at_path({"0", "2"});
   if (!settings || !settings->is_dict()) return {};
+  bool flipped = false;
   for (const auto& entry : settings->dict) {
-    if (entry.key != "0" && entry.key != "2" && entry.key != "6") return {};
+    if (entry.key == "11") {
+      if (!entry.value.is_dict()) return {};
+      for (const auto& option : entry.value.dict) {
+        if (option.key == "0") {
+          const auto flip = option.value.boolean();
+          if (!flip) return {};
+          flipped = *flip;
+        } else if (option.key == "1" || option.key == "2") {
+          // The effect (Rainbow is 0) and the alignment to the path (Baseline is 0): Photoshop
+          // 2025 draws Skew and the other values; Patchy does not.
+          if (option.value.integer() != 0) return {};
+        } else if (option.key != "22") {
+          return {};
+        }
+      }
+    } else if (entry.key != "0" && entry.key != "2" && entry.key != "6") {
+      return {};
+    }
   }
   const auto* marker = frame.at_path({"0", "2", "6"});
   const auto start = marker->list[0].number();
@@ -338,6 +360,10 @@ static TextFrameGeometry path_frame_geometry(const EngineNode& frame) {
   TextFrameGeometry geometry;
   geometry.kind = TextFrameGeometry::Kind::Path;
   geometry.path_range = normalized_text_path_range(path, {*start, *end});
+  if (flipped) {
+    geometry.path_range = reversed_text_path_range(path, geometry.path_range);
+    path = reversed_text_path(path);
+  }
   geometry.path = std::move(path);
   return geometry;
 }
