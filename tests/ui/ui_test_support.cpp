@@ -1496,6 +1496,10 @@ void cleanup_after_visual_test() {
         "tools/shapeDrawMode", "tools/shapePixelFillColor", "tools/shapePixelStrokeColor",
         "tools/shapePixelStrokeDashes", "tools/shapePixelStrokeAlign",
         "tools/vectorFillFollowsForeground", "tools/vectorStrokeFollowsForeground", "tools/vectorStrokeAlign",
+        // The Pick tool's bar: a test that left Pick on Background or on Current Layer (the
+        // options bar tests open and step every list) made the next test's pick miss.
+        "tools/eyedropperPicksBackground", "tools/eyedropperSampleAllLayers", "tools/eyedropperSampleLayers",
+        "tools/eyedropperSampleSize", "tools/eyedropperShowSampleRing",
         // The foreground/background pair (GitHub issue 339): a test that picked a color must
         // not start the next test's window painting in it.
         "tools/foregroundColor", "tools/backgroundColor",
