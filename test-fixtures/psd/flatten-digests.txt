@@ -54,6 +54,11 @@ b1dec0f0e70cf53e photoshop-lmfx-multi-stroke.psd
 bba7929db0b2f2fc photoshop-outer-glow-range.psd
 4f1b4c4465ef0d85 photoshop-outer-glow.psd
 849ec64ba0dc8195 photoshop-overlay-zorder.psd
+ba99d78122178bf2 photoshop-path-2025-flip-arc.psd
+95c143edbd570ba5 photoshop-path-2025-flip-cal.psd
+e48bfa416520312c photoshop-path-2025-flip-center.psd
+4ce650b1423d904b photoshop-path-2025-flip-ellipse.psd
+219c7f6239a7ff63 photoshop-path-2025-skew.psd
 73e673841c102c7a photoshop-path-baseline-shift.psd
 39a3ff5c10ef2560 photoshop-path-cal-arc-range.psd
 3760235d8398944f photoshop-path-cal-right-range.psd

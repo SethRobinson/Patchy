@@ -428,6 +428,150 @@ void text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text() {
   }
 }
 
+// Photoshop 2025 (26.9.0) draws a flip and stores it as /0/2/11 << /0 true /22 .025 >> in the
+// path frame, with the contour and the range as they were: the text then runs back from the
+// range's end on the other side of the line. Patchy reads that as the contour reversed, which
+// is what Photoshop 2026 turns the frame into when it opens the file (docs/path-text.md).
+void text_engine_path_frames_read_photoshop_2025_flip() {
+  using namespace patchy;
+  using namespace patchy::psd;
+  struct Flipped {
+    const char* name;
+    VectorPath contour;
+    TextPathRange stored;
+    TextPathRange read;
+  };
+  const Flipped fixtures[] = {
+      {"photoshop-path-2025-flip-arc.psd", arc_path(), {0.2, 0.9}, {0.1, 0.8}},
+      {"photoshop-path-2025-flip-center.psd", arc_path(), {0.2, 0.9}, {0.1, 0.8}},
+      {"photoshop-path-2025-flip-cal.psd", arc_path(), {0.3, 0.9}, {0.1, 0.7}},
+      {"photoshop-path-2025-flip-ellipse.psd", ellipse_path(), {0.5, 2.5}, {1.5, 3.5}},
+  };
+  for (const auto& fixture : fixtures) {
+    const auto bytes = read_all(test::committed_psd_fixture_path(fixture.name));
+    const auto payload = text_engine_payload(bytes);
+    CHECK(payload.has_value());
+    if (!payload) continue;
+    const auto engine = TextEngineBlock::parse(*payload);
+    CHECK(engine.has_value());
+    if (!engine) continue;
+    const auto frame_index = engine->object_frame_index(0);
+    CHECK(frame_index.has_value());
+    if (!frame_index) continue;
+    const auto index_text = std::to_string(*frame_index);
+    // As stored: the flip key beside the unreversed contour and range.
+    const auto* flip = engine->root().at_path({"0", "8", "0", index_text, "0", "2", "11", "0"});
+    CHECK(flip != nullptr && flip->boolean() == true);
+    const auto* stored_range = engine->root().at_path({"0", "8", "0", index_text, "0", "2", "6"});
+    CHECK(stored_range != nullptr && stored_range->is_list() && stored_range->list.size() == 2);
+    if (stored_range != nullptr && stored_range->list.size() == 2) {
+      CHECK(close_to(stored_range->list[0].number().value_or(-1.0), fixture.stored.start, 1e-5));
+      CHECK(close_to(stored_range->list[1].number().value_or(-1.0), fixture.stored.end, 1e-5));
+    }
+    // As read: the contour walked the other way and the range that covers the same stretch.
+    const auto geometry = engine->object_geometry(0);
+    CHECK(geometry.kind == TextFrameGeometry::Kind::Path);
+    CHECK(geometry.path.has_value());
+    if (!geometry.path) continue;
+    CHECK(*geometry.path == reversed_text_path(fixture.contour));
+    CHECK(close_to(geometry.path_range.start, fixture.read.start, 1e-5));
+    CHECK(close_to(geometry.path_range.end, fixture.read.end, 1e-5));
+
+    auto document = DocumentIo::read(bytes);
+    auto text = std::find_if(document.layers().begin(), document.layers().end(), [](const Layer& l) {
+      return layer_is_text(l);
+    });
+    CHECK(text != document.layers().end());
+    if (text == document.layers().end()) continue;
+    CHECK(text_path_for_layer(*text) == geometry.path);
+    CHECK(!text_geometry_is_protected(*text));
+
+    // Untouched, the save keeps Photoshop's frame with its flip key; edited, Patchy writes the
+    // reversed contour and no key. Both read back as the same flipped text.
+    for (bool edited : {false, true}) {
+      if (edited) {
+        text->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+        text->metadata()[kLayerMetadataText] = "Edited flipped text";
+      }
+      const auto saved = DocumentIo::write_layered_rgb8(document);
+      const auto saved_payload = text_engine_payload(saved);
+      CHECK(saved_payload.has_value());
+      if (!saved_payload) continue;
+      const auto saved_engine = TextEngineBlock::parse(*saved_payload);
+      CHECK(saved_engine.has_value());
+      if (!saved_engine) continue;
+      const auto saved_frame = saved_engine->object_frame_index(0);
+      CHECK(saved_frame.has_value());
+      if (!saved_frame) continue;
+      const auto saved_index = std::to_string(*saved_frame);
+      const auto* saved_options = saved_engine->root().at_path({"0", "8", "0", saved_index, "0", "2", "11"});
+      CHECK((saved_options != nullptr) == !edited);
+      const auto saved_geometry = saved_engine->object_geometry(0);
+      CHECK(saved_geometry.kind == TextFrameGeometry::Kind::Path);
+      CHECK(saved_geometry.path == geometry.path);
+      CHECK(close_to(saved_geometry.path_range.start, fixture.read.start, 1e-5));
+      CHECK(close_to(saved_geometry.path_range.end, fixture.read.end, 1e-5));
+      const auto reopened = DocumentIo::read(saved);
+      const auto again = std::find_if(reopened.layers().begin(), reopened.layers().end(), [](const Layer& l) {
+        return layer_is_text(l);
+      });
+      CHECK(again != reopened.layers().end());
+      if (again == reopened.layers().end()) continue;
+      CHECK(text_path_for_layer(*again) == geometry.path);
+      CHECK(!text_geometry_is_protected(*again));
+    }
+  }
+
+  // The other path-type options Photoshop 2025 draws are not modelled: a Skew effect (/11/1 1)
+  // leaves the layer protected, with its pixels and native frame kept.
+  const auto skew = read_all(test::committed_psd_fixture_path("photoshop-path-2025-skew.psd"));
+  const auto skew_payload = text_engine_payload(skew);
+  CHECK(skew_payload.has_value());
+  if (!skew_payload) return;
+  const auto skew_engine = TextEngineBlock::parse(*skew_payload);
+  CHECK(skew_engine.has_value());
+  if (!skew_engine) return;
+  CHECK(skew_engine->object_geometry(0).kind == TextFrameGeometry::Kind::Unsupported);
+  const auto skew_document = DocumentIo::read(skew);
+  for (const auto& layer : skew_document.layers()) {
+    if (layer_is_text(layer)) {
+      CHECK(text_geometry_is_protected(layer));
+      CHECK(!text_path_for_layer(layer).has_value());
+    }
+  }
+
+  // The option dictionary key by key.
+  auto engine = TextEngineBlock::from_template();
+  TextEngineInputs input;
+  input.text = "On a path\r";
+  input.boxed = true;
+  input.path = arc_path();
+  input.path_range = {0.2, 0.9};
+  engine.append_object(input);
+  auto* settings = engine.root().at_path({"0", "8", "0", "0", "0", "2"});
+  CHECK(settings != nullptr);
+  if (settings == nullptr) return;
+  const auto plain = *settings;
+  const auto with_options = [&](EngineNode options) {
+    *settings = plain;
+    settings->set("11", std::move(options));
+    return engine.object_geometry(0);
+  };
+  const auto unflipped = with_options(engine_dict_of({{"0", engine_bool(false)}, {"22", engine_number(0.025)}}));
+  CHECK(unflipped.kind == TextFrameGeometry::Kind::Path && unflipped.path == arc_path());
+  CHECK((unflipped.path_range == TextPathRange{0.2, 0.9}));
+  const auto flipped = with_options(engine_dict_of({{"0", engine_bool(true)}, {"22", engine_number(0.025)}}));
+  CHECK(flipped.kind == TextFrameGeometry::Kind::Path && flipped.path == reversed_text_path(arc_path()));
+  CHECK(close_to(flipped.path_range.start, 0.1, 1e-9) && close_to(flipped.path_range.end, 0.8, 1e-9));
+  const auto rainbow = with_options(engine_dict_of({{"1", engine_integer(0)}, {"2", engine_integer(0)}}));
+  CHECK(rainbow.kind == TextFrameGeometry::Kind::Path);
+  CHECK(with_options(engine_dict_of({{"1", engine_integer(1)}})).kind == TextFrameGeometry::Kind::Unsupported);
+  CHECK(with_options(engine_dict_of({{"2", engine_integer(2)}})).kind == TextFrameGeometry::Kind::Unsupported);
+  CHECK(with_options(engine_dict_of({{"0", engine_integer(1)}})).kind == TextFrameGeometry::Kind::Unsupported);
+  CHECK(with_options(engine_dict_of({{"7", engine_integer(0)}})).kind == TextFrameGeometry::Kind::Unsupported);
+  CHECK(with_options(engine_list()).kind == TextFrameGeometry::Kind::Unsupported);
+}
+
 void text_engine_path_frames_are_authored_like_photoshops() {
   using namespace patchy;
   using namespace patchy::psd;
@@ -576,6 +720,7 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"text_engine_path_frames_read_photoshop_files", text_engine_path_frames_read_photoshop_files},
       {"text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text",
        text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text},
+      {"text_engine_path_frames_read_photoshop_2025_flip", text_engine_path_frames_read_photoshop_2025_flip},
       {"text_engine_path_frames_are_authored_like_photoshops", text_engine_path_frames_are_authored_like_photoshops},
       {"text_engine_path_text_round_trips_and_refuses_legacy_engines",
        text_engine_path_text_round_trips_and_refuses_legacy_engines},

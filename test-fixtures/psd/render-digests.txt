@@ -54,6 +54,11 @@ c243e91d2d0ba284 13214ca379dcfee0 photoshop-mask-hides-effects.psd
 c5bdcfc8e6f9eede bba7929db0b2f2fc photoshop-outer-glow-range.psd
 d6a4d5530de5a729 4f1b4c4465ef0d85 photoshop-outer-glow.psd
 d1abcfd0649a38a5 849ec64ba0dc8195 photoshop-overlay-zorder.psd
+6f7801f1e29feefa ba99d78122178bf2 photoshop-path-2025-flip-arc.psd
+485df174ef7d2bd1 95c143edbd570ba5 photoshop-path-2025-flip-cal.psd
+004e0d6091ab3418 e48bfa416520312c photoshop-path-2025-flip-center.psd
+019772123a847617 4ce650b1423d904b photoshop-path-2025-flip-ellipse.psd
+75d81a0395ba68f5 219c7f6239a7ff63 photoshop-path-2025-skew.psd
 a668fa440a71d7fa 73e673841c102c7a photoshop-path-baseline-shift.psd
 42f865cec4921ad8 39a3ff5c10ef2560 photoshop-path-cal-arc-range.psd
 03e27ad83f728c97 3760235d8398944f photoshop-path-cal-right-range.psd

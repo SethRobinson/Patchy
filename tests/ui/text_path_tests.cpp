@@ -334,6 +334,12 @@ void ui_text_path_photoshop_files_redraw_where_photoshop_drew_them_if_available(
       // Made in Photoshop's window and saved after its flip gesture, which Photoshop 2026 neither
       // draws nor stores (docs/path-text.md, "Flip"): plain path text, 50 px, behind a frame affine.
       {"photoshop-path-flip-drag", 0.90, 2},
+      // Photoshop 2025 (26.9.0), which draws its flip and stores a flip key Patchy reads as the
+      // contour reversed: an open arc, the same centered, capital I bars, and an ellipse.
+      {"photoshop-path-2025-flip-arc", 0.90, 2},
+      {"photoshop-path-2025-flip-center", 0.90, 2},
+      {"photoshop-path-2025-flip-cal", 0.90, 2},
+      {"photoshop-path-2025-flip-ellipse", 0.90, 2},
   };
   for (const auto& item : cases) {
     auto document = psd::DocumentIo::read_file(test::committed_psd_fixture_path(std::string(item.fixture) + ".psd"));
