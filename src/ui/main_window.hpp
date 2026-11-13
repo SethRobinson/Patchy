@@ -2249,6 +2249,13 @@ private:
   // groups the path no longer has.
   void write_shape_layer_content(Layer& layer, patchy::VectorShapeContent content);
   void update_vector_swatch_icons();
+  // The shape tools' draw options that Shape and Pixels modes share (GitHub issue 716): the
+  // style a canvas paints pixel shapes with, built from the fill and stroke mirrors; and the
+  // pass that puts the draw-mode buttons and the alignment list on those mirrors, greys the
+  // group that is not drawn and hands the style to the active canvas.
+  [[nodiscard]] ShapePixelStyle shape_pixel_style_for_canvas();
+  void refresh_shape_draw_controls();
+  void end_pixel_foreground_paint(bool for_stroke);
   // The options bar's paint chip (the shape Fill/Stroke swatches and the Text color
   // button), drawn at the button's icon size with the theme's swatch outline.
   [[nodiscard]] QIcon options_bar_swatch_icon(const patchy::VectorFill& paint, const QToolButton& button);
@@ -2393,6 +2400,9 @@ private:
     bool live_shape{false};   // an editable shape layer is active
     bool vector_mode{false};
     bool shape_mode{false};
+    // Pixels mode on a tool that paints pixels with the bar's fill and stroke (GitHub issue
+    // 716): the draw-mode buttons and the Fill and Stroke groups show there too.
+    bool pixel_style{false};
   };
   [[nodiscard]] VectorOptionModeRules vector_option_mode_rules();
   // The rules for `tool` as if it were active (the Options bar measures every

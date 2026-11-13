@@ -1909,13 +1909,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // release routes to MainWindow, which pushes its own undo entry), so it
     // skips begin_edit; that also lets it start while a shape/text/smart
     // layer is active, where the raster guard would refuse. Polygon and
-    // Custom Shape are vector-only, so they ignore the Pixels mode.
-    const bool vector_only_tool =
-        tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape;
+    // Custom Shape commit through their own path callbacks; in Pixels mode
+    // they paint like Rectangle and Ellipse (GitHub issue 716).
+    const bool path_tool = tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape;
     const bool vector_shape_drag =
-        tool_ != CanvasTool::Gradient &&
-        (vector_only_tool ||
-         (vector_tool_mode_ != VectorToolMode::Pixels && vector_shape_drawn_callback_)) &&
+        tool_ != CanvasTool::Gradient && vector_tool_mode_ != VectorToolMode::Pixels &&
+        (path_tool || vector_shape_drawn_callback_) &&
         !quick_mask_active_ &&
         (layer_edit_target_ == LayerEditTarget::Content ||
          (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
@@ -3992,7 +3991,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           shape_style_ != MarqueeStyle::FixedSize));
     // Polygon and Custom Shape commit canvas-side (they carry their own
     // geometry options) through the committed-path callback.
-    if ((tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) && !quick_mask_active_ &&
+    if ((tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) &&
+        vector_tool_mode_ != VectorToolMode::Pixels && !quick_mask_active_ &&
         (layer_edit_target_ == LayerEditTarget::Content ||
          (layer_edit_target_ == LayerEditTarget::VectorMask &&
           vector_mask_target_layer() != nullptr))) {
@@ -4050,8 +4050,18 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       return;
     }
     QRect preview_rect = normalized_rect(shape_from, shape_end);
+    if (tool_ == CanvasTool::Polygon) {
+      // The polygon's circle about the press point.
+      const auto delta = shape_current_ - shape_start_;
+      const auto radius = static_cast<int>(std::ceil(std::hypot(delta.x(), delta.y()))) + 1;
+      preview_rect = QRect(shape_start_ - QPoint(radius, radius), QSize(2 * radius, 2 * radius));
+    }
     if (document_ != nullptr) {
-      const auto margin = std::max(4, brush_size_ + 4);
+      // The stroke can reach a whole width outside the outline, and Soft feathers past it.
+      const auto stroke_reach = shape_pixel_style_.line.has_value()
+                                    ? static_cast<int>(std::ceil(shape_pixel_style_.line->width))
+                                    : brush_size_;
+      const auto margin = std::max(4, 2 * std::max(brush_size_, stroke_reach) + 4);
       preview_rect = preview_rect.adjusted(-margin, -margin, margin, margin)
                          .intersected(QRect(0, 0, document_->width(), document_->height()));
     }
@@ -4068,6 +4078,22 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       dirty = draw_rectangle(shape_from, shape_end, erase);
     } else if (tool_ == CanvasTool::Ellipse) {
       dirty = draw_ellipse(shape_from, shape_end, erase);
+    } else if (tool_ == CanvasTool::Polygon) {
+      // Pixels mode, or a mask, channel or Quick Mask target (GitHub issue 716).
+      patchy::VectorPath path;
+      path.subpaths.push_back(polygon_drag_subpath(QPointF(shape_start_), QPointF(shape_current_)));
+      if (path.subpaths.front().anchors.size() >= 3U) {
+        dirty = draw_shape_path_pixels(path, erase);
+      }
+    } else if (tool_ == CanvasTool::CustomShape) {
+      const auto corner_rect = normalized_rect(shape_from, shape_end);
+      const QRectF bounds(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight()));
+      if (custom_shape_path_ != nullptr && !custom_shape_path_->empty() && bounds.width() >= 1.0 &&
+          bounds.height() >= 1.0) {
+        auto path = *custom_shape_path_;
+        transform_vector_path(path, {bounds.width(), 0.0, 0.0, bounds.height(), bounds.x(), bounds.y()});
+        dirty = draw_shape_path_pixels(path, erase);
+      }
     }
     if (processing) {
       tick_processing_operation();

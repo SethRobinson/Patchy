@@ -36117,22 +36117,6 @@ Bloqueado: %1</translation>
         <translation>Preenchimento e traço: pinta o interior e o contorno</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Cor de preenchimento das formas desenhadas como pixels: a cor de primeiro plano ou uma cor própria</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Largura do traço (o tamanho do pincel)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Cor do traço das formas desenhadas como pixels: a cor de primeiro plano ou uma cor própria</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Tracejado do traço. Os tracejados usam extremidades retas; os pontos usam extremidades arredondadas</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Dentro</translation>
     </message>

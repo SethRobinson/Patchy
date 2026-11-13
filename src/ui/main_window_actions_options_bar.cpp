@@ -17,6 +17,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/clone_source_panel.hpp"
 #include "ui/appearance_edits.hpp"
+#include "ui/appearance_properties.hpp"
 #include "ui/artboard_preset_picker.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/main_window_actions_internal.hpp"
@@ -4100,6 +4101,18 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // fixed_step > 0 moves the size by exactly that many pixels (Brush Size -1/+1/-10/+10).
   const auto adjust_brush_size = [this, brush_size, quick_select_size, magnetic_width](int direction, bool coarse,
                                                                                      int fixed_step = 0) {
+    // The shape tools' Pixels mode draws its outline as wide as the bar's Stroke field (GitHub
+    // issue 716; the brush size before), so the size keys step that field. With the stroke off
+    // (Fill only) they do nothing.
+    if (shape_tool_has_draw_modes(current_tool_) && current_vector_tool_mode_ == VectorToolMode::Pixels) {
+      if (auto* width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+          width != nullptr && current_vector_stroke_enabled_) {
+        const int value = std::max(1, static_cast<int>(std::lround(width->value())));
+        const int step = fixed_step > 0 ? fixed_step : proportional_brush_step(value, direction, coarse);
+        width->setValue(static_cast<double>(std::clamp(value + direction * step, 1, 1000)));
+      }
+      return;
+    }
     const bool quick_select = current_tool_ == CanvasTool::QuickSelect;
     const bool magnetic = current_tool_ == CanvasTool::MagneticLasso;
     auto* spin = quick_select ? quick_select_size : magnetic ? magnetic_width : brush_size;
@@ -4501,8 +4514,107 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       CanvasTool::Line,     CanvasTool::Rectangle,  CanvasTool::Ellipse,
       CanvasTool::Pen,      CanvasTool::Polygon,    CanvasTool::CustomShape,
       CanvasTool::PathSelect, CanvasTool::DirectSelect};
-  vector_shape_mode_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Fill:"), vector_appearance_tools));
+  // One Fill / Stroke row serves Shape and Pixels modes (GitHub issue 716): the same controls
+  // and the same values, so Mode only decides what a drag makes. Shape mode shows these
+  // widgets on every tool that has them; Pixels mode on the tools that paint pixels with
+  // them (shape_tool_has_draw_modes; vector_option_widget_visible).
+  auto& shape_pixel = *shape_pixel_options_;
+  const std::initializer_list<CanvasTool> shape_draw_tools{CanvasTool::Rectangle, CanvasTool::Ellipse,
+                                                           CanvasTool::Polygon, CanvasTool::CustomShape};
+  const auto add_appearance_widget = [this, &shape_pixel](QWidget* widget) {
+    vector_shape_mode_option_widgets_.push_back(widget);
+    shape_pixel.appearance_widgets.push_back(widget);
+    return widget;
+  };
+  {
+    // What the shape draws: [Fill only][Stroke only][Both]. They are the fill's "none" and the
+    // stroke's switch as buttons: Stroke only sets the fill to none, Fill only turns the stroke
+    // off (its width is kept), Both brings both back. The swatch's No Fill and a width of 0 do
+    // the same, and the buttons follow them (refresh_shape_draw_controls). In Shape mode a
+    // click edits the selected shapes, one undo step.
+    struct DrawModeButton {
+      ShapeDrawMode mode;
+      const char* object_name;
+      const char* icon;
+      const char* tooltip;
+    };
+    static constexpr std::array<DrawModeButton, 3> kDrawModeButtons{{
+        {ShapeDrawMode::Fill, "shapeDrawFillButton", "shape-draw-fill",
+         QT_TR_NOOP("Fill only: paint the inside of the shape")},
+        {ShapeDrawMode::Stroke, "shapeDrawStrokeButton", "shape-draw-stroke",
+         QT_TR_NOOP("Stroke only: paint the outline of the shape")},
+        {ShapeDrawMode::Both, "shapeDrawBothButton", "shape-draw-both",
+         QT_TR_NOOP("Fill and stroke: paint the inside and the outline")},
+    }};
+    // An exclusive group: one Tab stop, arrow keys move between the three (docs/options-bar.md,
+    // "Keyboard focus").
+    auto* draw_mode_group = new QButtonGroup(toolbar);
+    draw_mode_group->setObjectName(QStringLiteral("shapeDrawModeGroup"));
+    draw_mode_group->setExclusive(true);
+    shape_pixel.mode_group = draw_mode_group;
+    for (const auto& entry : kDrawModeButtons) {
+      auto* button = new QToolButton(toolbar);
+      button->setObjectName(QLatin1String(entry.object_name));
+      button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+      button->setIcon(simple_icon(QLatin1String(entry.icon)));
+      button->setIconSize(QSize(18, 18));
+      // Framed like the swap buttons (the optionsBarFramedButton QSS rule), not raised: the
+      // checked one fills its box, so a frameless group would put a separator off center
+      // beside whichever end is checked (ui_options_bar_separators_sit_centered_in_their_gaps).
+      button->setAutoRaise(false);
+      button->setCheckable(true);
+      button->setProperty("optionsBarFramedButton", true);
+      bind_tooltip(button, entry.tooltip);
+      QPointer<QToolButton> button_pointer(button);
+      register_retranslation([button_pointer] {
+        if (button_pointer != nullptr) {
+          button_pointer->setAccessibleName(button_pointer->toolTip());
+        }
+      });
+      button->setAccessibleName(button->toolTip());
+      draw_mode_group->addButton(button, static_cast<int>(entry.mode));
+      add_option_widget(button, shape_draw_tools);
+      add_appearance_widget(button);
+      shape_pixel.mode_buttons[static_cast<std::size_t>(entry.mode)] = button;
+    }
+    connect(draw_mode_group, &QButtonGroup::idToggled, this, [this](int id, bool checked) {
+      if (!checked) {
+        return;
+      }
+      const auto mode = static_cast<ShapeDrawMode>(id);
+      const bool want_fill = mode != ShapeDrawMode::Stroke;
+      const bool want_stroke = mode != ShapeDrawMode::Fill;
+      auto& options = *shape_pixel_options_;
+      std::vector<std::string> fields;
+      if (want_fill != (current_vector_fill_.kind != VectorFillKind::None)) {
+        if (want_fill) {
+          current_vector_fill_.kind = options.fill_restore_kind == VectorFillKind::None ? VectorFillKind::Solid
+                                                                                       : options.fill_restore_kind;
+        } else {
+          options.fill_restore_kind = current_vector_fill_.kind;
+          current_vector_fill_.kind = VectorFillKind::None;
+        }
+        fields.emplace_back("fill.kind");
+      }
+      if (want_stroke != current_vector_stroke_enabled_) {
+        current_vector_stroke_enabled_ = want_stroke;
+        fields.emplace_back("stroke.enabled");
+        if (auto* width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin")); width != nullptr) {
+          const QSignalBlocker blocker(width);
+          width->setValue(vector_stroke_field_value());  // 0 while the stroke is off
+        }
+      }
+      if (fields.empty()) {
+        return;  // a sync, not a click: the values already say this
+      }
+      schedule_save_tool_settings();
+      apply_options_bar_appearance_to_active_shape(fields);
+      update_vector_swatch_icons();  // also refreshes the buttons, the greying and the canvas's style
+    });
+  }
+  add_option_separator(shape_draw_tools);
+  shape_pixel.fill_widgets.push_back(
+      add_appearance_widget(add_option_label(QT_TR_NOOP("Fill:"), vector_appearance_tools)));
   // The Fill and Stroke swatches are framed buttons with a wide chip, so they read as
   // something to click (GitHub issue 311); the frame is the QSS optionsBarSwatch rule.
   // The Text color button below is the same button (GitHub issue 343).
@@ -4518,7 +4630,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(vector_fill_swatch_button_, QT_TR_NOOP("Shape fill: none, solid color, gradient, or pattern"));
   configure_swatch_button(vector_fill_swatch_button_);
   add_option_widget(vector_fill_swatch_button_, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
+  shape_pixel.fill_widgets.push_back(add_appearance_widget(vector_fill_swatch_button_));
   connect(vector_fill_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(false); });
   // Fill | Stroke [width] [swatch] (GitHub issue 311). There is no Stroke checkbox: the
@@ -4534,7 +4646,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   };
   auto* vector_stroke_width_label = add_option_label(QT_TR_NOOP("Stroke:"), vector_appearance_tools);
   vector_stroke_width_label->setObjectName(QStringLiteral("vectorStrokeWidthLabel"));
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_width_label);
+  add_appearance_widget(vector_stroke_width_label);
   auto* vector_stroke_width = new UnitSpinBox(SpinUnit::Pixels, toolbar);
   vector_stroke_width->setObjectName(QStringLiteral("vectorStrokeWidthSpin"));
   vector_stroke_width->setRange(0.0, 1000.0);
@@ -4544,7 +4656,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(vector_stroke_width, QT_TR_NOOP("Stroke width (0 for no stroke)"));
   configure_toolbar_spinbox(vector_stroke_width, 64);
   add_option_widget(vector_stroke_width, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
+  add_appearance_widget(vector_stroke_width);
   register_ruler_unit_field(vector_stroke_width);  // print users think in mm strokes
   connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { set_vector_stroke_width_from_field(value); });
@@ -4560,7 +4672,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(vector_stroke_swatch_button_, QT_TR_NOOP("Shape stroke: solid color, gradient, or pattern"));
   configure_swatch_button(vector_stroke_swatch_button_);
   add_option_widget(vector_stroke_swatch_button_, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
+  shape_pixel.stroke_widgets.push_back(add_appearance_widget(vector_stroke_swatch_button_));
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(true); });
   // One stroke list (GitHub #556 and the #557 follow-up): the built-in dash presets, the saved
@@ -4570,13 +4682,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // (rebuild_vector_stroke_dash_combo).
   vector_stroke_dash_combo_ = new QComboBox(toolbar);
   vector_stroke_dash_combo_->setObjectName(QStringLiteral("vectorStrokeDashCombo"));
-  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(140));  // presets in full; 160 cost the Line row its 100 px slack (#556 follow-up)
+  // Every built-in name in full; a longer saved preset's name shows in the list and elides in
+  // the box. 140 before the draw-mode buttons and the alignment list joined the row (#716).
+  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(104));
   bind_tooltip(vector_stroke_dash_combo_,
                QT_TR_NOOP("Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use "
                           "round caps and corners"));
   register_retranslation([this] { rebuild_vector_stroke_dash_combo(); });
   add_option_widget(vector_stroke_dash_combo_, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_dash_combo_);
+  shape_pixel.stroke_widgets.push_back(add_appearance_widget(vector_stroke_dash_combo_));
   rebuild_vector_stroke_dash_combo();
   connect(vector_stroke_dash_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     const auto item_data = vector_stroke_dash_combo_->itemData(index);
@@ -4598,6 +4712,57 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       return;
     }
     set_vector_stroke_dash_preset_from_combo(static_cast<StrokeDashPreset>(row));
+  });
+  // Where the stroke sits on the outline (GitHub issue 716): the selected shapes' alignment in
+  // Shape mode (one undo step, as Shape Appearance's Align does), and the one new shapes and
+  // Pixels mode get. On the tools with the draw-mode buttons; a line's stroke is centered.
+  shape_pixel.align_combo = new QComboBox(toolbar);
+  shape_pixel.align_combo->setObjectName(QStringLiteral("vectorStrokeAlignCombo"));
+  shape_pixel.align_combo->addItem(tr("Inside"), static_cast<int>(VectorStrokeAlignment::Inside));
+  shape_pixel.align_combo->addItem(tr("Center"), static_cast<int>(VectorStrokeAlignment::Center));
+  shape_pixel.align_combo->addItem(tr("Outside"), static_cast<int>(VectorStrokeAlignment::Outside));
+  shape_pixel.align_combo->setFixedWidth(ui_text_length(68));
+  widen_combo_popup_to_items(shape_pixel.align_combo);
+  bind_tooltip(shape_pixel.align_combo,
+               QT_TR_NOOP("Where the stroke sits on the shape's outline: inside it, centered on it, or outside it"));
+  add_option_widget(shape_pixel.align_combo, shape_draw_tools);
+  shape_pixel.stroke_widgets.push_back(add_appearance_widget(shape_pixel.align_combo));
+  connect(shape_pixel.align_combo, &QComboBox::currentIndexChanged, this, [this](int index) {
+    const auto item_data = shape_pixel_options_->align_combo->itemData(index);
+    if (!item_data.isValid()) {
+      return;
+    }
+    const auto alignment = static_cast<VectorStrokeAlignment>(item_data.toInt());
+    shape_pixel_options_->alignment = alignment;
+    if (current_vector_stroke_style_.has_value()) {
+      current_vector_stroke_style_->alignment = alignment;  // a saved preset's line keeps its other settings
+    }
+    schedule_save_tool_settings();
+    finish_pending_shape_appearance_edit();
+    if (has_active_document() && vector_appearance_controls_live()) {
+      ShapeAppearanceSettings settings;
+      settings.stroke.alignment = alignment;
+      auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
+      for (const auto& property : shape_appearance_properties()) {
+        if (property.key == "stroke.alignment") {
+          edits->append(property.capture(settings));
+        }
+      }
+      settings.edits = std::move(edits);
+      commit_shape_appearance_edit(stroke_target_shape_layer_ids(), settings);
+    }
+    refresh_vector_stroke_dash_combo();  // a saved preset may no longer match
+    refresh_shape_draw_controls();
+  });
+  register_retranslation([this] {
+    auto* combo = shape_pixel_options_->align_combo;
+    if (combo != nullptr && combo->count() >= 3) {
+      const QSignalBlocker blocker(combo);
+      combo->setItemText(0, MainWindow::tr("Inside"));
+      combo->setItemText(1, MainWindow::tr("Center"));
+      combo->setItemText(2, MainWindow::tr("Outside"));
+      widen_combo_popup_to_items(combo);
+    }
   });
 
   // W / H of the ACTIVE shape layer (Photoshop's options-bar readouts): they
@@ -4664,10 +4829,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
 
   add_option_separator(vector_appearance_tools);
-  vector_vector_mode_option_widgets_.push_back(add_option_label(
+  // The label drops before a long row wraps (the list's entries and tooltip say what it is):
+  // the Polygon and Custom Shape rows need the room since the draw-mode buttons and the
+  // alignment list joined them (GitHub issue 716; docs/options-bar-shape-rows.md).
+  auto* vector_combine_label = add_option_label(
       QT_TR_NOOP("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
                        CanvasTool::Polygon, CanvasTool::CustomShape,
-                       CanvasTool::PathSelect, CanvasTool::DirectSelect}));
+                       CanvasTool::PathSelect, CanvasTool::DirectSelect});
+  vector_combine_label->setProperty(kOptionsBarCollapsibleProperty, true);
+  vector_vector_mode_option_widgets_.push_back(vector_combine_label);
   auto* vector_combine_combo = new QComboBox(toolbar);
   vector_combine_combo->setObjectName(QStringLiteral("vectorCombineCombo"));
   vector_combine_combo->addItems(
@@ -4782,15 +4952,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     schedule_save_tool_settings();
   });
 
-  vector_vector_mode_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Sides:"), {CanvasTool::Polygon}));
+  // Sides, Star inset and Shape show in every mode: Pixels mode draws these shapes too (#716).
+  add_option_label(QT_TR_NOOP("Sides:"), {CanvasTool::Polygon});
   auto* polygon_sides = new QSpinBox(toolbar);
   polygon_sides->setObjectName(QStringLiteral("polygonSidesSpin"));
   polygon_sides->setRange(3, 100);
   polygon_sides->setValue(5);
   configure_toolbar_spinbox(polygon_sides, 52);
   add_option_widget(polygon_sides, {CanvasTool::Polygon});
-  vector_vector_mode_option_widgets_.push_back(polygon_sides);
   connect(polygon_sides, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_polygon_sides(value);
@@ -4804,8 +4973,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  vector_vector_mode_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Star inset:"), {CanvasTool::Polygon}));
+  add_option_label(QT_TR_NOOP("Star inset:"), {CanvasTool::Polygon});
   auto* polygon_star_inset = new QSpinBox(toolbar);
   polygon_star_inset->setObjectName(QStringLiteral("polygonStarInsetSpin"));
   polygon_star_inset->setRange(0, 99);
@@ -4814,7 +4982,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(polygon_star_inset, QT_TR_NOOP("0 makes a plain polygon; higher values pull in star points"));
   configure_toolbar_spinbox(polygon_star_inset, 56);
   add_option_widget(polygon_star_inset, {CanvasTool::Polygon});
-  vector_vector_mode_option_widgets_.push_back(polygon_star_inset);
   connect(polygon_star_inset, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_polygon_star_inset(value);
@@ -4827,8 +4994,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  vector_vector_mode_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Shape:"), {CanvasTool::CustomShape}));
+  // On the Custom Shape bar's long rows the picker's label drops before the row wraps: the
+  // picker shows the shape and its name (docs/options-bar.md, "Duplicate sliders drop first").
+  add_option_label(QT_TR_NOOP("Shape:"), {CanvasTool::CustomShape})
+      ->setProperty(kOptionsBarCollapsibleProperty, true);
   // A folder-tree popup with search and a Shapes Manager... button (GitHub issue 486).
   custom_shape_combo_ = new CustomShapePickerCombo(
       [this]() -> const CustomShapeLibrary* { return &custom_shape_library_with_bundled(); },
@@ -4838,7 +5007,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   custom_shape_combo_->setFixedWidth(ui_text_length(150));
   register_retranslation([this] { refresh_custom_shape_combo(); });
   add_option_widget(custom_shape_combo_, {CanvasTool::CustomShape});
-  vector_vector_mode_option_widgets_.push_back(custom_shape_combo_);
   connect(custom_shape_combo_, &QComboBox::currentIndexChanged, this, [this](int) {
     apply_custom_shape_selection();
     schedule_save_tool_settings();
@@ -4870,19 +5038,18 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   make_line_arrow_button("lineArrowEndButton", true, QT_TR_NOOP("Add an arrowhead at the line end"),
                          current_line_arrow_end_);
 
-  // Pixels mode on the Rectangle and Ellipse tools follows the Shape-mode bar (GitHub issue
-  // 716): [Fill only][Stroke only][Both] | Fill [swatch] | Stroke [width] [swatch] [dashes]
-  // [align] | Radius, Opacity, Soft | Style and its size pair. The three buttons replace the
-  // Fill checkbox. State, rules and settings: ui/shape_pixel_options.hpp.
-  auto& shape_pixel = *shape_pixel_options_;
+  // Pixels mode's own controls follow the shared Fill / Stroke row (GitHub issue 716): Opacity
+  // and Soft on every tool that paints pixels with it, Style on Rectangle and Ellipse.
   const std::initializer_list<CanvasTool> shape_pixel_tools{CanvasTool::Rectangle, CanvasTool::Ellipse};
-  const auto add_shape_pixel_widget = [this, &add_option_widget, &shape_pixel_tools](QWidget* widget) {
-    add_option_widget(widget, shape_pixel_tools);
+  const auto add_shape_pixel_widget = [this, &add_option_widget](QWidget* widget,
+                                                               std::initializer_list<CanvasTool> tools) {
+    add_option_widget(widget, tools);
     vector_pixel_only_option_widgets_.push_back(widget);
     return widget;
   };
-  const auto add_shape_pixel_label = [this, &add_option_label, &shape_pixel_tools](const char* source) {
-    auto* label = add_option_label(source, shape_pixel_tools);
+  const auto add_shape_pixel_label = [this, &add_option_label](const char* source,
+                                                              std::initializer_list<CanvasTool> tools) {
+    auto* label = add_option_label(source, tools);
     vector_pixel_only_option_widgets_.push_back(label);
     return label;
   };
@@ -4891,194 +5058,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     register_option_action(separator, tools);
     vector_pixel_only_option_widgets_.push_back(separator);
   };
-  // The style as the canvas draws it, the swatches and the saved settings follow each change.
-  const auto shape_pixel_style_changed = [this] {
-    if (canvas_ != nullptr) {
-      canvas_->set_shape_pixel_style(shape_pixel_options_->style);
-    }
-    update_vector_swatch_icons();
-    schedule_save_tool_settings();
-  };
-  {
-    struct DrawModeButton {
-      ShapeDrawMode mode;
-      const char* object_name;
-      const char* icon;
-      const char* tooltip;
-    };
-    static constexpr std::array<DrawModeButton, 3> kDrawModeButtons{{
-        {ShapeDrawMode::Fill, "shapeDrawFillButton", "shape-draw-fill",
-         QT_TR_NOOP("Fill only: paint the inside of the shape")},
-        {ShapeDrawMode::Stroke, "shapeDrawStrokeButton", "shape-draw-stroke",
-         QT_TR_NOOP("Stroke only: paint the outline of the shape")},
-        {ShapeDrawMode::Both, "shapeDrawBothButton", "shape-draw-both",
-         QT_TR_NOOP("Fill and stroke: paint the inside and the outline")},
-    }};
-    // An exclusive group: one Tab stop, arrow keys move between the three (docs/options-bar.md,
-    // "Keyboard focus").
-    auto* draw_mode_group = new QButtonGroup(toolbar);
-    draw_mode_group->setObjectName(QStringLiteral("shapeDrawModeGroup"));
-    draw_mode_group->setExclusive(true);
-    for (const auto& entry : kDrawModeButtons) {
-      auto* button = new QToolButton(toolbar);
-      button->setObjectName(QLatin1String(entry.object_name));
-      button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-      button->setIcon(simple_icon(QLatin1String(entry.icon)));
-      button->setIconSize(QSize(18, 18));
-      button->setAutoRaise(true);
-      button->setCheckable(true);
-      button->setChecked(entry.mode == shape_pixel.style.mode);
-      button->setProperty("optionsBarButton", true);
-      bind_tooltip(button, entry.tooltip);
-      QPointer<QToolButton> button_pointer(button);
-      register_retranslation([button_pointer] {
-        if (button_pointer != nullptr) {
-          button_pointer->setAccessibleName(button_pointer->toolTip());
-        }
-      });
-      button->setAccessibleName(button->toolTip());
-      draw_mode_group->addButton(button, static_cast<int>(entry.mode));
-      add_shape_pixel_widget(button);
-      shape_pixel.mode_buttons[static_cast<std::size_t>(entry.mode)] = button;
-    }
-    connect(draw_mode_group, &QButtonGroup::idToggled, this, [this, shape_pixel_style_changed](int id, bool checked) {
-      const auto mode = static_cast<ShapeDrawMode>(id);
-      if (!checked || shape_pixel_options_->style.mode == mode) {
-        return;
-      }
-      shape_pixel_options_->style.mode = mode;
-      shape_pixel_style_changed();
-      refresh_options_bar();  // Fill greys for Stroke only, Stroke for Fill only
-    });
-  }
-  // A swatch opens Foreground Color (the default: these tools always painted the foreground
-  // color) and Solid Color..., a color the fill or the stroke keeps for itself.
-  const auto show_shape_pixel_color_menu = [this, shape_pixel_style_changed](bool for_stroke) {
-    auto& options = *shape_pixel_options_;
-    auto* button = for_stroke ? options.stroke_swatch : options.fill_swatch;
-    if (button == nullptr) {
-      return;
-    }
-    const bool has_own = (for_stroke ? options.style.stroke_color : options.style.fill_color).has_value();
-    QMenu menu(button);
-    menu.setObjectName(for_stroke ? QStringLiteral("shapePixelStrokeColorMenu")
-                                  : QStringLiteral("shapePixelFillColorMenu"));
-    auto* foreground = menu.addAction(tr("Foreground Color"));
-    foreground->setObjectName(for_stroke ? QStringLiteral("shapePixelStrokeForegroundAction")
-                                         : QStringLiteral("shapePixelFillForegroundAction"));
-    foreground->setCheckable(true);
-    foreground->setChecked(!has_own);
-    connect(foreground, &QAction::triggered, this, [this, for_stroke, shape_pixel_style_changed] {
-      (for_stroke ? shape_pixel_options_->style.stroke_color : shape_pixel_options_->style.fill_color).reset();
-      shape_pixel_style_changed();
-    });
-    auto* solid = menu.addAction(tr("Solid Color..."));
-    solid->setObjectName(for_stroke ? QStringLiteral("shapePixelStrokeSolidAction")
-                                    : QStringLiteral("shapePixelFillSolidAction"));
-    solid->setCheckable(true);
-    solid->setChecked(has_own);
-    connect(solid, &QAction::triggered, this, [this, for_stroke, shape_pixel_style_changed] {
-      auto& own = for_stroke ? shape_pixel_options_->style.stroke_color : shape_pixel_options_->style.fill_color;
-      const QColor initial = own.value_or(canvas_ != nullptr ? canvas_->primary_color() : foreground_color_);
-      if (auto chosen = request_patchy_color(this, initial,
-                                             for_stroke ? tr("Shape Stroke Color") : tr("Shape Fill Color"))) {
-        chosen->setAlpha(255);
-        (for_stroke ? shape_pixel_options_->style.stroke_color : shape_pixel_options_->style.fill_color) = *chosen;
-        shape_pixel_style_changed();
-      }
-    });
-    menu.exec(button->mapToGlobal(QPoint(0, button->height())));
-  };
-  add_shape_pixel_separator(shape_pixel_tools);
-  shape_pixel.fill_widgets.push_back(add_shape_pixel_label(QT_TR_NOOP("Fill:")));
-  shape_pixel.fill_swatch = new QToolButton(toolbar);
-  shape_pixel.fill_swatch->setObjectName(QStringLiteral("shapePixelFillSwatchButton"));
-  bind_tooltip(shape_pixel.fill_swatch,
-               QT_TR_NOOP("Fill color for shapes drawn as pixels: the foreground color, or a color of its own"));
-  configure_swatch_button(shape_pixel.fill_swatch);
-  shape_pixel.fill_widgets.push_back(add_shape_pixel_widget(shape_pixel.fill_swatch));
-  connect(shape_pixel.fill_swatch, &QToolButton::clicked, this,
-          [show_shape_pixel_color_menu] { show_shape_pixel_color_menu(false); });
-
-  add_shape_pixel_separator(shape_pixel_tools);
-  shape_pixel.stroke_widgets.push_back(add_shape_pixel_label(QT_TR_NOOP("Stroke:")));
-  // The stroke's width is the brush size, as the outline's always was: [ and ] and the
-  // Alt+Right-drag gesture change it, and the Brush tool shares it.
-  auto* shape_stroke_width = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
-  shape_stroke_width->setObjectName(QStringLiteral("shapePixelStrokeWidthSpin"));
-  shape_stroke_width->set_context_provider(thickness_context);
-  shape_stroke_width->setRange(1, kMaxBrushSize);
-  shape_stroke_width->setValue(brush_size->value());
-  shape_stroke_width->setProperty(kToolbarSpinboxSliderCurvedProperty, true);
-  bind_tooltip(shape_stroke_width, QT_TR_NOOP("Stroke width (the brush size)"));
-  configure_toolbar_spinbox(shape_stroke_width, 56);
-  shape_pixel.stroke_widgets.push_back(add_shape_pixel_widget(shape_stroke_width));
-  shape_pixel.stroke_width_spin = shape_stroke_width;
-  shape_pixel.stroke_swatch = new QToolButton(toolbar);
-  shape_pixel.stroke_swatch->setObjectName(QStringLiteral("shapePixelStrokeSwatchButton"));
-  bind_tooltip(shape_pixel.stroke_swatch,
-               QT_TR_NOOP("Stroke color for shapes drawn as pixels: the foreground color, or a color of its own"));
-  configure_swatch_button(shape_pixel.stroke_swatch);
-  shape_pixel.stroke_widgets.push_back(add_shape_pixel_widget(shape_pixel.stroke_swatch));
-  connect(shape_pixel.stroke_swatch, &QToolButton::clicked, this,
-          [show_shape_pixel_color_menu] { show_shape_pixel_color_menu(true); });
-  // The built-in dash presets, with the caps each one sets (apply_stroke_dash_preset), as on
-  // the Shape-mode bar. Saved stroke presets belong to shape layers and are not listed.
-  shape_pixel.dash_combo = new QComboBox(toolbar);
-  shape_pixel.dash_combo->setObjectName(QStringLiteral("shapePixelStrokeDashCombo"));
-  for (const auto preset : stroke_dash_presets_in_menu_order()) {
-    shape_pixel.dash_combo->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
-  }
-  shape_pixel.dash_combo->setFixedWidth(ui_text_length(104));  // every built-in name in full
-  widen_combo_popup_to_items(shape_pixel.dash_combo);
-  bind_tooltip(shape_pixel.dash_combo,
-               QT_TR_NOOP("Stroke dashes. Dash presets use butt caps; dot presets use round caps"));
-  shape_pixel.stroke_widgets.push_back(add_shape_pixel_widget(shape_pixel.dash_combo));
-  connect(shape_pixel.dash_combo, &QComboBox::currentIndexChanged, this, [this, shape_pixel_style_changed](int index) {
-    const auto item_data = shape_pixel_options_->dash_combo->itemData(index);
-    if (!item_data.isValid()) {
-      return;
-    }
-    shape_pixel_options_->style.dashes = static_cast<StrokeDashPreset>(item_data.toInt());
-    shape_pixel_style_changed();
-  });
-  shape_pixel.align_combo = new QComboBox(toolbar);
-  shape_pixel.align_combo->setObjectName(QStringLiteral("shapePixelStrokeAlignCombo"));
-  shape_pixel.align_combo->addItem(tr("Inside"), static_cast<int>(VectorStrokeAlignment::Inside));
-  shape_pixel.align_combo->addItem(tr("Center"), static_cast<int>(VectorStrokeAlignment::Center));
-  shape_pixel.align_combo->addItem(tr("Outside"), static_cast<int>(VectorStrokeAlignment::Outside));
-  shape_pixel.align_combo->setFixedWidth(ui_text_length(70));
-  widen_combo_popup_to_items(shape_pixel.align_combo);
-  bind_tooltip(shape_pixel.align_combo,
-               QT_TR_NOOP("Where the stroke sits on the shape's outline: inside it, centered on it, or outside it"));
-  shape_pixel.stroke_widgets.push_back(add_shape_pixel_widget(shape_pixel.align_combo));
-  connect(shape_pixel.align_combo, &QComboBox::currentIndexChanged, this, [this, shape_pixel_style_changed](int index) {
-    const auto item_data = shape_pixel_options_->align_combo->itemData(index);
-    if (!item_data.isValid()) {
-      return;
-    }
-    shape_pixel_options_->style.alignment = static_cast<VectorStrokeAlignment>(item_data.toInt());
-    shape_pixel_style_changed();
-  });
-  register_retranslation([this] {
-    const auto& options = *shape_pixel_options_;
-    if (options.dash_combo != nullptr) {
-      const QSignalBlocker blocker(options.dash_combo);
-      for (int index = 0; index < options.dash_combo->count(); ++index) {
-        options.dash_combo->setItemText(
-            index, stroke_dash_preset_label(static_cast<StrokeDashPreset>(options.dash_combo->itemData(index).toInt())));
-      }
-      widen_combo_popup_to_items(options.dash_combo);
-    }
-    if (options.align_combo != nullptr && options.align_combo->count() >= 3) {
-      const QSignalBlocker blocker(options.align_combo);
-      options.align_combo->setItemText(0, MainWindow::tr("Inside"));
-      options.align_combo->setItemText(1, MainWindow::tr("Center"));
-      options.align_combo->setItemText(2, MainWindow::tr("Outside"));
-      widen_combo_popup_to_items(options.align_combo);
-    }
-  });
-  shape_pixel.sync_style_controls();
 
   add_option_separator({CanvasTool::Rectangle});
   add_option_label(QT_TR_NOOP("Radius:"), {CanvasTool::Rectangle});
@@ -5108,11 +5087,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(shape_corner_radius, &QSpinBox::editingFinished, this,
           [this] { finish_pending_shape_appearance_edit(); });
 
-  // Radius, Opacity and Soft are one group in Pixels mode (GitHub issue 716); the Ellipse,
-  // which has no Radius, gets the separator the Radius brings on the Rectangle. Opacity and
-  // Soft are the brush's values, mirrored like the stroke width.
+  // Opacity and Soft join the tool's own settings as one group in Pixels mode (GitHub issue
+  // 716: Radius, Opacity, Soft on the Rectangle; Sides, Star inset, Opacity, Soft on the
+  // Polygon); the Ellipse, which has none, gets the separator they bring. They are the
+  // brush's opacity and softness, mirrored: the number keys and the hardness keys still set them.
   add_shape_pixel_separator({CanvasTool::Ellipse});
-  add_shape_pixel_label(QT_TR_NOOP("Opacity:"));
+  add_shape_pixel_label(QT_TR_NOOP("Opacity:"), shape_draw_tools);
   auto* shape_opacity = new QSpinBox(toolbar);
   shape_opacity->setObjectName(QStringLiteral("shapePixelOpacitySpin"));
   shape_opacity->setRange(0, 100);
@@ -5120,9 +5100,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_opacity->setSuffix(percent_suffix());
   configure_toolbar_spinbox(shape_opacity, 46);
   bind_tooltip(shape_opacity, QT_TR_NOOP("Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)"));
-  add_shape_pixel_widget(shape_opacity);
+  add_shape_pixel_widget(shape_opacity, shape_draw_tools);
   shape_pixel.opacity_spin = shape_opacity;
-  add_shape_pixel_label(QT_TR_NOOP("Soft:"));
+  add_shape_pixel_label(QT_TR_NOOP("Soft:"), shape_draw_tools);
   auto* shape_softness = new QSpinBox(toolbar);
   shape_softness->setObjectName(QStringLiteral("shapePixelSoftSpin"));
   shape_softness->setRange(0, 100);
@@ -5132,10 +5112,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   register_retranslation([shape_softness] {
     shape_softness->setToolTip(resolve_modifier_names(MainWindow::tr("Brush edge softness: %ALT%+Right-drag up or down on the canvas")));
   });
-  add_shape_pixel_widget(shape_softness);
+  add_shape_pixel_widget(shape_softness, shape_draw_tools);
   shape_pixel.softness_spin = shape_softness;
-  for (const auto& [mirror, source] : {std::pair<QSpinBox*, QSpinBox*>{shape_stroke_width, brush_size},
-                                       std::pair<QSpinBox*, QSpinBox*>{shape_opacity, brush_opacity},
+  for (const auto& [mirror, source] : {std::pair<QSpinBox*, QSpinBox*>{shape_opacity, brush_opacity},
                                        std::pair<QSpinBox*, QSpinBox*>{shape_softness, brush_softness}}) {
     // The brush field keeps applying the value; a blocked set there is caught by
     // sync_brush_controls_from_canvas.
@@ -5155,8 +5134,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Width, Height) drop before it wraps: at 1366 px the Rectangle's Fixed rows show the Style
   // list and the two fields around the swap button without them (docs/options-bar.md,
   // "Duplicate sliders drop first").
-  const auto add_shape_pixel_droppable_label = [add_shape_pixel_label](const char* source) {
-    auto* label = add_shape_pixel_label(source);
+  const auto add_shape_pixel_droppable_label = [add_shape_pixel_label, &shape_pixel_tools](const char* source) {
+    auto* label = add_shape_pixel_label(source, shape_pixel_tools);
     label->setProperty(kOptionsBarCollapsibleProperty, true);
     return label;
   };
@@ -5189,9 +5168,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_ratio_width->setValue(shape_pixel.ratio_w);
   bind_tooltip(shape_ratio_width, QT_TR_NOOP("Width part of the shape's aspect ratio"));
   configure_toolbar_spinbox(shape_ratio_width, 56);
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_width));
+  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_width, shape_pixel_tools));
   auto* shape_ratio_swap = make_swap_dimensions_button("shapeRatioSwapButton");
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_swap));
+  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_swap, shape_pixel_tools));
   shape_pixel.ratio_widgets.push_back(
       label_after_swap_button(add_shape_pixel_droppable_label(QT_TR_NOOP("Height:"))));
   auto* shape_ratio_height = new TrimmedDoubleSpinBox(toolbar);
@@ -5201,7 +5180,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_ratio_height->setValue(shape_pixel.ratio_h);
   bind_tooltip(shape_ratio_height, QT_TR_NOOP("Height part of the shape's aspect ratio"));
   configure_toolbar_spinbox(shape_ratio_height, 56);
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_height));
+  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_height, shape_pixel_tools));
   // Fixed Size: the pixel pair.
   shape_pixel.size_widgets.push_back(add_shape_pixel_droppable_label(QT_TR_NOOP("Width:")));
   auto* shape_fixed_width = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
@@ -5210,9 +5189,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_fixed_width->setRange(1, 30000);
   shape_fixed_width->setValue(has_active_document() ? document().width() : 1024);
   configure_toolbar_spinbox(shape_fixed_width, 62);
-  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_fixed_width));
+  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_fixed_width, shape_pixel_tools));
   auto* shape_size_swap = make_swap_dimensions_button("shapeFixedSizeSwapButton");
-  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_size_swap));
+  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_size_swap, shape_pixel_tools));
   shape_pixel.size_widgets.push_back(
       label_after_swap_button(add_shape_pixel_droppable_label(QT_TR_NOOP("Height:"))));
   auto* shape_fixed_height = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
@@ -5221,7 +5200,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_fixed_height->setRange(1, 30000);
   shape_fixed_height->setValue(has_active_document() ? document().height() : 768);
   configure_toolbar_spinbox(shape_fixed_height, 62);
-  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_fixed_height));
+  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_fixed_height, shape_pixel_tools));
   const auto apply_shape_style_settings = [this, shape_style_combo, shape_fixed_width, shape_fixed_height,
                                            shape_ratio_width, shape_ratio_height] {
     auto& options = *shape_pixel_options_;

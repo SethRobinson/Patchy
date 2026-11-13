@@ -36117,22 +36117,6 @@ Bloqueada: %1</translation>
         <translation>Relleno y trazo: pinta el interior y el contorno</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Color de relleno de las formas dibujadas como píxeles: el color frontal o un color propio</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Grosor del trazo (el tamaño del pincel)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Color de trazo de las formas dibujadas como píxeles: el color frontal o un color propio</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Guiones del trazo. Los guiones usan terminaciones planas; los puntos usan terminaciones redondeadas</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Interior</translation>
     </message>

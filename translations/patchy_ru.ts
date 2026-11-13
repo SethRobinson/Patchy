@@ -36226,22 +36226,6 @@ Locked: %1</source>
         <translation>Заливка и обводка: закрашивает внутреннюю часть и рисует контур</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Цвет заливки фигур, рисуемых пикселями: основной цвет или собственный цвет</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Толщина обводки (размер кисти)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Цвет обводки фигур, рисуемых пикселями: основной цвет или собственный цвет</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Штрихи обводки. Штриховые наборы используют плоские концы, точечные наборы используют круглые концы</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Внутри</translation>
     </message>

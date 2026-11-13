@@ -607,7 +607,8 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     bind_angle_dial(*dial, *spin);
     QWidget::setTabOrder(dial, spin);
     QWidget* previous = spin;
-    const auto steppers = row->findChildren<QPushButton*>(Qt::FindDirectChildrenOnly);
+    // `row` has a dependent type in this generic lambda: clang needs the `template` keyword.
+    const auto steppers = row->template findChildren<QPushButton*>(Qt::FindDirectChildrenOnly);
     for (auto* stepper : steppers) {
       QWidget::setTabOrder(previous, stepper);
       previous = stepper;

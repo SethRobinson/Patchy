@@ -90,12 +90,12 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Gradient | Mode (`gradientModeCombo`: Pixels, Fill Layer; [gradients.md](gradients.md#gradient-tool-fill-layer-mode)) | `gradientMode` (token) | new (issue 580) | yes |
 | Fill | Opacity, Soft, Tol, Contiguous | `fillOpacity`, `fillSoftness`, `fillTolerance`, `fillContiguous` | yes | yes |
 | Line, Rect, Ellipse, Pen, Polygon, Custom Shape | Mode (Shape/Path/Pixels) | `vectorToolMode` | yes | yes |
-| same | Fill and Stroke paint (by pattern/gradient id), Stroke width (0 = off; stored as Stroke on plus the last real width), Line weight | `vectorFill*`, `vectorStroke*`, `vectorLineWeight` | yes | yes |
+| same | Fill and Stroke paint (by pattern/gradient id), Stroke width (0 = off; stored as Stroke on plus the last real width), Line weight. Shape and Pixels modes share them (GitHub issue 716) | `vectorFill*`, `vectorStroke*`, `vectorLineWeight` | yes | yes |
 | same, Path/Direct Select | Combine (`vectorCombineCombo`) | none | no | no (session) |
 | Line | arrowheads (`lineArrow*Button`) | `lineArrowStart`, `lineArrowEnd` | yes | yes |
-| Rectangle, Ellipse (Pixels) | Fill only / Stroke only / Both (`shapeDraw*Button`; GitHub issue 716) | `shapeDrawMode` (token: `stroke`, `fill`, `both`). `shapeFill`, the Fill checkbox these replaced, is read when no mode is saved (checked was Fill only) and still written (true unless Stroke only) | no | yes |
-| Rectangle, Ellipse (Pixels) | Fill and Stroke color (`shapePixel*SwatchButton`), dashes, alignment | `shapePixelFillColor`, `shapePixelStrokeColor` (`#rrggbb`; empty follows the foreground color), `shapePixelStrokeDashes` (a dash preset token), `shapePixelStrokeAlign` (token: `inside`, `center`, `outside`) | new (issue 716) | yes |
-| Rectangle, Ellipse (Pixels) | Stroke width, Opacity, Soft (`shapePixelStrokeWidthSpin`, `shapePixelOpacitySpin`, `shapePixelSoftSpin`) | the brush family's `brushSize`, `brushOpacity`, `brushSoftness` (mirrors of those fields) | no | yes |
+| Rect, Ellipse, Polygon, Custom Shape | Fill only / Stroke only / Both (`shapeDraw*Button`; GitHub issue 716) | none of their own: they are the fill's none and the stroke's switch (`vectorFillKind`, `vectorStrokeEnabled`). `shapeFill` is still written (true while a fill is drawn) | yes | yes |
+| same | stroke alignment (`vectorStrokeAlignCombo`); Pixels mode's Foreground Color for the fill or stroke | `vectorStrokeAlign` (token: `inside`, `center`, `outside`; absent is Inside), `vectorFillFollowsForeground`, `vectorStrokeFollowsForeground` (bool; absent is on) | new (issue 716) | yes |
+| same (Pixels) | Opacity, Soft (`shapePixelOpacitySpin`, `shapePixelSoftSpin`) | the brush family's `brushOpacity`, `brushSoftness` (mirrors of those fields) | no | yes |
 | Rectangle | Radius (`shapeCornerRadiusSpin`) | `shapeCornerRadius` | yes | yes |
 | Rect, Ellipse (Pixels) | Style, its ratio pair and its pixel pair (`shapeStyleCombo`, `shapeRatio*`, `shapeFixed*`) | none | no | no (session) |
 | Pen | Auto Add/Delete | `penAutoAddDelete` | yes | yes |

@@ -36035,22 +36035,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation type="unfinished"></translation>
     </message>

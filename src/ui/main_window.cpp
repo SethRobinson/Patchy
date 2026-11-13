@@ -7270,6 +7270,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         appearance.stroke_join = content.stroke.join;
         appearance.stroke_cap = content.stroke.cap;
         appearance.stroke_miter_limit = content.stroke.miter_limit;
+        appearance.stroke_dashes = content.stroke.dashes;
+        appearance.stroke_dash_offset = content.stroke.dash_offset;
         appearance.line_weight = static_cast<int>(std::lround(current_vector_line_weight_));
         return appearance;
       });

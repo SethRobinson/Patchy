@@ -261,6 +261,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_selection_antialias(current_selection_antialias_);
   if (shape_pixel_options_ != nullptr) {
     shape_pixel_options_->apply_to_canvas(*session->canvas);
+    session->canvas->set_shape_pixel_style(shape_pixel_style_for_canvas());
   }
   session->canvas->set_shape_corner_radius(current_shape_corner_radius_);
   session->canvas->set_vector_tool_mode(current_vector_tool_mode_);
@@ -506,6 +507,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_selection_antialias(current_selection_antialias_);
   if (shape_pixel_options_ != nullptr) {
     shape_pixel_options_->apply_to_canvas(*canvas_);
+    canvas_->set_shape_pixel_style(shape_pixel_style_for_canvas());
   }
   canvas_->set_shape_corner_radius(current_shape_corner_radius_);
   canvas_->set_healing_diffusion(current_healing_diffusion_);

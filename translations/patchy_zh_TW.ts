@@ -36008,22 +36008,6 @@ Locked: %1</source>
         <translation>填滿和筆畫:繪製內部和輪廓</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>以像素繪製之形狀的填滿顏色:前景色或自訂顏色</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>筆畫寬度 (筆刷尺寸)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>以像素繪製之形狀的筆畫顏色:前景色或自訂顏色</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>筆畫虛線。虛線預設集使用平頭端點；點狀預設集使用圓頭端點</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>內部</translation>
     </message>

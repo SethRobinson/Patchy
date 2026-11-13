@@ -5,6 +5,7 @@
 #include "core/pixel_depth.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_shape_style.hpp"
+#include "core/vector_live_shapes.hpp"
 #include "core/pixel_tools.hpp"
 #include "test_harness.hpp"
 #include <algorithm>
@@ -582,12 +583,13 @@ void tool_ellipse_draws_and_writes_artifact() {
   write_bmp_artifact("tool_ellipse", document);
 }
 
-// GitHub issue 716: a Pixels-mode Rectangle or Ellipse with a fill and a stroke of their own.
-// The two styles the classic renderer always drew stay with it; every other style paints the
-// fill, then the stroke over it with the stroke's alignment and dashes, each pixel once.
+// GitHub issue 716: a Pixels-mode shape with a shape layer's fill and stroke. The two styles
+// the classic renderer always drew stay with it; every other style is drawn by the shape
+// layer's own renderer: the fill, the stroke over it with its alignment and dashes, solid,
+// gradient and pattern paints, on any path, each pixel written once.
 void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
-  const patchy::EditColor red{220, 30, 30, 255};
-  const patchy::EditColor blue{30, 60, 220, 255};
+  const patchy::RgbColor red{220, 30, 30};
+  const patchy::RgbColor blue{30, 60, 220};
   const patchy::Rect rect{40, 30, 100, 80};  // the pixels 40..139 by 30..109
   struct Scene {
     patchy::Document document{200, 160, patchy::PixelFormat::rgb8()};
@@ -600,16 +602,37 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
     scene->layer_id = scene->document.add_pixel_layer("Paint", std::move(pixels)).id();
     return scene;
   };
+  const auto solid = [](patchy::RgbColor color) {
+    patchy::VectorFill paint;
+    paint.kind = patchy::VectorFillKind::Solid;
+    paint.color = color;
+    return paint;
+  };
+  const auto ramp = [&](float angle_degrees) {
+    patchy::VectorFill paint;
+    paint.kind = patchy::VectorFillKind::Gradient;
+    paint.gradient.color_stops = {patchy::GradientColorStop{0.0F, red, 0.5F},
+                                  patchy::GradientColorStop{1.0F, blue, 0.5F}};
+    paint.gradient.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F},
+                                  patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+    paint.gradient.type = patchy::LayerStyleGradientType::Linear;
+    paint.gradient.angle_degrees = angle_degrees;
+    paint.gradient.scale = 1.0F;
+    return paint;
+  };
   const auto styled = [&](bool fill, bool stroke,
                           patchy::VectorStrokeAlignment alignment = patchy::VectorStrokeAlignment::Center,
-                          patchy::StrokeDashPreset dashes = patchy::StrokeDashPreset::Solid) {
+                          patchy::StrokeDashPreset dashes = patchy::StrokeDashPreset::Solid, double width = 10.0) {
     patchy::PixelShapeStyle style;
-    style.fill = fill;
-    style.stroke = stroke;
-    style.fill_color = red;
-    style.stroke_color = blue;
-    style.alignment = alignment;
-    style.dashes = dashes;
+    if (fill) {
+      style.fill = solid(red);
+    }
+    style.stroke.enabled = stroke;
+    style.stroke.width = width;
+    style.stroke.content = solid(blue);
+    style.stroke.alignment = alignment;
+    style.stroke.join = patchy::VectorStrokeJoin::Round;
+    patchy::apply_stroke_dash_preset(style.stroke, dashes);
     return style;
   };
   const auto pixel = [](Scene& scene, std::int32_t x, std::int32_t y) {
@@ -621,14 +644,22 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
     const auto* px = layer->pixels().pixel(x - bounds.x, y - bounds.y);
     return patchy::EditColor{px[0], px[1], px[2], px[3]};
   };
-  const auto is = [](patchy::EditColor actual, patchy::EditColor expected) {
-    return actual.a == 255 && std::abs(actual.r - expected.r) <= 2 && std::abs(actual.g - expected.g) <= 2 &&
-           std::abs(actual.b - expected.b) <= 2;
+  const auto is = [](patchy::EditColor actual, patchy::RgbColor expected) {
+    return actual.a == 255 && std::abs(actual.r - expected.red) <= 2 && std::abs(actual.g - expected.green) <= 2 &&
+           std::abs(actual.b - expected.blue) <= 2;
   };
   auto options = tool_options(0, 0, 0);
   options.brush_size = 10;
+  const auto rectangle = patchy::pixel_shape_path(rect, patchy::ShapeKind::Rectangle, 0);
+  const auto ellipse = patchy::pixel_shape_path(rect, patchy::ShapeKind::Ellipse, 0);
+  CHECK(!rectangle.empty() && !ellipse.empty());
+  const auto draw = [&](Scene& scene, const patchy::VectorPath& path, const patchy::PixelShapeStyle& style,
+                        const patchy::EditOptions& edit, const patchy::PatternStore* patterns = nullptr,
+                        bool erase = false) {
+    return patchy::draw_styled_shape(scene.document, scene.layer_id, path, edit, style, patterns, erase);
+  };
 
-  // What stays with the classic renderer.
+  // What stays with the classic renderer: a solid fill alone, a plain centered stroke alone.
   CHECK(patchy::pixel_shape_style_is_classic(styled(true, false)));
   CHECK(patchy::pixel_shape_style_is_classic(styled(false, true)));
   CHECK(!patchy::pixel_shape_style_is_classic(styled(true, true)));
@@ -636,13 +667,23 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
   CHECK(!patchy::pixel_shape_style_is_classic(styled(false, true, patchy::VectorStrokeAlignment::Outside)));
   CHECK(!patchy::pixel_shape_style_is_classic(
       styled(false, true, patchy::VectorStrokeAlignment::Center, patchy::StrokeDashPreset::Dashed)));
+  CHECK(!patchy::pixel_shape_style_is_classic(
+      styled(false, true, patchy::VectorStrokeAlignment::Center, patchy::StrokeDashPreset::Solid, 2.5)));
+  CHECK(!patchy::pixel_shape_style_is_classic(styled(false, false)));
+  {
+    auto gradient_fill = styled(true, false);
+    gradient_fill.fill = ramp(0.0F);
+    CHECK(!patchy::pixel_shape_style_is_classic(gradient_fill));
+    auto gradient_stroke = styled(false, true);
+    gradient_stroke.stroke.content = ramp(0.0F);
+    CHECK(!patchy::pixel_shape_style_is_classic(gradient_stroke));
+  }
 
   {
     // Both, centered: the fill inside, the stroke 5 px either side of the outline, with the
-    // round corners the classic outline has.
+    // round corners its join asks for.
     auto scene = make_scene(0);
-    const auto dirty = patchy::draw_styled_shape(scene->document, scene->layer_id, rect, options,
-                                                 styled(true, true), patchy::ShapeKind::Rectangle, false);
+    const auto dirty = draw(*scene, rectangle, styled(true, true), options);
     CHECK(dirty.x == 35 && dirty.y == 25 && dirty.width == 110 && dirty.height == 90);
     CHECK(is(pixel(*scene, 90, 70), red));
     CHECK(is(pixel(*scene, 50, 70), red));
@@ -657,20 +698,14 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
   {
     // Inside: all 10 px inside the outline; Outside: all 10 px outside it.
     auto inside = make_scene(0);
-    CHECK(!patchy::draw_styled_shape(inside->document, inside->layer_id, rect, options,
-                                     styled(false, true, patchy::VectorStrokeAlignment::Inside),
-                                     patchy::ShapeKind::Rectangle, false)
-               .empty());
+    CHECK(!draw(*inside, rectangle, styled(false, true, patchy::VectorStrokeAlignment::Inside), options).empty());
     CHECK(pixel(*inside, 38, 70).a == 0);
     CHECK(is(pixel(*inside, 41, 70), blue));
     CHECK(is(pixel(*inside, 48, 70), blue));
     CHECK(pixel(*inside, 52, 70).a == 0);
     CHECK(pixel(*inside, 90, 70).a == 0);
     auto outside = make_scene(0);
-    CHECK(!patchy::draw_styled_shape(outside->document, outside->layer_id, rect, options,
-                                     styled(false, true, patchy::VectorStrokeAlignment::Outside),
-                                     patchy::ShapeKind::Rectangle, false)
-               .empty());
+    CHECK(!draw(*outside, rectangle, styled(false, true, patchy::VectorStrokeAlignment::Outside), options).empty());
     CHECK(pixel(*outside, 42, 70).a == 0);
     CHECK(is(pixel(*outside, 38, 70), blue));
     CHECK(is(pixel(*outside, 31, 70), blue));
@@ -679,10 +714,8 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
   {
     // Dashed: the top edge alternates stroke and gap; the ellipse takes the same style.
     auto scene = make_scene(0);
-    CHECK(!patchy::draw_styled_shape(
-               scene->document, scene->layer_id, rect, options,
-               styled(false, true, patchy::VectorStrokeAlignment::Center, patchy::StrokeDashPreset::Dashed),
-               patchy::ShapeKind::Rectangle, false)
+    CHECK(!draw(*scene, rectangle,
+                styled(false, true, patchy::VectorStrokeAlignment::Center, patchy::StrokeDashPreset::Dashed), options)
                .empty());
     int dashes = 0;
     int gaps = 0;
@@ -700,75 +733,146 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
     CHECK(gaps >= 2);
     write_bmp_artifact("tool_styled_shape_dashed", scene->document);
 
-    auto ellipse = make_scene(0);
-    CHECK(!patchy::draw_styled_shape(ellipse->document, ellipse->layer_id, rect, options,
-                                     styled(true, true, patchy::VectorStrokeAlignment::Inside),
-                                     patchy::ShapeKind::Ellipse, false)
-               .empty());
-    CHECK(is(pixel(*ellipse, 90, 70), red));
-    CHECK(is(pixel(*ellipse, 44, 70), blue));
-    CHECK(pixel(*ellipse, 37, 70).a == 0);
-    CHECK(pixel(*ellipse, 44, 34).a == 0);  // inside the box, outside the ellipse
+    auto oval = make_scene(0);
+    CHECK(!draw(*oval, ellipse, styled(true, true, patchy::VectorStrokeAlignment::Inside), options).empty());
+    CHECK(is(pixel(*oval, 90, 70), red));
+    CHECK(is(pixel(*oval, 44, 70), blue));
+    CHECK(pixel(*oval, 37, 70).a == 0);
+    CHECK(pixel(*oval, 44, 34).a == 0);  // inside the box, outside the ellipse
   }
   {
     // One coat: at half opacity the stroke over the fill is the stroke at half alpha.
     auto scene = make_scene(0);
-    auto style = styled(true, true);
-    style.fill_color.a = 128;
-    style.stroke_color.a = 128;
-    CHECK(!patchy::draw_styled_shape(scene->document, scene->layer_id, rect, options, style,
-                                     patchy::ShapeKind::Rectangle, false)
-               .empty());
+    auto half = options;
+    half.primary.a = 128;
+    CHECK(!draw(*scene, rectangle, styled(true, true), half).empty());
     const auto overlap = pixel(*scene, 42, 70);
-    CHECK(std::abs(overlap.a - 128) <= 1 && std::abs(overlap.b - blue.b) <= 2 && std::abs(overlap.r - blue.r) <= 2);
+    CHECK(std::abs(overlap.a - 128) <= 1 && std::abs(overlap.b - blue.blue) <= 2 &&
+          std::abs(overlap.r - blue.red) <= 2);
     const auto inner = pixel(*scene, 90, 70);
-    CHECK(std::abs(inner.a - 128) <= 1 && std::abs(inner.r - red.r) <= 2);
+    CHECK(std::abs(inner.a - 128) <= 1 && std::abs(inner.r - red.red) <= 2);
+  }
+  {
+    // A gradient fill spans the shape's own box (red at its left, blue at its right), whatever
+    // the selection; a gradient stroke likewise.
+    auto scene = make_scene(0);
+    auto style = styled(true, false);
+    style.fill = ramp(0.0F);
+    CHECK(!draw(*scene, rectangle, style, options).empty());
+    const auto left = pixel(*scene, 42, 70);
+    const auto middle = pixel(*scene, 90, 70);
+    const auto right = pixel(*scene, 137, 70);
+    CHECK(left.a == 255 && left.r > 200 && left.b < 60);
+    CHECK(right.a == 255 && right.b > 200 && right.r < 60);
+    CHECK(middle.r > 90 && middle.r < 160 && middle.b > 90 && middle.b < 170);
+    write_bmp_artifact("tool_styled_shape_gradient", scene->document);
+
+    auto clipped_scene = make_scene(0);
+    auto clipped = options;
+    clipped.selection = patchy::Rect{80, 0, 120, 160};
+    CHECK(!draw(*clipped_scene, rectangle, style, clipped).empty());
+    CHECK(pixel(*clipped_scene, 60, 70).a == 0);
+    const auto same_middle = pixel(*clipped_scene, 90, 70);
+    CHECK(std::abs(same_middle.r - middle.r) <= 1 && std::abs(same_middle.b - middle.b) <= 1);
+
+    auto stroked = make_scene(0);
+    auto stroke_style = styled(false, true, patchy::VectorStrokeAlignment::Inside);
+    stroke_style.stroke.content = ramp(0.0F);
+    CHECK(!draw(*stroked, rectangle, stroke_style, options).empty());
+    CHECK(pixel(*stroked, 42, 70).r > 180 && pixel(*stroked, 42, 70).a == 255);
+    CHECK(pixel(*stroked, 137, 70).b > 180 && pixel(*stroked, 137, 70).a == 255);
+    CHECK(pixel(*stroked, 90, 70).a == 0);
+  }
+  {
+    // A pattern fill tiles from the document origin: a 2 x 2 tile, green and yellow columns.
+    patchy::PatternStore patterns;
+    patchy::PatternResource resource;
+    resource.id = "tool-styled-shape-test-pattern";
+    resource.name = "Columns";
+    resource.tile = patchy::PixelBuffer(2, 2, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 2; ++y) {
+      for (std::int32_t x = 0; x < 2; ++x) {
+        auto* px = resource.tile.pixel(x, y);
+        px[0] = x == 0 ? 20 : 240;
+        px[1] = x == 0 ? 200 : 220;
+        px[2] = x == 0 ? 40 : 30;
+        px[3] = 255;
+      }
+    }
+    patterns.adopt(resource);
+    auto style = styled(true, false);
+    style.fill = patchy::VectorFill{};
+    style.fill.kind = patchy::VectorFillKind::Pattern;
+    style.fill.pattern_id = resource.id;
+    style.fill.pattern_linked = false;
+    auto scene = make_scene(0);
+    CHECK(!draw(*scene, rectangle, style, options, &patterns).empty());
+    const auto even = pixel(*scene, 90, 70);
+    const auto odd = pixel(*scene, 91, 70);
+    CHECK(even.a == 255 && odd.a == 255);
+    CHECK(even.r == 20 && even.g == 200 && even.b == 40);
+    CHECK(odd.r == 240 && odd.g == 220 && odd.b == 30);
+    CHECK(pixel(*scene, 20, 70).a == 0);
+    // Without its tile the pattern paints nothing.
+    auto missing = make_scene(0);
+    CHECK(draw(*missing, rectangle, style, options, nullptr).empty());
+  }
+  {
+    // Any path: a five-pointed star.
+    patchy::VectorPath star;
+    star.subpaths.push_back(patchy::generate_polygon_subpath(100.0, 80.0, 60.0, -1.5707963267948966, 5, 50));
+    auto scene = make_scene(0);
+    CHECK(!draw(*scene, star, styled(true, true, patchy::VectorStrokeAlignment::Outside,
+                                    patchy::StrokeDashPreset::Solid, 4.0),
+                options)
+               .empty());
+    CHECK(is(pixel(*scene, 100, 80), red));       // its center
+    CHECK(is(pixel(*scene, 100, 30), red));       // inside its top point
+    CHECK(pixel(*scene, 60, 30).a == 0);         // between two points
+    CHECK(pixel(*scene, 100, 17).b > 150);       // the stroke outside the tip
+    write_bmp_artifact("tool_styled_shape_star", scene->document);
   }
   {
     // The selection clips it, and erasing removes the fill and the stroke alike.
     auto scene = make_scene(0);
     auto clipped = options;
     clipped.selection = patchy::Rect{0, 0, 60, 160};
-    const auto dirty = patchy::draw_styled_shape(scene->document, scene->layer_id, rect, clipped, styled(true, true),
-                                                 patchy::ShapeKind::Rectangle, false);
+    const auto dirty = draw(*scene, rectangle, styled(true, true), clipped);
     CHECK(!dirty.empty() && dirty.x + dirty.width <= 60);
     CHECK(is(pixel(*scene, 50, 70), red));
     CHECK(pixel(*scene, 90, 70).a == 0);
 
     auto opaque = make_scene(255);
-    CHECK(!patchy::draw_styled_shape(opaque->document, opaque->layer_id, rect, options, styled(true, true),
-                                     patchy::ShapeKind::Rectangle, true)
-               .empty());
+    CHECK(!draw(*opaque, rectangle, styled(true, true), options, nullptr, true).empty());
     CHECK(pixel(*opaque, 90, 70).a == 0);
     CHECK(pixel(*opaque, 37, 70).a == 0);
     CHECK(pixel(*opaque, 20, 70).a == 255);
   }
   {
-    // The coverage planes the mask writer composites: one per paint the style draws, and Soft
-    // blurs them (a 20 px stroke at Soft 100% is partly covered a pixel inside its outer edge).
-    const patchy::Rect clip{0, 0, 200, 160};
-    const auto both = patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, options, styled(true, true), clip);
-    CHECK(!both.bounds.empty());
-    const auto count = static_cast<std::size_t>(both.bounds.width) * static_cast<std::size_t>(both.bounds.height);
-    CHECK(both.fill.size() == count && both.stroke.size() == count);
-    const auto stroke_only =
-        patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, options, styled(false, true), clip);
-    CHECK(stroke_only.fill.empty() && !stroke_only.stroke.empty());
+    // The raster the mask writer composites, and Soft as a feather: a 20 px outside stroke at
+    // Soft 100% is partly covered a pixel inside its outer edge.
+    const patchy::Rect canvas{0, 0, 200, 160};
+    const auto both = patchy::pixel_shape_raster(rectangle, styled(true, true), 0.0, canvas, nullptr);
+    CHECK(!both.bounds.empty() && both.pixels.format().channels == 4);
+    CHECK(patchy::pixel_shape_raster(rectangle, styled(false, false), 0.0, canvas, nullptr).bounds.empty());
+    CHECK(patchy::pixel_shape_raster(patchy::VectorPath{}, styled(true, true), 0.0, canvas, nullptr).bounds.empty());
 
     auto wide = options;
     wide.brush_size = 20;
-    const auto at = [](const patchy::PixelShapeCoverage& coverage, std::int32_t x, std::int32_t y) {
-      return coverage.stroke[static_cast<std::size_t>(y - coverage.bounds.y) *
-                                 static_cast<std::size_t>(coverage.bounds.width) +
-                             static_cast<std::size_t>(x - coverage.bounds.x)];
+    CHECK(patchy::pixel_shape_soft_feather(wide) == 0.0);
+    const auto outside = styled(false, true, patchy::VectorStrokeAlignment::Outside,
+                                patchy::StrokeDashPreset::Solid, 20.0);
+    const auto alpha_at = [](const patchy::ShapeRasterResult& raster, std::int32_t x, std::int32_t y) {
+      return raster.pixels.pixel(x - raster.bounds.x, y - raster.bounds.y)[3];
     };
-    const auto outside = styled(false, true, patchy::VectorStrokeAlignment::Outside);
-    const auto hard = patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, wide, outside, clip);
-    CHECK(at(hard, 21, 70) == 255);
+    const auto hard = patchy::pixel_shape_raster(rectangle, outside, 0.0, canvas, nullptr);
+    CHECK(alpha_at(hard, 21, 70) == 255);
     wide.brush_softness = 100;
-    const auto soft = patchy::pixel_shape_coverage(rect, patchy::ShapeKind::Rectangle, wide, outside, clip);
-    CHECK(at(soft, 30, 70) == 255);
-    CHECK(at(soft, 21, 70) > 40 && at(soft, 21, 70) < 230);
+    const auto feather = patchy::pixel_shape_soft_feather(wide);
+    CHECK(feather > 1.5 && feather < 2.5);
+    const auto soft = patchy::pixel_shape_raster(rectangle, outside, feather, canvas, nullptr);
+    CHECK(alpha_at(soft, 30, 70) >= 250);
+    CHECK(alpha_at(soft, 21, 70) > 40 && alpha_at(soft, 21, 70) < 235);
   }
   {
     // A 16-bit layer takes the same shape at its own depth.
@@ -776,9 +880,7 @@ void tool_styled_shape_paints_fill_stroke_dashes_and_alignment() {
     patchy::PixelBuffer pixels(200, 160, patchy::with_bit_depth(patchy::PixelFormat::rgba8(), patchy::BitDepth::UInt16));
     pixels.clear(0);
     scene.layer_id = scene.document.add_pixel_layer("Paint 16", std::move(pixels)).id();
-    CHECK(!patchy::draw_styled_shape(scene.document, scene.layer_id, rect, options, styled(true, true),
-                                     patchy::ShapeKind::Rectangle, false)
-               .empty());
+    CHECK(!draw(scene, rectangle, styled(true, true), options).empty());
     const auto* layer = std::as_const(scene.document).find_layer(scene.layer_id);
     const auto bounds = layer->bounds();
     std::array<float, 4> value{};
