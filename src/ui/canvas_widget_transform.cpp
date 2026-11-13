@@ -6181,8 +6181,13 @@ void CanvasWidget::apply_warp_style_preset(const QString& style, double value) {
     notify_transform_controls_changed();
     return;
   }
-  const auto generated = generate_style_warp_mesh(style.toStdString(), value, false, warp_content_width_,
-                                                  warp_content_height_);
+  // Cylinder is Patchy's own style (one patch, docs/warp.md); the rest are the fifteen
+  // bends Photoshop's files name.
+  const auto style_name = style.toStdString();
+  const auto generated =
+      style_name == kCylinderWrapWarpStyle
+          ? generate_cylinder_wrap_warp_mesh(value, warp_content_width_, warp_content_height_)
+          : generate_style_warp_mesh(style_name, value, false, warp_content_width_, warp_content_height_);
   if (!generated.has_value()) {
     return;
   }

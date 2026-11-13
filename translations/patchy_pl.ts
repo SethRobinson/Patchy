@@ -36249,6 +36249,10 @@ Zablokowano: %1</translation>
         <source>Select a path to delete</source>
         <translation>Wybierz ścieżkę do usunięcia</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Walec</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

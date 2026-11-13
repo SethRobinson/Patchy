@@ -36031,6 +36031,10 @@ Locked: %1</source>
         <source>Select a path to delete</source>
         <translation>삭제할 패스를 선택하세요</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>원통</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

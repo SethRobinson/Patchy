@@ -36058,6 +36058,10 @@ Locked: %1</source>
         <source>Select a path to delete</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

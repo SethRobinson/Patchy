@@ -122,7 +122,7 @@ Releases build the `release` preset into `build\release` (release gate, packagin
 - [Smart Objects and Smart Filters](docs/smart-objects.md) *(legal)*: [editing, linked/placed authoring](docs/smart-object-editing.md); [native filters](docs/smart-filters-native.md) (descriptors, FEid cache, render semantics) and their tables: [pixelate/render](docs/smart-filters-pixelate-render.md), [distort/stylize](docs/smart-filters-distort-stylize.md), [Image > Adjustments](docs/smart-filters-adjustments.md).
 - [recipes, Saved Looks, visual filters](docs/filters.md) *(legal)*, [Filter Gallery](docs/filters-gallery.md) *(legal)*, [shipped Looks](docs/builtin-looks.md); [layer-effect render calibration](docs/layer-effects-render.md) (Blend If, Satin, Bevel), [Stroke, Shape Burst](docs/layer-effects-render-stroke.md), [shadows, glows](docs/layer-effects-render-shadows-glows.md); [style presets](docs/style-presets.md), [pattern presets, bundled textures](docs/style-presets-patterns.md); [gradients, GRD](docs/gradients.md).
 - [8BF plug-ins (Windows)](docs/plugins.md) *(legal: clean-room ABI)*; [G'MIC](docs/gmic.md) *(legal)*; [GEGL](docs/gegl-filters.md) *(legal)*: Patchy's own GEGL, GPL-3 module included; releases publish its source (`PatchyGeglSources.zip`); sources only from legal-licensing.md's list, logged in [gegl-provenance.md](docs/gegl-provenance.md); never GIMP's or GEGL's source.
-- [Liquify](docs/liquify.md) *(legal)*; [Warp](docs/warp.md); [Perspective Planes](docs/perspective-planes.md) *(legal)*: an edit stays on the plane it starts on.
+- [Liquify](docs/liquify.md) and [Warp](docs/warp.md) *(legal)*; [Perspective Planes](docs/perspective-planes.md) *(legal)*: an edit stays on the plane it starts on.
 
 **Tools, text, vectors**
 

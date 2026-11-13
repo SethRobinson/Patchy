@@ -1325,6 +1325,145 @@ void warp_style_meshes_match_photoshop_e9c_if_available() {
   CHECK(max_delta < 1e-4);
 }
 
+// GitHub issue 719: Patchy's own Cylinder style is one ordinary 4x4 patch that wraps
+// the whole content like a label (docs/warp.md, "Cylinder").
+void warp_cylinder_wrap_mesh_is_one_patch_showing_all_content() {
+  const auto mesh = patchy::generate_cylinder_wrap_warp_mesh(50.0, 48.0, 36.0);
+  CHECK(mesh.has_value());
+  CHECK(mesh->u_order == 4 && mesh->v_order == 4);
+  CHECK(mesh->xs.size() == 16U && mesh->ys.size() == 16U);
+  const double depth = 6.0;  // 50% of a quarter of the width
+  // The corners stay on the content's corners; the sides stay upright.
+  const auto at = [&mesh](double u, double v) { return patchy::evaluate_warp_mesh(*mesh, u, v); };
+  const auto near_point = [](const std::array<double, 2>& point, double x, double y) {
+    return std::abs(point[0] - x) < 1e-9 && std::abs(point[1] - y) < 1e-9;
+  };
+  CHECK(near_point(at(0.0, 0.0), 0.0, 0.0) && near_point(at(1.0, 0.0), 48.0, 0.0));
+  CHECK(near_point(at(0.0, 1.0), 0.0, 36.0) && near_point(at(1.0, 1.0), 48.0, 36.0));
+  CHECK(near_point(at(0.0, 0.5), 0.0, 18.0) && near_point(at(1.0, 0.5), 48.0, 18.0));
+  // Both edges hang by the depth at the centre, following 4u(1-u).
+  CHECK(near_point(at(0.5, 0.0), 24.0, depth) && near_point(at(0.5, 1.0), 24.0, 36.0 + depth));
+  CHECK(std::abs(at(0.25, 0.0)[1] - depth * 0.75) < 1e-9);
+  // The content runs slower toward the sides, x = width * (3u^2 - 2u^3), and every
+  // part of it stays in view: x rises all the way across, with no fold and no strip
+  // collapsed onto a side.
+  CHECK(std::abs(at(0.25, 0.3)[0] - 48.0 * 0.15625) < 1e-9);
+  CHECK(std::abs(at(0.75, 0.3)[0] - 48.0 * 0.84375) < 1e-9);
+  double previous_x = -1.0;
+  for (int step = 0; step <= 200; ++step) {
+    const double x = at(step / 200.0, 0.5)[0];
+    CHECK(x > previous_x);
+    previous_x = x;
+  }
+  // Rows are straight between the two edges.
+  CHECK(std::abs(at(0.3, 0.5)[1] - (at(0.3, 0.0)[1] + at(0.3, 1.0)[1]) / 2.0) < 1e-9);
+
+  // A negative bend curves the other way; zero leaves the edges straight and still
+  // wraps the content toward the sides; the bend clamps to 100.
+  const auto below = patchy::generate_cylinder_wrap_warp_mesh(-50.0, 48.0, 36.0);
+  CHECK(below.has_value());
+  CHECK(near_point(patchy::evaluate_warp_mesh(*below, 0.5, 0.0), 24.0, -depth));
+  const auto level = patchy::generate_cylinder_wrap_warp_mesh(0.0, 48.0, 36.0);
+  CHECK(level.has_value());
+  CHECK(near_point(patchy::evaluate_warp_mesh(*level, 0.5, 0.0), 24.0, 0.0));
+  CHECK(std::abs(patchy::evaluate_warp_mesh(*level, 0.25, 0.0)[0] - 7.5) < 1e-9);
+  const auto full = patchy::generate_cylinder_wrap_warp_mesh(100.0, 48.0, 36.0);
+  const auto beyond = patchy::generate_cylinder_wrap_warp_mesh(400.0, 48.0, 36.0);
+  CHECK(full.has_value() && beyond.has_value() && full->ys == beyond->ys);
+  CHECK(near_point(patchy::evaluate_warp_mesh(*full, 0.5, 0.0), 24.0, 12.0));
+  CHECK(!patchy::generate_cylinder_wrap_warp_mesh(50.0, 0.0, 36.0).has_value());
+  CHECK(!patchy::generate_cylinder_wrap_warp_mesh(50.0, 48.0, -1.0).has_value());
+
+  // The style is the Warp Transform tool's alone: neither its id nor Photoshop's
+  // warpCylinder token is a style the file reader or Warp Text can bake.
+  CHECK(!patchy::can_generate_style_warp_mesh(patchy::kCylinderWrapWarpStyle));
+  CHECK(!patchy::can_generate_style_warp_mesh("warpCylinder"));
+  CHECK(!patchy::generate_style_warp_mesh("warpCylinder", 50.0, false, 48.0, 36.0).has_value());
+  patchy::TextWarp text_warp;
+  text_warp.style = "warpCylinder";
+  text_warp.value = 50.0;
+  CHECK(!patchy::generate_text_warp_mesh(text_warp).has_value());
+}
+
+void psd_photoshop_cylinder_warp_stays_preview_only() {
+  // Photoshop's own Cylinder (warpStyle warpCylinder with seven warpValues and no mesh)
+  // is not re-rendered: the layer keeps Photoshop's preview under the "warp" lock and
+  // the record goes back to the file as it came. Built from the committed placed-layer
+  // fixture by giving its SoLd the keys a Photoshop cylinder carries.
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  auto* layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "small"));
+  CHECK(layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*layer).empty());
+  const std::array<double, 7> cylinder_values{0.0, 48.0, 64.0, 0.0, 0.3, 0.3, 0.5};
+  std::vector<std::uint8_t> cylinder_payload;
+  for (auto& block : layer->unknown_psd_blocks()) {
+    if (block.key != "SoLd") {
+      continue;
+    }
+    patchy::psd::BigEndianReader reader(block.payload);
+    (void)patchy::psd::read_signature(reader);
+    const auto version = reader.read_u32();
+    const auto descriptor_version = reader.read_u32();
+    auto descriptor = patchy::psd::read_descriptor(reader);
+    auto* warp_object =
+        const_cast<patchy::psd::DescriptorObject*>(patchy::psd::descriptor_object(descriptor, "warp"));
+    CHECK(warp_object != nullptr);
+    auto* style =
+        const_cast<patchy::psd::DescriptorValue*>(patchy::psd::descriptor_value(*warp_object, "warpStyle"));
+    CHECK(style != nullptr);
+    style->enum_value = "warpCylinder";
+    patchy::psd::DescriptorValue values;
+    values.type = patchy::psd::DescriptorValue::Type::List;
+    for (const double number : cylinder_values) {
+      patchy::psd::DescriptorValue item;
+      item.type = patchy::psd::DescriptorValue::Type::Double;
+      item.double_value = number;
+      values.list_value.push_back(std::move(item));
+    }
+    auto position = std::find_if(warp_object->key_order.begin(), warp_object->key_order.end(),
+                                 [](const auto& entry) { return entry.key == "warpValue"; });
+    CHECK(position != warp_object->key_order.end());
+    warp_object->key_order.insert(position + 1, patchy::psd::DescriptorObject::KeyEntry{"warpValues", true});
+    warp_object->values.emplace("warpValues", std::move(values));
+    patchy::psd::BigEndianWriter writer;
+    for (const char ch : {'s', 'o', 'L', 'D'}) {
+      writer.write_u8(static_cast<std::uint8_t>(ch));
+    }
+    writer.write_u32(version);
+    writer.write_u32(descriptor_version);
+    patchy::psd::write_descriptor(writer, descriptor);
+    auto payload = writer.bytes();
+    while ((payload.size() % 4U) != 0U) {
+      payload.push_back(0);
+    }
+    block.payload = payload;
+    cylinder_payload = std::move(payload);
+  }
+  CHECK(!cylinder_payload.empty());
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* cylinder_layer = find_layer_named(reread.layers(), "small");
+  CHECK(cylinder_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*cylinder_layer));
+  CHECK(patchy::smart_object_lock_reason(*cylinder_layer) == "warp");
+  // No mesh was made up for it.
+  const auto warp = patchy::smart_object_warp_from_layer(*cylinder_layer);
+  CHECK(!warp.has_value() || warp->mesh_xs.empty());
+  // A second save still carries the cylinder record byte for byte.
+  const auto again = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(reread));
+  const auto* again_layer = find_layer_named(again.layers(), "small");
+  CHECK(again_layer != nullptr);
+  bool preserved = false;
+  for (const auto& block : again_layer->unknown_psd_blocks()) {
+    if (block.key == "SoLd") {
+      preserved = block.payload == cylinder_payload;
+    }
+  }
+  CHECK(preserved);
+  CHECK(patchy::smart_object_lock_reason(*again_layer) == "warp");
+}
+
 void psd_text_warp_round_trips_photoshop_fixture() {
   // Committed Photoshop 2026 fixture: two warped point-text layers ("Arc50" =
   // warpArc bend 50 horizontal; "Sqz" = warpSqueeze bend -70 vertical with 25/-10
@@ -2266,6 +2405,9 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
       {"text_warp_serialization_round_trips", text_warp_serialization_round_trips},
       {"warp_style_meshes_match_photoshop_e9c_if_available",
        warp_style_meshes_match_photoshop_e9c_if_available},
+      {"warp_cylinder_wrap_mesh_is_one_patch_showing_all_content",
+       warp_cylinder_wrap_mesh_is_one_patch_showing_all_content},
+      {"psd_photoshop_cylinder_warp_stays_preview_only", psd_photoshop_cylinder_warp_stays_preview_only},
       {"psd_text_warp_round_trips_photoshop_fixture", psd_text_warp_round_trips_photoshop_fixture},
       {"psb_life_trailer_fields_parse_if_available", psb_life_trailer_fields_parse_if_available},
       {"smart_object_external_element_round_trips_if_available",

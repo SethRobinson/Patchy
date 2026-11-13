@@ -36031,6 +36031,10 @@ Locked: %1</source>
         <source>Select a path to delete</source>
         <translation>请选择要删除的路径</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>圆柱体</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

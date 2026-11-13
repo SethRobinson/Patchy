@@ -1432,6 +1432,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     warp_style_combo_->addItem(tr("Inflate"), QStringLiteral("warpInflate"));
     warp_style_combo_->addItem(tr("Squeeze"), QStringLiteral("warpSqueeze"));
     warp_style_combo_->addItem(tr("Twist"), QStringLiteral("warpTwist"));
+    // Patchy's own style, last in the list (GitHub issue 719).
+    warp_style_combo_->addItem(tr("Cylinder"), QString::fromLatin1(kCylinderWrapWarpStyle.data(),
+                                                                 static_cast<qsizetype>(kCylinderWrapWarpStyle.size())));
     const auto index = warp_style_combo_->findData(current.isValid() ? current : QVariant(QStringLiteral("warpCustom")));
     warp_style_combo_->setCurrentIndex(std::max(0, index));
   });

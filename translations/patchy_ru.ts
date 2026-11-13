@@ -36249,6 +36249,10 @@ Locked: %1</source>
         <source>Select a path to delete</source>
         <translation>Выберите контур для удаления</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Цилиндр</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -36140,6 +36140,10 @@ Verrouillé : %1</translation>
         <source>Select a path to delete</source>
         <translation>Sélectionnez un tracé à supprimer</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Cylindre</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
