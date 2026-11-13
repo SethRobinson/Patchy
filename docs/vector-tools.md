@@ -277,13 +277,24 @@ ui_paths_panel_actions_follow_row_selection pins it):
 - Make Work Path from Selection: tolerance (persisted); traces the
   hard selection, fits via core/path_fit (Douglas-Peucker corners +
   Schneider cubics); outer loops Add, holes Subtract.
-- Delete Path; Duplicate Path in the row context menu ("<name> copy").
-- Delete and Backspace in the list act on its selected row (GitHub issue 717): a saved path or
-  the work path is deleted as Delete Path does it, one undo step, and the active layer's own row
-  (shape path, vector mask, text boundary) is left alone. `PathsPanel::eventFilter` claims the
-  key at the ShortcutOverride, so the application's Clear hotkey, which deletes a text or
-  shape layer, never fires while the list has the keyboard; with no row selected the key
-  passes through. Test: `ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer`.
+- Delete Path; Duplicate Path in the row context menu ("<name> copy"). Delete Path acts on
+  every row kind (`delete_selected_path`): a saved path or the work path is removed ("Delete
+  path"); the active layer's own row deletes what it shows (`delete_active_layer_path_row`,
+  keyed by `active_layer_path_row_kind`, which also names the row): a Text Boundary row (area
+  or path text) and a Shape Path row delete that layer ("Delete layer", the active layer only,
+  whatever else is selected), a Vector Mask row deletes the mask as Layer > Vector Mask >
+  Delete does (refused, with the reason, when the file's vector data is protected). An open
+  text session is committed first (`finish_active_text_editor`), so undo of the delete brings
+  the typed text back; if that commit removed the layer or activated another, nothing more is
+  deleted. The layer row still cannot be duplicated. The canvas path menu's Delete Path is the
+  same action.
+- Delete and Backspace in the list are Delete Path on its selected row (GitHub issue 717), one
+  undo step. `PathsPanel::eventFilter` claims the key at the ShortcutOverride, so the
+  application's Clear hotkey never fires as well while the list has the keyboard; a held key
+  deletes once; with no row selected the key passes through. Tests:
+  `ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer` and
+  `ui_paths_panel_delete_key_on_{text_boundary_row_deletes_the_text_layer,
+  vector_mask_row_deletes_the_mask,shape_path_row_deletes_the_shape_layer}`.
 
 ## Geometry operations
 

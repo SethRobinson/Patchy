@@ -27683,10 +27683,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation type="unfinished"></translation>
     </message>
@@ -36056,6 +36052,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Flip Text on Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

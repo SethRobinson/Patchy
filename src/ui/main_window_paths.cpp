@@ -204,6 +204,25 @@ QPixmap MainWindow::cached_path_thumbnail(const DocumentPath& path, int document
   return cached.thumbnail;
 }
 
+MainWindow::LayerPathRowKind MainWindow::active_layer_path_row_kind() const {
+  if (!has_active_document()) {
+    return LayerPathRowKind::None;
+  }
+  const auto& doc = document();
+  const auto active = doc.active_layer_id();
+  const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr) {
+    return LayerPathRowKind::None;
+  }
+  if (canvas_ != nullptr && canvas_->text_area_edit_target_path() != nullptr) {
+    return LayerPathRowKind::TextBoundary;
+  }
+  if (layer_is_vector_shape(*layer)) {
+    return LayerPathRowKind::ShapePath;
+  }
+  return layer->vector_mask() != nullptr ? LayerPathRowKind::VectorMask : LayerPathRowKind::None;
+}
+
 void MainWindow::refresh_paths_panel() {
   if (paths_panel_ == nullptr) {
     return;
@@ -226,15 +245,21 @@ void MainWindow::refresh_paths_panel() {
     if (const auto* layer = doc.find_layer(*active); layer != nullptr) {
       const VectorPath* layer_path = nullptr;
       QString label;
-      if (canvas_ != nullptr && canvas_->text_area_edit_target_path() != nullptr) {
-        layer_path = canvas_->text_area_edit_target_path();
-        label = tr("%1 Text Boundary").arg(QString::fromStdString(layer->name()));
-      } else if (layer_is_vector_shape(*layer)) {
-        layer_path = &layer->vector_shape()->path;
-        label = tr("%1 Shape Path").arg(QString::fromStdString(layer->name()));
-      } else if (layer->vector_mask() != nullptr) {
-        layer_path = &layer->vector_mask()->path;
-        label = tr("%1 Vector Mask").arg(QString::fromStdString(layer->name()));
+      switch (active_layer_path_row_kind()) {
+        case LayerPathRowKind::TextBoundary:
+          layer_path = canvas_->text_area_edit_target_path();
+          label = tr("%1 Text Boundary").arg(QString::fromStdString(layer->name()));
+          break;
+        case LayerPathRowKind::ShapePath:
+          layer_path = &layer->vector_shape()->path;
+          label = tr("%1 Shape Path").arg(QString::fromStdString(layer->name()));
+          break;
+        case LayerPathRowKind::VectorMask:
+          layer_path = &layer->vector_mask()->path;
+          label = tr("%1 Vector Mask").arg(QString::fromStdString(layer->name()));
+          break;
+        case LayerPathRowKind::None:
+          break;
       }
       if (layer_path != nullptr) {
         auto& cached = layer_path_thumbnail_cache_;
@@ -402,7 +427,19 @@ PathCommandRefusals MainWindow::paths_panel_command_refusals() const {
   }
   if (!row.has_value() || row->kind == PathsPanel::RowKind::LayerPath) {
     refusals.duplicate = tr("Select a saved path or the work path to duplicate");
-    refusals.remove = tr("Select a saved path or the work path to delete");
+  }
+  if (!row.has_value()) {
+    refusals.remove = tr("Select a path to delete");
+  } else if (row->kind == PathsPanel::RowKind::LayerPath &&
+             active_layer_path_row_kind() == LayerPathRowKind::VectorMask) {
+    // The layer's row deletes what it shows (delete_active_layer_path_row). A vector mask
+    // the file's own data protects stays, as it does for Layer > Vector Mask > Delete.
+    const auto& doc = document();
+    const auto active = doc.active_layer_id();
+    if (const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+        layer != nullptr && !vector_lock_reason(*layer).empty()) {
+      refusals.remove = tr("This layer's vector data is preserved but can't be edited.");
+    }
   }
   return refusals;
 }
@@ -634,8 +671,12 @@ void MainWindow::delete_selected_path() {
     return;
   }
   const auto row = paths_panel_->selected_row();
-  if (!row.has_value() || row->kind == PathsPanel::RowKind::LayerPath) {
-    show_status_error(tr("Select a saved path or the work path to delete"));
+  if (!row.has_value()) {
+    show_status_error(tr("Select a path to delete"));
+    return;
+  }
+  if (row->kind == PathsPanel::RowKind::LayerPath) {
+    delete_active_layer_path_row();
     return;
   }
   push_undo_snapshot(tr("Delete path"));
@@ -646,6 +687,34 @@ void MainWindow::delete_selected_path() {
   }
   refresh_paths_panel();
   statusBar()->showMessage(tr("Deleted the path"));
+}
+
+void MainWindow::delete_active_layer_path_row() {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto target = std::as_const(document()).active_layer_id();
+  const auto kind = active_layer_path_row_kind();
+  if (!target.has_value() || kind == LayerPathRowKind::None) {
+    return;
+  }
+  // An open text session is committed first, as every command does it, so the layer that
+  // goes holds what was typed and one undo of the delete brings all of it back. The commit
+  // can itself remove the layer (emptied text) or activate another one (a session that made
+  // a new layer): the row named this layer, and nothing else is deleted in its place.
+  finish_active_text_editor();
+  if (!has_active_document() || std::as_const(document()).active_layer_id() != target ||
+      active_layer_path_row_kind() != kind) {
+    return;
+  }
+  if (kind == LayerPathRowKind::VectorMask) {
+    delete_active_vector_mask(MaskCommandScope::ActiveLayer);
+    return;
+  }
+  // The active layer only, whatever else the Layers panel has selected: the row is this
+  // layer's. The boundary of area or path text and a shape's path are the layer itself, so
+  // it is removed the way Delete Layer removes it (one "Delete layer" step).
+  delete_layers({*target});
 }
 
 void MainWindow::fill_active_path() {

@@ -27651,10 +27651,6 @@ Y: %2
         <translation>已清除剪贴路径。</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>请选择要删除的已存储路径或工作路径</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>删除路径</translation>
     </message>
@@ -36030,6 +36026,10 @@ Locked: %1</source>
     <message>
         <source>Flip Text on Path</source>
         <translation>翻转路径文字</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>请选择要删除的路径</translation>
     </message>
 </context>
 <context>

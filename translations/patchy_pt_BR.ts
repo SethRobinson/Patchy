@@ -28552,10 +28552,6 @@ Y: %2
         <translation>Limpou o demarcador de recorte.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Selecione um demarcador salvo ou o demarcador de trabalho para excluir</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Excluir demarcador</translation>
     </message>
@@ -36139,6 +36135,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Flip Text on Path</source>
         <translation>Virar texto no demarcador</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Selecione um demarcador para excluir</translation>
     </message>
 </context>
 <context>

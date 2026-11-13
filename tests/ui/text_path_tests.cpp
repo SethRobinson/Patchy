@@ -1015,7 +1015,8 @@ bool has_work_path(const Document& document) {
 // GitHub issue 717 follow-up: with a path-text layer active, the Paths panel lists the text's
 // own boundary and the work path. Delete (or Backspace) on the selected work path row deletes
 // that path, as the row's Delete Path does, and leaves the layer alone; on the layer's own
-// boundary row it does nothing. With the canvas focused, Delete is still the layer command.
+// boundary row it deletes the text layer and leaves the work path alone. With the canvas
+// focused, Delete is still the layer command.
 void ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer() {
   MainWindow window;
   show_window_empty(window);
@@ -1075,16 +1076,20 @@ void ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer() {
     if (list == nullptr || list->count() != 2) return;
   }
 
-  // The text's own boundary row is not a path of its own: the key does nothing there, and in
-  // particular does not delete the text layer.
+  // The text's own boundary row is the layer's content: the key deletes the text layer, in one
+  // step, and the work path stays.
   click_row(0);
   CHECK(list->item(0)->isSelected());
-  const auto label_before = MainWindowTestAccess::current_history_label(window);
   press(Qt::Key_Delete);
+  CHECK(doc.find_layer(id) == nullptr);
+  CHECK(doc.layers().size() == layer_count - 1);
+  CHECK(has_work_path(doc));
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Delete layer"));
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
   CHECK(doc.find_layer(id) != nullptr);
   CHECK(doc.layers().size() == layer_count);
   CHECK(has_work_path(doc));
-  CHECK(MainWindowTestAccess::current_history_label(window) == label_before);
 
   // On the canvas nothing changed: Delete on a text layer still removes the layer.
   canvas->setFocus(Qt::OtherFocusReason);
@@ -1094,6 +1099,247 @@ void ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer() {
   CHECK(has_work_path(doc));
   MainWindowTestAccess::undo(window);
   CHECK(doc.find_layer(id) != nullptr);
+}
+
+// What the Paths panel tests below share: the list, a real click on one of its rows, and a
+// key sent the way the window gets it.
+struct PathsListDriver {
+  MainWindow& window;
+
+  QListWidget* list() const { return window.findChild<QListWidget*>(QStringLiteral("pathsList")); }
+
+  void click_row(int row) const {
+    auto* rows = list();
+    click_widget_like_a_user(*rows->viewport(), rows->visualItemRect(rows->item(row)).center());
+    QApplication::processEvents();
+  }
+
+  void press(Qt::Key key) const {
+    QTest::keyClick(window.windowHandle(), key);
+    QApplication::processEvents();
+  }
+};
+
+// Desk card paths-delete-text-boundary: Delete (or Backspace) on an area text layer's
+// "Text Boundary" row deletes the text layer, in one step that undo takes back with the text;
+// only that layer goes, whatever else is selected; and Delete Path with a text session open
+// commits the session first, so the undo brings back what was typed too.
+void ui_paths_panel_delete_key_on_text_boundary_row_deletes_the_text_layer() {
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var keep=d.addTextLayer('Keep',{font:'Arial',size:24,x:40,y:480});
+    keep.name='Keep';
+    var p={subpaths:[{closed:true,anchors:[{x:80,y:60},{x:580,y:60},{x:580,y:400},{x:80,y:400}]}]};
+    var t=d.addTextLayer('One two three four five six seven eight nine ten. '.repeat(4),{font:'Arial',size:24,area:p});
+    t.name='Area';
+    d.activeLayer=t;
+    patchy.setResult(t.id+','+keep.id);
+  )JS");
+  const auto ids = window.script_engine_host().last_result().toString().split(QLatin1Char(','));
+  CHECK(ids.size() == 2);
+  if (ids.size() != 2) return;
+  const auto id = ids[0].toULongLong();
+  const auto keep_id = ids[1].toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  MainWindowTestAccess::refresh_paths_panel(window);
+  QApplication::processEvents();
+  const PathsListDriver paths{window};
+  CHECK(paths.list() != nullptr && window.windowHandle() != nullptr);
+  if (paths.list() == nullptr || window.windowHandle() == nullptr) return;
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const auto before = *layer;
+  const auto layer_count = doc.layers().size();
+  const auto boundary_row_shows = [&] {
+    auto* list = paths.list();
+    return list != nullptr && list->count() == 1 && list->item(0)->text() == QStringLiteral("Area Text Boundary");
+  };
+
+  for (const auto key : {Qt::Key_Delete, Qt::Key_Backspace}) {
+    CHECK(boundary_row_shows());
+    if (!boundary_row_shows()) return;
+    paths.click_row(0);
+    CHECK(paths.list()->item(0)->isSelected());
+    CHECK(QApplication::focusWidget() == paths.list());
+    paths.press(key);
+    CHECK(doc.find_layer(id) == nullptr);
+    CHECK(doc.find_layer(keep_id) != nullptr);
+    CHECK(doc.layers().size() == layer_count - 1);
+    CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Delete layer"));
+    CHECK(session_editor(*canvas) == nullptr);
+    // One undo step brings the layer back, text and frame as they were.
+    MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) return;
+    CHECK(layer->metadata() == before.metadata());
+    CHECK(layer->bounds() == before.bounds());
+    CHECK(doc.layers().size() == layer_count);
+    CHECK(doc.active_layer_id() == std::optional<LayerId>(id));
+  }
+
+  // Both text layers selected, the area text active: the row is the active layer's, so only
+  // that one is deleted.
+  MainWindowTestAccess::select_layers(window, {keep_id, id}, id);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::selected_layer_ids(window).size() == 2);
+  CHECK(boundary_row_shows());
+  if (!boundary_row_shows()) return;
+  paths.click_row(0);
+  paths.press(Qt::Key_Delete);
+  CHECK(doc.find_layer(id) == nullptr);
+  CHECK(doc.find_layer(keep_id) != nullptr);
+  CHECK(doc.layers().size() == layer_count - 1);
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(doc.find_layer(id) != nullptr);
+  MainWindowTestAccess::select_layers(window, {id}, id);
+  QApplication::processEvents();
+
+  // A text session open on the layer (the panel's trash button takes no focus, so a click on
+  // it leaves the session open): Delete Path commits the typing, then deletes the layer.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  click_canvas(*canvas, QPoint(before.bounds().x + 20, before.bounds().y + 12));
+  auto* editor = session_editor(*canvas);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) return;
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == id);
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::Start);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("XYZ "));
+  QApplication::processEvents();
+  auto* delete_path = window.findChild<QAction*>(QStringLiteral("pathDeleteAction"));
+  CHECK(delete_path != nullptr);
+  if (delete_path == nullptr) return;
+  CHECK(boundary_row_shows());
+  CHECK(delete_path->isEnabled());
+  delete_path->trigger();
+  process_events_for(50);
+  CHECK(session_editor(*canvas) == nullptr);
+  CHECK(canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay")) == nullptr);
+  CHECK(doc.find_layer(id) == nullptr);
+  CHECK(doc.find_layer(keep_id) != nullptr);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Delete layer"));
+  MainWindowTestAccess::undo(window);
+  process_events_for(50);
+  layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  CHECK(QString::fromStdString(layer->metadata().at(kLayerMetadataText)).startsWith(QStringLiteral("XYZ One two")));
+  CHECK(layer->metadata().contains(kLayerMetadataTextArea));
+  CHECK(session_editor(*canvas) == nullptr);
+}
+
+// The same key on a "Vector Mask" row deletes the layer's vector mask, as Layer > Vector Mask >
+// Delete does, and keeps the layer.
+void ui_paths_panel_delete_key_on_vector_mask_row_deletes_the_mask() {
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(400,300);
+    var l=d.addLayer('Masked');
+    l.setVectorMask({path:{subpaths:[{closed:true,anchors:[{x:60,y:50},{x:340,y:50},{x:340,y:250},{x:60,y:250}]}]}});
+    d.activeLayer=l;
+    patchy.setResult(l.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  MainWindowTestAccess::refresh_paths_panel(window);
+  QApplication::processEvents();
+  const PathsListDriver paths{window};
+  CHECK(paths.list() != nullptr && window.windowHandle() != nullptr);
+  if (paths.list() == nullptr || window.windowHandle() == nullptr) return;
+  const auto layer_count = doc.layers().size();
+  for (const auto key : {Qt::Key_Delete, Qt::Key_Backspace}) {
+    auto* list = paths.list();
+    CHECK(list->count() == 1);
+    if (list->count() != 1) return;
+    CHECK(list->item(0)->text() == QStringLiteral("Masked Vector Mask"));
+    CHECK(doc.find_layer(id) != nullptr && doc.find_layer(id)->vector_mask() != nullptr);
+    paths.click_row(0);
+    CHECK(paths.list()->item(0)->isSelected());
+    // The click targets the mask, as a click on its thumbnail does.
+    CHECK(canvas->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask);
+    paths.press(key);
+    const auto* layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) return;
+    CHECK(layer->vector_mask() == nullptr);
+    CHECK(doc.layers().size() == layer_count);
+    CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Delete vector mask"));
+    CHECK(canvas->layer_edit_target() == CanvasWidget::LayerEditTarget::Content);
+    // The mask's row went with it, and a second press has nothing to act on.
+    CHECK(paths.list()->count() == 0);
+    paths.press(key);
+    CHECK(doc.find_layer(id) != nullptr);
+    CHECK(doc.layers().size() == layer_count);
+    MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    layer = doc.find_layer(id);
+    CHECK(layer != nullptr && layer->vector_mask() != nullptr);
+  }
+}
+
+// On a "Shape Path" row the key deletes the shape layer: the path is the shape.
+void ui_paths_panel_delete_key_on_shape_path_row_deletes_the_shape_layer() {
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(400,300);
+    var other=d.addShape('Other',{type:'ellipse',x:20,y:20,width:80,height:60});
+    var s=d.addShape('Badge',{type:'rectangle',x:120,y:80,width:200,height:140});
+    d.activeLayer=s;
+    patchy.setResult(s.id+','+other.id);
+  )JS");
+  const auto ids = window.script_engine_host().last_result().toString().split(QLatin1Char(','));
+  CHECK(ids.size() == 2);
+  if (ids.size() != 2) return;
+  const auto id = ids[0].toULongLong();
+  const auto other_id = ids[1].toULongLong();
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  MainWindowTestAccess::refresh_paths_panel(window);
+  QApplication::processEvents();
+  const PathsListDriver paths{window};
+  CHECK(paths.list() != nullptr && window.windowHandle() != nullptr);
+  if (paths.list() == nullptr || window.windowHandle() == nullptr) return;
+  const auto layer_count = doc.layers().size();
+  auto* delete_path = window.findChild<QAction*>(QStringLiteral("pathDeleteAction"));
+  auto* duplicate_path = window.findChild<QAction*>(QStringLiteral("pathDuplicateAction"));
+  CHECK(delete_path != nullptr && duplicate_path != nullptr);
+  if (delete_path == nullptr || duplicate_path == nullptr) return;
+  for (const auto key : {Qt::Key_Delete, Qt::Key_Backspace}) {
+    auto* list = paths.list();
+    CHECK(list->count() == 1);
+    if (list->count() != 1) return;
+    CHECK(list->item(0)->text() == QStringLiteral("Badge Shape Path"));
+    paths.click_row(0);
+    CHECK(paths.list()->item(0)->isSelected());
+    // The row can be deleted, not duplicated.
+    CHECK(delete_path->isEnabled());
+    CHECK(!duplicate_path->isEnabled());
+    paths.press(key);
+    CHECK(doc.find_layer(id) == nullptr);
+    CHECK(doc.find_layer(other_id) != nullptr);
+    CHECK(doc.layers().size() == layer_count - 1);
+    CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Delete layer"));
+    MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    const auto* layer = doc.find_layer(id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    CHECK(doc.layers().size() == layer_count);
+    CHECK(doc.active_layer_id() == std::optional<LayerId>(id));
+  }
 }
 
 // Type > Flip Text on Path on a committed layer: the contour is reversed, the text hangs on
@@ -1214,6 +1460,12 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"ui_text_path_flip_command_flips_a_committed_layer", ui_text_path_flip_command_flips_a_committed_layer},
       {"ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer",
        ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer},
+      {"ui_paths_panel_delete_key_on_text_boundary_row_deletes_the_text_layer",
+       ui_paths_panel_delete_key_on_text_boundary_row_deletes_the_text_layer},
+      {"ui_paths_panel_delete_key_on_vector_mask_row_deletes_the_mask",
+       ui_paths_panel_delete_key_on_vector_mask_row_deletes_the_mask},
+      {"ui_paths_panel_delete_key_on_shape_path_row_deletes_the_shape_layer",
+       ui_paths_panel_delete_key_on_shape_path_row_deletes_the_shape_layer},
       {"ui_text_path_caret_and_clicks_follow_the_contour", ui_text_path_caret_and_clicks_follow_the_contour},
   };
 }

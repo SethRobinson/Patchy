@@ -2669,7 +2669,8 @@ void ui_path_context_menu_offers_paths_panel_commands() {
 // GitHub issue 396 follow-up: a command that would only refuse is greyed out,
 // with its refusal as the disabled reason the menu's tooltip shows. On a shape
 // layer, Fill Path and Stroke Path have no pixel layer to paint into, and its
-// transient path row cannot be duplicated or deleted.
+// transient path row cannot be duplicated. Delete Path is offered there: it deletes the
+// shape layer (ui_paths_panel_delete_key_on_shape_path_row_deletes_the_shape_layer).
 void ui_path_menu_greys_out_commands_that_would_refuse() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -2688,8 +2689,10 @@ void ui_path_menu_greys_out_commands_that_would_refuse() {
     CHECK(require_menu_action(menu, "pathMakeSelectionAction")->isEnabled());
     CHECK(require_menu_action(menu, "pathSimplifyAction")->isEnabled());
     CHECK(!require_menu_action(menu, "pathDuplicateAction")->isEnabled());
-    CHECK(reason(require_menu_action(menu, "pathDeleteAction")) ==
-          QStringLiteral("Select a saved path or the work path to delete"));
+    CHECK(reason(require_menu_action(menu, "pathDuplicateAction")) ==
+          QStringLiteral("Select a saved path or the work path to duplicate"));
+    CHECK(require_menu_action(menu, "pathDeleteAction")->isEnabled());
+    CHECK(reason(require_menu_action(menu, "pathDeleteAction")).isEmpty());
     save_window_popup_artifact("issue_396_shape_layer_menu", window, *canvas, menu);
   });
   open_path_menu_at(*canvas, QPoint(200, 100));

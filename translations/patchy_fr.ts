@@ -27727,10 +27727,6 @@ Y : %2
         <translation>Tracé de détourage effacé.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Sélectionnez un tracé enregistré ou le tracé de travail à supprimer</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Supprimer le tracé</translation>
     </message>
@@ -36139,6 +36135,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Flip Text on Path</source>
         <translation>Retourner le texte sur le tracé</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Sélectionnez un tracé à supprimer</translation>
     </message>
 </context>
 <context>

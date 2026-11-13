@@ -217,7 +217,8 @@ line inside the range as in a box).
 - **The contour as a path.** With the path-text layer active, the Direct Selection and Path
   Selection tools edit its contour like an area boundary (`text_area_edit_target_path`): the
   text follows, the range stays where it was in segment units, and points cannot be added or
-  removed there.
+  removed there. Its Paths panel row ("<name> Text Boundary") is the layer's content: Delete
+  Path, or Delete in the list, deletes the text layer ([vector-tools.md](vector-tools.md#paths-panel)).
 - Free Transform, Image Size and the other document operations compose onto the text
   transform; the contour is text-local, so it follows.
 

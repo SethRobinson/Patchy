@@ -354,7 +354,9 @@ void PathsPanel::show_context_menu(const QPoint& position) {
 void PathsPanel::refresh_action_states() {
   const auto row = selected_row();
   const bool has_path = row.has_value();
-  const bool deletable = has_path && row->kind != RowKind::LayerPath;
+  // The active layer's own row has no path of its own to copy. It can be deleted: the host
+  // deletes what the row shows (the text or shape layer, or the vector mask).
+  const bool document_path = has_path && row->kind != RowKind::LayerPath;
   const auto refusals =
       document_available_ && command_refusals_provider_ ? command_refusals_provider_() : PathCommandRefusals{};
   // A command is live when the panel's own row rule and the host's checks
@@ -369,7 +371,7 @@ void PathsPanel::refresh_action_states() {
   apply(fill_path_action_, has_path, refusals.fill);
   apply(stroke_path_action_, has_path, refusals.stroke);
   apply(make_selection_action_, has_path, refusals.make_selection);
-  apply(duplicate_path_action_, deletable, refusals.duplicate);
+  apply(duplicate_path_action_, document_path, refusals.duplicate);
   if (clipping_path_action_ != nullptr) {
     // Saved paths only (the work path and the transient layer row have no
     // stable identity in the file).
@@ -378,7 +380,7 @@ void PathsPanel::refresh_action_states() {
     const QSignalBlocker blocker(clipping_path_action_);
     clipping_path_action_->setChecked(saved && row->clipping);
   }
-  apply(delete_path_action_, deletable, refusals.remove);
+  apply(delete_path_action_, has_path, refusals.remove);
   if (new_path_action_ != nullptr) {
     new_path_action_->setEnabled(document_available_);
   }
@@ -392,11 +394,11 @@ void PathsPanel::changeEvent(QEvent* event) {
 }
 
 bool PathsPanel::eventFilter(QObject* watched, QEvent* event) {
-  // Delete and Backspace in the list belong to its selected row (GitHub issue 717): a saved
-  // path or the work path is deleted, as Delete Path does it, and the active layer's own row
-  // (a shape path, a vector mask, a text boundary) is left alone. Claimed at the
-  // ShortcutOverride so the application's Clear hotkey, which deletes a text or shape layer,
-  // never fires from here. With no row selected the key goes on as before.
+  // Delete and Backspace in the list belong to its selected row (GitHub issue 717), as Delete
+  // Path does it: a saved path or the work path is deleted, and the active layer's own row
+  // deletes what it shows (a text boundary or a shape path the layer, a vector mask the
+  // mask). Claimed at the ShortcutOverride so the application's Clear hotkey never fires from
+  // here as well; a held key deletes once. With no row selected the key goes on as before.
   if (watched == list_ && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress)) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     const auto modifiers = key_event->modifiers() & ~Qt::KeypadModifier;

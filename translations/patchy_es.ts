@@ -27727,10 +27727,6 @@ Y: %2
         <translation>Se ha borrado el trazado de recorte.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Seleccione un trazado guardado o el trazado de trabajo para eliminarlo</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Eliminar trazado</translation>
     </message>
@@ -36139,6 +36135,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Flip Text on Path</source>
         <translation>Voltear texto en trazado</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Seleccione un trazado para eliminarlo</translation>
     </message>
 </context>
 <context>

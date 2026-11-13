@@ -28635,10 +28635,6 @@ Y: %2
         <translation>Обтравочный контур сброшен.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Выберите сохранённый или рабочий контур для удаления</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Удалить контур</translation>
     </message>
@@ -36248,6 +36244,10 @@ Locked: %1</source>
     <message>
         <source>Flip Text on Path</source>
         <translation>Перевернуть текст на контуре</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Выберите контур для удаления</translation>
     </message>
 </context>
 <context>

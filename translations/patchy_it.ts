@@ -27727,10 +27727,6 @@ Y: %2
         <translation>Tracciato di ritaglio rimosso.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Seleziona un tracciato salvato o il tracciato di lavoro da eliminare</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Elimina tracciato</translation>
     </message>
@@ -36139,6 +36135,10 @@ Bloccato: %1</translation>
     <message>
         <source>Flip Text on Path</source>
         <translation>Capovolgi testo su tracciato</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Seleziona un tracciato da eliminare</translation>
     </message>
 </context>
 <context>

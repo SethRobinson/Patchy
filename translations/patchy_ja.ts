@@ -28191,10 +28191,6 @@ Clipped to the layer below</source>
         <translation>%1 を作成しました。ペンツールで描き込んでください。</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>削除する保存済みパスまたは作業用パスを選択してください</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>パスを削除</translation>
     </message>
@@ -36030,6 +36026,10 @@ Locked: %1</source>
     <message>
         <source>Flip Text on Path</source>
         <translation>パス上のテキストを反転</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>削除するパスを選択してください</translation>
     </message>
 </context>
 <context>

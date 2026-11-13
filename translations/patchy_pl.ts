@@ -28635,10 +28635,6 @@ Y: %2
         <translation>Usunięto przypisanie ścieżki przycinającej.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Wybierz zapisaną ścieżkę lub ścieżkę roboczą do usunięcia</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Usuń ścieżkę</translation>
     </message>
@@ -36248,6 +36244,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Flip Text on Path</source>
         <translation>Odwróć tekst na ścieżce</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Wybierz ścieżkę do usunięcia</translation>
     </message>
 </context>
 <context>

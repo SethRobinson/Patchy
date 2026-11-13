@@ -2515,6 +2515,10 @@ private:
   [[nodiscard]] const patchy::VectorPath* resolved_row_path(int kind, patchy::DocumentPathId id,
                                                             QString* name = nullptr) const;
   void refresh_paths_panel();
+  // What the panel's row for the active layer stands for. refresh_paths_panel names the row
+  // by it and Delete Path deletes by it, so the two cannot disagree.
+  enum class LayerPathRowKind { None, TextBoundary, ShapePath, VectorMask };
+  [[nodiscard]] LayerPathRowKind active_layer_path_row_kind() const;
   void handle_paths_panel_target(int kind, patchy::DocumentPathId id);
   void handle_paths_panel_deselect();
   void load_path_as_selection(int kind, patchy::DocumentPathId id);
@@ -2538,6 +2542,9 @@ private:
   void duplicate_selected_path();
   void toggle_selected_path_clipping();
   void delete_selected_path();
+  // Delete Path on the active layer's own row: a text boundary or a shape path is the layer's
+  // content, so the layer goes; a vector mask row deletes the mask.
+  void delete_active_layer_path_row();
   void fill_active_path();
   void stroke_active_path();
   void make_selection_from_path();

@@ -28469,10 +28469,6 @@ Y: %2
         <translation>클리핑 패스를 지웠습니다.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>저장된 패스 또는 삭제할 작업 패스를 선택하세요.</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>패스 삭제</translation>
     </message>
@@ -36030,6 +36026,10 @@ Locked: %1</source>
     <message>
         <source>Flip Text on Path</source>
         <translation>패스 위의 텍스트 뒤집기</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>삭제할 패스를 선택하세요</translation>
     </message>
 </context>
 <context>

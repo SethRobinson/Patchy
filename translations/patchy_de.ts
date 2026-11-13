@@ -27727,10 +27727,6 @@ Y: %2
         <translation>Beschneidungspfad entfernt.</translation>
     </message>
     <message>
-        <source>Select a saved path or the work path to delete</source>
-        <translation>Wählen Sie einen gespeicherten Pfad oder den Arbeitspfad zum Löschen aus</translation>
-    </message>
-    <message>
         <source>Delete path</source>
         <translation>Pfad löschen</translation>
     </message>
@@ -36139,6 +36135,10 @@ Fixiert: %1</translation>
     <message>
         <source>Flip Text on Path</source>
         <translation>Text auf Pfad umkehren</translation>
+    </message>
+    <message>
+        <source>Select a path to delete</source>
+        <translation>Wählen Sie einen Pfad zum Löschen aus</translation>
     </message>
 </context>
 <context>
