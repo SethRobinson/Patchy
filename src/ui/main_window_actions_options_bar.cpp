@@ -5352,8 +5352,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_fixed_height->setKeyboardTracking(false);
   shape_pixel.size_widgets.push_back(add_shape_style_widget(shape_fixed_height, shape_draw_tools));
   shape_pixel.size_height_spin = shape_fixed_height;
-  const auto apply_shape_style_settings = [this, shape_style_combo, shape_fixed_width, shape_fixed_height,
-                                           shape_ratio_width, shape_ratio_height] {
+  const auto apply_shape_style_settings = [this, shape_style_combo, shape_ratio_width, shape_ratio_height] {
     auto& options = *shape_pixel_options_;
     switch (shape_style_combo->currentIndex()) {
       case 1:
