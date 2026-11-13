@@ -18,7 +18,7 @@ For bug reports and feature requests, please [open an issue](https://github.com/
 
 ## Download
 
-**Latest release: 1.34** · November 13, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
+**Latest release: 1.35** · November 14, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
 
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation); the Linux Flatpak repository is GPG
@@ -173,13 +173,13 @@ and Affinity import has format-specific limitations. See [current compatibility]
 
 ## What's New
 
-### 1.34 - November 13, 2026
+### 1.35 - November 14, 2026
 
-- Select: Select > Color Range selects by sampled colors (click the image; Shift adds, Alt subtracts), a hue band, or the highlights, midtones or shadows, with a Fuzziness soft edge, Invert and a mask preview ([issue 709](https://github.com/SethRobinson/Patchy/issues/709))
-- Shapes: Shape Appearance is a window that stays open while you work; it follows the selected shape or fill layer and applies each change at once as one undo step, and its Show handles box puts the handles of a gradient fill or a gradient stroke on the canvas with any tool ([issue 694](https://github.com/SethRobinson/Patchy/issues/694)); a new Solid Color, Gradient or Pattern fill layer spans the canvas when a shape layer is selected ([issue 710](https://github.com/SethRobinson/Patchy/issues/710))
-- Brushes: Left and Right turn a brush tip that has a direction (a sampled tip, the Square, or a flattened Round brush) by a degree, Shift by 15, and the pointer outline turns with it; Rotate Brush Left and Rotate Brush Right can take other keys in Preferences > Hotkeys ([issue 708](https://github.com/SethRobinson/Patchy/issues/708))
-- Layers panel: the filter's Text entry finds layers made with the Type tool and text layers from PSD files, fill layers list with adjustments under Fill or Adjustment, and Linked and Has Smart Filters join the properties ([issue 671](https://github.com/SethRobinson/Patchy/issues/671)); in a narrow panel, Opacity and Fill drop their labels before the blend mode row wraps ([issue 693](https://github.com/SethRobinson/Patchy/issues/693))
-- Also: a tool group's letter selects the tool the group last used ([issue 711](https://github.com/SethRobinson/Patchy/issues/711)); Help > About Patchy shows an Update button when its check finds a newer version; the PSD compatibility report quotes layer names and no longer lists 16-bit layers as uneditable ([issue 712](https://github.com/SethRobinson/Patchy/issues/712))
+- Text: text on a path. Click an open path or the edge of a shape with the Type tool to type along it; marks on the path move where the text starts and ends and flip it to the other side, and Type > Flip Text on Path flips a finished layer. Path text in Photoshop files opens editable and is saved as native Photoshop path text ([issue 717](https://github.com/SethRobinson/Patchy/issues/717)), ([issue 718](https://github.com/SethRobinson/Patchy/issues/718))
+- Painting: a Color Replacement tool in the Brush flyout (Shift+B) repaints the pixels close to a sampled color with the foreground color in Hue, Saturation, Color or Luminosity mode, with Sampling, Limits, Tolerance and Anti-alias settings ([issue 720](https://github.com/SethRobinson/Patchy/issues/720))
+- Transform: Warp Transform has a Cylinder style that wraps a layer like a label round a can ([issue 719](https://github.com/SethRobinson/Patchy/issues/719))
+- Shapes: in Pixels mode, rectangles, ellipses, polygons and custom shapes paint from the same Fill and Stroke controls as shape layers (a fill, a stroke or both, in a solid color, a gradient or a pattern, with dashes, saved stroke presets and alignment), and a pixel shape stays editable until you click off it, press Enter or switch tools; a path drawn in Path mode shows the resize box too, a drag from just outside a corner rotates the shape, and Normal, Fixed Ratio and Fixed Size drawing work in every mode ([issue 716](https://github.com/SethRobinson/Patchy/issues/716)), ([issue 697](https://github.com/SethRobinson/Patchy/issues/697)); a polygon or star dragged by its center point snaps to guides, the grid, the canvas and other layers ([issue 695](https://github.com/SethRobinson/Patchy/issues/695)); Shape Appearance's angle rows put the dial before the field ([issue 713](https://github.com/SethRobinson/Patchy/issues/713))
+- Also: Gradient Fill handle drags keep up with the pointer on large images ([issue 714](https://github.com/SethRobinson/Patchy/issues/714)); the Layers panel shows an open eye for a visible layer and a closed lid for a hidden one ([issue 715](https://github.com/SethRobinson/Patchy/issues/715)); in the Paths panel, Delete and Delete Path act on the selected row: a saved path is removed, a vector mask row removes the mask, and a shape path or text boundary row deletes that layer
 
 [Older releases](RELEASE-HISTORY.md)
 
