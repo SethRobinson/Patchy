@@ -646,7 +646,8 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
             // pattern previews as a middle gray.
             const auto core = core_shape_style(shape_pixel_style_, primary_color_, brush_size_);
             const auto gray_of = [alpha](const patchy::VectorFill& paint) {
-              const auto own_value = mask_value_from_color(shape_paint_preview_color(paint, QColor(128, 128, 128)));
+              const QColor middle_gray(128, 128, 128);  // color-literal-ok: a mask value, not chrome
+              const auto own_value = mask_value_from_color(shape_paint_preview_color(paint, middle_gray));
               return QColor(own_value, own_value, own_value, alpha);
             };
             paint_pixel_shape_preview(

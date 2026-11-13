@@ -3788,6 +3788,7 @@ void ui_combo_list_separators_are_one_themed_line() {
        {"tools/cropStyle", "tools/cropRatioWidth", "tools/cropRatioHeight", "tools/cropUserPresets"}) {
     patchy::ui::app_settings().remove(QLatin1String(key));
   }
+  VectorSettingsGuard vector_settings;  // the stroke turned on below must not reach later tests
   struct ListCase {
     const char* tool;
     const char* combo;
@@ -3808,6 +3809,16 @@ void ui_combo_list_separators_are_one_themed_line() {
       require_action(window, entry.tool)->trigger();
       QApplication::processEvents();
       process_events_for(20);
+      // The shape bars show the stroke's list only while a stroke is on (GitHub issue 716):
+      // Fill only hides the Stroke group.
+      if (std::string(entry.combo) == "vectorStrokeDashCombo") {
+        if (auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+            stroke_width != nullptr) {
+          stroke_width->setValue(6.0);
+        }
+        QApplication::processEvents();
+        process_events_for(20);
+      }
       const std::string name = std::string(entry.combo) + suffix;
       const auto problem = [&](const std::string& what) { problems.push_back(name + ": " + what); };
       auto* combo = window.findChild<QComboBox*>(QLatin1String(entry.combo));

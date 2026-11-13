@@ -667,7 +667,7 @@ void ui_type_menu_rows_and_enabled_states() {
                              QStringLiteral("typeAntiAliasMenu"), QStringLiteral("typeOpenTypeMenu"),
                              QStringLiteral("-"),
                              QStringLiteral("typeCreateWorkPathAction"), QStringLiteral("typeConvertToShapeAction"),
-                             QStringLiteral("-"),
+                             QStringLiteral("typeFlipTextOnPathAction"), QStringLiteral("-"),
                              QStringLiteral("typeRasterizeAction"), QStringLiteral("typeWarpTextAction"),
                              QStringLiteral("-"),
                              QStringLiteral("typeUpdateAllTextLayersAction"),
