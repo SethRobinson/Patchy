@@ -47,10 +47,20 @@ Findings, each from a capture:
   hidden text stays in the story.
 - **A layer transform applies to the contour.** The rotated capture keeps the same frame and
   carries the rotation in the TySh transform.
-- **The `flip` flag of the Action Manager descriptor does nothing**: a file saved with it set
-  renders and stores exactly what the unflipped one does (so do `pathTypeSpacing` and the
-  other `pathType*` keys). Photoshop's own flip, made by dragging across the path in its window,
-  was not captured: that needs clicks in Photoshop.
+- **Photoshop 2026 has no working flip.** The `flip` flag of the Action Manager descriptor
+  does nothing: a file saved with it set renders and stores exactly what the unflipped one does
+  (so do `pathTypeSpacing` and the other `pathType*` keys). Photoshop's own gesture gives the
+  same result (27.11.0, November 2026, done with real pointer input in its window): dragging the
+  text's start point across the path with the Path Selection tool, 60 px or more to the other
+  side, sets `flip` true in the live layer descriptor, but the text stays where it was during
+  the drag and after it, the saved file differs from the unflipped save only in the start point
+  the drag moved (no key for a flip in the frame, the text object or the TySh, the contour not
+  reversed), and reopening that file reads `flip` false. A drag of 20 px across does not set the
+  flag at all. The same on an open arc and on an ellipse, for text made over the Action Manager
+  and for text made in Photoshop's window (Type tool clicked on a saved path).
+  `photoshop-path-flip-drag.psd` is the window-made text saved after the gesture: plain path
+  text. How Photoshop 2025 and earlier stored a flip they did draw is not known (no such file
+  has been captured, and none of the local fixture files holds a path frame).
 - **Vertical type on a path** stacks upright glyphs along the line and adds a frame key
   (below). Patchy does not set vertical type on paths.
 
@@ -71,7 +81,10 @@ text object names. A path frame, key for key as Photoshop 2026 writes it:
 - `/0/2/6`: the range, start then end (the key that holds `[-1 -1]`, `[-2 -2]` and `[-3 -3]` in
   point, box and area frames; the named-key engine calls it `TextOnPathTRange`).
 - `/0/2/2`: an optional six-number affine from the stored coordinates to text-local space, as
-  in area frames. Photoshop writes it when the descriptor's shape transform is not identity.
+  in area frames. Photoshop writes it when the descriptor's shape transform is not identity:
+  text made in its window by clicking a path keeps that path's document coordinates and gets
+  `[ 1.0 0.0 0.0 1.0 -80.0 -135.0 ]` for a text origin at (80, 135), the corner of the path's
+  bounds. Its range starts at the clicked point and ends at the path's end.
 - `/0/2/1 2`: vertical type. A path frame has no `/0/2/11` and no baseline rule.
 
 The layer's `TySh` records a box (`/ShapeType 1`) whose `/BoxBounds` are the contour's bounds
@@ -116,7 +129,9 @@ and side for a point.
 **Flip.** Patchy flips path text by reversing its copy of the contour
 (`reversed_text_path`, `reversed_text_path_range`): the text then runs back along the same
 stretch on the other side of the line. The file holds an ordinary path frame, so Photoshop
-shows the flipped text without needing a flag.
+shows the flipped text without needing a flag. This is also the only form Photoshop 2026 draws
+flipped: its own flip flag is neither drawn nor saved (see the captures above), so there is no
+Photoshop flip record for Patchy to write or to read.
 
 ## Layout and drawing
 

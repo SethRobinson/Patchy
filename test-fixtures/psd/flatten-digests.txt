@@ -59,6 +59,7 @@ bba7929db0b2f2fc photoshop-outer-glow-range.psd
 3760235d8398944f photoshop-path-cal-right-range.psd
 1ab4a5bf9c55a895 photoshop-path-center.psd
 d975694dc3e6a4bd photoshop-path-ellipse-range.psd
+01c8f155af8fa83e photoshop-path-flip-drag.psd
 512c2fc809d75dfb photoshop-path-mixed.psd
 b449c49f98b6d9f0 photoshop-path-open-curve.psd
 a938149627b4c246 photoshop-path-overflow.psd

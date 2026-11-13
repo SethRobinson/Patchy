@@ -59,6 +59,7 @@ a668fa440a71d7fa 73e673841c102c7a photoshop-path-baseline-shift.psd
 03e27ad83f728c97 3760235d8398944f photoshop-path-cal-right-range.psd
 d9fcc9421bd0ddbb 1ab4a5bf9c55a895 photoshop-path-center.psd
 818df2e5e37baba9 d975694dc3e6a4bd photoshop-path-ellipse-range.psd
+72f8430bd59293e8 01c8f155af8fa83e photoshop-path-flip-drag.psd
 9eb92aa407b10577 512c2fc809d75dfb photoshop-path-mixed.psd
 f1e17cd3059355ce b449c49f98b6d9f0 photoshop-path-open-curve.psd
 9b4d75d373a914b6 a938149627b4c246 photoshop-path-overflow.psd

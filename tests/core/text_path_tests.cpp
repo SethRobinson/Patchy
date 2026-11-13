@@ -322,6 +322,112 @@ void text_engine_path_frames_read_photoshop_files() {
   }
 }
 
+// Photoshop 2026 (27.11) after its own flip gesture: the text's start point dragged across the
+// path with the Path Selection tool. That sets a flip flag in Photoshop's live layer data only;
+// the text stays on its side and the saved file is ordinary path text with no flip record
+// (docs/path-text.md, "Flip"). The text was made in Photoshop's window (Type tool clicked on a
+// saved path), so the frame keeps the path in document coordinates behind an affine.
+void text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text() {
+  using namespace patchy;
+  using namespace patchy::psd;
+  const auto bytes = read_all(test::committed_psd_fixture_path("photoshop-path-flip-drag.psd"));
+  const auto payload = text_engine_payload(bytes);
+  CHECK(payload.has_value());
+  if (!payload) return;
+  const auto engine = TextEngineBlock::parse(*payload);
+  CHECK(engine.has_value());
+  if (!engine) return;
+  // The frame holds the type, the affine and the range: no key for a flip.
+  const auto frame_index = engine->object_frame_index(0);
+  CHECK(frame_index.has_value());
+  if (!frame_index) return;
+  const auto index_text = std::to_string(*frame_index);
+  const auto* settings = engine->root().at_path({"0", "8", "0", index_text, "0", "2"});
+  CHECK(settings != nullptr && settings->is_dict());
+  if (settings == nullptr) return;
+  CHECK(settings->dict.size() == 3);
+  CHECK(settings->find("0") != nullptr && settings->find("0")->integer() == 2);
+  CHECK(settings->find("2") != nullptr && settings->find("2")->is_list() && settings->find("2")->list.size() == 6);
+  CHECK(settings->find("6") != nullptr);
+  const std::string file(bytes.begin(), bytes.end());
+  CHECK(file.find("/Flip") == std::string::npos);
+
+  const auto geometry = engine->object_geometry(0);
+  CHECK(geometry.kind == TextFrameGeometry::Kind::Path);
+  CHECK(geometry.path.has_value());
+  if (!geometry.path) return;
+  // The stored arc (80,360) to (580,360), brought into text-local space by the affine (-80,-135).
+  const auto expected = contour({knot(0, 225, 0, 225, 120, -75), knot(500, 225, 380, -75, 500, 225)}, false);
+  CHECK(*geometry.path == expected);
+  CHECK(close_to(geometry.path_range.start, 0.20932, 1e-5));
+  CHECK(geometry.path_range.end == 1.0);
+
+  auto document = DocumentIo::read(bytes);
+  auto text = std::find_if(document.layers().begin(), document.layers().end(), [](const Layer& l) {
+    return layer_is_text(l);
+  });
+  CHECK(text != document.layers().end());
+  if (text == document.layers().end()) return;
+  CHECK(text->metadata().at(kLayerMetadataText) == "Lorem Ipsum");
+  CHECK(text_path_for_layer(*text) == geometry.path);
+  CHECK(!text_geometry_is_protected(*text));
+  // In the document the contour is the path Photoshop's Type tool was clicked on, walked the
+  // way it was drawn: the flip gesture did not reverse it.
+  const auto in_document = text_path_in_document(*text);
+  CHECK(in_document.has_value());
+  if (in_document) {
+    const auto& anchors = in_document->subpaths.front().anchors;
+    CHECK(anchors.size() == 2);
+    CHECK(close_to(anchors[0].anchor_x, 80.0, 1e-6) && close_to(anchors[0].anchor_y, 360.0, 1e-6));
+    CHECK(close_to(anchors[0].out_x, 200.0, 1e-6) && close_to(anchors[0].out_y, 60.0, 1e-6));
+    CHECK(close_to(anchors[1].anchor_x, 580.0, 1e-6) && close_to(anchors[1].anchor_y, 360.0, 1e-6));
+  }
+
+  // Untouched, the save keeps Photoshop's frame (affine included); edited, Patchy authors the
+  // contour in text-local coordinates with no affine. Both read back as the same path text.
+  for (bool edited : {false, true}) {
+    if (edited) {
+      text->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      text->metadata()[kLayerMetadataText] = "Lorem Ipsum edited";
+    }
+    const auto saved = DocumentIo::write_layered_rgb8(document);
+    const auto saved_payload = text_engine_payload(saved);
+    CHECK(saved_payload.has_value());
+    if (!saved_payload) continue;
+    const auto saved_engine = TextEngineBlock::parse(*saved_payload);
+    CHECK(saved_engine.has_value());
+    if (!saved_engine) continue;
+    const auto saved_geometry = saved_engine->object_geometry(0);
+    CHECK(saved_geometry.kind == TextFrameGeometry::Kind::Path);
+    CHECK(saved_geometry.path == geometry.path);
+    CHECK(close_to(saved_geometry.path_range.start, 0.20932, 1e-5) && saved_geometry.path_range.end == 1.0);
+    const auto saved_frame = saved_engine->object_frame_index(0);
+    CHECK(saved_frame.has_value());
+    if (saved_frame) {
+      const auto saved_index = std::to_string(*saved_frame);
+      const auto* saved_settings = saved_engine->root().at_path({"0", "8", "0", saved_index, "0", "2"});
+      CHECK(saved_settings != nullptr);
+      if (saved_settings != nullptr) {
+        CHECK((saved_settings->find("2") != nullptr) == !edited);
+      }
+    }
+    const auto reopened = DocumentIo::read(saved);
+    const auto again = std::find_if(reopened.layers().begin(), reopened.layers().end(), [](const Layer& l) {
+      return layer_is_text(l);
+    });
+    CHECK(again != reopened.layers().end());
+    if (again == reopened.layers().end()) continue;
+    CHECK(text_path_for_layer(*again) == geometry.path);
+    CHECK(!text_geometry_is_protected(*again));
+    const auto again_in_document = text_path_in_document(*again);
+    CHECK(again_in_document.has_value() && in_document.has_value());
+    if (again_in_document && in_document) {
+      CHECK(close_to(again_in_document->subpaths.front().anchors[0].anchor_x, 80.0, 1e-6));
+      CHECK(close_to(again_in_document->subpaths.front().anchors[0].anchor_y, 360.0, 1e-6));
+    }
+  }
+}
+
 void text_engine_path_frames_are_authored_like_photoshops() {
   using namespace patchy;
   using namespace patchy::psd;
@@ -468,6 +574,8 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"text_path_curve_measures_arc_length", text_path_curve_measures_arc_length},
       {"text_path_ranges_clamp_wrap_and_reverse", text_path_ranges_clamp_wrap_and_reverse},
       {"text_engine_path_frames_read_photoshop_files", text_engine_path_frames_read_photoshop_files},
+      {"text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text",
+       text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text},
       {"text_engine_path_frames_are_authored_like_photoshops", text_engine_path_frames_are_authored_like_photoshops},
       {"text_engine_path_text_round_trips_and_refuses_legacy_engines",
        text_engine_path_text_round_trips_and_refuses_legacy_engines},

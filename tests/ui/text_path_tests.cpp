@@ -331,6 +331,9 @@ void ui_text_path_photoshop_files_redraw_where_photoshop_drew_them_if_available(
       {"photoshop-path-ellipse-range", 0.90, 2}, {"photoshop-path-center", 0.90, 2},
       {"photoshop-path-mixed", 0.90, 2},        {"photoshop-path-baseline-shift", 0.90, 2},
       {"photoshop-path-rotated", 0.90, 2},      {"photoshop-path-overflow", 0.90, 2},
+      // Made in Photoshop's window and saved after its flip gesture, which Photoshop 2026 neither
+      // draws nor stores (docs/path-text.md, "Flip"): plain path text, 50 px, behind a frame affine.
+      {"photoshop-path-flip-drag", 0.90, 2},
   };
   for (const auto& item : cases) {
     auto document = psd::DocumentIo::read_file(test::committed_psd_fixture_path(std::string(item.fixture) + ".psd"));
