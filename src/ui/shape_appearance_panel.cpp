@@ -2,6 +2,7 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/brush_tool_window.hpp"
+#include "ui/shape_appearance_dialog.hpp"
 
 #include <QAbstractScrollArea>
 #include <QApplication>
@@ -70,6 +71,7 @@ ShapeAppearancePanel::ShapeAppearancePanel(QWidget* owner, ShapeAppearancePanelH
   gradient_handles_ = app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesKey), true).toBool();
   gradient_handles_on_stroke_ =
       app_settings().value(QLatin1String(kShapeAppearanceGradientHandlesOnStrokeKey), false).toBool();
+  user_sized_ = app_settings().value(QLatin1String(kShapeAppearanceWindowUserSizedKey), false).toBool();
 }
 
 ShapeAppearancePanel::~ShapeAppearancePanel() = default;
@@ -88,17 +90,46 @@ void ShapeAppearancePanel::open() {
     window_ = new BrushToolWindow(QStringLiteral("shapeAppearanceWindow"), QObject::tr("Shape Appearance"),
                                   QStringLiteral("shapeAppearance/window"), owner_);
     window_->set_key_target(host_.key_target);
+    // The size grip sits in the window's corner, so Reset and Close end the window.
+    window_->set_size_grip_in_corner(true);
     window_->installEventFilter(this);  // shown or hidden: the canvas handles follow
   }
-  // Build before the first show, so the window opens at the page's size.
+  // Build before the show, so the window opens at the page's size. A closed window gets a
+  // new page every time: a paint kind picked on the old one added or removed rows since its
+  // size was measured, and a page is measured reliably only before it is shown.
   if (!rebuild_blocked()) {
     rebuild_timer_->stop();
+    if (!window_->isVisible()) {
+      current_.reset();
+    }
     rebuild();
   }
   window_->open_window();
-  if (page_ != nullptr && window_->layout() != nullptr) {
-    // A size restored from a smaller page still shows this one whole.
-    window_->resize(window_->size().expandedTo(window_->layout()->sizeHint()));
+  // The size the page needs, or the user's own size grown to show this page whole.
+  size_window_for_page(/*fit=*/true);
+}
+
+bool ShapeAppearancePanel::window_user_sized() const {
+  if (window_ == nullptr) {
+    return user_sized_;
+  }
+  const auto auto_size = window_->property(kShapeAppearanceAutoSizeProperty).toSize();
+  return auto_size.isValid() ? window_->size() != auto_size : user_sized_;
+}
+
+void ShapeAppearancePanel::size_window_for_page(bool fit) {
+  if (window_ == nullptr || page_ == nullptr || window_->layout() == nullptr) {
+    return;
+  }
+  window_->layout()->activate();
+  const auto wanted = window_->layout()->sizeHint();
+  const bool user_sized = window_user_sized();
+  const auto target = fit && !user_sized ? wanted : window_->size().expandedTo(wanted);
+  if (target != window_->size()) {
+    window_->resize(target);
+  }
+  if (!user_sized) {
+    window_->setProperty(kShapeAppearanceAutoSizeProperty, window_->size());
   }
 }
 
@@ -265,8 +296,6 @@ void ShapeAppearancePanel::build_page(ShapeAppearanceTarget target) {
     chrome_height = window_->layout()->sizeHint().height();
     if (page_ != nullptr) {
       chrome_height -= page_->sizeHint().height();
-    } else {
-      chrome_height += 24;  // the size grip row the first page brings with it
     }
   }
   const QScreen* screen = window_->screen() != nullptr ? window_->screen() : QGuiApplication::primaryScreen();
@@ -285,10 +314,9 @@ void ShapeAppearancePanel::build_page(ShapeAppearanceTarget target) {
   if (auto* scroll = page->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"))) {
     scroll->verticalScrollBar()->setValue(scroll_position);
   }
-  if (was_visible && window_->layout() != nullptr) {
-    // Grow to show the new page's rows; never shrink a size the user chose.
-    window_->layout()->activate();
-    window_->resize(window_->size().expandedTo(window_->layout()->sizeHint()));
+  if (was_visible) {
+    // Grow to show the new page's rows; an open window never shrinks under the pointer.
+    size_window_for_page(/*fit=*/false);
   }
   window_->setUpdatesEnabled(true);
 }
@@ -351,6 +379,11 @@ void ShapeAppearancePanel::set_gradient_handles(bool show, bool on_stroke) {
 }
 
 bool ShapeAppearancePanel::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == window_ && event->type() == QEvent::Hide) {
+    // Remembered for the next opening: a size the user chose is kept, any other is fitted.
+    user_sized_ = window_user_sized();
+    app_settings().setValue(QLatin1String(kShapeAppearanceWindowUserSizedKey), user_sized_);
+  }
   if (watched == window_ && (event->type() == QEvent::Show || event->type() == QEvent::Hide) &&
       host_.gradient_handles_changed) {
     // After the event: the window's visibility is what the host reads.

@@ -28,6 +28,10 @@ public:
 
   // The window's content (it takes ownership); call once.
   void set_body(QWidget* body);
+  // True puts the size grip in the window's bottom right corner, over the chrome's margin,
+  // in place of a grip row under the body: the body's last row (the stay-open Shape
+  // Appearance window's Reset and Close) then ends the window. Set before the first body.
+  void set_size_grip_in_corner(bool in_corner) noexcept { size_grip_in_corner_ = in_corner; }
   // Swaps the content for `body` (set_body when there is none yet). The old body is hidden
   // now and deleted from the event loop, so this is safe to call while one of its own
   // handlers is still on the stack further out (the stay-open Shape Appearance window).
@@ -57,6 +61,7 @@ protected:
 private:
   bool forward_key(QKeyEvent* event);
   void record_open(bool open) const;
+  void place_corner_grip();
 
   QString settings_prefix_;
   QVBoxLayout* content_{nullptr};
@@ -66,6 +71,8 @@ private:
   std::function<QWidget*()> key_target_;
   bool size_restored_{false};
   bool shutting_down_{false};
+  bool size_grip_in_corner_{false};
+  QPointer<QWidget> corner_grip_;
 };
 
 // Gives every button, check box, slider, combo box and list in `root` no keyboard focus, so a

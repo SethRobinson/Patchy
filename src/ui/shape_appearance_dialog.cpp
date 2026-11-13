@@ -1875,6 +1875,14 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     });
   }
   footer->addWidget(buttons, 1);
+  if (static_cast<QWidget*>(&dialog) != static_cast<QWidget*>(window_ptr)) {
+    // A page inside the stay-open window: the window's chrome has the bottom margin, so the
+    // button row ends the page (with the page's own margin under it too, and the window's
+    // size grip in a row below, Reset and Close floated well above the bottom edge).
+    auto margins = dialog_layout->contentsMargins();
+    margins.setBottom(0);
+    dialog_layout->setContentsMargins(margins);
+  }
   dialog_layout->addLayout(footer);
 
 
@@ -2260,7 +2268,12 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     }
     const auto frame = dialog_ptr->frameGeometry();
     const auto frame_extra = frame.size() - current;
+    // A window still at the size its own code gave it stays "not sized by the user".
+    const bool was_auto = dialog_ptr->property(kShapeAppearanceAutoSizeProperty).toSize() == current;
     dialog_ptr->resize(grown);
+    if (was_auto) {
+      dialog_ptr->setProperty(kShapeAppearanceAutoSizeProperty, dialog_ptr->size());
+    }
     if (screen == nullptr) {
       return;
     }

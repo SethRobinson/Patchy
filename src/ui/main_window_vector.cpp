@@ -4042,9 +4042,12 @@ void MainWindow::show_vector_paint_menu(bool for_stroke) {
     connect(action, &QAction::triggered, this, callback);
     return action;
   };
-  // No Fill leads the Fill menu (Seth, November 13, 2026); the stroke has no "none" paint,
-  // its width of 0 and the Fill only button turn it off.
-  if (!for_stroke) {
+  // No Fill is not on the bars with the Fill only / Stroke only / Both buttons (Seth, November
+  // 13, 2026): picked there with the stroke off it left a shape that draws nothing and no
+  // button checked. On those bars Stroke only turns the fill off, and Shape Appearance keeps
+  // its No Fill. The Pen, Line and the path selection tools have no such buttons, so their
+  // Fill menu still leads with it. The stroke has no "none" paint: a width of 0 turns it off.
+  if (!for_stroke && !shape_tool_has_draw_modes(current_tool_)) {
     add_kind(tr("No Fill"), "vectorFillNoneAction", VectorFillKind::None, [this] {
       if (shape_pixel_options_ != nullptr && current_vector_fill_.kind != VectorFillKind::None) {
         shape_pixel_options_->fill_restore_kind = current_vector_fill_.kind;  // what Both brings back
