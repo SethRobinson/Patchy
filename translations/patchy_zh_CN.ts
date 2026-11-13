@@ -15893,6 +15893,10 @@ Do you want to replace it?</source>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>此窗口打开时，使用任何工具都会在画布上显示此渐变的手柄。拖动手柄可移动渐变及其色标。一次只有一个渐变显示手柄。</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>此文档保留的文本引擎无法存储新的路径文本。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

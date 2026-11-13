@@ -31,6 +31,7 @@ std::vector<patchy::test::TestCase> psd_structure_tests();
 std::vector<patchy::test::TestCase> psd_text_tests();
 std::vector<patchy::test::TestCase> psd_legacy_text_tests();
 std::vector<patchy::test::TestCase> text_engine_block_tests();
+std::vector<patchy::test::TestCase> text_path_tests();
 std::vector<patchy::test::TestCase> layer_metadata_tests();
 std::vector<patchy::test::TestCase> guide_layout_tests();
 std::vector<patchy::test::TestCase> layer_alignment_tests();

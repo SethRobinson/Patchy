@@ -54,6 +54,16 @@ b1dec0f0e70cf53e photoshop-lmfx-multi-stroke.psd
 bba7929db0b2f2fc photoshop-outer-glow-range.psd
 4f1b4c4465ef0d85 photoshop-outer-glow.psd
 849ec64ba0dc8195 photoshop-overlay-zorder.psd
+73e673841c102c7a photoshop-path-baseline-shift.psd
+39a3ff5c10ef2560 photoshop-path-cal-arc-range.psd
+3760235d8398944f photoshop-path-cal-right-range.psd
+1ab4a5bf9c55a895 photoshop-path-center.psd
+d975694dc3e6a4bd photoshop-path-ellipse-range.psd
+512c2fc809d75dfb photoshop-path-mixed.psd
+b449c49f98b6d9f0 photoshop-path-open-curve.psd
+a938149627b4c246 photoshop-path-overflow.psd
+ee6fabf117b76897 photoshop-path-rotated.psd
+a794b4abf66dad67 photoshop-path-wave-range.psd
 62ecf69de1f5fd17 photoshop-pattern-anchor.psd
 395b5e9380e351a2 photoshop-pattern-bevel-roundtrip.psd
 8079ceeee4effb85 photoshop-pattern-deep.psd

@@ -17,6 +17,7 @@
 #include <QColor>
 #include <QCursor>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
 #include <QPoint>
@@ -561,21 +562,38 @@ void CanvasWidget::update_tool_cursor() {
       setCursor(Qt::SizeAllCursor);
       return;
     }
-    if (text_area_at(document_position(last_mouse_position_))) {
-      static const QCursor area_cursor = [] {
-        QPixmap pixmap(25, 25);
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        painter.setRenderHint(QPainter::Antialiasing);
-        for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {
-          painter.setPen(pen);
-          painter.drawEllipse(QRectF(2, 2, 20, 20));
-          painter.drawLine(12, 6, 12, 18);
-          painter.drawLine(9, 6, 15, 6);
-          painter.drawLine(9, 18, 15, 18);
-        }
-        return QCursor(pixmap, 12, 12);
-      }();
+    // A 25 px Type tool cursor: the shape stroked twice, a white halo under a black line.
+    const auto outlined_cursor = [](QPoint hot_spot, const auto& draw) {
+      QPixmap pixmap(25, 25);
+      pixmap.fill(Qt::transparent);
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing);
+      for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        draw(painter);
+      }
+      return QCursor(pixmap, hot_spot.x(), hot_spot.y());
+    };
+    if (text_path_at(QPointF(document_position(last_mouse_position_)))) {
+      // An I-beam standing on a wavy line: the click sets text along this path.
+      static const QCursor path_cursor = outlined_cursor(QPoint(12, 18), [](QPainter& painter) {
+        QPainterPath wave;
+        wave.moveTo(2.0, 21.0);
+        wave.cubicTo(8.0, 13.0, 16.0, 25.0, 23.0, 16.0);
+        painter.drawPath(wave);
+        painter.drawLine(12, 3, 12, 15);
+        painter.drawLine(9, 3, 15, 3);
+        painter.drawLine(9, 15, 15, 15);
+      });
+      setCursor(path_cursor);
+    } else if (text_area_at(document_position(last_mouse_position_))) {
+      static const QCursor area_cursor = outlined_cursor(QPoint(12, 12), [](QPainter& painter) {
+        painter.drawEllipse(QRectF(2, 2, 20, 20));
+        painter.drawLine(12, 6, 12, 18);
+        painter.drawLine(9, 6, 15, 6);
+        painter.drawLine(9, 18, 15, 18);
+      });
       setCursor(area_cursor);
     } else {
       setCursor(theme_tool_cursor(tool_).value_or(QCursor(Qt::IBeamCursor)));

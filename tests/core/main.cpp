@@ -158,6 +158,7 @@ int main(int argc, char** argv) {
            psd_text_tests,
            psd_legacy_text_tests,
            text_engine_block_tests,
+           text_path_tests,
            layer_metadata_tests,
            guide_layout_tests,
            layer_alignment_tests,

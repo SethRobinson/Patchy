@@ -3,6 +3,7 @@
 #include "ui/text_language_font.hpp"
 #include "ui/text_layout.hpp"
 #include "ui/text_area_layout.hpp"
+#include "ui/text_path_layout.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
 #include "core/pixel_grid.hpp"
@@ -1653,6 +1654,11 @@ bool text_format_has_render_features(const QTextCharFormat& format) {
 // through this same function (build_text_editor_document_space_layout), so the painted glyphs and
 // the caret geometry always come from one identical document -- any divergence in construction
 // (formats, blank-line heights, wrapping width) shows up as the caret drifting off the text.
+bool text_settings_on_path(const TextToolSettings& settings) {
+  return settings.path.has_value() && !settings.vertical && !settings.area.has_value() &&
+         valid_text_path(*settings.path);
+}
+
 TextRenderDocument build_text_render_document(const TextToolSettings& settings, QColor color,
                                               std::int32_t max_width, const QString& paragraph_runs,
                                               const QString& rich_text_runs, double metric_scale,
@@ -1668,7 +1674,12 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
       settings.italic, settings.anti_alias);
   scale_font_width(result.font, metric_scale);
 
-  result.text_width = settings.boxed
+  // Text along a path wraps at the arc length of its range and shows its first line only.
+  const bool on_path = text_settings_on_path(settings);
+  const double path_width =
+      on_path ? text_path_layout_width(*settings.path, settings.path_range, box_scale) : 0.0;
+  result.text_width = on_path ? std::max(1, static_cast<int>(std::ceil(path_width)))
+                      : settings.boxed
                           ? std::max(kMinimumTextBoxDocumentSize,
                                      static_cast<int>(std::lround(settings.box_width * box_scale)))
                           : std::max(64, max_width);
@@ -1690,7 +1701,9 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
   QTextOption option;
   // Vertical text is laid out horizontally with NoWrap for shaping only; the vertical plan
   // wraps it by cells at the frame height.
-  option.setWrapMode(settings.boxed && !settings.vertical ? QTextOption::WordWrap : QTextOption::NoWrap);
+  // A word longer than the path range breaks inside the word, as Photoshop cuts it.
+  option.setWrapMode(on_path ? QTextOption::WrapAtWordBoundaryOrAnywhere
+                     : settings.boxed && !settings.vertical ? QTextOption::WordWrap : QTextOption::NoWrap);
   option.setUseDesignMetrics(true);
   document.setDefaultTextOption(option);
   if (!rich_text_runs.trimmed().isEmpty()) {
@@ -1726,7 +1739,8 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
   // content, which -- when max_width is a layer's already-scaled pixel bounds -- inflated the rendered
   // image and, after the document transform re-scaled it, produced a free-transform rect several times
   // wider than the glyphs.  Use -1 (auto) for point text so size().width() is the ideal content width.
-  document.setTextWidth(settings.boxed && !settings.vertical ? static_cast<qreal>(result.text_width) : -1.0);
+  document.setTextWidth(on_path ? static_cast<qreal>(path_width)
+                        : settings.boxed && !settings.vertical ? static_cast<qreal>(result.text_width) : -1.0);
   if (!paragraph_runs.trimmed().isEmpty()) {
     apply_paragraph_runs_to_document(document, paragraph_runs, layout_scale);
   }
@@ -1738,7 +1752,7 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     apply_justify_all_to_document(document);
   }
   apply_text_smoothing_to_document(document, settings.anti_alias);
-  if (!settings.boxed || settings.vertical) {
+  if (!on_path && (!settings.boxed || settings.vertical)) {
     // Qt only honors paragraph alignment against a finite layout width; leaving point text
     // unconstrained (-1) silently lays every line out flush-left, so centered/right-justified
     // multi-line point text (Photoshop aligns each line around the type anchor) collapsed to

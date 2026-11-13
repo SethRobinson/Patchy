@@ -1083,6 +1083,91 @@ QJSValue ScriptLayerObject::text_area() const {
   });
 }
 
+// The {start, end} of a path range option, in segment units; throws through script_vector.
+static TextPathRange script_text_path_range(const QJSValue& value, const VectorPath& path, const QString& name) {
+  const auto start = value.property(QStringLiteral("start"));
+  const auto end = value.property(QStringLiteral("end"));
+  if (!value.isObject() || !start.isNumber() || !end.isNumber() || !std::isfinite(start.toNumber()) ||
+      !std::isfinite(end.toNumber()) || !(end.toNumber() > start.toNumber())) {
+    script_vector::invalid(name + QStringLiteral(".startEnd"));
+  }
+  const TextPathRange requested{start.toNumber(), end.toNumber()};
+  const auto count = static_cast<double>(text_path_segment_count(path));
+  const bool closed = !path.subpaths.empty() && path.subpaths.front().closed;
+  if (requested.start < 0.0 || requested.start > count || (!closed && requested.end > count) ||
+      (closed && requested.end - requested.start > count)) {
+    script_vector::invalid(name + QStringLiteral(".outsidePath"));
+  }
+  return normalized_text_path_range(path, requested);
+}
+
+QJSValue ScriptLayerObject::text_path() const {
+  return script_vector::guarded(host_, [&]() -> QJSValue {
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_);
+    const auto path = text_path_in_document(layer);
+    return path ? script_vector::to_js(host_, script_vector::path_json(*path)) : QJSValue(QJSValue::NullValue);
+  });
+}
+
+void ScriptLayerObject::set_text_path(const QJSValue& value) {
+  script_vector::guarded(host_, [&] {
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_, true);
+    if (!layer_is_text(layer) || text_geometry_is_protected(layer)) script_vector::invalid(QStringLiteral("textPath.layer"));
+    std::optional<TextPathFrame> frame;
+    if (!value.isNull()) {
+      auto path = script_vector::parse_path(script_vector::object(value), false);
+      if (!valid_text_path(path)) script_vector::invalid(QStringLiteral("textPath.oneContour"));
+      // The range a path-text layer already has stays, in segment units, when the new contour
+      // has as many segments; any other assignment starts from the whole contour.
+      auto range = full_text_path_range(path);
+      if (const auto current = text_path_frame_for_layer(layer);
+          current && text_path_segment_count(current->path) == text_path_segment_count(path) &&
+          current->path.subpaths.front().closed == path.subpaths.front().closed) {
+        range = current->range;
+      }
+      frame = TextPathFrame{std::move(path), range};
+    }
+    if (!host_.set_text_layer_path(session_id_, layer_id_, frame)) script_vector::invalid(QStringLiteral("textPath"));
+  });
+}
+
+QJSValue ScriptLayerObject::text_path_range() const {
+  return script_vector::guarded(host_, [&]() -> QJSValue {
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_);
+    const auto frame = text_path_frame_for_layer(layer);
+    if (!frame) return QJSValue(QJSValue::NullValue);
+    return script_vector::to_js(host_, QJsonObject{{QStringLiteral("start"), frame->range.start},
+                                                   {QStringLiteral("end"), frame->range.end}});
+  });
+}
+
+void ScriptLayerObject::set_text_path_range(const QJSValue& value) {
+  script_vector::guarded(host_, [&] {
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_, true);
+    const auto path = text_path_in_document(layer);
+    if (!layer_is_text(layer) || text_geometry_is_protected(layer) || !path) {
+      script_vector::invalid(QStringLiteral("textPathRange.layer"));
+    }
+    const TextPathFrame frame{*path, script_text_path_range(value, *path, QStringLiteral("textPathRange"))};
+    if (!host_.set_text_layer_path(session_id_, layer_id_, frame)) script_vector::invalid(QStringLiteral("textPathRange"));
+  });
+}
+
+void ScriptLayerObject::flipTextPath() {
+  script_vector::guarded(host_, [&] {
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_, true);
+    const auto path = text_path_in_document(layer);
+    const auto current = text_path_frame_for_layer(layer);
+    if (!layer_is_text(layer) || text_geometry_is_protected(layer) || !path || !current) {
+      script_vector::invalid(QStringLiteral("flipTextPath.layer"));
+    }
+    // The contour walked the other way: the text runs back along the same stretch, on the
+    // other side of the line.
+    const TextPathFrame frame{reversed_text_path(*path), reversed_text_path_range(current->path, current->range)};
+    if (!host_.set_text_layer_path(session_id_, layer_id_, frame)) script_vector::invalid(QStringLiteral("flipTextPath"));
+  });
+}
+
 void ScriptLayerObject::set_text_area(const QJSValue& value) {
   script_vector::guarded(host_, [&] {
     std::optional<VectorPath> area;
@@ -3228,6 +3313,23 @@ QJSValue ScriptDocumentObject::addTextLayer(const QJSValue& text, const QJSValue
         if (params.box.isValid()) script_vector::invalid(QStringLiteral("area/box"));
         params.area = script_vector::parse_path(script_vector::object(area), false);
         if (!valid_text_area(*params.area)) script_vector::invalid(QStringLiteral("area.closedContour"));
+      } catch (const std::exception& error) {
+        host_.throw_js_error(ScriptEngineHost::tr("Invalid vector option or target: %1.").arg(QString::fromUtf8(error.what())));
+        return QJSValue();
+      }
+    }
+    if (const auto path = options.property(QStringLiteral("path")); !path.isUndefined() && !path.isNull()) {
+      try {
+        if (params.box.isValid()) script_vector::invalid(QStringLiteral("path/box"));
+        if (params.area.has_value()) script_vector::invalid(QStringLiteral("path/area"));
+        auto contour = script_vector::parse_path(script_vector::object(path), false);
+        if (!valid_text_path(contour)) script_vector::invalid(QStringLiteral("path.oneContour"));
+        auto range = full_text_path_range(contour);
+        if (const auto requested = options.property(QStringLiteral("pathRange"));
+            !requested.isUndefined() && !requested.isNull()) {
+          range = script_text_path_range(requested, contour, QStringLiteral("pathRange"));
+        }
+        params.path = TextPathFrame{std::move(contour), range};
       } catch (const std::exception& error) {
         host_.throw_js_error(ScriptEngineHost::tr("Invalid vector option or target: %1.").arg(QString::fromUtf8(error.what())));
         return QJSValue();

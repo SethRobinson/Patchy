@@ -65,6 +65,7 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests();
 std::vector<patchy::test::TestCase> text_vertical_rtl_tests();
 std::vector<patchy::test::TestCase> text_rtl_psd_tests();
 std::vector<patchy::test::TestCase> text_area_tests();
+std::vector<patchy::test::TestCase> text_path_tests();
 std::vector<patchy::test::TestCase> text_canvas_session_tests();
 std::vector<patchy::test::TestCase> text_color_targets_tests();
 std::vector<patchy::test::TestCase> text_character_styles_tests();

@@ -103,7 +103,7 @@ embedded smart-object PSD in its `lnk2` block, not at document level).
 | `/0/2`, `/0/3`, `/0/4` | MojiKumi / MojiKumiSet (9) / KinsokuSet (6) | boilerplate, identical across captures |
 | `/0/5/0[]` | StyleSheetSet | `/0` name ("Normal RGB", "None"), `/6` the 93-key style sheet |
 | `/0/6/0[]` | ParagraphSheetSet | `/0` name ("Normal RGB", "Basic Paragraph"), `/5` the 44-key paragraph sheet, `/6` default style sheet index |
-| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update); `/0/2/10` the first-baseline rule, see [Box first baseline](#box-first-baseline) |
+| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)), the start and end range in a path frame, whose `/0/2/0` is 2 ([path-text.md](path-text.md#records-in-a-psd)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update); `/0/2/10` the first-baseline rule, see [Box first baseline](#box-first-baseline) |
 | `/0/9/0[]` | ListStyleSet | 11 predefined list styles, `/0` name, `/6` numbering kind; index is what a paragraph's `/36` references |
 | `/1` | DocumentObjects | |
 | `/1/4` | engine version | `/0 7 /1 11 /2 0 /3 (Photoshop)` |

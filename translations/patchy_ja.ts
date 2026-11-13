@@ -15893,6 +15893,10 @@ Do you want to replace it?</source>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>このウィンドウを開いている間、どのツールでもこのグラデーションのハンドルをキャンバスに表示します。ドラッグしてグラデーションと分岐点を移動できます。ハンドルを表示できるグラデーションは一度に 1 つです。</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>このドキュメントに保持されているテキストエンジンのデータでは、新しいパス上テキストを保存できません。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

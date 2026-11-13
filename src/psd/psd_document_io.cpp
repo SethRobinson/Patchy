@@ -14,6 +14,7 @@
 #include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
 #include "core/text_area.hpp"
+#include "core/text_path.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_artboard.hpp"
 #include "psd/psd_binary.hpp"
@@ -71,7 +72,7 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
   for (auto& encoded : encoded_layers) {
     if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel && layer_is_text(*encoded.layer)) {
       const auto text = encoded.layer->metadata().find(kLayerMetadataText);
-      if (text != encoded.layer->metadata().end() && (!text->second.empty() || text_area_for_layer(*encoded.layer))) {
+      if (text != encoded.layer->metadata().end() && (!text->second.empty() || text_layer_has_contour(*encoded.layer))) {
         text_layers.push_back(&encoded);
       }
     }
@@ -95,9 +96,16 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
   const bool has_area_text = std::any_of(text_layers.begin(), text_layers.end(), [](const auto* encoded) {
     return text_area_for_layer(*encoded->layer).has_value();
   });
+  // Path text lives only in the block too (docs/path-text.md).
+  const bool has_path_text = std::any_of(text_layers.begin(), text_layers.end(), [](const auto* encoded) {
+    return text_path_for_layer(*encoded->layer).has_value();
+  });
   if (keeps_legacy_type_record && !has_preserved_block) {
     if (has_area_text) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new area text."));
+    }
+    if (has_path_text) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new text on a path."));
     }
     return std::nullopt;
   }
@@ -127,6 +135,9 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
       if (!block.has_value() && !every_type_record_is_regenerated) {
         if (has_area_text) {
           throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new area text."));
+        }
+        if (has_path_text) {
+          throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new text on a path."));
         }
         return std::nullopt;
       }
@@ -686,7 +697,8 @@ struct ImportedTextFrames {
     const auto kind = index >= 0 && static_cast<std::size_t>(index) < frames.size()
                                           ? frames[static_cast<std::size_t>(index)].kind
                                           : TextFrameGeometry::Kind::Unsupported;
-    return kind == TextFrameGeometry::Kind::Area || kind == TextFrameGeometry::Kind::Unsupported;
+    return kind == TextFrameGeometry::Kind::Area || kind == TextFrameGeometry::Kind::Path ||
+           kind == TextFrameGeometry::Kind::Unsupported;
   }
 };
 

@@ -1,6 +1,7 @@
 #pragma once
 // Text document construction and run formatting shared by editing and rendering.
 // No window or canvas ownership crosses this interface.
+#include "core/text_path.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/text_font_service.hpp"
 #include <QColor>
@@ -26,6 +27,10 @@ inline constexpr int kMinimumTextBoxDocumentSize = 16;
   constexpr double kMatrixNoise = 1e-6;
   return std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(extent - kMatrixNoise)));
 }
+// True when the settings describe text along a path (a horizontal story with a valid contour).
+struct TextToolSettings;
+[[nodiscard]] bool text_settings_on_path(const TextToolSettings& settings);
+
 struct TextToolSettings {
   QString text;
   QString html;
@@ -44,6 +49,10 @@ struct TextToolSettings {
   // columns that advance right to left. See ui/text_layout.hpp.
   bool vertical{false};
   std::optional<VectorPath> area{std::nullopt};
+  // Text along a path (docs/path-text.md): the contour in text-local coordinates and the range
+  // the first line is set in. Excludes `area` and `boxed`; vertical type is not set on paths.
+  std::optional<VectorPath> path{std::nullopt};
+  TextPathRange path_range{};
   // Box text normally hides the lines whose baseline is past the frame (GitHub issue 621). The
   // imported-text metric calibration keeps them: a too-wide substituted font shows as extra lines.
   bool keep_overflow_lines{false};

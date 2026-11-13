@@ -189,6 +189,7 @@
 #include "ui/text_layout.hpp"
 #include "ui/text_area_layout.hpp"
 #include "core/text_area.hpp"
+#include "core/text_path.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/animation_preview_window.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -256,6 +257,68 @@ constexpr auto kTextEditorAreaProperty = "patchy.documentTextArea";
 std::optional<VectorPath> text_editor_area(const QTextEdit& editor) {
   auto area = parse_vector_path(editor.property(kTextEditorAreaProperty).toString().toStdString());
   return area && valid_text_area(*area) ? std::move(area) : std::nullopt;
+}
+
+// Text along a path (docs/path-text.md): the session's contour in text-local coordinates and
+// the range its line is set in. Excludes the area contour.
+// How far from its contour (document pixels) a click still re-edits the active path text.
+constexpr double kTextPathClickReach = 6.0;
+constexpr auto kTextEditorPathProperty = "patchy.documentTextPath";
+constexpr auto kTextEditorPathRangeProperty = "patchy.documentTextPathRange";
+
+bool text_editor_is_vertical(const QTextEdit& editor);
+
+std::optional<TextPathFrame> text_editor_path(const QTextEdit& editor) {
+  const auto serialized = editor.property(kTextEditorPathProperty).toString();
+  // Vertical type is not set on paths: a session switched to vertical is plain vertical text in
+  // the contour's bounds, and its commit drops the path (store_patchy_text_metadata).
+  if (serialized.isEmpty() || text_editor_is_vertical(editor)) {
+    return std::nullopt;
+  }
+  auto path = parse_vector_path(serialized.toStdString());
+  if (!path || !valid_text_path(*path)) {
+    return std::nullopt;
+  }
+  const auto range = parse_text_path_range(editor.property(kTextEditorPathRangeProperty).toString().toStdString());
+  const auto normalized = normalized_text_path_range(*path, range.value_or(full_text_path_range(*path)));
+  return TextPathFrame{std::move(*path), normalized};
+}
+
+void set_text_editor_path_properties(QTextEdit& editor, const std::optional<TextPathFrame>& frame) {
+  if (frame.has_value()) {
+    editor.setProperty(kTextEditorPathProperty, QString::fromStdString(serialize_vector_path(frame->path)));
+    editor.setProperty(kTextEditorPathRangeProperty,
+                       QString::fromStdString(serialize_text_path_range(frame->range)));
+  } else {
+    editor.setProperty(kTextEditorPathProperty, QVariant());
+    editor.setProperty(kTextEditorPathRangeProperty, QVariant());
+  }
+}
+
+// True for a session whose lines an owned contour places (area text or path text): it edits
+// through the transformed overlay and has no rectangular frame to resize or turn.
+bool text_editor_has_contour(const QTextEdit& editor) {
+  return text_editor_area(editor).has_value() || text_editor_path(editor).has_value();
+}
+
+// The session's area contour or path, onto the settings a render or a layout is built from.
+void apply_text_editor_contour(TextToolSettings& settings, const QTextEdit& editor) {
+  settings.area = text_editor_area(editor);
+  if (auto frame = text_editor_path(editor)) {
+    settings.path = std::move(frame->path);
+    settings.path_range = frame->range;
+  }
+}
+
+// The session's path line plan over its cached 1:1 layout; nothing for other sessions.
+std::optional<TextPathLinePlan> text_editor_path_line_plan(const QTextEdit& editor,
+                                                           const QTextDocument& layout_document) {
+  const auto frame = text_editor_path(editor);
+  if (!frame.has_value()) {
+    return std::nullopt;
+  }
+  auto plan = text_path_line_plan(layout_document, frame->path, frame->range);
+  return plan.valid ? std::optional<TextPathLinePlan>(std::move(plan)) : std::nullopt;
 }
 
 constexpr auto kTextEditorOrientationProperty = "patchy.documentTextOrientation";
@@ -1077,7 +1140,7 @@ std::unique_ptr<QTextDocument> build_text_editor_document_space_layout(const QTe
                             text_height};
   settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   settings.vertical = text_editor_is_vertical(editor);
-  settings.area = text_editor_area(editor);
+  apply_text_editor_contour(settings, editor);
   const auto rich_text_runs = rich_text_runs_from_document(*source_units, settings, color);
   const auto paragraph_runs = paragraph_runs_from_document(*source_units);
   // The scales MUST mirror the render pass (update_text_editor_preview / commit_text_editor).
@@ -1146,6 +1209,11 @@ TextLineGeometry text_editor_line_geometry(const QTextEdit& editor, const QTextD
   if (const auto area = text_editor_area(editor)) {
     return TextLineGeometry::from_lines(layout_document, area_text_layout_plan(layout_document, *area).lines);
   }
+  // Path text: the one line in straight space (ui/text_path_layout.hpp); callers that draw or
+  // hit-test bend it with the same plan.
+  if (const auto plan = text_editor_path_line_plan(editor, layout_document)) {
+    return TextLineGeometry::from_lines(layout_document, {plan->line});
+  }
   return TextLineGeometry::build(layout_document,
                                  text_flow_is_box(editor.property("patchy.documentTextFlow").toString()),
                                  text_editor_uses_photoshop_layout(editor));
@@ -1161,6 +1229,10 @@ int text_editor_position_at_local_point(const QTextEdit& editor, QPointF local_p
   const auto* layout_document = text_editor_document_space_layout(editor, zoom);
   if (layout_document == nullptr) {
     return editor.textCursor().position();
+  }
+  if (const auto plan = text_editor_path_line_plan(editor, *layout_document)) {
+    // The click resolves from the nearest point of the contour.
+    local_point = plan->unmap(local_point);
   }
   return text_editor_line_geometry(editor, *layout_document).position_at(local_point);
 }
@@ -1348,6 +1420,19 @@ class TransformedTextEditOverlay final : public QWidget {
     int height{kMinimumTextBoxDocumentSize};
   };
 
+  // Path text (docs/path-text.md) has no box: three marks on the contour instead. Start and
+  // End slide the ends of the range along it; Middle slides the whole range and, dragged to the
+  // other side of the line, flips the text there (the contour reversed).
+  enum class PathHandle { None, Start, End, Middle };
+
+  struct PathDragState {
+    PathHandle handle{PathHandle::None};
+    TextPathFrame start_frame;
+    double press_distance{0.0};  // arc length of the press point on start_frame's contour
+  };
+  static constexpr double kPathHandleRadius = 4.5;
+  static constexpr double kPathHandleHitRadius = 9.0;
+
   static constexpr std::array<ResizeHandle, 4> kCornerHandles = {
       ResizeHandle::TopLeft,
       ResizeHandle::TopRight,
@@ -1455,10 +1540,26 @@ public:
     auto mask = QRegion(mask_polygon);
     QVariantList handle_centers;
     for (const auto handle : kCornerHandles) {
+      if (!resize_handle_shown(handle)) {
+        handle_centers.push_back(QVariant());  // path text has no box handles
+        continue;
+      }
       const auto handle_rect = resize_handle_rect(handle);
       mask = mask.united(QRegion(handle_rect.toAlignedRect()));
       handle_centers.push_back(handle_rect.center() + origin);
     }
+    // Start, End, Middle in canvas coordinates; empty for any other session.
+    QVariantList path_handle_centers;
+    if (shown_path().has_value()) {
+      for (const auto handle : {PathHandle::Start, PathHandle::End, PathHandle::Middle}) {
+        const auto center = path_handle_center(handle);
+        const QRectF hit(center.x() - kPathHandleHitRadius, center.y() - kPathHandleHitRadius,
+                         2.0 * kPathHandleHitRadius, 2.0 * kPathHandleHitRadius);
+        mask = mask.united(QRegion(hit.toAlignedRect()));
+        path_handle_centers.push_back(center + origin);
+      }
+    }
+    setProperty("patchy.transformedTextPathHandleCenters", path_handle_centers);
     // Top, Bottom, Left, Right (issue 684); an invalid entry is a side hidden on a short edge.
     QVariantList side_handle_centers;
     for (const auto handle : kSideHandles) {
@@ -1498,7 +1599,7 @@ public:
       return false;
     }
     const QPointF overlay_point = canvas_point - QPointF(geometry().topLeft());
-    if (selecting_ || resize_drag_.has_value()) {
+    if (selecting_ || resize_drag_.has_value() || path_drag_.has_value()) {
       return event_type == QEvent::MouseMove || event_type == QEvent::MouseButtonRelease;
     }
     if (event_type == QEvent::MouseButtonRelease) {
@@ -1507,8 +1608,13 @@ public:
     if (event_type == QEvent::MouseMove && (buttons & Qt::LeftButton) != 0) {
       return false;
     }
-    if (resize_handle_at(overlay_point) != ResizeHandle::None) {
+    if (resize_handle_at(overlay_point) != ResizeHandle::None || path_handle_at(overlay_point) != PathHandle::None) {
       return true;
+    }
+    if (shown_path().has_value()) {
+      // Path text takes a press only on its handles or near its line, so a click anywhere
+      // else inside the contour's bounds still clicks off.
+      return overlay_point_near_path(overlay_point);
     }
     if (!rect().adjusted(-2, -2, 2, 2).contains(overlay_point.toPoint())) {
       return false;
@@ -1623,6 +1729,18 @@ protected:
       event->ignore();
       return;
     }
+    if (const auto handle = path_handle_at(event->position()); handle != PathHandle::None) {
+      if (const auto frame = text_editor_path(*editor_)) {
+        QToolTip::hideText();
+        editor_->setFocus(Qt::MouseFocusReason);
+        const auto local = map_overlay_point_to_editor(event->position()).value_or(QPointF()) / zoom();
+        path_drag_ = PathDragState{handle, *frame,
+                                   TextPathCurve(frame->path).nearest(local.x(), local.y()).distance};
+        path_preview_.reset();
+        event->accept();
+        return;
+      }
+    }
     if (const auto handle = resize_handle_at(event->position()); handle != ResizeHandle::None) {
       QToolTip::hideText();
       editor_->setFocus(Qt::MouseFocusReason);
@@ -1683,6 +1801,14 @@ protected:
   }
 
   void mouseMoveEvent(QMouseEvent* event) override {
+    if (path_drag_.has_value()) {
+      // Only the overlay moves during the drag (the marks and the dashed line); the text is
+      // laid out once, on release, like a box resize.
+      path_preview_ = path_frame_for_drag(event->position());
+      sync_geometry();
+      event->accept();
+      return;
+    }
     if (resize_drag_.has_value()) {
       if (const auto geometry = resize_geometry_for_event(event); geometry.has_value()) {
         resize_preview_transform_ = geometry->transform;
@@ -1712,6 +1838,20 @@ protected:
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton && path_drag_.has_value()) {
+      const auto frame = path_frame_for_drag(event->position());
+      const bool changed = frame.has_value() && !(*frame == path_drag_->start_frame);
+      path_drag_.reset();
+      path_preview_.reset();
+      if (changed && editor_ != nullptr) {
+        set_text_editor_path_properties(*editor_, frame);
+        schedule_resize_callback();
+      }
+      sync_geometry();
+      update_hover_cursor(event->position(), event->modifiers());
+      event->accept();
+      return;
+    }
     if (event->button() == Qt::LeftButton && resize_drag_.has_value()) {
       resize_text_box(event);
       resize_drag_.reset();
@@ -1801,6 +1941,16 @@ private:
 
   [[nodiscard]] QRect editor_local_rect() const {
     if (editor_ != nullptr) {
+      if (const auto frame = shown_path()) {
+        // The contour's bounds grown by the room glyphs take either side of the line.
+        if (const auto bounds = frame->path.bounds()) {
+          const double reach = path_text_reach();
+          return QRectF((bounds->left - reach) * zoom(), (bounds->top - reach) * zoom(),
+                        (bounds->right - bounds->left + 2.0 * reach) * zoom(),
+                        (bounds->bottom - bounds->top + 2.0 * reach) * zoom())
+              .toAlignedRect();
+        }
+      }
       if (const auto area = text_editor_area(*editor_)) {
         const auto bounds = area->bounds();
         if (bounds && bounds->right > bounds->left && bounds->bottom > bounds->top) {
@@ -1813,7 +1963,7 @@ private:
   }
 
   [[nodiscard]] QRectF editor_visual_rect() const {
-    if (editor_ != nullptr && text_editor_area(*editor_)) return QRectF(editor_local_rect());
+    if (editor_ != nullptr && text_editor_has_contour(*editor_)) return QRectF(editor_local_rect());
     if (resize_preview_document_size_.has_value()) {
       const auto current_zoom = zoom();
       return QRectF(0.0, 0.0, resize_preview_document_size_->width() * current_zoom,
@@ -1844,6 +1994,9 @@ private:
     }
     const auto editor_point = map_overlay_point_to_editor(overlay_point);
     if (!editor_point.has_value() || !editor_local_rect().adjusted(-4, -4, 4, 4).contains(editor_point->toPoint())) {
+      return std::nullopt;
+    }
+    if (shown_path().has_value() && !selecting_ && !overlay_point_near_path(overlay_point)) {
       return std::nullopt;
     }
     // map_canvas_point_to_editor hands back text-local coordinates scaled by the canvas zoom;
@@ -1927,6 +2080,9 @@ private:
   // one-line frame places the caret instead of grabbing the top or bottom handle. A short
   // or thin box keeps just its corners.
   [[nodiscard]] bool resize_handle_shown(ResizeHandle handle) const {
+    if (editor_ != nullptr && text_editor_path(*editor_).has_value()) {
+      return false;  // path text: the marks on the contour replace the box handles
+    }
     const auto direction = handle_direction(handle);
     if (direction.x() != 0.0 && direction.y() != 0.0) {
       return true;
@@ -2053,10 +2209,261 @@ private:
       setCursor(corner_rotate_cursor(*direction));
       return;
     }
+    if (path_handle_at(point) != PathHandle::None) {
+      setCursor(Qt::PointingHandCursor);
+      return;
+    }
     const auto handle = resize_handle_at(point);
     // Ctrl+drag moves the text (GitHub issue 216); the resize handles keep their cursors.
     setCursor(handle == ResizeHandle::None && modifiers.testFlag(Qt::ControlModifier) ? Qt::SizeAllCursor
                                                                                      : cursor_for_handle(handle));
+  }
+
+  // ---- Path text (docs/path-text.md) ----
+
+  struct PathSessionGeometry {
+    TextPathLinePlan plan;
+    TextLineGeometry geometry;
+  };
+
+  // The contour and range the overlay shows: the one being dragged, else the session's.
+  [[nodiscard]] std::optional<TextPathFrame> shown_path() const {
+    if (path_preview_.has_value()) {
+      return path_preview_;
+    }
+    return editor_ == nullptr ? std::nullopt : text_editor_path(*editor_);
+  }
+
+  // The session's line plan and the straight-space geometry over it (the cached 1:1 layout).
+  [[nodiscard]] std::optional<PathSessionGeometry> session_path_geometry() const {
+    if (editor_ == nullptr || !text_editor_path(*editor_).has_value()) {
+      return std::nullopt;
+    }
+    double layout_zoom = 1.0;
+    const auto* layout_document = text_editor_document_space_layout(*editor_, layout_zoom);
+    if (layout_document == nullptr) {
+      return std::nullopt;
+    }
+    auto plan = text_editor_path_line_plan(*editor_, *layout_document);
+    if (!plan.has_value()) {
+      return std::nullopt;
+    }
+    auto geometry = TextLineGeometry::from_lines(*layout_document, {plan->line});
+    return PathSessionGeometry{std::move(*plan), std::move(geometry)};
+  }
+
+  // How far either side of the line glyphs can reach, in text-local units.
+  [[nodiscard]] double path_text_reach() const {
+    const auto size = editor_ == nullptr ? 0 : editor_->property("patchy.documentTextSize").toInt();
+    return std::max(12.0, 1.6 * static_cast<double>(std::max(1, size))) + 8.0 / zoom();
+  }
+
+  [[nodiscard]] QPointF map_local_point_to_overlay(QPointF local) const {
+    return map_editor_point_to_canvas(local * zoom()) - QPointF(geometry().topLeft());
+  }
+
+  [[nodiscard]] QPolygonF map_local_polygon_to_overlay(const QPolygonF& local) const {
+    QPolygonF mapped;
+    mapped.reserve(local.size());
+    for (const auto& point : local) {
+      mapped.push_back(map_local_point_to_overlay(point));
+    }
+    return mapped;
+  }
+
+  [[nodiscard]] bool overlay_point_near_path(QPointF overlay_point) const {
+    const auto frame = shown_path();
+    const auto editor_point = map_overlay_point_to_editor(overlay_point);
+    if (!frame.has_value() || !editor_point.has_value()) {
+      return false;
+    }
+    const auto local = *editor_point / zoom();
+    return TextPathCurve(frame->path).nearest(local.x(), local.y()).gap <= path_text_reach();
+  }
+
+  // A mark's centre in overlay coordinates: the range's start, its end, or its middle.
+  [[nodiscard]] QPointF path_handle_center(PathHandle handle) const {
+    const auto frame = shown_path();
+    if (!frame.has_value()) {
+      return {};
+    }
+    const TextPathCurve curve(frame->path);
+    const auto span = text_path_span(curve, frame->range);
+    const double along = handle == PathHandle::Start ? 0.0 : handle == PathHandle::End ? span.length : span.length / 2.0;
+    const auto sample = curve.sample(span.start_distance + along);
+    return map_local_point_to_overlay(QPointF(sample.x, sample.y));
+  }
+
+  [[nodiscard]] PathHandle path_handle_at(QPointF overlay_point) const {
+    if (!shown_path().has_value()) {
+      return PathHandle::None;
+    }
+    auto best = PathHandle::None;
+    double best_distance = kPathHandleHitRadius;
+    for (const auto handle : {PathHandle::Start, PathHandle::End, PathHandle::Middle}) {
+      const auto offset = overlay_point - path_handle_center(handle);
+      const auto distance = std::hypot(offset.x(), offset.y());
+      if (distance <= best_distance) {
+        best = handle;
+        best_distance = distance;
+      }
+    }
+    return best;
+  }
+
+  // The frame a drag has reached, from the frame it started with (never from the last move, so
+  // the result depends only on where the pointer is).
+  [[nodiscard]] std::optional<TextPathFrame> path_frame_for_drag(QPointF overlay_point) const {
+    if (!path_drag_.has_value()) {
+      return std::nullopt;
+    }
+    const auto editor_point = map_canvas_point_to_editor(overlay_point + QPointF(geometry().topLeft()), text_transform_);
+    if (!editor_point.has_value()) {
+      return path_drag_->start_frame;
+    }
+    const auto local = *editor_point / zoom();
+    auto frame = path_drag_->start_frame;
+    const TextPathCurve curve(frame.path);
+    if (!curve.valid()) {
+      return frame;
+    }
+    const auto nearest = curve.nearest(local.x(), local.y());
+    const double count = static_cast<double>(curve.segment_count());
+    // The shortest range a drag leaves: about four pixels of line.
+    const double minimum = std::min(4.0, curve.length() / 2.0);
+    const auto span = text_path_span(curve, frame.range);
+    const auto range_from_distances = [&](double start, double length) {
+      if (!curve.closed()) {
+        start = std::clamp(start, 0.0, std::max(0.0, curve.length() - length));
+        return TextPathRange{curve.parameter_at_distance(start), curve.parameter_at_distance(start + length)};
+      }
+      start = std::fmod(start, curve.length());
+      if (start < 0.0) {
+        start += curve.length();
+      }
+      const double end = start + length;
+      const double end_parameter = end > curve.length() ? curve.parameter_at_distance(end - curve.length()) + count
+                                                         : curve.parameter_at_distance(end);
+      return TextPathRange{curve.parameter_at_distance(start), end_parameter};
+    };
+    switch (path_drag_->handle) {
+      case PathHandle::Start: {
+        double length = span.start_distance + span.length - nearest.distance;
+        if (curve.closed()) {
+          length = std::fmod(length, curve.length());
+          if (length <= 0.0) {
+            length += curve.length();
+          }
+        }
+        length = std::clamp(length, minimum, curve.closed() ? curve.length() : span.start_distance + span.length);
+        frame.range = range_from_distances(span.start_distance + span.length - length, length);
+        break;
+      }
+      case PathHandle::End: {
+        double length = nearest.distance - span.start_distance;
+        if (curve.closed()) {
+          length = std::fmod(length, curve.length());
+          if (length <= 0.0) {
+            length += curve.length();
+          }
+        }
+        length = std::clamp(length, minimum, curve.closed() ? curve.length() : curve.length() - span.start_distance);
+        frame.range = range_from_distances(span.start_distance, length);
+        break;
+      }
+      case PathHandle::Middle: {
+        frame.range = range_from_distances(span.start_distance + nearest.distance - path_drag_->press_distance,
+                                           span.length);
+        // Across the line, past half the type size: the text flips to that side.
+        const auto size = editor_ == nullptr ? 0 : editor_->property("patchy.documentTextSize").toInt();
+        if (!nearest.left && nearest.gap > std::max(6.0, 0.5 * static_cast<double>(size))) {
+          const auto reversed_range = reversed_text_path_range(frame.path, frame.range);
+          frame.path = reversed_text_path(frame.path);
+          frame.range = reversed_range;
+        }
+        break;
+      }
+      case PathHandle::None:
+        break;
+    }
+    frame.range = normalized_text_path_range(frame.path, frame.range);
+    return frame;
+  }
+
+  void paint_path_caret(QPainter& painter, const PathSessionGeometry& path) const {
+    const auto caret = path.geometry.caret_rect(text_editor_caret_position(*editor_));
+    const auto caret_width = text_editor_caret_width(*editor_);
+    // A caret rect has no width; one with no height is a position the line does not hold.
+    if (!(caret.height() > 0.0) || caret_width <= 0) {
+      const_cast<TransformedTextEditOverlay*>(this)->setProperty("patchy.transformedTextCaretPolygon", QVariant());
+      return;
+    }
+    // A bar across the line where the caret stands, as wide on screen as any caret.
+    const auto top = map_local_point_to_overlay(path.plan.map(QPointF(caret.left(), caret.top())));
+    const auto bottom = map_local_point_to_overlay(path.plan.map(QPointF(caret.left(), caret.bottom())));
+    const auto along = bottom - top;
+    const auto length = std::hypot(along.x(), along.y());
+    if (!(length > 0.0)) {
+      return;
+    }
+    const QPointF side(-along.y() / length * caret_width / 2.0, along.x() / length * caret_width / 2.0);
+    QPolygonF bar;
+    bar << top - side << top + side << bottom + side << bottom - side;
+    QVariantList canvas_polygon;
+    for (const auto& point : bar) {
+      canvas_polygon.push_back(point + QPointF(geometry().topLeft()));
+    }
+    const_cast<TransformedTextEditOverlay*>(this)->setProperty("patchy.transformedTextCaretPolygon", canvas_polygon);
+    if (!editor_->hasFocus() || !caret_visible()) {
+      return;
+    }
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(editor_->palette().color(QPalette::Text));
+    painter.drawPolygon(bar);
+  }
+
+  void paint_path_controls(QPainter& painter, const TextPathFrame& frame) const {
+    const auto& sub = frame.path.subpaths.front();
+    const auto& anchors = sub.anchors;
+    const auto map = [&](double x, double y) { return map_local_point_to_overlay(QPointF(x, y)); };
+    QPainterPath outline;
+    outline.moveTo(map(anchors.front().anchor_x, anchors.front().anchor_y));
+    const auto segments = static_cast<std::size_t>(text_path_segment_count(frame.path));
+    for (std::size_t i = 0; i < segments; ++i) {
+      const auto& a = anchors[i];
+      const auto& b = anchors[(i + 1) % anchors.size()];
+      outline.cubicTo(map(a.out_x, a.out_y), map(b.in_x, b.in_y), map(b.anchor_x, b.anchor_y));
+    }
+    if (sub.closed) {
+      outline.closeSubpath();
+    }
+    draw_text_box_outline(painter, outline);
+
+    // A short tick at each end of the range, standing on the side the text stands on.
+    const TextPathCurve curve(frame.path);
+    const auto span = text_path_span(curve, frame.range);
+    const double tick = std::max(6.0, 0.6 * editor_->property("patchy.documentTextSize").toInt());
+    painter.setPen(QPen(theme().resize_handle_border, 1.0));
+    for (const double along : {0.0, span.length}) {
+      const auto sample = curve.sample(span.start_distance + along);
+      painter.drawLine(map(sample.x, sample.y), map(sample.x + sample.tangent_y * tick, sample.y - sample.tangent_x * tick));
+    }
+    painter.setBrush(theme().resize_handle_bg);
+    const auto start = path_handle_center(PathHandle::Start);
+    const auto end = path_handle_center(PathHandle::End);
+    const auto middle = path_handle_center(PathHandle::Middle);
+    painter.drawEllipse(start, kPathHandleRadius, kPathHandleRadius);
+    const QRectF end_rect(end.x() - kHandleSize / 2.0 - 1.0, end.y() - kHandleSize / 2.0 - 1.0, kHandleSize + 2.0,
+                          kHandleSize + 2.0);
+    painter.drawRect(end_rect);
+    QPolygonF diamond;
+    diamond << middle + QPointF(0.0, -kPathHandleRadius - 1.0) << middle + QPointF(kPathHandleRadius + 1.0, 0.0)
+            << middle + QPointF(0.0, kPathHandleRadius + 1.0) << middle + QPointF(-kPathHandleRadius - 1.0, 0.0);
+    painter.drawPolygon(diamond);
+    // Text past the end of the range is hidden: the plus on the end mark says so (issue 631).
+    if (!path_preview_.has_value() && editor_->property(kTextEditorHiddenLinesProperty).toBool()) {
+      draw_text_overflow_marker(painter, end_rect);
+    }
   }
 
   [[nodiscard]] bool caret_visible() const {
@@ -2077,6 +2484,13 @@ private:
     highlight.setAlpha(120);
     painter.setPen(Qt::NoPen);
     painter.setBrush(highlight);
+    if (const auto path = session_path_geometry()) {
+      // Straight-space rects bent into strips along the contour.
+      for (const auto& rect : path->geometry.selection_rects(cursor.selectionStart(), cursor.selectionEnd())) {
+        painter.drawPolygon(map_local_polygon_to_overlay(path->plan.strip(rect)));
+      }
+      return;
+    }
     const auto selection_rects =
         text_editor_viewport_selection_rects(*editor_, cursor.selectionStart(), cursor.selectionEnd());
     for (const auto& rect : selection_rects) {
@@ -2085,6 +2499,10 @@ private:
   }
 
   void paint_caret(QPainter& painter) const {
+    if (const auto path = session_path_geometry()) {
+      paint_path_caret(painter, *path);
+      return;
+    }
     auto caret = text_editor_viewport_caret_rect(*editor_);
     const auto caret_width = text_editor_caret_width(*editor_);
     if (caret.isEmpty() || caret_width <= 0) {
@@ -2111,6 +2529,10 @@ private:
   void paint_text_box_controls(QPainter& painter) const {
     const auto rect = editor_visual_rect();
     if (rect.isEmpty()) {
+      return;
+    }
+    if (const auto frame = shown_path()) {
+      paint_path_controls(painter, *frame);
       return;
     }
 
@@ -2279,6 +2701,9 @@ private:
   std::optional<QTransform> resize_preview_transform_;
   std::optional<QSizeF> resize_preview_document_size_;
   std::optional<ResizeDragState> resize_drag_;
+  std::optional<PathDragState> path_drag_;
+  // The frame as dragged, not applied to the session yet.
+  std::optional<TextPathFrame> path_preview_;
   int selection_anchor_{0};
   QElapsedTimer caret_blink_clock_;
   QTimer caret_blink_timer_;
@@ -2492,7 +2917,7 @@ VerticalRenderPlan vertical_render_plan_for_editor(const QTextEdit& editor, cons
   settings.box_height = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextHeight").toInt());
   settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   settings.vertical = true;
-  settings.area = text_editor_area(editor);
+  apply_text_editor_contour(settings, editor);
   // Mirrors build_text_editor_document_space_layout's scales, argument for argument.
   const auto frame_layout_scale =
       settings.photoshop_layout && editor.property("patchy.usesPsdTextFrame").toBool()
@@ -2876,7 +3301,7 @@ std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdi
                             text_height};
   settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   settings.vertical = text_editor_is_vertical(editor);
-  settings.area = text_editor_area(editor);
+  apply_text_editor_contour(settings, editor);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
@@ -3083,7 +3508,7 @@ std::optional<RenderedTextPixels> render_text_editor_pixels_for_source_anchor(co
                             text_height};
   settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   settings.vertical = text_editor_is_vertical(editor);
-  settings.area = text_editor_area(editor);
+  apply_text_editor_contour(settings, editor);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
@@ -3169,7 +3594,8 @@ std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
   const bool fractional_translation =
       settings.photoshop_layout && !settings.vertical &&
       std::abs(text_transform.dx() - snap_to_pixel_grid(text_transform.dx())) > 1e-6;
-  if ((boxed_text && !settings.area) || (has_local_offset && !settings.area) ||
+  const bool contour_text = settings.area.has_value() || settings.path.has_value();
+  if ((boxed_text && !contour_text) || (has_local_offset && !contour_text) ||
       (!qtransform_has_non_translation_linear_part(text_transform) && !fractional_translation)) {
     return std::nullopt;
   }
@@ -3706,6 +4132,10 @@ std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& 
   settings.vertical =
       value(kLayerMetadataTextOrientation).value_or(QString()) == QLatin1String(kTextOrientationVertical);
   settings.area = text_area_for_layer(layer);
+  if (auto frame = text_path_frame_for_layer(layer)) {
+    settings.path = std::move(frame->path);
+    settings.path_range = frame->range;
+  }
   return LayerTextRenderInputs{std::move(settings), color.isValid() ? color : QColor(Qt::black),
                                layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs,
                                rich_text_runs};
@@ -4029,7 +4459,7 @@ std::optional<double> first_line_baseline_for_text_inputs(const LayerTextRenderI
 // above; nullopt where it is not modelled (vertical and area type), so callers keep the
 // render rect.
 std::optional<QRectF> photoshop_warp_box_for_text_inputs(const LayerTextRenderInputs& inputs) {
-  if (inputs.settings.vertical || inputs.settings.area) {
+  if (inputs.settings.vertical || inputs.settings.area || inputs.settings.path) {
     return std::nullopt;
   }
   const auto built = build_text_render_document(inputs.settings, inputs.color, inputs.max_width,
@@ -4249,6 +4679,14 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   } else {
     layer.metadata().erase(kLayerMetadataTextArea);
   }
+  if (text_settings_on_path(settings)) {
+    layer.metadata()[kLayerMetadataTextPath] = serialize_vector_path(*settings.path);
+    layer.metadata()[kLayerMetadataTextPathRange] =
+        serialize_text_path_range(normalized_text_path_range(*settings.path, settings.path_range));
+  } else {
+    layer.metadata().erase(kLayerMetadataTextPath);
+    layer.metadata().erase(kLayerMetadataTextPathRange);
+  }
   layer.metadata()[kLayerMetadataTextBoxWidth] = std::to_string(std::max(1, text_width));
   layer.metadata()[kLayerMetadataTextBoxHeight] = std::to_string(std::max(1, text_height));
   layer.metadata()[kLayerMetadataTextFont] = settings.family.toStdString();
@@ -4308,7 +4746,7 @@ void store_text_layout_metrics(Layer& layer, const TextLayoutMetrics& metrics) {
 // Warped point text counts: its transform maps the unwarped text-local space the anchor is in.
 // Nothing for box, area and vertical text, whose anchors follow other rules.
 std::optional<QPointF> point_text_file_anchor_in_document(const Layer& layer) {
-  if (!layer_is_text(layer) || layer_text_is_vertical(layer) || text_area_for_layer(layer).has_value()) {
+  if (!layer_is_text(layer) || layer_text_is_vertical(layer) || text_layer_has_contour(layer)) {
     return std::nullopt;
   }
   const auto& metadata = layer.metadata();
@@ -4363,7 +4801,7 @@ std::optional<QPointF> point_text_file_anchor_in_document(const Layer& layer) {
 // layer still knows it: the size a render carried over (kLayerMetadataTextFileBox), else an
 // imported layer's PSD box. Photoshop's boxes are fractional; Patchy's are whole pixels.
 std::optional<QSizeF> box_text_file_size(const Layer& layer) {
-  if (!layer_is_text(layer) || text_area_for_layer(layer).has_value() || layer_has_active_text_warp(layer)) {
+  if (!layer_is_text(layer) || text_layer_has_contour(layer) || layer_has_active_text_warp(layer)) {
     return std::nullopt;
   }
   const auto& metadata = layer.metadata();
@@ -4541,6 +4979,9 @@ QTransform fold_text_transform_scale_into_font_size(Layer& layer, const QTransfo
   settings.size = new_size;
   if (settings.area) {
     transform_vector_path(*settings.area, {applied_scale, 0.0, 0.0, applied_scale, 0.0, 0.0});
+  }
+  if (settings.path) {
+    transform_vector_path(*settings.path, {applied_scale, 0.0, 0.0, applied_scale, 0.0, 0.0});
   }
   if (settings.boxed) {
     box_width = std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::lround(box_width * applied_scale)));
@@ -4798,7 +5239,7 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
     return false;
   }
   if (text_geometry_is_protected(layer)) return false;
-  if (text_area_for_layer(std::as_const(layer))) {
+  if (text_layer_has_contour(std::as_const(layer))) {
     auto rendered = render_text_layer_pixels_through_transform(layer, qtransform_from_affine(*transform), true);
     if (!rendered) return false;
     rendered->pixels = convert_pixel_buffer_depth(rendered->pixels, std::as_const(layer).pixels().format().bit_depth,
@@ -4895,7 +5336,7 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
 bool text_transform_keeps_missing_font_pixels(const Layer& layer) {
   // Mirrors rerender_text_layer_through_stored_transform: area text re-renders whatever its font,
   // and only the imported (PSD-transform) branch keeps the pixels of a missing font.
-  return layer_is_text(layer) && !text_area_for_layer(layer).has_value() &&
+  return layer_is_text(layer) && !text_layer_has_contour(layer) &&
          layer.metadata().contains(kLayerMetadataPsdTextTransform) &&
          !missing_text_families_for_layer(layer).isEmpty();
 }
@@ -6645,8 +7086,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_document_info();
   });
   canvas->set_text_requested_callback([this, canvas](QPoint point, QRect requested_text_box) {
+    // A click on a path or a shape's edge sets the text along it; inside a closed shape it
+    // fills the shape (docs/path-text.md, docs/area-text.md).
+    auto path = requested_text_box.isValid() ? std::nullopt : canvas->text_path_at(QPointF(point));
     add_text_at(point, requested_text_box, true,
-                requested_text_box.isValid() ? std::nullopt : canvas->text_area_at(point));
+                requested_text_box.isValid() || path.has_value() ? std::nullopt : canvas->text_area_at(point),
+                std::nullopt, std::move(path));
   });
   canvas->set_text_entry_selection_drag_callback([this, canvas](QPointF widget_point, bool begin) {
     return canvas == canvas_ && extend_text_entry_selection(widget_point, begin);
@@ -7114,6 +7559,37 @@ int MainWindow::automatic_text_size_px(std::optional<int> box_height) const {
   return size;
 }
 
+// Scripting (layer.textPath): replaces the session's contour and range, given in document
+// coordinates; nullopt turns path text back into a rectangular paragraph frame.
+void MainWindow::set_text_editor_path(QTextEdit& editor, const std::optional<TextPathFrame>& document_frame) {
+  auto frame = document_frame;
+  if (frame) {
+    const auto affine = text_editor_transform_override(editor).value_or(LayerAffineTransform{
+        1.0, 0.0, 0.0, 1.0, editor.property("patchy.documentTextX").toDouble(),
+        editor.property("patchy.documentTextY").toDouble()});
+    bool invertible = false;
+    const auto inverse = qtransform_from_affine(affine).inverted(&invertible);
+    if (!invertible) return;
+    transform_vector_path(frame->path, affine_from_qtransform(inverse));
+    frame->range = normalized_text_path_range(frame->path, frame->range);
+    set_text_editor_path_properties(editor, frame);
+    editor.setProperty(kTextEditorAreaProperty, QVariant());
+    const auto bounds = frame->path.bounds();
+    editor.setProperty("patchy.documentTextWidth", std::max(16, static_cast<int>(std::ceil(bounds->right))));
+    editor.setProperty("patchy.documentTextHeight", std::max(16, static_cast<int>(std::ceil(bounds->bottom))));
+    editor.setProperty("patchy.documentTextFlow", QStringLiteral("box"));
+    editor.setProperty("patchy.textLayoutMode", QString::fromLatin1(kTextLayoutModePhotoshop));
+  } else {
+    set_text_editor_path_properties(editor, std::nullopt);
+  }
+  editor.setProperty("patchy.usesPsdTextFrame", false);
+  clear_text_editor_render_local_rect(editor);
+  editor.setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
+  mark_text_editor_changed(&editor);
+  relayout_text_editor(&editor, true);
+  schedule_text_editor_preview(&editor);
+}
+
 void MainWindow::set_text_editor_area(QTextEdit& editor, const std::optional<VectorPath>& document_area) {
   auto area = document_area;
   if (area) {
@@ -7125,6 +7601,7 @@ void MainWindow::set_text_editor_area(QTextEdit& editor, const std::optional<Vec
     if (!invertible) return;
     transform_vector_path(*area, affine_from_qtransform(inverse));
     editor.setProperty(kTextEditorAreaProperty, QString::fromStdString(serialize_vector_path(*area)));
+    set_text_editor_path_properties(editor, std::nullopt);
     const auto bounds = area->bounds();
     editor.setProperty("patchy.documentTextWidth", std::max(16, static_cast<int>(std::ceil(bounds->right))));
     editor.setProperty("patchy.documentTextHeight", std::max(16, static_cast<int>(std::ceil(bounds->bottom))));
@@ -7154,7 +7631,8 @@ int text_editor_screen_floor(int pixels, double zoom) {
 }  // namespace
 
 void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bool show_editor,
-                             std::optional<VectorPath> requested_area, std::optional<LayerId> target_text_layer) {
+                             std::optional<VectorPath> requested_area, std::optional<LayerId> target_text_layer,
+                             std::optional<TextPathFrame> requested_path) {
   if (canvas_ == nullptr) {
     return;
   }
@@ -7166,6 +7644,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   const bool type_mask = show_editor && current_tool_ == CanvasTool::TypeMask && !target_text_layer.has_value();
   if (type_mask) {
     requested_area.reset();
+    requested_path.reset();
   }
   if (show_editor && !is_type_tool(current_tool_)) {
     if (type_tool_action_ != nullptr) {
@@ -7190,8 +7669,22 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
                                std::max(16, static_cast<int>(std::ceil(bounds->bottom - top))));
     translate_vector_path(*requested_area, -left, -top);
   }
-  const bool creating_area = requested_area.has_value();
+  // Text along a path (docs/path-text.md): like an area, the contour becomes text-local, with
+  // the origin at its floored bounds corner, and the frame is the contour's bounds.
+  if (requested_path && !requested_area && valid_text_path(requested_path->path)) {
+    const auto bounds = requested_path->path.bounds();
+    const auto left = std::floor(bounds->left), top = std::floor(bounds->top);
+    requested_text_box = QRect(static_cast<int>(left), static_cast<int>(top),
+                               std::max(16, static_cast<int>(std::ceil(bounds->right - left))),
+                               std::max(16, static_cast<int>(std::ceil(bounds->bottom - top))));
+    translate_vector_path(requested_path->path, -left, -top);
+    requested_path->range = normalized_text_path_range(requested_path->path, requested_path->range);
+  } else {
+    requested_path.reset();
+  }
+  const bool creating_area = requested_area.has_value() || requested_path.has_value();
   auto area_text = std::move(requested_area);
+  auto path_text = std::move(requested_path);
   std::optional<LayerId> editing_layer;
   std::optional<bool> editing_layer_was_visible;
   std::optional<LayerId> restore_active_layer = document().active_layer_id();
@@ -7214,7 +7707,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   QString initial_html;
   QString initial_rich_text_runs;
   QString initial_paragraph_runs;
-  bool photoshop_text_layout = area_text.has_value();
+  bool photoshop_text_layout = area_text.has_value() || path_text.has_value();
   double text_size_display_scale = 1.0;
   std::optional<QPointF> initial_cursor_local_position;
   QString family = text_font_combo_ != nullptr ? text_options_bar_family() : default_text_family();
@@ -7250,12 +7743,17 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         !type_mask && !creating_area && layer != nullptr && layer_is_text(*layer) &&
         (target_text_layer == active || layer->bounds().contains(document_point.x(), document_point.y()) ||
          (text_area_in_document(std::as_const(*layer)) &&
-          TextAreaGeometry(*text_area_in_document(std::as_const(*layer))).contains(document_point)))) {
+          TextAreaGeometry(*text_area_in_document(std::as_const(*layer))).contains(document_point)) ||
+         (text_path_in_document(std::as_const(*layer)) &&
+          TextPathCurve(*text_path_in_document(std::as_const(*layer)))
+                  .nearest(document_point.x(), document_point.y())
+                  .gap <= kTextPathClickReach))) {
       if (text_geometry_is_protected(*layer)) {
         show_status_error(tr("This text boundary is preserved but cannot be edited."));
         return;
       }
       area_text = text_area_for_layer(*layer);
+      path_text = text_path_frame_for_layer(*layer);
       if (layer_id_locks_image_pixels(*active)) {
         show_status_error(tr("Layer pixels are locked."));
         return;
@@ -7377,7 +7875,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
               : QString::fromLatin1(kTextFlowPoint));
       auto text_transform = patchy_text_transform_for_layer(*layer);
       const auto psd_frame = psd_text_frame_rect(*layer);
-      const bool using_psd_frame = psd_frame.has_value() && boxed_text && !area_text;
+      const bool using_psd_frame = psd_frame.has_value() && boxed_text && !area_text && !path_text;
       if (vertical_text && !boxed_text &&
           (!text_transform.has_value() || !qtransform_has_non_translation_linear_part(*text_transform)) &&
           !layer->metadata().contains(kLayerMetadataPsdTextTransform) && !layer_has_active_text_warp(*layer)) {
@@ -7487,7 +7985,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
           document_editor_height = std::max(64, layer->bounds().height + document_text_size);
         }
       }
-      if (boxed_text && !area_text) {
+      if (boxed_text && !area_text && !path_text) {
         const QRectF frame_rect(0.0, 0.0, static_cast<qreal>(document_editor_width),
                                 static_cast<qreal>(document_editor_height));
         if (editing_layer_uses_psd_text_frame) {
@@ -7599,8 +8097,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
                                           document_editor_height};
     placeholder_settings.vertical = vertical_text;
     placeholder_settings.area = area_text;
+    if (path_text) {
+      placeholder_settings.path = path_text->path;
+      placeholder_settings.path_range = path_text->range;
+    }
     Layer provisional(document().allocate_layer_id(), placeholder_settings.text.toStdString(),
-                      make_solid_pixels(1, 1, QColor(0, 0, 0, 0), area_text
+                      make_solid_pixels(1, 1, QColor(0, 0, 0, 0), area_text || path_text
                           ? with_bit_depth(PixelFormat::rgba8(), document().color_state().bit_depth)
                           : PixelFormat::rgba8()));
     provisional.set_bounds(Rect{document_point.x(), document_point.y(), 1, 1});
@@ -7659,6 +8161,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   editor->setProperty("patchy.documentTextFlow", text_flow_metadata_value(boxed_text));
   if (area_text) {
     editor->setProperty(kTextEditorAreaProperty, QString::fromStdString(serialize_vector_path(*area_text)));
+  }
+  if (path_text) {
+    set_text_editor_path_properties(*editor, path_text);
   }
   editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
   editor->setProperty("patchy.textLayoutMode",
@@ -7723,7 +8228,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     auto document_font =
         render_text_font_for_display_family(family, std::max(1, document_text_size), text_bold, text_italic,
                                             text_anti_alias);
-    editor->setPlainText(initial_text.isEmpty() && !(area_text && editing_layer) ? tr("Type") : initial_text);
+    editor->setPlainText(initial_text.isEmpty() && !((area_text || path_text) && editing_layer) ? tr("Type") : initial_text);
     apply_patchy_text_runs_to_document(*editor->document(), initial_rich_text_runs, document_font, text_color,
                                        canvas_->zoom(), text_anti_alias);
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
@@ -7745,7 +8250,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
   } else {
-    editor->setPlainText(initial_text.isEmpty() && !(area_text && editing_layer) ? tr("Type") : initial_text);
+    editor->setPlainText(initial_text.isEmpty() && !((area_text || path_text) && editing_layer) ? tr("Type") : initial_text);
     QTextCursor cursor(editor->document());
     cursor.select(QTextCursor::Document);
     auto format = text_editor_typing_format(editor_font, text_color);
@@ -7781,7 +8286,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
       }
     }
   }
-  if (area_text && editing_layer) {
+  if ((area_text || path_text) && editing_layer) {
     if (const auto* layer = std::as_const(document()).find_layer(*editing_layer)) {
       set_text_editor_transform_override(*editor, text_area_transform(*layer));
       bool invertible = false;
@@ -8185,13 +8690,20 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         } else {
           metadata.erase(kLayerMetadataTextArea);
         }
+        if (const auto frame = text_editor_path(*editor)) {
+          metadata[kLayerMetadataTextPath] = serialize_vector_path(frame->path);
+          metadata[kLayerMetadataTextPathRange] = serialize_text_path_range(frame->range);
+        } else {
+          metadata.erase(kLayerMetadataTextPath);
+          metadata.erase(kLayerMetadataTextPathRange);
+        }
         metadata[kLayerMetadataTextHtml].clear();
         metadata[kLayerMetadataTextRuns].clear();
         metadata[kLayerMetadataTextParagraphRuns].clear();
         metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
         clear_layer_psd_text_source(*layer);
         const auto bounds = std::as_const(*layer).bounds();
-        const auto format = text_area_for_layer(std::as_const(*layer))
+        const auto format = text_layer_has_contour(std::as_const(*layer))
             ? with_bit_depth(PixelFormat::rgba8(), document().color_state().bit_depth) : PixelFormat::rgba8();
         layer->set_pixels(PixelBuffer(1, 1, format));
         layer->set_bounds(Rect{bounds.x, bounds.y, 1, 1});
@@ -8232,7 +8744,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                             text_height};
   settings.photoshop_layout = text_editor_uses_photoshop_layout(*editor);
   settings.vertical = text_editor_is_vertical(*editor);
-  settings.area = text_editor_area(*editor);
+  apply_text_editor_contour(settings, *editor);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
@@ -8383,7 +8895,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
   }
   // The layer the commit ends up owning, so the final repaint can be bounded to it.
-  if (settings.area) {
+  if (settings.area || settings.path) {
     pixels = convert_pixel_buffer_depth(pixels, document().color_state().bit_depth, SampleKind::Color);
   }
   std::optional<LayerId> committed_layer_id = layer_id;
@@ -8490,7 +9002,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
     // Box text that came from a file keeps the file's fractional box while the committed
     // whole-pixel box is still that box (within a pixel: the session rounds it, sometimes up).
-    if (file_box.has_value() && boxed_text && !settings.area.has_value() && !committed_warp_used.has_value() &&
+    if (file_box.has_value() && boxed_text && !settings.area.has_value() && !settings.path.has_value() &&
+        !committed_warp_used.has_value() &&
         std::abs(file_box->width() - stored_box_width) <= 1.0 &&
         std::abs(file_box->height() - stored_box_height) <= 1.0) {
       layer.metadata()[kLayerMetadataTextFileBox] =
@@ -11883,7 +12396,8 @@ void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {
 }
 
 void MainWindow::update_text_editor_transform_overlay(QTextEdit* editor) {
-  const bool area = editor != nullptr && text_editor_area(*editor).has_value();
+  // Area and path text: an owned contour places the lines, so the overlay always edits them.
+  const bool area = editor != nullptr && text_editor_has_contour(*editor);
   // A rotated view edits new point text through the overlay too (its provisional layer).
   const bool rotated_view = canvas_ != nullptr && !canvas_->view_axis_aligned();
   // So does new box text the session itself turned with a corner rotate zone (#684 follow-up).
@@ -12339,6 +12853,8 @@ QString text_editor_hidden_lines_key(const QTextEdit& editor, double zoom) {
                     editor.property("patchy.documentTextFamily").toString(),
                     editor.property("patchy.documentTextFlow").toString(),
                     editor.property(kTextEditorAreaProperty).toString(),
+                    editor.property(kTextEditorPathProperty).toString(),
+                    editor.property(kTextEditorPathRangeProperty).toString(),
                     editor.property(kTextEditorPreeditTextProperty).toString(),
                     editor.property("patchy.textLayoutMode").toString(),
                     QString::number(editor.property("patchy.textSizeDisplayScale").toDouble(), 'g', 8),
@@ -12381,6 +12897,10 @@ bool text_editor_render_hides_lines(const QTextEdit& editor, double zoom) {
   settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   settings.vertical = text_editor_is_vertical(editor);
   settings.area = area;
+  if (auto frame = text_editor_path(editor)) {
+    settings.path = std::move(frame->path);
+    settings.path_range = frame->range;
+  }
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
@@ -12705,7 +13225,7 @@ bool MainWindow::handle_text_editor_transform_overlay_event(QTextEdit* editor, Q
 }
 
 bool MainWindow::text_editor_box_rotatable(const QTextEdit& editor) const {
-  if (!text_flow_is_box(editor.property("patchy.documentTextFlow").toString()) || text_editor_area(editor) ||
+  if (!text_flow_is_box(editor.property("patchy.documentTextFlow").toString()) || text_editor_has_contour(editor) ||
       text_editor_is_vertical(editor) || editor.property(kTextEditorTypeMaskProperty).toBool() ||
       editor.property(kTextEditorFinishedProperty).toBool()) {
     return false;
@@ -13157,7 +13677,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                             text_height};
   settings.photoshop_layout = text_editor_uses_photoshop_layout(*editor);
   settings.vertical = text_editor_is_vertical(*editor);
-  settings.area = text_editor_area(*editor);
+  apply_text_editor_contour(settings, *editor);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
@@ -13235,7 +13755,9 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   }
 
   QRect dirty = to_qrect(preview_bounds);
-  if (settings.area) pixels = convert_pixel_buffer_depth(pixels, doc.color_state().bit_depth, SampleKind::Color);
+  if (settings.area || settings.path) {
+    pixels = convert_pixel_buffer_depth(pixels, doc.color_state().bit_depth, SampleKind::Color);
+  }
   if (editor->property("patchy.textPreviewLayerId").isValid()) {
     const auto preview_id = static_cast<LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
     if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {

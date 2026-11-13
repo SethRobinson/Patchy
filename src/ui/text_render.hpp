@@ -3,6 +3,7 @@
 // QTextLine handles remain valid only while built.document lives and is not relaid out.
 #include "ui/text_document.hpp"
 #include "ui/text_layout.hpp"
+#include "ui/text_path_layout.hpp"
 #include "core/pixel_buffer.hpp"
 #include <QRectF>
 #include <QTransform>
@@ -92,6 +93,11 @@ struct TextRenderPlan {
   // Vertical type: the cell plan replaces the line items (which stay empty).
   bool vertical{false};
   bool area{false};
+  // Text along a path: `path_plan.line` is also the one entry of line_render_items, in straight
+  // space; draw_text_render_plan sets its glyphs along the contour and bends the decoration bars
+  // (docs/path-text.md).
+  bool path{false};
+  TextPathLinePlan path_plan;
   VerticalTextLayoutPlan vertical_plan;
   // A box frame or area contour hid one or more lines of the story: what the Type tool's
   // overflow marker shows (issue 631). Never set under TextToolSettings::keep_overflow_lines.

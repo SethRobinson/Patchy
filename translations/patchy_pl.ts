@@ -16005,6 +16005,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>Pokazuje uchwyty tego gradientu na płótnie przy dowolnym narzędziu, dopóki to okno jest otwarte. Przeciągnij je, aby przesunąć gradient i jego znaczniki. Uchwyty pokazuje naraz tylko jeden gradient.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>Zachowany mechanizm tekstu tego dokumentu nie może zapisać nowego tekstu na ścieżce.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

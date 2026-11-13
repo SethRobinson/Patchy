@@ -456,8 +456,10 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 31> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 33> kTextMetadataKeys = {
       kLayerMetadataTextArea,
+      kLayerMetadataTextPath,
+      kLayerMetadataTextPathRange,
       kLayerMetadataTextGeometryProtected,
       kLayerMetadataText,
       kLayerMetadataTextOrientation,

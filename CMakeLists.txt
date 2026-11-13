@@ -240,6 +240,8 @@ add_library(patchy_core
   src/core/stroke_stabilizer.cpp
   src/core/style_contour.cpp
   src/core/style_presets.cpp
+  src/core/text_path.hpp
+  src/core/text_path.cpp
   src/core/text_warp.cpp
   src/core/vector_live_shapes.cpp
   src/core/worker_budget.cpp
@@ -1744,6 +1746,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/text_outline.hpp
       src/ui/text_area_layout.cpp
       src/ui/text_area_layout.hpp
+      src/ui/text_path_layout.cpp
+      src/ui/text_path_layout.hpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
       src/ui/animation_preview_window.hpp
@@ -2553,6 +2557,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_text_tests.cpp
     tests/core/psd_legacy_text_tests.cpp
     tests/core/text_engine_block_tests.cpp
+    tests/core/text_path_tests.cpp
     tests/core/psd_vector_fixtures_tests.cpp
     tests/core/psd_writer_stability_tests.cpp
     tests/core/jxr_tests.cpp
@@ -2717,6 +2722,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_vertical_rtl_tests.cpp
       tests/ui/text_rtl_psd_tests.cpp
       tests/ui/text_area_tests.cpp
+      tests/ui/text_path_tests.cpp
       tests/ui/text_canvas_session_tests.cpp
       tests/ui/text_color_targets_tests.cpp
       tests/ui/text_character_styles_tests.cpp

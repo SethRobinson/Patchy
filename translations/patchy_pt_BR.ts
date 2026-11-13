@@ -15949,6 +15949,10 @@ Deseja substituí-lo?</translation>
         <source>Show this gradient&apos;s handles on the canvas with any tool while this window is open. Drag them to move the gradient and its stops. One gradient shows its handles at a time.</source>
         <translation>Mostra as alças deste degradê na tela de pintura com qualquer ferramenta enquanto esta janela está aberta. Arraste-as para mover o degradê e suas paradas. Apenas um degradê mostra suas alças por vez.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
+        <translation>O mecanismo de texto preservado deste documento não permite salvar novo texto em um demarcador.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

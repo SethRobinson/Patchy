@@ -735,7 +735,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         if (!record.text.has_value()) {
           const auto frame = text_object != nullptr ? *text_object : TextFrameGeometry{};
           const bool native_area = has_text_engine &&
-              (frame.kind == TextFrameGeometry::Kind::Area || frame.kind == TextFrameGeometry::Kind::Unsupported);
+              (frame.kind == TextFrameGeometry::Kind::Area || frame.kind == TextFrameGeometry::Kind::Path ||
+               frame.kind == TextFrameGeometry::Kind::Unsupported);
           record.text = extract_engine_data_text(text_payload, native_area);
         }
         if (!record.text_size.has_value()) {

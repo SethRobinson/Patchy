@@ -23,6 +23,16 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-13 (addition): text on a path (GitHub issue 717, [path-text.md](path-text.md#scripting)).
+`doc.addTextLayer(text, {path, pathRange})` sets the text along a copy of one open or closed
+`PatchyVectorPath` contour in document pixels; `pathRange` is `{start, end}` in segment units
+(the whole part names a segment of the contour, the fraction the place inside it) and defaults
+to the whole contour. `path` excludes `area` and `box`. `layer.textPath` reads a detached
+snapshot of the contour or `null` and is assignable (`null` leaves a rectangular text box);
+`layer.textPathRange` reads and sets `{start, end}` (`null` on other layers);
+`layer.flipTextPath()` reverses the contour. Each throws before any change on a contour that is
+not one subpath of at least two anchors, on a range outside the contour, and on a layer that is
+not editable text. Pinned by `ui_text_path_script_creation_range_flip_and_undo`.
 2026-11-12 (addition): `doc.selection.selectColorRange(options)` is Select > Color Range (GitHub
 issue 709, [color-range.md](color-range.md)): a soft selection from each pixel's own color.
 Options: `range` (`"sampled"`, the default, or `"reds"`, `"yellows"`, `"greens"`, `"cyans"`,

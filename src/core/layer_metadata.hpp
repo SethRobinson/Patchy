@@ -30,6 +30,12 @@ inline constexpr const char* kLayerMetadataTextParagraphRuns = "patchy.text.para
 inline constexpr const char* kLayerMetadataTextFlow = "patchy.text.flow";
 // Area text keeps flow="box" for the existing frame/transform machinery.
 inline constexpr const char* kLayerMetadataTextArea = "patchy.text.area";
+// Text along a path (docs/path-text.md): the owned contour in text-local coordinates
+// (serialize_vector_path, one open or closed subpath) and its "start end" range in Photoshop's
+// segment units. Mutually exclusive with the area contour; flow stays "box" like area text,
+// for the same frame and transform machinery.
+inline constexpr const char* kLayerMetadataTextPath = "patchy.text.path";
+inline constexpr const char* kLayerMetadataTextPathRange = "patchy.text.path_range";
 // Unrecognized native geometry: preserve its data and pixels, prohibit reflow.
 inline constexpr const char* kLayerMetadataTextGeometryProtected = "patchy.text.geometry_protected";
 inline constexpr const char* kLayerMetadataTextBoxWidth = "patchy.text.box_width";
