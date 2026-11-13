@@ -21954,6 +21954,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Select by color, hue or tone</source>
         <translation>Zaznacz według koloru, barwy lub tonu</translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation>Przenieś tekst na ścieżce na drugą stronę ścieżki</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36256,6 +36260,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
         <translation>Wysokość w proporcjach kształtu</translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
+        <translation>Odwróć tekst na ścieżce</translation>
     </message>
 </context>
 <context>

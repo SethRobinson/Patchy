@@ -21892,6 +21892,10 @@ Do you want to replace it?</source>
         <source>Select by color, hue or tone</source>
         <translation>Seleccionar por color, tono o luminosidad</translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation>Pasar el texto de un trazado al otro lado del trazado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36147,6 +36151,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
         <translation>Parte de altura de la proporción de la forma</translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
+        <translation>Voltear texto en trazado</translation>
     </message>
 </context>
 <context>

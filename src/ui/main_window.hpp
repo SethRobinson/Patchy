@@ -2533,6 +2533,11 @@ private:
   // from the live session or the selected text layer, and turns off a submenu with nothing to
   // act on (GitHub issue 650).
   void refresh_type_menu_states();
+  // Type > Flip Text on Path: every selected path-text layer's contour reversed and the text
+  // drawn again, so it runs back along the same stretch on the other side of the line. One undo
+  // step; the same operation as the session's middle mark and layer.flipTextPath().
+  void flip_text_on_path();
+  void refresh_flip_text_on_path_action_state();
   // Trace Image to Shapes: the active pixel layer through the image-trace
   // dialog into a group of shape layers above it (the source is hidden).
   void trace_image_to_shapes();
@@ -4362,6 +4367,9 @@ private:
   QAction* move_tool_action_{nullptr};
   QAction* type_tool_action_{nullptr};
   QAction* type_convert_to_shape_action_{nullptr};
+  // Type > Flip Text on Path (docs/path-text.md): enabled only while the active layer is
+  // editable text on a path (refresh_flip_text_on_path_action_state).
+  QAction* type_flip_text_on_path_action_{nullptr};
   QAction* type_create_work_path_action_{nullptr};
   QMenu* type_alignment_menu_{nullptr};
   QMenu* type_direction_menu_{nullptr};

@@ -21954,6 +21954,10 @@ Do you want to replace it?</source>
         <source>Select by color, hue or tone</source>
         <translation>Выделить по цвету, цветовому тону или яркости</translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation>Переместить текст на контуре на другую сторону контура</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36256,6 +36260,10 @@ Locked: %1</source>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
         <translation>Высота в пропорциях фигуры</translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
+        <translation>Перевернуть текст на контуре</translation>
     </message>
 </context>
 <context>

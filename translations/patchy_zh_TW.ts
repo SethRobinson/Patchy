@@ -21830,6 +21830,10 @@ Do you want to replace it?</source>
         <source>Select by color, hue or tone</source>
         <translation>依顏色、色相或明暗選取</translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation>將路徑上的文字移到路徑的另一側</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36038,6 +36042,10 @@ Locked: %1</source>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
         <translation>形狀長寬比的高度部分</translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
+        <translation>翻轉路徑文字</translation>
     </message>
 </context>
 <context>

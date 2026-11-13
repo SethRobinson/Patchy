@@ -181,6 +181,13 @@ line inside the range as in a box).
   once, on release, like a box resize, so there is nothing to coalesce. The end mark carries
   the overflow plus when the range hides text (issue 631). Published for tests as
   `patchy.transformedTextPathHandleCenters` (start, end, middle, canvas coordinates).
+- **Flip Text on Path** (Type menu, the Layers panel's text-layer menu in place of the
+  orientation entry, the Move tool's canvas menu; hotkey id `type.flip_text_on_path`, no default
+  key): flips every selected committed path-text layer without a session, one undo step
+  (`MainWindow::flip_text_on_path`: the stored contour and range reversed, then
+  `rerender_text_layer_through_stored_transform`). Enabled only while the active layer is
+  editable text on a path (`refresh_flip_text_on_path_action_state`, from
+  `refresh_layer_controls`). Test: `ui_text_path_flip_command_flips_a_committed_layer`.
 - **Re-edit.** A click on the text, or within a few pixels of the bare part of its contour,
   opens the layer. The whole session is one undo step.
 - **The contour as a path.** With the path-text layer active, the Direct Selection and Path

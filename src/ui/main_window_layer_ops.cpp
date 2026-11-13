@@ -4596,9 +4596,16 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     warp_text_action->setObjectName(QStringLiteral("layerContextWarpTextAction"));
     const bool vertical = active_layer->metadata().contains(kLayerMetadataTextOrientation) &&
                           active_layer->metadata().at(kLayerMetadataTextOrientation) == kTextOrientationVertical;
-    text_orientation_action = menu.addAction(simple_icon(QStringLiteral("T"), QColor(190, 220, 255)),
-                                             vertical ? tr("Horizontal Text") : tr("Vertical Text"));
-    text_orientation_action->setObjectName(QStringLiteral("layerContextTextOrientationAction"));
+    refresh_flip_text_on_path_action_state();
+    if (type_flip_text_on_path_action_ != nullptr && type_flip_text_on_path_action_->isEnabled()) {
+      // Text on a path offers its flip in this row instead: vertical type is not set on paths
+      // (Type > Orientation still switches it), and the top level is at its row bound (#461).
+      menu.addAction(type_flip_text_on_path_action_);
+    } else {
+      text_orientation_action = menu.addAction(simple_icon(QStringLiteral("T"), QColor(190, 220, 255)),
+                                               vertical ? tr("Horizontal Text") : tr("Vertical Text"));
+      text_orientation_action->setObjectName(QStringLiteral("layerContextTextOrientationAction"));
+    }
   }
   if (layer_clipping_mask_action_ != nullptr) {
     // Kept near the top so Create/Release Clipping Mask stays discoverable.

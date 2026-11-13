@@ -21892,6 +21892,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Select by color, hue or tone</source>
         <translation>Nach Farbe, Farbton oder Tonwert auswählen</translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation>Text auf einem Pfad auf die andere Seite des Pfads setzen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36147,6 +36151,10 @@ Fixiert: %1</translation>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
         <translation>Höhenanteil des Seitenverhältnisses der Form</translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
+        <translation>Text auf Pfad umkehren</translation>
     </message>
 </context>
 <context>

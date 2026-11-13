@@ -7355,6 +7355,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     const auto* active = active_id.has_value() ? doc.find_layer(*active_id) : nullptr;
     if (active != nullptr && layer_is_text(*active)) {
       actions.append({nullptr, type_convert_to_shape_action_, type_create_work_path_action_});
+      // Text on a path can be flipped from here too (docs/path-text.md).
+      refresh_flip_text_on_path_action_state();
+      if (type_flip_text_on_path_action_ != nullptr && type_flip_text_on_path_action_->isEnabled()) {
+        actions.append(type_flip_text_on_path_action_);
+      }
     }
     return actions;
   });
@@ -14147,6 +14152,7 @@ void MainWindow::refresh_type_menu_states() {
   auto* editor =
       canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
   const bool editable = has_active_document() && canvas_ != nullptr && !preview_dialog_edit_locked();
+  refresh_flip_text_on_path_action_state();
   const bool session_open =
       editable && editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
   const auto* layer = editable && !session_open ? text_character_target_layer() : nullptr;

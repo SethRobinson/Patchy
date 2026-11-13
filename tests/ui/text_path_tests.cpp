@@ -10,6 +10,7 @@
 #include "ui/text_document.hpp"
 #include "ui/text_path_layout.hpp"
 #include "ui/text_render.hpp"
+#include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/text_area.hpp"
 #include "core/text_path.hpp"
@@ -19,6 +20,7 @@
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -28,8 +30,11 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QListWidget>
+#include <QMenu>
 #include <QPainter>
 #include <QPointer>
+#include <QTest>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QWidget>
@@ -994,6 +999,198 @@ void ui_text_path_caret_and_clicks_follow_the_contour() {
   }
 }
 
+bool has_work_path(const Document& document) {
+  for (const auto& path : document.paths()) {
+    if (path.kind() == DocumentPathKind::Work) return true;
+  }
+  return false;
+}
+
+// GitHub issue 717 follow-up: with a path-text layer active, the Paths panel lists the text's
+// own boundary and the work path. Delete (or Backspace) on the selected work path row deletes
+// that path, as the row's Delete Path does, and leaves the layer alone; on the layer's own
+// boundary row it does nothing. With the canvas focused, Delete is still the layer command.
+void ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer() {
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:360,outX:200,outY:60},{x:580,y:360,inX:460,inY:60}]}]};
+    var t=d.addTextLayer('Along the path',{font:'Arial',size:24,path:p});
+    t.name='Path text';
+    d.setWorkPath({subpaths:[{closed:false,anchors:[{x:100,y:450},{x:560,y:450}]}]});
+    d.activeLayer=t;
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  MainWindowTestAccess::refresh_paths_panel(window);
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(list != nullptr);
+  if (list == nullptr) return;
+  CHECK(list->count() == 2);
+  if (list->count() != 2) return;
+  CHECK(list->item(0)->text().contains(QStringLiteral("Text Boundary")));
+  CHECK(has_work_path(doc));
+  const auto layer_count = doc.layers().size();
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) return;
+  const auto press = [&](Qt::Key key) {
+    QTest::keyClick(handle, key);
+    QApplication::processEvents();
+  };
+  const auto click_row = [&](int row) {
+    list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+    click_widget_like_a_user(*list->viewport(), list->visualItemRect(list->item(row)).center());
+    QApplication::processEvents();
+  };
+
+  for (const auto key : {Qt::Key_Delete, Qt::Key_Backspace}) {
+    // The way Seth did it: click the Work Path row, press the key.
+    click_row(1);
+    CHECK(list->currentItem() == list->item(1) && list->item(1)->isSelected());
+    CHECK(QApplication::focusWidget() == list);
+    press(key);
+    CHECK(!has_work_path(doc));
+    CHECK(doc.layers().size() == layer_count);
+    CHECK(doc.find_layer(id) != nullptr);
+    CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Delete path"));
+    // One undo step puts the path back.
+    MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(has_work_path(doc));
+    CHECK(doc.find_layer(id) != nullptr);
+    list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+    CHECK(list != nullptr && list->count() == 2);
+    if (list == nullptr || list->count() != 2) return;
+  }
+
+  // The text's own boundary row is not a path of its own: the key does nothing there, and in
+  // particular does not delete the text layer.
+  click_row(0);
+  CHECK(list->item(0)->isSelected());
+  const auto label_before = MainWindowTestAccess::current_history_label(window);
+  press(Qt::Key_Delete);
+  CHECK(doc.find_layer(id) != nullptr);
+  CHECK(doc.layers().size() == layer_count);
+  CHECK(has_work_path(doc));
+  CHECK(MainWindowTestAccess::current_history_label(window) == label_before);
+
+  // On the canvas nothing changed: Delete on a text layer still removes the layer.
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  press(Qt::Key_Delete);
+  CHECK(doc.find_layer(id) == nullptr);
+  CHECK(has_work_path(doc));
+  MainWindowTestAccess::undo(window);
+  CHECK(doc.find_layer(id) != nullptr);
+}
+
+// Type > Flip Text on Path on a committed layer: the contour is reversed, the text hangs on
+// the other side, one undo step puts it back, and the command is offered for path text only.
+void ui_text_path_flip_command_flips_a_committed_layer() {
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var plain=d.addTextLayer('Plain',{font:'Arial',size:24,x:60,y:460});
+    plain.name='Plain';
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:260},{x:580,y:260}]}]};
+    var t=d.addTextLayer('Along',{font:'Arial',size:24,path:p,pathRange:{start:0.2,end:0.9}});
+    t.name='Path';
+    d.activeLayer=t;
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  QApplication::processEvents();
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeFlipTextOnPathAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) return;
+  CHECK(action->text() == QStringLiteral("Flip Text on Path"));
+  CHECK(action->shortcut().isEmpty());
+  CHECK(action->isEnabled());
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const auto before = *layer;
+  const auto frame_before = text_path_frame_for_layer(before);
+  CHECK(frame_before.has_value());
+  if (!frame_before) return;
+  // The text stands above the line.
+  CHECK(before.bounds().y + before.bounds().height / 2 < 258);
+
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Flip Text on Path"));
+  layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const auto frame_after = text_path_frame_for_layer(*layer);
+  CHECK(frame_after.has_value());
+  if (!frame_after) return;
+  CHECK(frame_after->path == reversed_text_path(frame_before->path));
+  CHECK(frame_after->range == reversed_text_path_range(frame_before->path, frame_before->range));
+  CHECK(std::abs(frame_after->range.start - 0.1) < 1e-9 && std::abs(frame_after->range.end - 0.8) < 1e-9);
+  CHECK(layer->metadata().at(kLayerMetadataText) == before.metadata().at(kLayerMetadataText));
+  // Below the line now, and still on the same stretch of it.
+  CHECK(layer->bounds().y + layer->bounds().height / 2 > 262);
+  const auto in_document = text_path_in_document(*layer);
+  CHECK(in_document.has_value());
+  if (in_document) {
+    CHECK(std::abs(in_document->subpaths.front().anchors.front().anchor_x - 580.0) < 1e-6);
+  }
+  // A second flip is the original again; so is one undo of the first.
+  action->trigger();
+  QApplication::processEvents();
+  const auto frame_twice = text_path_frame_for_layer(*doc.find_layer(id));
+  CHECK(frame_twice.has_value());
+  if (!frame_twice) return;
+  CHECK(frame_twice->path == frame_before->path);
+  CHECK(std::abs(frame_twice->range.start - frame_before->range.start) < 1e-9 &&
+        std::abs(frame_twice->range.end - frame_before->range.end) < 1e-9);
+  MainWindowTestAccess::undo(window);
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  layer = doc.find_layer(id);
+  CHECK(layer != nullptr && layer->metadata() == before.metadata());
+  CHECK(layer != nullptr && layer->bounds() == before.bounds());
+
+  // Only path text offers it.
+  run(window, "var d=app.activeDocument;d.activeLayer=d.findLayer('Plain');");
+  QApplication::processEvents();
+  CHECK(!action->isEnabled());
+  run(window, "var d=app.activeDocument;d.activeLayer=d.findLayer('Path');");
+  QApplication::processEvents();
+  CHECK(action->isEnabled());
+
+  // It sits in the Type menu, after the outline commands.
+  QMenu* type_menu = nullptr;
+  for (auto* object : action->associatedObjects()) {
+    if (auto* menu = qobject_cast<QMenu*>(object); menu != nullptr && menu->objectName() == QStringLiteral("typeMenu")) {
+      type_menu = menu;
+    }
+  }
+  CHECK(type_menu != nullptr);
+  if (type_menu == nullptr) return;
+  const auto entries = type_menu->actions();
+  const auto flip_index = entries.indexOf(action);
+  const auto shape_index = entries.indexOf(window.findChild<QAction*>(QStringLiteral("typeConvertToShapeAction")));
+  CHECK(shape_index >= 0 && flip_index == shape_index + 1);
+  ensure_artifact_dir();
+  type_menu->popup(window.mapToGlobal(QPoint(160, 60)));
+  QApplication::processEvents();
+  CHECK(action->isEnabled());  // the menu's own refresh agrees
+  save_widget_artifact("ui_text_path_type_menu", *type_menu);
+  type_menu->hide();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_path_tests() {
@@ -1008,6 +1205,9 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"ui_text_path_type_tool_targets_shape_edges_and_reopens", ui_text_path_type_tool_targets_shape_edges_and_reopens},
       {"ui_text_path_type_tool_types_along_an_open_work_path", ui_text_path_type_tool_types_along_an_open_work_path},
       {"ui_text_path_handles_move_the_range_and_flip", ui_text_path_handles_move_the_range_and_flip},
+      {"ui_text_path_flip_command_flips_a_committed_layer", ui_text_path_flip_command_flips_a_committed_layer},
+      {"ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer",
+       ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer},
       {"ui_text_path_caret_and_clicks_follow_the_contour", ui_text_path_caret_and_clicks_follow_the_contour},
   };
 }

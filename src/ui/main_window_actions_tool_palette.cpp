@@ -2148,6 +2148,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_hotkey(type_convert_to_shape_action_, "type.convert_to_shape");
   connect(type_convert_to_shape_action_, &QAction::triggered, this, [this] { convert_text_layers_to_shapes(); });
   register_document_action(type_convert_to_shape_action_);
+  // Text on a path (docs/path-text.md): no default key; the id is permanent.
+  type_flip_text_on_path_action_ = type_menu->addAction(QString());
+  bind_action_text(type_flip_text_on_path_action_, QT_TR_NOOP("Flip Text on Path"));
+  type_flip_text_on_path_action_->setObjectName(QStringLiteral("typeFlipTextOnPathAction"));
+  type_flip_text_on_path_action_->setMenuRole(QAction::NoRole);
+  type_flip_text_on_path_action_->setEnabled(false);
+  register_hotkey(type_flip_text_on_path_action_, "type.flip_text_on_path");
+  connect(type_flip_text_on_path_action_, &QAction::triggered, this, [this] { flip_text_on_path(); });
   type_menu->addSeparator();
 
   // Layer > Rasterize for the selected text layers only, and the options bar's Warp... button.

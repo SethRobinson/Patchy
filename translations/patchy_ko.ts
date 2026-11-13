@@ -21830,6 +21830,10 @@ Do you want to replace it?</source>
         <source>Select by color, hue or tone</source>
         <translation>색상, 색조 또는 밝기로 선택</translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation>패스 위의 텍스트를 패스의 반대쪽으로 이동</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36038,6 +36042,10 @@ Locked: %1</source>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
         <translation>도형 종횡비의 높이 값</translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
+        <translation>패스 위의 텍스트 뒤집기</translation>
     </message>
 </context>
 <context>

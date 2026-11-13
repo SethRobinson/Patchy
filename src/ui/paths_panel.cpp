@@ -8,6 +8,7 @@
 #include <QEvent>
 #include <QFont>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
@@ -38,6 +39,7 @@ PathsPanel::PathsPanel(QWidget* parent) : QWidget(parent) {
   list_->setIconSize(QSize(42, 30));
   list_->setSpacing(1);
   list_->viewport()->installEventFilter(this);
+  list_->installEventFilter(this);  // Delete and Backspace: see eventFilter
   list_->setContextMenuPolicy(Qt::CustomContextMenu);
   layout->addWidget(list_, 1);
 
@@ -390,6 +392,26 @@ void PathsPanel::changeEvent(QEvent* event) {
 }
 
 bool PathsPanel::eventFilter(QObject* watched, QEvent* event) {
+  // Delete and Backspace in the list belong to its selected row (GitHub issue 717): a saved
+  // path or the work path is deleted, as Delete Path does it, and the active layer's own row
+  // (a shape path, a vector mask, a text boundary) is left alone. Claimed at the
+  // ShortcutOverride so the application's Clear hotkey, which deletes a text or shape layer,
+  // never fires from here. With no row selected the key goes on as before.
+  if (watched == list_ && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress)) {
+    auto* key_event = static_cast<QKeyEvent*>(event);
+    const auto modifiers = key_event->modifiers() & ~Qt::KeypadModifier;
+    if ((key_event->key() == Qt::Key_Delete || key_event->key() == Qt::Key_Backspace) &&
+        modifiers == Qt::NoModifier && selected_row().has_value()) {
+      if (event->type() == QEvent::KeyPress && !key_event->isAutoRepeat() && delete_path_action_ != nullptr) {
+        refresh_action_states();
+        if (delete_path_action_->isEnabled()) {
+          delete_path_action_->trigger();
+        }
+      }
+      event->accept();
+      return true;
+    }
+  }
   if (watched == list_->viewport() && event->type() == QEvent::MouseButtonPress) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     ctrl_load_mouse_press_ = false;

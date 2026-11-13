@@ -21874,6 +21874,10 @@ Do you want to replace it?</source>
         <source>Select by color, hue or tone</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Move text on a path to the other side of the path</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36064,6 +36068,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Height part of the shape&apos;s aspect ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip Text on Path</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

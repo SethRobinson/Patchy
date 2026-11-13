@@ -364,6 +364,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
      QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Re-render every text layer with installed fonts")},
     {"type.paste_lorem_ipsum", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Insert placeholder filler text")},
     {"type.convert_to_shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn text into editable vector outlines")},
+    {"type.flip_text_on_path",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move text on a path to the other side of the path")},
     {"type.create_work_path", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Outline the letters as a path")},
     {"type.character_panel", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Leading, tracking, glyph scales and font features")},
     {"type.paragraph_panel", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paragraph alignment, indents and spacing")},

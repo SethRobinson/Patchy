@@ -271,6 +271,12 @@ ui_paths_panel_actions_follow_row_selection pins it):
   hard selection, fits via core/path_fit (Douglas-Peucker corners +
   Schneider cubics); outer loops Add, holes Subtract.
 - Delete Path; Duplicate Path in the row context menu ("<name> copy").
+- Delete and Backspace in the list act on its selected row (GitHub issue 717): a saved path or
+  the work path is deleted as Delete Path does it, one undo step, and the active layer's own row
+  (shape path, vector mask, text boundary) is left alone. `PathsPanel::eventFilter` claims the
+  key at the ShortcutOverride, so the application's Clear hotkey, which deletes a text or
+  shape layer, never fires while the list has the keyboard; with no row selected the key
+  passes through. Test: `ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer`.
 
 ## Geometry operations
 

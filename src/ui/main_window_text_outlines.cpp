@@ -5,8 +5,11 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/rect_utils.hpp"
+#include "core/text_area.hpp"
+#include "core/text_path.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/text_layer_painter.hpp"
 #include "ui/text_outline.hpp"
@@ -102,6 +105,71 @@ void MainWindow::convert_text_layers_to_shapes() {
     message += QLatin1Char(' ') + tr("Color emoji have no outlines and were left out.");
   }
   statusBar()->showMessage(message);
+}
+
+void MainWindow::refresh_flip_text_on_path_action_state() {
+  if (type_flip_text_on_path_action_ == nullptr) {
+    return;
+  }
+  bool enabled = false;
+  if (has_active_document() && canvas_ != nullptr && !preview_dialog_edit_locked()) {
+    const auto& doc = std::as_const(document());
+    const auto active = doc.active_layer_id();
+    const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+    enabled = layer != nullptr && layer_is_text(*layer) && !text_geometry_is_protected(*layer) &&
+              text_path_for_layer(*layer).has_value();
+  }
+  type_flip_text_on_path_action_->setEnabled(enabled);
+}
+
+void MainWindow::flip_text_on_path() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  finish_active_text_editor();
+  auto& doc = document();
+  std::vector<LayerId> targets;
+  QString refusal = tr("Select a text layer first.");
+  for (const auto id : text_layer_targets(std::as_const(doc), selected_or_active_layer_ids())) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (text_geometry_is_protected(*layer) || !text_path_for_layer(*layer).has_value()) {
+      continue;
+    }
+    if (layer_id_locks_image_pixels(id)) {
+      refusal = tr("Layer pixels are locked.");
+      continue;
+    }
+    targets.push_back(id);
+  }
+  if (targets.empty()) {
+    show_status_error(refusal);
+    return;
+  }
+  push_undo_snapshot(tr("Flip Text on Path"));
+  Rect affected;
+  for (const auto id : targets) {
+    auto* layer = doc.find_layer(id);
+    const auto frame = layer != nullptr ? text_path_frame_for_layer(std::as_const(*layer)) : std::nullopt;
+    if (!frame.has_value()) {
+      continue;
+    }
+    const auto original = *layer;
+    const auto before = layer_render_bounds(std::as_const(*layer));
+    // The contour walked the other way and the range that covers the same stretch of it.
+    const auto range = reversed_text_path_range(frame->path, frame->range);
+    layer->metadata()[kLayerMetadataTextPath] = serialize_vector_path(reversed_text_path(frame->path));
+    layer->metadata()[kLayerMetadataTextPathRange] = serialize_text_path_range(range);
+    layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+    if (!rerender_text_layer_through_stored_transform(*layer)) {
+      *layer = original;  // a missing font, say: the layer stays as it was
+      continue;
+    }
+    affected = unite_rect(affected, unite_rect(before, layer_render_bounds(std::as_const(*layer))));
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_paths_panel();
+  canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
 }
 
 void MainWindow::create_work_path_from_text() {

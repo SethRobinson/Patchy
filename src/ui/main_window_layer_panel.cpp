@@ -5630,6 +5630,7 @@ void MainWindow::refresh_layer_controls() {
   refresh_add_layer_mask_button_state();
   refresh_layer_styles_button_state();
   refresh_layer_link_action_states();
+  refresh_flip_text_on_path_action_state();
   if (canvas_ != nullptr) {
     // The path overlay outlines every panel-selected shape layer.
     canvas_->set_panel_selected_layer_ids(has_active_document() ? selected_or_active_layer_ids()
