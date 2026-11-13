@@ -24,20 +24,18 @@ namespace patchy::ui {
 
 class CanvasWidget;
 
-// The shape tools' draw options that Shape and Pixels modes share beside MainWindow's fill
-// and stroke mirrors (GitHub issues 716 and 697): the Fill only / Stroke only / Both buttons
-// and the stroke alignment list; and the Pixels-only ones: Foreground Color as a paint, and
-// the Style with its size pairs. It also records which of the bar's controls belong to them, so one row serves
+// The shape tools' draw options that every mode shares beside MainWindow's fill and stroke
+// mirrors (GitHub issues 716 and 697): the Fill only / Stroke only / Both buttons, the stroke
+// alignment list, and the Style with its size pairs. It also records which of the bar's controls belong to them, so one row serves
 // both modes. MainWindow holds one; build_options_bar creates the controls.
 // docs/options-bar-shape-rows.md, "Shape tool rows"; docs/tools.md, "Shapes in Pixels mode".
 struct ShapePixelOptions {
-  // Foreground Color in the Fill or Stroke paint menu, Pixels mode only: pixel shapes paint
-  // that part in the foreground color, as every pixel tool does, whatever the bar's own paint
-  // is, until a paint is picked from the bar. Shape mode never reads these: there the bar
-  // shows the selected shape's paints and hands them to the next shape, which a paint that
-  // follows the foreground cannot also do.
-  bool fill_follows_foreground{false};
-  bool stroke_follows_foreground{false};
+  // Read from settings only: a build between 1.34 and 1.35 let Pixels mode paint a part in the
+  // foreground color whatever the bar's paint was (tools/vectorFillFollowsForeground,
+  // tools/vectorStrokeFollowsForeground). There is one paint per part now, so load_tool_settings
+  // turns such a part into the foreground color once, and save() writes both keys false.
+  bool legacy_fill_foreground{false};
+  bool legacy_stroke_foreground{false};
   // The alignment the list set, for new shapes and for Pixels mode. Unset is the default:
   // Inside (a line's stroke is centered whatever this says, docs/vector-tools-lines.md).
   std::optional<patchy::VectorStrokeAlignment> alignment;
@@ -51,8 +49,8 @@ struct ShapePixelOptions {
   ShapePixelStyle pushed_style;
   const CanvasWidget* pushed_canvas{nullptr};
 
-  // Style (Pixels mode, Rectangle and Ellipse): Normal, Fixed Ratio (ratio_w : ratio_h) or
-  // Fixed Size (width x height pixels). Session only, like the marquee's.
+  // Style (Rectangle, Ellipse and Custom Shape, in every mode): Normal, Fixed Ratio
+  // (ratio_w : ratio_h) or Fixed Size (width x height pixels). Session only, like the marquee's.
   MarqueeStyle size_style{MarqueeStyle::Normal};
   int width{1024};
   int height{768};
@@ -63,10 +61,22 @@ struct ShapePixelOptions {
   // The draw-mode buttons and the Fill and Stroke groups: Shape mode shows them, and so does
   // Pixels mode on the tools that paint pixels with them (shape_tool_has_draw_modes).
   std::vector<QWidget*> appearance_widgets;
-  std::vector<QWidget*> fill_widgets;    // greyed while no fill is drawn (Stroke only)
-  std::vector<QWidget*> stroke_widgets;  // greyed while no stroke is drawn (Fill only)
+  std::vector<QWidget*> fill_widgets;    // hidden while no fill is drawn (Stroke only)
+  std::vector<QWidget*> stroke_widgets;  // hidden while no stroke is drawn (Fill only)
   std::vector<QWidget*> ratio_widgets;   // shown for Fixed Ratio
-  std::vector<QWidget*> size_widgets;    // shown for Fixed Size
+  // The pixel pair: shown for Fixed Size, and in Normal while a shape's size is live (below),
+  // when it shows and edits that shape's size.
+  std::vector<QWidget*> size_widgets;
+  QSpinBox* size_width_spin{nullptr};
+  QSpinBox* size_height_spin{nullptr};
+  // What the bar last showed, so one refresh sets every widget's final visibility
+  // (MainWindow::sync_shape_bar_state): whether the fill and the stroke are drawn (on the
+  // tools with the draw-mode buttons a part that is not drawn has its group hidden), and
+  // whether a shape whose size the pixel pair edits exists (a selected shape layer or path
+  // in the vector modes, a pending pixel shape in Pixels mode).
+  bool shown_fill{true};
+  bool shown_stroke{true};
+  bool size_live{false};
   QButtonGroup* mode_group{nullptr};
   std::array<QAbstractButton*, 3> mode_buttons{};  // indexed by ShapeDrawMode
   QComboBox* align_combo{nullptr};
@@ -74,20 +84,17 @@ struct ShapePixelOptions {
   QSpinBox* opacity_spin{nullptr};
   QSpinBox* softness_spin{nullptr};
 
-  // False for the size pair the Style does not use (Normal shows neither).
-  [[nodiscard]] bool widget_visible(const QWidget* widget) const;
-  // On a tool with the draw-mode buttons: false for the Fill group while no fill is drawn and
-  // for the Stroke group while no stroke is. The stroke's width field is not in that group:
-  // it is the stroke's switch (0 is off), so a typed width turns the stroke back on.
-  [[nodiscard]] bool widget_enabled(const QWidget* widget, bool draws_fill, bool draws_stroke) const;
+  // False for the size pair the Style does not use (Normal shows neither, unless a shape's
+  // size is live), and, on a tool with the draw-mode buttons, for the Fill group while no fill
+  // is drawn and the Stroke group while no stroke is: the buttons are the switch then.
+  [[nodiscard]] bool widget_visible(const QWidget* widget, CanvasTool tool) const;
   // What CanvasWidget::set_shape_fixed_size takes: the pixel size, or the ratio as a pair of
   // whole numbers (thousandths, so 1.5 : 1 survives).
   [[nodiscard]] QSize fixed_size_for_canvas() const;
   // The Style and its size on a canvas (the pixel style comes from MainWindow).
   void apply_to_canvas(CanvasWidget& canvas) const;
 
-  // tools/vectorFillFollowsForeground, tools/vectorStrokeFollowsForeground and
-  // tools/vectorStrokeAlign (token; absent for the default).
+  // tools/vectorStrokeAlign (token; absent for the default), and the two legacy keys above.
   void load(const QSettings& settings);
   void save(QSettings& settings) const;
 

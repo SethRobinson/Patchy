@@ -977,41 +977,72 @@ patchy::VectorFill red_to_blue_gradient() {
 
 // GitHub issue 716: the Fill only, Stroke only and Both buttons are the fill's "none" and the
 // stroke's switch as buttons, on the one Fill / Stroke row Shape and Pixels modes share. They
-// set what the next shape draws, they follow the width field (0 is no stroke) and the swatch's
-// No Fill, and the group that is not drawn greys (the width field stays: it is the switch).
+// set what the next shape draws and follow the width field (0 is no stroke) and the swatch's
+// No Fill. The group that is not drawn leaves the bar: Fill only hides the whole Stroke group
+// (label, width, swatch, dashes, alignment), Stroke only the Fill label and swatch, and the
+// separators close up.
 void ui_shape_draw_mode_buttons_follow_and_set_fill_and_stroke() {
   VectorSettingsGuard settings_guard;
   const auto restorers = clear_shape_pixel_settings();
   auto&& [window, canvas] = ShownWindowFixture{};
   select_shape_tool_in_pixels_mode(window, "toolRectAction");
   CHECK(window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck")) == nullptr);
+  auto* options_content = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
   auto* fill = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
   auto* stroke = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawStrokeButton"));
   auto* both = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawBothButton"));
   auto* fill_swatch = window.findChild<QWidget*>(QStringLiteral("vectorFillSwatchButton"));
+  auto* stroke_label = window.findChild<QWidget*>(QStringLiteral("vectorStrokeWidthLabel"));
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
   auto* stroke_swatch = window.findChild<QWidget*>(QStringLiteral("vectorStrokeSwatchButton"));
   auto* dashes = window.findChild<QWidget*>(QStringLiteral("vectorStrokeDashCombo"));
   auto* align = window.findChild<QWidget*>(QStringLiteral("vectorStrokeAlignCombo"));
   auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
-  CHECK(fill != nullptr && stroke != nullptr && both != nullptr && fill_swatch != nullptr);
-  CHECK(stroke_width != nullptr && stroke_swatch != nullptr && dashes != nullptr && align != nullptr);
-  CHECK(mode != nullptr);
-  if (fill == nullptr || stroke == nullptr || both == nullptr || fill_swatch == nullptr || stroke_width == nullptr ||
-      stroke_swatch == nullptr || dashes == nullptr || align == nullptr || mode == nullptr) {
+  CHECK(options_content != nullptr && fill != nullptr && stroke != nullptr && both != nullptr);
+  CHECK(fill_swatch != nullptr && stroke_label != nullptr && stroke_width != nullptr && stroke_swatch != nullptr);
+  CHECK(dashes != nullptr && align != nullptr && mode != nullptr);
+  if (options_content == nullptr || fill == nullptr || stroke == nullptr || both == nullptr ||
+      fill_swatch == nullptr || stroke_label == nullptr || stroke_width == nullptr || stroke_swatch == nullptr ||
+      dashes == nullptr || align == nullptr || mode == nullptr) {
     return;
   }
   const auto& fill_paint = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
+  const auto stroke_group_visible = [&] {
+    return stroke_label->isVisible() && stroke_width->isVisible() && stroke_swatch->isVisible() &&
+           dashes->isVisible() && align->isVisible();
+  };
+  const auto stroke_group_hidden = [&] {
+    return !stroke_label->isVisible() && !stroke_width->isVisible() && !stroke_swatch->isVisible() &&
+           !dashes->isVisible() && !align->isVisible();
+  };
+  // A hidden group leaves no stray separator: none leads or ends the row and no two meet.
+  const auto separators_ok = [&] {
+    const auto tokens = options_row_tokens(*options_content);
+    if (tokens.empty() || tokens.front() == QStringLiteral("|") || tokens.back() == QStringLiteral("|")) {
+      return false;
+    }
+    for (std::size_t index = 1; index < tokens.size(); ++index) {
+      if (tokens[index] == QStringLiteral("|") && tokens[index - 1] == QStringLiteral("|")) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto has_token = [&](const char* token) {
+    const auto tokens = options_row_tokens(*options_content);
+    return std::find(tokens.begin(), tokens.end(), QLatin1String(token)) != tokens.end();
+  };
   CHECK(fill->isVisible() && stroke->isVisible() && both->isVisible());
   CHECK(!fill->toolTip().isEmpty() && !stroke->toolTip().isEmpty() && !both->toolTip().isEmpty());
-  // The defaults: a fill in the foreground color and no stroke, which is Fill only.
+  // The defaults: a fill and no stroke, which is Fill only. The Stroke group is off the bar.
   CHECK(fill->isChecked() && !stroke->isChecked() && !both->isChecked());
   CHECK(canvas->shape_pixel_style().fill && !canvas->shape_pixel_style().stroke);
-  CHECK(!canvas->shape_pixel_style().fill_paint.has_value());  // Foreground Color
+  CHECK(canvas->shape_pixel_style().fill_paint.has_value());  // the bar's own paint
   CHECK(canvas->fill_shapes());
-  CHECK(fill_swatch->isEnabled() && stroke_width->isEnabled());
-  CHECK(!stroke_swatch->isEnabled() && !dashes->isEnabled() && !align->isEnabled());
-  CHECK(stroke_width->value() == 0.0);
+  CHECK(fill_swatch->isVisible() && stroke_group_hidden());
+  CHECK(has_token("Fill") && !has_token("vectorStrokeWidthLabel") && separators_ok());
+  const int mode_x = mode->x();
+  const int buttons_x = fill->x();
 
   stroke->click();
   QApplication::processEvents();
@@ -1019,8 +1050,8 @@ void ui_shape_draw_mode_buttons_follow_and_set_fill_and_stroke() {
   CHECK(fill_paint.kind == patchy::VectorFillKind::None);
   CHECK(!canvas->shape_pixel_style().fill && canvas->shape_pixel_style().stroke);
   CHECK(!canvas->fill_shapes());
-  CHECK(!fill_swatch->isEnabled());
-  CHECK(stroke_swatch->isEnabled() && dashes->isEnabled() && align->isEnabled());
+  CHECK(!fill_swatch->isVisible() && stroke_group_visible());
+  CHECK(!has_token("Fill") && has_token("vectorStrokeWidthLabel") && separators_ok());
   CHECK(stroke_width->value() > 0.0);  // the kept width shows again
 
   both->click();
@@ -1028,13 +1059,18 @@ void ui_shape_draw_mode_buttons_follow_and_set_fill_and_stroke() {
   CHECK(both->isChecked() && !fill->isChecked() && !stroke->isChecked());
   CHECK(fill_paint.kind == patchy::VectorFillKind::Solid);
   CHECK(canvas->shape_pixel_style().fill && canvas->shape_pixel_style().stroke);
-  CHECK(fill_swatch->isEnabled() && stroke_swatch->isEnabled() && dashes->isEnabled() && align->isEnabled());
+  CHECK(fill_swatch->isVisible() && stroke_group_visible() && separators_ok());
+  // Nothing before the groups moved.
+  CHECK(mode->x() == mode_x && fill->x() == buttons_x);
 
-  // The width field is the stroke's switch, and the buttons follow it.
+  // The width field is still the stroke's switch, and the buttons follow it: 0 is Fill only.
   stroke_width->setValue(0.0);
   QApplication::processEvents();
   CHECK(fill->isChecked() && !both->isChecked());
-  CHECK(!stroke_swatch->isEnabled() && stroke_width->isEnabled());
+  CHECK(stroke_group_hidden() && separators_ok());
+  both->click();
+  QApplication::processEvents();
+  CHECK(stroke_group_visible() && stroke_width->value() > 0.0);
   stroke_width->setValue(6.0);
   QApplication::processEvents();
   CHECK(both->isChecked());
@@ -1047,13 +1083,18 @@ void ui_shape_draw_mode_buttons_follow_and_set_fill_and_stroke() {
   CHECK(stroke_width->value() > 6.0);
   CHECK(canvas->brush_size() == brush_size);
 
-  // Shape mode shows the same buttons in the same state; Path mode hides them.
+  // Shape mode shows the same buttons in the same state; Path mode hides them and both groups.
   mode->setCurrentIndex(0);
   QApplication::processEvents();
-  CHECK(both->isVisible() && both->isChecked() && align->isVisible());
+  CHECK(both->isVisible() && both->isChecked() && stroke_group_visible() && fill_swatch->isVisible());
+  fill->click();
+  QApplication::processEvents();
+  CHECK(stroke_group_hidden() && fill_swatch->isVisible() && separators_ok());
+  both->click();
+  QApplication::processEvents();
   mode->setCurrentIndex(1);
   QApplication::processEvents();
-  CHECK(!both->isVisible() && !align->isVisible() && !fill_swatch->isVisible());
+  CHECK(!both->isVisible() && !align->isVisible() && !fill_swatch->isVisible() && separators_ok());
   mode->setCurrentIndex(0);
   // Polygon and Custom Shape have them; Line and the Pen do not.
   for (const char* tool : {"toolPolygonAction", "toolCustomShapeAction", "toolEllipseAction"}) {
@@ -1061,22 +1102,26 @@ void ui_shape_draw_mode_buttons_follow_and_set_fill_and_stroke() {
     QApplication::processEvents();
     CHECK(both->isVisible() && align->isVisible());
   }
+  stroke_width->setValue(0.0);
+  QApplication::processEvents();
+  CHECK(stroke_group_hidden());
   for (const char* tool : {"toolLineAction", "toolPenAction"}) {
     require_action(window, tool)->trigger();
     QApplication::processEvents();
     CHECK(!both->isVisible() && !align->isVisible());
-    // Without the buttons the width is the only switch, so nothing greys.
-    CHECK(stroke_swatch->isVisible() && stroke_swatch->isEnabled());
+    // Without the buttons the width is the only switch, so its group stays, with no stroke too.
+    CHECK(stroke_swatch->isVisible() && stroke_swatch->isEnabled() && stroke_width->isVisible());
+    CHECK(fill_swatch->isVisible());
   }
 }
 
-// GitHub issue 716: one Fill / Stroke row serves the shape tools in Shape and Pixels modes: the
-// draw mode | Fill and its swatch | Stroke, its width, swatch, dashes and alignment, the same
-// widgets in both. Pixels mode then adds the tool's own settings with Opacity and Soft, and on
-// Rectangle and Ellipse the Style with its size pair (GitHub issues 602 and 697); Polygon and
-// Custom Shape have Pixels mode too. At 1600 px every row shows all of it; at 1366 px every row
-// still takes one line, the longest without the labels that drop first. The artifacts are the
-// issue shots, in both schemes.
+// GitHub issue 716: the shape tools' bars read the same in every mode. Shape and Pixels modes
+// share the draw mode | Fill and its swatch | Stroke, its width, swatch, dashes and alignment;
+// Pixels mode adds the tool's own settings with Opacity and Soft; and every mode ends with
+// Style and its size pair on Rectangle, Ellipse and Custom Shape (GitHub issues 602 and 697;
+// the vector modes keep Combine, the tool's own settings and the gear). At 1600 px every row
+// shows all of it; at 1366 px every row still takes one line, the longest without the labels
+// that drop first. The artifacts are the issue shots, in both schemes.
 void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
   VectorSettingsGuard settings_guard;
   const auto restorers = clear_shape_pixel_settings();
@@ -1099,20 +1144,20 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
   const std::vector<QString> size_pair{
       QStringLiteral("Width"), QStringLiteral("shapeFixedWidthSpin"), QStringLiteral("shapeFixedSizeSwapButton"),
       QStringLiteral("Height"), QStringLiteral("shapeFixedHeightSpin")};
-  struct PixelRow {
+  struct ShapeRow {
     const char* tool;
     const char* name;
     std::vector<QString> own;  // the tool's own settings, before Opacity
     bool has_style;
   };
-  const std::vector<PixelRow> rows{
+  const std::vector<ShapeRow> rows{
       {"toolRectAction", "rectangle", {QStringLiteral("Radius"), QStringLiteral("shapeCornerRadiusSpin")}, true},
       {"toolEllipseAction", "ellipse", {}, true},
       {"toolPolygonAction", "polygon",
        {QStringLiteral("Sides"), QStringLiteral("polygonSidesSpin"), QStringLiteral("Star inset"),
         QStringLiteral("polygonStarInsetSpin")},
        false},
-      {"toolCustomShapeAction", "custom_shape", {QStringLiteral("Shape"), QStringLiteral("customShapeCombo")}, false},
+      {"toolCustomShapeAction", "custom_shape", {QStringLiteral("Shape"), QStringLiteral("customShapeCombo")}, true},
   };
   // The labels that only name the control beside them drop before a row wraps.
   const auto without_droppable_labels = [](std::vector<QString> tokens) {
@@ -1120,6 +1165,9 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
       tokens.erase(std::remove(tokens.begin(), tokens.end(), QLatin1String(label)), tokens.end());
     }
     return tokens;
+  };
+  const auto contains_run = [](const std::vector<QString>& tokens, const std::vector<QString>& run) {
+    return std::search(tokens.begin(), tokens.end(), run.begin(), run.end()) != tokens.end();
   };
   std::vector<std::string> problems;
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -1138,20 +1186,26 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
     auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("shapePixelOpacitySpin"));
     auto* softness = window.findChild<QSpinBox*>(QStringLiteral("shapePixelSoftSpin"));
     auto* dashes = window.findChild<QComboBox*>(QStringLiteral("vectorStrokeDashCombo"));
+    auto* fill_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
+    auto* stroke_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawStrokeButton"));
+    auto* both = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawBothButton"));
     CHECK(options_bar != nullptr && options_content != nullptr && mode != nullptr && style != nullptr);
     CHECK(ratio_width != nullptr && ratio_height != nullptr && fixed_width != nullptr && fixed_height != nullptr);
     CHECK(opacity != nullptr && softness != nullptr && dashes != nullptr);
+    CHECK(fill_only != nullptr && stroke_only != nullptr && both != nullptr);
     if (options_bar == nullptr || options_content == nullptr || mode == nullptr || style == nullptr ||
         ratio_width == nullptr || ratio_height == nullptr || fixed_width == nullptr || fixed_height == nullptr ||
-        opacity == nullptr || softness == nullptr || dashes == nullptr) {
+        opacity == nullptr || softness == nullptr || dashes == nullptr || fill_only == nullptr ||
+        stroke_only == nullptr || both == nullptr) {
       return;
     }
     const auto settle = [] {
       QApplication::processEvents();
       process_events_for(20);
     };
+    enum class Match { Exact, Prefix, Contains };
     // One row at both widths; all of it at 1600 px, all of it or the compact row at 1366 px.
-    const auto check_row = [&](const std::string& name, const std::vector<QString>& expected, bool exact) {
+    const auto check_row = [&](const std::string& name, const std::vector<QString>& expected, Match match) {
       for (const int window_width : {1600, 1366}) {
         window.resize(window_width, 738);
         settle();
@@ -1159,19 +1213,23 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
         save_widget_artifact("issue_716_bar_" + shot, *options_bar);
         const auto tokens = options_row_tokens(*options_content);
         const auto [right, lines] = options_row_extent(*options_content);
-        std::printf("  %-44s row %d px of %d:", shot.c_str(), right, options_content->width());
+        std::printf("  %-48s row %d px of %d:", shot.c_str(), right, options_content->width());
         for (const auto& token : tokens) {
           std::printf(" %s", qPrintable(token));
         }
         std::printf("\n");
-        const bool matches = exact ? tokens == expected
-                                   : tokens.size() >= expected.size() &&
-                                         std::equal(expected.begin(), expected.end(), tokens.begin());
-        const auto compact = without_droppable_labels(expected);
-        const bool matches_compact =
-            exact ? tokens == compact
-                  : tokens.size() >= compact.size() && std::equal(compact.begin(), compact.end(), tokens.begin());
-        if (!matches && (window_width == 1600 || !matches_compact)) {
+        const auto matches = [&](const std::vector<QString>& wanted) {
+          switch (match) {
+            case Match::Exact:
+              return tokens == wanted;
+            case Match::Prefix:
+              return tokens.size() >= wanted.size() && std::equal(wanted.begin(), wanted.end(), tokens.begin());
+            case Match::Contains:
+              return contains_run(tokens, wanted);
+          }
+          return false;
+        };
+        if (!matches(expected) && (window_width == 1600 || !matches(without_droppable_labels(expected)))) {
           problems.push_back(shot + ": the row is not the expected order");
         }
         if (lines != 1) {
@@ -1182,12 +1240,54 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
       window.resize(1600, 738);
       settle();
     };
+    struct Variant {
+      int style;
+      const char* name;
+      const std::vector<QString>* pair;
+    };
+    const std::vector<Variant> variants{Variant{0, "normal", nullptr}, Variant{1, "fixed_ratio", &ratio_pair},
+                                        Variant{2, "fixed_size", &size_pair}};
     for (const auto& row : rows) {
       require_action(window, row.tool)->trigger();
-      // Shape mode: the shared lead, then the shape's size, Combine and the rest.
+      style->setCurrentIndex(0);
+      // Shape mode: the shared lead, then Combine, the tool's own settings, Style and the gear.
       mode->setCurrentIndex(0);
       settle();
-      check_row(std::string(row.name) + "_shape", lead, false);
+      check_row(std::string(row.name) + "_shape", lead, Match::Prefix);
+      if (options_row_tokens(*options_content).back() != QStringLiteral("vectorAppearanceButton")) {
+        problems.push_back(std::string(row.name) + suffix + ": the gear does not end the Shape row");
+      }
+      // Shape and Path modes end with the same Style group as Pixels mode.
+      for (const int vector_mode : {0, 1}) {
+        mode->setCurrentIndex(vector_mode);
+        settle();
+        const std::string mode_name = vector_mode == 0 ? "_shape_" : "_path_";
+        if (!row.has_style) {
+          if (contains_run(options_row_tokens(*options_content), {QStringLiteral("shapeStyleCombo")})) {
+            problems.push_back(std::string(row.name) + mode_name + suffix + ": shows a Style list");
+          }
+          continue;
+        }
+        for (const auto& variant : variants) {
+          style->setCurrentIndex(variant.style);
+          settle();
+          auto run = style_group;
+          if (variant.pair != nullptr) {
+            run.insert(run.end(), variant.pair->begin(), variant.pair->end());
+          }
+          check_row(std::string(row.name) + mode_name + variant.name, run, Match::Contains);
+        }
+        style->setCurrentIndex(0);
+        settle();
+        if (vector_mode == 1) {
+          const auto tokens = options_row_tokens(*options_content);
+          for (const char* gone : {"shapeDrawFillButton", "Fill", "vectorStrokeWidthLabel"}) {
+            if (std::find(tokens.begin(), tokens.end(), QLatin1String(gone)) != tokens.end()) {
+              problems.push_back(std::string(row.name) + "_path" + suffix + ": shows " + gone);
+            }
+          }
+        }
+      }
       // Pixels mode: the same lead, the tool's own settings with Opacity and Soft, and Style.
       mode->setCurrentIndex(2);
       settle();
@@ -1199,7 +1299,7 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
       expected.insert(expected.end(), row.own.begin(), row.own.end());
       expected.insert(expected.end(), pixel_options.begin(), pixel_options.end());
       if (!row.has_style) {
-        check_row(std::string(row.name) + "_pixels", expected, true);
+        check_row(std::string(row.name) + "_pixels", expected, Match::Exact);
         continue;
       }
       expected.insert(expected.end(), style_group.begin(), style_group.end());
@@ -1207,20 +1307,14 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
       fixed_height->setValue(480);
       ratio_width->setValue(16);
       ratio_height->setValue(9);
-      struct Variant {
-        int style;
-        const char* name;
-        const std::vector<QString>* pair;
-      };
-      for (const auto& variant : {Variant{0, "normal", nullptr}, Variant{1, "fixed_ratio", &ratio_pair},
-                                  Variant{2, "fixed_size", &size_pair}}) {
+      for (const auto& variant : variants) {
         style->setCurrentIndex(variant.style);
         settle();
         auto with_pair = expected;
         if (variant.pair != nullptr) {
           with_pair.insert(with_pair.end(), variant.pair->begin(), variant.pair->end());
         }
-        check_row(std::string(row.name) + "_pixels_" + variant.name, with_pair, true);
+        check_row(std::string(row.name) + "_pixels_" + variant.name, with_pair, Match::Exact);
       }
       // Each pair keeps its own values: the ratio never rewrites the pixel size.
       style->setCurrentIndex(1);
@@ -1234,8 +1328,7 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
       }
       style->setCurrentIndex(0);
       settle();
-      // The brush fields are not on these bars, and the Pixels-only copies of Fill and Stroke
-      // are gone: one set of widgets.
+      // The brush fields are not on these bars, and there is one set of Fill and Stroke widgets.
       for (const char* gone : {"brushSizeSpin", "brushSizeSlider", "brushOpacitySpin", "brushSoftnessSpin"}) {
         if (auto* widget = window.findChild<QWidget*>(QLatin1String(gone)); widget == nullptr || widget->isVisible()) {
           problems.push_back(std::string(row.name) + suffix + ": " + gone + " still shows");
@@ -1248,6 +1341,62 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
           problems.push_back(std::string(row.name) + suffix + ": " + removed + " still exists");
         }
       }
+    }
+    // The pixel pair also shows the size of the shape being worked on. A selected polygon has
+    // it without a Style list, on one row; a pending pixel polygon has none (no room at
+    // 1366 px); a pending rectangle in Style Normal is as wide as the Fixed Size row.
+    {
+      canvas->set_snap_enabled(false);
+      const auto at = [&](QPoint point) { return canvas->widget_position_for_document_point(point); };
+      const auto pixel_layer =
+          patchy::ui::MainWindowTestAccess::document(window).active_layer_id().value_or(patchy::LayerId{});
+      require_action(window, "toolPolygonAction")->trigger();
+      mode->setCurrentIndex(0);
+      settle();
+      drag(*canvas, at(QPoint(300, 300)), at(QPoint(300, 220)));
+      settle();
+      check_row("polygon_shape_selected",
+                {QStringLiteral("|"), QStringLiteral("Width"), QStringLiteral("shapeFixedWidthSpin"),
+                 QStringLiteral("shapeFixedSizeSwapButton"), QStringLiteral("Height"),
+                 QStringLiteral("shapeFixedHeightSpin"), QStringLiteral("|"), QStringLiteral("vectorAppearanceButton")},
+                Match::Contains);
+      mode->setCurrentIndex(2);
+      settle();
+      // A shape layer takes no pixels: the press is refused there, as before. Back on the
+      // pixel layer the polygon stays pending.
+      drag(*canvas, at(QPoint(600, 300)), at(QPoint(600, 240)));
+      settle();
+      if (canvas->has_pending_pixel_shape()) {
+        problems.push_back("polygon_pixels_pending" + suffix + ": a pixel shape started on a shape layer");
+      }
+      patchy::ui::MainWindowTestAccess::select_layers(window, {pixel_layer}, pixel_layer);
+      settle();
+      drag(*canvas, at(QPoint(600, 300)), at(QPoint(600, 240)));
+      settle();
+      if (!canvas->has_pending_pixel_shape()) {
+        problems.push_back("polygon_pixels_pending" + suffix + ": the polygon did not stay pending");
+      }
+      auto pending_polygon = lead;
+      pending_polygon.insert(pending_polygon.end(), rows[2].own.begin(), rows[2].own.end());
+      pending_polygon.insert(pending_polygon.end(), pixel_options.begin(), pixel_options.end());
+      check_row("polygon_pixels_pending", pending_polygon, Match::Exact);
+      canvas->cancel_pending_pixel_shape();
+      require_action(window, "toolRectAction")->trigger();
+      style->setCurrentIndex(0);
+      settle();
+      drag(*canvas, at(QPoint(100, 400)), at(QPoint(259, 499)));
+      settle();
+      auto pending_rectangle = lead;
+      pending_rectangle.insert(pending_rectangle.end(), rows[0].own.begin(), rows[0].own.end());
+      pending_rectangle.insert(pending_rectangle.end(), pixel_options.begin(), pixel_options.end());
+      pending_rectangle.insert(pending_rectangle.end(), style_group.begin(), style_group.end());
+      pending_rectangle.insert(pending_rectangle.end(), size_pair.begin(), size_pair.end());
+      check_row("rectangle_pixels_pending", pending_rectangle, Match::Exact);
+      if (fixed_width->value() != 160 || fixed_height->value() != 100) {
+        problems.push_back("rectangle_pixels_pending" + suffix + ": the pair does not show the pending shape's size");
+      }
+      canvas->cancel_pending_pixel_shape();
+      settle();
     }
     // Opacity and Soft are the brush's values, both ways.
     select_shape_tool_in_pixels_mode(window, "toolPolygonAction");
@@ -1272,16 +1421,42 @@ void ui_shape_pixel_options_bar_follows_the_shape_mode_bar() {
       dashes->setCurrentIndex(original);
       settle();
     }
-    // The issue shots: Rectangle in Shape mode, Rectangle in Pixels mode with a gradient fill
-    // picked, Custom Shape in Pixels mode.
+    // The issue shots: the Rectangle bar in Shape, Path and Pixels modes with Style Normal and
+    // Fixed Size, Fill only and Stroke only with their hidden groups, a gradient fill picked,
+    // and Custom Shape in Pixels mode.
     window.resize(1500, 738);
     require_action(window, "toolRectAction")->trigger();
-    mode->setCurrentIndex(0);
+    const std::array<const char*, 3> mode_names{"shape", "path", "pixels"};
+    for (int mode_index = 0; mode_index < 3; ++mode_index) {
+      mode->setCurrentIndex(mode_index);
+      style->setCurrentIndex(0);
+      settle();
+      save_widget_artifact(std::string("issue_716_shot_rectangle_") + mode_names[static_cast<std::size_t>(mode_index)] +
+                               "_normal" + suffix,
+                           *options_bar);
+      style->setCurrentIndex(2);
+      settle();
+      save_widget_artifact(std::string("issue_716_shot_rectangle_") + mode_names[static_cast<std::size_t>(mode_index)] +
+                               "_fixed_size" + suffix,
+                           *options_bar);
+      if (const auto [right, lines] = options_row_extent(*options_content); lines != 1) {
+        problems.push_back(std::string("shot_") + mode_names[static_cast<std::size_t>(mode_index)] + suffix +
+                           ": Fixed Size takes " + std::to_string(lines) + " rows at 1500 px");
+      }
+      style->setCurrentIndex(0);
+      settle();
+    }
+    mode->setCurrentIndex(2);
+    fill_only->click();
     settle();
-    save_widget_artifact("issue_716_shot_rectangle_shape" + suffix, *options_bar);
+    save_widget_artifact("issue_716_shot_rectangle_fill_only" + suffix, *options_bar);
+    stroke_only->click();
+    settle();
+    save_widget_artifact("issue_716_shot_rectangle_stroke_only" + suffix, *options_bar);
+    both->click();
+    settle();
     patchy::ui::MainWindowTestAccess::current_vector_fill(window) = red_to_blue_gradient();
     patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
-    mode->setCurrentIndex(2);
     settle();
     save_widget_artifact("issue_716_shot_rectangle_pixels_gradient" + suffix, *options_bar);
     if (!canvas->shape_pixel_style().fill_paint.has_value() ||
@@ -1353,6 +1528,7 @@ void ui_shape_pixel_swap_button_swaps_ratio_and_size() {
   const QRect document_rect(0, 0, 400, 300);
   const auto click_point = canvas->widget_position_for_document_point(QPoint(30, 30));
   drag(*canvas, click_point, click_point);
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   auto bounds = dark_document_bounds(*canvas, document_rect);
   CHECK(bounds.has_value());
@@ -1373,6 +1549,7 @@ void ui_shape_pixel_swap_button_swaps_ratio_and_size() {
   CHECK(width->value() == 50 && height->value() == 80);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
        canvas->widget_position_for_document_point(QPoint(160, 180)));
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   bounds = dark_document_bounds(*canvas, document_rect);
   CHECK(bounds.has_value());
@@ -1715,6 +1892,7 @@ void ui_shape_pixel_styled_shape_is_one_undo_step() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 90)), Qt::white, 10));
   const auto click_point = canvas->widget_position_for_document_point(QPoint(40, 40));
   drag(*canvas, click_point, click_point);
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 90)), red, 12));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(42, 90)), blue, 12));
@@ -1741,6 +1919,7 @@ void ui_shape_pixel_styled_shape_is_one_undo_step() {
   const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   const auto rounded_point = canvas->widget_position_for_document_point(QPoint(60, 60));
   drag(*canvas, rounded_point, rounded_point);
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
   const QColor left = canvas_pixel(*canvas, QPoint(70, 140));
@@ -1755,6 +1934,7 @@ void ui_shape_pixel_styled_shape_is_one_undo_step() {
   QApplication::processEvents();
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(420, 50)),
        canvas->widget_position_for_document_point(QPoint(620, 250)));
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   process_events_for(50);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
@@ -1788,6 +1968,10 @@ void ui_shape_pixel_styled_shape_is_one_undo_step() {
 // between the W field and the H label. Every bar fits one row at 1366 px (the longest drop
 // the Combine and Shape labels to do it). The artifacts are the issue shots, in both schemes.
 void ui_shape_options_bars_group_their_controls() {
+  // A fill and a stroke, so both groups show (a part that is not drawn leaves the bar).
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shape_pixel_settings();
+  store_shape_paints(QColor(0xf2, 0xa3, 0x3a), QColor(0x2f, 0x6f, 0xde), 4.0);
   struct ShapeBar {
     const char* tool;
     const char* name;
@@ -1844,7 +2028,7 @@ void ui_shape_options_bars_group_their_controls() {
           problem(left.toStdString() + " is not followed by " + right.toStdString());
         }
       };
-      for (const char* token : {"Fill", "vectorStrokeWidthLabel", "W", "vectorAppearanceButton"}) {
+      for (const char* token : {"Fill", "vectorStrokeWidthLabel", "vectorAppearanceButton"}) {
         expect_separator_before(QLatin1String(token));
       }
       // A label that only names the list beside it may have dropped to keep the row on one
@@ -1854,6 +2038,27 @@ void ui_shape_options_bars_group_their_controls() {
       };
       expect_separator_before(group_start("Combine", "vectorCombineCombo"));
       const bool line = std::string_view(bar.name) == "line";
+      // The active shape's W [link] H group is Line's; the other bars end with Style and its
+      // size pair before the gear (GitHub issue 716), the Polygon with neither.
+      const bool polygon = std::string_view(bar.name) == "polygon";
+      if (line) {
+        expect_separator_before(QStringLiteral("W"));
+      } else {
+        if (at(tokens, QStringLiteral("W")) >= 0 || at(tokens, QStringLiteral("vectorShapeLinkSizeButton")) >= 0) {
+          problem("still shows the W / H group");
+        }
+        if (polygon) {
+          if (at(tokens, QStringLiteral("shapeStyleCombo")) >= 0) {
+            problem("shows a Style list");
+          }
+        } else {
+          expect_separator_before(group_start("Style", "shapeStyleCombo"));
+          expect_next_to(QStringLiteral("shapeStyleCombo"), separator);
+          if (at(tokens, QStringLiteral("shapeStyleCombo")) < at(tokens, QStringLiteral("vectorCombineCombo"))) {
+            problem("Style comes before Combine");
+          }
+        }
+      }
       // The draw-mode buttons are a group of their own, on every shape tool but Line.
       if (line) {
         if (at(tokens, QStringLiteral("shapeDrawFillButton")) >= 0 ||
@@ -1924,6 +2129,9 @@ void ui_shape_options_bars_group_their_controls() {
         if (frame == bar_color && face == bar_color) {
           problem(std::string(name) + " has no button frame");
         }
+      }
+      if (!line) {
+        continue;  // the keep-proportions toggle is on Line's bar only
       }
       // The keep-proportions toggle: as far from the W field as from the H label's text.
       auto* width_spin = window.findChild<QWidget*>(QStringLiteral("vectorShapeWidthSpin"));
@@ -8685,6 +8893,7 @@ void ui_filled_shape_preview_clears_after_commit() {
 
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(170, 170)),
        canvas->widget_position_for_document_point(QPoint(370, 310)));
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
 
   const auto outside_final_shape = canvas_pixel(*canvas, QPoint(170, 125));

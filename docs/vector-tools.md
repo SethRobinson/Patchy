@@ -56,7 +56,8 @@ Polygon: Sides; Custom Shape: the bar's picker (`populate_custom_shape_combo`);
 both go back to the bar. It commits like a drag (mode routing, Combine,
 vector-mask target, naming); values persist per tool for the session.
 A click releases on the press's document pixel. Line has no dialog, a
-Fixed Size click places its W x H, and Pixels mode keeps its legacy click.
+Fixed Size click places its W x H (the Style row shows in every mode, GitHub issue 716), and a
+Pixels-mode click makes no shape ([pending pixel shapes](tools.md#pending-pixel-shapes)).
 A click off the canvas (outside the document, or outside every artboard
 when it has them) opens no dialog: it deselects like Select > Deselect
 (selected path anchors too; one undo step only when a pixel selection
@@ -64,8 +65,11 @@ went away). Drags that start there still draw.
 
 The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
 link button for proportional edits) mirror the active shape layer's bounds:
-shape tools show them in Shape mode (disabled with no shape layer),
-Path Select / Direct Select only with an editable shape layer, not Move. A debounced edit
+Line and the Pen show them in Shape mode (disabled with no shape layer),
+Path Select / Direct Select only with an editable shape layer, not Move. Rectangle, Ellipse,
+Polygon and Custom Shape show the same size in their Style row's pixel pair instead
+([options-bar-shape-rows.md](options-bar-shape-rows.md#the-style-row)); the two spins stay
+behind it as the value and the edit path. A debounced edit
 scales the shape about its top-left through `transform_layer_vector_data`
 (live shapes stay live; one "Shape size" undo per edit). The Properties panel
 repeats the row (`propertiesShapeSizePanel`) for an active editable shape
@@ -139,7 +143,8 @@ extends. Delete removes a Ctrl-selected anchor.
 
 Polygon drags center-out with Sides and a Star inset percent (0 = plain);
 Custom Shape stamps a library shape (unit box, own proportions) into the drag
-rect; Shift or the W/H link (live for this tool) keeps it square, so the shape
+rect; Shift, Style Fixed Ratio 1 : 1 or the W/H link (the Properties panel's twin; the Custom
+Shape bar has the Style row in its place) keeps it square, so the shape
 keeps its proportions; Alt: from center. Both paint pixels in Pixels mode with the bar's fill and stroke
 (GitHub issue 716, [tools.md](tools.md#shapes-in-pixels-mode)). Only the Pen is vector-only: its combo greys
 out Pixels and shows the effective mode (Path) without changing the stored one. Custom Shape writes plain paths. Polygon is a live

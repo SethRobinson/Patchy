@@ -892,6 +892,7 @@ void ui_shape_fill_and_corner_radius_apply_to_new_documents() {
   new_canvas->set_brush_softness(0);
   drag(*new_canvas, new_canvas->widget_position_for_document_point(QPoint(40, 40)),
        new_canvas->widget_position_for_document_point(QPoint(200, 160)));
+  new_canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*new_canvas, QPoint(120, 100)), Qt::black, 10));
   save_widget_artifact("ui_shape_fill_new_document", *new_canvas);
@@ -939,6 +940,7 @@ void ui_shape_tool_fixed_size_and_ratio_options_work() {
   CHECK(canvas->shape_fixed_size() == QSize(80, 50));
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
        canvas->widget_position_for_document_point(QPoint(55, 55)));
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   // Scan region covering every shape this test stamps (default document is 1024x768).
   const auto document_rect = QRect(0, 0, 320, 240);
@@ -953,6 +955,7 @@ void ui_shape_tool_fixed_size_and_ratio_options_work() {
   QApplication::processEvents();
   const auto click_point = canvas->widget_position_for_document_point(QPoint(120, 90));
   drag(*canvas, click_point, click_point);
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   bounds = dark_document_bounds(*canvas, document_rect);
   CHECK(bounds.has_value());
@@ -970,6 +973,7 @@ void ui_shape_tool_fixed_size_and_ratio_options_work() {
   CHECK(canvas->shape_style() == patchy::ui::CanvasWidget::MarqueeStyle::FixedRatio);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
        canvas->widget_position_for_document_point(QPoint(160, 140)));
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   bounds = dark_document_bounds(*canvas, document_rect);
   CHECK(bounds.has_value());
@@ -989,6 +993,7 @@ void ui_shape_tool_fixed_size_and_ratio_options_work() {
   QApplication::processEvents();
   const auto ellipse_click = canvas->widget_position_for_document_point(QPoint(60, 60));
   drag(*canvas, ellipse_click, ellipse_click);
+  canvas->commit_pending_pixel_shape();  // a pixel shape stays pending until committed
   QApplication::processEvents();
   bounds = dark_document_bounds(*canvas, document_rect);
   CHECK(bounds.has_value());

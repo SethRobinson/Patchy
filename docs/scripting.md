@@ -145,6 +145,8 @@ script is resolved.
 
 The binding design decisions of the engine (bindings, threading, timeouts, errors, memory) are in [scripting-engine.md](scripting-engine.md).
 
+A pixel shape still pending in a window ([tools.md](tools.md#pending-pixel-shapes)) is painted when a script run starts (`ScriptEngineHost::run_source`), as a history entry of its own ahead of the script's, so a script always reads and edits the document with it in place. No script call draws with the shape tools: scripts make shape layers (`addShape`) and edit pixels directly, which never leave anything pending.
+
 ## Script hotkeys
 
 Every script in the merged scan owns one persistent `QAction` (parent MainWindow), both its

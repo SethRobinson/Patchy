@@ -141,6 +141,10 @@ void shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint d
   drag(canvas, canvas.widget_position_for_document_point(document_from),
        canvas.widget_position_for_document_point(document_to));
   QApplication::processEvents();
+  // A shape drawn as pixels stays pending until it is committed (GitHub issue 716); these
+  // tests read the painted result. The pending state has its own tests (ui_pending_pixel_shape_).
+  canvas.commit_pending_pixel_shape();
+  QApplication::processEvents();
 }
 
 void ui_shape_tool_creates_shape_layer_and_undoes() {
@@ -1215,8 +1219,10 @@ void ui_custom_shape_shift_and_link_keep_proportions() {
   };
   const auto edge_near = [](double a, double b) { return std::abs(a - b) < 0.75; };
 
-  // The link stays usable for Custom Shape before any shape layer exists.
-  CHECK(link_button->isVisible());
+  // The link is off the Custom Shape bar (GitHub issue 716: its Style row took the W / H
+  // group's place); it stays usable for this tool before any shape layer exists, from the
+  // Properties panel's twin.
+  CHECK(!link_button->isVisible());
   CHECK(link_button->isEnabled());
   CHECK(!link_button->isChecked());
 
@@ -1282,6 +1288,22 @@ void ui_custom_shape_shift_and_link_keep_proportions() {
   link_button->setChecked(false);
   QApplication::processEvents();
   CHECK(!canvas->custom_shape_keep_proportions());
+
+  // Style Fixed Ratio does it from the bar: 1 : 1 is the shape's own proportions.
+  require_action(window, "toolCustomShapeAction")->trigger();
+  QApplication::processEvents();
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
+  CHECK(style != nullptr && style->isVisible());
+  if (style != nullptr) {
+    style->setCurrentIndex(1);
+    QApplication::processEvents();
+    shape_drag(*canvas, QPoint(800, 300), QPoint(1000, 360));
+    bounds = last_shape_bounds();
+    CHECK(bounds.has_value() && bounds->right - bounds->left > 40.0 &&
+          edge_near(bounds->right - bounds->left, bounds->bottom - bounds->top));
+    style->setCurrentIndex(0);
+    QApplication::processEvents();
+  }
 }
 
 void ui_custom_shape_builtin_geometry_refreshes() {
@@ -4498,9 +4520,9 @@ void ui_options_bar_stroke_skips_fill_layers() {
   auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
   CHECK(stroke_width != nullptr && stroke_swatch != nullptr);
   if (stroke_width == nullptr || stroke_swatch == nullptr) return;
-  // No stroke yet: the width, its switch, stays usable; the swatch greys until there is one
-  // (GitHub issue 716).
-  CHECK(stroke_width->isEnabled() && !stroke_swatch->isEnabled());
+  // No stroke yet (Fill only): the whole Stroke group is off the Rectangle bar (GitHub issue
+  // 716); a width, set here as the Both button would, brings it back.
+  CHECK(!stroke_width->isVisible() && !stroke_swatch->isVisible());
   const auto base_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   const auto pick_stroke_color = [&](QColor color) {
@@ -4534,7 +4556,7 @@ void ui_options_bar_stroke_skips_fill_layers() {
   stroke_width->setValue(6.0);
   Q_EMIT stroke_width->editingFinished();  // commits the debounced edit now
   QApplication::processEvents();
-  CHECK(stroke_swatch->isEnabled());
+  CHECK(stroke_width->isVisible() && stroke_swatch->isVisible());
   pick_stroke_color(QColor(10, 200, 30));
   fill_layer_unchanged();
   // The controls keep the new values (the fill layer's own stroke does not sync back) ...
@@ -5494,9 +5516,9 @@ void ui_options_bar_edits_selected_shape_appearance() {
   require_action_by_text(window, QStringLiteral("Undo"))->trigger();  // the width that turned it on
   QApplication::processEvents();
   CHECK(stroke_width->value() == 0.0);
-  // The Rectangle tool is active now: with the stroke off its swatch greys with the rest of
-  // the Stroke group (GitHub issue 716); the width, the stroke's switch, stays usable.
-  CHECK(stroke_width->isEnabled() && !stroke_swatch->isEnabled() && stroke_label->isEnabled());
+  // The Rectangle tool is active now: with the stroke off (Fill only) the whole Stroke group
+  // is off the bar (GitHub issue 716).
+  CHECK(!stroke_width->isVisible() && !stroke_swatch->isVisible() && !stroke_label->isVisible());
   require_action_by_text(window, QStringLiteral("Redo"))->trigger();
   QApplication::processEvents();
   CHECK(std::abs(stroke_width->value() - 8.0) < 1e-9);
@@ -5535,17 +5557,21 @@ void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
             (position.y() <= appearance_position.y() + appearance->height() &&
              position.x() + widget->width() <= appearance_position.x()));
     }
-    // 0 is no stroke and the last real width is kept for when the stroke comes back. The
-    // width stays usable; on the tools with the draw-mode buttons the swatch greys with the
-    // rest of the Stroke group (GitHub issue 716), Line and Pen keep it.
+    // 0 is no stroke and the last real width is kept for when the stroke comes back. On the
+    // tools with the draw-mode buttons that is Fill only, which takes the Stroke group off the
+    // bar (GitHub issue 716); Line and Pen keep it, usable.
     stroke_width->setValue(0.0);
+    QApplication::processEvents();
     CHECK(!patchy::ui::MainWindowTestAccess::current_shape_appearance(window).stroke.enabled);
-    CHECK(stroke_width->isEnabled() && stroke_label->isEnabled());
     const bool draw_modes = std::string_view(tool) != "Line" && std::string_view(tool) != "Pen";
-    CHECK(stroke_swatch->isEnabled() == !draw_modes);
+    CHECK(stroke_width->isVisible() == !draw_modes && stroke_swatch->isVisible() == !draw_modes &&
+          stroke_label->isVisible() == !draw_modes);
+    CHECK(stroke_width->isEnabled() && stroke_swatch->isEnabled() && stroke_label->isEnabled());
     stroke_width->setValue(3.0);
+    QApplication::processEvents();
     CHECK(patchy::ui::MainWindowTestAccess::current_shape_appearance(window).stroke.enabled);
     CHECK(stroke_width->value() == 3.0);
+    CHECK(stroke_width->isVisible() && stroke_swatch->isVisible());
   }
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
@@ -8356,7 +8382,9 @@ void ui_shape_size_spins_reflect_and_resize_active_shape() {
 
   require_action(window, "toolEllipseAction")->trigger();
   QApplication::processEvents();
-  CHECK(width_spin->isVisible());
+  // These fields are the size behind the Ellipse bar's Style row pair (GitHub issue 716):
+  // they no longer show on this bar, and still carry the edit.
+  CHECK(!width_spin->isVisible());
   CHECK(!width_spin->isEnabled());  // no shape layer yet
   shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
   const auto layer_id = *document.active_layer_id();
@@ -8525,48 +8553,143 @@ void ui_shape_size_controls_follow_move_and_properties_selection() {
   CHECK(std::abs(properties_height->value() - 60.0) < 0.5);
 }
 
-void ui_shape_style_row_is_pixel_only_and_hides_size_at_normal() {
+// The Style list with its size pair ends the Rectangle, Ellipse and Custom Shape bars in every
+// mode (GitHub issue 716): Normal shows no size fields (it greyed them once), Fixed Ratio a
+// ratio pair of its own and Fixed Size the pixel pair, the same saved values in Shape, Path
+// and Pixels modes. With a shape selected the pixel pair also shows and edits its size, so
+// the vector modes have no W / H group of their own on these bars.
+void ui_shape_style_row_shows_in_every_mode_and_hides_size_at_normal() {
+  using patchy::ui::MainWindowTestAccess;
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
   auto* fixed_width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));
   auto* fixed_height = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedHeightSpin"));
+  auto* size_swap = window.findChild<QToolButton*>(QStringLiteral("shapeFixedSizeSwapButton"));
+  auto* ratio_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("shapeRatioWidthSpin"));
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
-  CHECK(style_combo != nullptr && fixed_width != nullptr && fixed_height != nullptr &&
-        mode_combo != nullptr);
-
+  auto* old_width = window.findChild<QWidget*>(QStringLiteral("vectorShapeWidthSpin"));
+  auto* old_link = window.findChild<QWidget*>(QStringLiteral("vectorShapeLinkSizeButton"));
+  auto* radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(style_combo != nullptr && fixed_width != nullptr && fixed_height != nullptr && size_swap != nullptr);
+  CHECK(ratio_width != nullptr && mode_combo != nullptr && old_width != nullptr && old_link != nullptr);
+  CHECK(radius != nullptr);
+  if (style_combo == nullptr || fixed_width == nullptr || fixed_height == nullptr || size_swap == nullptr ||
+      ratio_width == nullptr || mode_combo == nullptr || old_width == nullptr || old_link == nullptr ||
+      radius == nullptr) {
+    return;
+  }
+  canvas->set_snap_enabled(false);
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
+  radius->setValue(0);
   CHECK(mode_combo->currentIndex() == 0);  // Shape
-  CHECK(!style_combo->isVisible());
-  CHECK(!fixed_width->isVisible());
-  mode_combo->setCurrentIndex(1);  // Path
+  for (const int mode : {0, 1, 2}) {
+    mode_combo->setCurrentIndex(mode);
+    QApplication::processEvents();
+    CHECK(style_combo->isVisible());
+    CHECK(style_combo->currentIndex() == 0);  // Normal
+    CHECK(!fixed_width->isVisible() && !fixed_height->isVisible() && !ratio_width->isVisible());
+    CHECK(!old_width->isVisible() && !old_link->isVisible());  // the W [link] H group left these bars
+    style_combo->setCurrentIndex(2);  // Fixed Size
+    QApplication::processEvents();
+    CHECK(fixed_width->isVisible() && fixed_width->isEnabled());
+    CHECK(fixed_height->isVisible() && fixed_height->isEnabled());
+    CHECK(size_swap->isVisible());
+    CHECK(!ratio_width->isVisible());
+    style_combo->setCurrentIndex(1);  // Fixed Ratio
+    QApplication::processEvents();
+    CHECK(!fixed_width->isVisible());
+    CHECK(ratio_width->isVisible() && ratio_width->isEnabled());
+    // One Style for every mode: the next mode opens on Fixed Ratio.
+    const int next_mode = (mode + 1) % 3;
+    mode_combo->setCurrentIndex(next_mode);
+    QApplication::processEvents();
+    CHECK(style_combo->currentIndex() == 1 && ratio_width->isVisible());
+    mode_combo->setCurrentIndex(mode);
+    style_combo->setCurrentIndex(0);
+    QApplication::processEvents();
+    CHECK(!fixed_width->isVisible() && !ratio_width->isVisible());
+  }
+  // Ellipse and Custom Shape have the Style list; the Polygon (its drag is not a box), Line
+  // and the Pen do not.
+  mode_combo->setCurrentIndex(0);
+  for (const char* tool : {"toolEllipseAction", "toolCustomShapeAction"}) {
+    require_action(window, tool)->trigger();
+    QApplication::processEvents();
+    CHECK(style_combo->isVisible());
+  }
+  for (const char* tool : {"toolPolygonAction", "toolLineAction", "toolPenAction"}) {
+    require_action(window, tool)->trigger();
+    QApplication::processEvents();
+    CHECK(!style_combo->isVisible() && !fixed_width->isVisible());
+  }
+
+  // Shape mode, Fixed Size: a click places a W x H shape layer.
+  require_action(window, "toolRectAction")->trigger();
+  style_combo->setCurrentIndex(2);
+  fixed_width->setValue(80);
+  fixed_height->setValue(50);
   QApplication::processEvents();
-  CHECK(!style_combo->isVisible());
-  mode_combo->setCurrentIndex(2);  // Pixels
+  const auto layers_before = document.layers().size();
+  const auto click = canvas->widget_position_for_document_point(QPoint(100, 100));
+  drag(*canvas, click, click);
   QApplication::processEvents();
-  CHECK(style_combo->isVisible());
-  CHECK(style_combo->currentIndex() == 0);  // Normal
-  // Normal hides the size fields (GitHub issue 716; it greyed them before), Fixed Size
-  // shows the pixel pair and Fixed Ratio a ratio pair of its own.
-  auto* ratio_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("shapeRatioWidthSpin"));
-  CHECK(ratio_width != nullptr);
-  CHECK(!fixed_width->isVisible());
-  CHECK(!fixed_height->isVisible());
-  CHECK(ratio_width != nullptr && !ratio_width->isVisible());
-  style_combo->setCurrentIndex(2);  // Fixed Size
-  QApplication::processEvents();
-  CHECK(fixed_width->isVisible() && fixed_width->isEnabled());
-  CHECK(fixed_height->isVisible() && fixed_height->isEnabled());
-  CHECK(ratio_width != nullptr && !ratio_width->isVisible());
-  style_combo->setCurrentIndex(1);  // Fixed Ratio
-  QApplication::processEvents();
-  CHECK(!fixed_width->isVisible());
-  CHECK(ratio_width != nullptr && ratio_width->isVisible() && ratio_width->isEnabled());
+  CHECK(document.layers().size() == layers_before + 1);
+  const auto first = document.active_layer_id();
+  CHECK(first.has_value());
+  if (!first.has_value()) {
+    return;
+  }
+  const auto size_of = [&](patchy::LayerId id) {
+    const auto* layer = std::as_const(document).find_layer(id);
+    const auto bounds = layer != nullptr && layer->vector_shape() != nullptr ? layer->vector_shape()->path.bounds()
+                                                                              : std::nullopt;
+    CHECK(bounds.has_value());
+    return bounds.has_value() ? QSizeF(bounds->right - bounds->left, bounds->bottom - bounds->top) : QSizeF();
+  };
+  CHECK(size_of(*first) == QSizeF(80.0, 50.0));
+  // The pair now shows the selected shape's size, and a typed size resizes it (one undo step).
+  CHECK(fixed_width->isVisible() && fixed_width->value() == 80 && fixed_height->value() == 50);
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  fixed_width->setValue(120);
+  CHECK(process_events_until([&] { return size_of(*first) == QSizeF(120.0, 50.0); }));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  // The swap button trades the shape's width and height.
+  size_swap->click();
+  CHECK(process_events_until([&] { return size_of(*first) == QSizeF(50.0, 120.0); }));
+  CHECK(fixed_width->value() == 50 && fixed_height->value() == 120);
+
+  // Style Normal: the pair shows only while a shape is selected, with that shape's size.
   style_combo->setCurrentIndex(0);
   QApplication::processEvents();
-  CHECK(!fixed_width->isVisible());
-  CHECK(ratio_width != nullptr && !ratio_width->isVisible());
+  CHECK(fixed_width->isVisible() && fixed_width->value() == 50 && fixed_height->value() == 120);
+  fixed_height->setValue(90);
+  CHECK(process_events_until([&] { return size_of(*first) == QSizeF(50.0, 90.0); }));
+  // Another layer selected: nothing to size, so Normal shows no fields.
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.id() != *first && !patchy::layer_is_vector_shape(layer)) {
+      MainWindowTestAccess::select_layers(window, {layer.id()}, layer.id());
+      break;
+    }
+  }
+  QApplication::processEvents();
+  CHECK(!fixed_width->isVisible() && !fixed_height->isVisible());
+  // A drag in Shape mode with Fixed Ratio 2 : 1 makes a shape of that ratio.
+  style_combo->setCurrentIndex(1);
+  ratio_width->setValue(2.0);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 300)),
+       canvas->widget_position_for_document_point(QPoint(460, 420)));
+  QApplication::processEvents();
+  const auto second = document.active_layer_id();
+  CHECK(second.has_value() && *second != *first);
+  if (second.has_value() && *second != *first) {
+    const auto size = size_of(*second);
+    CHECK(size.height() > 0.0 && std::abs((size.width() / size.height()) - 2.0) < 0.05);
+  }
+  style_combo->setCurrentIndex(0);
   mode_combo->setCurrentIndex(0);
 
   // The marquee's twin row does the same (GitHub issue 602).
@@ -8662,8 +8785,9 @@ void select_pixels_mode(patchy::ui::MainWindow& window, const char* tool_action)
 
 // Shape mode has the Fill only, Stroke only and Both buttons too. They show what the selected
 // shape draws and change it as one undo step each: Stroke only sets its fill to none, Fill only
-// turns its stroke off and keeps the width, Both brings both back. The swatch's No Fill and a
-// width of 0 do the same, and the buttons follow. A new shape starts as the buttons say.
+// turns its stroke off and keeps the width, Both brings both back, and the group of a part
+// that is not drawn leaves the bar. The swatch's No Fill and a width of 0 do the same, and the
+// buttons follow. A new shape starts as the buttons say.
 void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   using patchy::ui::MainWindowTestAccess;
   VectorSettingsGuard settings_guard;
@@ -8703,6 +8827,7 @@ void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   CHECK(content.fill.kind == patchy::VectorFillKind::Solid);
   CHECK(content.stroke.enabled && content.stroke.width == 3.0);
   CHECK(stroke_width->value() == 3.0);
+  CHECK(stroke_width->isVisible() && stroke_swatch->isVisible());
   // (Read off the edge's midpoint, where the Rectangle tool's resize handle sits.)
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 140)), QColor(0xdc, 0x1e, 0x1e), 12));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(101, 140)), QColor(0x1e, 0x3c, 0xdc), 12));
@@ -8714,7 +8839,7 @@ void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   content = shape_content_of(document, first);
   CHECK(content.fill.kind == patchy::VectorFillKind::None);
   CHECK(content.stroke.enabled);
-  CHECK(!fill_swatch->isEnabled() && stroke_swatch->isEnabled());
+  CHECK(!fill_swatch->isVisible() && stroke_swatch->isVisible());  // the Fill group left the bar
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 140)), Qt::white, 12));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(101, 140)), QColor(0x1e, 0x3c, 0xdc), 12));
 
@@ -8723,7 +8848,7 @@ void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   QApplication::processEvents();
   CHECK(shape_content_of(document, first).fill.kind == patchy::VectorFillKind::Solid);
   CHECK(both->isChecked());
-  CHECK(fill_swatch->isEnabled());
+  CHECK(fill_swatch->isVisible());
 
   // Fill only: the stroke goes off and keeps its width; the field reads 0.
   fill->click();
@@ -8732,7 +8857,7 @@ void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   CHECK(content.fill.kind == patchy::VectorFillKind::Solid);
   CHECK(!content.stroke.enabled && content.stroke.width == 3.0);
   CHECK(stroke_width->value() == 0.0);
-  CHECK(!stroke_swatch->isEnabled() && stroke_width->isEnabled());
+  CHECK(!stroke_swatch->isVisible() && !stroke_width->isVisible());  // and so did the Stroke group
 
   // The swatch's No Fill is Stroke only without a stroke: no button is checked. Both then
   // brings back the solid fill and the stroke.
@@ -8977,9 +9102,9 @@ void ui_shape_pixels_mode_paints_a_saved_stroke_preset() {
   CHECK(solid_style.line.has_value() && solid_style.line->alignment == patchy::VectorStrokeAlignment::Outside);
 }
 
-// One paint picker everywhere: Pixels mode paints the bar's gradient and pattern, as a fill and
-// as a stroke, through the shape layer's own rendering over the shape's box. Its menus add
-// Foreground Color: the pixel shape takes the foreground color at the time it is drawn.
+// One paint picker and one remembered paint everywhere: Pixels mode paints the bar's gradient
+// and pattern, as a fill and as a stroke, through the shape layer's own rendering over the
+// shape's box. Foreground Color in the menus is a one-time pick in both modes.
 void ui_shape_pixels_mode_paints_gradient_pattern_and_foreground() {
   using patchy::ui::MainWindowTestAccess;
   VectorSettingsGuard settings_guard;
@@ -9092,8 +9217,8 @@ void ui_shape_pixels_mode_paints_gradient_pattern_and_foreground() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(304, 44)), Qt::white, 12));  // outside the ellipse
   save_widget_artifact("issue_716_pixels_gradient_and_pattern", *canvas);
 
-  // Foreground Color, an entry of the Pixels-mode menus: pixel shapes take the foreground color
-  // at the time they are drawn and the swatch shows it. The bar's own fill stays underneath.
+  // Foreground Color in the Fill menu is a one-time pick, in both modes: the fill becomes the
+  // foreground color as it is now, one paint for Shape and Pixels modes.
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
   auto* fill_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
@@ -9105,97 +9230,57 @@ void ui_shape_pixels_mode_paints_gradient_pattern_and_foreground() {
     const QImage icon = fill_swatch->icon().pixmap(fill_swatch->iconSize()).toImage();
     return icon.pixelColor(icon.width() / 2, icon.height() / 2);
   };
-  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
-  CHECK(canvas->shape_pixel_style().fill && !canvas->shape_pixel_style().fill_paint.has_value());
-  CHECK(MainWindowTestAccess::current_shape_appearance(window).fill.kind == patchy::VectorFillKind::Gradient);
   const QColor teal(20, 150, 140);
   canvas->set_secondary_color(teal);
   require_action(window, "colorSwapAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->primary_color() == teal);
+  // The foreground color alone changes nothing: the fill is still the gradient.
+  CHECK(MainWindowTestAccess::current_shape_appearance(window).fill.kind == patchy::VectorFillKind::Gradient);
+  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
+  CHECK(MainWindowTestAccess::current_shape_appearance(window).fill.kind == patchy::VectorFillKind::Solid);
+  CHECK(MainWindowTestAccess::current_shape_appearance(window).fill.color == (patchy::RgbColor{20, 150, 140}));
+  CHECK(canvas->shape_pixel_style().fill_paint.has_value() &&
+        canvas->shape_pixel_style().fill_paint->color == (patchy::RgbColor{20, 150, 140}));
   CHECK(color_close(swatch_color(), teal, 12));
   shape_drag(*canvas, QPoint(300, 200), QPoint(499, 299));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(400, 250)), teal, 12));
-  // Another entry picked from the menu ends it: a color of the fill's own.
+  // It does not follow the foreground color afterwards.
   const QColor orange(200, 120, 20);
-  const auto pick_fill_color = [&](QColor color) {
-    QTimer::singleShot(0, guarded([&, color] {
-      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("patchyColorDialog"));
-      CHECK(dialog != nullptr);
-      if (dialog == nullptr) {
-        return;
-      }
-      auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
-      CHECK(picker != nullptr);
-      if (picker != nullptr) {
-        picker->setCurrentColor(color);
-      }
-      QApplication::processEvents();
-      dialog->accept();
-    }));
-    MainWindowTestAccess::pick_vector_solid_color(window, false);
-    QApplication::processEvents();
-  };
-  pick_fill_color(orange);
-  CHECK(canvas->shape_pixel_style().fill_paint.has_value());
-  CHECK(canvas->shape_pixel_style().fill_paint.has_value() &&
-        canvas->shape_pixel_style().fill_paint->color == (patchy::RgbColor{200, 120, 20}));
-  CHECK(color_close(swatch_color(), orange, 12));
-  // Back on Foreground Color; it is saved, with the bar's own paint beside it.
-  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
-  CHECK(!canvas->shape_pixel_style().fill_paint.has_value());
+  canvas->set_secondary_color(orange);
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == orange);
+  CHECK(MainWindowTestAccess::current_shape_appearance(window).fill.color == (patchy::RgbColor{20, 150, 140}));
   CHECK(color_close(swatch_color(), teal, 12));
-  MainWindowTestAccess::save_tool_settings(window);
-  {
-    auto settings = patchy::ui::app_settings();
-    CHECK(settings.value(QStringLiteral("tools/vectorFillFollowsForeground")).toBool());
-    CHECK(!settings.value(QStringLiteral("tools/vectorStrokeFollowsForeground")).toBool());
-    CHECK(settings.value(QStringLiteral("tools/vectorFillColor")).toString() == orange.name(QColor::HexRgb));
-  }
-  // Shape mode has no such entry: the swatch shows the bar's own fill and a new shape takes it.
+  // Shape mode shows the same paint and the same menu entry, and a new shape layer takes it.
   mode->setCurrentIndex(0);
   QApplication::processEvents();
-  CHECK(color_close(swatch_color(), orange, 12));
-  bool saw_menu = false;
-  QTimer::singleShot(0, guarded([&] {
-    auto* menu = window.findChild<QMenu*>(QStringLiteral("vectorFillPaintMenu"));
-    CHECK(menu != nullptr);
-    if (menu == nullptr) {
-      return;
-    }
-    saw_menu = true;
-    CHECK(menu->findChild<QAction*>(QStringLiteral("vectorFillForegroundAction")) == nullptr);
-    CHECK(menu->findChild<QAction*>(QStringLiteral("vectorFillSolidAction")) != nullptr);
-    menu->close();
-  }));
-  fill_swatch->click();
-  QApplication::processEvents();
-  CHECK(saw_menu);
+  CHECK(color_close(swatch_color(), teal, 12));
   shape_drag(*canvas, QPoint(560, 200), QPoint(700, 299));
   const auto shape = document.active_layer_id();
   CHECK(document.layers().size() == layer_count + 1);
-  if (shape.has_value() && document.layers().size() == layer_count + 1) {
-    CHECK(shape_content_of(document, *shape).fill.color == (patchy::RgbColor{200, 120, 20}));
+  if (!shape.has_value() || document.layers().size() != layer_count + 1) {
+    return;
   }
-  // Drawing and selecting a shape picked nothing: Pixels mode still paints in the foreground
-  // color.
-  mode->setCurrentIndex(2);
-  QApplication::processEvents();
-  CHECK(!canvas->shape_pixel_style().fill_paint.has_value());
-  CHECK(color_close(swatch_color(), teal, 12));
-  // A color picked in Shape mode (it recolors the selected shape) is the one both modes use.
-  mode->setCurrentIndex(0);
-  QApplication::processEvents();
-  const QColor violet(130, 60, 200);
-  pick_fill_color(violet);
-  if (shape.has_value()) {
-    CHECK(shape_content_of(document, *shape).fill.color == (patchy::RgbColor{130, 60, 200}));
-  }
+  CHECK(shape_content_of(document, *shape).fill.color == (patchy::RgbColor{20, 150, 140}));
+  // Picked with the shape selected, the entry recolors it (one undo step) and sets the bar.
+  const auto depth_before_pick = MainWindowTestAccess::active_session_undo_depth(window);
+  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
+  CHECK(shape_content_of(document, *shape).fill.color == (patchy::RgbColor{200, 120, 20}));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before_pick + 1);
+  CHECK(color_close(swatch_color(), orange, 12));
+  // Pixels mode paints with that same paint.
   mode->setCurrentIndex(2);
   QApplication::processEvents();
   CHECK(canvas->shape_pixel_style().fill_paint.has_value() &&
-        canvas->shape_pixel_style().fill_paint->color == (patchy::RgbColor{130, 60, 200}));
-  CHECK(color_close(swatch_color(), violet, 12));
+        canvas->shape_pixel_style().fill_paint->color == (patchy::RgbColor{200, 120, 20}));
+  CHECK(color_close(swatch_color(), orange, 12));
+  // The paints are saved in the keys they always had.
+  MainWindowTestAccess::save_tool_settings(window);
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("tools/vectorFillColor")).toString() == orange.name(QColor::HexRgb));
+  CHECK(!settings.value(QStringLiteral("tools/vectorFillFollowsForeground")).toBool());
 }
 
 // Polygon and Custom Shape have Pixels mode: they paint the bar's fill and stroke onto the
@@ -9374,11 +9459,11 @@ void ui_polygon_and_custom_shape_paint_pixels() {
   }
 }
 
-// Shape and Pixels modes share one saved fill and stroke. Settings written before that keep
-// what the user last saw: pixel shapes stay in the foreground color and Shape mode keeps its
-// saved paints; a user who left the tools in Pixels mode also gets the Pixels look moved into
-// the shared values (the Fill checkbox or the draw mode, a color of its own where one was
-// picked, the brush size as the stroke's width, the dashes and the alignment).
+// Shape and Pixels modes share one saved fill paint and one stroke paint. Settings written
+// before that keep the look of the mode the tools were left in: a profile left in Pixels mode
+// gets the Pixels look moved into the shared values (the Fill checkbox or the draw mode, the
+// foreground color taken once or a color of its own, the brush size as the stroke's width, the
+// dashes and the alignment); a profile left in Shape mode keeps its shape paints.
 void ui_shape_fill_and_stroke_settings_migrate() {
   using patchy::ui::MainWindowTestAccess;
   using Align = patchy::VectorStrokeAlignment;
@@ -9406,10 +9491,9 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   struct Seen {
     bool fill{false};
     bool stroke{false};
-    bool fill_is_foreground{false};
-    bool stroke_is_foreground{false};
     patchy::RgbColor fill_color{};
     patchy::RgbColor stroke_color{};
+    patchy::RgbColor pixel_fill_color{};  // what a pixel shape's fill paints with
     double width{0.0};
     Align alignment{Align::Inside};
     bool dashed{false};
@@ -9425,11 +9509,12 @@ void ui_shape_fill_and_stroke_settings_migrate() {
     const auto style = canvas->shape_pixel_style();
     seen.fill = style.fill;
     seen.stroke = style.stroke;
-    seen.fill_is_foreground = !style.fill_paint.has_value();
-    seen.stroke_is_foreground = !style.stroke_paint.has_value();
     const auto next = MainWindowTestAccess::current_shape_appearance(window);
     seen.fill_color = next.fill.color;
     seen.stroke_color = next.stroke.content.color;
+    if (style.fill_paint.has_value()) {
+      seen.pixel_fill_color = style.fill_paint->color;
+    }
     if (style.line.has_value()) {
       seen.width = style.line->width;
       seen.alignment = style.line->alignment;
@@ -9448,17 +9533,18 @@ void ui_shape_fill_and_stroke_settings_migrate() {
     return seen;
   };
 
-  // A new profile: a fill, no stroke, Inside for when there is one; pixel shapes paint in the
-  // foreground color.
+  // A new profile: a fill, no stroke, Inside for when there is one. The fill is the bar's
+  // default paint in both modes; the foreground color has no say.
   clear_shape_keys();
   set("tools/foregroundColor", QStringLiteral("#22aa44"));
   auto seen = open();
   CHECK(seen.fill && !seen.stroke && seen.fill_only);
-  CHECK(seen.fill_is_foreground && seen.stroke_is_foreground);
+  CHECK(seen.fill_color == (patchy::RgbColor{0, 0, 0}));
+  CHECK(seen.pixel_fill_color == seen.fill_color);
   CHECK(seen.alignment == Align::Inside);
 
-  // 1.34, left in Pixels mode with Fill unchecked: an outline in the foreground color, as wide
-  // as the brush, centered. The shape colors that version stored stay for Shape mode.
+  // 1.34, left in Pixels mode with Fill unchecked: an outline as wide as the brush, centered,
+  // in the foreground color, which is the stroke's paint from here on.
   clear_shape_keys();
   set("tools/vectorToolMode", QStringLiteral("pixels"));
   set("tools/shapeFill", false);
@@ -9469,9 +9555,7 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   set("tools/foregroundColor", QStringLiteral("#22aa44"));
   seen = open();
   CHECK(!seen.fill && seen.stroke && seen.stroke_only);
-  CHECK(seen.stroke_is_foreground);
-  CHECK(seen.fill_color == (patchy::RgbColor{0x10, 0x20, 0x30}));
-  CHECK(seen.stroke_color == (patchy::RgbColor{0x40, 0x50, 0x60}));
+  CHECK(seen.stroke_color == (patchy::RgbColor{0x22, 0xaa, 0x44}));
   CHECK(seen.width == 9.0);
   CHECK(seen.alignment == Align::Center);
   CHECK(!seen.dashed);
@@ -9481,13 +9565,15 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   set("tools/vectorToolMode", QStringLiteral("pixels"));
   set("tools/shapeFill", true);
   set("tools/vectorFillColor", QStringLiteral("#102030"));
+  set("tools/foregroundColor", QStringLiteral("#22aa44"));
   seen = open();
   CHECK(seen.fill && !seen.stroke && seen.fill_only);
-  CHECK(seen.fill_is_foreground);
-  CHECK(seen.fill_color == (patchy::RgbColor{0x10, 0x20, 0x30}));
+  CHECK(seen.fill_color == (patchy::RgbColor{0x22, 0xaa, 0x44}));
+  CHECK(seen.pixel_fill_color == seen.fill_color);
 
-  // The Pixels row's own keys (a build with the draw-mode buttons): Both, own colors, dashes,
-  // Outside. Saving then writes the shared keys, so the next start reads those.
+  // The first Pixels row's own keys (the draw-mode buttons with colors of their own): Both,
+  // its colors, dashes, Outside. Saving then writes the shared keys, so the next start reads
+  // those.
   clear_shape_keys();
   set("tools/vectorToolMode", QStringLiteral("pixels"));
   set("tools/shapeFill", false);
@@ -9500,7 +9586,6 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   set("tools/brushSize", 7);
   seen = open(true);
   CHECK(seen.fill && seen.stroke && seen.both);
-  CHECK(!seen.fill_is_foreground && !seen.stroke_is_foreground);
   CHECK(seen.fill_color == (patchy::RgbColor{0xdc, 0x1e, 0x1e}));
   CHECK(seen.stroke_color == (patchy::RgbColor{0x1e, 0x3c, 0xdc}));
   CHECK(seen.width == 7.0);
@@ -9526,8 +9611,38 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   CHECK(seen.alignment == Align::Outside);
   CHECK(seen.dashed);
 
-  // Left in Shape mode: the shape paints stay as they were, with their stroke and alignment;
-  // pixel shapes use them in the foreground color.
+  // The build where Pixels mode could paint a part in the foreground color whatever the bar's
+  // paint was: left in Pixels mode, that part becomes the foreground color, once.
+  clear_shape_keys();
+  set("tools/vectorToolMode", QStringLiteral("pixels"));
+  set("tools/vectorFillColor", QStringLiteral("#102030"));
+  set("tools/vectorStrokeColor", QStringLiteral("#405060"));
+  set("tools/vectorStrokeEnabled", true);
+  set("tools/vectorStrokeWidth", 4.0);
+  set("tools/vectorFillFollowsForeground", true);
+  set("tools/vectorStrokeFollowsForeground", false);
+  set("tools/foregroundColor", QStringLiteral("#22aa44"));
+  seen = open(true);
+  CHECK(seen.fill && seen.stroke && seen.both);
+  CHECK(seen.fill_color == (patchy::RgbColor{0x22, 0xaa, 0x44}));
+  CHECK(seen.stroke_color == (patchy::RgbColor{0x40, 0x50, 0x60}));
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("tools/vectorFillFollowsForeground")).toBool());
+  // The saved color is the bar's paint now: a later foreground color changes nothing.
+  set("tools/foregroundColor", QStringLiteral("#0000ff"));
+  seen = open();
+  CHECK(seen.fill_color == (patchy::RgbColor{0x22, 0xaa, 0x44}));
+  // The same build left in Shape mode keeps its shape paints.
+  clear_shape_keys();
+  set("tools/vectorToolMode", QStringLiteral("shape"));
+  set("tools/vectorFillColor", QStringLiteral("#102030"));
+  set("tools/vectorFillFollowsForeground", true);
+  set("tools/foregroundColor", QStringLiteral("#22aa44"));
+  seen = open();
+  CHECK(seen.fill_color == (patchy::RgbColor{0x10, 0x20, 0x30}));
+  CHECK(seen.pixel_fill_color == seen.fill_color);
+
+  // 1.34 left in Shape mode: the shape paints stay as they were, with their stroke and
+  // alignment, and pixel shapes paint with them.
   clear_shape_keys();
   set("tools/vectorToolMode", QStringLiteral("shape"));
   set("tools/shapeFill", false);  // the Pixels checkbox, unused in Shape mode
@@ -9538,12 +9653,452 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   set("tools/foregroundColor", QStringLiteral("#22aa44"));
   seen = open();
   CHECK(seen.fill && seen.stroke && seen.both);
-  CHECK(seen.fill_is_foreground && seen.stroke_is_foreground);
   CHECK(seen.fill_color == (patchy::RgbColor{0x10, 0x20, 0x30}));
   CHECK(seen.stroke_color == (patchy::RgbColor{0x40, 0x50, 0x60}));
+  CHECK(seen.pixel_fill_color == seen.fill_color);
   CHECK(seen.width == 4.0);
   CHECK(seen.alignment == Align::Inside);
   clear_shape_keys();
+}
+
+// --- GitHub issue 716: pending pixel shapes ------------------------------------------------
+
+namespace {
+
+// The alpha of the layer's pixel at a document point: 0 where nothing is painted.
+int layer_alpha_at(const patchy::Document& document, patchy::LayerId id, QPoint point) {
+  const auto* layer = document.find_layer(id);
+  if (layer == nullptr) {
+    return -1;
+  }
+  const auto bounds = layer->bounds();
+  const auto& pixels = layer->pixels();
+  if (pixels.empty() || point.x() < bounds.x || point.y() < bounds.y || point.x() >= bounds.x + bounds.width ||
+      point.y() >= bounds.y + bounds.height) {
+    return 0;
+  }
+  const auto* px = pixels.pixel(point.x() - bounds.x, point.y() - bounds.y);
+  return pixels.format().channels >= 4 ? static_cast<int>(px[3]) : 255;
+}
+
+// A drag that leaves the shape as the tool leaves it (shape_drag commits a pending one).
+void raw_shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint document_to) {
+  drag(canvas, canvas.widget_position_for_document_point(document_from),
+       canvas.widget_position_for_document_point(document_to));
+  QApplication::processEvents();
+}
+
+}  // namespace
+
+// In Pixels mode a drawn shape stays a pending pixel shape: nothing is in the document yet,
+// the canvas shows the pixels it would paint, and the bar keeps editing it (draw mode, paints,
+// stroke width, Radius, Opacity, the size pair). Enter paints it as one undo step.
+void ui_pending_pixel_shape_is_edited_from_the_bar_and_committed() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  const QColor red(0xdc, 0x1e, 0x1e);
+  const QColor blue(0x1e, 0x3c, 0xdc);
+  store_own_shape_paints(red, blue, 6.0, true);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  window.resize(1500, 820);  // the bar with the size pair on one row, for the issue shot
+  select_pixels_mode(window, "toolRectAction");
+  canvas->set_snap_enabled(false);
+  auto* stroke_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawStrokeButton"));
+  auto* both = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawBothButton"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  auto* radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("shapePixelOpacitySpin"));
+  auto* softness = window.findChild<QSpinBox*>(QStringLiteral("shapePixelSoftSpin"));
+  auto* size_width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));
+  auto* size_height = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedHeightSpin"));
+  auto* undo = require_action_by_text(window, QStringLiteral("Undo"));
+  CHECK(stroke_only != nullptr && both != nullptr && stroke_width != nullptr && radius != nullptr);
+  CHECK(opacity != nullptr && softness != nullptr && size_width != nullptr && size_height != nullptr);
+  if (stroke_only == nullptr || both == nullptr || stroke_width == nullptr || radius == nullptr ||
+      opacity == nullptr || softness == nullptr || size_width == nullptr || size_height == nullptr) {
+    return;
+  }
+  radius->setValue(0);
+  opacity->setValue(100);
+  softness->setValue(0);
+  QApplication::processEvents();
+  CHECK(canvas->pixel_shapes_stay_pending());
+  CHECK(!size_width->isVisible());  // Style Normal and nothing to size
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  const auto layer_count = document.layers().size();
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+
+  raw_shape_drag(*canvas, QPoint(100, 100), QPoint(299, 219));
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->pending_pixel_shape_box() == std::optional<QRectF>(QRectF(100.0, 100.0, 200.0, 120.0)));
+  // Nothing is in the document: no history entry, no pixels.
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(200, 160)) == 0);
+  CHECK(document.layers().size() == layer_count);
+  // The canvas shows what a commit would paint (read off the handles at the edges' middles).
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), red, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(102, 140)), blue, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(90, 140)), Qt::white, 12));
+  CHECK(undo->isEnabled());
+  // The size pair shows its size while it is pending.
+  CHECK(size_width->isVisible() && size_height->isVisible());
+  CHECK(size_width->value() == 200 && size_height->value() == 120);
+  save_widget_artifact("issue_716_pending_pixel_shape", window);
+
+  // The bar edits it: the draw mode, the stroke's width, Radius, Opacity.
+  stroke_only->click();
+  QApplication::processEvents();
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), Qt::white, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(102, 140)), blue, 12));
+  both->click();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), red, 12));
+  stroke_width->setValue(14.0);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(111, 140)), blue, 12));
+  radius->setValue(40);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 103)), Qt::white, 12));  // the corner is round now
+  radius->setValue(0);
+  opacity->setValue(50);
+  QApplication::processEvents();
+  const QColor half_red((red.red() + 255) / 2, (red.green() + 255) / 2, (red.blue() + 255) / 2);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), half_red, 10));
+  opacity->setValue(100);
+  // A gradient picked for the fill shows at once.
+  {
+    auto& fill = MainWindowTestAccess::current_vector_fill(window);
+    fill.kind = patchy::VectorFillKind::Gradient;
+    fill.gradient.color_stops = {patchy::GradientColorStop{0.0F, patchy::RgbColor{220, 30, 30}, 0.5F},
+                                 patchy::GradientColorStop{1.0F, patchy::RgbColor{30, 200, 60}, 0.5F}};
+    fill.gradient.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F},
+                                 patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+    fill.gradient.type = patchy::LayerStyleGradientType::Linear;
+    fill.gradient.angle_degrees = 0.0F;
+    fill.gradient.scale = 1.0F;
+    MainWindowTestAccess::update_vector_swatch_icons(window);
+    QApplication::processEvents();
+  }
+  const QColor left = canvas_pixel(*canvas, QPoint(125, 150));
+  const QColor right = canvas_pixel(*canvas, QPoint(275, 150));
+  CHECK(left.red() > 170 && left.green() < 90);
+  CHECK(right.green() > 150 && right.red() < 90);
+  // The size pair resizes it, its top left corner staying put.
+  size_width->setValue(260);
+  QApplication::processEvents();
+  CHECK(canvas->pending_pixel_shape_box() == std::optional<QRectF>(QRectF(100.0, 100.0, 260.0, 120.0)));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(200, 160)) == 0);
+
+  // Enter paints it: one undo step, and the pixels are the ones the preview showed.
+  const QColor previewed_fill = canvas_pixel(*canvas, QPoint(200, 150));
+  const QColor previewed_stroke = canvas_pixel(*canvas, QPoint(105, 140));
+  send_key(*canvas, Qt::Key_Return);
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(200, 160)) == 255);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), previewed_fill, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(105, 140)), previewed_stroke, 8));
+  CHECK(document.layers().size() == layer_count);
+  CHECK(!size_width->isVisible());  // nothing to size any more
+  undo->trigger();
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(200, 160)) == 0);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), Qt::white, 12));
+}
+
+// A pending pixel shape moves by a drag inside its box and resizes by its handles (Shift and
+// Alt as on a shape layer's box, Esc mid-drag puts the box back). A press off it paints it,
+// and that press's drag draws the next shape. Esc and Undo drop it with no history entry.
+void ui_pending_pixel_shape_moves_resizes_commits_and_cancels() {
+  using patchy::ui::CanvasWidget;
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  const QColor red(0xdc, 0x1e, 0x1e);
+  store_own_shape_paints(red, QColor(0x1e, 0x3c, 0xdc), 6.0, false);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  select_pixels_mode(window, "toolRectAction");
+  canvas->set_snap_enabled(false);
+  auto* radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* undo = require_action_by_text(window, QStringLiteral("Undo"));
+  CHECK(radius != nullptr);
+  if (radius == nullptr) {
+    return;
+  }
+  radius->setValue(0);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto box = [&] { return canvas->pending_pixel_shape_box().value_or(QRectF()); };
+  const auto at = [&](QPoint document_point) { return canvas->widget_position_for_document_point(document_point); };
+
+  raw_shape_drag(*canvas, QPoint(100, 100), QPoint(299, 219));
+  CHECK(box() == QRectF(100.0, 100.0, 200.0, 120.0));
+  // A drag inside the box moves it.
+  raw_shape_drag(*canvas, QPoint(200, 160), QPoint(260, 200));
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(box() == QRectF(160.0, 140.0, 200.0, 120.0));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(330, 240)), red, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 120)), Qt::white, 12));
+  // The bottom right handle resizes it; the opposite corner stays.
+  raw_shape_drag(*canvas, QPoint(360, 260), QPoint(400, 300));
+  CHECK(box() == QRectF(160.0, 140.0, 240.0, 160.0));
+  // Esc in the middle of a handle drag puts the box back and keeps the shape.
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(QPoint(400, 300)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(460, 340)), Qt::NoButton, Qt::LeftButton);
+  CHECK(box() == QRectF(160.0, 140.0, 300.0, 200.0));
+  send_key(*canvas, Qt::Key_Escape);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(QPoint(460, 340)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(box() == QRectF(160.0, 140.0, 240.0, 160.0));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+
+  // Queued moves coalesce (Wayland delivers every one): 30 posted, 29 skipped, the box at the last.
+  {
+    canvas->set_drag_move_coalescing_for_testing(CanvasWidget::DragMoveCoalescing::AllMoves);
+    const auto coalesced = [&] { return canvas->render_cache_diagnostics().drag_moves_coalesced; };
+    const QPoint start = at(QPoint(400, 300));
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    const auto before = coalesced();
+    for (int move = 1; move <= 30; ++move) {
+      const auto position = start + QPoint(move, move);
+      QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                      QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                      Qt::LeftButton, Qt::NoModifier));
+    }
+    QApplication::processEvents();
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(coalesced() - before == 29);
+    CHECK(box() == QRectF(160.0, 140.0, 270.0, 190.0));
+    send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(30, 30), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    canvas->set_drag_move_coalescing_for_testing(CanvasWidget::DragMoveCoalescing::Default);
+    CHECK(box() == QRectF(160.0, 140.0, 270.0, 190.0));
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  }
+
+  // A click off the shape paints it (one undo step) and starts nothing.
+  const auto away = at(QPoint(700, 560));
+  drag(*canvas, away, away);
+  QApplication::processEvents();
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(300, 250)) == 255);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(700, 560)) == 0);
+
+  // Esc drops a pending shape: no history entry, no pixels.
+  raw_shape_drag(*canvas, QPoint(500, 100), QPoint(599, 199));
+  CHECK(canvas->has_pending_pixel_shape());
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(550, 150)) == 0);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(550, 150)), Qt::white, 12));
+  // So does Undo, and the shape painted before stays.
+  raw_shape_drag(*canvas, QPoint(500, 100), QPoint(599, 199));
+  CHECK(canvas->has_pending_pixel_shape());
+  undo->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(300, 250)) == 255);
+
+  // A drag that starts off a pending shape paints it and draws the next one.
+  raw_shape_drag(*canvas, QPoint(500, 100), QPoint(599, 199));
+  raw_shape_drag(*canvas, QPoint(500, 400), QPoint(599, 459));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(550, 150)) == 255);
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(box() == QRectF(500.0, 400.0, 100.0, 60.0));
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(550, 430)) == 0);
+  send_key(*canvas, Qt::Key_Escape);
+}
+
+// A pending pixel shape is painted before anything else changes the document or what it would
+// be painted on: a tool change, a layer change, a mode change, a command, a history jump.
+void ui_pending_pixel_shape_commits_before_other_changes() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  const QColor red(0xdc, 0x1e, 0x1e);
+  store_own_shape_paints(red, QColor(0x1e, 0x3c, 0xdc), 6.0, false);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  select_pixels_mode(window, "toolRectAction");
+  canvas->set_snap_enabled(false);
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode != nullptr);
+  if (mode == nullptr) {
+    return;
+  }
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  patchy::LayerId other_id = *layer_id;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.id() != *layer_id) {
+      other_id = layer.id();
+    }
+  }
+  CHECK(other_id != *layer_id);
+  auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  int column = 0;
+  // Draws a pending 60 x 60 square in the next free column and returns a point inside it.
+  const auto draw_pending = [&] {
+    const int left = 60 + (column * 90);
+    ++column;
+    raw_shape_drag(*canvas, QPoint(left, 60), QPoint(left + 59, 119));
+    CHECK(canvas->has_pending_pixel_shape());
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+    return QPoint(left + 30, 90);
+  };
+  const auto painted = [&](QPoint inside, const char* after) {
+    if (canvas->has_pending_pixel_shape()) {
+      std::fprintf(stderr, "  still pending after %s\n", after);
+    }
+    CHECK(!canvas->has_pending_pixel_shape());
+    CHECK(layer_alpha_at(std::as_const(document), *layer_id, inside) == 255);
+  };
+
+  // A tool change.
+  auto inside = draw_pending();
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  painted(inside, "a tool change");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  depth += 1;
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(mode->currentIndex() == 2);
+
+  // A layer change: it goes into the layer it was drawn on.
+  inside = draw_pending();
+  MainWindowTestAccess::select_layers(window, {other_id}, other_id);
+  QApplication::processEvents();
+  painted(inside, "a layer change");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  depth += 1;
+  MainWindowTestAccess::select_layers(window, {*layer_id}, *layer_id);
+  QApplication::processEvents();
+
+  // A mode change.
+  inside = draw_pending();
+  mode->setCurrentIndex(0);
+  QApplication::processEvents();
+  painted(inside, "a mode change");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  depth += 1;
+  mode->setCurrentIndex(2);
+  QApplication::processEvents();
+
+  // A command that needs the pixels (Select All, then a new history entry of its own).
+  inside = draw_pending();
+  require_action(window, "imageFlattenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);  // the shape, then the command
+  CHECK(color_close(canvas_pixel(*canvas, inside), red, 12));
+  // Undo takes the command back and leaves the shape painted.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(color_close(canvas_pixel(*canvas, inside), red, 12));
+}
+
+// A layer mask takes a pending Polygon as the grays of its paints, with Sides still editing
+// it, and a pending Custom Shape; each is one undo step when painted.
+void ui_pending_pixel_shape_on_a_layer_mask() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  store_own_shape_paints(Qt::white, Qt::black, 4.0, false);
+  patchy::Document document(260, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(260, 200, patchy::PixelFormat::rgb8(), Qt::white));
+  auto& covered =
+      document.add_pixel_layer("Red Fill", solid_pixels(260, 200, patchy::PixelFormat::rgb8(), QColor(220, 30, 30)));
+  const auto covered_id = covered.id();
+  patchy::PixelBuffer mask_pixels(260, 200, patchy::PixelFormat::gray8());
+  mask_pixels.clear(0);
+  covered.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 260, 200}, std::move(mask_pixels), 0, false});
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Pending Mask Shapes"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  canvas->set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  select_pixels_mode(window, "toolPolygonAction");
+  canvas->set_snap_enabled(false);
+  auto* sides = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+  CHECK(sides != nullptr);
+  if (sides == nullptr) {
+    return;
+  }
+  sides->setValue(5);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  QApplication::processEvents();
+  const auto mask_value = [&](int x, int y) {
+    const auto* layer = std::as_const(doc).find_layer(covered_id);
+    const auto* mask = layer != nullptr && layer->mask().has_value() ? &*layer->mask() : nullptr;
+    CHECK(mask != nullptr);
+    return mask != nullptr ? static_cast<int>(mask->pixels.pixel(x - mask->bounds.x, y - mask->bounds.y)[0]) : -1;
+  };
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  // A pentagon about (130, 100) with its first vertex straight up.
+  raw_shape_drag(*canvas, QPoint(130, 100), QPoint(130, 40));
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->pending_pixel_shape_box() == std::optional<QRectF>(QRectF(70.0, 40.0, 120.0, 120.0)));
+  CHECK(mask_value(130, 100) == 0);  // the mask is untouched
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  // Sides still edits it: a triangle leaves the pentagon's shoulder outside.
+  sides->setValue(3);
+  QApplication::processEvents();
+  CHECK(canvas->has_pending_pixel_shape());
+  send_key(*canvas, Qt::Key_Return);
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(mask_value(130, 100) >= 250);  // inside the triangle
+  CHECK(mask_value(130, 50) >= 250);
+  CHECK(mask_value(182, 75) == 0);     // inside the pentagon, outside the triangle
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(130, 100)), QColor(220, 30, 30), 12));
+  // A custom shape, painted by a tool change.
+  require_action(window, "toolCustomShapeAction")->trigger();
+  QApplication::processEvents();
+  raw_shape_drag(*canvas, QPoint(10, 20), QPoint(60, 80));
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  int revealed = 0;
+  for (int y = 20; y < 80; y += 2) {
+    for (int x = 10; x < 60; x += 2) {
+      revealed += mask_value(x, y) >= 250 ? 1 : 0;
+    }
+  }
+  CHECK(revealed > 60);
 }
 
 class ShowToParentCounter final : public QObject {
@@ -9580,7 +10135,7 @@ void ui_options_bar_never_shows_pixel_widgets_in_shape_mode() {
   auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   // Opacity stands for the Pixels-only fields (the draw-mode buttons show in Shape mode too).
   auto* fill_check = window.findChild<QWidget*>(QStringLiteral("shapePixelOpacitySpin"));
-  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
+  auto* style_combo = window.findChild<QWidget*>(QStringLiteral("shapePixelSoftSpin"));
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
   CHECK(options_bar != nullptr && fill_check != nullptr && style_combo != nullptr &&
         mode_combo != nullptr);
@@ -10627,6 +11182,9 @@ void ui_properties_shape_controls_are_safe_without_a_shape() {
 // The active-shape W / H readouts belong to Shape mode: Path and Pixels have
 // no shape layer to size, and Pixels already carries the fixed-size Width /
 // Height row (two width/height pairs on one bar was the September 2026 bug).
+// The W [link] H group of the active shape: Line, the Pen and the path selection tools. The
+// Rectangle, Ellipse, Polygon and Custom Shape bars show that size in their Style row's pair
+// instead (GitHub issue 716).
 void ui_shape_size_row_shows_in_shape_mode_only() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -10634,7 +11192,7 @@ void ui_shape_size_row_shows_in_shape_mode_only() {
   auto* width_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorShapeWidthSpin"));
   auto* link_button = window.findChild<QPushButton*>(QStringLiteral("vectorShapeLinkSizeButton"));
   CHECK(mode_combo != nullptr && width_spin != nullptr && link_button != nullptr);
-  require_action(window, "toolRectAction")->trigger();
+  require_action(window, "toolLineAction")->trigger();
   QApplication::processEvents();
   mode_combo->setCurrentIndex(0);  // Shape
   QApplication::processEvents();
@@ -10650,6 +11208,11 @@ void ui_shape_size_row_shows_in_shape_mode_only() {
   mode_combo->setCurrentIndex(0);  // Shape
   QApplication::processEvents();
   CHECK(width_spin->isVisible());
+  for (const char* tool : {"toolRectAction", "toolEllipseAction", "toolPolygonAction", "toolCustomShapeAction"}) {
+    require_action(window, tool)->trigger();
+    QApplication::processEvents();
+    CHECK(!width_spin->isVisible() && !link_button->isVisible());
+  }
   // The path selection tools and Move show the row only with an editable
   // shape layer.
   require_action(window, "toolPathSelectAction")->trigger();
@@ -11053,8 +11616,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_size_controls_follow_move_and_properties_selection},
       {"ui_shape_size_row_shows_in_shape_mode_only", ui_shape_size_row_shows_in_shape_mode_only},
       {"ui_shape_context_menu_offers_shape_commands", ui_shape_context_menu_offers_shape_commands},
-      {"ui_shape_style_row_is_pixel_only_and_hides_size_at_normal",
-       ui_shape_style_row_is_pixel_only_and_hides_size_at_normal},
+      {"ui_shape_style_row_shows_in_every_mode_and_hides_size_at_normal",
+       ui_shape_style_row_shows_in_every_mode_and_hides_size_at_normal},
       {"ui_options_bar_never_shows_pixel_widgets_in_shape_mode",
        ui_options_bar_never_shows_pixel_widgets_in_shape_mode},
       {"ui_shape_mode_draw_buttons_edit_selected_shapes", ui_shape_mode_draw_buttons_edit_selected_shapes},
@@ -11064,6 +11627,12 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_pixels_mode_paints_gradient_pattern_and_foreground},
       {"ui_polygon_and_custom_shape_paint_pixels", ui_polygon_and_custom_shape_paint_pixels},
       {"ui_shape_fill_and_stroke_settings_migrate", ui_shape_fill_and_stroke_settings_migrate},
+      {"ui_pending_pixel_shape_is_edited_from_the_bar_and_committed",
+       ui_pending_pixel_shape_is_edited_from_the_bar_and_committed},
+      {"ui_pending_pixel_shape_moves_resizes_commits_and_cancels",
+       ui_pending_pixel_shape_moves_resizes_commits_and_cancels},
+      {"ui_pending_pixel_shape_commits_before_other_changes", ui_pending_pixel_shape_commits_before_other_changes},
+      {"ui_pending_pixel_shape_on_a_layer_mask", ui_pending_pixel_shape_on_a_layer_mask},
       {"ui_path_overlay_follows_move_drag", ui_path_overlay_follows_move_drag},
       {"ui_shape_layer_outline_shows_only_under_path_and_shape_tools",
        ui_shape_layer_outline_shows_only_under_path_and_shape_tools},

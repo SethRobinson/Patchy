@@ -4510,10 +4510,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       CanvasTool::Pen,     CanvasTool::Polygon,    CanvasTool::CustomShape,
       CanvasTool::PathSelect, CanvasTool::DirectSelect};
   // Not on the Move bar (GitHub issue 350): there the shape's size is in the Properties panel.
-  const std::initializer_list<CanvasTool> vector_shape_size_tools{
-      CanvasTool::Line,     CanvasTool::Rectangle,  CanvasTool::Ellipse,
-      CanvasTool::Pen,      CanvasTool::Polygon,    CanvasTool::CustomShape,
-      CanvasTool::PathSelect, CanvasTool::DirectSelect};
+  // The W [link] H readouts of the active shape: Line, Pen and the path selection tools.
+  // Rectangle, Ellipse, Polygon and Custom Shape show that size in their Style row's pixel
+  // pair instead (GitHub issue 716).
+  const std::initializer_list<CanvasTool> vector_shape_size_tools{CanvasTool::Line, CanvasTool::Pen,
+                                                                  CanvasTool::PathSelect, CanvasTool::DirectSelect};
   // One Fill / Stroke row serves Shape and Pixels modes (GitHub issue 716): the same controls
   // and the same values, so Mode only decides what a drag makes. Shape mode shows these
   // widgets on every tool that has them; Pixels mode on the tools that paint pixels with
@@ -4646,7 +4647,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   };
   auto* vector_stroke_width_label = add_option_label(QT_TR_NOOP("Stroke:"), vector_appearance_tools);
   vector_stroke_width_label->setObjectName(QStringLiteral("vectorStrokeWidthLabel"));
-  add_appearance_widget(vector_stroke_width_label);
+  shape_pixel.stroke_widgets.push_back(add_appearance_widget(vector_stroke_width_label));
   auto* vector_stroke_width = new UnitSpinBox(SpinUnit::Pixels, toolbar);
   vector_stroke_width->setObjectName(QStringLiteral("vectorStrokeWidthSpin"));
   vector_stroke_width->setRange(0.0, 1000.0);
@@ -4656,7 +4657,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(vector_stroke_width, QT_TR_NOOP("Stroke width (0 for no stroke)"));
   configure_toolbar_spinbox(vector_stroke_width, 64);
   add_option_widget(vector_stroke_width, vector_appearance_tools);
-  add_appearance_widget(vector_stroke_width);
+  shape_pixel.stroke_widgets.push_back(add_appearance_widget(vector_stroke_width));
   register_ruler_unit_field(vector_stroke_width);  // print users think in mm strokes
   connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { set_vector_stroke_width_from_field(value); });
@@ -4664,8 +4665,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   install_appearance_edit_intent(vector_stroke_width, [this, vector_stroke_width] {
     set_vector_stroke_width_from_field(vector_stroke_width->value());
   });
-  connect(vector_stroke_width, &QDoubleSpinBox::editingFinished, this,
-          [this] { finish_pending_shape_appearance_edit(); });
+  connect(vector_stroke_width, &QDoubleSpinBox::editingFinished, this, [this] {
+    finish_pending_shape_appearance_edit();
+    refresh_shape_draw_controls();  // a width left at 0 hides the Stroke group now
+  });
 
   vector_stroke_swatch_button_ = new QToolButton(toolbar);
   vector_stroke_swatch_button_->setObjectName(QStringLiteral("vectorStrokeSwatchButton"));
@@ -5004,7 +5007,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       [this] { open_custom_shape_manager(nullptr); }, toolbar);
   custom_shape_combo_->setObjectName(QStringLiteral("customShapeCombo"));
   custom_shape_combo_->setIconSize(QSize(24, 24));
-  custom_shape_combo_->setFixedWidth(ui_text_length(150));
+  // 150 before the Style row joined this bar (GitHub issue 716): at 1366 px the Pixels row
+  // with a Fixed Size pair needs the 30 px. Longer names elide in the box, not in the picker.
+  custom_shape_combo_->setFixedWidth(ui_text_length(120));
   register_retranslation([this] { refresh_custom_shape_combo(); });
   add_option_widget(custom_shape_combo_, {CanvasTool::CustomShape});
   connect(custom_shape_combo_, &QComboBox::currentIndexChanged, this, [this](int) {
@@ -5039,8 +5044,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                          current_line_arrow_end_);
 
   // Pixels mode's own controls follow the shared Fill / Stroke row (GitHub issue 716): Opacity
-  // and Soft on every tool that paints pixels with it, Style on Rectangle and Ellipse.
-  const std::initializer_list<CanvasTool> shape_pixel_tools{CanvasTool::Rectangle, CanvasTool::Ellipse};
+  // and Soft on every tool that paints pixels with it. The Style row after them serves every
+  // mode, on the tools whose drag is a box.
+  const std::initializer_list<CanvasTool> shape_style_tools{CanvasTool::Rectangle, CanvasTool::Ellipse,
+                                                            CanvasTool::CustomShape};
   const auto add_shape_pixel_widget = [this, &add_option_widget](QWidget* widget,
                                                                std::initializer_list<CanvasTool> tools) {
     add_option_widget(widget, tools);
@@ -5128,19 +5135,27 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Style for the shape draw tools, as on the marquee bar (GitHub issue 602): Normal shows no
   // size fields, Fixed Ratio its own unitless pair and Fixed Size the pixel pair, each with
   // the swap button between Width and Height (GitHub issue 697). Session only, like the
-  // marquee's. Pixels mode only: the vector modes show the active shape's W / H instead,
-  // and a tap opens the Create dialog (docs/vector-tools.md).
-  // This is the bar's longest row, so the labels that only name the control beside them (Style,
-  // Width, Height) drop before it wraps: at 1366 px the Rectangle's Fixed rows show the Style
-  // list and the two fields around the swap button without them (docs/options-bar.md,
-  // "Duplicate sliders drop first").
-  const auto add_shape_pixel_droppable_label = [add_shape_pixel_label, &shape_pixel_tools](const char* source) {
-    auto* label = add_shape_pixel_label(source, shape_pixel_tools);
+  // marquee's. Every mode shows it (GitHub issue 716): a drag makes a shape layer, a path or
+  // pixels of that size. The pixel pair also shows and edits the size of the shape being
+  // worked on (a selected shape layer or path, a pending pixel shape), so the vector modes
+  // need no W / H group of their own; with Style on Normal it shows only then, and the
+  // Polygon, whose drag is not a box, has the pair without the Style list.
+  // These are the bar's longest rows, so the labels that only name the control beside them
+  // (Style, Width, Height) drop before a row wraps (docs/options-bar.md, "Duplicate sliders
+  // drop first").
+  const auto add_shape_style_label = [&add_option_label](const char* source,
+                                                         std::initializer_list<CanvasTool> tools) {
+    auto* label = add_option_label(source, tools);
     label->setProperty(kOptionsBarCollapsibleProperty, true);
     return label;
   };
-  add_shape_pixel_separator(shape_pixel_tools);
-  add_shape_pixel_droppable_label(QT_TR_NOOP("Style:"));
+  const auto add_shape_style_widget = [&add_option_widget](QWidget* widget,
+                                                           std::initializer_list<CanvasTool> tools) {
+    add_option_widget(widget, tools);
+    return widget;
+  };
+  add_option_separator(shape_draw_tools);
+  add_shape_style_label(QT_TR_NOOP("Style:"), shape_style_tools);
   auto* shape_style_combo = new QComboBox(toolbar);
   shape_style_combo->setObjectName(QStringLiteral("shapeStyleCombo"));
   shape_style_combo->addItems({tr("Normal"), tr("Fixed Ratio"), tr("Fixed Size")});
@@ -5156,11 +5171,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     shape_style_combo_pointer->setItemText(1, QObject::tr("Fixed Ratio"));
     shape_style_combo_pointer->setItemText(2, QObject::tr("Fixed Size"));
   });
-  add_option_widget(shape_style_combo, {CanvasTool::Rectangle, CanvasTool::Ellipse});
-  vector_pixel_only_option_widgets_.push_back(shape_style_combo);
+  add_option_widget(shape_style_combo, shape_style_tools);
   // No separator between Style and its size pair: the row has no room for one (rule 9).
   // Fixed Ratio: a unitless pair of its own (1 : 1 by default), separate from the pixel size.
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_droppable_label(QT_TR_NOOP("Width:")));
+  shape_pixel.ratio_widgets.push_back(add_shape_style_label(QT_TR_NOOP("Width:"), shape_style_tools));
   auto* shape_ratio_width = new TrimmedDoubleSpinBox(toolbar);
   shape_ratio_width->setObjectName(QStringLiteral("shapeRatioWidthSpin"));
   shape_ratio_width->setRange(0.01, 1000.0);
@@ -5168,11 +5182,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_ratio_width->setValue(shape_pixel.ratio_w);
   bind_tooltip(shape_ratio_width, QT_TR_NOOP("Width part of the shape's aspect ratio"));
   configure_toolbar_spinbox(shape_ratio_width, 56);
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_width, shape_pixel_tools));
+  shape_pixel.ratio_widgets.push_back(add_shape_style_widget(shape_ratio_width, shape_style_tools));
   auto* shape_ratio_swap = make_swap_dimensions_button("shapeRatioSwapButton");
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_swap, shape_pixel_tools));
+  shape_pixel.ratio_widgets.push_back(add_shape_style_widget(shape_ratio_swap, shape_style_tools));
   shape_pixel.ratio_widgets.push_back(
-      label_after_swap_button(add_shape_pixel_droppable_label(QT_TR_NOOP("Height:"))));
+      label_after_swap_button(add_shape_style_label(QT_TR_NOOP("Height:"), shape_style_tools)));
   auto* shape_ratio_height = new TrimmedDoubleSpinBox(toolbar);
   shape_ratio_height->setObjectName(QStringLiteral("shapeRatioHeightSpin"));
   shape_ratio_height->setRange(0.01, 1000.0);
@@ -5180,27 +5194,31 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_ratio_height->setValue(shape_pixel.ratio_h);
   bind_tooltip(shape_ratio_height, QT_TR_NOOP("Height part of the shape's aspect ratio"));
   configure_toolbar_spinbox(shape_ratio_height, 56);
-  shape_pixel.ratio_widgets.push_back(add_shape_pixel_widget(shape_ratio_height, shape_pixel_tools));
-  // Fixed Size: the pixel pair.
-  shape_pixel.size_widgets.push_back(add_shape_pixel_droppable_label(QT_TR_NOOP("Width:")));
+  shape_pixel.ratio_widgets.push_back(add_shape_style_widget(shape_ratio_height, shape_style_tools));
+  // Fixed Size, and the size of the shape being worked on: the pixel pair.
+  shape_pixel.size_widgets.push_back(add_shape_style_label(QT_TR_NOOP("Width:"), shape_draw_tools));
   auto* shape_fixed_width = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   shape_fixed_width->set_context_provider(document_axis_context(true));
   shape_fixed_width->setObjectName(QStringLiteral("shapeFixedWidthSpin"));
   shape_fixed_width->setRange(1, 30000);
   shape_fixed_width->setValue(has_active_document() ? document().width() : 1024);
   configure_toolbar_spinbox(shape_fixed_width, 62);
-  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_fixed_width, shape_pixel_tools));
+  shape_fixed_width->setKeyboardTracking(false);  // a typed size resizes the shape once
+  shape_pixel.size_widgets.push_back(add_shape_style_widget(shape_fixed_width, shape_draw_tools));
+  shape_pixel.size_width_spin = shape_fixed_width;
   auto* shape_size_swap = make_swap_dimensions_button("shapeFixedSizeSwapButton");
-  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_size_swap, shape_pixel_tools));
+  shape_pixel.size_widgets.push_back(add_shape_style_widget(shape_size_swap, shape_draw_tools));
   shape_pixel.size_widgets.push_back(
-      label_after_swap_button(add_shape_pixel_droppable_label(QT_TR_NOOP("Height:"))));
+      label_after_swap_button(add_shape_style_label(QT_TR_NOOP("Height:"), shape_draw_tools)));
   auto* shape_fixed_height = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   shape_fixed_height->set_context_provider(document_axis_context(false));
   shape_fixed_height->setObjectName(QStringLiteral("shapeFixedHeightSpin"));
   shape_fixed_height->setRange(1, 30000);
   shape_fixed_height->setValue(has_active_document() ? document().height() : 768);
   configure_toolbar_spinbox(shape_fixed_height, 62);
-  shape_pixel.size_widgets.push_back(add_shape_pixel_widget(shape_fixed_height, shape_pixel_tools));
+  shape_fixed_height->setKeyboardTracking(false);
+  shape_pixel.size_widgets.push_back(add_shape_style_widget(shape_fixed_height, shape_draw_tools));
+  shape_pixel.size_height_spin = shape_fixed_height;
   const auto apply_shape_style_settings = [this, shape_style_combo, shape_fixed_width, shape_fixed_height,
                                            shape_ratio_width, shape_ratio_height] {
     auto& options = *shape_pixel_options_;
@@ -5215,8 +5233,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
         options.size_style = CanvasWidget::MarqueeStyle::Normal;
         break;
     }
-    options.width = shape_fixed_width->value();
-    options.height = shape_fixed_height->value();
     options.ratio_w = shape_ratio_width->value();
     options.ratio_h = shape_ratio_height->value();
     if (canvas_ != nullptr) {
@@ -5235,12 +5251,35 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(shape_ratio_height, &QDoubleSpinBox::valueChanged, this, [apply_shape_style_settings](double) {
     apply_shape_style_settings();
   });
-  connect(shape_fixed_width, &QSpinBox::valueChanged, this, [apply_shape_style_settings](int) {
-    apply_shape_style_settings();
-  });
-  connect(shape_fixed_height, &QSpinBox::valueChanged, this, [apply_shape_style_settings](int) {
-    apply_shape_style_settings();
-  });
+  // The pixel pair is the Style's Fixed Size, and while a shape's size is live it resizes
+  // that shape: the pending pixel shape, or the selected shape layer or path through the
+  // W / H fields' own (debounced, one undo step) path.
+  const auto resize_live_shape = [this, shape_fixed_width, shape_fixed_height](bool width_changed) {
+    if (!shape_pixel_options_->size_live) {
+      return;
+    }
+    if (canvas_ != nullptr && canvas_->pending_pixel_shape_box().has_value()) {
+      canvas_->set_pending_pixel_shape_size(QSize(shape_fixed_width->value(), shape_fixed_height->value()));
+      return;
+    }
+    auto* target = width_changed ? vector_shape_width_spin_ : vector_shape_height_spin_;
+    const int value = width_changed ? shape_fixed_width->value() : shape_fixed_height->value();
+    if (target != nullptr && static_cast<int>(std::lround(target->value())) != value) {
+      target->setValue(static_cast<double>(value));
+    }
+  };
+  connect(shape_fixed_width, &QSpinBox::valueChanged, this,
+          [this, apply_shape_style_settings, resize_live_shape](int value) {
+            shape_pixel_options_->width = value;  // a typed size is also the next Fixed Size
+            apply_shape_style_settings();
+            resize_live_shape(true);
+          });
+  connect(shape_fixed_height, &QSpinBox::valueChanged, this,
+          [this, apply_shape_style_settings, resize_live_shape](int value) {
+            shape_pixel_options_->height = value;
+            apply_shape_style_settings();
+            resize_live_shape(false);
+          });
   // Swap trades the values of the pair it sits in: the ratio's, or the pixel size's.
   connect(shape_ratio_swap, &QToolButton::clicked, this, [shape_ratio_width, shape_ratio_height] {
     const double width = shape_ratio_width->value();
@@ -5252,6 +5291,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     shape_fixed_width->setValue(shape_fixed_height->value());
     shape_fixed_height->setValue(width);
   });
+  shape_pixel.width = shape_fixed_width->value();
+  shape_pixel.height = shape_fixed_height->value();
   apply_shape_style_settings();
 
   // Extra settings follow every shape-specific control at the end of the row.

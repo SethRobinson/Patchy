@@ -94,10 +94,10 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | same, Path/Direct Select | Combine (`vectorCombineCombo`) | none | no | no (session) |
 | Line | arrowheads (`lineArrow*Button`) | `lineArrowStart`, `lineArrowEnd` | yes | yes |
 | Rect, Ellipse, Polygon, Custom Shape | Fill only / Stroke only / Both (`shapeDraw*Button`; GitHub issue 716) | none of their own: they are the fill's none and the stroke's switch (`vectorFillKind`, `vectorStrokeEnabled`). `shapeFill` is still written (true while a fill is drawn) | yes | yes |
-| same | stroke alignment (`vectorStrokeAlignCombo`); Pixels mode's Foreground Color for the fill or stroke | `vectorStrokeAlign` (token: `inside`, `center`, `outside`; absent is Inside), `vectorFillFollowsForeground`, `vectorStrokeFollowsForeground` (bool; absent is on) | new (issue 716) | yes |
+| same | stroke alignment (`vectorStrokeAlignCombo`) | `vectorStrokeAlign` (token: `inside`, `center`, `outside`; absent is Inside). `vectorFillFollowsForeground` and `vectorStrokeFollowsForeground` belong to one unreleased build: read once (a part that painted in the foreground color becomes that color) and written false | new (issue 716) | yes |
 | same (Pixels) | Opacity, Soft (`shapePixelOpacitySpin`, `shapePixelSoftSpin`) | the brush family's `brushOpacity`, `brushSoftness` (mirrors of those fields) | no | yes |
 | Rectangle | Radius (`shapeCornerRadiusSpin`) | `shapeCornerRadius` | yes | yes |
-| Rect, Ellipse (Pixels) | Style, its ratio pair and its pixel pair (`shapeStyleCombo`, `shapeRatio*`, `shapeFixed*`) | none | no | no (session) |
+| Rect, Ellipse, Custom Shape (every mode) | Style, its ratio pair and its pixel pair (`shapeStyleCombo`, `shapeRatio*`, `shapeFixed*`); the pixel pair also edits the selected or pending shape's size, on the Polygon too | none | no | no (session) |
 | Pen | Auto Add/Delete | `penAutoAddDelete` | yes | yes |
 | Polygon | Sides, Star inset | `polygonSides`, `polygonStarInset` | yes | yes |
 | Custom Shape | Shape (by shape id) | `customShapeId` | yes | yes |

@@ -50,6 +50,22 @@ handle edits a corner radius, a side count or a star inset; those stay in the
 options bar and the Properties panel
 ([Patents and trademarks](vector-tools.md#patents-and-trademarks-assessed-july-2026)).
 
+## A pending pixel shape
+
+A shape drawn in Pixels mode that is not painted yet ([tools.md](tools.md#pending-pixel-shapes),
+GitHub issue 716) shows the same eight-handle box and uses the same drag
+(`ShapeResizeDrag::pixel_shape`, no layer and no callback: the drag sets the pending shape's
+box). Rectangle, Ellipse, Custom Shape and Polygon all take the box: a pending polygon keeps no
+drag points, and a stretched box scales it. Two differences from a shape layer's box: a press
+inside the box moves the shape (`TransformHandle::Move`; a shape layer's inside draws the next
+shape and Ctrl moves it), and a press outside it paints the shape and goes on to draw the
+next. The move is a whole-shape drag: the pointer's travel on whole pixels through
+`snap_whole_shape_drag` with the box as the one source rect, so both edges and the center of the
+box are the snap sources on each axis and the Move tool's alignment guide shows
+([legal](legal-constraints.md#shape-drag-points): never a source chosen from where the box was
+grabbed). The guides clear at the release and on Esc. Esc mid-drag puts the box back; a second
+Esc drops the shape.
+
 ## Drag points on a live Polygon and Line
 
 A live Polygon and a live Line show two drag points in place of the box: the two

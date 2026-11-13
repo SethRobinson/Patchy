@@ -396,6 +396,7 @@ void CanvasWidget::set_quick_mask_active(bool active) {
   if (quick_mask_active_ == active || document_ == nullptr) {
     return;
   }
+  commit_pending_pixel_shape();  // into the target it was drawn for
   if (active) {
     if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
       clear_smart_filter_mask_edit_target();

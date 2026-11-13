@@ -430,6 +430,12 @@ bool CanvasWidget::event(QEvent* event) {
       event->accept();
       return true;
     }
+    if (pending_pixel_shape_ != nullptr &&
+        (key_event->key() == Qt::Key_Escape || key_event->key() == Qt::Key_Return ||
+         key_event->key() == Qt::Key_Enter)) {
+      event->accept();
+      return true;
+    }
     // A selected gradient stop (GitHub issue 663 follow-up) owns Delete and Backspace, so the
     // key never reaches Edit > Clear or a layer delete while one is selected.
     if (gradient_handles_enabled() && key_event->modifiers() == Qt::NoModifier &&
@@ -961,6 +967,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
+  }
+
+  // A pending pixel shape (GitHub issue 716): a press on its box edits it; a press off it
+  // paints it into the target, and this same press goes on to start the next shape.
+  if (pending_pixel_shape_ != nullptr && event->button() == Qt::LeftButton && !drawing_shape_) {
+    if (press_shape_resize_handle(event)) {
+      event->accept();
+      return;
+    }
+    commit_pending_pixel_shape();
   }
 
   // Ctrl with a shape tool is a temporary Path Select (GitHub issue 312), read
@@ -1918,9 +1934,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         !quick_mask_active_ &&
         (layer_edit_target_ == LayerEditTarget::Content ||
          (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
-    // A Fill Layer mode gradient (GitHub issue 580) likewise leaves the pixels alone.
+    // A Fill Layer mode gradient (GitHub issue 580) likewise leaves the pixels alone, and so
+    // does a pixel shape that stays pending (GitHub issue 716): its commit begins the edit.
+    const bool stays_pending = !vector_shape_drag && !gradient_drag_makes_fill_layer() && tool_keeps_pixel_shapes_pending();
     if (vector_shape_drag || gradient_drag_makes_fill_layer() ||
-        begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
+        (stays_pending ? can_begin_edit(tr("Shape"))
+                       : begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape")))) {
       const auto snapped_point = snapped_document_point(document_point);
       clear_brush_stroke_tracking();
       drawing_shape_ = true;
@@ -3968,6 +3987,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                          (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
                           tool_ == CanvasTool::CustomShape);
     const auto erase = false;
+    // The vector bounds of a drag's rect: its corners as edge coordinates, so the width is
+    // right - left. A Fixed Ratio or Fixed Size rect is W x H whole pixels (GitHub issue 716:
+    // the Style applies in every mode), so its vector size is that, not one less.
+    const auto shape_vector_bounds = [this](QRect corner_rect) {
+      QRectF bounds(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight()));
+      if (shape_style_ != MarqueeStyle::Normal &&
+          (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::CustomShape)) {
+        bounds.setSize(QSizeF(corner_rect.size()));
+      }
+      return bounds;
+    };
     auto shape_from = shape_start_;
     auto shape_end = shape_current_;
     if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
@@ -4007,8 +4037,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         commit_polygon_drag(QPointF(shape_start_), QPointF(shape_current_));
       } else {
         const auto corner_rect = normalized_rect(shape_from, shape_end);
-        commit_custom_shape_drag(
-            QRectF(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight())));
+        commit_custom_shape_drag(shape_vector_bounds(corner_rect));
       }
       return;
     }
@@ -4034,7 +4063,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       const auto corner_rect = normalized_rect(shape_from, shape_end);
       // Edge semantics: the drag corners are edge coordinates, so the vector
       // width is right - left (not QRect's inclusive-pixel width).
-      const QRectF bounds(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight()));
+      const QRectF bounds = shape_vector_bounds(corner_rect);
       vector_shape_drawn_callback_(kind, bounds, QPointF(shape_start_), QPointF(shape_current_));
       return;
     }
@@ -4047,6 +4076,37 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       if (shape_current_ != shape_start_) {
         gradient_fill_drawn_callback_(shape_start_, shape_current_);
       }
+      return;
+    }
+    // A pixel shape that stays editable (GitHub issue 716): the drag only sets its geometry.
+    // A click without a drag makes none, except a Fixed Size click, which places W x H.
+    if (tool_keeps_pixel_shapes_pending()) {
+      drawing_shape_ = false;
+      clear_brush_stroke_tracking();
+      const bool dragged = shape_current_ != shape_start_;
+      if (tool_ == CanvasTool::Polygon) {
+        const QPointF center(shape_start_);
+        const QPointF delta = QPointF(shape_current_) - center;
+        const double radius = std::hypot(delta.x(), delta.y());
+        if (dragged && radius >= 1.0) {
+          begin_pending_pixel_shape(tool_, QRectF(center.x() - radius, center.y() - radius, radius * 2.0, radius * 2.0),
+                                    std::atan2(delta.y(), delta.x()));
+        }
+      } else if (dragged || shape_style_ == MarqueeStyle::FixedSize) {
+        const auto corner_rect = normalized_rect(shape_from, shape_end);
+        if (tool_ == CanvasTool::CustomShape) {
+          const QRectF bounds = shape_vector_bounds(corner_rect);
+          if (custom_shape_path_ != nullptr && !custom_shape_path_->empty() && bounds.width() >= 1.0 &&
+              bounds.height() >= 1.0) {
+            begin_pending_pixel_shape(tool_, bounds, 0.0);
+          }
+        } else {
+          // The whole pixels the drag covers, as edges.
+          begin_pending_pixel_shape(
+              tool_, QRectF(corner_rect.left(), corner_rect.top(), corner_rect.width(), corner_rect.height()), 0.0);
+        }
+      }
+      update();
       return;
     }
     QRect preview_rect = normalized_rect(shape_from, shape_end);
@@ -4087,7 +4147,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       }
     } else if (tool_ == CanvasTool::CustomShape) {
       const auto corner_rect = normalized_rect(shape_from, shape_end);
-      const QRectF bounds(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight()));
+      const QRectF bounds = shape_vector_bounds(corner_rect);
       if (custom_shape_path_ != nullptr && !custom_shape_path_->empty() && bounds.width() >= 1.0 &&
           bounds.height() >= 1.0) {
         auto path = *custom_shape_path_;
@@ -4701,6 +4761,20 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     cancel_shape_resize_drag();
     event->accept();
     return;
+  }
+
+  // A pending pixel shape (GitHub issue 716): Enter paints it, Esc drops it.
+  if (pending_pixel_shape_ != nullptr && !drawing_shape_) {
+    if (event->key() == Qt::Key_Escape) {
+      cancel_pending_pixel_shape();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      commit_pending_pixel_shape();
+      event->accept();
+      return;
+    }
   }
 
   if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->key() == Qt::Key_Escape) {
@@ -5569,9 +5643,19 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
   QWidget::timerEvent(event);
 }
 
+bool CanvasWidget::can_begin_edit(QString label) {
+  begin_edit_check_only_ = true;
+  const bool allowed = begin_edit(std::move(label));
+  begin_edit_check_only_ = false;
+  return allowed;
+}
+
 bool CanvasWidget::begin_edit(QString label) {
+  // A pending pixel shape goes into the target before anything else does (its own commit
+  // takes it first, so this is a no-op there).
+  commit_pending_pixel_shape();
   if (quick_mask_active_) {
-    if (!quick_mask_edit_before_.has_value()) {
+    if (!begin_edit_check_only_ && !quick_mask_edit_before_.has_value()) {
       quick_mask_edit_before_ = capture_selection_snapshot();
       quick_mask_edit_label_ = std::move(label);
       quick_mask_edit_dirty_ = QRegion();
@@ -5584,7 +5668,7 @@ bool CanvasWidget::begin_edit(QString label) {
       clear_smart_filter_mask_edit_target();
       return false;
     }
-    if (!smart_filter_mask_edit_before_.has_value()) {
+    if (!begin_edit_check_only_ && !smart_filter_mask_edit_before_.has_value()) {
       smart_filter_mask_edit_before_ = smart_filter_mask_pixels_;
       smart_filter_mask_edit_label_ = std::move(label);
       smart_filter_mask_edit_dirty_ = QRegion();
@@ -5601,7 +5685,7 @@ bool CanvasWidget::begin_edit(QString label) {
       report_status_error(tr("Spot channels are read-only"));
       return false;
     }
-    if (before_edit_callback_) {
+    if (before_edit_callback_ && !begin_edit_check_only_) {
       before_edit_callback_(label);
     }
     return true;
@@ -5632,7 +5716,7 @@ bool CanvasWidget::begin_edit(QString label) {
       report_status_error(tr("Select a layer mask to edit"));
       return false;
     }
-    if (before_edit_callback_) {
+    if (before_edit_callback_ && !begin_edit_check_only_) {
       before_edit_callback_(label);
     }
     return true;
@@ -5671,7 +5755,7 @@ bool CanvasWidget::begin_edit(QString label) {
     return false;
   }
 
-  if (before_edit_callback_) {
+  if (before_edit_callback_ && !begin_edit_check_only_) {
     before_edit_callback_(label);
   }
   return true;

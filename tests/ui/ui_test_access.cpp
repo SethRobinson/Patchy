@@ -216,18 +216,10 @@ void MainWindowTestAccess::open_shape_appearance_window(MainWindow& window) {
 }
 
 patchy::VectorFill& MainWindowTestAccess::current_vector_fill(MainWindow& window) {
-  // A test writing the mirror stands in for a picker's pick, which ends Pixels mode's
-  // Foreground Color (GitHub issue 716): pixel shapes then paint with the mirror too.
-  if (window.shape_pixel_options_ != nullptr) {
-    window.shape_pixel_options_->fill_follows_foreground = false;
-  }
   return window.current_vector_fill_;
 }
 
 patchy::VectorFill& MainWindowTestAccess::current_vector_stroke_paint(MainWindow& window) {
-  if (window.shape_pixel_options_ != nullptr) {
-    window.shape_pixel_options_->stroke_follows_foreground = false;
-  }
   return window.current_vector_stroke_paint_;
 }
 

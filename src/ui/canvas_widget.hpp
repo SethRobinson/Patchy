@@ -921,6 +921,27 @@ public:
   // mode, a fill alone or a stroke alone.
   void set_shape_pixel_style(const ShapePixelStyle& style);
   [[nodiscard]] const ShapePixelStyle& shape_pixel_style() const noexcept;
+  // Pending pixel shapes (GitHub issue 716; docs/tools.md, "Pending pixel shapes"). With this
+  // on (MainWindow turns it on for its canvases; a canvas of its own paints at the release),
+  // a Rectangle, Ellipse, Polygon or Custom Shape drawn as pixels stays editable: it shows as
+  // a preview of the pixels with the shape's outline and the resize box, the canvas's own
+  // settings (style, opacity, softness, radius, sides, the picked shape) keep editing it, and
+  // it can be moved and resized. It is painted into the target as one edit by
+  // commit_pending_pixel_shape: a press off it, Enter, a tool, mode, target or layer change,
+  // and any new edit (begin_edit) do that; Esc and a document swap drop it.
+  void set_pixel_shapes_stay_pending(bool pending);
+  [[nodiscard]] bool pixel_shapes_stay_pending() const noexcept;
+  [[nodiscard]] bool has_pending_pixel_shape() const noexcept;
+  // The pending shape's box in document space (edge coordinates), if there is one.
+  [[nodiscard]] std::optional<QRectF> pending_pixel_shape_box() const;
+  // Resizes the pending shape, its top left corner staying put.
+  void set_pending_pixel_shape_size(QSize size);
+  // Paints the pending shape into the edit target; false when there was none or the target
+  // refused the edit (the shape is dropped either way).
+  bool commit_pending_pixel_shape();
+  void cancel_pending_pixel_shape();
+  // Called when a pending shape appears, changes its box or goes away.
+  void set_pending_pixel_shape_changed_callback(std::function<void()> callback);
   void set_shape_corner_radius(int radius) noexcept;
   [[nodiscard]] int shape_corner_radius() const noexcept;
   void set_fill_opacity(int opacity) noexcept;
@@ -2543,6 +2564,11 @@ private:
   // smooth display scale blends each pixel into its neighbours on screen.
   [[nodiscard]] QRect widget_repaint_rect_for_document_rect(QRect document_rect) const;
   bool begin_edit(QString label);
+  // begin_edit's guards alone (the target takes pixel edits, with the same messages), with no
+  // history entry and no snapshot: the press of a drag whose edit begins later (a pixel shape
+  // that stays pending).
+  [[nodiscard]] bool can_begin_edit(QString label);
+  bool begin_edit_check_only_{false};
   // Called right after a successful begin_edit by the painting_ gestures: emits the
   // Begin history event and starts collecting the stroke's dirty rectangles. Also fires
   // the theme's "stroke-start" event (docs/theme-files-scripts.md).
@@ -2788,6 +2814,24 @@ private:
   // rectangle) through the shape layer's renderer onto the layer or the grayscale target.
   [[nodiscard]] QRect draw_pixel_shape(QRect rect, patchy::ShapeKind kind, bool erase);
   [[nodiscard]] QRect draw_shape_path_pixels(const patchy::VectorPath& path, bool erase);
+  // The pending pixel shape (canvas_widget_draw_tools.cpp; its handles ride the shape tools'
+  // resize box, canvas_widget_shape_resize.cpp).
+  struct PendingPixelShape;
+  std::shared_ptr<PendingPixelShape> pending_pixel_shape_;
+  bool pixel_shapes_stay_pending_{false};
+  std::function<void()> pending_pixel_shape_changed_callback_;
+  [[nodiscard]] bool tool_keeps_pixel_shapes_pending() const noexcept;
+  void begin_pending_pixel_shape(CanvasTool tool, QRectF box, double polygon_angle);
+  void set_pending_pixel_shape_box(QRectF box);
+  [[nodiscard]] patchy::VectorPath pending_pixel_shape_path(const PendingPixelShape& shape) const;
+  [[nodiscard]] QRect paint_pending_pixel_shape(const PendingPixelShape& shape);
+  void refresh_pending_pixel_shape_preview(PendingPixelShape& shape) const;
+  void draw_pending_pixel_shape(QPainter& painter) const;
+  [[nodiscard]] QRect pending_pixel_shape_widget_rect(QRectF box) const;
+  // True on a channel, Quick Mask or a Smart Filter mask: the pending shape's grays are shown
+  // through that target's own display (draw_shape_preview), as the drag that drew it was.
+  [[nodiscard]] bool pending_pixel_shape_uses_channel_preview() const;
+  void pending_pixel_shape_inputs_changed();
   [[nodiscard]] QRect flood_fill(QPoint start);
   [[nodiscard]] QRect shape_drag_rect(QPoint anchor, QPoint current) const;
   // Pen tool session (canvas_widget_vector_tools.cpp).
@@ -4518,6 +4562,9 @@ private:
   std::function<void(LayerId, int, GradientHandleTarget)> gradient_fill_stop_color_requested_callback_;
   // A shape tool's resize-handle drag (GitHub issue 690), from the press to the release.
   struct ShapeResizeDrag {
+    // True for the pending pixel shape's box (no layer, no callback): the drag edits the
+    // pending shape itself, and its Move handle is a press inside the box.
+    bool pixel_shape{false};
     LayerId layer_id{0};
     TransformHandle handle{TransformHandle::None};
     QRectF start_rect;    // the box at the press

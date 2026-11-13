@@ -418,6 +418,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
           : LayerEditTarget::Content;
   const auto restore_channel_display_mode = mask_display_mode_;
   const auto restore_channel_view = preserve_frame_for_same_size ? channel_view_ : composite_channel_view();
+  cancel_pending_pixel_shape();  // the document it was drawn over is gone or was swapped
   cancel_free_transform();
   if (warping_layer_) {
     reset_warp_state();
@@ -594,6 +595,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     gradient_stop_selection_.reset();
     cancel_artboard_drag();
     commit_path_transform();  // tool switches commit, like the pen session
+    commit_pending_pixel_shape();  // and a pending pixel shape is painted (GitHub issue 716)
     finish_free_transform();
     finish_warp_transform();
     cancel_move_layer_selection();
@@ -757,6 +759,7 @@ void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
   if (layer_edit_target_ == target) {
     return;
   }
+  commit_pending_pixel_shape();  // into the target it was drawn for
   cancel_path_transform();
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask &&
       target != LayerEditTarget::SmartFilterMask) {
@@ -977,6 +980,7 @@ void CanvasWidget::set_primary_color(QColor color) {
   }
   primary_color_ = color;
   invalidate_brush_overlay();  // the Brush overlay paints in the foreground color
+  pending_pixel_shape_inputs_changed();
 }
 
 QColor CanvasWidget::primary_color() const noexcept {
@@ -1938,6 +1942,7 @@ void CanvasWidget::set_missing_font_transform_confirm_callback(
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
   if (layer_ids != selected_layer_ids_) {
+    commit_pending_pixel_shape();  // into the layer it was drawn on (GitHub issue 716)
     cancel_path_transform();
   }
   const auto old_transform_controls_rect = move_transform_controls_rect();
@@ -2304,6 +2309,7 @@ void CanvasWidget::activate_layer(Layer& layer) {
   }
   if (document_->active_layer_id() != layer.id() ||
       layer_edit_target_ != LayerEditTarget::Content) {
+    commit_pending_pixel_shape();  // into the layer it was drawn on, before that changes
     cancel_path_transform();
   }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {

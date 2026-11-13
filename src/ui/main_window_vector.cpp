@@ -2392,29 +2392,12 @@ QIcon MainWindow::options_bar_swatch_icon(const VectorFill& paint, const QToolBu
 }
 
 void MainWindow::update_vector_swatch_icons() {
-  // In Pixels mode a paint set to Foreground Color shows the foreground color (GitHub issue
-  // 716); the bar's own paint stays underneath for Shape mode.
-  const bool pixels = shape_pixel_options_ != nullptr && vector_option_mode_rules(current_tool_, false).pixel_style;
-  const auto shown = [&](const VectorFill& paint, bool foreground) {
-    if (!pixels || !foreground || paint.kind == VectorFillKind::None) {
-      return paint;
-    }
-    const QColor color = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
-    VectorFill solid;
-    solid.kind = VectorFillKind::Solid;
-    solid.color = {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                   static_cast<std::uint8_t>(color.blue())};
-    return solid;
-  };
   if (vector_fill_swatch_button_ != nullptr) {
-    vector_fill_swatch_button_->setIcon(options_bar_swatch_icon(
-        shown(current_vector_fill_, pixels && shape_pixel_options_->fill_follows_foreground),
-        *vector_fill_swatch_button_));
+    vector_fill_swatch_button_->setIcon(options_bar_swatch_icon(current_vector_fill_, *vector_fill_swatch_button_));
   }
   if (vector_stroke_swatch_button_ != nullptr) {
-    vector_stroke_swatch_button_->setIcon(options_bar_swatch_icon(
-        shown(current_vector_stroke_paint_, pixels && shape_pixel_options_->stroke_follows_foreground),
-        *vector_stroke_swatch_button_));
+    vector_stroke_swatch_button_->setIcon(
+        options_bar_swatch_icon(current_vector_stroke_paint_, *vector_stroke_swatch_button_));
   }
   // The paints also decide the draw-mode buttons and what Pixels mode paints (GitHub issue 716).
   refresh_shape_draw_controls();
@@ -2424,23 +2407,18 @@ ShapePixelStyle MainWindow::shape_pixel_style_for_canvas() {
   // The values Shape mode makes its layers from (GitHub issue 716): one fill, one stroke.
   ShapePixelStyle style;
   const auto content = current_shape_appearance_content(false);
-  const bool fill_follows = shape_pixel_options_ != nullptr && shape_pixel_options_->fill_follows_foreground;
-  const bool stroke_follows = shape_pixel_options_ != nullptr && shape_pixel_options_->stroke_follows_foreground;
   style.fill = content.fill.kind != VectorFillKind::None;
-  style.stroke = content.stroke.enabled && (stroke_follows || content.stroke.content.kind != VectorFillKind::None);
-  // Foreground Color stays unset: the canvas takes its foreground at draw time, with its
-  // Intensity on a 32-bit layer.
-  if (style.fill && !fill_follows) {
+  style.stroke = content.stroke.enabled && content.stroke.content.kind != VectorFillKind::None;
+  // The bar's paints, the same ones a shape layer gets (an unset paint, which only a canvas
+  // no bar drives has, is the canvas's foreground color).
+  if (style.fill) {
     style.fill_paint = content.fill;
   }
-  if (!stroke_follows) {
-    style.stroke_paint = content.stroke.content;
-  }
+  style.stroke_paint = content.stroke.content;
   style.line = content.stroke;
   // Pattern paints bring their tiles; the store is rebuilt only when a pattern changes.
   std::string key;
-  for (const auto* paint : {style.fill && !fill_follows ? &content.fill : nullptr,
-                            style.stroke && !stroke_follows ? &content.stroke.content : nullptr}) {
+  for (const auto* paint : {style.fill ? &content.fill : nullptr, style.stroke ? &content.stroke.content : nullptr}) {
     if (paint != nullptr && paint->kind == VectorFillKind::Pattern) {
       key += paint->pattern_id + "|";
     }
@@ -2467,15 +2445,6 @@ ShapePixelStyle MainWindow::shape_pixel_style_for_canvas() {
   return style;
 }
 
-void MainWindow::end_pixel_foreground_paint(bool for_stroke) {
-  // A paint picked from the bar, in either mode, is the one both modes use from then on:
-  // pixel shapes stop painting that part in the foreground color.
-  if (shape_pixel_options_ != nullptr) {
-    (for_stroke ? shape_pixel_options_->stroke_follows_foreground
-                : shape_pixel_options_->fill_follows_foreground) = false;
-  }
-}
-
 void MainWindow::refresh_shape_draw_controls() {
   if (shape_pixel_options_ == nullptr) {
     return;
@@ -2484,17 +2453,10 @@ void MainWindow::refresh_shape_draw_controls() {
   const bool draws_fill = current_vector_fill_.kind != VectorFillKind::None;
   const bool draws_stroke = current_vector_stroke_enabled_;
   options.sync_draw_controls(draws_fill, draws_stroke, current_shape_appearance_content(false).stroke.alignment);
-  // Stroke only greys the Fill group and Fill only the Stroke group, on the tools with the
-  // buttons; elsewhere (Line, Pen, the path selection tools) the width is the only switch
-  // and everything stays usable.
-  const bool editable = has_active_document() && !preview_dialog_edit_locked();
-  const bool draw_modes = shape_tool_has_draw_modes(current_tool_);
-  for (const auto* group : {&options.fill_widgets, &options.stroke_widgets}) {
-    for (auto* widget : *group) {
-      if (widget != nullptr) {
-        widget->setEnabled(editable && (!draw_modes || options.widget_enabled(widget, draws_fill, draws_stroke)));
-      }
-    }
+  // Stroke only hides the Fill group and Fill only the Stroke group, on the tools with the
+  // buttons (sync_shape_bar_state); the bar is laid out again when that changes.
+  if (sync_shape_bar_state()) {
+    queue_shape_bar_refresh();
   }
   if (canvas_ != nullptr) {
     auto style = shape_pixel_style_for_canvas();
@@ -2504,6 +2466,76 @@ void MainWindow::refresh_shape_draw_controls() {
       options.pushed_style = std::move(style);
     }
   }
+}
+
+void MainWindow::queue_shape_bar_refresh() {
+  // Never at once: this is reached in the middle of an edit (a draw-mode click sets the bar's
+  // values, then applies them to the selected shapes), and refresh_options_bar reads the
+  // selected shape back into the bar, which would undo the click before it is applied. The
+  // refresh runs when the event that changed the state is done.
+  if (refreshing_shape_bar_ || shape_bar_refresh_queued_) {
+    return;
+  }
+  shape_bar_refresh_queued_ = true;
+  QTimer::singleShot(0, this, [this] {
+    shape_bar_refresh_queued_ = false;
+    refresh_options_bar();
+  });
+}
+
+bool MainWindow::sync_shape_bar_state() {
+  if (shape_pixel_options_ == nullptr) {
+    return false;
+  }
+  auto& options = *shape_pixel_options_;
+  const bool draw_modes = shape_tool_has_draw_modes(current_tool_);
+  const bool draws_fill = current_vector_fill_.kind != VectorFillKind::None;
+  bool draws_stroke = current_vector_stroke_enabled_;
+  // A width being typed keeps its field: 0 on the way to 0.5 must not take the box away.
+  // Leaving the field settles it.
+  if (!draws_stroke && options.shown_stroke) {
+    if (const auto* width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+        width != nullptr && width->hasFocus()) {
+      draws_stroke = true;
+    }
+  }
+  // The size pair edits a selected shape layer or path in the vector modes and the pending
+  // shape in Pixels mode. The Polygon's Pixels row has no room for it at 1366 px: a pending
+  // polygon is sized by its handles.
+  const bool pending_pixels = canvas_ != nullptr && canvas_->pending_pixel_shape_box().has_value();
+  const bool size_live =
+      draw_modes && has_active_document() &&
+      (current_vector_tool_mode_ == VectorToolMode::Pixels ? pending_pixels && current_tool_ != CanvasTool::Polygon
+                                                           : vector_shape_size_controls_live());
+  const bool changed =
+      options.shown_fill != draws_fill || options.shown_stroke != draws_stroke || options.size_live != size_live;
+  options.shown_fill = draws_fill;
+  options.shown_stroke = draws_stroke;
+  options.size_live = size_live;
+  // The pair shows the live shape's size in whole pixels, else the Style's Fixed Size.
+  if (options.size_width_spin != nullptr && options.size_height_spin != nullptr) {
+    int width = options.width;
+    int height = options.height;
+    if (size_live) {
+      if (pending_pixels) {
+        const auto box = *canvas_->pending_pixel_shape_box();
+        width = static_cast<int>(std::lround(box.width()));
+        height = static_cast<int>(std::lround(box.height()));
+      } else if (vector_shape_width_spin_ != nullptr && vector_shape_height_spin_ != nullptr) {
+        width = static_cast<int>(std::lround(vector_shape_width_spin_->value()));
+        height = static_cast<int>(std::lround(vector_shape_height_spin_->value()));
+      }
+    }
+    const bool editing = options.size_width_spin->hasFocus() || options.size_height_spin->hasFocus();
+    if (!editing) {
+      for (const auto& [spin, value] : {std::pair{options.size_width_spin, width},
+                                        std::pair{options.size_height_spin, height}}) {
+        const QSignalBlocker blocker(spin);
+        spin->setValue(std::clamp(value, spin->minimum(), spin->maximum()));
+      }
+    }
+  }
+  return changed && draw_modes;
 }
 
 // --- Options-bar paint pickers and live editing of the selected shape ---
@@ -3615,6 +3647,8 @@ bool MainWindow::vector_option_widget_visible(const VectorOptionModeRules& rules
   if (in(vector_pixel_only_option_widgets_) && rules.vector_mode) {
     return false;
   }
+  // Path mode draws no fill or stroke: the draw-mode buttons and both groups hide, and the
+  // Style row stays (it sizes the path a drag makes).
   if (in(vector_shape_mode_option_widgets_) && !rules.shape_mode) {
     // The draw-mode buttons and the Fill and Stroke groups also serve Pixels mode on the
     // tools that paint pixels with them (GitHub issue 716).
@@ -3672,6 +3706,10 @@ void MainWindow::sync_vector_shape_size_spins() {
   }
   if (canvas_ != nullptr) {
     canvas_->set_custom_shape_keep_proportions(linked);
+  }
+  // The shape tools' Style row shows the same size in its pixel pair (GitHub issue 716).
+  if (sync_shape_bar_state()) {
+    queue_shape_bar_refresh();
   }
   if (vector_appearance_button_ != nullptr) {
     vector_appearance_button_->setEnabled(!editable_selected_shape_layer_ids().empty() && vector_appearance_controls_live());
@@ -3772,42 +3810,36 @@ void MainWindow::show_vector_paint_menu(bool for_stroke) {
   QMenu menu(button);
   menu.setObjectName(for_stroke ? QStringLiteral("vectorStrokePaintMenu")
                                 : QStringLiteral("vectorFillPaintMenu"));
-  // Foreground Color (GitHub issue 716), in Pixels mode on the tools that paint with the bar's
-  // fill and stroke: pixel shapes paint that part in the foreground color, as every pixel
-  // tool does, until another entry is picked (in either mode). The bar's own paint stays
-  // underneath for Shape mode, which has no such entry: there the bar shows the selected
-  // shape's paints and hands them to the next shape.
-  const bool pixels = shape_pixel_options_ != nullptr && vector_option_mode_rules(current_tool_, false).pixel_style;
-  const bool follows = pixels && paint.kind != VectorFillKind::None &&
-                       (for_stroke ? shape_pixel_options_->stroke_follows_foreground
-                                   : shape_pixel_options_->fill_follows_foreground);
   const auto add_kind = [&](const QString& label, const char* object_name, VectorFillKind kind,
                             auto callback) {
     auto* action = menu.addAction(label);
     action->setObjectName(QLatin1String(object_name));
     action->setCheckable(true);
-    action->setChecked(paint.kind == kind && !follows);
+    action->setChecked(paint.kind == kind);
     connect(action, &QAction::triggered, this, callback);
     return action;
   };
-  if (pixels) {
+  // Foreground Color (GitHub issue 716): a one-time pick. The paint becomes a solid color,
+  // the foreground color as it is now, in the selected shapes too; it does not follow later
+  // changes of the foreground color, so Shape and Pixels modes keep one paint.
+  {
     auto* action = menu.addAction(tr("Foreground Color"));
     action->setObjectName(for_stroke ? QStringLiteral("vectorStrokeForegroundAction")
                                      : QStringLiteral("vectorFillForegroundAction"));
-    action->setCheckable(true);
-    action->setChecked(follows);
     connect(action, &QAction::triggered, this, [this, for_stroke] {
-      if (shape_pixel_options_ == nullptr) {
-        return;
-      }
-      auto& options = *shape_pixel_options_;
-      (for_stroke ? options.stroke_follows_foreground : options.fill_follows_foreground) = true;
-      if (!for_stroke && current_vector_fill_.kind == VectorFillKind::None) {
-        // Picking a paint for a fill that is off turns it on, as the other entries do.
-        current_vector_fill_.kind =
-            options.fill_restore_kind == VectorFillKind::None ? VectorFillKind::Solid : options.fill_restore_kind;
+      finish_pending_shape_appearance_edit();
+      const QColor foreground = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
+      auto& target = for_stroke ? current_vector_stroke_paint_ : current_vector_fill_;
+      target.kind = VectorFillKind::Solid;
+      target.color = {static_cast<std::uint8_t>(foreground.red()), static_cast<std::uint8_t>(foreground.green()),
+                      static_cast<std::uint8_t>(foreground.blue())};
+      if (!for_stroke && shape_pixel_options_ != nullptr) {
+        shape_pixel_options_->fill_restore_kind = VectorFillKind::Solid;
       }
       schedule_save_tool_settings();
+      apply_options_bar_appearance_to_active_shape(
+          for_stroke ? std::vector<std::string>{"stroke.content.kind", "stroke.content.color"}
+                     : std::vector<std::string>{"fill.kind", "fill.color"});
       update_vector_swatch_icons();
     });
   }
@@ -3842,9 +3874,8 @@ void MainWindow::pick_vector_solid_color(bool for_stroke) {
     target.kind = VectorFillKind::Solid;
     target.color = {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
                     static_cast<std::uint8_t>(color.blue())};
-    if (shape_pixel_options_ != nullptr) {
-      end_pixel_foreground_paint(for_stroke);  // a color of its own from here on
-      if (!for_stroke) shape_pixel_options_->fill_restore_kind = VectorFillKind::Solid;
+    if (shape_pixel_options_ != nullptr && !for_stroke) {
+      shape_pixel_options_->fill_restore_kind = VectorFillKind::Solid;
     }
     update_vector_swatch_icons();
     schedule_save_tool_settings();
@@ -3968,7 +3999,6 @@ void MainWindow::pick_vector_gradient(bool for_stroke) {
   if (shape_pixel_options_ != nullptr && !for_stroke) {
     shape_pixel_options_->fill_restore_kind = VectorFillKind::Gradient;
   }
-  end_pixel_foreground_paint(for_stroke);
   update_vector_swatch_icons();
   schedule_save_tool_settings();
   apply_options_bar_appearance_to_active_shape({for_stroke ? "stroke.content.kind" : "fill.kind"});
@@ -4017,7 +4047,6 @@ void MainWindow::pick_vector_pattern(bool for_stroke) {
       if (shape_pixel_options_ != nullptr && !for_stroke) {
         shape_pixel_options_->fill_restore_kind = VectorFillKind::Pattern;
       }
-      end_pixel_foreground_paint(for_stroke);
       schedule_save_tool_settings();
       return std::optional<ShapeAppearanceSettings>{settings};
     }, for_stroke);
@@ -4054,7 +4083,6 @@ void MainWindow::pick_vector_pattern(bool for_stroke) {
   if (shape_pixel_options_ != nullptr && !for_stroke) {
     shape_pixel_options_->fill_restore_kind = VectorFillKind::Pattern;
   }
-  end_pixel_foreground_paint(for_stroke);
   update_vector_swatch_icons();
   schedule_save_tool_settings();
   apply_options_bar_appearance_to_active_shape({for_stroke ? "stroke.content.kind" : "fill.kind"});

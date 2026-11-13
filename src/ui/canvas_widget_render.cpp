@@ -1241,6 +1241,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_spot_heal_stroke_overlay(painter);
   upright_overlays.emplace(*this, &painter);
   draw_red_eye_overlay(painter);
+  draw_pending_pixel_shape(painter);  // the pixels a commit would paint, under its box
   draw_shape_resize_frame(painter);  // under the path overlay; its handle squares follow it
   upright_overlays.reset();
   draw_pen_overlay(painter);

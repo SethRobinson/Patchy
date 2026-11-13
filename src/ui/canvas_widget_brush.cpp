@@ -573,6 +573,7 @@ int CanvasWidget::brush_size() const noexcept {
 void CanvasWidget::set_brush_opacity(int opacity) {
   // 0 is a valid options-bar value (issue 253): the stroke paints nothing.
   brush_opacity_ = std::clamp(opacity, 0, 100);
+  pending_pixel_shape_inputs_changed();
 }
 
 int CanvasWidget::brush_opacity() const noexcept {
@@ -592,6 +593,7 @@ void CanvasWidget::set_brush_softness(int softness) {
   brush_softness_ = std::clamp(softness, 0, 100);
   update_tool_cursor();
   invalidate_brush_overlay();
+  pending_pixel_shape_inputs_changed();
 }
 
 int CanvasWidget::brush_softness() const noexcept {

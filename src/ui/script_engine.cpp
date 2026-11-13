@@ -311,6 +311,13 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
       }
     });
   }
+  // A pixel shape still pending in a window (GitHub issue 716) is painted before the script
+  // sees any document: its own history entry, ahead of the script's.
+  for (const auto& target_session : window_.sessions_) {
+    if (target_session != nullptr && target_session->canvas != nullptr) {
+      target_session->canvas->commit_pending_pixel_shape();
+    }
+  }
   run_ = std::make_unique<ScriptRun>();
   run_->name = options.name.isEmpty() ? tr("Untitled Script") : options.name;
   run_->unattended = options.unattended;

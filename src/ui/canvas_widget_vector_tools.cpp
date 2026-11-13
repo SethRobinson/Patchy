@@ -308,6 +308,7 @@ void CanvasWidget::set_shape_preview_appearance_callback(
 
 void CanvasWidget::set_polygon_sides(int sides) noexcept {
   polygon_sides_ = std::clamp(sides, 3, 100);
+  pending_pixel_shape_inputs_changed();
 }
 
 int CanvasWidget::polygon_sides() const noexcept {
@@ -316,6 +317,7 @@ int CanvasWidget::polygon_sides() const noexcept {
 
 void CanvasWidget::set_polygon_star_inset(int percent) noexcept {
   polygon_star_inset_ = std::clamp(percent, 0, 99);
+  pending_pixel_shape_inputs_changed();
 }
 
 int CanvasWidget::polygon_star_inset() const noexcept {
@@ -324,6 +326,7 @@ int CanvasWidget::polygon_star_inset() const noexcept {
 
 void CanvasWidget::set_custom_shape_path(std::shared_ptr<const patchy::VectorPath> path) {
   custom_shape_path_ = std::move(path);
+  pending_pixel_shape_inputs_changed();
 }
 
 const patchy::VectorPath* CanvasWidget::custom_shape_path() const noexcept {

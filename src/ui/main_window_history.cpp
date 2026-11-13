@@ -202,6 +202,13 @@ void MainWindow::undo() {
   // through the session's drags. With no step left, an unchanged session cancels;
   // one still holding a stage from before a mode switch stays, so Undo never
   // reaches the document history behind an open transform.
+  if (canvas_->has_pending_pixel_shape()) {
+    // A pending pixel shape is not in the document yet (GitHub issue 716): Undo drops it
+    // and leaves the history alone.
+    canvas_->cancel_pending_pixel_shape();
+    update_undo_redo_actions();
+    return;
+  }
   if (canvas_->path_transform_active()) {
     // The path transform box writes its live fill un-armed: Undo cancels the
     // session (restoring the path) instead of reaching the history behind it.
@@ -244,6 +251,7 @@ void MainWindow::redo() {
   if (canvas_->path_transform_active()) {
     return;  // nothing to redo inside a path transform session
   }
+  canvas_->commit_pending_pixel_shape();  // a new edit: it ends the redo stack, as any does
   if (canvas_->free_transform_active() || canvas_->warp_transform_active()) {
     canvas_->redo_transform_session_step();
     refresh_options_bar();
@@ -271,6 +279,11 @@ void MainWindow::push_undo_snapshot(QString label) {
 }
 
 void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString label, std::uint64_t edit_run_token) {
+  // A pending pixel shape goes into the document before the snapshot of the next history
+  // action (GitHub issue 716). Its own commit took it already, so this is a no-op then.
+  if (target_session.canvas != nullptr) {
+    target_session.canvas->commit_pending_pixel_shape();
+  }
   const bool target_is_active = &target_session == active_session();
   if (layer_blend_preview_.has_value() && layer_blend_preview_->session_id == target_session.session_id) {
     // An edit while the blend list is open (a script): never record a previewed mode.
@@ -348,6 +361,9 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
 
 void MainWindow::push_selection_history(DocumentSession& target_session, QString label,
                                         CanvasWidget::SelectionSnapshot before, bool coalesce) {
+  if (target_session.canvas != nullptr) {
+    target_session.canvas->commit_pending_pixel_shape();  // before the selection entry
+  }
   const bool target_is_active = &target_session == active_session();
   // A filter dialog that lets the selection change (local-028) re-renders its previews
   // for the new selection; this runs after the entry is recorded (or coalesced).
@@ -440,6 +456,7 @@ void MainWindow::jump_to_history_state(std::int64_t state_id) {
   if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
     return;
   }
+  canvas_->commit_pending_pixel_shape();  // it becomes the newest state before the jump
   auto* active = active_session();
   if (active == nullptr) {
     return;
@@ -654,8 +671,11 @@ void MainWindow::update_undo_redo_actions() {
   // cancelling an unchanged session) and Redo follows the session's own steps.
   const bool transform_session =
       canvas_ != nullptr && (canvas_->free_transform_active() || canvas_->warp_transform_active());
+  // Undo drops a pending pixel shape, so it is enabled while one is pending.
+  const bool pending_pixel_shape = canvas_ != nullptr && canvas_->has_pending_pixel_shape();
   if (undo_action_ != nullptr) {
-    undo_action_->setEnabled(transform_session || !current_session->history.undo_stack().empty());
+    undo_action_->setEnabled(transform_session || pending_pixel_shape ||
+                             !current_session->history.undo_stack().empty());
   }
   if (redo_action_ != nullptr) {
     redo_action_->setEnabled(transform_session ? canvas_->transform_session_redo_step_count() > 0

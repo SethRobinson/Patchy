@@ -125,6 +125,7 @@
 #include <QVariantAnimation>
 #include <QSet>
 #include <QSettings>
+#include <QScopedValueRollback>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
@@ -2346,12 +2347,6 @@ void MainWindow::refresh_color_buttons() {
   stash_active_colors();
   const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
   const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : background_color_;
-  // A Pixels-mode shape paint set to Foreground Color shows the new color (GitHub issue 716).
-  if (shape_pixel_options_ != nullptr &&
-      (shape_pixel_options_->fill_follows_foreground || shape_pixel_options_->stroke_follows_foreground) &&
-      vector_option_mode_rules(current_tool_, false).pixel_style) {
-    update_vector_swatch_icons();
-  }
   if (gradient_library_ != nullptr) {
     gradient_library_->set_preview_colors(gradient_preview_colors(primary_color, secondary_color));
   }
@@ -3108,7 +3103,8 @@ void MainWindow::load_tool_settings() {
     current_vector_stroke_style_ = stroke;
   }
   // What the shape tools keep beside those mirrors (GitHub issue 716): the alignment list's
-  // choice, and Foreground Color as a Pixels-mode paint.
+  // choice. Shape and Pixels modes share one fill paint and one stroke paint; settings from
+  // before that keep the look of the mode the tools were left in.
   if (shape_pixel_options_ != nullptr) {
     auto& options = *shape_pixel_options_;
     const bool predates_shared_style = shape_settings_predate_shared_style(settings);
@@ -3116,45 +3112,46 @@ void MainWindow::load_tool_settings() {
     if (current_vector_fill_.kind != VectorFillKind::None) {
       options.fill_restore_kind = current_vector_fill_.kind;
     }
-    if (predates_shared_style) {
-      // First launch with one fill and stroke for both modes. Pixel shapes were always painted
-      // in the foreground color, so they stay that way until a paint is picked from the bar;
-      // Shape mode keeps its saved paints.
-      options.fill_follows_foreground = true;
-      options.stroke_follows_foreground = true;
-      if (current_vector_tool_mode_ == VectorToolMode::Pixels) {
-        // The shape tools were left in Pixels mode: their next pixel shape looks as the last
-        // one did (the Fill checkbox or the draw mode, a color of its own where one was
-        // picked, the brush size as the outline's width, the dashes, a centered stroke).
-        const auto legacy = legacy_shape_pixel_style(settings);
-        const auto solid = [](QColor color) {
-          VectorFill paint;
-          paint.kind = VectorFillKind::Solid;
-          paint.color = {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                         static_cast<std::uint8_t>(color.blue())};
-          return paint;
-        };
-        if (legacy.fill_color.has_value()) {
-          current_vector_fill_ = solid(*legacy.fill_color);
-          options.fill_restore_kind = VectorFillKind::Solid;
-          options.fill_follows_foreground = false;
-        }
-        if (legacy.stroke_color.has_value()) {
-          current_vector_stroke_paint_ = solid(*legacy.stroke_color);
-          options.stroke_follows_foreground = false;
-        }
-        if (legacy.mode == ShapeDrawMode::Stroke) {
-          current_vector_fill_.kind = VectorFillKind::None;
-        } else if (current_vector_fill_.kind == VectorFillKind::None) {
-          current_vector_fill_.kind = options.fill_restore_kind;
-        }
-        current_vector_stroke_enabled_ = legacy.mode != ShapeDrawMode::Fill;
-        current_vector_stroke_width_ = static_cast<double>(std::clamp(canvas_->brush_size(), 1, 1000));
-        current_vector_stroke_dash_preset_ = legacy.dashes;
-        current_vector_stroke_style_.reset();
-        options.alignment = legacy.alignment;
+    const auto solid = [](QColor color) {
+      VectorFill paint;
+      paint.kind = VectorFillKind::Solid;
+      paint.color = {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                     static_cast<std::uint8_t>(color.blue())};
+      return paint;
+    };
+    const QColor foreground = canvas_->primary_color();
+    const bool left_in_pixels = current_vector_tool_mode_ == VectorToolMode::Pixels;
+    if (predates_shared_style && left_in_pixels) {
+      // 1.34, or the first build with the draw-mode buttons, left in Pixels mode: the next
+      // pixel shape looks as the last one did (the Fill checkbox or the draw mode; the
+      // foreground color, or a color of its own where one was picked; the brush size as the
+      // outline's width; the dashes; a centered stroke). The foreground color is taken once:
+      // it is the bar's paint from here on, in Shape mode too.
+      const auto legacy = legacy_shape_pixel_style(settings);
+      current_vector_fill_ = solid(legacy.fill_color.value_or(foreground));
+      current_vector_stroke_paint_ = solid(legacy.stroke_color.value_or(foreground));
+      options.fill_restore_kind = VectorFillKind::Solid;
+      if (legacy.mode == ShapeDrawMode::Stroke) {
+        current_vector_fill_.kind = VectorFillKind::None;
+      }
+      current_vector_stroke_enabled_ = legacy.mode != ShapeDrawMode::Fill;
+      current_vector_stroke_width_ = static_cast<double>(std::clamp(canvas_->brush_size(), 1, 1000));
+      current_vector_stroke_dash_preset_ = legacy.dashes;
+      current_vector_stroke_style_.reset();
+      options.alignment = legacy.alignment;
+    } else if (!predates_shared_style && left_in_pixels) {
+      // The build that let Pixels mode paint a part in the foreground color: left in Pixels
+      // mode, that part becomes the foreground color, once.
+      if (options.legacy_fill_foreground && current_vector_fill_.kind != VectorFillKind::None) {
+        current_vector_fill_ = solid(foreground);
+        options.fill_restore_kind = VectorFillKind::Solid;
+      }
+      if (options.legacy_stroke_foreground) {
+        current_vector_stroke_paint_ = solid(foreground);
       }
     }
+    options.legacy_fill_foreground = false;
+    options.legacy_stroke_foreground = false;
   }
   refresh_vector_stroke_dash_combo();
   // tools/vectorStrokeEnabled keeps its key: a saved "off" shows as 0 in the width field
@@ -4248,11 +4245,17 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
   // Pixels-mode shape styles and the registered widgets; the active tool does not change them.
   const auto shape_size_style =
       shape_pixel_options_ != nullptr ? shape_pixel_options_->size_style : MarqueeStyle::Normal;
+  // The shape bar's hidden groups and live size pair (GitHub issue 716) are part of the key.
+  const qint64 shape_bar_state =
+      shape_pixel_options_ == nullptr
+          ? 0
+          : (shape_pixel_options_->shown_fill ? 1 : 0) | (shape_pixel_options_->shown_stroke ? 2 : 0) |
+                (shape_pixel_options_->size_live ? 4 : 0);
   const auto key = static_cast<qint64>(live_shape) | (static_cast<qint64>(current_vector_tool_mode_) << 1) |
                    (static_cast<qint64>(current_crop_style_) << 4) |
                    (static_cast<qint64>(current_marquee_style_) << 6) |
-                   (static_cast<qint64>(shape_size_style) << 8) |
-                   (static_cast<qint64>(option_actions_.size()) << 10);
+                   (static_cast<qint64>(shape_size_style) << 8) | (shape_bar_state << 10) |
+                   (static_cast<qint64>(option_actions_.size()) << 13);
   if (key == options_bar_rows_key_) {
     return;
   }
@@ -4274,7 +4277,7 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
           widget_tools.empty() || std::find(widget_tools.begin(), widget_tools.end(), tool) != widget_tools.end();
       return tool_matches && vector_option_widget_visible(rules, widget) && crop_option_widget_visible(widget) &&
              marquee_option_widget_visible(widget) &&
-             (shape_pixel_options_ == nullptr || shape_pixel_options_->widget_visible(widget));
+             (shape_pixel_options_ == nullptr || shape_pixel_options_->widget_visible(widget, tool));
     };
     const auto stray = stray_option_separators(option_actions_, in_row);
     QSet<QWidget*> row;
@@ -4338,6 +4341,8 @@ void MainWindow::refresh_options_bar() {
   // per-mode hide of the shape tools' raster-only controls) wrapped the bar
   // onto a second row and pushed the canvas down for one painted frame.
   const auto mode_rules = vector_option_mode_rules();
+  sync_shape_bar_state();  // which of the shape bar's groups show in this pass
+  const QScopedValueRollback<bool> shape_bar_guard(refreshing_shape_bar_, true);
   // GitHub issue 91: the bar takes the height of the tallest tool row at this
   // width, and the inline sliders that duplicate a spin box drop out first when
   // the active tool's row would wrap with them (issue 458 follow-up: only its own row).
@@ -4360,7 +4365,7 @@ void MainWindow::refresh_options_bar() {
     const auto tool_matches = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
     return tool_matches && !transform_session_active && vector_option_widget_visible(mode_rules, widget) &&
            crop_option_widget_visible(widget) && marquee_option_widget_visible(widget) &&
-           (shape_pixel_options_ == nullptr || shape_pixel_options_->widget_visible(widget)) &&
+           (shape_pixel_options_ == nullptr || shape_pixel_options_->widget_visible(widget, current_tool_)) &&
            !(collapse_sliders && widget->property(kOptionsBarCollapsibleProperty).toBool());
   };
   const auto stray_separators = stray_option_separators(option_actions_, tool_visibility);
@@ -4400,12 +4405,6 @@ void MainWindow::refresh_options_bar() {
     auto enabled = edit_allowed;
     if (widget->objectName() == QStringLiteral("mixerMixSpin")) {
       enabled = enabled && current_mixer_wet_ > 0;
-    }
-    // The shape tools' draw mode: Stroke only greys the Fill group, Fill only the Stroke group.
-    if (shape_pixel_options_ != nullptr && shape_tool_has_draw_modes(current_tool_)) {
-      enabled = enabled &&
-                shape_pixel_options_->widget_enabled(widget, current_vector_fill_.kind != VectorFillKind::None,
-                                                     current_vector_stroke_enabled_);
     }
     if (widget->objectName() == QStringLiteral("selectionFixedWidthSpin") ||
         widget->objectName() == QStringLiteral("selectionFixedHeightSpin")) {

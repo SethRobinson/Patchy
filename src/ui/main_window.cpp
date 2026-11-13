@@ -7254,6 +7254,15 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     remove_layers_in_open_undo_step(ids);
   });
+  // A shape drawn as pixels stays editable until it is committed (GitHub issue 716); the
+  // bar's size pair and Undo follow it.
+  canvas->set_pixel_shapes_stay_pending(true);
+  canvas->set_pending_pixel_shape_changed_callback([this, canvas] {
+    if (canvas == canvas_) {
+      refresh_shape_draw_controls();
+      update_undo_redo_actions();
+    }
+  });
   canvas->set_shape_preview_appearance_callback(
       [this]() -> std::optional<CanvasWidget::ShapePreviewAppearance> {
         // Pulled at draw time from the application-wide options-bar state, so
@@ -9141,6 +9150,11 @@ bool MainWindow::cancel_active_text_editor() {
 }
 
 void MainWindow::finish_active_text_editor() {
+  // Every caller needs the document as it will be (a save, an export, a command, a script, a
+  // tool, layer or document switch): a pending pixel shape is painted first (GitHub issue 716).
+  if (canvas_ != nullptr) {
+    canvas_->commit_pending_pixel_shape();
+  }
   if (!commit_active_text_editor()) {
     return;
   }

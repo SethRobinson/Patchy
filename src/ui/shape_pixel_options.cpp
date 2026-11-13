@@ -127,22 +127,24 @@ LegacyShapePixelStyle legacy_shape_pixel_style(const QSettings& settings) {
   return legacy;
 }
 
-bool ShapePixelOptions::widget_visible(const QWidget* widget) const {
+bool ShapePixelOptions::widget_visible(const QWidget* widget, CanvasTool tool) const {
   if (contains(ratio_widgets, widget)) {
     return size_style == MarqueeStyle::FixedRatio;
   }
   if (contains(size_widgets, widget)) {
-    return size_style == MarqueeStyle::FixedSize;
+    // The Polygon's drag is not a box, so it has no Style: its pair shows a live size only.
+    if (tool == CanvasTool::Polygon) {
+      return size_live;
+    }
+    return size_style == MarqueeStyle::FixedSize || (size_style == MarqueeStyle::Normal && size_live);
   }
-  return true;
-}
-
-bool ShapePixelOptions::widget_enabled(const QWidget* widget, bool draws_fill, bool draws_stroke) const {
-  if (contains(fill_widgets, widget)) {
-    return draws_fill;
-  }
-  if (contains(stroke_widgets, widget)) {
-    return draws_stroke;
+  if (shape_tool_has_draw_modes(tool)) {
+    if (contains(fill_widgets, widget)) {
+      return shown_fill;
+    }
+    if (contains(stroke_widgets, widget)) {
+      return shown_stroke;
+    }
   }
   return true;
 }
@@ -165,8 +167,8 @@ void ShapePixelOptions::apply_to_canvas(CanvasWidget& canvas) const {
 }
 
 void ShapePixelOptions::load(const QSettings& settings) {
-  fill_follows_foreground = flag_from_setting(settings.value(QLatin1String(kFillFollowsForegroundKey))).value_or(false);
-  stroke_follows_foreground =
+  legacy_fill_foreground = flag_from_setting(settings.value(QLatin1String(kFillFollowsForegroundKey))).value_or(false);
+  legacy_stroke_foreground =
       flag_from_setting(settings.value(QLatin1String(kStrokeFollowsForegroundKey))).value_or(false);
   alignment.reset();
   const auto token = settings.value(QLatin1String(kStrokeAlignKey)).toString().toStdString();
@@ -179,8 +181,9 @@ void ShapePixelOptions::load(const QSettings& settings) {
 }
 
 void ShapePixelOptions::save(QSettings& settings) const {
-  settings.setValue(QLatin1String(kFillFollowsForegroundKey), fill_follows_foreground);
-  settings.setValue(QLatin1String(kStrokeFollowsForegroundKey), stroke_follows_foreground);
+  // Written false from now on: they also mark the settings as newer than the shared style.
+  settings.setValue(QLatin1String(kFillFollowsForegroundKey), false);
+  settings.setValue(QLatin1String(kStrokeFollowsForegroundKey), false);
   if (alignment.has_value()) {
     settings.setValue(QLatin1String(kStrokeAlignKey), QString::fromLatin1(stroke_alignment_token(*alignment)));
   } else {

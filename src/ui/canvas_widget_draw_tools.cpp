@@ -17,6 +17,7 @@
 #include "core/pixel_shape_style.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_live_shapes.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -44,6 +45,7 @@
 #include <QRect>
 #include <QRectF>
 #include <QRegion>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QRgb>
 #include <QSize>
@@ -266,6 +268,39 @@ bool CanvasWidget::fill_shapes() const noexcept {
   return shape_pixel_style_.fill && !shape_pixel_style_.stroke;
 }
 
+// A shape drawn in Pixels mode that is not in the document yet. Only its geometry is kept:
+// the style, opacity, softness, corner radius, sides, star inset and picked shape are the
+// canvas's own values, so the options bar edits a pending shape by editing those.
+struct CanvasWidget::PendingPixelShape {
+  CanvasTool tool{CanvasTool::Rectangle};
+  // The layer that was active when it was drawn: the commit paints that one, also when the
+  // host changed the active layer first.
+  std::optional<LayerId> layer_id;
+  QRectF box;                // document space, edge coordinates
+  double polygon_angle{0.0};  // the first vertex's direction from the center
+  // The preview: the pixels a commit would paint, rendered again only when one of the inputs
+  // below changes, never per repaint.
+  struct Inputs {
+    QRectF box;
+    double polygon_angle{0.0};
+    ShapePixelStyle style;
+    QRgb foreground{0};
+    int brush_size{0};
+    int opacity{0};
+    int softness{0};
+    int corner_radius{0};
+    int sides{0};
+    int star_inset{0};
+    const patchy::VectorPath* custom_shape{nullptr};
+    bool grayscale{false};
+    QSize document_size;
+    friend bool operator==(const Inputs&, const Inputs&) = default;
+  };
+  std::optional<Inputs> preview_inputs;
+  QImage preview;         // premultiplied, one image pixel per document pixel
+  QPoint preview_origin;  // its top left corner in document space
+};
+
 void CanvasWidget::set_shape_pixel_style(const ShapePixelStyle& style) {
   if (shape_pixel_style_ == style) {
     return;
@@ -274,6 +309,7 @@ void CanvasWidget::set_shape_pixel_style(const ShapePixelStyle& style) {
   if (drawing_shape_) {
     update();
   }
+  pending_pixel_shape_inputs_changed();
 }
 
 const ShapePixelStyle& CanvasWidget::shape_pixel_style() const noexcept {
@@ -285,6 +321,7 @@ void CanvasWidget::set_shape_corner_radius(int radius) noexcept {
   if (drawing_shape_ && tool_ == CanvasTool::Rectangle) {
     update();
   }
+  pending_pixel_shape_inputs_changed();
 }
 
 int CanvasWidget::shape_corner_radius() const noexcept {
@@ -295,6 +332,7 @@ void CanvasWidget::set_vector_tool_mode(VectorToolMode mode) noexcept {
   if (vector_tool_mode_ == mode) {
     return;
   }
+  commit_pending_pixel_shape();  // it belongs to the mode it was drawn in
   vector_tool_mode_ = mode;
   update();  // the shape tools' resize box shows in Shape mode only (GitHub issue 690)
 }
@@ -378,7 +416,7 @@ QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
   if (tool_ != CanvasTool::Rectangle && tool_ != CanvasTool::Ellipse && tool_ != CanvasTool::CustomShape) {
     return normalized_rect(anchor, current);
   }
-  const auto style = tool_ == CanvasTool::CustomShape ? MarqueeStyle::Normal : shape_style_;
+  const auto style = shape_style_;
   const bool square = shape_square_constrained_ ||
                       (tool_ == CanvasTool::CustomShape && custom_shape_keep_proportions_);
   QRect rect;
@@ -441,7 +479,11 @@ QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
 }
 
 void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
-  if (!drawing_shape_) {
+  // A pending pixel shape on a channel, Quick Mask or a Smart Filter mask is presented by the
+  // channel preview below, like the drag that drew it; on a layer or a layer mask
+  // draw_pending_pixel_shape paints it.
+  const bool pending_shape = !drawing_shape_ && pending_pixel_shape_ != nullptr;
+  if (!drawing_shape_ && (!pending_shape || !pending_pixel_shape_uses_channel_preview())) {
     return;
   }
 
@@ -544,8 +586,19 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
         }
         source_painter.setRenderHint(QPainter::Antialiasing, true);
 
-        if (tool_ == CanvasTool::Gradient && gradient_method_ != GradientMethod::Linear &&
-            gradient_method_ != GradientMethod::Radial) {
+        if (pending_shape) {
+          // The grays and coverage a commit would write, from the pending shape's cache.
+          auto& shape = *pending_pixel_shape_;
+          refresh_pending_pixel_shape_preview(shape);
+          if (!shape.preview.isNull()) {
+            source_painter.save();
+            source_painter.setTransform(view_transform().to_widget(), true);
+            source_painter.setRenderHint(QPainter::SmoothPixmapTransform, zoom_ < 1.0);
+            source_painter.drawImage(QPointF(shape.preview_origin), shape.preview);
+            source_painter.restore();
+          }
+        } else if (tool_ == CanvasTool::Gradient && gradient_method_ != GradientMethod::Linear &&
+                   gradient_method_ != GradientMethod::Radial) {
           source_painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
           source_painter.fillRect(target_rect,
                                   sampled_gradient_preview_brush(
@@ -2046,6 +2099,353 @@ void CanvasWidget::draw_eyedropper_sample_outline(QPainter& painter) const {
   painter.setPen(QPen(QColor(255, 255, 255), 1));
   painter.drawRect(*outline);
   painter.restore();
+}
+
+// --- Pending pixel shapes (GitHub issue 716; docs/tools.md, "Pending pixel shapes") -------
+
+void CanvasWidget::set_pixel_shapes_stay_pending(bool pending) {
+  if (pixel_shapes_stay_pending_ == pending) {
+    return;
+  }
+  if (!pending) {
+    commit_pending_pixel_shape();
+  }
+  pixel_shapes_stay_pending_ = pending;
+}
+
+bool CanvasWidget::pixel_shapes_stay_pending() const noexcept {
+  return pixel_shapes_stay_pending_;
+}
+
+bool CanvasWidget::has_pending_pixel_shape() const noexcept {
+  return pending_pixel_shape_ != nullptr;
+}
+
+bool CanvasWidget::pending_pixel_shape_uses_channel_preview() const {
+  if (quick_mask_active_ || editing_smart_filter_mask()) {
+    return true;
+  }
+  const auto* channel = layer_edit_target_ == LayerEditTarget::DocumentChannel ? active_document_channel_const() : nullptr;
+  return channel != nullptr && channel->kind() == DocumentChannelKind::Alpha;
+}
+
+bool CanvasWidget::tool_keeps_pixel_shapes_pending() const noexcept {
+  return pixel_shapes_stay_pending_ &&
+         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::Polygon ||
+          tool_ == CanvasTool::CustomShape);
+}
+
+std::optional<QRectF> CanvasWidget::pending_pixel_shape_box() const {
+  if (pending_pixel_shape_ == nullptr) {
+    return std::nullopt;
+  }
+  return pending_pixel_shape_->box;
+}
+
+void CanvasWidget::set_pending_pixel_shape_changed_callback(std::function<void()> callback) {
+  pending_pixel_shape_changed_callback_ = std::move(callback);
+}
+
+QRect CanvasWidget::pending_pixel_shape_widget_rect(QRectF box) const {
+  // The preview, a stroke outside the box, Soft's feather and the handle squares.
+  const double reach = (std::max(static_cast<double>(brush_size_),
+                                 shape_pixel_style_.line.has_value() ? shape_pixel_style_.line->width : 0.0) *
+                        2.0) +
+                       4.0;
+  const auto widget_rect = widget_rect_for_document_rect(box.adjusted(-reach, -reach, reach, reach));
+  return widget_rect.toAlignedRect().adjusted(-12, -12, 12, 12);
+}
+
+void CanvasWidget::pending_pixel_shape_inputs_changed() {
+  if (pending_pixel_shape_ != nullptr) {
+    update();
+  }
+}
+
+void CanvasWidget::begin_pending_pixel_shape(CanvasTool tool, QRectF box, double polygon_angle) {
+  pending_pixel_shape_ = std::make_shared<PendingPixelShape>();
+  pending_pixel_shape_->tool = tool;
+  pending_pixel_shape_->layer_id = document_ != nullptr ? document_->active_layer_id() : std::nullopt;
+  pending_pixel_shape_->box = box;
+  pending_pixel_shape_->polygon_angle = polygon_angle;
+  update();
+  if (pending_pixel_shape_changed_callback_) {
+    pending_pixel_shape_changed_callback_();
+  }
+}
+
+void CanvasWidget::set_pending_pixel_shape_box(QRectF box) {
+  if (pending_pixel_shape_ == nullptr || pending_pixel_shape_->box == box) {
+    return;
+  }
+  update(pending_pixel_shape_widget_rect(pending_pixel_shape_->box));
+  pending_pixel_shape_->box = box;
+  update(pending_pixel_shape_widget_rect(box));
+  if (pending_pixel_shape_changed_callback_) {
+    pending_pixel_shape_changed_callback_();
+  }
+}
+
+void CanvasWidget::set_pending_pixel_shape_size(QSize size) {
+  if (pending_pixel_shape_ == nullptr || size.width() < 1 || size.height() < 1) {
+    return;
+  }
+  auto box = pending_pixel_shape_->box;
+  box.setSize(QSizeF(size));
+  set_pending_pixel_shape_box(box);
+}
+
+void CanvasWidget::cancel_pending_pixel_shape() {
+  if (pending_pixel_shape_ == nullptr) {
+    return;
+  }
+  if (shape_resize_drag_.has_value() && shape_resize_drag_->pixel_shape) {
+    shape_resize_drag_.reset();
+    clear_move_snap_guides();
+  }
+  pending_pixel_shape_.reset();
+  update_tool_cursor();
+  update();
+  if (pending_pixel_shape_changed_callback_) {
+    pending_pixel_shape_changed_callback_();
+  }
+}
+
+patchy::VectorPath CanvasWidget::pending_pixel_shape_path(const PendingPixelShape& shape) const {
+  const auto& box = shape.box;
+  switch (shape.tool) {
+    case CanvasTool::Polygon: {
+      // The polygon in the circle its drag drew; a box a handle stretched scales it.
+      const double radius = box.width() / 2.0;
+      patchy::VectorPath path;
+      path.subpaths.push_back(patchy::generate_polygon_subpath(box.center().x(), box.center().y(), radius,
+                                                               shape.polygon_angle, polygon_sides_,
+                                                               polygon_star_inset_));
+      if (std::abs(box.height() - box.width()) > 1e-6 && box.width() > 1e-6) {
+        const double scale = box.height() / box.width();
+        const double center_y = box.center().y();
+        patchy::transform_vector_path(path, {1.0, 0.0, 0.0, scale, 0.0, center_y - (center_y * scale)});
+      }
+      return path;
+    }
+    case CanvasTool::CustomShape: {
+      if (custom_shape_path_ == nullptr || custom_shape_path_->empty()) {
+        return {};
+      }
+      auto path = *custom_shape_path_;
+      patchy::transform_vector_path(path, {box.width(), 0.0, 0.0, box.height(), box.x(), box.y()});
+      return path;
+    }
+    default: {
+      const QRect rect(static_cast<int>(std::lround(box.left())), static_cast<int>(std::lround(box.top())),
+                       std::max(1, static_cast<int>(std::lround(box.width()))),
+                       std::max(1, static_cast<int>(std::lround(box.height()))));
+      const bool ellipse = shape.tool == CanvasTool::Ellipse;
+      return patchy::pixel_shape_path(to_core_rect(rect),
+                                      ellipse ? patchy::ShapeKind::Ellipse : patchy::ShapeKind::Rectangle,
+                                      ellipse ? 0 : shape_corner_radius_);
+    }
+  }
+}
+
+QRect CanvasWidget::paint_pending_pixel_shape(const PendingPixelShape& shape) {
+  if (shape.tool == CanvasTool::Rectangle || shape.tool == CanvasTool::Ellipse) {
+    // The same calls a release makes, so the two classic styles keep their bytes and a mask,
+  // a channel or Quick Mask is painted its own way.
+    const auto& box = shape.box;
+    const QRect rect(static_cast<int>(std::lround(box.left())), static_cast<int>(std::lround(box.top())),
+                     std::max(1, static_cast<int>(std::lround(box.width()))),
+                     std::max(1, static_cast<int>(std::lround(box.height()))));
+    return shape.tool == CanvasTool::Ellipse ? draw_ellipse(rect.topLeft(), rect.bottomRight(), false)
+                                             : draw_rectangle(rect.topLeft(), rect.bottomRight(), false);
+  }
+  const auto path = pending_pixel_shape_path(shape);
+  if (path.empty()) {
+    return {};
+  }
+  return draw_shape_path_pixels(path, false);
+}
+
+bool CanvasWidget::commit_pending_pixel_shape() {
+  if (pending_pixel_shape_ == nullptr) {
+    return false;
+  }
+  // Taken first: begin_edit and the host's history push both ask for a commit themselves.
+  const auto shape = std::move(pending_pixel_shape_);
+  pending_pixel_shape_.reset();
+  if (shape_resize_drag_.has_value() && shape_resize_drag_->pixel_shape) {
+    shape_resize_drag_.reset();
+    clear_move_snap_guides();
+  }
+  const auto preview_rect = pending_pixel_shape_widget_rect(shape->box);
+  if (pending_pixel_shape_changed_callback_) {
+    pending_pixel_shape_changed_callback_();
+  }
+  update_tool_cursor();
+  if (document_ == nullptr) {
+    update();
+    return false;
+  }
+  // Into the layer it was drawn on: the host may have made another one active already.
+  const auto active_now = document_->active_layer_id();
+  const bool retarget = shape->layer_id.has_value() && active_now != shape->layer_id;
+  if (retarget) {
+    if (std::as_const(*document_).find_layer(*shape->layer_id) == nullptr) {
+      update();
+      return false;  // its layer is gone
+    }
+    document_->set_active_layer(*shape->layer_id);
+  }
+  const auto restore_active_layer = qScopeGuard([this, retarget, active_now] {
+    if (retarget && document_ != nullptr && active_now.has_value() &&
+        std::as_const(*document_).find_layer(*active_now) != nullptr) {
+      document_->set_active_layer(*active_now);
+    }
+  });
+  if (!begin_edit(tr("Shape"))) {
+    update();
+    return false;
+  }
+  const auto processing = !editing_smart_filter_mask();
+  if (processing) {
+    begin_processing_operation();
+  }
+  const QRect dirty = paint_pending_pixel_shape(*shape);
+  if (processing) {
+    tick_processing_operation();
+  }
+  clear_brush_stroke_tracking();
+  QRect document_dirty = dirty;
+  if (document_ != nullptr) {
+    const QRect canvas(0, 0, document_->width(), document_->height());
+    const auto preview_document = shape->box.toAlignedRect().adjusted(-2, -2, 2, 2).intersected(canvas);
+    document_dirty = dirty.isEmpty() ? preview_document : dirty.united(preview_document);
+  }
+  active_edit_target_changed_impl(QRegion(document_dirty));
+  update(preview_rect);
+  update();
+  if (processing) {
+    end_processing_operation();
+  }
+  return true;
+}
+
+void CanvasWidget::refresh_pending_pixel_shape_preview(PendingPixelShape& shape) const {
+  PendingPixelShape::Inputs inputs;
+  inputs.box = shape.box;
+  inputs.polygon_angle = shape.polygon_angle;
+  inputs.style = shape_pixel_style_;
+  inputs.foreground = primary_color_.rgba();
+  inputs.brush_size = brush_size_;
+  inputs.opacity = brush_opacity_;
+  inputs.softness = brush_softness_;
+  inputs.corner_radius = shape_corner_radius_;
+  inputs.sides = polygon_sides_;
+  inputs.star_inset = polygon_star_inset_;
+  inputs.custom_shape = custom_shape_path_.get();
+  inputs.grayscale = editing_grayscale_target();
+  inputs.document_size = document_ != nullptr ? QSize(document_->width(), document_->height()) : QSize();
+  if (shape.preview_inputs.has_value() && *shape.preview_inputs == inputs) {
+    return;
+  }
+  shape.preview_inputs = inputs;
+  shape.preview = QImage();
+  shape.preview_origin = QPoint();
+  if (document_ == nullptr || brush_opacity_ <= 0) {
+    return;
+  }
+  const auto path = pending_pixel_shape_path(shape);
+  if (path.empty()) {
+    return;
+  }
+  // The renderer a commit uses for everything but the two classic styles, whose edges it
+  // matches within antialiasing: the shape layer's own fill and stroke, with Soft's feather.
+  const auto core = core_shape_style(shape_pixel_style_, primary_color_, brush_size_);
+  patchy::EditOptions soft;
+  soft.brush_size = shape_stroke_size(core);
+  soft.brush_softness = brush_softness_;
+  const QRect canvas(0, 0, document_->width(), document_->height());
+  const auto raster = patchy::pixel_shape_raster(path, core, patchy::pixel_shape_soft_feather(soft),
+                                                 to_core_rect(canvas), shape_pixel_style_.patterns.get());
+  const auto bounds = to_qrect(raster.bounds).intersected(canvas);
+  if (bounds.isEmpty() || raster.pixels.empty()) {
+    return;
+  }
+  QImage image(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::transparent);
+  const int opacity = brush_opacity_;
+  const bool grayscale = inputs.grayscale;
+  // The selection clips the paint as it clips the commit (a mask or a channel only when the
+  // selection clips grayscale edits).
+  const bool clipped = grayscale ? selection_clips_grayscale_edits() : has_selection();
+  for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
+    auto* line = reinterpret_cast<QRgb*>(image.scanLine(y - bounds.top()));
+    for (int x = bounds.left(); x <= bounds.right(); ++x) {
+      const auto* source = raster.pixels.pixel(x - raster.bounds.x, y - raster.bounds.y);
+      if (source[3] == 0) {
+        continue;
+      }
+      int alpha = (static_cast<int>(source[3]) * opacity + 50) / 100;
+      if (clipped) {
+        const QPoint point(x, y);
+        if (!selection_allows(point)) {
+          continue;
+        }
+        alpha = (alpha * static_cast<int>(selection_alpha_at(point)) + 127) / 255;
+      }
+      if (alpha <= 0) {
+        continue;
+      }
+      int red = source[0];
+      int green = source[1];
+      int blue = source[2];
+      if (grayscale) {
+        red = green = blue = mask_value_from_color(QColor(red, green, blue));
+      }
+      line[x - bounds.left()] = qPremultiply(qRgba(red, green, blue, alpha));
+    }
+  }
+  shape.preview = std::move(image);
+  shape.preview_origin = bounds.topLeft();
+}
+
+void CanvasWidget::draw_pending_pixel_shape(QPainter& painter) const {
+  if (pending_pixel_shape_ == nullptr || document_ == nullptr) {
+    return;
+  }
+  auto& shape = *pending_pixel_shape_;
+  refresh_pending_pixel_shape_preview(shape);
+  if (!shape.preview.isNull() && !pending_pixel_shape_uses_channel_preview()) {
+    painter.save();
+    painter.setTransform(view_transform().to_widget(), true);
+    // Document pixels stay crisp when zoomed in, as the canvas shows them.
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, zoom_ < 1.0);
+    painter.drawImage(QPointF(shape.preview_origin), shape.preview);
+    painter.restore();
+  }
+  // The shape's path outline, as a shape layer shows it under its tool.
+  if (extra_shown(ViewExtra::TargetPath)) {
+    QPainterPath outline;
+    for (const auto& subpath : pending_pixel_shape_path(shape).subpaths) {
+      const auto count = subpath.anchors.size();
+      if (count == 0U) {
+        continue;
+      }
+      const auto to_widget = [this](double x, double y) { return widget_position_f(QPointF(x, y)); };
+      outline.moveTo(to_widget(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y));
+      const auto segments = subpath.closed ? count : count - 1U;
+      for (std::size_t index = 0; index < segments; ++index) {
+        const auto& from = subpath.anchors[index];
+        const auto& to = subpath.anchors[(index + 1U) % count];
+        outline.cubicTo(to_widget(from.out_x, from.out_y), to_widget(to.in_x, to.in_y),
+                        to_widget(to.anchor_x, to.anchor_y));
+      }
+      if (subpath.closed) {
+        outline.closeSubpath();
+      }
+    }
+    draw_path_preview_outline(painter, outline);
+  }
 }
 
 }  // namespace patchy::ui

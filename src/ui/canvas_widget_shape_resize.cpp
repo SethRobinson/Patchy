@@ -144,6 +144,13 @@ std::optional<QRectF> CanvasWidget::shape_resize_box_rect() const {
   if (shape_resize_drag_.has_value()) {
     return shape_resize_drag_->current_rect;
   }
+  // A pending pixel shape (GitHub issue 716) shows the same box while its tool is active.
+  if (pending_pixel_shape_ != nullptr) {
+    if (!extra_shown(ViewExtra::TransformControls)) {
+      return std::nullopt;
+    }
+    return pending_pixel_shape_box();
+  }
   if (shape_point_drag_.has_value()) {
     return std::nullopt;
   }
@@ -171,13 +178,48 @@ CanvasWidget::TransformHandle CanvasWidget::shape_resize_handle_at(QPoint widget
   if (!rect.has_value()) {
     return TransformHandle::None;
   }
-  return transform_handle_at(widget_point, *rect, 0.0, TransformHitZones::ResizeHandles);
+  const auto handle = transform_handle_at(widget_point, *rect, 0.0, TransformHitZones::ResizeHandles);
+  // A pending pixel shape moves by a press inside its box; a shape layer's box does not (a
+  // press there draws the next shape, and Ctrl moves it).
+  if (handle == TransformHandle::None && pending_pixel_shape_ != nullptr && !shape_resize_drag_.has_value() &&
+      widget_rect_for_document_rect(*rect).contains(QPointF(widget_point))) {
+    return TransformHandle::Move;
+  }
+  return handle;
 }
 
 bool CanvasWidget::press_shape_resize_handle(QMouseEvent* event) {
   if (shape_handle_drag_active()) {
     // A press while a drag is live means its release was lost: put the shape back.
     cancel_shape_resize_drag();
+  }
+  // The pending pixel shape: a handle resizes it and a press inside its box moves it. A
+  // press anywhere else is not taken, so the caller commits the shape and draws the next.
+  if (pending_pixel_shape_ != nullptr) {
+    const auto rect = shape_resize_box_rect();
+    const auto handle = rect.has_value() ? shape_resize_handle_at(event->pos()) : TransformHandle::None;
+    if (handle == TransformHandle::None) {
+      return false;
+    }
+    if (edit_locked_) {
+      show_edit_locked_message();
+      return true;
+    }
+    ShapeResizeDrag drag;
+    drag.pixel_shape = true;
+    drag.handle = handle;
+    drag.start_rect = *rect;
+    drag.current_rect = *rect;
+    drag.press_widget = event->position();
+    drag.pointer_widget = event->position();
+    if (handle != TransformHandle::Move) {
+      drag.grab_offset = transform_handle_grab_offset(handle, *rect, 0.0, document_position_f(event->position()));
+    }
+    drag.serial = ++shape_resize_drag_serial_;
+    shape_resize_drag_ = drag;
+    set_transform_cursor_for_handle(handle);
+    update();
+    return true;
   }
   // Ctrl is the temporary Path Select and never reaches here; Shift and Alt on a handle
   // constrain the resize, so they do not turn the press into a draw.
@@ -231,6 +273,25 @@ void CanvasWidget::update_shape_resize_drag(QPointF widget_point, Qt::KeyboardMo
   }
   const auto handle = drag.handle;
   const auto& start = drag.start_rect;
+  if (handle == TransformHandle::Move) {
+    // The pending pixel shape, dragged by its inside: the pointer's travel on whole pixels
+    // through the snapping of every whole-shape drag, with both edges and the center of the
+    // box as the sources, never a feature chosen from where it was grabbed
+    // (docs/legal-constraints.md, "Alignment snapping").
+    const auto pointer = document_position_f(widget_point);
+    const auto press = document_position_f(drag.press_widget);
+    const QPointF travel(std::round(pointer.x() - press.x()), std::round(pointer.y() - press.y()));
+    const auto total = snap_whole_shape_drag({start}, {}, travel, false, false);
+    const auto moved = start.translated(total);
+    if (moved == drag.current_rect) {
+      return;
+    }
+    drag.current_rect = moved;
+    drag.previewed = true;
+    set_pending_pixel_shape_box(moved);
+    update();
+    return;
+  }
   const bool moves_left = handle == TransformHandle::TopLeft || handle == TransformHandle::Left ||
                           handle == TransformHandle::BottomLeft;
   const bool moves_right = handle == TransformHandle::TopRight || handle == TransformHandle::Right ||
@@ -277,6 +338,11 @@ void CanvasWidget::update_shape_resize_drag(QPointF widget_point, Qt::KeyboardMo
   }
   drag.current_rect = rect;
   drag.previewed = true;
+  if (drag.pixel_shape) {
+    set_pending_pixel_shape_box(rect);  // the preview follows; nothing is painted yet
+    update();
+    return;
+  }
   // The callback re-renders the layer and may repaint; copy what it needs first.
   const auto layer_id = drag.layer_id;
   const auto from = drag.start_rect;
@@ -328,6 +394,16 @@ bool CanvasWidget::release_shape_resize_handle(QMouseEvent* event) {
   }
   const auto drag = *shape_resize_drag_;
   shape_resize_drag_.reset();
+  if (drag.pixel_shape) {
+    // The pending shape keeps the box the drag left it; a click changed nothing.
+    if (drag.handle == TransformHandle::Move) {
+      clear_move_snap_guides();
+    }
+    last_mouse_position_ = event->pos();
+    update_tool_cursor();
+    update();
+    return true;
+  }
   if (shape_resize_callback_) {
     if (drag.moved && drag.current_rect != drag.start_rect) {
       shape_resize_callback_(drag.layer_id, drag.start_rect, drag.current_rect, ShapeResizePhase::Commit,
@@ -350,6 +426,15 @@ void CanvasWidget::cancel_shape_resize_drag() {
   }
   const auto drag = *shape_resize_drag_;
   shape_resize_drag_.reset();
+  if (drag.pixel_shape) {
+    if (drag.handle == TransformHandle::Move) {
+      clear_move_snap_guides();
+    }
+    set_pending_pixel_shape_box(drag.start_rect);  // Esc mid-drag puts the box back
+    update_tool_cursor();
+    update();
+    return;
+  }
   if (drag.previewed && shape_resize_callback_) {
     shape_resize_callback_(drag.layer_id, drag.start_rect, drag.start_rect, ShapeResizePhase::Cancel, drag.serial);
   }

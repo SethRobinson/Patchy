@@ -2255,7 +2255,12 @@ private:
   // group that is not drawn and hands the style to the active canvas.
   [[nodiscard]] ShapePixelStyle shape_pixel_style_for_canvas();
   void refresh_shape_draw_controls();
-  void end_pixel_foreground_paint(bool for_stroke);
+  // Updates what the shape bar shows (ShapePixelOptions::shown_fill, shown_stroke, size_live)
+  // and the size pair's values; true when a widget's visibility has to change.
+  bool sync_shape_bar_state();
+  void queue_shape_bar_refresh();
+  bool refreshing_shape_bar_{false};
+  bool shape_bar_refresh_queued_{false};
   // The options bar's paint chip (the shape Fill/Stroke swatches and the Text color
   // button), drawn at the button's icon size with the theme's swatch outline.
   [[nodiscard]] QIcon options_bar_swatch_icon(const patchy::VectorFill& paint, const QToolButton& button);

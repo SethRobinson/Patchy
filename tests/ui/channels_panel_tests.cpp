@@ -529,6 +529,14 @@ void ui_channel_shape_previews_match_committed_grayscale_and_overlay() {
   canvas->set_brush_size(8);
   canvas->set_brush_opacity(100);
   canvas->set_brush_softness(0);
+  {
+    // The shapes paint in the foreground color here (a style with no paint of its own), not
+    // in the options bar's fill.
+    auto style = canvas->shape_pixel_style();
+    style.fill_paint.reset();
+    style.stroke_paint.reset();
+    canvas->set_shape_pixel_style(style);
+  }
   canvas->set_fill_shapes(true);
   canvas->set_gradient_method(patchy::GradientMethod::Linear);
   canvas->set_gradient_opacity(100);
@@ -557,6 +565,7 @@ void ui_channel_shape_previews_match_committed_grayscale_and_overlay() {
     send_mouse(*canvas, QEvent::MouseMove, widget_to, Qt::NoButton, Qt::LeftButton);
     const auto preview = canvas_pixel_center(*canvas, sample);
     send_mouse(*canvas, QEvent::MouseButtonRelease, widget_to, Qt::LeftButton, Qt::NoButton);
+    canvas->commit_pending_pixel_shape();  // a Rectangle or Ellipse stays pending until committed
     const auto committed = canvas_pixel_center(*canvas, sample);
     CHECK(color_close(preview, committed, 5));
     CHECK(std::abs(committed.red() - 150) <= 5);
@@ -585,6 +594,10 @@ void ui_channel_shape_previews_match_committed_grayscale_and_overlay() {
   send_mouse(*canvas, QEvent::MouseMove, widget_to, Qt::NoButton, Qt::LeftButton);
   const auto overlay_preview = canvas_pixel_center(*canvas, overlay_sample);
   send_mouse(*canvas, QEvent::MouseButtonRelease, widget_to, Qt::LeftButton, Qt::NoButton);
+  // Still pending: the channel's overlay shows it as the drag did.
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(color_close(canvas_pixel_center(*canvas, overlay_sample), overlay_preview, 5));
+  canvas->commit_pending_pixel_shape();
   const auto overlay_committed = canvas_pixel_center(*canvas, overlay_sample);
   CHECK(!color_close(overlaid_before, QColor(80, 140, 210), 10));
   CHECK(color_close(overlay_preview, QColor(80, 140, 210), 5));
