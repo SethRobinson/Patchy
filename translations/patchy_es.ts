@@ -36140,6 +36140,10 @@ Bloqueada: %1</translation>
         <source>Flip Text on Path</source>
         <translation>Voltear texto en trazado</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Cilindro</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

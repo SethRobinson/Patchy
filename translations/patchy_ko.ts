@@ -36031,6 +36031,10 @@ Locked: %1</source>
         <source>Flip Text on Path</source>
         <translation>패스 위의 텍스트 뒤집기</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>원통</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -370,6 +370,31 @@ std::optional<WarpMeshGrid> generate_style_warp_mesh(std::string_view style, dou
   return swap_mesh_axes(generate_horizontal_style_mesh(style, value, height, width));
 }
 
+std::optional<WarpMeshGrid> generate_cylinder_wrap_warp_mesh(double value, double width, double height) {
+  if (!(width > 0.0) || !(height > 0.0)) {
+    return std::nullopt;
+  }
+  const double bend = std::clamp(value, -100.0, 100.0);
+  const double depth = bend / 100.0 * width / 4.0;
+  // Control columns: both inner ones on the side edges (the slow run toward the
+  // sides), lifted 4/3 of the depth so the edge curve 4u(1-u) * depth peaks at depth.
+  const std::array<double, 4> column_x{0.0, 0.0, width, width};
+  const std::array<double, 4> column_drop{0.0, depth * 4.0 / 3.0, depth * 4.0 / 3.0, 0.0};
+  WarpMeshGrid mesh;
+  mesh.u_order = 4;
+  mesh.v_order = 4;
+  mesh.xs.reserve(16U);
+  mesh.ys.reserve(16U);
+  for (int row = 0; row < 4; ++row) {
+    const double row_y = height * row / 3.0;
+    for (std::size_t column = 0; column < 4U; ++column) {
+      mesh.xs.push_back(column_x[column]);
+      mesh.ys.push_back(row_y + column_drop[column]);
+    }
+  }
+  return mesh;
+}
+
 void apply_warp_distortion(WarpMeshGrid& mesh, double horizontal_percent, double vertical_percent) {
   const double vertical = std::clamp(vertical_percent, -100.0, 100.0);
   const double horizontal = std::clamp(horizontal_percent, -100.0, 100.0);

@@ -1379,8 +1379,9 @@ public:
   // arrow-key nudge ("Move layer"). False when nothing changed or the edit was refused
   // (refusals reach the status bar).
   bool set_layer_frame(const QRectF& rect);
-  // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent) into the
-  // working cage; manual handle drags flip the reported style back to warpCustom.
+  // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent, or Patchy's
+  // own kCylinderWrapWarpStyle) into the working cage; manual handle drags flip the
+  // reported style back to warpCustom.
   void apply_warp_style_preset(const QString& style, double value);
   [[nodiscard]] QString warp_style_preset() const;
   [[nodiscard]] double warp_style_preset_value() const noexcept;

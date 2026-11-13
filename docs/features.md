@@ -22,7 +22,7 @@ Related documents:
 - Linked files and Krita file layers on a network server open only from servers you allow, so a downloaded document cannot make Patchy connect to an unknown server
 - Layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles (grid or list; Make Default per effect; round angle dials), 20 CC0 photo textures; Edit > Presets opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
 - Continuous long shadows for type and shapes (a normal drop shadow in Photoshop; [example](screenshots.md))
-- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
+- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview; Warp Transform adds a Cylinder style that wraps a layer like a label round a can
 
 ## Vectors and typography
 

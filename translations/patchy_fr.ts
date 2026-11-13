@@ -36140,6 +36140,10 @@ Verrouillé : %1</translation>
         <source>Flip Text on Path</source>
         <translation>Retourner le texte sur le tracé</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Cylindre</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

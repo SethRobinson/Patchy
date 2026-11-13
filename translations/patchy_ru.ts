@@ -36249,6 +36249,10 @@ Locked: %1</source>
         <source>Flip Text on Path</source>
         <translation>Перевернуть текст на контуре</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Цилиндр</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

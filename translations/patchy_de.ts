@@ -36140,6 +36140,10 @@ Fixiert: %1</translation>
         <source>Flip Text on Path</source>
         <translation>Text auf Pfad umkehren</translation>
     </message>
+    <message>
+        <source>Cylinder</source>
+        <translation>Zylinder</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

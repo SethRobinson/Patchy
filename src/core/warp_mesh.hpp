@@ -45,6 +45,23 @@ struct WarpMeshGrid {
                                                                    bool rotate_vertical, double width,
                                                                    double height);
 
+// Patchy's own Cylinder style for the Warp Transform tool (GitHub issue 719): a session
+// style id, never a warpStyle token in a file (a commit bakes it to a custom mesh like
+// every preset) and not one of the styles generate_style_warp_mesh or Warp Text know.
+inline constexpr std::string_view kCylinderWrapWarpStyle = "patchyCylinderWrap";
+
+// The Cylinder style's mesh: ONE 4x4 patch that wraps the whole content like a label
+// round an upright cylinder. The two inner control columns sit on the side edges, so
+// the content runs slower toward the sides (x = width * (3u^2 - 2u^3)) and all of it
+// stays in view; every column then slides down by a parabola, 4u(1-u) * depth, with
+// depth = value/100 * width/4 (positive: seen from above, negative: from below), so
+// the top and bottom edges curve alike and the sides stay upright. It is a single
+// ordinary patch on purpose (docs/legal-constraints.md, "Cylinder warp"): no patch
+// beside it, no zero-width patch and no part of the content hidden behind an edge.
+// `value` is the bend percent in [-100, 100]; nullopt for degenerate sizes.
+[[nodiscard]] std::optional<WarpMeshGrid> generate_cylinder_wrap_warp_mesh(double value, double width,
+                                                                          double height);
+
 // Photoshop's warp Horizontal/Vertical Distortion (warpPerspective /
 // warpPerspectiveOther, the Warp Text dialog sliders): scales every mesh ROW about
 // the midpoint of its edge points by 1 + (2v-1)*vertical%/100 FIRST, then every

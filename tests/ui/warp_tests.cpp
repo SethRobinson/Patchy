@@ -415,6 +415,276 @@ void ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave() {
       document, std::filesystem::path("test-artifacts/ui_warp_tool_smart_object.psd"));
 }
 
+// GitHub issue 719: Cylinder, the last entry of the warp style list, is Patchy's own
+// style: one patch that wraps the whole layer like a label, shaped by the Bend field
+// and editable through the regular cage.
+void ui_warp_cylinder_style_wraps_pixel_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(160, 120, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(48, 36, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 36; ++y) {
+    for (std::int32_t x = 0; x < 48; ++x) {
+      auto* px = pixels.pixel(x, y);
+      // A different colour per sixth of the width, so the wrap's slow sides show.
+      px[0] = static_cast<std::uint8_t>(40 * (x / 8));
+      px[1] = static_cast<std::uint8_t>(200 - y * 4);
+      px[2] = 90;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "label", std::move(pixels));
+  layer.set_bounds(patchy::Rect{50, 30, 48, 36});
+  built.add_layer(std::move(layer));
+  const auto layer_id = built.layers().back().id();
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Cylinder"));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto original_bounds = document.find_layer(layer_id)->bounds();
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const QString cylinder_style = QStringLiteral("patchyCylinderWrap");
+  CHECK(cylinder_style.toStdString() == patchy::kCylinderWrapWarpStyle);
+
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+  auto* bend_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("warpBendSpin"));
+  CHECK(style_combo != nullptr && style_combo->isVisible());
+  CHECK(bend_spin != nullptr);
+  // Custom, the fifteen bends, then Cylinder last.
+  CHECK(style_combo->count() == 17);
+  CHECK(style_combo->itemData(16).toString() == cylinder_style);
+  CHECK(style_combo->itemText(16) == QStringLiteral("Cylinder"));
+
+  bend_spin->setValue(50.0);
+  style_combo->setCurrentIndex(16);
+  QApplication::processEvents();
+  CHECK(canvas->warp_style_preset() == cylinder_style);
+  CHECK(canvas->warp_style_preset_value() == 50.0);
+  // The regular cage: sixteen handles, the corners on the layer's corners.
+  CHECK(canvas->warp_handle_count() == 16);
+  const auto near_point = [](QPointF a, QPointF b) {
+    return std::abs(a.x() - b.x()) < 1e-6 && std::abs(a.y() - b.y()) < 1e-6;
+  };
+  CHECK(near_point(canvas->warp_handle_document_position(0), QPointF(50.0, 30.0)));
+  CHECK(near_point(canvas->warp_handle_document_position(3), QPointF(98.0, 30.0)));
+  CHECK(near_point(canvas->warp_handle_document_position(12), QPointF(50.0, 66.0)));
+  CHECK(near_point(canvas->warp_handle_document_position(15), QPointF(98.0, 66.0)));
+  // The inner columns sit on the sides, a third above the depth below their rows.
+  CHECK(near_point(canvas->warp_handle_document_position(1), QPointF(50.0, 38.0)));
+  CHECK(near_point(canvas->warp_handle_document_position(2), QPointF(98.0, 38.0)));
+  save_widget_artifact("ui_warp_cylinder_cage", *canvas);
+
+  // The Bend field reshapes it and the style stays Cylinder.
+  bend_spin->setValue(-40.0);
+  QApplication::processEvents();
+  CHECK(canvas->warp_style_preset() == cylinder_style);
+  CHECK(near_point(canvas->warp_handle_document_position(1), QPointF(50.0, 30.0 - 6.4)));
+  bend_spin->setValue(50.0);
+  QApplication::processEvents();
+  CHECK(style_combo->currentData().toString() == cylinder_style);
+
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  const auto* warped = document.find_layer(layer_id);
+  CHECK(warped != nullptr);
+  const auto warped_bounds = warped->bounds();
+  // The sides stay where they were; both edges hang 6 px (50% of a quarter of the
+  // width) at the centre, so the layer grows downward by that much.
+  CHECK(std::abs(warped_bounds.x - 50) <= 1);
+  CHECK(std::abs(warped_bounds.x + warped_bounds.width - 98) <= 1);
+  CHECK(std::abs(warped_bounds.y - 30) <= 1);
+  CHECK(warped_bounds.y + warped_bounds.height >= 71 && warped_bounds.y + warped_bounds.height <= 73);
+  const auto pixel_at = [&warped, &warped_bounds](int document_x, int document_y) {
+    return std::as_const(*warped).pixels().pixel(document_x - warped_bounds.x, document_y - warped_bounds.y);
+  };
+  const auto alpha_at = [&pixel_at](int document_x, int document_y) {
+    const auto* px = pixel_at(document_x, document_y);
+    return px == nullptr ? 0 : static_cast<int>(px[3]);
+  };
+  // The top edge dips at the centre and the bottom edge hangs below the corners.
+  CHECK(alpha_at(74, 32) == 0);
+  CHECK(alpha_at(74, 50) == 255);
+  CHECK(alpha_at(52, 36) == 255);
+  CHECK(alpha_at(74, 70) == 255);
+  CHECK(alpha_at(52, 70) == 0);
+  // All of the content is still there, squeezed toward the sides: the first sixth of
+  // the layer (red 0) and the last (red 200) each end well inside their old 8 px.
+  const auto* left_strip = pixel_at(51, 45);
+  const auto* past_left_strip = pixel_at(55, 45);
+  const auto* right_strip = pixel_at(96, 45);
+  CHECK(left_strip != nullptr && left_strip[3] == 255 && left_strip[0] < 20);
+  CHECK(past_left_strip != nullptr && past_left_strip[0] >= 30);
+  CHECK(right_strip != nullptr && right_strip[3] == 255 && right_strip[0] > 180);
+  save_widget_artifact("ui_warp_cylinder_committed", *canvas);
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  auto& after_undo = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* restored = after_undo.find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(restored->bounds().x == original_bounds.x && restored->bounds().y == original_bounds.y);
+  CHECK(restored->bounds().width == original_bounds.width && restored->bounds().height == original_bounds.height);
+
+  // Dragging a cage handle turns the style into Custom, as with every preset.
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  canvas->apply_warp_style_preset(cylinder_style, 30.0);
+  CHECK(canvas->warp_style_preset() == cylinder_style);
+  canvas->set_warp_handle_document_position(5, canvas->warp_handle_document_position(5) + QPointF(3.0, 2.0));
+  CHECK(canvas->warp_style_preset() == QStringLiteral("warpCustom"));
+  QApplication::processEvents();
+  CHECK(style_combo->currentData().toString() == QStringLiteral("warpCustom"));
+  canvas->cancel_warp_transform();
+}
+
+// On a smart object the Cylinder style commits like every preset: a custom 4x4 mesh
+// that Photoshop reads, never a cylinder record.
+void ui_warp_cylinder_style_on_smart_object_writes_custom_mesh() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto placement_before = patchy::smart_object_placement_from_layer(*document.find_layer(layer_id));
+  CHECK(placement_before.has_value());
+
+  CHECK(canvas->begin_warp_transform());
+  canvas->apply_warp_style_preset(QStringLiteral("patchyCylinderWrap"), 60.0);
+  CHECK(canvas->warp_style_preset() == QStringLiteral("patchyCylinderWrap"));
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+
+  const auto* warped = document.find_layer(layer_id);
+  CHECK(warped != nullptr);
+  const auto warp = patchy::smart_object_warp_from_layer(*warped);
+  CHECK(warp.has_value());
+  CHECK(warp->style == "warpCustom" && warp->value == 0.0 && !warp->mesh_generated);
+  CHECK(warp->u_order == 4 && warp->v_order == 4 && warp->mesh_xs.size() == 16U);
+  const auto expected = patchy::generate_cylinder_wrap_warp_mesh(
+      60.0, warp->bounds_right - warp->bounds_left, warp->bounds_bottom - warp->bounds_top);
+  CHECK(expected.has_value());
+  for (std::size_t i = 0; i < 16U; ++i) {
+    CHECK(std::abs(warp->mesh_xs[i] - expected->xs[i]) < 1e-9);
+    CHECK(std::abs(warp->mesh_ys[i] - expected->ys[i]) < 1e-9);
+  }
+  CHECK(patchy::layer_smart_object_block_dirty(*warped));
+  CHECK(patchy::smart_object_lock_reason(*warped).empty());
+  const auto placement_after = patchy::smart_object_placement_from_layer(*warped);
+  CHECK(placement_after.has_value());
+  // The quad frames the control hull: the sides stay, the bottom reaches lower.
+  CHECK(std::abs(placement_after->transform[0] - placement_before->transform[0]) < 1e-6);
+  CHECK(std::abs(placement_after->transform[2] - placement_before->transform[2]) < 1e-6);
+  CHECK(placement_after->transform[5] > placement_before->transform[5] + 1.0);
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const patchy::Layer* reread_layer = nullptr;
+  for (const auto& layer : reread.layers()) {
+    if (layer.name() == "small") {
+      reread_layer = &layer;
+    }
+  }
+  CHECK(reread_layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*reread_layer).empty());
+  const auto reread_warp = patchy::smart_object_warp_from_layer(*reread_layer);
+  CHECK(reread_warp.has_value());
+  CHECK(reread_warp->style == "warpCustom");
+  CHECK(reread_warp->mesh_xs == warp->mesh_xs && reread_warp->mesh_ys == warp->mesh_ys);
+  // Acceptance artifact: Photoshop must open the Cylinder style's mesh cleanly.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_warp_cylinder_smart_object.psd"));
+}
+
+// The Cylinder style at a label's size, picked from the open style list. Saves the
+// review captures: the list with Cylinder last, the cage, and the wrapped label.
+void ui_warp_cylinder_style_list_and_label_wrap() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1200, 760);
+  patchy::Document built(400, 300, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  // The 8 x 6 checker of the Photoshop capture in local-test-fixtures/psd/ps2026_cylinder,
+  // so the two programs' cylinders can be put side by side.
+  patchy::PixelBuffer pixels(240, 150, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 150; ++y) {
+    for (std::int32_t x = 0; x < 240; ++x) {
+      const int column = x / 30;
+      const int row = y / 25;
+      const bool odd = ((column + row) % 2) != 0;
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(odd ? 30 + 28 * column : 235);
+      px[1] = static_cast<std::uint8_t>(odd ? 60 : 235 - 30 * row);
+      px[2] = static_cast<std::uint8_t>(odd ? 255 - 36 * row : 120 + 16 * column);
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "Label", std::move(pixels));
+  layer.set_bounds(patchy::Rect{80, 75, 240, 150});
+  built.add_layer(std::move(layer));
+  const auto layer_id = built.layers().back().id();
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Label"));
+  QApplication::processEvents();
+  process_events_for(60);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+  auto* bend_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("warpBendSpin"));
+  CHECK(style_combo != nullptr && bend_spin != nullptr);
+  bend_spin->setValue(60.0);
+  const int cylinder_index = style_combo->findData(QStringLiteral("patchyCylinderWrap"));
+  CHECK(cylinder_index == style_combo->count() - 1);
+  style_combo->setCurrentIndex(cylinder_index);
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(canvas->warp_style_preset() == QStringLiteral("patchyCylinderWrap"));
+  CHECK(canvas->warp_style_preset_value() == 60.0);
+  save_widget_artifact("ui_warp_cylinder_window", window);
+  style_combo->showPopup();
+  QApplication::processEvents();
+  if (auto* popup = style_combo->view()->window(); popup != nullptr && popup->isVisible()) {
+    save_window_popup_artifact("ui_warp_cylinder_style_list", window, *style_combo, *popup);
+  }
+  style_combo->hidePopup();
+  QApplication::processEvents();
+
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  process_events_for(60);
+  const auto* warped = document.find_layer(layer_id);
+  CHECK(warped != nullptr);
+  const auto bounds = warped->bounds();
+  // Sides in place; both edges hang 36 px (60% of a quarter of 240) at the centre.
+  // The baked layer keeps a pixel or two of clear margin round the warped pixels.
+  CHECK(std::abs(bounds.x - 80) <= 2 && std::abs(bounds.x + bounds.width - 320) <= 2);
+  CHECK(std::abs(bounds.y - 75) <= 2);
+  CHECK(std::abs(bounds.y + bounds.height - (225 + 36)) <= 2);
+  const auto wrapped = flattened_on_white(std::as_const(*warped).pixels());
+  // The top edge at the centre sits 36 px down; the checker's first column (30 px
+  // wide before) is squeezed to under half of that at the left side.
+  CHECK(wrapped.pixelColor(120, 30) == QColor(255, 255, 255));
+  CHECK(wrapped.pixelColor(120, 40) != QColor(255, 255, 255));
+  const auto first_column = wrapped.pixelColor(4, 80);
+  const auto second_column = wrapped.pixelColor(14, 80);
+  CHECK(first_column != second_column);
+  save_image_artifact("ui_warp_cylinder_label_wrapped", wrapped);
+  save_widget_artifact("ui_warp_cylinder_window_committed", window);
+}
+
 void ui_warp_transform_refuses_text_layer() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2961,6 +3231,10 @@ std::vector<patchy::test::TestCase> warp_tests() {
       {"ui_warp_transform_bends_pixel_layer_and_undoes", ui_warp_transform_bends_pixel_layer_and_undoes},
       {"ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave",
        ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave},
+      {"ui_warp_cylinder_style_wraps_pixel_layer", ui_warp_cylinder_style_wraps_pixel_layer},
+      {"ui_warp_cylinder_style_on_smart_object_writes_custom_mesh",
+       ui_warp_cylinder_style_on_smart_object_writes_custom_mesh},
+      {"ui_warp_cylinder_style_list_and_label_wrap", ui_warp_cylinder_style_list_and_label_wrap},
       {"ui_warp_transform_refuses_text_layer", ui_warp_transform_refuses_text_layer},
       {"ui_warp_text_dialog_applies_and_undoes", ui_warp_text_dialog_applies_and_undoes},
       {"ui_warp_text_box_text_warps_over_frame", ui_warp_text_box_text_warps_over_frame},
