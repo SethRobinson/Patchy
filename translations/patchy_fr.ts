@@ -36113,22 +36113,6 @@ Verrouillé : %1</translation>
         <translation>Fond et contour : peint l&apos;intérieur et le bord</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Couleur de fond des formes dessinées en pixels : la couleur de premier plan ou une couleur propre</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Épaisseur du contour (la taille du pinceau)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Couleur de contour des formes dessinées en pixels : la couleur de premier plan ou une couleur propre</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Tirets du contour. Les tirets utilisent des extrémités plates, les points des extrémités arrondies</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Intérieur</translation>
     </message>

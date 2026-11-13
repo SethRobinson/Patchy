@@ -36004,22 +36004,6 @@ Locked: %1</source>
         <translation>채우기와 획: 안쪽과 윤곽선을 칠합니다</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>픽셀로 그리는 도형의 채우기 색상: 전경색 또는 자체 색상</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>획 너비 (브러시 크기)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>픽셀로 그리는 도형의 획 색상: 전경색 또는 자체 색상</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>획 점선. 점선 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡을 사용합니다</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>안쪽</translation>
     </message>

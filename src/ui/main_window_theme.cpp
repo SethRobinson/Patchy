@@ -538,6 +538,11 @@ QString photoshop_style_template() {
       background: @accent_pressed_bg;
       border-color: @accent_border_bright;
     }
+    /* The shape tools' Fill only / Stroke only / Both buttons (GitHub issue 716). */
+    QToolBar#Options QToolButton[optionsBarFramedButton="true"]:checked {
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+    }
     QToolBar#Options QToolButton[optionsBarFramedButton="true"]:disabled {
       background: @field_bg_disabled;
       border-color: @field_border_disabled;

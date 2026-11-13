@@ -918,7 +918,7 @@ public:
   void set_fill_shapes(bool fill_shapes) noexcept;
   [[nodiscard]] bool fill_shapes() const noexcept;
   // The whole Pixels-mode shape style (GitHub issue 716); set_fill_shapes sets only its draw
-  // mode, Fill or Stroke.
+  // mode, a fill alone or a stroke alone.
   void set_shape_pixel_style(const ShapePixelStyle& style);
   [[nodiscard]] const ShapePixelStyle& shape_pixel_style() const noexcept;
   void set_shape_corner_radius(int radius) noexcept;
@@ -1116,6 +1116,9 @@ public:
     VectorStrokeJoin stroke_join{VectorStrokeJoin::Miter};
     VectorStrokeCap stroke_cap{VectorStrokeCap::Butt};
     double stroke_miter_limit{100.0};
+    // Dash lengths and offset in stroke widths (empty: solid), as the stroke stores them.
+    std::vector<double> stroke_dashes;
+    double stroke_dash_offset{0.0};
     int line_weight{1};
   };
   void set_shape_preview_appearance_callback(
@@ -2780,6 +2783,11 @@ private:
   [[nodiscard]] GradientOptions current_gradient_options() const;
   [[nodiscard]] QRect draw_rectangle(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_ellipse(QPoint from, QPoint to, bool erase);
+  // Pixels-mode shapes (GitHub issue 716): a rectangle or an ellipse on the active layer, by
+  // the classic renderer or the styled one; and any path (Polygon, Custom Shape, a styled
+  // rectangle) through the shape layer's renderer onto the layer or the grayscale target.
+  [[nodiscard]] QRect draw_pixel_shape(QRect rect, patchy::ShapeKind kind, bool erase);
+  [[nodiscard]] QRect draw_shape_path_pixels(const patchy::VectorPath& path, bool erase);
   [[nodiscard]] QRect flood_fill(QPoint start);
   [[nodiscard]] QRect shape_drag_rect(QPoint anchor, QPoint current) const;
   // Pen tool session (canvas_widget_vector_tools.cpp).

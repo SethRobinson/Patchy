@@ -3,13 +3,12 @@
 #include "ui/canvas_widget.hpp"
 
 #include <QAbstractButton>
+#include <QButtonGroup>
 #include <QColor>
 #include <QComboBox>
-#include <QIcon>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSpinBox>
-#include <QToolButton>
 #include <QVariant>
 #include <QWidget>
 
@@ -39,11 +38,28 @@ std::optional<QColor> color_from_setting(const QVariant& value) {
   return color;
 }
 
-QString color_to_setting(const std::optional<QColor>& color) {
-  return color.has_value() ? color->name(QColor::HexRgb) : QString();
+// A stored flag; only the forms QSettings writes (true/false, 1/0) count.
+std::optional<bool> flag_from_setting(const QVariant& value) {
+  const auto text = value.toString().trimmed().toLower();
+  if (text == QLatin1String("true") || text == QLatin1String("1")) {
+    return true;
+  }
+  if (text == QLatin1String("false") || text == QLatin1String("0")) {
+    return false;
+  }
+  return std::nullopt;
 }
 
+constexpr auto kFillFollowsForegroundKey = "tools/vectorFillFollowsForeground";
+constexpr auto kStrokeFollowsForegroundKey = "tools/vectorStrokeFollowsForeground";
+constexpr auto kStrokeAlignKey = "tools/vectorStrokeAlign";
+
 }  // namespace
+
+bool shape_tool_has_draw_modes(CanvasTool tool) noexcept {
+  return tool == CanvasTool::Rectangle || tool == CanvasTool::Ellipse || tool == CanvasTool::Polygon ||
+         tool == CanvasTool::CustomShape;
+}
 
 const char* shape_draw_mode_token(ShapeDrawMode mode) noexcept {
   switch (mode) {
@@ -89,6 +105,28 @@ patchy::VectorStrokeAlignment stroke_alignment_from_token(std::string_view token
   return fallback;
 }
 
+bool shape_settings_predate_shared_style(const QSettings& settings) {
+  return !settings.contains(QLatin1String(kFillFollowsForegroundKey));
+}
+
+LegacyShapePixelStyle legacy_shape_pixel_style(const QSettings& settings) {
+  LegacyShapePixelStyle legacy;
+  // The Fill checkbox's key first: checked filled the shape, unchecked outlined it.
+  if (const auto filled = flag_from_setting(settings.value(QStringLiteral("tools/shapeFill"))); filled.has_value()) {
+    legacy.mode = *filled ? ShapeDrawMode::Fill : ShapeDrawMode::Stroke;
+  }
+  legacy.mode = shape_draw_mode_from_token(
+      settings.value(QStringLiteral("tools/shapeDrawMode")).toString().toStdString(), legacy.mode);
+  legacy.fill_color = color_from_setting(settings.value(QStringLiteral("tools/shapePixelFillColor")));
+  legacy.stroke_color = color_from_setting(settings.value(QStringLiteral("tools/shapePixelStrokeColor")));
+  legacy.dashes = patchy::stroke_dash_preset_from_token(
+      settings.value(QStringLiteral("tools/shapePixelStrokeDashes")).toString().toStdString());
+  legacy.alignment = stroke_alignment_from_token(
+      settings.value(QStringLiteral("tools/shapePixelStrokeAlign")).toString().toStdString(),
+      patchy::VectorStrokeAlignment::Center);
+  return legacy;
+}
+
 bool ShapePixelOptions::widget_visible(const QWidget* widget) const {
   if (contains(ratio_widgets, widget)) {
     return size_style == MarqueeStyle::FixedRatio;
@@ -99,12 +137,12 @@ bool ShapePixelOptions::widget_visible(const QWidget* widget) const {
   return true;
 }
 
-bool ShapePixelOptions::widget_enabled(const QWidget* widget) const {
+bool ShapePixelOptions::widget_enabled(const QWidget* widget, bool draws_fill, bool draws_stroke) const {
   if (contains(fill_widgets, widget)) {
-    return fills();
+    return draws_fill;
   }
   if (contains(stroke_widgets, widget)) {
-    return strokes();
+    return draws_stroke;
   }
   return true;
 }
@@ -121,79 +159,62 @@ QSize ShapePixelOptions::fixed_size_for_canvas() const {
 }
 
 void ShapePixelOptions::apply_to_canvas(CanvasWidget& canvas) const {
-  canvas.set_shape_pixel_style(style);
   canvas.set_shape_style(size_style);
   const auto fixed = fixed_size_for_canvas();
   canvas.set_shape_fixed_size(fixed.width(), fixed.height());
 }
 
 void ShapePixelOptions::load(const QSettings& settings) {
-  // The Fill checkbox's key first: checked filled the shape, unchecked outlined it.
-  auto mode = style.mode;
-  if (settings.contains(QStringLiteral("tools/shapeFill"))) {
-    const auto stored = settings.value(QStringLiteral("tools/shapeFill"));
-    const auto text = stored.toString().trimmed().toLower();
-    if (text == QLatin1String("true") || text == QLatin1String("1")) {
-      mode = ShapeDrawMode::Fill;
-    } else if (text == QLatin1String("false") || text == QLatin1String("0")) {
-      mode = ShapeDrawMode::Stroke;
+  fill_follows_foreground = flag_from_setting(settings.value(QLatin1String(kFillFollowsForegroundKey))).value_or(false);
+  stroke_follows_foreground =
+      flag_from_setting(settings.value(QLatin1String(kStrokeFollowsForegroundKey))).value_or(false);
+  alignment.reset();
+  const auto token = settings.value(QLatin1String(kStrokeAlignKey)).toString().toStdString();
+  for (const auto candidate : {patchy::VectorStrokeAlignment::Inside, patchy::VectorStrokeAlignment::Center,
+                               patchy::VectorStrokeAlignment::Outside}) {
+    if (token == stroke_alignment_token(candidate)) {
+      alignment = candidate;
     }
   }
-  style.mode = shape_draw_mode_from_token(
-      settings.value(QStringLiteral("tools/shapeDrawMode")).toString().toStdString(), mode);
-  style.fill_color = color_from_setting(settings.value(QStringLiteral("tools/shapePixelFillColor")));
-  style.stroke_color = color_from_setting(settings.value(QStringLiteral("tools/shapePixelStrokeColor")));
-  style.dashes = patchy::stroke_dash_preset_from_token(
-      settings.value(QStringLiteral("tools/shapePixelStrokeDashes")).toString().toStdString());
-  style.alignment = stroke_alignment_from_token(
-      settings.value(QStringLiteral("tools/shapePixelStrokeAlign")).toString().toStdString(),
-      patchy::VectorStrokeAlignment::Center);
 }
 
 void ShapePixelOptions::save(QSettings& settings) const {
-  settings.setValue(QStringLiteral("tools/shapeDrawMode"), QString::fromLatin1(shape_draw_mode_token(style.mode)));
-  // An older version reads only this: Both shows there as a checked Fill.
-  settings.setValue(QStringLiteral("tools/shapeFill"), style.mode != ShapeDrawMode::Stroke);
-  settings.setValue(QStringLiteral("tools/shapePixelFillColor"), color_to_setting(style.fill_color));
-  settings.setValue(QStringLiteral("tools/shapePixelStrokeColor"), color_to_setting(style.stroke_color));
-  settings.setValue(QStringLiteral("tools/shapePixelStrokeDashes"),
-                    QString::fromUtf8(patchy::stroke_dash_preset_token(style.dashes)));
-  settings.setValue(QStringLiteral("tools/shapePixelStrokeAlign"),
-                    QString::fromLatin1(stroke_alignment_token(style.alignment)));
+  settings.setValue(QLatin1String(kFillFollowsForegroundKey), fill_follows_foreground);
+  settings.setValue(QLatin1String(kStrokeFollowsForegroundKey), stroke_follows_foreground);
+  if (alignment.has_value()) {
+    settings.setValue(QLatin1String(kStrokeAlignKey), QString::fromLatin1(stroke_alignment_token(*alignment)));
+  } else {
+    settings.remove(QLatin1String(kStrokeAlignKey));
+  }
 }
 
-void ShapePixelOptions::sync_style_controls() const {
-  for (std::size_t index = 0; index < mode_buttons.size(); ++index) {
-    if (auto* button = mode_buttons[index]; button != nullptr) {
-      const QSignalBlocker blocker(button);
-      button->setChecked(index == static_cast<std::size_t>(style.mode));
-    }
+void ShapePixelOptions::sync_draw_controls(bool draws_fill, bool draws_stroke,
+                                           patchy::VectorStrokeAlignment shown) const {
+  int checked = -1;
+  if (draws_fill && draws_stroke) {
+    checked = static_cast<int>(ShapeDrawMode::Both);
+  } else if (draws_fill) {
+    checked = static_cast<int>(ShapeDrawMode::Fill);
+  } else if (draws_stroke) {
+    checked = static_cast<int>(ShapeDrawMode::Stroke);
   }
-  if (dash_combo != nullptr) {
-    const QSignalBlocker blocker(dash_combo);
-    dash_combo->setCurrentIndex(std::max(0, dash_combo->findData(static_cast<int>(style.dashes))));
+  if (mode_group != nullptr) {
+    // An exclusive group refuses to uncheck its checked button, and nothing is checked while
+    // the shape draws neither a fill nor a stroke.
+    const QSignalBlocker group_blocker(mode_group);
+    mode_group->setExclusive(false);
+    for (std::size_t index = 0; index < mode_buttons.size(); ++index) {
+      if (auto* button = mode_buttons[index]; button != nullptr) {
+        const QSignalBlocker blocker(button);
+        button->setChecked(static_cast<int>(index) == checked);
+      }
+    }
+    mode_group->setExclusive(true);
   }
   if (align_combo != nullptr) {
     const QSignalBlocker blocker(align_combo);
-    align_combo->setCurrentIndex(std::max(0, align_combo->findData(static_cast<int>(style.alignment))));
+    align_combo->setCurrentIndex(std::max(0, align_combo->findData(static_cast<int>(shown))));
   }
-}
-
-void ShapePixelOptions::show_swatches(
-    QColor foreground, const std::function<QIcon(const patchy::VectorFill&, const QToolButton&)>& chip) const {
-  const auto show = [&](QToolButton* button, const std::optional<QColor>& own) {
-    if (button == nullptr) {
-      return;
-    }
-    const QColor color = own.value_or(foreground);
-    patchy::VectorFill paint;
-    paint.kind = patchy::VectorFillKind::Solid;
-    paint.color = {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                   static_cast<std::uint8_t>(color.blue())};
-    button->setIcon(chip(paint, *button));
-  };
-  show(fill_swatch, style.fill_color);
-  show(stroke_swatch, style.stroke_color);
 }
 
 void ShapePixelOptions::sync_brush_fields(const CanvasWidget& canvas) const {
@@ -203,7 +224,6 @@ void ShapePixelOptions::sync_brush_fields(const CanvasWidget& canvas) const {
       spin->setValue(value);
     }
   };
-  put(stroke_width_spin, canvas.brush_size());
   put(opacity_spin, canvas.brush_opacity());
   put(softness_spin, canvas.brush_softness());
 }

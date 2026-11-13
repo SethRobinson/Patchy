@@ -4,6 +4,7 @@
 // Persisted enum values are append-only. CanvasWidget keeps aliases for callers.
 #include "core/layer.hpp"
 #include "core/document_channel.hpp"
+#include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 
 #include <QColor>
@@ -16,6 +17,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string_view>
 
@@ -281,19 +283,26 @@ enum class MarqueeStyle {
   FixedSize
 };
 
-// What the Rectangle and Ellipse tools paint in Pixels mode (GitHub issue 716; the options
-// bar's Fill only, Stroke only and Both buttons). Saved as tools/shapeDrawMode by token.
+// The shape tools' draw mode (GitHub issue 716; the options bar's Fill only, Stroke only and
+// Both buttons). tools/shapeDrawMode holds its token in settings written before the fill and
+// the stroke of Shape and Pixels modes became one set of values; it is read once, to migrate.
 enum class ShapeDrawMode : std::uint8_t { Stroke, Fill, Both };
 
-// The Pixels-mode shape style: the draw mode, a fill and a stroke color of their own (unset
-// follows the foreground color, as these tools always painted), and the stroke's dashes and
-// alignment. The stroke's width is the brush size. docs/tools.md, "Shapes in Pixels mode".
+// What the shape tools paint in Pixels mode: a fill, a stroke, or both, with a shape layer's
+// paints and stroke. The options bar sends the same values Shape mode makes its layers from.
+// An unset paint is the foreground color at draw time (the bar's Foreground Color, and a
+// canvas no bar drives, which paints as these tools always did); an unset line is the classic
+// outline: the brush size wide, solid, centered. docs/tools.md, "Shapes in Pixels mode".
 struct ShapePixelStyle {
-  ShapeDrawMode mode{ShapeDrawMode::Stroke};
-  std::optional<QColor> fill_color;
-  std::optional<QColor> stroke_color;
-  patchy::StrokeDashPreset dashes{patchy::StrokeDashPreset::Solid};
-  patchy::VectorStrokeAlignment alignment{patchy::VectorStrokeAlignment::Center};
+  bool fill{false};
+  bool stroke{true};
+  std::optional<patchy::VectorFill> fill_paint;
+  std::optional<patchy::VectorFill> stroke_paint;
+  // Width, alignment, caps, corners, dashes and dash offset (its paint and its switch are the
+  // fields above).
+  std::optional<patchy::VectorStroke> line;
+  // The tiles of pattern paints, when a paint is a pattern.
+  std::shared_ptr<const patchy::PatternStore> patterns;
   friend bool operator==(const ShapePixelStyle&, const ShapePixelStyle&) = default;
 };
 

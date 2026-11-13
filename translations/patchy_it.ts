@@ -36113,22 +36113,6 @@ Bloccato: %1</translation>
         <translation>Riempimento e traccia: dipinge l&apos;interno e il contorno</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Colore di riempimento delle forme disegnate come pixel: il colore di primo piano o un colore proprio</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Spessore traccia (la dimensione del pennello)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Colore della traccia delle forme disegnate come pixel: il colore di primo piano o un colore proprio</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Tratteggio della traccia. I tratteggi usano estremità piatte; i punti usano estremità arrotondate</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Interno</translation>
     </message>

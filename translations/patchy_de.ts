@@ -36113,22 +36113,6 @@ Fixiert: %1</translation>
         <translation>Fläche und Kontur: das Innere und den Umriss malen</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Flächenfarbe für als Pixel gezeichnete Formen: die Vordergrundfarbe oder eine eigene Farbe</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Konturbreite (die Pinselgröße)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Konturfarbe für als Pixel gezeichnete Formen: die Vordergrundfarbe oder eine eigene Farbe</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Striche der Kontur. Strichvorgaben verwenden abgeflachte Abschlüsse, Punktvorgaben runde Abschlüsse</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Innen</translation>
     </message>

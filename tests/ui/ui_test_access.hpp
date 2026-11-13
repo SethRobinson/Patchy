@@ -161,6 +161,8 @@ public:
 
   // Options-bar paint mirrors (the popup pickers' backing state) and the
   // live-edit application, callable without driving the modal manager dialogs.
+  // Taking a mirror ends Foreground Color for that paint, as a pick does; read the
+  // paints with current_shape_appearance.
   static patchy::VectorFill& current_vector_fill(MainWindow& window);
 
   static patchy::VectorFill& current_vector_stroke_paint(MainWindow& window);

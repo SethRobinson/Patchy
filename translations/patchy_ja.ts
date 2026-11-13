@@ -36004,22 +36004,6 @@ Locked: %1</source>
         <translation>塗りと線: 内側と輪郭を描きます</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>ピクセルとして描くシェイプの塗りの色: 描画色、または独自の色</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>線の太さ (ブラシサイズ)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>ピクセルとして描くシェイプの線の色: 描画色、または独自の色</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>線の破線。破線のプリセットはバット先端、点のプリセットは丸い先端を使います</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>内側</translation>
     </message>

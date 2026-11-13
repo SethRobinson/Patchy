@@ -36222,22 +36222,6 @@ Zablokowano: %1</translation>
         <translation>Wypełnienie i obrys: maluje wnętrze i kontur</translation>
     </message>
     <message>
-        <source>Fill color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Kolor wypełnienia kształtów rysowanych jako piksele: kolor narzędzia lub własny kolor</translation>
-    </message>
-    <message>
-        <source>Stroke width (the brush size)</source>
-        <translation>Szerokość obrysu (rozmiar pędzla)</translation>
-    </message>
-    <message>
-        <source>Stroke color for shapes drawn as pixels: the foreground color, or a color of its own</source>
-        <translation>Kolor obrysu kształtów rysowanych jako piksele: kolor narzędzia lub własny kolor</translation>
-    </message>
-    <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps</source>
-        <translation>Kreski obrysu. Kreski mają płaskie zakończenia, kropki zaokrąglone zakończenia</translation>
-    </message>
-    <message>
         <source>Inside</source>
         <translation>Wewnątrz</translation>
     </message>

@@ -1495,6 +1495,7 @@ void cleanup_after_visual_test() {
         // mode, a color, dashes or an alignment must not start the next test's window with it.
         "tools/shapeDrawMode", "tools/shapePixelFillColor", "tools/shapePixelStrokeColor",
         "tools/shapePixelStrokeDashes", "tools/shapePixelStrokeAlign",
+        "tools/vectorFillFollowsForeground", "tools/vectorStrokeFollowsForeground", "tools/vectorStrokeAlign",
         // The foreground/background pair (GitHub issue 339): a test that picked a color must
         // not start the next test's window painting in it.
         "tools/foregroundColor", "tools/backgroundColor",
