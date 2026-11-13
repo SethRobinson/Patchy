@@ -182,7 +182,7 @@ CanvasWidget::TransformHandle CanvasWidget::shape_resize_handle_at(QPoint widget
   // A pending pixel shape moves by a press inside its box; a shape layer's box does not (a
   // press there draws the next shape, and Ctrl moves it).
   if (handle == TransformHandle::None && pending_pixel_shape_ != nullptr && !shape_resize_drag_.has_value() &&
-      widget_rect_for_document_rect(*rect).contains(QPointF(widget_point))) {
+      rect->contains(document_position_f(QPointF(widget_point)))) {  // in document space: a rotated view too
     return TransformHandle::Move;
   }
   return handle;
