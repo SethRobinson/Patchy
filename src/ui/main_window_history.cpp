@@ -157,6 +157,23 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
   const auto restore_smart_filter_mask_mode = canvas_->mask_display_mode();
   const auto changed_region = changed.full ? std::nullopt : std::optional<QRegion>(changed.region);
   const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
+  // A shape tool's Path-mode box rides the picked components of the work or saved path
+  // (GitHub issue 716). The swap below drops the canvas's path selection; under those tools
+  // the components stay picked while the restored path still has them, so an undone resize
+  // or turn can be tried again without picking the path a second time.
+  std::vector<int> picked_groups;
+  std::optional<DocumentPathId> picked_path;
+  const bool shape_tool = current_tool_ == CanvasTool::Rectangle || current_tool_ == CanvasTool::Ellipse ||
+                          current_tool_ == CanvasTool::Polygon || current_tool_ == CanvasTool::Line ||
+                          current_tool_ == CanvasTool::CustomShape;
+  if (shape_tool && current_vector_tool_mode_ == VectorToolMode::Path && active_document_path_id_.has_value() &&
+      canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Content) {
+    if (const auto* path = std::as_const(active_session.document).find_path(*active_document_path_id_);
+        path != nullptr && canvas_->path_edit_target_path() == &path->path()) {
+      picked_groups = canvas_->path_edit_selected_groups();
+      picked_path = active_document_path_id_;
+    }
+  }
   canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
   if (restore_smart_filter_mask_owner.has_value()) {
     const auto* restored_layer = std::as_const(active_session.document)
@@ -184,6 +201,19 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
   // Paths live in the Document and are restored with it; the old undo/redo
   // tails forgot this refresh, leaving the Paths panel stale after an undo.
   refresh_paths_panel();
+  if (!picked_groups.empty() && picked_path.has_value() && active_document_path_id_ == picked_path) {
+    if (const auto* path = std::as_const(active_session.document).find_path(*picked_path); path != nullptr) {
+      std::erase_if(picked_groups, [path](int group) {
+        return std::none_of(path->path().subpaths.begin(), path->path().subpaths.end(),
+                            [group](const PathSubpath& subpath) { return subpath.shape_group == group; });
+      });
+      if (!picked_groups.empty()) {
+        canvas_->set_active_document_path(*picked_path);
+        canvas_->select_path_groups(picked_groups);
+        sync_vector_shape_size_spins();
+      }
+    }
+  }
   update_document_action_state();
   apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();

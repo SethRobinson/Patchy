@@ -1366,6 +1366,155 @@ void live_polygon_regenerates_resolves_and_writes_a_plain_path() {
   CHECK(!patchy::layer_vector_block_dirty(reread.layers()[1]));
 }
 
+// GitHub #716: the shape tools' rotate. A live shape stays live through a turn its parameters
+// can say (a line and a regular polygon at any angle, anything at a quarter turn), and the
+// shape they then generate is the turned path; any other turn has no parameters.
+void live_shape_rotation_keeps_what_its_parameters_can_say() {
+  // The geometry the parameters generate equals the old geometry turned by the matrix.
+  const auto same_points = [](const patchy::LiveShapeParams& before, const patchy::LiveShapeParams& after,
+                              double pivot_x, double pivot_y, double degrees) {
+    patchy::VectorPath turned;
+    turned.subpaths = patchy::generate_live_shape_subpaths(before);
+    patchy::transform_vector_path(turned, patchy::rotation_matrix_about(pivot_x, pivot_y, degrees));
+    patchy::VectorPath generated;
+    generated.subpaths = patchy::generate_live_shape_subpaths(after);
+    const auto want = turned.bounds();
+    const auto have = generated.bounds();
+    if (!want.has_value() || !have.has_value()) {
+      return false;
+    }
+    // Every turned anchor is an anchor of the regenerated shape (the knot order may differ).
+    for (const auto& subpath : turned.subpaths) {
+      for (const auto& anchor : subpath.anchors) {
+        bool found = false;
+        for (const auto& other_subpath : generated.subpaths) {
+          for (const auto& other : other_subpath.anchors) {
+            found = found || (std::fabs(other.anchor_x - anchor.anchor_x) < 1e-6 &&
+                              std::fabs(other.anchor_y - anchor.anchor_y) < 1e-6);
+          }
+        }
+        if (!found) {
+          return false;
+        }
+      }
+    }
+    return std::fabs(want->left - have->left) < 1e-6 && std::fabs(want->top - have->top) < 1e-6 &&
+           std::fabs(want->right - have->right) < 1e-6 && std::fabs(want->bottom - have->bottom) < 1e-6;
+  };
+
+  // The matrix is exact at the quarter turns: (10, 0) about the origin goes to (0, 10).
+  const auto quarter = patchy::rotation_matrix_about(0.0, 0.0, 90.0);
+  CHECK(quarter[0] == 0.0 && quarter[1] == 1.0 && quarter[2] == -1.0 && quarter[3] == 0.0);
+  CHECK(patchy::rotation_cos_sin(-90.0).sin == -1.0 && patchy::rotation_cos_sin(180.0).cos == -1.0);
+  CHECK(patchy::rotation_cos_sin(450.0).sin == 1.0 && patchy::rotation_cos_sin(360.0).cos == 1.0);
+
+  patchy::LiveShapeParams rectangle;
+  rectangle.kind = patchy::LiveShapeKind::RoundedRectangle;
+  rectangle.left = 100;
+  rectangle.top = 200;
+  rectangle.right = 300;
+  rectangle.bottom = 260;
+  rectangle.corner_radii = {4.0, 8.0, 12.0, 16.0};  // TL, TR, BR, BL
+  patchy::populate_live_shape_box_corners(rectangle);
+  // A quarter turn clockwise about its center: the box turns and the radii go round.
+  auto turned = patchy::rotate_live_shape_params(rectangle, 200.0, 230.0, 90.0);
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(turned->left == 170.0 && turned->right == 230.0 && turned->top == 130.0 && turned->bottom == 330.0);
+    CHECK(turned->corner_radii[1] == 4.0 && turned->corner_radii[2] == 8.0 && turned->corner_radii[3] == 12.0 &&
+          turned->corner_radii[0] == 16.0);
+    CHECK(turned->box_corners[0] == 170.0 && turned->box_corners[5] == 330.0);
+    CHECK(same_points(rectangle, *turned, 200.0, 230.0, 90.0));
+  }
+  // About another pivot the box travels with the turn; a half turn keeps its size.
+  turned = patchy::rotate_live_shape_params(rectangle, 0.0, 0.0, 180.0);
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(turned->left == -300.0 && turned->right == -100.0 && turned->top == -260.0 && turned->bottom == -200.0);
+    CHECK(turned->corner_radii[2] == 4.0 && turned->corner_radii[0] == 12.0);
+    CHECK(same_points(rectangle, *turned, 0.0, 0.0, 180.0));
+  }
+  // No other angle is a rectangle its parameters can generate.
+  CHECK(!patchy::rotate_live_shape_params(rectangle, 200.0, 230.0, 30.0).has_value());
+  auto ellipse = rectangle;
+  ellipse.kind = patchy::LiveShapeKind::Ellipse;
+  CHECK(!patchy::rotate_live_shape_params(ellipse, 200.0, 230.0, 45.0).has_value());
+  turned = patchy::rotate_live_shape_params(ellipse, 200.0, 230.0, -90.0);
+  CHECK(turned.has_value() && turned->left == 170.0 && turned->bottom == 330.0);
+  if (turned.has_value()) {
+    CHECK(same_points(ellipse, *turned, 200.0, 230.0, -90.0));
+  }
+
+  // A regular polygon turns by any angle: its center goes round the pivot, its angle grows.
+  patchy::LiveShapeParams polygon;
+  polygon.kind = patchy::LiveShapeKind::Polygon;
+  polygon.left = 40;
+  polygon.top = 40;
+  polygon.right = 160;
+  polygon.bottom = 160;
+  polygon.polygon_sides = 5;
+  polygon.polygon_star_inset = 30;
+  polygon.polygon_angle = -std::numbers::pi / 2.0;
+  turned = patchy::rotate_live_shape_params(polygon, 130.0, 70.0, 30.0);
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(patchy::live_polygon_is_regular(*turned));
+    CHECK(std::fabs(turned->polygon_angle - (polygon.polygon_angle + std::numbers::pi / 6.0)) < 1e-12);
+    CHECK(std::fabs((turned->right - turned->left) - 120.0) < 1e-9);
+    CHECK(turned->polygon_sides == 5 && turned->polygon_star_inset == 30);
+    CHECK(same_points(polygon, *turned, 130.0, 70.0, 30.0));
+  }
+  // A stretched polygon only at the quarter turns, where its box turns with it.
+  auto stretched = polygon;
+  stretched.right = 240;
+  CHECK(!patchy::rotate_live_shape_params(stretched, 140.0, 100.0, 30.0).has_value());
+  turned = patchy::rotate_live_shape_params(stretched, 140.0, 100.0, 90.0);
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(turned->left == 80.0 && turned->right == 200.0 && turned->top == 0.0 && turned->bottom == 200.0);
+    CHECK(same_points(stretched, *turned, 140.0, 100.0, 90.0));
+  }
+
+  // A line turns by any angle: both ends go round, the weight stays, the box is refitted.
+  patchy::LiveShapeParams line;
+  line.kind = patchy::LiveShapeKind::Line;
+  line.line_start_x = 100;
+  line.line_start_y = 100;
+  line.line_end_x = 200;
+  line.line_end_y = 100;
+  line.line_weight = 10;
+  turned = patchy::rotate_live_shape_params(line, 100.0, 100.0, 90.0);
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(turned->line_start_x == 100.0 && turned->line_start_y == 100.0);
+    CHECK(turned->line_end_x == 100.0 && turned->line_end_y == 200.0);
+    CHECK(turned->line_weight == 10.0);
+    CHECK(std::fabs(turned->left - 95.0) < 1e-9 && std::fabs(turned->right - 105.0) < 1e-9);
+    CHECK(std::fabs(turned->top - 100.0) < 1e-9 && std::fabs(turned->bottom - 200.0) < 1e-9);
+    CHECK(same_points(line, *turned, 100.0, 100.0, 90.0));
+  }
+  turned = patchy::rotate_live_shape_params(line, 150.0, 100.0, 37.0);
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(same_points(line, *turned, 150.0, 100.0, 37.0));
+  }
+
+  // A resolved, turned shape is still the shape its parameters generate.
+  patchy::VectorPath path;
+  path.subpaths = patchy::generate_live_shape_subpaths(rectangle);
+  const auto quarter_turned = patchy::rotate_live_shape_params(rectangle, 200.0, 230.0, 90.0);
+  CHECK(quarter_turned.has_value());
+  if (quarter_turned.has_value()) {
+    CHECK(patchy::replace_live_shape_group(path, *quarter_turned));
+    CHECK(patchy::resolve_live_shape_group(path, {*quarter_turned}, quarter_turned->index).has_value());
+  }
+
+  // Unmodeled origination (raw descriptor bytes) never turns.
+  auto custom = rectangle;
+  custom.raw_descriptor = {1, 2, 3};
+  CHECK(!patchy::rotate_live_shape_params(custom, 0.0, 0.0, 90.0).has_value());
+}
+
 // GitHub #690 follow-up: the two drag points of a live Polygon (center, first vertex) and of
 // a live Line (its ends) edit the parameters the way the drawing drag sets them, the shape
 // regenerates from them, and both reopen from a PSD as live shapes.
@@ -3547,6 +3696,8 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_reopened_polygons_are_recognized_as_live", psd_reopened_polygons_are_recognized_as_live},
       {"live_shape_drag_points_edit_polygon_and_line_parameters",
        live_shape_drag_points_edit_polygon_and_line_parameters},
+      {"live_shape_rotation_keeps_what_its_parameters_can_say",
+       live_shape_rotation_keeps_what_its_parameters_can_say},
       {"psd_compound_group_writes_continuation_records_and_round_trips",
        psd_compound_group_writes_continuation_records_and_round_trips},
       {"psd_compound_group_fixture_matches_photoshop_flatten", psd_compound_group_fixture_matches_photoshop_flatten},

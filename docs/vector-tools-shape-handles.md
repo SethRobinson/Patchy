@@ -1,7 +1,8 @@
-# Vector tools: handles and drag points on the shape tools (GitHub #690)
+# Vector tools: handles and drag points on the shape tools (GitHub #690, #716)
 
 Split from [vector-tools.md](vector-tools.md). What a shape tool draws on the active shape so it can be edited
-without leaving the tool: the eight-handle box, and the two drag points of a live Polygon and Line. Legal rules:
+without leaving the tool: the eight-handle box (resize, and rotate from just outside a corner) in Shape, Path and
+Pixels modes, and the two drag points of a live Polygon and Line. Legal rules:
 [legal-constraints.md](legal-constraints.md#shape-drag-points); record:
 [patent-research-shape-handles.md](patent-research-shape-handles.md).
 
@@ -31,10 +32,11 @@ handles: `ShapeResizePhase` Preview / Commit / Cancel through
 every preview (`transform_path_component_target`, no history, the W / H fields
 following) and commits through `apply_path_component_geometry`, the W / H fields'
 own path: one "Shape size" undo step, and live shapes stay live. The box hides
-while a shape is dragged out, in Path and Pixels modes, with a mask targeted, for a
-hidden, locked or position-locked layer, with several layers selected, and whenever
-the shape's path outline is hidden (a dismissed path row, View > Show > Target Path,
-View > Extras).
+while a shape is dragged out, with a mask targeted, for a hidden, locked or
+position-locked layer, with several layers selected, and whenever the shape's path
+outline is hidden (a dismissed path row, View > Show > Target Path, View > Extras).
+In Path mode it rides a path instead ("The box in Path mode" below), in Pixels mode
+the pending shape ("A pending pixel shape").
 
 An uneven scale (a side handle, or one W / H field) would stretch a rounded
 rectangle's corner arcs into a curve its live parameters no longer generate.
@@ -50,6 +52,55 @@ handle edits a corner radius, a side count or a star inset; those stay in the
 options bar and the Properties panel
 ([Patents and trademarks](vector-tools.md#patents-and-trademarks-assessed-july-2026)).
 
+## The box in Path mode
+
+In Path mode (GitHub #716) the box shows on the components Path Select picked on the
+work path or on the active saved path (`shape_resize_document_path`), under every shape
+tool, with the hide cases of the Shape mode box. A shape tool's Path-mode drag leaves
+the component it drew picked (`add_subpaths_to_work_path`, shape tools only: the Pen's
+paths stay unpicked), so the box and the bar's Width / Height act on it at once. There
+are no drag points here: a polygon or a line path takes the box, and a box with no area
+(a hairline) shows none. The callback carries a `ShapeBoxEdit` (the layer or the path,
+the box before and now, or an angle). `MainWindow::handle_shape_box_edit` runs a path's
+drag through `run_path_handle_edit`, the layer bookkeeping with a copy of the
+`DocumentPath` (path and live parameters) from the press: previews without history, one
+"Shape size" step at the release through `apply_path_component_geometry`, Esc restores.
+Live shapes on the path stay live as on a layer. Ctrl stays the temporary Path Select.
+
+## Rotating from outside a corner
+
+In all three modes a press just outside a corner of the box turns the shape about the
+box's center (GitHub #716). The zone is the Move box's:
+`TransformHitZones::ResizeHandlesAndRotate` is the eight squares plus the
+EdgesAndCorners rotate band (`kCornerRotateReach`, 28.8 px from a corner, outside the
+box); further out a press still draws a new shape (or paints a pending one). The cursor
+is the corner rotate cursor of the Move box and Free Transform
+(`transform_rotate_cursor_at`). The drag is the pointer's turn about the center since the
+press, in steps of 15 degrees with Shift (Free Transform's step); the frame and squares
+draw turned while it lasts. Nothing else is drawn: no stem, arc, pivot mark or readout
+([legal](legal-constraints.md#shape-drag-points)).
+
+- **Shape and Path modes.** `rotate_path_component_target` turns the layer (whole: Free
+  Transform's rotate through `transform_layer_vector_data`, so gradients, patterns and a
+  vector mask turn too) or the picked components; one "Rotate" undo step
+  (`apply_path_component_rotation`), Esc cancels. After the release the box is the
+  turned shape's upright bounds again.
+- **Live shapes.** `rotate_live_shape_params` (core) keeps a shape live when its
+  parameters can say the turn: a line and a regular polygon at any angle, and a
+  rectangle (its corner radii go round), an ellipse or a stretched polygon at a multiple
+  of 90 degrees (`rotation_cos_sin` is exact there, so the box stays on whole pixels).
+  The component is regenerated from the turned parameters. Any other turn leaves a plain
+  path of the same points and drops the annotation (Photoshop's keyShapeInvalidated):
+  Radius and the Properties rows stop editing it, the box, the point tools and Shape
+  Appearance still do.
+- **Pixels mode.** The pending shape keeps the angle (`PendingPixelShape::angle`) and its
+  box stays on the turned shape, so the handles then resize it along its own sides (the
+  pointer is turned back about the box's center, the opposite side stays where it is on
+  the canvas) and a press inside the turned box moves it. `pending_pixel_shape_path`
+  turns the finished path; a turned shape is painted from that path by
+  `draw_shape_path_pixels`, the shape layer's renderer, which is also the preview's. An
+  upright shape keeps its painters and bytes.
+
 ## A pending pixel shape
 
 A shape drawn in Pixels mode that is not painted yet ([tools.md](tools.md#pending-pixel-shapes),
@@ -63,8 +114,8 @@ next. The move is a whole-shape drag: the pointer's travel on whole pixels throu
 `snap_whole_shape_drag` with the box as the one source rect, so both edges and the center of the
 box are the snap sources on each axis and the Move tool's alignment guide shows
 ([legal](legal-constraints.md#shape-drag-points): never a source chosen from where the box was
-grabbed). The guides clear at the release and on Esc. Esc mid-drag puts the box back; a second
-Esc drops the shape.
+grabbed; a turned shape's source rect is its upright bounds). The guides clear at the release and
+on Esc. Esc mid-drag puts the box and its angle back; a second Esc drops the shape.
 
 ## Drag points on a live Polygon and Line
 
@@ -133,6 +184,11 @@ recognizes at any angle (`recognize_live_polygon`, GitHub #643); a re-aimed line
 writes its Line origination like one whose ends were typed into Shape Appearance.
 
 Tests: tests/ui/shape_resize_handles_tests.cpp (`ui_shape_tool_`) for the box and
-the points; `ui_shape_drag_snap_polygon_center_point_*` (tests/ui/alignment_tests.cpp)
+the points, `ui_shape_tool_path_mode_box_resizes_the_drawn_path` and
+`ui_shape_tool_rotate_band_turns_*` among them;
+`ui_pending_pixel_shape_turns_by_the_band_outside_a_corner` and
+`ui_pending_pixel_shape_turned_pixels_match_a_turned_shape_layer` for Pixels mode;
+`ui_shape_drag_snap_polygon_center_point_*` (tests/ui/alignment_tests.cpp)
 for the center point's snapping; `live_shape_drag_points_edit_polygon_and_line_parameters`
-(core) for the parameter helpers and the PSD round trip.
+and `live_shape_rotation_keeps_what_its_parameters_can_say` (core) for the parameter
+helpers and the PSD round trip.

@@ -276,13 +276,17 @@ struct CanvasWidget::PendingPixelShape {
   // The layer that was active when it was drawn: the commit paints that one, also when the
   // host changed the active layer first.
   std::optional<LayerId> layer_id;
-  QRectF box;                // document space, edge coordinates
+  QRectF box;                // document space, edge coordinates, before `angle` turns it
   double polygon_angle{0.0};  // the first vertex's direction from the center
+  // Degrees, clockwise, about the box's center: the rotate drag just outside a corner. A
+  // turned shape is painted from its turned path by the shape layer's renderer.
+  double angle{0.0};
   // The preview: the pixels a commit would paint, rendered again only when one of the inputs
   // below changes, never per repaint.
   struct Inputs {
     QRectF box;
     double polygon_angle{0.0};
+    double angle{0.0};
     ShapePixelStyle style;
     QRgb foreground{0};
     int brush_size{0};
@@ -2142,17 +2146,22 @@ std::optional<QRectF> CanvasWidget::pending_pixel_shape_box() const {
   return pending_pixel_shape_->box;
 }
 
+double CanvasWidget::pending_pixel_shape_angle() const noexcept {
+  return pending_pixel_shape_ != nullptr ? pending_pixel_shape_->angle : 0.0;
+}
+
 void CanvasWidget::set_pending_pixel_shape_changed_callback(std::function<void()> callback) {
   pending_pixel_shape_changed_callback_ = std::move(callback);
 }
 
-QRect CanvasWidget::pending_pixel_shape_widget_rect(QRectF box) const {
+QRect CanvasWidget::pending_pixel_shape_widget_rect(QRectF box, double angle_degrees) const {
   // The preview, a stroke outside the box, Soft's feather and the handle squares.
   const double reach = (std::max(static_cast<double>(brush_size_),
                                  shape_pixel_style_.line.has_value() ? shape_pixel_style_.line->width : 0.0) *
                         2.0) +
                        4.0;
-  const auto widget_rect = widget_rect_for_document_rect(box.adjusted(-reach, -reach, reach, reach));
+  const auto bounds = turned_rect_bounds(box, angle_degrees);
+  const auto widget_rect = widget_rect_for_document_rect(bounds.adjusted(-reach, -reach, reach, reach));
   return widget_rect.toAlignedRect().adjusted(-12, -12, 12, 12);
 }
 
@@ -2175,12 +2184,20 @@ void CanvasWidget::begin_pending_pixel_shape(CanvasTool tool, QRectF box, double
 }
 
 void CanvasWidget::set_pending_pixel_shape_box(QRectF box) {
-  if (pending_pixel_shape_ == nullptr || pending_pixel_shape_->box == box) {
+  if (pending_pixel_shape_ != nullptr) {
+    set_pending_pixel_shape_geometry(box, pending_pixel_shape_->angle);
+  }
+}
+
+void CanvasWidget::set_pending_pixel_shape_geometry(QRectF box, double angle_degrees) {
+  if (pending_pixel_shape_ == nullptr ||
+      (pending_pixel_shape_->box == box && pending_pixel_shape_->angle == angle_degrees)) {
     return;
   }
-  update(pending_pixel_shape_widget_rect(pending_pixel_shape_->box));
+  update(pending_pixel_shape_widget_rect(pending_pixel_shape_->box, pending_pixel_shape_->angle));
   pending_pixel_shape_->box = box;
-  update(pending_pixel_shape_widget_rect(box));
+  pending_pixel_shape_->angle = angle_degrees;
+  update(pending_pixel_shape_widget_rect(box, angle_degrees));
   if (pending_pixel_shape_changed_callback_) {
     pending_pixel_shape_changed_callback_();
   }
@@ -2191,7 +2208,21 @@ void CanvasWidget::set_pending_pixel_shape_size(QSize size) {
     return;
   }
   auto box = pending_pixel_shape_->box;
-  box.setSize(QSizeF(size));
+  const double angle = pending_pixel_shape_->angle;
+  if (angle == 0.0) {
+    box.setSize(QSizeF(size));
+  } else {
+    // A turned shape keeps its own top left corner where it is on the canvas: the new
+    // center lies half the new size from that corner, along the turned axes.
+    const auto turn = patchy::rotation_cos_sin(angle);
+    const auto turned = [&turn](QPointF offset) {
+      return QPointF((offset.x() * turn.cos) - (offset.y() * turn.sin),
+                     (offset.x() * turn.sin) + (offset.y() * turn.cos));
+    };
+    const auto corner = box.center() + turned(box.topLeft() - box.center());
+    const auto center = corner + turned(QPointF(size.width() / 2.0, size.height() / 2.0));
+    box = QRectF(center.x() - (size.width() / 2.0), center.y() - (size.height() / 2.0), size.width(), size.height());
+  }
   set_pending_pixel_shape_box(box);
 }
 
@@ -2213,6 +2244,13 @@ void CanvasWidget::cancel_pending_pixel_shape() {
 
 patchy::VectorPath CanvasWidget::pending_pixel_shape_path(const PendingPixelShape& shape) const {
   const auto& box = shape.box;
+  // The shape's angle turns the finished path about the center of what it was built from.
+  const auto turn = [&shape](patchy::VectorPath path, QPointF center) {
+    if (shape.angle != 0.0 && !path.empty()) {
+      patchy::transform_vector_path(path, patchy::rotation_matrix_about(center.x(), center.y(), shape.angle));
+    }
+    return path;
+  };
   switch (shape.tool) {
     case CanvasTool::Polygon: {
       // The polygon in the circle its drag drew; a box a handle stretched scales it.
@@ -2226,7 +2264,7 @@ patchy::VectorPath CanvasWidget::pending_pixel_shape_path(const PendingPixelShap
         const double center_y = box.center().y();
         patchy::transform_vector_path(path, {1.0, 0.0, 0.0, scale, 0.0, center_y - (center_y * scale)});
       }
-      return path;
+      return turn(std::move(path), box.center());
     }
     case CanvasTool::CustomShape: {
       if (custom_shape_path_ == nullptr || custom_shape_path_->empty()) {
@@ -2234,13 +2272,24 @@ patchy::VectorPath CanvasWidget::pending_pixel_shape_path(const PendingPixelShap
       }
       auto path = *custom_shape_path_;
       patchy::transform_vector_path(path, {box.width(), 0.0, 0.0, box.height(), box.x(), box.y()});
-      return path;
+      return turn(std::move(path), box.center());
     }
     default: {
       const QRect rect(static_cast<int>(std::lround(box.left())), static_cast<int>(std::lround(box.top())),
                        std::max(1, static_cast<int>(std::lround(box.width()))),
                        std::max(1, static_cast<int>(std::lround(box.height()))));
       const bool ellipse = shape.tool == CanvasTool::Ellipse;
+      // An upright rectangle or ellipse sits on whole pixels; a turned one keeps the box the
+      // drag left it, so a resize in its own frame does not jump by a rounding step.
+      if (shape.angle != 0.0) {
+        patchy::VectorPath path =
+            patchy::pixel_shape_path(patchy::Rect{0, 0, rect.width(), rect.height()},
+                                     ellipse ? patchy::ShapeKind::Ellipse : patchy::ShapeKind::Rectangle,
+                                     ellipse ? 0 : shape_corner_radius_);
+        const auto center = box.center();
+        patchy::translate_vector_path(path, center.x() - (rect.width() / 2.0), center.y() - (rect.height() / 2.0));
+        return turn(std::move(path), center);
+      }
       return patchy::pixel_shape_path(to_core_rect(rect),
                                       ellipse ? patchy::ShapeKind::Ellipse : patchy::ShapeKind::Rectangle,
                                       ellipse ? 0 : shape_corner_radius_);
@@ -2249,7 +2298,9 @@ patchy::VectorPath CanvasWidget::pending_pixel_shape_path(const PendingPixelShap
 }
 
 QRect CanvasWidget::paint_pending_pixel_shape(const PendingPixelShape& shape) {
-  if (shape.tool == CanvasTool::Rectangle || shape.tool == CanvasTool::Ellipse) {
+  // A turned shape is its turned path, painted by the shape layer's renderer like a polygon
+  // (the preview's own renderer, so the pixels are the ones shown).
+  if (shape.angle == 0.0 && (shape.tool == CanvasTool::Rectangle || shape.tool == CanvasTool::Ellipse)) {
     // The same calls a release makes, so the two classic styles keep their bytes and a mask,
   // a channel or Quick Mask is painted its own way.
     const auto& box = shape.box;
@@ -2277,7 +2328,7 @@ bool CanvasWidget::commit_pending_pixel_shape() {
     shape_resize_drag_.reset();
     clear_move_snap_guides();
   }
-  const auto preview_rect = pending_pixel_shape_widget_rect(shape->box);
+  const auto preview_rect = pending_pixel_shape_widget_rect(shape->box, shape->angle);
   if (pending_pixel_shape_changed_callback_) {
     pending_pixel_shape_changed_callback_();
   }
@@ -2318,7 +2369,8 @@ bool CanvasWidget::commit_pending_pixel_shape() {
   QRect document_dirty = dirty;
   if (document_ != nullptr) {
     const QRect canvas(0, 0, document_->width(), document_->height());
-    const auto preview_document = shape->box.toAlignedRect().adjusted(-2, -2, 2, 2).intersected(canvas);
+    const auto preview_document =
+        turned_rect_bounds(shape->box, shape->angle).toAlignedRect().adjusted(-2, -2, 2, 2).intersected(canvas);
     document_dirty = dirty.isEmpty() ? preview_document : dirty.united(preview_document);
   }
   active_edit_target_changed_impl(QRegion(document_dirty));
@@ -2334,6 +2386,7 @@ void CanvasWidget::refresh_pending_pixel_shape_preview(PendingPixelShape& shape)
   PendingPixelShape::Inputs inputs;
   inputs.box = shape.box;
   inputs.polygon_angle = shape.polygon_angle;
+  inputs.angle = shape.angle;
   inputs.style = shape_pixel_style_;
   inputs.foreground = primary_color_.rgba();
   inputs.brush_size = brush_size_;

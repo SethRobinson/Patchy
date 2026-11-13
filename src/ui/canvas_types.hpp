@@ -4,6 +4,7 @@
 // Persisted enum values are append-only. CanvasWidget keeps aliases for callers.
 #include "core/layer.hpp"
 #include "core/document_channel.hpp"
+#include "core/document_path.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 
@@ -11,6 +12,7 @@
 #include <QImage>
 #include <QPoint>
 #include <QRect>
+#include <QRectF>
 #include <QRegion>
 #include <QString>
 
@@ -187,6 +189,18 @@ enum class ShapeResizePhase {
   Preview,
   Commit,
   Cancel
+};
+
+// What that drag does (GitHub issues 690 and 716): the box went from `from` to `to`, or was
+// turned about its center. The box is a shape layer's, or in Path mode that of the picked
+// components of a work or saved path.
+struct ShapeBoxEdit {
+  std::optional<LayerId> layer_id;                      // a shape layer's box, or
+  std::optional<patchy::DocumentPathId> document_path;  // a work or saved path's (Path mode)
+  QRectF from;                                          // the box at the press
+  QRectF to;                                            // the box now (a resize)
+  bool rotate{false};                                   // a turn about from.center() instead
+  double angle_degrees{0.0};                            // clockwise
 };
 
 // Action that can be bound to a pen barrel/side button. These are the actions

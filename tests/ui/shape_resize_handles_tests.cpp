@@ -18,6 +18,9 @@
 #include <QCursor>
 #include <QDoubleSpinBox>
 #include <QEvent>
+#include <QImage>
+#include <QPainter>
+#include <QPixmap>
 #include <QPoint>
 #include <QPointF>
 #include <QPushButton>
@@ -28,6 +31,7 @@
 #include <cmath>
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -66,6 +70,74 @@ std::optional<patchy::LiveShapeParams> live_shape(const patchy::Document& docume
     return std::nullopt;
   }
   return patchy::resolve_live_shape_group(shape->path, shape->origination, shape->path.subpaths.front().shape_group);
+}
+
+// The work path's bounds, as a rect.
+std::optional<QRectF> work_path_bounds(const patchy::Document& document) {
+  const auto* work = document.work_path();
+  const auto bounds = work != nullptr ? work->path().bounds() : std::nullopt;
+  if (!bounds.has_value()) {
+    return std::nullopt;
+  }
+  return QRectF(QPointF(bounds->left, bounds->top), QPointF(bounds->right, bounds->bottom));
+}
+
+// Whether the work path's last component is still what its live parameters generate.
+std::optional<patchy::LiveShapeParams> work_path_live_shape(const patchy::Document& document) {
+  const auto* work = document.work_path();
+  if (work == nullptr || work->path().subpaths.empty()) {
+    return std::nullopt;
+  }
+  return patchy::resolve_live_shape_group(work->path(), work->live_shapes(),
+                                          work->path().subpaths.back().shape_group);
+}
+
+void use_vector_mode(patchy::ui::MainWindow& window, int index) {
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode != nullptr);
+  if (mode != nullptr) {
+    mode->setCurrentIndex(index);  // 0 Shape, 1 Path, 2 Pixels
+  }
+  QApplication::processEvents();
+}
+
+// A window shot with the canvas's current cursor painted where the pointer is: a grab shows
+// no pointer, and these shots are about the rotate cursor.
+void save_window_shot_with_cursor(const std::string& name, QWidget& window, patchy::ui::CanvasWidget& canvas,
+                                  QPoint canvas_point) {
+  auto image = capture_widget_artifact(name, window);
+  const auto cursor = canvas.cursor();
+  const auto pixmap = cursor.pixmap();
+  if (image.isNull() || pixmap.isNull()) {
+    return;
+  }
+  QPainter painter(&image);
+  painter.drawPixmap(canvas.mapTo(&window, canvas_point) - cursor.hotSpot(), pixmap);
+  painter.end();
+  save_image_artifact(name, image);
+}
+
+// Where a rotate drag of `box` presses (10 px outside its bottom right corner, in the
+// rotate band) and where the pointer is after a turn of `degrees` about the box's center.
+struct RotateDrag {
+  QPoint press;
+  QPoint target;
+};
+RotateDrag rotate_drag_points(patchy::ui::CanvasWidget& canvas, QRectF box, double degrees) {
+  const QPointF center(canvas.widget_position_for_document_point(box.center().toPoint()));
+  const QPointF press(canvas.widget_position_for_document_point(box.bottomRight().toPoint()) + QPoint(10, 10));
+  const double radians = degrees * 3.14159265358979323846 / 180.0;
+  const auto arm = press - center;
+  const QPointF target(center.x() + (arm.x() * std::cos(radians)) - (arm.y() * std::sin(radians)),
+                       center.y() + (arm.x() * std::sin(radians)) + (arm.y() * std::cos(radians)));
+  return {press.toPoint(), target.toPoint()};
+}
+
+// A whole rotate drag with Shift held, so the turn is exactly `degrees` (a multiple of 15).
+void rotate_drag(patchy::ui::CanvasWidget& canvas, QRectF box, double degrees) {
+  const auto points = rotate_drag_points(canvas, box, degrees);
+  drag(canvas, points.press, points.target, Qt::ShiftModifier);
+  QApplication::processEvents();
 }
 
 // The Rectangle tool in Shape mode on a quiet canvas: no snapping, square corners.
@@ -985,6 +1057,336 @@ void ui_shape_tool_points_show_only_for_a_live_regular_polygon_or_line() {
   }
 }
 
+// GitHub issue 716: in Path mode the component a shape tool just drew (or the one Path Select
+// picked) carries the same eight-handle box. A handle resizes the work path as one undo step
+// and a live rectangle stays live; Shift, Alt and Esc work as in Shape mode; a drag away from
+// the box draws the next component.
+void ui_shape_tool_path_mode_box_resizes_the_drawn_path() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1500, 820);  // the bar on one row, for the issue shots
+  auto& document = MainWindowTestAccess::document(window);
+  const auto initial_layers = document.layers().size();
+  const auto widget = [&canvas](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+
+  use_rectangle_tool(window, *canvas);
+  use_vector_mode(window, 1);
+  CHECK(!canvas->shape_resize_box_rect().has_value());
+  shape_drag(*canvas, QPoint(120, 140), QPoint(320, 260));
+  CHECK(document.layers().size() == initial_layers);  // a path, no layer
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 200.0, 120.0)));
+  // The drawn component is picked and shows its box at once.
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(120.0, 140.0, 200.0, 120.0)));
+  CHECK(canvas->shape_resize_box_angle() == 0.0);
+  save_widget_artifact("issue_716_path_mode_box", window);
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Over the corner handle the cursor is the corner's resize cursor.
+  send_mouse(*canvas, QEvent::MouseMove, widget(320, 260), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+
+  // The corner handle resizes the path; nothing reaches history before the release.
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget(320, 260), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget(380, 300), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 260.0, 160.0)));
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(120.0, 140.0, 260.0, 160.0)));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget(380, 300), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 260.0, 160.0)));
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(120.0, 140.0, 260.0, 160.0)));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(document.layers().size() == initial_layers);
+  // Still a live rectangle, at the new size.
+  auto live = work_path_live_shape(document);
+  CHECK(live.has_value() && live->kind == patchy::LiveShapeKind::Rectangle);
+  if (live.has_value()) {
+    CHECK(std::abs(live->right - 380.0) < 0.5 && std::abs(live->bottom - 300.0) < 0.5);
+  }
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 200.0, 120.0)));
+  require_action_by_text(window, QStringLiteral("Redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 260.0, 160.0)));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(120.0, 140.0, 200.0, 120.0)));
+
+  // Alt resizes about the center.
+  shape_drag(*canvas, QPoint(320, 200), QPoint(350, 200), Qt::AltModifier);
+  CHECK(rect_near(work_path_bounds(document), QRectF(90.0, 140.0, 260.0, 120.0)));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  // Shift on a corner keeps the proportions.
+  shape_drag(*canvas, QPoint(320, 260), QPoint(420, 280), Qt::ShiftModifier);
+  auto bounds = work_path_bounds(document);
+  CHECK(bounds.has_value() && bounds->width() > 250.0 &&
+        std::abs(bounds->width() / bounds->height() - 200.0 / 120.0) < 0.01);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 200.0, 120.0)));
+
+  // Esc mid-drag puts the path back and leaves no history step.
+  const auto depth_before_escape = MainWindowTestAccess::active_session_undo_depth(window);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget(320, 260), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget(400, 330), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 280.0, 190.0)));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 200.0, 120.0)));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget(400, 330), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 200.0, 120.0)));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before_escape);
+  CHECK(work_path_live_shape(document).has_value());
+
+  // A drag away from the box draws the next component, which takes the box; the first stays.
+  shape_drag(*canvas, QPoint(400, 320), QPoint(460, 360));
+  const auto* work = std::as_const(document).work_path();
+  CHECK(work != nullptr && work->path().subpaths.size() == 2);
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(400.0, 320.0, 60.0, 40.0)));
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 340.0, 220.0)));
+  // Its handle resizes that component alone.
+  shape_drag(*canvas, QPoint(460, 360), QPoint(480, 380));
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(400.0, 320.0, 80.0, 60.0)));
+  CHECK(rect_near(work_path_bounds(document), QRectF(120.0, 140.0, 360.0, 240.0)));
+
+  // The box belongs to Path mode: Shape mode (no shape layer here) shows none, and neither
+  // does another tool.
+  use_vector_mode(window, 0);
+  CHECK(!canvas->shape_resize_box_rect().has_value());
+  use_vector_mode(window, 1);
+  CHECK(canvas->shape_resize_box_rect().has_value());
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->shape_resize_box_rect().has_value());
+}
+
+// GitHub issue 716: a press just outside a corner of the box turns the shape about the box's
+// center, with the Move box's corner rotate cursor. In Shape mode that is one "Rotate" undo
+// step; Shift turns in steps of 15 degrees; Esc cancels. A rectangle stays a live rectangle
+// through a quarter turn and becomes a plain path at any other angle. A press further out
+// still draws a new shape.
+void ui_shape_tool_rotate_band_turns_a_shape_layer() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1500, 820);  // the bar on one row, for the issue shots
+  auto& document = MainWindowTestAccess::document(window);
+  const auto initial_layers = document.layers().size();
+
+  use_rectangle_tool(window, *canvas);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(400, 300));
+  const auto layer_id = *document.active_layer_id();
+  const QRectF box(200.0, 200.0, 200.0, 100.0);
+  CHECK(rect_near(canvas->shape_resize_box_rect(), box));
+  CHECK(live_shape(document, layer_id).has_value());
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+
+  // The cursor: the tool's own away from the box, the rotate cursor in the band outside a
+  // corner, a resize cursor on the handle itself.
+  const auto corner = canvas->widget_position_for_document_point(QPoint(400, 300));
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(120, 90), Qt::NoButton, Qt::NoButton);
+  const auto idle_cursor = canvas->cursor();
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(10, 10), Qt::NoButton, Qt::NoButton);
+  const auto rotate_cursor = canvas->cursor();
+  CHECK(rotate_cursor.shape() == Qt::BitmapCursor);
+  CHECK(idle_cursor.shape() != Qt::BitmapCursor || idle_cursor.pixmap().cacheKey() != rotate_cursor.pixmap().cacheKey());
+  send_mouse(*canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  // Each corner has its band; along an edge, away from the corners, there is none.
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(200, 200)) - QPoint(10, 10),
+             Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(300, 300)) + QPoint(0, 10),
+             Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == idle_cursor.shape());
+
+  // A quarter turn, mid-drag: the shape and the box follow, nothing is in history yet.
+  auto points = rotate_drag_points(*canvas, box, 90.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, points.press, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, points.target, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->shape_resize_box_angle() == 90.0);
+  CHECK(rect_near(canvas->shape_resize_box_rect(), box));  // the box at the press, drawn turned
+  CHECK(rect_near(shape_bounds(document, layer_id), QRectF(250.0, 150.0, 100.0, 200.0)));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, points.target, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == initial_layers + 1);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(rect_near(shape_bounds(document, layer_id), QRectF(250.0, 150.0, 100.0, 200.0)));
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(250.0, 150.0, 100.0, 200.0)));
+  CHECK(canvas->shape_resize_box_angle() == 0.0);
+  // A quarter turn keeps the live rectangle: the box turned, on whole pixels.
+  auto live = live_shape(document, layer_id);
+  CHECK(live.has_value() && live->kind == patchy::LiveShapeKind::Rectangle);
+  if (live.has_value()) {
+    CHECK(live->left == 250.0 && live->top == 150.0 && live->right == 350.0 && live->bottom == 350.0);
+  }
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 170)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(220, 250)), Qt::white, 8));
+  // One undo puts the drawn rectangle back.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(shape_bounds(document, layer_id), box));
+  CHECK(live_shape(document, layer_id).has_value());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+
+  // 30 degrees: a plain path of the same four points, turned about the center; one step.
+  points = rotate_drag_points(*canvas, box, 30.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, points.press, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, points.target, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->shape_resize_box_angle() == 30.0);
+  save_window_shot_with_cursor("issue_716_rotate_shape_mid_drag", window, *canvas, points.target);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, points.target, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(!live_shape(document, layer_id).has_value());
+  const double turned_width = (200.0 * std::cos(3.14159265358979323846 / 6.0)) + (100.0 * 0.5);
+  const double turned_height = (200.0 * 0.5) + (100.0 * std::cos(3.14159265358979323846 / 6.0));
+  const QRectF turned_box(300.0 - (turned_width / 2.0), 250.0 - (turned_height / 2.0), turned_width, turned_height);
+  CHECK(rect_near(shape_bounds(document, layer_id), turned_box));
+  CHECK(rect_near(canvas->shape_resize_box_rect(), turned_box));
+  {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    const auto* content = layer != nullptr ? layer->vector_shape() : nullptr;
+    CHECK(content != nullptr && content->path.subpaths.size() == 1 && content->path.subpaths[0].anchors.size() == 4);
+    CHECK(content != nullptr && content->origination.empty());
+  }
+  // The shape's center is painted, its old top left corner is not.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 250)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(204, 204)), Qt::white, 8));
+  save_widget_artifact("issue_716_rotated_shape_layer", window);
+  // A second turn works on the turned shape: 60 more degrees stand it upright (a plain path).
+  rotate_drag(*canvas, turned_box, 60.0);
+  CHECK(rect_near(shape_bounds(document, layer_id), QRectF(250.0, 150.0, 100.0, 200.0), 1.0));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(shape_bounds(document, layer_id), box));
+  CHECK(live_shape(document, layer_id).has_value());
+
+  // Without Shift the turn is free.
+  points = rotate_drag_points(*canvas, box, 20.0);
+  drag(*canvas, points.press, points.target);
+  QApplication::processEvents();
+  CHECK(!live_shape(document, layer_id).has_value());
+  auto bounds = shape_bounds(document, layer_id);
+  CHECK(bounds.has_value() && bounds->width() > 215.0 && bounds->width() < 228.0);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+
+  // Esc mid-turn puts the shape back and leaves no history step.
+  points = rotate_drag_points(*canvas, box, 45.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, points.press, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, points.target, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!rect_near(shape_bounds(document, layer_id), box));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(rect_near(shape_bounds(document, layer_id), box));
+  CHECK(canvas->shape_resize_box_angle() == 0.0);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, points.target, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(rect_near(shape_bounds(document, layer_id), box));
+  CHECK(live_shape(document, layer_id).has_value());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  // A click in the band with no travel changes nothing and draws nothing.
+  send_mouse(*canvas, QEvent::MouseButtonPress, points.press, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, points.press, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == initial_layers + 1);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+
+  // Further out than the band a press still draws a new shape.
+  drag(*canvas, corner + QPoint(60, 60), corner + QPoint(120, 110));
+  QApplication::processEvents();
+  CHECK(document.layers().size() == initial_layers + 2);
+  CHECK(rect_near(shape_bounds(document, layer_id), box));
+}
+
+// GitHub issue 716: the same rotate in Path mode turns the picked component of the work path
+// as one undo step, and an ellipse rounds a quarter turn as a live ellipse.
+void ui_shape_tool_rotate_band_turns_a_path_in_path_mode() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1500, 820);  // the bar on one row, for the issue shots
+  auto& document = MainWindowTestAccess::document(window);
+  const auto initial_layers = document.layers().size();
+
+  require_action(window, "toolEllipseAction")->trigger();
+  QApplication::processEvents();
+  canvas->setFocus(Qt::MouseFocusReason);
+  canvas->set_snap_enabled(false);
+  use_vector_mode(window, 1);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(400, 300));
+  const QRectF box(200.0, 200.0, 200.0, 100.0);
+  CHECK(rect_near(canvas->shape_resize_box_rect(), box));
+  auto live = work_path_live_shape(document);
+  CHECK(live.has_value() && live->kind == patchy::LiveShapeKind::Ellipse);
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(400, 300)) + QPoint(10, 10),
+             Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+
+  // A quarter turn: still a live ellipse, its box turned.
+  rotate_drag(*canvas, box, 90.0);
+  CHECK(document.layers().size() == initial_layers);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(rect_near(work_path_bounds(document), QRectF(250.0, 150.0, 100.0, 200.0)));
+  CHECK(rect_near(canvas->shape_resize_box_rect(), QRectF(250.0, 150.0, 100.0, 200.0)));
+  live = work_path_live_shape(document);
+  CHECK(live.has_value() && live->kind == patchy::LiveShapeKind::Ellipse);
+  if (live.has_value()) {
+    CHECK(live->left == 250.0 && live->bottom == 350.0);
+  }
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), box));
+
+  // 45 degrees: a plain path; the turned ellipse is as wide as it is tall.
+  rotate_drag(*canvas, box, 45.0);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(!work_path_live_shape(document).has_value());
+  const auto* work = std::as_const(document).work_path();
+  CHECK(work != nullptr && work->path().subpaths.size() == 1 && work->live_shapes().empty());
+  const auto turned = canvas->shape_resize_box_rect();
+  CHECK(turned.has_value());
+  if (turned.has_value()) {
+    CHECK(std::abs(turned->width() - turned->height()) < 0.01);
+    CHECK(std::abs(turned->center().x() - 300.0) < 0.01 && std::abs(turned->center().y() - 250.0) < 0.01);
+  }
+  save_widget_artifact("issue_716_rotated_path", window);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), box));
+  CHECK(work_path_live_shape(document).has_value());
+
+  // Esc mid-turn puts the path back.
+  const auto points = rotate_drag_points(*canvas, box, 60.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, points.press, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, points.target, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!rect_near(work_path_bounds(document), box));
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  save_window_shot_with_cursor("issue_716_rotate_path_mid_drag", window, *canvas, points.target);
+  send_key(*canvas, Qt::Key_Escape);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, points.target, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(rect_near(work_path_bounds(document), box));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> shape_resize_handles_tests() {
@@ -1005,5 +1407,8 @@ std::vector<patchy::test::TestCase> shape_resize_handles_tests() {
       {"ui_shape_tool_line_end_points_re_aim_a_live_line", ui_shape_tool_line_end_points_re_aim_a_live_line},
       {"ui_shape_tool_points_show_only_for_a_live_regular_polygon_or_line",
        ui_shape_tool_points_show_only_for_a_live_regular_polygon_or_line},
+      {"ui_shape_tool_path_mode_box_resizes_the_drawn_path", ui_shape_tool_path_mode_box_resizes_the_drawn_path},
+      {"ui_shape_tool_rotate_band_turns_a_shape_layer", ui_shape_tool_rotate_band_turns_a_shape_layer},
+      {"ui_shape_tool_rotate_band_turns_a_path_in_path_mode", ui_shape_tool_rotate_band_turns_a_path_in_path_mode},
   };
 }

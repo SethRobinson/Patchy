@@ -2369,11 +2369,19 @@ private:
   // a shape layer's repaint (what an earlier preview covered).
   bool transform_path_component_target(const PathComponentTarget& target, double scale_x, double scale_y,
                                        double translate_x, double translate_y, QRect also_changed = {});
-  // A shape tool's resize-handle drag (GitHub issue 690): the box of the active shape
-  // layer went from `from` to `to`. Preview scales the shape without history, Commit lands
-  // it as one "Shape size" step (the scale the W / H fields apply), Cancel restores it.
-  void handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to, ShapeResizePhase phase,
-                                std::uint64_t serial);
+  // Turns the target's components by `degrees` (clockwise) about the pivot; one "Rotate"
+  // undo step. A component whose live parameters can say the turn stays live
+  // (rotate_live_shape_params); any other becomes a plain path.
+  bool apply_path_component_rotation(const PathComponentTarget& target, double pivot_x, double pivot_y,
+                                     double degrees);
+  // The same turn without history or panel refreshes (a live preview).
+  bool rotate_path_component_target(const PathComponentTarget& target, double pivot_x, double pivot_y,
+                                    double degrees, QRect also_changed = {});
+  // A shape tool's box drag (GitHub issues 690 and 716): the box of the active shape layer,
+  // or in Path mode of the picked components of a work or saved path, went from `from` to
+  // `to`, or was turned about its center. Preview changes the shape without history, Commit
+  // lands it as one "Shape size" or "Rotate" step, Cancel restores it.
+  void handle_shape_box_edit(const ShapeBoxEdit& edit, ShapeResizePhase phase, std::uint64_t serial);
   // A drag of one of a live Polygon's or Line's two points (GitHub issue 690 follow-up):
   // `to` holds the component's parameters now. Preview regenerates the component from them
   // without history, Commit lands it as one "Edit shape" step, Cancel restores the layer.
@@ -2386,6 +2394,9 @@ private:
   void run_shape_handle_edit(LayerId layer_id, ShapeResizePhase phase, std::uint64_t serial, bool editable,
                              const std::function<void(QRect covered)>& preview,
                              const std::function<void()>& commit);
+  // The same bookkeeping for a work or saved path (Path mode): the path as it was at the press.
+  void run_path_handle_edit(DocumentPathId path_id, ShapeResizePhase phase, std::uint64_t serial, bool editable,
+                            const std::function<void()>& preview, const std::function<void()>& commit);
   // Regenerates one live component of a shape layer from `params` (no history, no panel
   // refresh). False when the layer has no live component of that kind and index.
   bool replace_shape_layer_live_component(LayerId layer_id, const patchy::LiveShapeParams& params,
@@ -4797,6 +4808,14 @@ private:
     Layer original;
   };
   std::optional<ShapeResizePreview> shape_resize_preview_;
+  // The work or saved path as it was before a live box drag in Path mode (GitHub issue 716).
+  struct ShapePathPreview {
+    std::int64_t session_id{0};
+    DocumentPathId path_id{0};
+    std::uint64_t serial{0};
+    DocumentPath original;
+  };
+  std::optional<ShapePathPreview> shape_path_preview_;
   std::uint64_t gradient_fill_stop_color_serial_{0};
   std::string pending_shape_appearance_property_;
   UnitSpinBox* vector_shape_width_spin_{nullptr};

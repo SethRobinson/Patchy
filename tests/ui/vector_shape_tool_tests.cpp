@@ -1250,14 +1250,16 @@ void ui_custom_shape_shift_and_link_keep_proportions() {
         edge_near(bounds->bottom - bounds->top, 100.0));
 
   // Alt draws from the center (the from-center rect is an inclusive pixel rect shared with
-  // Rectangle and Ellipse, so its far edges may land one pixel in).
+  // Rectangle and Ellipse, so its far edges may land one pixel in). The press is clear of
+  // the active layer's box (it ends at 480, 400): within 28.8 px of that corner a drag
+  // turns the shape instead (GitHub issue 716).
   select_shape("shape.builtin.heart");
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(500, 400)),
-       canvas->widget_position_for_document_point(QPoint(540, 420)), Qt::AltModifier);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(540, 440)),
+       canvas->widget_position_for_document_point(QPoint(580, 460)), Qt::AltModifier);
   QApplication::processEvents();
   bounds = last_shape_bounds();
-  CHECK(bounds.has_value() && edge_near(bounds->left, 460.0) && edge_near(bounds->top, 380.0) &&
-        bounds->right > 538.5 && bounds->right < 540.5 && bounds->bottom > 418.5 && bounds->bottom < 420.5);
+  CHECK(bounds.has_value() && edge_near(bounds->left, 500.0) && edge_near(bounds->top, 420.0) &&
+        bounds->right > 578.5 && bounds->right < 580.5 && bounds->bottom > 458.5 && bounds->bottom < 460.5);
 
   // The link on: a plain drag keeps the proportions too, and a new layer is made.
   const auto layers_before = document.layers().size();
@@ -4821,6 +4823,12 @@ void ui_path_mode_drag_previews_path_outline_only() {
              Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   save_widget_artifact("ui_path_mode_drag_committed_rectangle", window);
+  // The drawn component is picked and carries the shape tools' box (GitHub issue 716); the
+  // outline comparison below is of the path alone.
+  CHECK(canvas->shape_resize_box_rect().has_value());
+  canvas->clear_path_anchor_selection();
+  QApplication::processEvents();
+  CHECK(!canvas->shape_resize_box_rect().has_value());
 
   // The committed work path's outline lands where the preview drew it. The
   // top half only: the drag size readout sits over the bottom edge.
@@ -8765,6 +8773,36 @@ void pick_paint_menu_entry(patchy::ui::MainWindow& window, bool for_stroke, cons
   CHECK(picked);
 }
 
+// Opens a paint swatch's menu and returns its entries' object names in menu order; `shot`
+// names an issue shot of the open menu.
+QStringList paint_menu_entry_names(patchy::ui::MainWindow& window, bool for_stroke, const char* shot = nullptr) {
+  QStringList names;
+  auto* button = window.findChild<QToolButton*>(for_stroke ? QStringLiteral("vectorStrokeSwatchButton")
+                                                           : QStringLiteral("vectorFillSwatchButton"));
+  CHECK(button != nullptr);
+  if (button == nullptr) {
+    return names;
+  }
+  QTimer::singleShot(0, guarded([&] {
+    auto* menu = window.findChild<QMenu*>(for_stroke ? QStringLiteral("vectorStrokePaintMenu")
+                                                     : QStringLiteral("vectorFillPaintMenu"));
+    CHECK(menu != nullptr);
+    if (menu == nullptr) {
+      return;
+    }
+    for (const auto* action : menu->actions()) {
+      names.push_back(action->objectName());
+    }
+    if (shot != nullptr) {
+      save_window_popup_artifact(shot, window, *button, *menu);
+    }
+    menu->close();
+  }));
+  button->click();
+  QApplication::processEvents();
+  return names;
+}
+
 patchy::VectorShapeContent shape_content_of(const patchy::Document& document, patchy::LayerId id) {
   const auto* layer = document.find_layer(id);
   CHECK(layer != nullptr && layer->vector_shape() != nullptr);
@@ -9661,6 +9699,38 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   clear_shape_keys();
 }
 
+// The Fill swatch's menu starts with No Fill, then Foreground Color and the paints (Seth,
+// November 13, 2026); the Stroke menu has no "none" entry and starts with Foreground Color.
+// Shape and Pixels modes show the same menus.
+void ui_shape_fill_menu_leads_with_no_fill() {
+  const QStringList fill_order{QStringLiteral("vectorFillNoneAction"), QStringLiteral("vectorFillForegroundAction"),
+                               QStringLiteral("vectorFillSolidAction"), QStringLiteral("vectorFillGradientAction"),
+                               QStringLiteral("vectorFillPatternAction")};
+  const QStringList stroke_order{QStringLiteral("vectorStrokeForegroundAction"),
+                                 QStringLiteral("vectorStrokeSolidAction"),
+                                 QStringLiteral("vectorStrokeGradientAction"),
+                                 QStringLiteral("vectorStrokePatternAction")};
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
+    VectorSettingsGuard settings_guard;
+    const auto restorers = clear_shared_shape_row_settings();
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action(window, "toolRectAction")->trigger();
+    QApplication::processEvents();
+    CHECK(paint_menu_entry_names(window, false, light ? "issue_716_fill_menu_light" : "issue_716_fill_menu_dark") ==
+          fill_order);
+    CHECK(paint_menu_entry_names(window, true) == stroke_order);
+    select_pixels_mode(window, "toolRectAction");
+    CHECK(paint_menu_entry_names(window, false) == fill_order);
+    CHECK(paint_menu_entry_names(window, true) == stroke_order);
+    // No Fill still works from the top of the menu.
+    pick_paint_menu_entry(window, false, "vectorFillNoneAction");
+    CHECK(patchy::ui::MainWindowTestAccess::current_shape_appearance(window).fill.kind ==
+          patchy::VectorFillKind::None);
+  }
+}
+
 // --- GitHub issue 716: pending pixel shapes ------------------------------------------------
 
 namespace {
@@ -9686,6 +9756,41 @@ void raw_shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoi
   drag(canvas, canvas.widget_position_for_document_point(document_from),
        canvas.widget_position_for_document_point(document_to));
   QApplication::processEvents();
+}
+
+// A window shot with the canvas's current cursor painted where the pointer is: a grab shows
+// no pointer, and these shots are about the rotate cursor.
+void save_window_shot_with_cursor(const std::string& name, QWidget& window, patchy::ui::CanvasWidget& canvas,
+                                  QPoint canvas_point) {
+  auto image = capture_widget_artifact(name, window);
+  const auto cursor = canvas.cursor();
+  const auto pixmap = cursor.pixmap();
+  if (image.isNull() || pixmap.isNull()) {
+    return;
+  }
+  QPainter painter(&image);
+  painter.drawPixmap(canvas.mapTo(&window, canvas_point) - cursor.hotSpot(), pixmap);
+  painter.end();
+  save_image_artifact(name, image);
+}
+
+// Where a rotate drag of `box` presses (10 px outside its bottom right corner as the box is
+// turned by `angle` now) and where the pointer is after `degrees` more about its center.
+struct BoxTurnDrag {
+  QPoint press;
+  QPoint target;
+};
+BoxTurnDrag box_turn_drag(patchy::ui::CanvasWidget& canvas, QRectF box, double angle, double degrees) {
+  const auto turned = [](QPointF offset, double by) {
+    const double radians = by * 3.14159265358979323846 / 180.0;
+    return QPointF((offset.x() * std::cos(radians)) - (offset.y() * std::sin(radians)),
+                   (offset.x() * std::sin(radians)) + (offset.y() * std::cos(radians)));
+  };
+  const QPointF center(canvas.widget_position_for_document_point(box.center().toPoint()));
+  const QPointF corner(canvas.widget_position_for_document_point(box.bottomRight().toPoint()));
+  const QPointF press = center + turned((corner - center) + QPointF(10.0, 10.0), angle);
+  const QPointF target = center + turned(press - center, degrees);
+  return {press.toPoint(), target.toPoint()};
 }
 
 }  // namespace
@@ -9813,6 +9918,238 @@ void ui_pending_pixel_shape_is_edited_from_the_bar_and_committed() {
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
   CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(200, 160)) == 0);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 150)), Qt::white, 12));
+}
+
+// A pending pixel shape turns by a drag that starts just outside a corner of its box (the
+// rotate cursor shows there): about the box's center, in steps of 15 degrees with Shift, with
+// no history entry, and Esc mid-drag puts the angle back. Its box and handles stay on the
+// turned shape, so a handle then resizes it along its own sides and a press inside moves it.
+// Enter paints the turned shape as one undo step.
+void ui_pending_pixel_shape_turns_by_the_band_outside_a_corner() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  const QColor red(0xdc, 0x1e, 0x1e);
+  store_own_shape_paints(red, QColor(0x1e, 0x3c, 0xdc), 6.0, false);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  window.resize(1500, 820);
+  select_pixels_mode(window, "toolRectAction");
+  canvas->set_snap_enabled(false);
+  auto* radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* size_width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));
+  auto* size_height = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedHeightSpin"));
+  CHECK(radius != nullptr && size_width != nullptr && size_height != nullptr);
+  if (radius == nullptr || size_width == nullptr || size_height == nullptr) {
+    return;
+  }
+  radius->setValue(0);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  QApplication::processEvents();
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto box = [&] { return canvas->pending_pixel_shape_box().value_or(QRectF()); };
+  const auto at = [&](QPoint document_point) { return canvas->widget_position_for_document_point(document_point); };
+  const auto near_rect = [](QRectF have, QRectF want) {
+    return std::abs(have.left() - want.left()) <= 1.01 && std::abs(have.top() - want.top()) <= 1.01 &&
+           std::abs(have.right() - want.right()) <= 1.01 && std::abs(have.bottom() - want.bottom()) <= 1.01;
+  };
+
+  raw_shape_drag(*canvas, QPoint(100, 100), QPoint(299, 219));
+  const QRectF drawn(100.0, 100.0, 200.0, 120.0);
+  CHECK(box() == drawn);
+  CHECK(canvas->pending_pixel_shape_angle() == 0.0);
+
+  // Just outside a corner the cursor is the rotate cursor; on the handle, a resize cursor;
+  // well away from the box, the tool's own.
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(300, 220)) + QPoint(90, 80), Qt::NoButton, Qt::NoButton);
+  const auto idle_shape = canvas->cursor().shape();
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(300, 220)) + QPoint(10, 10), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(300, 220)), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  CHECK(idle_shape != Qt::SizeFDiagCursor);
+
+  // A quarter turn with Shift, read in the middle of the drag: the shape and its preview
+  // turn, the box keeps its size, and nothing is in the document.
+  auto turn = box_turn_drag(*canvas, drawn, 0.0, 90.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, turn.press, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, turn.target, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->pending_pixel_shape_angle() == 90.0);
+  CHECK(canvas->shape_resize_box_angle() == 90.0);
+  CHECK(box() == drawn);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  // The turned rectangle is 120 wide and 200 tall about (200, 160).
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 80)), red, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 160)), Qt::white, 12));
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, QPoint(200, 80)) == 0);
+  // Esc in the middle of the turn puts the angle back and keeps the shape.
+  send_key(*canvas, Qt::Key_Escape);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, turn.target, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->pending_pixel_shape_angle() == 0.0);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 160)), red, 12));
+
+  // The whole drag: the shape stays turned and pending, the size pair keeps its size.
+  drag(*canvas, turn.press, turn.target, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->pending_pixel_shape_angle() == 90.0);
+  CHECK(box() == drawn);
+  CHECK(size_width->value() == 200 && size_height->value() == 120);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  // A free turn of 30 more degrees, then Shift back onto the 15 degree steps.
+  turn = box_turn_drag(*canvas, drawn, 90.0, 30.0);
+  drag(*canvas, turn.press, turn.target);
+  QApplication::processEvents();
+  CHECK(std::abs(canvas->pending_pixel_shape_angle() - 120.0) < 2.0);
+  turn = box_turn_drag(*canvas, drawn, canvas->pending_pixel_shape_angle(), -30.0);
+  drag(*canvas, turn.press, turn.target, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->pending_pixel_shape_angle() == 90.0);
+  save_widget_artifact("issue_716_rotated_pending_shape", window);
+
+  // Its handles sit on the turned box: the box's right side is now at the bottom, and
+  // dragging that handle down widens the shape along its own axis; the opposite side stays.
+  raw_shape_drag(*canvas, QPoint(200, 260), QPoint(200, 300));
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->pending_pixel_shape_angle() == 90.0);
+  CHECK(near_rect(box(), QRectF(80.0, 120.0, 240.0, 120.0)));
+  CHECK(std::abs(size_width->value() - 240) <= 1 && size_height->value() == 120);
+  // The far side (the box's left, at the top) did not move: still red just under y = 60.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 70)), red, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 290)), red, 12));
+  // A press inside the turned shape moves it.
+  const auto before_move = box();
+  raw_shape_drag(*canvas, QPoint(200, 180), QPoint(230, 200));
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(near_rect(box(), before_move.translated(30.0, 20.0)));
+  CHECK(canvas->pending_pixel_shape_angle() == 90.0);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+
+  // Enter paints the turned shape: one undo step, pixels where the turned rectangle is.
+  const auto center = box().center().toPoint();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, center) == 255);
+  // 100 px above the center: inside the turned shape (240 tall), outside the upright box.
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, center + QPoint(0, -100)) == 255);
+  // 100 px to the right: inside the upright box only.
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, center + QPoint(100, 0)) == 0);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(layer_alpha_at(std::as_const(document), *layer_id, center) == 0);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+}
+
+// The pixels a turned pending shape paints are the shape layer's own rasterization: a pixel
+// rectangle turned 30 degrees and a shape layer's rectangle of the same box turned the same
+// way cover the same pixels, and the preview showed them before the commit.
+void ui_pending_pixel_shape_turned_pixels_match_a_turned_shape_layer() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  const QColor red(0xdc, 0x1e, 0x1e);
+  store_own_shape_paints(red, QColor(0x1e, 0x3c, 0xdc), 6.0, false);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  window.resize(1500, 820);  // the bar on one row, for the issue shots
+  select_pixels_mode(window, "toolRectAction");
+  canvas->set_snap_enabled(false);
+  auto* radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(radius != nullptr && mode != nullptr);
+  if (radius == nullptr || mode == nullptr) {
+    return;
+  }
+  radius->setValue(0);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  QApplication::processEvents();
+  const auto pixel_layer = document.active_layer_id();
+  CHECK(pixel_layer.has_value());
+  if (!pixel_layer.has_value()) {
+    return;
+  }
+  const QRectF box(100.0, 100.0, 200.0, 120.0);
+  raw_shape_drag(*canvas, QPoint(100, 100), QPoint(299, 219));
+  CHECK(canvas->pending_pixel_shape_box() == std::optional<QRectF>(box));
+  auto turn = box_turn_drag(*canvas, box, 0.0, 30.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, turn.press, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, turn.target, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  save_window_shot_with_cursor("issue_716_rotate_pending_mid_drag", window, *canvas, turn.target);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, turn.target, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->pending_pixel_shape_angle() == 30.0);
+  // The preview, read before the commit along the shape's middle row and column.
+  std::vector<QColor> preview;
+  for (int x = 70; x <= 330; x += 4) {
+    preview.push_back(canvas_pixel(*canvas, QPoint(x, 160)));
+  }
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->has_pending_pixel_shape());
+  CHECK(layer_alpha_at(std::as_const(document), *pixel_layer, QPoint(200, 160)) == 255);
+  CHECK(layer_alpha_at(std::as_const(document), *pixel_layer, QPoint(104, 104)) == 0);  // the upright corner
+  // What was shown is what was painted (the antialiased edge samples aside).
+  std::size_t index = 0;
+  int solid_samples = 0;
+  for (int x = 70; x <= 330; x += 4, ++index) {
+    const bool solid = color_close(preview[index], red, 6) || color_close(preview[index], Qt::white, 6);
+    if (solid) {
+      ++solid_samples;
+      CHECK(color_close(canvas_pixel(*canvas, QPoint(x, 160)), preview[index], 6));
+    }
+  }
+  CHECK(solid_samples > 55);
+
+  // The same rectangle as a shape layer, turned by the same drag.
+  mode->setCurrentIndex(0);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(300, 220)));
+  QApplication::processEvents();
+  const auto shape_layer = document.active_layer_id();
+  CHECK(shape_layer.has_value() && shape_layer != pixel_layer);
+  if (!shape_layer.has_value() || shape_layer == pixel_layer) {
+    return;
+  }
+  CHECK(canvas->shape_resize_box_rect() == std::optional<QRectF>(box));
+  drag(*canvas, turn.press, turn.target, Qt::ShiftModifier);
+  QApplication::processEvents();
+  {
+    const auto* layer = std::as_const(document).find_layer(*shape_layer);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr && layer->vector_shape()->origination.empty());
+  }
+  int compared = 0;
+  int covered = 0;
+  int worst = 0;
+  for (int y = 40; y <= 280; y += 2) {
+    for (int x = 60; x <= 340; x += 2) {
+      const int pixel = layer_alpha_at(std::as_const(document), *pixel_layer, QPoint(x, y));
+      const int shape = layer_alpha_at(std::as_const(document), *shape_layer, QPoint(x, y));
+      worst = std::max(worst, std::abs(pixel - shape));
+      covered += pixel == 255 ? 1 : 0;
+      ++compared;
+    }
+  }
+  if (worst > 2) {
+    std::fprintf(stderr, "  turned pixel shape differs from the shape layer by %d alpha levels\n", worst);
+  }
+  CHECK(worst <= 2);
+  CHECK(compared > 10000 && covered > 5000 && covered < 7000);  // a 200 x 120 rectangle, every fourth pixel
 }
 
 // A pending pixel shape moves by a drag inside its box and resizes by its handles (Shift and
@@ -11631,6 +11968,11 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_pending_pixel_shape_is_edited_from_the_bar_and_committed},
       {"ui_pending_pixel_shape_moves_resizes_commits_and_cancels",
        ui_pending_pixel_shape_moves_resizes_commits_and_cancels},
+      {"ui_pending_pixel_shape_turns_by_the_band_outside_a_corner",
+       ui_pending_pixel_shape_turns_by_the_band_outside_a_corner},
+      {"ui_pending_pixel_shape_turned_pixels_match_a_turned_shape_layer",
+       ui_pending_pixel_shape_turned_pixels_match_a_turned_shape_layer},
+      {"ui_shape_fill_menu_leads_with_no_fill", ui_shape_fill_menu_leads_with_no_fill},
       {"ui_pending_pixel_shape_commits_before_other_changes", ui_pending_pixel_shape_commits_before_other_changes},
       {"ui_pending_pixel_shape_on_a_layer_mask", ui_pending_pixel_shape_on_a_layer_mask},
       {"ui_path_overlay_follows_move_drag", ui_path_overlay_follows_move_drag},

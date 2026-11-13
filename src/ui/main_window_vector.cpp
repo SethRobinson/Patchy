@@ -625,6 +625,25 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths, st
     target.set_live_shapes(std::move(entries));
   };
   const auto op = combine_op_for_index(effective_vector_combine_index());
+  // A shape tool's drag leaves the component it drew picked, as Path Select would: the
+  // tool's box and the Width / Height fields then act on it (GitHub issue 716). The Pen's
+  // paths stay unpicked.
+  const auto select_drawn_group = [this](std::int32_t group) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    switch (current_tool_) {
+      case CanvasTool::Rectangle:
+      case CanvasTool::Ellipse:
+      case CanvasTool::Polygon:
+      case CanvasTool::Line:
+      case CanvasTool::CustomShape:
+        canvas_->select_path_groups({group});
+        break;
+      default:
+        break;
+    }
+  };
   // A path explicitly selected in the Paths panel receives the subpaths
   // instead of the work path.
   if (active_document_path_id_.has_value()) {
@@ -639,6 +658,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths, st
       }
       target->set_path(std::move(path));
       record_live(*target, group);
+      select_drawn_group(group);
       refresh_paths_panel();
       statusBar()->showMessage(tr("Added the shape to %1.").arg(QString::fromStdString(target->name())));
       return;
@@ -646,9 +666,11 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths, st
   }
   push_undo_snapshot(tr("Add to work path"));
   DocumentPathId work_id = 0;
+  std::int32_t drawn_group = 0;
   if (auto* work = doc.work_path(); work != nullptr) {
     auto path = work->path();
     const auto group = path.next_shape_group();
+    drawn_group = group;
     for (auto& subpath : subpaths) {
       subpath.shape_group = group;
       subpath.op = op;
@@ -660,6 +682,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths, st
   } else {
     VectorPath path;
     const auto group = subpaths.front().shape_group;
+    drawn_group = group;
     for (auto& subpath : subpaths) {
       subpath.op = op;
       path.subpaths.push_back(std::move(subpath));
@@ -677,6 +700,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths, st
   if (canvas_ != nullptr) {
     canvas_->set_active_document_path(work_id);
   }
+  select_drawn_group(drawn_group);
   refresh_paths_panel();
   statusBar()->showMessage(tr("Added the path to the work path."));
 }
@@ -2834,6 +2858,183 @@ bool MainWindow::transform_path_component_target(const PathComponentTarget& targ
   return true;
 }
 
+bool MainWindow::apply_path_component_rotation(const PathComponentTarget& target, double pivot_x, double pivot_y,
+                                               double degrees) {
+  if (canvas_ == nullptr ||
+      (!target.shape_layer.has_value() && !target.mask_layer.has_value() && !target.document_path.has_value())) {
+    return false;
+  }
+  push_undo_snapshot(tr("Rotate"));
+  if (!rotate_path_component_target(target, pivot_x, pivot_y, degrees)) {
+    return false;
+  }
+  if (!target.document_path.has_value()) {
+    refresh_layer_thumbnails();
+  }
+  refresh_paths_panel();
+  sync_vector_shape_size_spins();
+  return true;
+}
+
+bool MainWindow::rotate_path_component_target(const PathComponentTarget& target, double pivot_x, double pivot_y,
+                                              double degrees, QRect also_changed) {
+  if (canvas_ == nullptr) {
+    return false;
+  }
+  auto& doc = document();
+  const auto matrix = rotation_matrix_about(pivot_x, pivot_y, degrees);
+  const auto in_groups = [&target](int group) {
+    return target.groups.empty() ||
+           std::find(target.groups.begin(), target.groups.end(), group) != target.groups.end();
+  };
+  // Turns the target's components of `path` and returns its live entries after the turn.
+  // An entry the old geometry still matched, of a kind that can say the turn (a line, a
+  // regular polygon, anything at a quarter turn), is turned and its component regenerated
+  // from it, so the shape stays live. Every other entry of a turned component is dropped:
+  // the path is then the only truth (Photoshop's keyShapeInvalidated).
+  const auto turn = [&](VectorPath& path, const std::vector<LiveShapeParams>& entries) {
+    const auto before = path;
+    for (auto& subpath : path.subpaths) {
+      if (!in_groups(subpath.shape_group)) {
+        continue;
+      }
+      VectorPath one;
+      one.subpaths.push_back(std::move(subpath));
+      transform_vector_path(one, matrix);
+      subpath = std::move(one.subpaths.front());
+    }
+    std::vector<LiveShapeParams> kept;
+    for (const auto& entry : entries) {
+      if (!in_groups(entry.index)) {
+        kept.push_back(entry);
+        continue;
+      }
+      const auto resolved = resolve_live_shape_group(before, {entry}, entry.index);
+      if (!resolved.has_value()) {
+        continue;
+      }
+      auto turned = rotate_live_shape_params(*resolved, pivot_x, pivot_y, degrees);
+      if (turned.has_value() && replace_live_shape_group(path, *turned)) {
+        kept.push_back(std::move(*turned));
+      }
+    }
+    return kept;
+  };
+  if (target.shape_layer.has_value()) {
+    auto* layer = doc.find_layer(*target.shape_layer);
+    if (layer == nullptr || layer->vector_shape() == nullptr) {
+      return false;
+    }
+    const auto old_effect_rect =
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds())).united(also_changed);
+    const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+    if (target.groups.empty()) {
+      // The whole layer: Free Transform's rotate of a shape layer (its gradient, pattern and
+      // vector mask turn with it), which drops every live annotation. Those that can say the
+      // turn come back.
+      const auto before = *std::as_const(*layer).vector_shape();
+      transform_layer_vector_data(doc, *layer, matrix, canvas_rect);
+      auto path = before.path;
+      auto kept = turn(path, before.origination);
+      if (!kept.empty()) {
+        auto content = *std::as_const(*layer).vector_shape();
+        content.path = std::move(path);
+        content.origination = std::move(kept);
+        layer->set_vector_shape(std::move(content));
+        update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
+      }
+    } else {
+      auto content = *std::as_const(*layer).vector_shape();
+      content.origination = turn(content.path, content.origination);
+      layer->set_vector_shape(std::move(content));
+      layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+      mark_layer_vector_block_dirty(*layer);
+      update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
+    }
+    canvas_->document_changed_effect_bounds(old_effect_rect.united(
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+  } else if (target.mask_layer.has_value()) {
+    auto* layer = doc.find_layer(*target.mask_layer);
+    if (layer == nullptr || layer->vector_mask() == nullptr) {
+      return false;
+    }
+    auto mask = *std::as_const(*layer).vector_mask();
+    turn(mask.path, {});
+    layer->set_vector_mask(std::move(mask));
+    mark_layer_vector_block_dirty(*layer);
+    update_vector_mask_raster(*layer, Rect::from_size(doc.width(), doc.height()));
+    canvas_->document_changed();
+  } else if (target.document_path.has_value()) {
+    auto* document_path = doc.find_path(*target.document_path);
+    if (document_path == nullptr) {
+      return false;
+    }
+    auto path = document_path->path();
+    auto live_shapes = turn(path, document_path->live_shapes());
+    document_path->set_path(std::move(path));
+    document_path->set_live_shapes(std::move(live_shapes));
+    canvas_->update();
+  } else {
+    return false;
+  }
+  return true;
+}
+
+void MainWindow::run_path_handle_edit(DocumentPathId path_id, ShapeResizePhase phase, std::uint64_t serial,
+                                      bool editable, const std::function<void()>& preview,
+                                      const std::function<void()>& commit) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    shape_path_preview_.reset();
+    return;
+  }
+  auto& doc = document();
+  const auto session_id = session().session_id;
+  const bool previewing = shape_path_preview_.has_value() && shape_path_preview_->session_id == session_id &&
+                          shape_path_preview_->path_id == path_id && shape_path_preview_->serial == serial;
+  // Puts the path back as it was before this drag's first preview.
+  const auto restore = [&] {
+    if (!previewing) {
+      return false;
+    }
+    if (auto* path = doc.find_path(path_id); path != nullptr) {
+      *path = shape_path_preview_->original;
+    }
+    shape_path_preview_.reset();
+    return true;
+  };
+  if (phase == ShapeResizePhase::Cancel || !editable) {
+    if (restore()) {
+      canvas_->update();
+      sync_vector_shape_size_spins();
+    }
+    return;
+  }
+  if (phase == ShapeResizePhase::Preview) {
+    if (previewing) {
+      // Every preview edits the path as it was at the press, so nothing accumulates.
+      if (auto* path = doc.find_path(path_id); path != nullptr) {
+        *path = shape_path_preview_->original;
+      }
+    } else {
+      const auto* path = std::as_const(doc).find_path(path_id);
+      if (path == nullptr) {
+        return;
+      }
+      if (vector_shape_size_apply_timer_ != nullptr) {
+        vector_shape_size_apply_timer_->stop();  // the drag replaces a W / H edit still waiting
+      }
+      shape_path_preview_ = ShapePathPreview{session_id, path_id, serial, *path};
+    }
+    preview();
+    sync_vector_shape_size_spins();
+    return;
+  }
+  // Commit: the history snapshot must hold the path as it was before the drag.
+  restore();
+  commit();
+  canvas_->update();
+}
+
 void MainWindow::run_shape_handle_edit(LayerId layer_id, ShapeResizePhase phase, std::uint64_t serial,
                                        bool editable, const std::function<void(QRect covered)>& preview,
                                        const std::function<void()>& commit) {
@@ -2905,26 +3106,48 @@ void MainWindow::run_shape_handle_edit(LayerId layer_id, ShapeResizePhase phase,
   }
 }
 
-void MainWindow::handle_shape_resize_edit(LayerId layer_id, const QRectF& from, const QRectF& to,
-                                          ShapeResizePhase phase, std::uint64_t serial) {
-  // The handles size what the W / H fields size: this layer, whole or the components Path
-  // Select picked, through the same scale (apply_path_component_geometry).
+void MainWindow::handle_shape_box_edit(const ShapeBoxEdit& edit, ShapeResizePhase phase,
+                                       std::uint64_t serial) {
+  // The box sizes and turns what the W / H fields size: this layer, whole or the components
+  // Path Select picked, or in Path mode the picked components of the work or saved path,
+  // through the fields' own scale (apply_path_component_geometry) or a turn about the box's
+  // center (apply_path_component_rotation).
   std::optional<PathComponentTarget> target;
   if (canvas_ != nullptr && has_active_document() && phase != ShapeResizePhase::Cancel) {
     target = path_component_target();
   }
-  const bool editable = target.has_value() && target->shape_layer == layer_id && !preview_dialog_edit_locked() &&
-                        from.width() > 0.0 && from.height() > 0.0 && to.width() > 0.0 && to.height() > 0.0;
-  const double scale_x = editable ? to.width() / from.width() : 1.0;
-  const double scale_y = editable ? to.height() / from.height() : 1.0;
+  const auto& from = edit.from;
+  const auto& to = edit.to;
+  const bool same_target =
+      target.has_value() &&
+      (edit.layer_id.has_value() ? target->shape_layer == edit.layer_id
+                                 : edit.document_path.has_value() && target->document_path == edit.document_path);
+  const bool editable = same_target && !preview_dialog_edit_locked() && from.width() > 0.0 && from.height() > 0.0 &&
+                        (edit.rotate || (to.width() > 0.0 && to.height() > 0.0));
+  const double scale_x = editable && !edit.rotate ? to.width() / from.width() : 1.0;
+  const double scale_y = editable && !edit.rotate ? to.height() / from.height() : 1.0;
   const double translate_x = to.left() - from.left() * scale_x;
   const double translate_y = to.top() - from.top() * scale_y;
-  run_shape_handle_edit(
-      layer_id, phase, serial, editable,
-      [&](QRect covered) {
-        transform_path_component_target(*target, scale_x, scale_y, translate_x, translate_y, covered);
-      },
-      [&] { apply_path_component_geometry(*target, scale_x, scale_y, translate_x, translate_y); });
+  const auto pivot = from.center();
+  const auto preview = [&](QRect covered) {
+    if (edit.rotate) {
+      rotate_path_component_target(*target, pivot.x(), pivot.y(), edit.angle_degrees, covered);
+    } else {
+      transform_path_component_target(*target, scale_x, scale_y, translate_x, translate_y, covered);
+    }
+  };
+  const auto commit = [&] {
+    if (edit.rotate) {
+      apply_path_component_rotation(*target, pivot.x(), pivot.y(), edit.angle_degrees);
+    } else {
+      apply_path_component_geometry(*target, scale_x, scale_y, translate_x, translate_y);
+    }
+  };
+  if (edit.layer_id.has_value()) {
+    run_shape_handle_edit(*edit.layer_id, phase, serial, editable, preview, commit);
+  } else if (edit.document_path.has_value()) {
+    run_path_handle_edit(*edit.document_path, phase, serial, editable, [&] { preview({}); }, commit);
+  }
 }
 
 bool MainWindow::replace_shape_layer_live_component(LayerId layer_id, const LiveShapeParams& params,
@@ -3819,6 +4042,19 @@ void MainWindow::show_vector_paint_menu(bool for_stroke) {
     connect(action, &QAction::triggered, this, callback);
     return action;
   };
+  // No Fill leads the Fill menu (Seth, November 13, 2026); the stroke has no "none" paint,
+  // its width of 0 and the Fill only button turn it off.
+  if (!for_stroke) {
+    add_kind(tr("No Fill"), "vectorFillNoneAction", VectorFillKind::None, [this] {
+      if (shape_pixel_options_ != nullptr && current_vector_fill_.kind != VectorFillKind::None) {
+        shape_pixel_options_->fill_restore_kind = current_vector_fill_.kind;  // what Both brings back
+      }
+      current_vector_fill_.kind = VectorFillKind::None;
+      update_vector_swatch_icons();
+      schedule_save_tool_settings();
+      apply_options_bar_appearance_to_active_shape({"fill.kind"});
+    });
+  }
   // Foreground Color (GitHub issue 716): a one-time pick. The paint becomes a solid color,
   // the foreground color as it is now, in the selected shapes too; it does not follow later
   // changes of the foreground color, so Shape and Pixels modes keep one paint.
@@ -3841,17 +4077,6 @@ void MainWindow::show_vector_paint_menu(bool for_stroke) {
           for_stroke ? std::vector<std::string>{"stroke.content.kind", "stroke.content.color"}
                      : std::vector<std::string>{"fill.kind", "fill.color"});
       update_vector_swatch_icons();
-    });
-  }
-  if (!for_stroke) {
-    add_kind(tr("No Fill"), "vectorFillNoneAction", VectorFillKind::None, [this] {
-      if (shape_pixel_options_ != nullptr && current_vector_fill_.kind != VectorFillKind::None) {
-        shape_pixel_options_->fill_restore_kind = current_vector_fill_.kind;  // what Both brings back
-      }
-      current_vector_fill_.kind = VectorFillKind::None;
-      update_vector_swatch_icons();
-      schedule_save_tool_settings();
-      apply_options_bar_appearance_to_active_shape({"fill.kind"});
     });
   }
   add_kind(tr("Solid Color..."), for_stroke ? "vectorStrokeSolidAction" : "vectorFillSolidAction",

@@ -517,14 +517,19 @@ public:
   [[nodiscard]] GradientHandleTarget gradient_handles_preferred_target() const noexcept {
     return gradient_handles_preferred_;
   }
-  // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
-  // issue 690). The box is the document rect of what the options-bar W / H fields size:
-  // the active shape layer's path, or its components Path Select picked. Empty when no
-  // handles show. The callback gets the box before the drag and the box now; MainWindow
-  // scales the shape from one to the other (docs/vector-tools.md).
+  // The shape tools' bounding-box handles (canvas_widget_shape_resize.cpp, GitHub issues 690
+  // and 716). The box is the document rect of what the options-bar W / H fields size: the
+  // active shape layer's path or its components Path Select picked in Shape mode, the picked
+  // components of the work path or the active saved path in Path mode, or the pending pixel
+  // shape in Pixels mode. Empty when no handles show. A handle resizes; a drag that starts
+  // just outside a corner turns the shape about the box's center. The callback gets the box
+  // before the drag and the box now, or the angle; MainWindow scales or turns the shape
+  // (docs/vector-tools-shape-handles.md). A pending pixel shape is edited by the canvas itself.
   [[nodiscard]] std::optional<QRectF> shape_resize_box_rect() const;
-  using ShapeResizeCallback = std::function<void(LayerId, const QRectF& from, const QRectF& to, ShapeResizePhase,
-                                                 std::uint64_t serial)>;
+  // The box's angle in degrees, clockwise: a rotate drag's angle while it lasts, a pending
+  // pixel shape's own angle, else 0 (a shape layer's and a path's box is always upright).
+  [[nodiscard]] double shape_resize_box_angle() const;
+  using ShapeResizeCallback = std::function<void(const ShapeBoxEdit&, ShapeResizePhase, std::uint64_t serial)>;
   void set_shape_resize_callback(ShapeResizeCallback callback);
   // The two drag points a live Polygon or Line shows in place of that box (GitHub #690
   // follow-up, canvas_widget_shape_points.cpp): the two points of the drag that drew it. A
@@ -932,8 +937,11 @@ public:
   void set_pixel_shapes_stay_pending(bool pending);
   [[nodiscard]] bool pixel_shapes_stay_pending() const noexcept;
   [[nodiscard]] bool has_pending_pixel_shape() const noexcept;
-  // The pending shape's box in document space (edge coordinates), if there is one.
+  // The pending shape's box in document space (edge coordinates), if there is one: the box
+  // before its angle turns it about the box's center.
   [[nodiscard]] std::optional<QRectF> pending_pixel_shape_box() const;
+  // The pending shape's angle in degrees, clockwise (0 when there is none).
+  [[nodiscard]] double pending_pixel_shape_angle() const noexcept;
   // Resizes the pending shape, its top left corner staying put.
   void set_pending_pixel_shape_size(QSize size);
   // Paints the pending shape into the edit target; false when there was none or the target
@@ -2073,8 +2081,10 @@ private:
   // (Move). EdgesAndCorners adds a band along each edge (that side's resize handle),
   // a band just outside each corner (Rotate), and a Move core that a small box keeps
   // ahead of its handles. ResizeHandles is the eight handle squares alone, the nearest
-  // one where they overlap: no Rotate, no Move (the shape tools' box, GitHub issue 690).
-  enum class TransformHitZones { HandlesOnly, EdgesAndCorners, ResizeHandles };
+  // one where they overlap: no Rotate, no Move. ResizeHandlesAndRotate (the shape tools'
+  // box, GitHub issues 690 and 716) adds the EdgesAndCorners rotate band just outside each
+  // corner, and reports the inside as Move; its edges stay plain (no resize band).
+  enum class TransformHitZones { HandlesOnly, EdgesAndCorners, ResizeHandles, ResizeHandlesAndRotate };
   // What a Free Transform handle drag does (transform_drag_kind_for, chosen at press;
   // retarget_transform_drag switches it when the modifiers change mid-drag).
   enum class TransformDragKind { Scale, DistortCorner, SkewCorner, PerspectiveCorner, MoveEdge, SlideEdge };
@@ -2823,11 +2833,12 @@ private:
   [[nodiscard]] bool tool_keeps_pixel_shapes_pending() const noexcept;
   void begin_pending_pixel_shape(CanvasTool tool, QRectF box, double polygon_angle);
   void set_pending_pixel_shape_box(QRectF box);
+  void set_pending_pixel_shape_geometry(QRectF box, double angle_degrees);
   [[nodiscard]] patchy::VectorPath pending_pixel_shape_path(const PendingPixelShape& shape) const;
   [[nodiscard]] QRect paint_pending_pixel_shape(const PendingPixelShape& shape);
   void refresh_pending_pixel_shape_preview(PendingPixelShape& shape) const;
   void draw_pending_pixel_shape(QPainter& painter) const;
-  [[nodiscard]] QRect pending_pixel_shape_widget_rect(QRectF box) const;
+  [[nodiscard]] QRect pending_pixel_shape_widget_rect(QRectF box, double angle_degrees) const;
   // True on a channel, Quick Mask or a Smart Filter mask: the pending shape's grays are shown
   // through that target's own display (draw_shape_preview), as the drag that drew it was.
   [[nodiscard]] bool pending_pixel_shape_uses_channel_preview() const;
@@ -3325,10 +3336,16 @@ private:
   [[nodiscard]] bool gradient_fill_view_preview_drawn();
   // A document change the preview did not make itself ends it.
   void note_document_changed_for_gradient_view_preview() noexcept;
-  // The shape tools' bounding-box resize handles (canvas_widget_shape_resize.cpp, GitHub
-  // issue 690): the Move tool's transform-controls box without its rotate stem, on the
-  // active shape layer. A press on a handle square resizes; any other press draws.
+  // The shape tools' bounding-box handles (canvas_widget_shape_resize.cpp, GitHub issues 690
+  // and 716): the Move tool's transform-controls box without its rotate stem, on the active
+  // shape layer, on the picked components of a work or saved path in Path mode, or on the
+  // pending pixel shape. A press on a handle square resizes, a press just outside a corner
+  // rotates; any other press draws.
   [[nodiscard]] const Layer* shape_resize_layer() const;
+  // Path mode: the work path or the active saved path whose picked components carry the box.
+  [[nodiscard]] std::optional<DocumentPathId> shape_resize_document_path() const;
+  // The document bounds of `rect` turned by `angle_degrees` about its center.
+  [[nodiscard]] static QRectF turned_rect_bounds(QRectF rect, double angle_degrees);
   [[nodiscard]] TransformHandle shape_resize_handle_at(QPoint widget_point) const;
   bool press_shape_resize_handle(QMouseEvent* event);
   bool move_shape_resize_handle(QMouseEvent* event);
@@ -4566,10 +4583,17 @@ private:
     // pending shape itself, and its Move handle is a press inside the box.
     bool pixel_shape{false};
     LayerId layer_id{0};
+    // Path mode: the work or saved path the box belongs to (no layer).
+    std::optional<DocumentPathId> document_path;
     TransformHandle handle{TransformHandle::None};
     QRectF start_rect;    // the box at the press
     QRectF current_rect;  // the box now
+    // The box's angle at the press and now, in degrees: a pending pixel shape keeps its own,
+    // a layer's or a path's box starts at 0 and a Rotate drag turns it.
+    double start_angle{0.0};
+    double angle{0.0};
     QPointF press_widget;
+    QPointF press_document;
     QPointF pointer_widget;
     QPointF grab_offset;  // document offset from the press to the grabbed side
     bool moved{false};
@@ -4578,8 +4602,9 @@ private:
   };
   std::optional<ShapeResizeDrag> shape_resize_drag_;
   std::uint64_t shape_resize_drag_serial_{0};
-  // The box draw_shape_resize_frame last painted (refresh_shape_resize_box).
+  // The box draw_shape_resize_frame last painted, and its angle (refresh_shape_resize_box).
   mutable std::optional<QRectF> shape_resize_painted_rect_;
+  mutable double shape_resize_painted_angle_{0.0};
   ShapeResizeCallback shape_resize_callback_;
   // A drag of one of a live Polygon's or Line's two points, from the press to the release.
   struct ShapePointDrag {

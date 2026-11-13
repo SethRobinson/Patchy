@@ -153,7 +153,7 @@ void ui_shape_appearance_window_stays_open_while_editing() {
   }
 
   // Draw a second shape with the window open: it becomes the window's target.
-  const auto second = make_rect(window, *canvas, QPoint(320, 240), QPoint(420, 300));
+  const auto second = make_rect(window, *canvas, QPoint(335, 250), QPoint(420, 300));
   CHECK(second != first);
   QApplication::processEvents();
   CHECK(panel_usable(*panel));
@@ -250,7 +250,7 @@ void ui_shape_appearance_window_reconfigures_for_the_selected_shape() {
   const auto background = document.active_layer_id();
   CHECK(background.has_value());
   const auto solid = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
-  const auto gradient = make_rect(window, *canvas, QPoint(320, 240), QPoint(420, 300));
+  const auto gradient = make_rect(window, *canvas, QPoint(335, 250), QPoint(420, 300));
   auto* panel = open_panel(window);
   if (panel == nullptr || !background.has_value()) return;
 

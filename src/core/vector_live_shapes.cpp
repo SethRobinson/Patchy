@@ -484,6 +484,112 @@ void translate_live_shape_params(LiveShapeParams& params, double dx, double dy) 
   params.transform[5] += dy;
 }
 
+RotationCosSin rotation_cos_sin(double degrees) noexcept {
+  const double quarters = degrees / 90.0;
+  const double nearest = std::round(quarters);
+  if (std::abs(quarters - nearest) <= 1e-9) {
+    // Exact at the quarter turns, so a shape turned by 90 degrees keeps whole coordinates.
+    const auto quarter = static_cast<int>(std::fmod(nearest, 4.0));
+    switch (((quarter % 4) + 4) % 4) {
+      case 0:
+        return {1.0, 0.0};
+      case 1:
+        return {0.0, 1.0};
+      case 2:
+        return {-1.0, 0.0};
+      default:
+        return {0.0, -1.0};
+    }
+  }
+  const double radians = degrees * std::numbers::pi / 180.0;
+  return {std::cos(radians), std::sin(radians)};
+}
+
+std::array<double, 6> rotation_matrix_about(double pivot_x, double pivot_y, double degrees) noexcept {
+  const auto turn = rotation_cos_sin(degrees);
+  return {turn.cos,
+          turn.sin,
+          -turn.sin,
+          turn.cos,
+          pivot_x - (turn.cos * pivot_x) + (turn.sin * pivot_y),
+          pivot_y - (turn.sin * pivot_x) - (turn.cos * pivot_y)};
+}
+
+std::optional<LiveShapeParams> rotate_live_shape_params(const LiveShapeParams& params, double pivot_x,
+                                                        double pivot_y, double degrees) {
+  if (!params.raw_descriptor.empty()) {
+    return std::nullopt;
+  }
+  const auto matrix = rotation_matrix_about(pivot_x, pivot_y, degrees);
+  const auto turned = [&matrix](double x, double y) {
+    return LiveShapePoint{(matrix[0] * x) + (matrix[2] * y) + matrix[4], (matrix[1] * x) + (matrix[3] * y) + matrix[5]};
+  };
+  const double quarters = degrees / 90.0;
+  const bool quarter_turn = std::abs(quarters - std::round(quarters)) <= 1e-9;
+  const int quarter = quarter_turn ? ((static_cast<int>(std::fmod(std::round(quarters), 4.0)) % 4) + 4) % 4 : 0;
+  auto result = params;
+  const auto anchor = turned(params.transform[4], params.transform[5]);
+  result.transform[4] = anchor.x;
+  result.transform[5] = anchor.y;
+  // The box about its turned center; a quarter turn swaps its sides.
+  const auto turn_box = [&](bool swap_sides) {
+    const auto center = turned((params.left + params.right) / 2.0, (params.top + params.bottom) / 2.0);
+    const double half_width = (swap_sides ? params.bottom - params.top : params.right - params.left) / 2.0;
+    const double half_height = (swap_sides ? params.right - params.left : params.bottom - params.top) / 2.0;
+    result.left = center.x - half_width;
+    result.right = center.x + half_width;
+    result.top = center.y - half_height;
+    result.bottom = center.y + half_height;
+    populate_live_shape_box_corners(result);
+  };
+  switch (params.kind) {
+    case LiveShapeKind::Line: {
+      const auto start = turned(params.line_start_x, params.line_start_y);
+      const auto end = turned(params.line_end_x, params.line_end_y);
+      result.line_start_x = start.x;
+      result.line_start_y = start.y;
+      result.line_end_x = end.x;
+      result.line_end_y = end.y;
+      // The box of a live line is the hull of what it generates.
+      VectorPath generated;
+      generated.subpaths = line_subpaths(result);
+      const auto hull = generated.bounds();
+      if (!hull.has_value()) {
+        return std::nullopt;
+      }
+      result.left = hull->left;
+      result.top = hull->top;
+      result.right = hull->right;
+      result.bottom = hull->bottom;
+      populate_live_shape_box_corners(result);
+      return result;
+    }
+    case LiveShapeKind::Polygon:
+      if (!quarter_turn && !live_polygon_is_regular(params)) {
+        return std::nullopt;
+      }
+      turn_box(quarter_turn && (quarter % 2) != 0);
+      result.polygon_angle = params.polygon_angle + (degrees * std::numbers::pi / 180.0);
+      return result;
+    case LiveShapeKind::Rectangle:
+    case LiveShapeKind::RoundedRectangle:
+    case LiveShapeKind::Ellipse:
+      if (!quarter_turn) {
+        return std::nullopt;
+      }
+      turn_box((quarter % 2) != 0);
+      // Clockwise: the top-left corner becomes the top-right one, and so on round.
+      for (std::size_t corner = 0; corner < params.corner_radii.size(); ++corner) {
+        result.corner_radii[(corner + static_cast<std::size_t>(quarter)) % 4U] = params.corner_radii[corner];
+      }
+      return result;
+    case LiveShapeKind::None:
+    case LiveShapeKind::Custom:
+      break;
+  }
+  return std::nullopt;
+}
+
 std::optional<LiveShapeParams> resolve_live_shape_group(const VectorPath& path,
                                                         const std::vector<LiveShapeParams>& origination,
                                                         std::int32_t group) {

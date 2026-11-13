@@ -4813,7 +4813,8 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   constexpr double kEdgeGrabOutside = 6.0;
   constexpr double kCornerRotateReach = 28.8;  // 24 px plus 20 percent: the band was hard to grab
   const bool forgiving = zones == TransformHitZones::EdgesAndCorners;
-  const bool resize_only = zones == TransformHitZones::ResizeHandles;
+  const bool resize_only =
+      zones == TransformHitZones::ResizeHandles || zones == TransformHitZones::ResizeHandlesAndRotate;
   QPointF local;
   double half_width = 0.0;
   double half_height = 0.0;
@@ -4855,6 +4856,20 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
       nearest = handle;
       nearest_distance = distance;
     }
+  }
+  if (nearest == TransformHandle::None && zones == TransformHitZones::ResizeHandlesAndRotate) {
+    // The shape tools' box (GitHub issue 716): the inside is Move (the caller decides what a
+    // press there does), and the band just outside a corner rotates, with the reach of the
+    // EdgesAndCorners zones. Along an edge, away from the corners, nothing is hit.
+    const auto widget_rect = widget_rect_for_document_rect(document_rect);
+    const double half_w = widget_rect.width() / 2.0;
+    const double half_h = widget_rect.height() / 2.0;
+    const auto at = rotate_offset(QPointF(widget_point) - widget_rect.center(), -angle_degrees);
+    if (std::abs(at.x()) <= half_w && std::abs(at.y()) <= half_h) {
+      return TransformHandle::Move;
+    }
+    const auto corner_distance = std::hypot(std::abs(at.x()) - half_w, std::abs(at.y()) - half_h);
+    return corner_distance <= kCornerRotateReach ? TransformHandle::Rotate : TransformHandle::None;
   }
   if (nearest != TransformHandle::None || resize_only) {
     return nearest;

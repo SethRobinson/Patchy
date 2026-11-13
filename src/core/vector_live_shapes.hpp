@@ -2,6 +2,7 @@
 
 #include "core/vector_shape.hpp"
 
+#include <array>
 #include <optional>
 #include <vector>
 
@@ -54,6 +55,25 @@ void scale_live_shape_params(LiveShapeParams& params, double sx, double sy, doub
 
 // Moves every position in the parameters by (dx, dy).
 void translate_live_shape_params(LiveShapeParams& params, double dx, double dy) noexcept;
+
+// The cosine and sine of an angle in degrees, exact (0, 1, -1) at every multiple of 90.
+struct RotationCosSin {
+  double cos{1.0};
+  double sin{0.0};
+};
+[[nodiscard]] RotationCosSin rotation_cos_sin(double degrees) noexcept;
+
+// The affine (a, b, c, d, tx, ty as transform_vector_path takes it) that turns points by
+// `degrees` about (pivot_x, pivot_y): clockwise on screen (y down) for a positive angle.
+[[nodiscard]] std::array<double, 6> rotation_matrix_about(double pivot_x, double pivot_y, double degrees) noexcept;
+
+// `params` turned by `degrees` about (pivot_x, pivot_y), when its kind can say that: a
+// line at any angle, a polygon with a square box at any angle, and a rectangle, rounded
+// rectangle, ellipse or stretched polygon at a multiple of 90 degrees (the box turns and
+// the corner radii go round with it). nullopt otherwise: the path is turned instead and
+// stops being a live shape (the shape tools' rotate, GitHub issue 716).
+[[nodiscard]] std::optional<LiveShapeParams> rotate_live_shape_params(const LiveShapeParams& params, double pivot_x,
+                                                                      double pivot_y, double degrees);
 
 // The live parameters of `group` while its subpaths are still exactly what they generate,
 // up to a translation (a Path Select move, which keeps no annotation of its own): the
