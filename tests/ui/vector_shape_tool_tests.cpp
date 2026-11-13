@@ -8824,7 +8824,7 @@ void select_pixels_mode(patchy::ui::MainWindow& window, const char* tool_action)
 // Shape mode has the Fill only, Stroke only and Both buttons too. They show what the selected
 // shape draws and change it as one undo step each: Stroke only sets its fill to none, Fill only
 // turns its stroke off and keeps the width, Both brings both back, and the group of a part
-// that is not drawn leaves the bar. The swatch's No Fill and a width of 0 do the same, and the
+// that is not drawn leaves the bar. Shape Appearance's No Fill and a width of 0 do the same, and the
 // buttons follow. A new shape starts as the buttons say.
 void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   using patchy::ui::MainWindowTestAccess;
@@ -8897,9 +8897,14 @@ void ui_shape_mode_draw_buttons_edit_selected_shapes() {
   CHECK(stroke_width->value() == 0.0);
   CHECK(!stroke_swatch->isVisible() && !stroke_width->isVisible());  // and so did the Stroke group
 
-  // The swatch's No Fill is Stroke only without a stroke: no button is checked. Both then
-  // brings back the solid fill and the stroke.
+  // A shape with no fill and no stroke (No Fill is off this bar's menu; the Pen's Fill menu
+  // and Shape Appearance still have it) checks no button. Both then brings back the solid
+  // fill and the stroke.
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
   pick_paint_menu_entry(window, false, "vectorFillNoneAction");
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
   CHECK(shape_content_of(document, first).fill.kind == patchy::VectorFillKind::None);
   CHECK(!fill->isChecked() && !stroke->isChecked() && !both->isChecked());
   both->click();
@@ -9699,13 +9704,18 @@ void ui_shape_fill_and_stroke_settings_migrate() {
   clear_shape_keys();
 }
 
-// The Fill swatch's menu starts with No Fill, then Foreground Color and the paints (Seth,
-// November 13, 2026); the Stroke menu has no "none" entry and starts with Foreground Color.
-// Shape and Pixels modes show the same menus.
-void ui_shape_fill_menu_leads_with_no_fill() {
-  const QStringList fill_order{QStringLiteral("vectorFillNoneAction"), QStringLiteral("vectorFillForegroundAction"),
-                               QStringLiteral("vectorFillSolidAction"), QStringLiteral("vectorFillGradientAction"),
-                               QStringLiteral("vectorFillPatternAction")};
+// The bars with the Fill only / Stroke only / Both buttons (Rectangle, Ellipse, Polygon, Custom
+// Shape) have no No Fill in the Fill swatch's menu (Seth, November 13, 2026: picked with the
+// stroke off it left a shape that draws nothing and no button checked): the menu starts with
+// Foreground Color, in Shape and Pixels modes, and the Stroke menu is as it was. The Pen has
+// no such buttons, so its Fill menu still leads with No Fill. A shape that already has no
+// fill shows Stroke only with the Fill group off the bar, and Both brings its fill back.
+void ui_shape_fill_menu_has_no_fill_only_without_draw_mode_buttons() {
+  using patchy::ui::MainWindowTestAccess;
+  const QStringList paints{QStringLiteral("vectorFillForegroundAction"), QStringLiteral("vectorFillSolidAction"),
+                           QStringLiteral("vectorFillGradientAction"), QStringLiteral("vectorFillPatternAction")};
+  QStringList pen_order{QStringLiteral("vectorFillNoneAction")};
+  pen_order += paints;
   const QStringList stroke_order{QStringLiteral("vectorStrokeForegroundAction"),
                                  QStringLiteral("vectorStrokeSolidAction"),
                                  QStringLiteral("vectorStrokeGradientAction"),
@@ -9715,19 +9725,76 @@ void ui_shape_fill_menu_leads_with_no_fill() {
     const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
     VectorSettingsGuard settings_guard;
     const auto restorers = clear_shared_shape_row_settings();
+    store_own_shape_paints(QColor(0xdc, 0x1e, 0x1e), QColor(0x1e, 0x3c, 0xdc), 4.0, true);
     auto&& [window, canvas] = ShownWindowFixture{};
+    auto& document = MainWindowTestAccess::document(window);
     require_action(window, "toolRectAction")->trigger();
     QApplication::processEvents();
     CHECK(paint_menu_entry_names(window, false, light ? "issue_716_fill_menu_light" : "issue_716_fill_menu_dark") ==
-          fill_order);
+          paints);
     CHECK(paint_menu_entry_names(window, true) == stroke_order);
+    for (const char* tool : {"toolEllipseAction", "toolPolygonAction", "toolCustomShapeAction"}) {
+      require_action(window, tool)->trigger();
+      QApplication::processEvents();
+      CHECK(paint_menu_entry_names(window, false) == paints);
+    }
     select_pixels_mode(window, "toolRectAction");
-    CHECK(paint_menu_entry_names(window, false) == fill_order);
+    CHECK(paint_menu_entry_names(window, false) == paints);
     CHECK(paint_menu_entry_names(window, true) == stroke_order);
-    // No Fill still works from the top of the menu.
+    auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+    CHECK(mode != nullptr);
+    if (mode == nullptr) {
+      continue;
+    }
+    mode->setCurrentIndex(0);  // Shape
+    QApplication::processEvents();
+
+    // A drawn shape, then No Fill from the Pen's menu, which still leads with it.
+    shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+    const auto layer_id = document.active_layer_id();
+    CHECK(layer_id.has_value());
+    if (!layer_id.has_value()) {
+      continue;
+    }
+    CHECK(shape_content_of(document, *layer_id).fill.kind == patchy::VectorFillKind::Solid);
+    require_action(window, "toolPenAction")->trigger();
+    QApplication::processEvents();
+    CHECK(paint_menu_entry_names(window, false) == pen_order);
     pick_paint_menu_entry(window, false, "vectorFillNoneAction");
-    CHECK(patchy::ui::MainWindowTestAccess::current_shape_appearance(window).fill.kind ==
-          patchy::VectorFillKind::None);
+    CHECK(shape_content_of(document, *layer_id).fill.kind == patchy::VectorFillKind::None);
+    CHECK(MainWindowTestAccess::current_shape_appearance(window).fill.kind == patchy::VectorFillKind::None);
+
+    // Back on the Rectangle bar the shape reads Stroke only: the Fill group is off the bar
+    // and the Stroke group shows. Both brings the solid fill back, on the bar and in the shape.
+    require_action(window, "toolRectAction")->trigger();
+    QApplication::processEvents();
+    auto* fill_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
+    auto* stroke_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawStrokeButton"));
+    auto* both = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawBothButton"));
+    auto* fill_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
+    auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
+    CHECK(fill_only != nullptr && stroke_only != nullptr && both != nullptr && fill_swatch != nullptr &&
+          stroke_swatch != nullptr);
+    if (fill_only == nullptr || stroke_only == nullptr || both == nullptr || fill_swatch == nullptr ||
+        stroke_swatch == nullptr) {
+      continue;
+    }
+    CHECK(stroke_only->isChecked() && !fill_only->isChecked() && !both->isChecked());
+    CHECK(!fill_swatch->isVisible() && stroke_swatch->isVisible());
+    both->click();
+    QApplication::processEvents();
+    CHECK(both->isChecked());
+    CHECK(fill_swatch->isVisible());
+    CHECK(shape_content_of(document, *layer_id).fill.kind == patchy::VectorFillKind::Solid);
+    CHECK(shape_content_of(document, *layer_id).fill.color == (patchy::RgbColor{0xdc, 0x1e, 0x1e}));
+    // Fill only does it too, from Stroke only.
+    stroke_only->click();
+    QApplication::processEvents();
+    CHECK(shape_content_of(document, *layer_id).fill.kind == patchy::VectorFillKind::None);
+    fill_only->click();
+    QApplication::processEvents();
+    CHECK(shape_content_of(document, *layer_id).fill.kind == patchy::VectorFillKind::Solid);
+    CHECK(!shape_content_of(document, *layer_id).stroke.enabled);
   }
 }
 
@@ -11972,7 +12039,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_pending_pixel_shape_turns_by_the_band_outside_a_corner},
       {"ui_pending_pixel_shape_turned_pixels_match_a_turned_shape_layer",
        ui_pending_pixel_shape_turned_pixels_match_a_turned_shape_layer},
-      {"ui_shape_fill_menu_leads_with_no_fill", ui_shape_fill_menu_leads_with_no_fill},
+      {"ui_shape_fill_menu_has_no_fill_only_without_draw_mode_buttons",
+       ui_shape_fill_menu_has_no_fill_only_without_draw_mode_buttons},
       {"ui_pending_pixel_shape_commits_before_other_changes", ui_pending_pixel_shape_commits_before_other_changes},
       {"ui_pending_pixel_shape_on_a_layer_mask", ui_pending_pixel_shape_on_a_layer_mask},
       {"ui_path_overlay_follows_move_drag", ui_path_overlay_follows_move_drag},

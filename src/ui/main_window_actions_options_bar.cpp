@@ -4533,7 +4533,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   {
     // What the shape draws: [Fill only][Stroke only][Both]. They are the fill's "none" and the
     // stroke's switch as buttons: Stroke only sets the fill to none, Fill only turns the stroke
-    // off (its width is kept), Both brings both back. The swatch's No Fill and a width of 0 do
+    // off (its width is kept), Both brings both back. Shape Appearance's No Fill and a width of 0 do
     // the same, and the buttons follow them (refresh_shape_draw_controls). In Shape mode a
     // click edits the selected shapes, one undo step.
     struct DrawModeButton {

@@ -188,6 +188,11 @@ struct ShapeAppearanceBody {
   std::function<void(std::vector<ShapeAppearanceSettings> current)> rebase;
 };
 
+// A dynamic property of the stay-open window: the size it was last given by the window's own
+// code (the fit at opening, a page that needed more room). A size that differs from it is the
+// user's, which is only ever grown.
+inline constexpr char kShapeAppearanceAutoSizeProperty[] = "shapeAppearanceAutoSize";
+
 [[nodiscard]] ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window,
                                                              ShapeAppearanceBodyOptions options);
 

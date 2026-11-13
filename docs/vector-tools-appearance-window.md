@@ -26,6 +26,19 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
   new page from the layers (the rows depend on the target: gradient rows, a line's rows, the
   batch summary, the Fill Layer Settings title), keeps the scroll position, and grows the window
   only when the page needs it. Fields are never refilled in place.
+- **The button row ends the window.** The page's own layout has no bottom margin inside the
+  window (the chrome's 12 px is the margin under Reset and Close), and the window's size grip
+  sits in the window's corner over that margin, outside the layout
+  (`BrushToolWindow::set_size_grip_in_corner`): a grip row of its own under the page left the
+  buttons floating above the bottom edge. The room between the last section and the row is
+  the Density note's (it is kept while the note is hidden, so scrubbing Density below 100%
+  does not resize the window). Opening fits the window to its page (`size_window_for_page`),
+  unless the user sized the window: the window property `shapeAppearanceAutoSize` holds the last size the window's own
+  code gave it (the fit, a page or a paint kind that needed more room), a size that differs
+  is the user's, and `shapeAppearance/windowUserSized` carries that to the next launch. A
+  user's size is only ever grown; height the user adds goes to the page, above the row. An
+  open window never shrinks when a shorter page replaces a taller one.
+  `ui_shape_appearance_window_ends_with_its_button_row` pins the margin on every page.
 - **A page is never deleted under its own handler.** The rebuild is deferred to the event loop
   and waits (`rebuild_blocked`) while the page is applying a change, while a dialog a row opened
   is running, and while any modal window, popup or child dialog of the window is up.

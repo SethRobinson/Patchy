@@ -39,13 +39,21 @@ void BrushToolWindow::set_body(QWidget* body) {
   body->setParent(this);
   content_->addWidget(body, 1);
   // A frameless chrome window has no native border to drag: the grip resizes it.
-  auto* grip_row = new QHBoxLayout();
-  grip_row->setContentsMargins(0, 0, 0, 0);
-  grip_row->addStretch(1);
   auto* grip = new VisibleSizeGrip(this);
   grip->setObjectName(QStringLiteral("brushToolWindowSizeGrip"));
-  grip_row->addWidget(grip, 0, Qt::AlignBottom | Qt::AlignRight);
-  content_->addLayout(grip_row);
+  if (size_grip_in_corner_) {
+    // Outside the layout, in the corner of the chrome's margin: no row of its own.
+    corner_grip_ = grip;
+    place_corner_grip();
+    grip->show();
+    grip->raise();
+  } else {
+    auto* grip_row = new QHBoxLayout();
+    grip_row->setContentsMargins(0, 0, 0, 0);
+    grip_row->addStretch(1);
+    grip_row->addWidget(grip, 0, Qt::AlignBottom | Qt::AlignRight);
+    content_->addLayout(grip_row);
+  }
   for (auto* button : findChildren<QPushButton*>()) {
     button->setAutoDefault(false);  // Enter belongs to the filter field and the canvas
     button->setDefault(false);
@@ -78,6 +86,19 @@ void BrushToolWindow::replace_body(QWidget* body) {
   install_scrub_labels_in(body);
   body->setEnabled(unavailable_reason_.isEmpty());
   body->show();
+  if (corner_grip_ != nullptr) {
+    corner_grip_->raise();  // over the new body
+  }
+}
+
+void BrushToolWindow::place_corner_grip() {
+  if (corner_grip_ == nullptr) {
+    return;
+  }
+  // Just inside the window's outline and its rounded corner.
+  constexpr int kCornerInset = 4;
+  corner_grip_->move(width() - corner_grip_->width() - kCornerInset,
+                     height() - corner_grip_->height() - kCornerInset);
 }
 
 void BrushToolWindow::set_unavailable_reason(const QString& reason) {
@@ -144,6 +165,7 @@ void BrushToolWindow::done(int result) {
 
 void BrushToolWindow::resizeEvent(QResizeEvent* event) {
   QDialog::resizeEvent(event);
+  place_corner_grip();
   if (isVisible() && size_restored_) {
     app_settings().setValue(settings_prefix_ + QStringLiteral("Size"), size());
   }

@@ -23,17 +23,21 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
+#include <QGroupBox>
 #include <QLabel>
+#include <QLayout>
 #include <QLineF>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
 #include <QWindow>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <optional>
@@ -103,6 +107,206 @@ QString panel_reason(QDialog& panel) {
 void select_only(patchy::ui::MainWindow& window, patchy::LayerId id) {
   Access::select_layers(window, {id}, id);
   QApplication::processEvents();
+}
+
+// Where the window's button row sits: `below` is the room under Close down to the window's
+// bottom edge, `above` the room between the lowest visible group box and Close.
+struct ButtonRowRoom {
+  int below{-1};
+  int above{-1};
+  int grip_below{-1};
+  int grip_right{-1};
+  bool grip_clear_of_buttons{false};
+  int note_room{0};  // the height kept for the Density note while it is hidden
+  bool scrolls{false};  // the page is taller than the screen lets the window be
+};
+ButtonRowRoom button_row_room(QDialog& panel) {
+  ButtonRowRoom room;
+  auto* page = page_of(panel);
+  auto* buttons = page != nullptr ? page->findChild<QDialogButtonBox*>() : nullptr;
+  auto* close = buttons != nullptr ? buttons->button(QDialogButtonBox::Close) : nullptr;
+  CHECK(page != nullptr && close != nullptr);
+  if (page == nullptr || close == nullptr) {
+    return room;
+  }
+  panel.layout()->activate();
+  QApplication::processEvents();
+  room.below = panel.height() - close->mapTo(&panel, QPoint(0, close->height())).y();
+  int content_bottom = 0;
+  for (auto* group : page->findChildren<QGroupBox*>()) {
+    if (group->isVisibleTo(page)) {
+      content_bottom = std::max(content_bottom, group->mapTo(&panel, QPoint(0, group->height())).y());
+    }
+  }
+  room.above = close->mapTo(&panel, QPoint(0, 0)).y() - content_bottom;
+  if (auto* grip = panel.findChild<QWidget*>(QStringLiteral("brushToolWindowSizeGrip")); grip != nullptr) {
+    const QRect grip_rect(grip->mapTo(&panel, QPoint(0, 0)), grip->size());
+    room.grip_below = panel.height() - grip_rect.bottom() - 1;
+    room.grip_right = panel.width() - grip_rect.right() - 1;
+    room.grip_clear_of_buttons = grip->isVisible();
+    for (auto* button : page->findChildren<QPushButton*>()) {
+      if (button->isVisibleTo(&panel) &&
+          QRect(button->mapTo(&panel, QPoint(0, 0)), button->size()).intersects(grip_rect)) {
+        room.grip_clear_of_buttons = false;
+      }
+    }
+  }
+  if (auto* note = page->findChild<QLabel*>(QStringLiteral("shapeDensityNote")); note != nullptr && note->isHidden()) {
+    room.note_room = note->minimumHeight() + 12;
+  }
+  if (auto* scroll = page->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll")); scroll != nullptr) {
+    room.scrolls = scroll->verticalScrollBar()->maximum() > 0;
+  }
+  return room;
+}
+
+// The stay-open window ends with its button row (Seth, November 13, 2026: Reset and Close
+// floated well above the bottom edge, over a size grip row of their own). Close sits the
+// window's normal margin above the bottom edge, with the size grip in the window's corner
+// clear of the buttons, for every page the window shows: solid, gradient and pattern fills,
+// a stroke with each paint, No Fill, and the other shape kinds. The window opens at the
+// height its page needs (the room kept for the hidden Density note is part of the page).
+// Height the user adds goes above the row, and a size the user chose is kept.
+void ui_shape_appearance_window_ends_with_its_button_row() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
+    VectorSettingsGuard settings_guard;
+    SettingsValueRestorer size_setting{QStringLiteral("shapeAppearance/windowSize")};
+    SettingsValueRestorer sized_setting{QStringLiteral("shapeAppearance/windowUserSized")};
+    SettingsValueRestorer open_setting{QStringLiteral("shapeAppearance/windowOpen")};
+    patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/windowSize"));
+    patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/windowUserSized"));
+    auto&& [window, canvas] = ShownWindowFixture{};
+    auto& document = Access::document(window);
+    const auto rect = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+    auto* panel = open_panel(window);
+    if (panel == nullptr) {
+      continue;
+    }
+    // The room every page must keep: Close the chrome's margin above the bottom edge, the
+    // grip in the same corner, no grip row under the page.
+    int margin = -1;
+    const auto check_row = [&](const char* what, bool fitted) {
+      const auto room = button_row_room(*panel);
+      std::printf("  %s %-28s window %d x %d: %d px under Close, %d px above it, grip %d / %d px from the corner\n",
+                  light ? "light" : "dark", what, panel->width(), panel->height(), room.below, room.above,
+                  room.grip_below, room.grip_right);
+      if (margin < 0) {
+        margin = room.below;
+      }
+      CHECK(room.below >= 8 && room.below <= 16);
+      CHECK(room.below == margin);  // the same on every page
+      // The grip: in the corner, inside the margin, touching no button.
+      CHECK(room.grip_below >= 2 && room.grip_below <= 6 && room.grip_right >= 2 && room.grip_right <= 6);
+      CHECK(room.grip_clear_of_buttons);
+      if (fitted && !room.scrolls) {
+        // A window at its page's height has no blank band over the row beyond the room the
+        // hidden Density note keeps. (A page taller than the screen scrolls instead.)
+        CHECK(room.above >= 0 && room.above <= 16 + room.note_room);
+      }
+      return room;
+    };
+    const auto reopen = [&] {
+      page_of(*panel)->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+      QApplication::processEvents();
+      CHECK(!panel->isVisible());
+      panel = open_panel(window);
+    };
+    check_row("solid fill", true);
+    // The issue shots are taken in Dark only: a window opened after the scheme changed within
+    // one test process keeps some of the first scheme's colors, which the capture check
+    // (rightly) refuses. The layout checks below run in both schemes.
+    if (!light) {
+      save_widget_artifact("issue_716_shape_appearance_window_dark", *panel);
+    }
+    const int solid_height = panel->height();
+
+    // Pages with more rows grow the window; the row stays at the bottom.
+    auto* fill_kind = field<QComboBox>(*panel, "shapeFillKindCombo");
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    check_row("gradient fill", false);
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(VectorFillKind::Pattern)));
+    QApplication::processEvents();
+    check_row("pattern fill", false);
+    field<QDoubleSpinBox>(*panel, "shapeStrokeWidthSpin")->setValue(6.0);
+    QApplication::processEvents();
+    check_row("pattern fill, stroke", false);
+    auto* stroke_paint = field<QComboBox>(*panel, "shapeStrokePaintCombo");
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    check_row("gradient stroke", false);
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(VectorFillKind::Pattern)));
+    QApplication::processEvents();
+    check_row("pattern stroke", false);
+    const int tall_height = panel->height();
+    CHECK(tall_height > solid_height);
+    // Opened again on this tall page, the window is as tall as the page needs now, not as
+    // tall as the page was when it was built.
+    reopen();
+    check_row("pattern fill and stroke, reopened", true);
+    CHECK(panel->height() == tall_height);
+
+    // The dialog keeps No Fill (the bar's Fill menu does not): the shape then draws its
+    // stroke alone.
+    fill_kind = field<QComboBox>(*panel, "shapeFillKindCombo");
+    CHECK(fill_kind->findData(static_cast<int>(VectorFillKind::None)) >= 0);
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(VectorFillKind::None)));
+    QApplication::processEvents();
+    CHECK(shape_of(document, rect).fill.kind == VectorFillKind::None);
+    check_row("no fill", false);
+
+    // The other shape kinds bring their own Geometry rows.
+    canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(350, 100)),
+         canvas->widget_position_for_document_point(QPoint(450, 180)));
+    QApplication::processEvents();
+    panel = panel_window(window);
+    check_row("ellipse", false);
+    canvas->set_tool(patchy::ui::CanvasTool::Line);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 300)),
+         canvas->widget_position_for_document_point(QPoint(300, 340)));
+    QApplication::processEvents();
+    check_row("line", false);
+    canvas->set_tool(patchy::ui::CanvasTool::Polygon);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(450, 330)),
+         canvas->widget_position_for_document_point(QPoint(500, 330)));
+    QApplication::processEvents();
+    check_row("polygon", false);
+
+    // Back on a short page: closed and opened again the window shrinks to it (nobody sized
+    // it), and the row has no blank band over it.
+    const auto simple = make_rect(window, *canvas, QPoint(560, 80), QPoint(640, 140));
+    static_cast<void>(simple);
+    check_row("a second rectangle", false);
+    // Reset gives it the factory look: a solid fill and no stroke, the shortest page.
+    if (auto* reset = page_of(*panel)->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton"))) {
+      reset->click();
+      QApplication::processEvents();
+    }
+    reopen();
+    const auto fitted = check_row("a second rectangle, reopened", true);
+    CHECK(panel->height() < tall_height);
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("shapeAppearance/windowUserSized"), false).toBool());
+
+    // Height the user adds goes above the button row, never under it, and the size stays
+    // through a close and the next opening.
+    const QSize dragged(panel->width() + 40, panel->height() + 120);
+    panel->resize(dragged);
+    QApplication::processEvents();
+    const auto roomy = check_row("made 120 px taller", false);
+    CHECK(roomy.above >= fitted.above + 110);
+    if (!light) {
+      save_widget_artifact("issue_716_shape_appearance_window_taller_dark", *panel);
+    }
+    reopen();
+    CHECK(panel->size() == dragged);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("shapeAppearance/windowUserSized"), false).toBool());
+    check_row("the user's size, reopened", false);
+    page_of(*panel)->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+    QApplication::processEvents();
+  }
 }
 
 // Every entry point opens the window and returns: the document is not locked, a second
@@ -917,6 +1121,7 @@ void ui_shape_appearance_window_shows_handles_for_a_stroke_gradient() {
 
 std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
   return {
+      {"ui_shape_appearance_window_ends_with_its_button_row", ui_shape_appearance_window_ends_with_its_button_row},
       {"ui_shape_appearance_window_stays_open_while_editing", ui_shape_appearance_window_stays_open_while_editing},
       {"ui_shape_appearance_window_records_one_undo_step_per_gesture",
        ui_shape_appearance_window_records_one_undo_step_per_gesture},

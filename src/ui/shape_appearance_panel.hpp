@@ -90,6 +90,9 @@ struct ShapeAppearancePanelHost {
 // shows its handles, and whether the stroke's does when the fill is a gradient too.
 inline constexpr const char* kShapeAppearanceGradientHandlesKey = "shapeAppearance/showGradientHandles";
 inline constexpr const char* kShapeAppearanceGradientHandlesOnStrokeKey = "shapeAppearance/gradientHandlesOnStroke";
+// True once the user dragged the window to a size of their own: it then opens at that size
+// (grown when a page needs more) instead of at the size its page needs.
+inline constexpr const char* kShapeAppearanceWindowUserSizedKey = "shapeAppearance/windowUserSized";
 
 class ShapeAppearancePanel : public QObject {
   Q_OBJECT
@@ -151,6 +154,13 @@ private:
   void build_page(ShapeAppearanceTarget target);
   void show_unavailable(const QString& reason);
   void rebase_page();
+  // Sizes the window for the page it shows. With `fit` (the window is being opened) a window
+  // the user has not sized takes exactly the size its page needs, so Reset and Close end it
+  // with no blank band above them; otherwise, and for a size the user chose, it only grows.
+  void size_window_for_page(bool fit);
+  // Whether the window's size is one the user dragged it to (kShapeAppearanceAutoSizeProperty
+  // names the last size the window's own code gave it; before the first one, the saved flag).
+  [[nodiscard]] bool window_user_sized() const;
 
   ShapeAppearancePanelHost host_;
   QPointer<QWidget> owner_;
@@ -167,6 +177,7 @@ private:
   bool sync_wanted_{false};
   bool gradient_handles_{true};
   bool gradient_handles_on_stroke_{false};
+  bool user_sized_{false};
 };
 
 }  // namespace patchy::ui
