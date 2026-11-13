@@ -10,6 +10,7 @@
 #include "core/artboard.hpp"
 #include "core/channel_view.hpp"
 #include "core/clone_source_transform.hpp"
+#include "core/color_replace.hpp"
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/gradient_fill_drag.hpp"
@@ -727,6 +728,23 @@ public:
   };
   RedEyeResult apply_red_eye_at(QPoint point, std::optional<QRect> box, int pupil_size, int darken_amount,
                                 bool record_history = true);
+  // Color Replacement tool (canvas_widget_color_replace.cpp, core/color_replace.hpp; GitHub
+  // issue 720): Mode, Limits, Tolerance and Anti-alias, and where the compared color comes from.
+  void set_color_replace_options(const patchy::ColorReplaceOptions& options) noexcept;
+  [[nodiscard]] const patchy::ColorReplaceOptions& color_replace_options() const noexcept;
+  void set_color_replace_sampling(patchy::ColorReplaceSampling sampling) noexcept;
+  [[nodiscard]] patchy::ColorReplaceSampling color_replace_sampling() const noexcept;
+  // The tool for scripts: one stroke through `points` (document pixels) with a round tip on
+  // the active pixel layer, honoring the selection. Records no undo step (a script run's own
+  // snapshot covers it). `ok` is false with `error` when the edit was refused; `changed` is
+  // empty when no pixel matched.
+  using ColorReplaceScriptStroke = patchy::ui::ColorReplaceScriptStroke;
+  struct ColorReplaceResult {
+    bool ok{false};
+    QRect changed;
+    QString error;
+  };
+  ColorReplaceResult apply_color_replace_stroke(const ColorReplaceScriptStroke& stroke);
   void set_local_adjustment_strength(int strength) noexcept;
   [[nodiscard]] int local_adjustment_strength() const noexcept;
   // Smudge's own Strength, 0..100 (GitHub issue 675); Smudge ignores the brush Opacity.
@@ -2038,7 +2056,8 @@ protected:
   [[nodiscard]] bool coalescing_retouch_stroke() const noexcept { return painting_; }
   [[nodiscard]] bool toning_stroke_tool_active() const noexcept {
     return tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
-           tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush;
+           tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush ||
+           tool_ == CanvasTool::ColorReplace;
   }
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
@@ -2725,6 +2744,8 @@ private:
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
   // Blur and Sharpen: per-dab fixed 3x3 steps that build up (GitHub #660 follow-up).
   [[nodiscard]] QRect blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation);
+  // Color Replacement: per-dab tolerance match against a sampled color (GitHub issue 720).
+  [[nodiscard]] QRect color_replace_brush_segment(QPoint from, QPoint to);
   // Counts one toning or detail brush segment and its time (RenderCacheDiagnostics::toning_*).
   void count_toning_segment(std::chrono::steady_clock::time_point started) noexcept;
   // True while a Dodge, Burn or Sponge stroke has not yet moved its segment spacing from the
@@ -5015,6 +5036,11 @@ private:
   DodgeBurnStrokeTable dodge_burn_stroke_table_;
   bool toning_dab_placed_{false};
   double toning_dab_distance_{0.0};
+  // Color Replacement (canvas_widget_color_replace.cpp): the options, and the live stroke
+  // (stroke-start pixels, sample and per-pixel weights), dropped with the stroke tracking.
+  patchy::ColorReplaceOptions color_replace_options_{};
+  patchy::ColorReplaceSampling color_replace_sampling_{patchy::ColorReplaceSampling::Continuous};
+  std::optional<patchy::ColorReplaceStroke> color_replace_stroke_;
   SpongeMode sponge_mode_{SpongeMode::Desaturate};
   bool sponge_vibrance_{true};
   int eyedropper_sample_size_{1};

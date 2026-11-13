@@ -19324,6 +19324,22 @@ Do you want to replace it?</source>
         <source>Resize layer</source>
         <translation>레이어 크기 조정</translation>
     </message>
+    <message>
+        <source>Color Replacement needs an open document</source>
+        <translation>색상 대체에는 열린 문서가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Color Replacement is unavailable while editing a mask or channel</source>
+        <translation>마스크나 채널을 편집하는 동안에는 색상 대체를 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Color Replacement needs an editable pixel layer</source>
+        <translation>색상 대체에는 편집 가능한 픽셀 레이어가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Color replacement</source>
+        <translation>색상 대체</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -21833,6 +21849,14 @@ Do you want to replace it?</source>
     <message>
         <source>Move text on a path to the other side of the path</source>
         <translation>패스 위의 텍스트를 패스의 반대쪽으로 이동</translation>
+    </message>
+    <message>
+        <source>Paint over one color to replace it with the foreground color</source>
+        <translation>색상 위를 칠해 전경색으로 대체</translation>
+    </message>
+    <message>
+        <source>Switch between the Brush and Color Replacement tools</source>
+        <translation>브러시 도구와 색상 대체 도구 간 전환</translation>
     </message>
 </context>
 <context>
@@ -36031,6 +36055,70 @@ Locked: %1</source>
         <source>Flip Text on Path</source>
         <translation>패스 위의 텍스트 뒤집기</translation>
     </message>
+    <message>
+        <source>Which part of the foreground color replaces the matching pixels&apos; own: its hue, its saturation, both (Color), or its lightness (Luminosity)</source>
+        <translation>일치하는 픽셀에서 전경색으로 대체할 부분: 색조, 채도, 둘 다(색상) 또는 밝기(광도)</translation>
+    </message>
+    <message>
+        <source>Sampling:</source>
+        <translation>샘플링:</translation>
+    </message>
+    <message>
+        <source>The color that gets replaced: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>대체할 색상: 계속은 드래그하는 동안 포인터 아래의 색상, 한 번은 획이 시작된 곳의 색상, 배경 색상 견본은 배경색을 사용합니다</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>계속</translation>
+    </message>
+    <message>
+        <source>Once</source>
+        <translation>한 번</translation>
+    </message>
+    <message>
+        <source>Background Swatch</source>
+        <translation>배경 색상 견본</translation>
+    </message>
+    <message>
+        <source>Limits:</source>
+        <translation>제한:</translation>
+    </message>
+    <message>
+        <source>Which matching pixels change: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>변경할 일치 픽셀: 인접하지 않음은 브러시 아래의 모든 픽셀, 연속은 포인터와 연결된 픽셀만, 가장자리 찾기는 연결된 픽셀을 바꾸되 선명한 가장자리를 유지합니다</translation>
+    </message>
+    <message>
+        <source>Discontiguous</source>
+        <translation>인접하지 않음</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>가장자리 찾기</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be replaced; 0% replaces exact matches only</source>
+        <translation>샘플링한 색상과 얼마나 가까운 색상을 대체할지 정합니다. 0%는 정확히 일치하는 색상만 대체합니다</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the replaced area</source>
+        <translation>대체된 영역의 가장자리를 부드럽게 합니다</translation>
+    </message>
+    <message>
+        <source>Paint over a color to replace it with the foreground color. Only pixels close to the color under the center of the brush change.</source>
+        <translation>색상 위를 칠하면 전경색으로 대체됩니다. 브러시 중심 아래의 색상과 가까운 픽셀만 바뀝니다.</translation>
+    </message>
+    <message>
+        <source>Brush Tools</source>
+        <translation>브러시 도구</translation>
+    </message>
+    <message>
+        <source>Color Replacement</source>
+        <translation>색상 대체</translation>
+    </message>
+    <message>
+        <source>Cycle Brush Tools</source>
+        <translation>브러시 도구 전환</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39241,6 +39329,50 @@ Locked: %1</source>
     <message>
         <source>Invalid selectColorRange option: %1.</source>
         <translation>잘못된 selectColorRange 옵션: %1.</translation>
+    </message>
+    <message>
+        <source>replaceColor: pass {points, color} and optional settings.</source>
+        <translation>replaceColor: {points, color}와 선택적 설정을 전달하세요.</translation>
+    </message>
+    <message>
+        <source>replaceColor: %1 must be a number from %2 to %3.</source>
+        <translation>replaceColor: %1은(는) %2에서 %3 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown %1 value.</source>
+        <translation>replaceColor: 알 수 없는 %1 값입니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>replaceColor: points는 1개에서 100000개의 {x, y} 점으로 된 배열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: color must be a color string.</source>
+        <translation>replaceColor: color는 색상 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: backgroundColor must be a color string.</source>
+        <translation>replaceColor: backgroundColor는 색상 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: antiAlias must be true or false.</source>
+        <translation>replaceColor: antiAlias는 true 또는 false여야 합니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown option %1.</source>
+        <translation>replaceColor: 알 수 없는 옵션 %1입니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>replaceColor: sampling &quot;background&quot;에는 backgroundColor가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>replaceColor needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>replaceColor에는 문서의 활성 레이어가 필요합니다(먼저 doc.activeLayer를 설정하세요).</translation>
+    </message>
+    <message>
+        <source>replaceColor needs an editable pixel layer.</source>
+        <translation>replaceColor에는 편집 가능한 픽셀 레이어가 필요합니다.</translation>
     </message>
 </context>
 <context>

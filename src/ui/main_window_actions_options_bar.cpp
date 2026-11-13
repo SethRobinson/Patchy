@@ -2706,13 +2706,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // so its bar starts with Tip.
   add_option_label(QT_TR_NOOP("Tip:"),
                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                   CanvasTool::Eraser});
+                   CanvasTool::Eraser, CanvasTool::ColorReplace});
   brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
   // The options bar is built after load_tool_settings() reset the active tip to Round.
   brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
   add_option_widget(brush_tip_picker_,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                     CanvasTool::Eraser});
+                     CanvasTool::Eraser, CanvasTool::ColorReplace});
   // The floating Brush Tips window hands the keys it does not use to the active canvas.
   brush_tip_picker_->set_window_key_target([this]() -> QWidget* { return canvas_; });
   connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
@@ -2789,7 +2789,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Separators follow the grouping rules in docs/options-bar.md; a group a tool or mode hides
   // drops its separator by itself (stray_option_separators).
   add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone,
-                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
+                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::ColorReplace});
 
   // Mode sits FIRST for the shape tools so it never moves when the Pixels-mode
   // brush controls below appear (Seth, September 2026).
@@ -2841,7 +2841,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       QT_TR_NOOP("Size:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
        CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-       CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+       CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
        CanvasTool::Eraser, CanvasTool::Line}));
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
@@ -2852,7 +2852,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_size,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
                      CanvasTool::Eraser, CanvasTool::Line});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
@@ -2868,10 +2868,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
                      CanvasTool::Eraser, CanvasTool::Line});
   add_option_separator({CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing,
-                        CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line});
+                        CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::ColorReplace});
   // Brush Mode (core/paint_mode.hpp), Brush only: the Eraser's Mode would mean its tip
   // shape (Round/Square already cover that) and the retouch tools paint by their own math.
   add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Brush});
@@ -2904,6 +2904,43 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       retranslate_paint_mode_items(brush_mode_combo);
     }
   });
+  // Color Replacement's Mode (GitHub issue 720): the four modes that keep part of the pixel's
+  // own color, in the Brush Mode's slot. Item data is the ColorReplaceMode value.
+  add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::ColorReplace});
+  color_replace_mode_combo_ = new QComboBox(toolbar);
+  color_replace_mode_combo_->setObjectName(QStringLiteral("colorReplaceModeCombo"));
+  for (const auto mode : {patchy::ColorReplaceMode::Hue, patchy::ColorReplaceMode::Saturation,
+                          patchy::ColorReplaceMode::Color, patchy::ColorReplaceMode::Luminosity}) {
+    color_replace_mode_combo_->addItem(blend_mode_name(patchy::color_replace_blend_mode(mode)),
+                                       static_cast<int>(mode));
+  }
+  color_replace_mode_combo_->setCurrentIndex(
+      std::max(0, color_replace_mode_combo_->findData(static_cast<int>(current_color_replace_options_.mode))));
+  bind_tooltip(color_replace_mode_combo_,
+               QT_TR_NOOP("Which part of the foreground color replaces the matching pixels' own: its hue, its "
+                          "saturation, both (Color), or its lightness (Luminosity)"));
+  add_option_widget(color_replace_mode_combo_, {CanvasTool::ColorReplace});
+  connect(color_replace_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || color_replace_mode_combo_ == nullptr) {
+      return;
+    }
+    current_color_replace_options_.mode =
+        static_cast<patchy::ColorReplaceMode>(color_replace_mode_combo_->itemData(index).toInt());
+    apply_color_replace_settings();
+  });
+  {
+    QPointer<QComboBox> mode_combo(color_replace_mode_combo_);
+    register_retranslation([mode_combo] {
+      if (mode_combo == nullptr) {
+        return;
+      }
+      const QSignalBlocker blocker(mode_combo);
+      for (int index = 0; index < mode_combo->count(); ++index) {
+        mode_combo->setItemText(index, blend_mode_name(patchy::color_replace_blend_mode(
+                                           static_cast<patchy::ColorReplaceMode>(mode_combo->itemData(index).toInt()))));
+      }
+    });
+  }
   // The Healing Brush's Mode (GitHub issue 381). Item data is the HealingMode value.
   add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Healing});
   healing_mode_combo_ = new QComboBox(toolbar);
@@ -2990,14 +3027,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     auto* separator = make_option_separator();
     register_option_action(separator, {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone,
                                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser,
-                                       CanvasTool::Line});
+                                       CanvasTool::Line, CanvasTool::ColorReplace});
     vector_pixel_only_option_widgets_.push_back(separator);
   }
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Soft:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
        CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-       CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+       CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
        CanvasTool::Eraser, CanvasTool::Line}));
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
@@ -3008,7 +3045,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_softness,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
                      CanvasTool::Eraser, CanvasTool::Line});
   register_retranslation([brush_softness] {
     brush_softness->setToolTip(resolve_modifier_names(MainWindow::tr("Brush edge softness: %ALT%+Right-drag up or down on the canvas")));
@@ -3758,6 +3795,99 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       remove_object_action_->trigger();
     }
   });
+
+  // Color Replacement (canvas_widget_color_replace.cpp, GitHub issue 720): which color is
+  // replaced and which matching pixels, then how close a match must be. Mode sits after Size.
+  {
+    struct Choice {
+      const char* source;
+      int value;
+    };
+    // A combo whose items are MainWindow strings, retranslated in place; item data is the enum value.
+    const auto add_choice_combo = [&](const char* label, const char* object_name, const char* tooltip,
+                                      std::initializer_list<Choice> choices, int current) {
+      add_option_label(label, {CanvasTool::ColorReplace});
+      auto* combo = new QComboBox(toolbar);
+      combo->setObjectName(QString::fromLatin1(object_name));
+      const std::vector<Choice> items(choices);
+      for (const auto& choice : items) {
+        combo->addItem(tr(choice.source), choice.value);
+      }
+      combo->setCurrentIndex(std::max(0, combo->findData(current)));
+      bind_tooltip(combo, tooltip);
+      add_option_widget(combo, {CanvasTool::ColorReplace});
+      QPointer<QComboBox> guarded(combo);
+      register_retranslation([guarded, items] {
+        if (guarded == nullptr) {
+          return;
+        }
+        const QSignalBlocker blocker(guarded);
+        for (int index = 0; index < guarded->count() && index < static_cast<int>(items.size()); ++index) {
+          guarded->setItemText(index, MainWindow::tr(items[static_cast<std::size_t>(index)].source));
+        }
+      });
+      return combo;
+    };
+    add_option_separator({CanvasTool::ColorReplace});
+    color_replace_sampling_combo_ = add_choice_combo(
+        QT_TR_NOOP("Sampling:"), "colorReplaceSamplingCombo",
+        QT_TR_NOOP("The color that gets replaced: Continuous takes the color under the pointer as you drag, Once "
+                   "the color where the stroke starts, Background Swatch the background color"),
+        {{QT_TR_NOOP("Continuous"), static_cast<int>(patchy::ColorReplaceSampling::Continuous)},
+         {QT_TR_NOOP("Once"), static_cast<int>(patchy::ColorReplaceSampling::Once)},
+         {QT_TR_NOOP("Background Swatch"), static_cast<int>(patchy::ColorReplaceSampling::BackgroundSwatch)}},
+        static_cast<int>(current_color_replace_sampling_));
+    connect(color_replace_sampling_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+      if (index < 0 || color_replace_sampling_combo_ == nullptr) {
+        return;
+      }
+      current_color_replace_sampling_ =
+          static_cast<patchy::ColorReplaceSampling>(color_replace_sampling_combo_->itemData(index).toInt());
+      apply_color_replace_settings();
+    });
+    color_replace_limits_combo_ = add_choice_combo(
+        QT_TR_NOOP("Limits:"), "colorReplaceLimitsCombo",
+        QT_TR_NOOP("Which matching pixels change: Discontiguous any under the brush, Contiguous only those "
+                   "connected to the pointer, Find Edges connected ones while keeping sharp edges sharp"),
+        {{QT_TR_NOOP("Discontiguous"), static_cast<int>(patchy::ColorReplaceLimits::Discontiguous)},
+         {QT_TR_NOOP("Contiguous"), static_cast<int>(patchy::ColorReplaceLimits::Contiguous)},
+         {QT_TR_NOOP("Find Edges"), static_cast<int>(patchy::ColorReplaceLimits::FindEdges)}},
+        static_cast<int>(current_color_replace_options_.limits));
+    connect(color_replace_limits_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+      if (index < 0 || color_replace_limits_combo_ == nullptr) {
+        return;
+      }
+      current_color_replace_options_.limits =
+          static_cast<patchy::ColorReplaceLimits>(color_replace_limits_combo_->itemData(index).toInt());
+      apply_color_replace_settings();
+    });
+    add_option_separator({CanvasTool::ColorReplace});
+    add_option_label(QT_TR_NOOP("Tolerance:"), {CanvasTool::ColorReplace});
+    color_replace_tolerance_spin_ = new QSpinBox(toolbar);
+    color_replace_tolerance_spin_->setObjectName(QStringLiteral("colorReplaceToleranceSpin"));
+    color_replace_tolerance_spin_->setRange(patchy::kMinColorReplaceTolerance, patchy::kMaxColorReplaceTolerance);
+    color_replace_tolerance_spin_->setValue(current_color_replace_options_.tolerance);
+    color_replace_tolerance_spin_->setSuffix(percent_suffix());
+    configure_toolbar_spinbox(color_replace_tolerance_spin_, 52);
+    bind_tooltip(color_replace_tolerance_spin_,
+                 QT_TR_NOOP("How close a color must be to the sampled color to be replaced; 0% replaces exact "
+                            "matches only"));
+    add_option_widget(color_replace_tolerance_spin_, {CanvasTool::ColorReplace});
+    connect(color_replace_tolerance_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+      current_color_replace_options_.tolerance = value;
+      apply_color_replace_settings();
+    });
+    color_replace_anti_alias_check_ = new CheckGlyphBox(tr("Anti-alias"), toolbar);
+    bind_widget_text(color_replace_anti_alias_check_, QT_TR_NOOP("Anti-alias"));
+    color_replace_anti_alias_check_->setObjectName(QStringLiteral("colorReplaceAntiAliasCheck"));
+    color_replace_anti_alias_check_->setChecked(current_color_replace_options_.anti_alias);
+    bind_tooltip(color_replace_anti_alias_check_, QT_TR_NOOP("Soften the edge of the replaced area"));
+    add_option_widget(color_replace_anti_alias_check_, {CanvasTool::ColorReplace});
+    connect(color_replace_anti_alias_check_, &QCheckBox::toggled, this, [this](bool checked) {
+      current_color_replace_options_.anti_alias = checked;
+      apply_color_replace_settings();
+    });
+  }
 
   // Red Eye (canvas_widget_red_eye.cpp): Pupil Size and Darken Amount, a spin box and a
   // slider each like the Fill tool's Opacity.

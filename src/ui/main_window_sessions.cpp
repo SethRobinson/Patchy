@@ -160,6 +160,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_local_protect_tones(current_local_protect_tones_);
     session->canvas->set_sponge_mode(current_sponge_mode_);
     session->canvas->set_sponge_vibrance(current_sponge_vibrance_);
+    session->canvas->set_color_replace_options(current_color_replace_options_);
+    session->canvas->set_color_replace_sampling(current_color_replace_sampling_);
     session->canvas->set_eyedropper_sample_size(current_eyedropper_sample_size_);
     session->canvas->set_eyedropper_sample_layers(current_eyedropper_sample_layers_);
     session->canvas->set_eyedropper_picks_background(current_eyedropper_picks_background_);
@@ -234,6 +236,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_local_protect_tones(current_local_protect_tones_);
   session->canvas->set_sponge_mode(current_sponge_mode_);
   session->canvas->set_sponge_vibrance(current_sponge_vibrance_);
+  session->canvas->set_color_replace_options(current_color_replace_options_);
+  session->canvas->set_color_replace_sampling(current_color_replace_sampling_);
   session->canvas->set_eyedropper_sample_size(current_eyedropper_sample_size_);
   session->canvas->set_eyedropper_sample_layers(current_eyedropper_sample_layers_);
   session->canvas->set_eyedropper_picks_background(current_eyedropper_picks_background_);
@@ -517,6 +521,8 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_local_protect_tones(current_local_protect_tones_);
   canvas_->set_sponge_mode(current_sponge_mode_);
   canvas_->set_sponge_vibrance(current_sponge_vibrance_);
+  canvas_->set_color_replace_options(current_color_replace_options_);
+  canvas_->set_color_replace_sampling(current_color_replace_sampling_);
   canvas_->set_eyedropper_sample_size(current_eyedropper_sample_size_);
   canvas_->set_eyedropper_sample_layers(current_eyedropper_sample_layers_);
   canvas_->set_eyedropper_picks_background(current_eyedropper_picks_background_);

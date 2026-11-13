@@ -19324,6 +19324,22 @@ Do you want to replace it?</source>
         <source>Resize layer</source>
         <translation>レイヤーのサイズを変更</translation>
     </message>
+    <message>
+        <source>Color Replacement needs an open document</source>
+        <translation>色の置き換えには開いているドキュメントが必要です</translation>
+    </message>
+    <message>
+        <source>Color Replacement is unavailable while editing a mask or channel</source>
+        <translation>マスクやチャンネルの編集中は色の置き換えを使用できません</translation>
+    </message>
+    <message>
+        <source>Color Replacement needs an editable pixel layer</source>
+        <translation>色の置き換えには編集可能なピクセルレイヤーが必要です</translation>
+    </message>
+    <message>
+        <source>Color replacement</source>
+        <translation>色の置き換え</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -21833,6 +21849,14 @@ Do you want to replace it?</source>
     <message>
         <source>Move text on a path to the other side of the path</source>
         <translation>パス上のテキストをパスの反対側に移動</translation>
+    </message>
+    <message>
+        <source>Paint over one color to replace it with the foreground color</source>
+        <translation>色の上をなぞって描画色に置き換える</translation>
+    </message>
+    <message>
+        <source>Switch between the Brush and Color Replacement tools</source>
+        <translation>ブラシツールと色の置き換えツールを交互に選択</translation>
     </message>
 </context>
 <context>
@@ -36031,6 +36055,70 @@ Locked: %1</source>
         <source>Flip Text on Path</source>
         <translation>パス上のテキストを反転</translation>
     </message>
+    <message>
+        <source>Which part of the foreground color replaces the matching pixels&apos; own: its hue, its saturation, both (Color), or its lightness (Luminosity)</source>
+        <translation>一致したピクセルの色のうち描画色で置き換える部分: 色相、彩度、その両方 (カラー)、または明るさ (輝度)</translation>
+    </message>
+    <message>
+        <source>Sampling:</source>
+        <translation>サンプル:</translation>
+    </message>
+    <message>
+        <source>The color that gets replaced: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>置き換える色: 継続はドラッグ中のポインターの下の色、一度はストロークの開始位置の色、背景のスウォッチは背景色を使います</translation>
+    </message>
+    <message>
+        <source>Continuous</source>
+        <translation>継続</translation>
+    </message>
+    <message>
+        <source>Once</source>
+        <translation>一度</translation>
+    </message>
+    <message>
+        <source>Background Swatch</source>
+        <translation>背景のスウォッチ</translation>
+    </message>
+    <message>
+        <source>Limits:</source>
+        <translation>制限:</translation>
+    </message>
+    <message>
+        <source>Which matching pixels change: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>変更する一致ピクセル: 隣接されていないはブラシの下のすべて、隣接はポインターにつながったもののみ、輪郭検出はつながったものでくっきりした輪郭を保ちます</translation>
+    </message>
+    <message>
+        <source>Discontiguous</source>
+        <translation>隣接されていない</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>輪郭検出</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be replaced; 0% replaces exact matches only</source>
+        <translation>サンプルした色にどれだけ近い色を置き換えるか。0% は完全に一致する色のみ置き換えます</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the replaced area</source>
+        <translation>置き換えた範囲の縁を滑らかにします</translation>
+    </message>
+    <message>
+        <source>Paint over a color to replace it with the foreground color. Only pixels close to the color under the center of the brush change.</source>
+        <translation>色の上をなぞると描画色に置き換わります。ブラシの中心の下の色に近いピクセルだけが変わります。</translation>
+    </message>
+    <message>
+        <source>Brush Tools</source>
+        <translation>ブラシツール</translation>
+    </message>
+    <message>
+        <source>Color Replacement</source>
+        <translation>色の置き換え</translation>
+    </message>
+    <message>
+        <source>Cycle Brush Tools</source>
+        <translation>ブラシツールを切り替え</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39241,6 +39329,50 @@ Locked: %1</source>
     <message>
         <source>Invalid selectColorRange option: %1.</source>
         <translation>selectColorRange のオプションが無効です: %1。</translation>
+    </message>
+    <message>
+        <source>replaceColor: pass {points, color} and optional settings.</source>
+        <translation>replaceColor: {points, color} と任意の設定を渡してください。</translation>
+    </message>
+    <message>
+        <source>replaceColor: %1 must be a number from %2 to %3.</source>
+        <translation>replaceColor: %1 は %2 から %3 までの数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown %1 value.</source>
+        <translation>replaceColor: %1 の値が不明です。</translation>
+    </message>
+    <message>
+        <source>replaceColor: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>replaceColor: points は 1 から 100000 個の {x, y} 点の配列である必要があります。</translation>
+    </message>
+    <message>
+        <source>replaceColor: color must be a color string.</source>
+        <translation>replaceColor: color は色の文字列である必要があります。</translation>
+    </message>
+    <message>
+        <source>replaceColor: backgroundColor must be a color string.</source>
+        <translation>replaceColor: backgroundColor は色の文字列である必要があります。</translation>
+    </message>
+    <message>
+        <source>replaceColor: antiAlias must be true or false.</source>
+        <translation>replaceColor: antiAlias は true または false である必要があります。</translation>
+    </message>
+    <message>
+        <source>replaceColor: unknown option %1.</source>
+        <translation>replaceColor: 不明なオプション %1 です。</translation>
+    </message>
+    <message>
+        <source>replaceColor: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>replaceColor: sampling &quot;background&quot; には backgroundColor が必要です。</translation>
+    </message>
+    <message>
+        <source>replaceColor needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>replaceColor にはドキュメントのアクティブレイヤーが必要です (先に doc.activeLayer を設定してください)。</translation>
+    </message>
+    <message>
+        <source>replaceColor needs an editable pixel layer.</source>
+        <translation>replaceColor には編集可能なピクセルレイヤーが必要です。</translation>
     </message>
 </context>
 <context>

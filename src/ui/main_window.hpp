@@ -5,6 +5,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/channel_view.hpp"
+#include "core/color_replace.hpp"
 #include "core/document.hpp"
 #include "core/document_recovery_store.hpp"
 #include "core/hdr_color.hpp"
@@ -3179,6 +3180,10 @@ private:
   void set_red_eye_pupil_size(int percent);
   void set_red_eye_darken_amount(int percent);
   void sync_red_eye_controls();
+  // Color Replacement options-bar values (GitHub issue 720): stored on the window, applied to
+  // every canvas, saved. apply_ pushes the mirrors to the active canvas after a control changed.
+  void apply_color_replace_settings();
+  void sync_color_replace_controls();
   // Writes only tools/activeTool: a tool picked with no document open (no canvas for
   // save_tool_settings to read, or the startup load still pending).
   void save_active_tool_setting() const;
@@ -3980,6 +3985,11 @@ private:
   QSlider* red_eye_pupil_slider_{nullptr};
   QSpinBox* red_eye_darken_spin_{nullptr};
   QSlider* red_eye_darken_slider_{nullptr};
+  QComboBox* color_replace_mode_combo_{nullptr};
+  QComboBox* color_replace_sampling_combo_{nullptr};
+  QComboBox* color_replace_limits_combo_{nullptr};
+  QSpinBox* color_replace_tolerance_spin_{nullptr};
+  QCheckBox* color_replace_anti_alias_check_{nullptr};
   QCheckBox* object_select_sample_all_layers_check_{nullptr};
   QComboBox* object_select_model_combo_{nullptr};
   QPushButton* select_subject_button_{nullptr};
@@ -4684,6 +4694,10 @@ private:
   // Red Eye Pupil Size and Darken Amount (tools/redEyePupilSize, tools/redEyeDarkenAmount).
   int current_red_eye_pupil_size_{50};
   int current_red_eye_darken_amount_{50};
+  // Color Replacement (settings keys tools/colorReplaceMode, ...Sampling, ...Limits as tokens,
+  // ...Tolerance, ...AntiAlias).
+  patchy::ColorReplaceOptions current_color_replace_options_{};
+  patchy::ColorReplaceSampling current_color_replace_sampling_{patchy::ColorReplaceSampling::Continuous};
   // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
   // and tools/cropShieldOpacity; every canvas draws with these.
   CropOverlayOptions current_crop_overlay_options_;

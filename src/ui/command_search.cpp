@@ -576,6 +576,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.object_select", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select an object automatically")},
     {"tools.brush", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint with a brush")},
     {"tools.mixer_brush", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mix paint with the colors under it")},
+    {"tools.color_replacement",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint over one color to replace it with the foreground color")},
     {"tools.clone", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Copy pixels from one place to another")},
     {"tools.pattern_stamp", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint with a pattern")},
     {"tools.healing", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Repair blemishes with sampled pixels")},
@@ -630,6 +632,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.cycle.shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the shape tools")},
     {"tools.cycle.pick", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the eyedropper and ruler")},
     {"tools.cycle.type", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the Type and Type Mask tools")},
+    {"tools.cycle.brush",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the Brush and Color Replacement tools")},
     // Color and brush keys
     {"color.default", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Reset to black and white")},
     {"color.swap", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Exchange foreground and background colors")},

@@ -23,6 +23,21 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-13 (addition): `layer.replaceColor(options)` is the Color Replacement tool (GitHub issue 720,
+[color-replacement.md](color-replacement.md#scripting)): one stroke with a round tip through
+`points` (`{x, y}` in document pixels, 1 to 100000 of them) that repaints the pixels matching a
+sampled color with `color`. Options: `size` (1 to 1024, default 40), `hardness` (0 to 100, default
+100), `mode` (`"hue"`, `"saturation"`, `"color"` the default, `"luminosity"`), `sampling`
+(`"continuous"` the default, `"once"`, `"background"`, which needs `backgroundColor`), `limits`
+(`"discontiguous"`, `"contiguous"` the default, `"findEdges"`), `tolerance` (0 to 100, default 30)
+and `antiAlias` (default true). The layer must be the document's active layer; a selection limits
+the change and alpha never changes. Returns the changed bounds `{x, y, width, height}`, all zero
+when no pixel matched. It throws before painting on an unknown option, a wrong type or a value out
+of range, and never changes the artist's tool or options. Permanent identifiers: the method, its
+keys and tokens, the hotkey command ids `tools.color_replacement` and `tools.cycle.brush`, and the
+settings keys `tools/colorReplaceMode`, `tools/colorReplaceSampling`, `tools/colorReplaceLimits`,
+`tools/colorReplaceTolerance`, `tools/colorReplaceAntiAlias`. Works at 8, 16 and 32 bits. Pinned by
+`ui_script_replace_color_strokes_and_validation`.
 2026-11-13 (addition): text on a path (GitHub issue 717, [path-text.md](path-text.md#scripting)).
 `doc.addTextLayer(text, {path, pathRange})` sets the text along a copy of one open or closed
 `PatchyVectorPath` contour in document pixels; `pathRange` is `{start, end}` in segment units

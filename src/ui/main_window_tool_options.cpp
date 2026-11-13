@@ -2871,6 +2871,23 @@ void MainWindow::load_tool_settings() {
   canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
   canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
   sync_red_eye_controls();
+  // Color Replacement (GitHub issue 720): tokens, so an unknown one is the default.
+  {
+    const auto token = [&settings](const char* key) { return settings.value(QLatin1String(key)).toString().toStdString(); };
+    current_color_replace_options_.mode = patchy::color_replace_mode_from_token(token("tools/colorReplaceMode"))
+                                              .value_or(patchy::ColorReplaceMode::Color);
+    current_color_replace_options_.limits = patchy::color_replace_limits_from_token(token("tools/colorReplaceLimits"))
+                                                .value_or(patchy::ColorReplaceLimits::Contiguous);
+    current_color_replace_sampling_ = patchy::color_replace_sampling_from_token(token("tools/colorReplaceSampling"))
+                                          .value_or(patchy::ColorReplaceSampling::Continuous);
+    current_color_replace_options_.tolerance =
+        stored_int(settings, "tools/colorReplaceTolerance", patchy::kDefaultColorReplaceTolerance,
+                   patchy::kMinColorReplaceTolerance, patchy::kMaxColorReplaceTolerance);
+    current_color_replace_options_.anti_alias = stored_bool(settings, "tools/colorReplaceAntiAlias", true);
+  }
+  canvas_->set_color_replace_options(current_color_replace_options_);
+  canvas_->set_color_replace_sampling(current_color_replace_sampling_);
+  sync_color_replace_controls();
   current_perspective_crop_show_grid_ = stored_bool(settings, "tools/perspectiveCropShowGrid", true);
   if (perspective_crop_grid_check_ != nullptr) {
     const QSignalBlocker blocker(perspective_crop_grid_check_);
@@ -3283,6 +3300,34 @@ void MainWindow::set_red_eye_darken_amount(int percent) {
   schedule_save_tool_settings();
 }
 
+void MainWindow::apply_color_replace_settings() {
+  if (canvas_ != nullptr) {
+    canvas_->set_color_replace_options(current_color_replace_options_);
+    canvas_->set_color_replace_sampling(current_color_replace_sampling_);
+  }
+  schedule_save_tool_settings();
+}
+
+void MainWindow::sync_color_replace_controls() {
+  const auto select = [](QComboBox* combo, int value) {
+    if (combo != nullptr) {
+      const QSignalBlocker blocker(combo);
+      combo->setCurrentIndex(std::max(0, combo->findData(value)));
+    }
+  };
+  select(color_replace_mode_combo_, static_cast<int>(current_color_replace_options_.mode));
+  select(color_replace_sampling_combo_, static_cast<int>(current_color_replace_sampling_));
+  select(color_replace_limits_combo_, static_cast<int>(current_color_replace_options_.limits));
+  if (color_replace_tolerance_spin_ != nullptr) {
+    const QSignalBlocker blocker(color_replace_tolerance_spin_);
+    color_replace_tolerance_spin_->setValue(current_color_replace_options_.tolerance);
+  }
+  if (color_replace_anti_alias_check_ != nullptr) {
+    const QSignalBlocker blocker(color_replace_anti_alias_check_);
+    color_replace_anti_alias_check_->setChecked(current_color_replace_options_.anti_alias);
+  }
+}
+
 void MainWindow::sync_red_eye_controls() {
   for (const auto& [spin, slider, value] :
        {std::tuple{red_eye_pupil_spin_, red_eye_pupil_slider_, current_red_eye_pupil_size_},
@@ -3446,7 +3491,7 @@ namespace {
 // The tools whose options bar carries the Tip picker (build_options_bar).
 [[nodiscard]] bool tool_takes_brush_tip(CanvasTool tool) {
   return tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::PatternStamp ||
-         tool == CanvasTool::Eraser;
+         tool == CanvasTool::Eraser || tool == CanvasTool::ColorReplace;
 }
 
 }  // namespace
@@ -3614,6 +3659,17 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/perspectiveCropShowGrid"), current_perspective_crop_show_grid_);
   settings.setValue(QStringLiteral("tools/redEyePupilSize"), current_red_eye_pupil_size_);
   settings.setValue(QStringLiteral("tools/redEyeDarkenAmount"), current_red_eye_darken_amount_);
+  const auto token_text = [](std::string_view token) {
+    return QString::fromLatin1(token.data(), static_cast<qsizetype>(token.size()));
+  };
+  settings.setValue(QStringLiteral("tools/colorReplaceMode"),
+                    token_text(patchy::color_replace_mode_token(current_color_replace_options_.mode)));
+  settings.setValue(QStringLiteral("tools/colorReplaceSampling"),
+                    token_text(patchy::color_replace_sampling_token(current_color_replace_sampling_)));
+  settings.setValue(QStringLiteral("tools/colorReplaceLimits"),
+                    token_text(patchy::color_replace_limits_token(current_color_replace_options_.limits)));
+  settings.setValue(QStringLiteral("tools/colorReplaceTolerance"), current_color_replace_options_.tolerance);
+  settings.setValue(QStringLiteral("tools/colorReplaceAntiAlias"), current_color_replace_options_.anti_alias);
   if (crop_overlay_combo_ != nullptr && current_crop_overlay_ >= 0 &&
       current_crop_overlay_ < crop_overlay_combo_->count()) {
     settings.setValue(QStringLiteral("tools/cropOverlay"), crop_overlay_combo_->itemData(current_crop_overlay_));

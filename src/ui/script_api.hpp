@@ -210,6 +210,9 @@ public:
   // patches, source, sourceCount}.
   Q_INVOKABLE QJSValue removeObject(const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue redEye(const QJSValue& options = QJSValue());
+  // The Color Replacement tool: one stroke through options.points on the active layer
+  // (docs/color-replacement.md). Returns the changed bounds.
+  Q_INVOKABLE QJSValue replaceColor(const QJSValue& options = QJSValue());
   // Layer > Layer Mask > Remove Background (script_ai_selection.cpp).
   Q_INVOKABLE void removeBackground(const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue getPixels();

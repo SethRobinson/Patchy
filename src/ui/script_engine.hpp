@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QImage>
+#include "ui/canvas_types.hpp"
 #include "ui/script_stroke.hpp"
 #include "ui/text_paragraph_metrics.hpp"
 #include "ui/text_document.hpp"
@@ -387,6 +388,11 @@ public:
   // error thrown) when refused or when no red was found.
   bool red_eye(std::int64_t session_id, LayerId layer_id, QPoint point, std::optional<QRect> box, int pupil_size,
                int darken_amount, std::int64_t* pupil_pixels, QRect* changed);
+  // The Color Replacement tool on the session's active layer through its canvas: one stroke
+  // with a round tip. Rides this run's undo snapshot. False (with a JS error thrown) when
+  // refused; `changed` is empty when no pixel matched.
+  bool color_replace(std::int64_t session_id, LayerId layer_id, const ColorReplaceScriptStroke& stroke,
+                     QRect* changed);
   // patchy.perspective (script_perspective.cpp, docs/perspective-planes.md): the document's
   // session planes, a layer's pixels as straight RGBA8 (active document only), and one
   // edit on the active document's `layer_id` through `plane`, written as Filter >
