@@ -637,8 +637,8 @@ struct ColorReplaceScriptStroke {
   std::vector<QPointF> points;
   int size{40};
   int softness{0};
-  QColor foreground{Qt::black};
-  QColor background{Qt::white};
+  QColor foreground{Qt::black};  // color-literal-ok: a script stroke's default paint, not chrome
+  QColor background{Qt::white};  // color-literal-ok: a script stroke's default paint, not chrome
   patchy::ColorReplaceOptions options{};
   patchy::ColorReplaceSampling sampling{patchy::ColorReplaceSampling::Continuous};
 };
