@@ -7,6 +7,7 @@
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
@@ -1468,8 +1469,291 @@ void ui_gradient_tool_definition_settings_round_trip() {
   }
 }
 
+namespace {
+
+// A document large enough that a full recomposite runs in the background while the frame
+// from before stays on screen (8 Mpx and up), fit to the window, with the Gradient tool in
+// Fill Layer mode drawing red to blue.
+CanvasWidget* open_large_fill_layer_document(patchy::ui::MainWindow& window, int width, int height) {
+  MainWindowTestAccess::create_document(window, width, height);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(mode != nullptr && style != nullptr);
+  if (mode != nullptr && style != nullptr) {
+    mode->setCurrentIndex(1);
+    style->setCurrentIndex(style->findData(static_cast<int>(patchy::GradientMethod::Linear)));
+  }
+  QApplication::processEvents();
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::FillLayer);
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(100);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 255}}});
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(canvas->render_settled());
+  return canvas;
+}
+
+// A drag held at its last point: the press and one move, no release yet.
+void press_and_move(CanvasWidget& canvas, QPoint from, QPoint to) {
+  send_mouse(canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+}
+
+// The release alone, with no event processed after it: whatever the canvas paints next is
+// its first frame since the release, before a background composite can have been delivered.
+void release_at(CanvasWidget& canvas, QPoint at) {
+  QMouseEvent event(QEvent::MouseButtonRelease, QPointF(at), canvas.mapToGlobal(QPointF(at)), Qt::LeftButton,
+                    Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(&canvas, &event);
+}
+
+void drag_and_release(CanvasWidget& canvas, QPoint from, QPoint to) {
+  press_and_move(canvas, from, to);
+  release_at(canvas, to);
+}
+
+// Every frame the canvas paints at `sample` from now until it shows the document as it is:
+// how many of them were painted over the previous composite (the new one still on its way),
+// whether one showed `old_picture`, and whether all showed `expected`. The first frame is
+// saved as `first_frame_artifact` when that is named.
+struct FramesUntilSettled {
+  int unsettled{0};
+  bool showed_old_picture{false};
+  bool all_expected{true};
+  QColor last;
+};
+
+FramesUntilSettled frames_until_settled(CanvasWidget& canvas, QPoint sample, QColor old_picture, QColor expected,
+                                        const char* first_frame_artifact = nullptr) {
+  FramesUntilSettled frames;
+  QElapsedTimer timer;
+  timer.start();
+  while (timer.elapsed() < 30000) {
+    const auto frame = render_widget_image(canvas);
+    // Settled after the paint: this frame was drawn from the document as it is.
+    const bool settled = canvas.render_settled();
+    if (first_frame_artifact != nullptr) {
+      save_image_artifact(first_frame_artifact, frame);
+      first_frame_artifact = nullptr;
+    }
+    frames.last = frame.pixelColor(sample);
+    if (color_close(frames.last, old_picture, 30)) {
+      frames.showed_old_picture = true;
+    }
+    if (!color_near(frames.last, expected, 12)) {
+      frames.all_expected = false;
+    }
+    if (settled) {
+      break;
+    }
+    ++frames.unsettled;
+    QTest::qWait(2);
+  }
+  return frames;
+}
+
+}  // namespace
+
+// GitHub #714 follow-up: in Fill Layer mode the release dropped the drag's preview before the
+// new Gradient Fill layer had been composited, so on a large image the picture from before
+// the drag flashed in between. The preview now stays up until the composite with the layer is
+// on screen, for a new layer and for a drag that redraws an existing fill.
+void ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 3580;
+  constexpr int kHeight = 5370;
+  auto* canvas = open_large_fill_layer_document(window, kWidth, kHeight);
+  auto& document = MainWindowTestAccess::document(window);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  // Left of both drags' lines and well below them, away from the handles and the end dots.
+  const auto sample = widget_at(*canvas, QPointF(kWidth * 0.1, kHeight * 0.9));
+  CHECK(canvas_content_rect(*canvas).contains(sample));
+  const auto shown_at_sample = [&] { return render_widget_image(*canvas).pixelColor(sample); };
+  const QColor background = shown_at_sample();
+  CHECK(!color_close(background, start_color, 60) && !color_close(background, end_color, 60));
+  const auto layer_count = std::as_const(document).layers().size();
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+
+  // A new layer, drawn left to right: the sample is before the start, so it turns red.
+  const auto from = widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.5));
+  const auto to = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.5));
+  press_and_move(*canvas, from, to);
+  CHECK(color_near(shown_at_sample(), start_color, 12));  // the drag's preview
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  release_at(*canvas, to);
+  CHECK(std::as_const(document).layers().size() == layer_count + 1);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("New Gradient Fill"));
+  // Nothing has been painted since the release: the preview is held for the next frame.
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  CHECK(!canvas->render_settled());
+  auto frames = frames_until_settled(*canvas, sample, background, start_color,
+                                     "ui_gradient_fill_drag_release_new_layer_first_frame");
+  std::fprintf(stderr, "  new layer: %d frames before the composite landed, the old picture %s\n", frames.unsettled,
+               frames.showed_old_picture ? "shown" : "never shown");
+  CHECK(!frames.showed_old_picture);
+  CHECK(frames.all_expected);
+  if (!patchy::ui::kBackgroundWorkRunsInline) {
+    // The composite of 19 Mpx runs in the background, so the first frame at least was
+    // painted over the composite from before the drag.
+    CHECK(frames.unsettled >= 1);
+  }
+  CHECK(canvas->render_settled());
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(color_near(shown_at_sample(), start_color, 12));
+  const auto fill_id = std::as_const(document).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value()) {
+    return;
+  }
+
+  // The same fill drawn again, right to left, from a press away from its handles: the sample
+  // is past the end now, so it turns from red to blue and red is the old picture.
+  const auto again_from = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.25));
+  const auto again_to = widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.25));
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(again_from)).kind == Kind::None);
+  press_and_move(*canvas, again_from, again_to);
+  CHECK(color_near(shown_at_sample(), end_color, 12));
+  release_at(*canvas, again_to);
+  CHECK(std::as_const(document).layers().size() == layer_count + 1);
+  CHECK(std::as_const(document).active_layer_id() == fill_id);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Edit Gradient Fill"));
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  CHECK(!canvas->render_settled());
+  frames = frames_until_settled(*canvas, sample, start_color, end_color,
+                                "ui_gradient_fill_drag_release_redrawn_fill_first_frame");
+  std::fprintf(stderr, "  redrawn fill: %d frames before the composite landed, the old picture %s\n",
+               frames.unsettled, frames.showed_old_picture ? "shown" : "never shown");
+  CHECK(!frames.showed_old_picture);
+  CHECK(frames.all_expected);
+  if (!patchy::ui::kBackgroundWorkRunsInline) {
+    CHECK(frames.unsettled >= 1);
+  }
+  CHECK(canvas->render_settled());
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(color_near(shown_at_sample(), end_color, 12));
+}
+
+// The held preview of a Fill Layer mode release must never outlive what it stands in for:
+// it goes when the release made no change (a locked fill refuses the drag), and with Undo,
+// a tool switch, Esc or the next press while the composite is still on its way.
+void ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 3000;
+  constexpr int kHeight = 2800;
+  auto* canvas = open_large_fill_layer_document(window, kWidth, kHeight);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  const auto sample = widget_at(*canvas, QPointF(kWidth * 0.1, kHeight * 0.9));
+  CHECK(canvas_content_rect(*canvas).contains(sample));
+  const auto shown_at_sample = [&] { return render_widget_image(*canvas).pixelColor(sample); };
+  const QColor background = shown_at_sample();
+  CHECK(!color_close(background, start_color, 60) && !color_close(background, end_color, 60));
+  const auto layers = [&] { return std::as_const(MainWindowTestAccess::document(window)).layers().size(); };
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  const auto layer_count = layers();
+  const auto left = widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.5));
+  const auto right = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.5));
+  // A second line away from the first one's handles.
+  const auto upper_left = widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.25));
+  const auto upper_right = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.25));
+
+  // Undo right after the release: the layer is gone again, and so is its preview (the "old
+  // picture" to rule out here is the undone layer's red).
+  drag_and_release(*canvas, left, right);
+  CHECK(layers() == layer_count + 1);
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  MainWindowTestAccess::undo(window);
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(layers() == layer_count);
+  const auto frames = frames_until_settled(*canvas, sample, start_color, background);
+  CHECK(!frames.showed_old_picture);
+  CHECK(frames.all_expected);
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+
+  // A tool switch right after the release: the preview is the Gradient tool's.
+  drag_and_release(*canvas, left, right);
+  CHECK(layers() == layer_count + 1);
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  require_action(window, "toolMoveAction")->trigger();
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(color_near(shown_at_sample(), start_color, 12));
+  require_action(window, "toolGradientAction")->trigger();
+  QApplication::processEvents();
+  const auto fill_id = std::as_const(MainWindowTestAccess::document(window)).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value()) {
+    return;
+  }
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(upper_right)).kind == Kind::None);
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(upper_left)).kind == Kind::None);
+
+  // A locked fill refuses the drag: nothing changed, so nothing is held, and the picture is
+  // the one from before (the refused drag would have turned the sample blue).
+  const auto set_locked = [&](bool locked) {
+    auto* fill = MainWindowTestAccess::document(window).find_layer(*fill_id);
+    CHECK(fill != nullptr);
+    if (fill != nullptr) {
+      fill->set_lock_flags(locked ? patchy::kLayerLockImagePixels : patchy::kLayerLockNone);
+    }
+  };
+  set_locked(true);
+  const auto locked_depth = depth();
+  press_and_move(*canvas, upper_right, upper_left);
+  CHECK(color_near(shown_at_sample(), end_color, 12));
+  release_at(*canvas, upper_left);
+  CHECK(depth() == locked_depth);
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(canvas->render_settled());
+  CHECK(color_near(shown_at_sample(), start_color, 12));
+  set_locked(false);
+
+  // Esc while the redrawn fill is still on its way drops the preview; the edit stays.
+  drag_and_release(*canvas, upper_right, upper_left);
+  CHECK(depth() == locked_depth + 1);
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(depth() == locked_depth + 1);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(color_near(shown_at_sample(), end_color, 12));
+
+  // So does the next press: a new gesture never draws under an old preview.
+  drag_and_release(*canvas, left, right);
+  CHECK(depth() == locked_depth + 2);
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  send_mouse(*canvas, QEvent::MouseButtonPress, upper_left, Qt::LeftButton, Qt::LeftButton);
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  release_at(*canvas, upper_left);  // a click without a drag makes nothing
+  CHECK(depth() == locked_depth + 2);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(color_near(shown_at_sample(), start_color, 12));
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
+      {"ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows",
+       ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows},
+      {"ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show",
+       ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show},
       {"ui_gradient_tool_definition_settings_round_trip", ui_gradient_tool_definition_settings_round_trip},
       {"ui_gradient_fill_handles_set_opacity_on_the_canvas", ui_gradient_fill_handles_set_opacity_on_the_canvas},
       {"ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint",

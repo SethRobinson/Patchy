@@ -355,6 +355,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   gradient_view_preview_.reset();
   gradient_view_preview_source_.reset();
   gradient_view_preview_raster_ = PixelBuffer();
+  gradient_drag_hold_.reset();
   cancel_move_commit_job();
   active_document_path_.reset();
   last_saved_path_target_.reset();
@@ -590,6 +591,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     cancel_perspective_crop_session();
     cancel_ruler_drag();
     cancel_gradient_fill_handle_drag();
+    clear_gradient_fill_drag_hold();  // the held preview is the Gradient tool's
     cancel_shape_resize_drag();
     finish_gradient_opacity_popup(true);
     gradient_stop_selection_.reset();
@@ -689,6 +691,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     cancel_perspective_crop_session();
     cancel_ruler_drag();
     cancel_gradient_fill_handle_drag();
+    clear_gradient_fill_drag_hold();
     cancel_shape_resize_drag();
     moving_selection_ = false;
     drawing_shape_ = false;
@@ -1017,6 +1020,10 @@ GradientMethod CanvasWidget::gradient_method() const noexcept {
 }
 
 void CanvasWidget::set_gradient_tool_mode(GradientToolMode mode) noexcept {
+  if (gradient_tool_mode_ != mode && gradient_drag_hold_.has_value()) {
+    gradient_drag_hold_.reset();  // a Fill Layer mode release's preview
+    update();
+  }
   gradient_tool_mode_ = mode;
 }
 

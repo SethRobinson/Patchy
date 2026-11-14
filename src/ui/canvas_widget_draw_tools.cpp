@@ -487,6 +487,14 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
   // channel preview below, like the drag that drew it; on a layer or a layer mask
   // draw_pending_pixel_shape paints it.
   const bool pending_shape = !drawing_shape_ && pending_pixel_shape_ != nullptr;
+  if (!drawing_shape_ && gradient_fill_drag_hold_drawn()) {
+    // A Fill Layer mode release whose layer is not composited yet (GitHub #714 follow-up):
+    // the drag's own preview, without the end dots (the layer's handles are there now),
+    // over the frame from before the drag.
+    draw_gradient_drag_preview(painter, widget_position(gradient_drag_hold_->start),
+                               widget_position(gradient_drag_hold_->end), true, false);
+    return;
+  }
   if (!drawing_shape_ && (!pending_shape || !pending_pixel_shape_uses_channel_preview())) {
     return;
   }
@@ -740,70 +748,7 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
   }
 
   if (tool_ == CanvasTool::Gradient) {
-    QGradient* raw_gradient = nullptr;
-    QLinearGradient linear_gradient(a, b);
-    const auto radius = std::max(1.0, std::hypot(static_cast<double>(b.x() - a.x()), static_cast<double>(b.y() - a.y())));
-    QRadialGradient radial_gradient(a, radius);
-    raw_gradient = gradient_method_ == GradientMethod::Radial ? static_cast<QGradient*>(&radial_gradient)
-                                                              : static_cast<QGradient*>(&linear_gradient);
-    const auto stops = effective_gradient_stops();
-    for (const auto& stop : gradient_stops_with_explicit_midpoints(stops)) {
-      auto color = stop.color;
-      color.a = static_cast<std::uint8_t>(
-          std::clamp(std::lround(static_cast<float>(color.a) * static_cast<float>(gradient_opacity_) / 100.0F), 0L,
-                     255L));
-      raw_gradient->setColorAt(gradient_reverse_ ? 1.0 - static_cast<double>(stop.location)
-                                                 : static_cast<double>(stop.location),
-                                QColor(color.r, color.g, color.b, color.a));
-    }
-
-    QRect document_rect;
-    // The gradient covers the canvas unless transparency is locked (core draw_gradient grows
-    // the layer; GitHub issue 498), so the preview does too.
-    // A Fill Layer mode drag (GitHub issue 580) makes a canvas-wide fill layer whatever
-    // the active layer's locks.
-    if (editing_grayscale_target() || !active_layer_locks_transparent_pixels() || gradient_drag_makes_fill_layer()) {
-      document_rect =
-          QRect(0, 0, document_ != nullptr ? document_->width() : 0, document_ != nullptr ? document_->height() : 0);
-    } else if (const auto layer_rect = active_layer_document_rect()) {
-      document_rect = *layer_rect;
-    }
-    if (document_ != nullptr) {
-      document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
-    }
-    if (has_selection() && selected_document_rect().has_value()) {
-      document_rect = document_rect.intersected(*selected_document_rect());
-    }
-    if (!document_rect.isEmpty()) {
-      const auto fill_rect = widget_rect_for_document_rect(QRectF(document_rect));
-      painter.save();
-      painter.setClipRect(fill_rect);
-      if (has_selection()) {
-        QRegion widget_selection;
-        for (const auto& rect : selection_.intersected(document_rect)) {
-          widget_selection += widget_rect_for_document_rect(rect);
-        }
-        painter.setClipRegion(widget_selection, Qt::IntersectClip);
-      }
-      if (gradient_method_ == GradientMethod::Linear || gradient_method_ == GradientMethod::Radial) {
-        painter.fillRect(fill_rect, QBrush(*raw_gradient));
-      } else {
-        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        painter.fillRect(fill_rect, sampled_gradient_preview_brush(
-                                        gradient_method_, QPointF(a), QPointF(b), stops,
-                                        static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_,
-                                        fill_rect, false));
-      }
-      painter.restore();
-    }
-
-    painter.setPen(QPen(QColor(230, 235, 242), 1));
-    const auto first = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 0.0);
-    const auto last = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 1.0);
-    painter.setBrush(QColor(first.r, first.g, first.b, first.a));
-    painter.drawEllipse(a, 4, 4);
-    painter.setBrush(QColor(last.r, last.g, last.b, last.a));
-    painter.drawEllipse(b, 4, 4);
+    draw_gradient_drag_preview(painter, a, b, gradient_drag_makes_fill_layer(), true);
   } else if (tool_ == CanvasTool::Line) {
     QPen pen(primary_color_);
     pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
@@ -821,6 +766,77 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
         QColor(fill.red(), fill.green(), fill.blue(), std::clamp(brush_opacity_ * 2, 60, 180)),
         shape_paint_preview_color(core.stroke.content, primary_color_), zoom_);
   }
+}
+
+void CanvasWidget::draw_gradient_drag_preview(QPainter& painter, QPoint a, QPoint b, bool fills_canvas,
+                                              bool end_points) {
+  QGradient* raw_gradient = nullptr;
+  QLinearGradient linear_gradient(a, b);
+  const auto radius = std::max(1.0, std::hypot(static_cast<double>(b.x() - a.x()), static_cast<double>(b.y() - a.y())));
+  QRadialGradient radial_gradient(a, radius);
+  raw_gradient = gradient_method_ == GradientMethod::Radial ? static_cast<QGradient*>(&radial_gradient)
+                                                            : static_cast<QGradient*>(&linear_gradient);
+  const auto stops = effective_gradient_stops();
+  for (const auto& stop : gradient_stops_with_explicit_midpoints(stops)) {
+    auto color = stop.color;
+    color.a = static_cast<std::uint8_t>(
+        std::clamp(std::lround(static_cast<float>(color.a) * static_cast<float>(gradient_opacity_) / 100.0F), 0L,
+                   255L));
+    raw_gradient->setColorAt(gradient_reverse_ ? 1.0 - static_cast<double>(stop.location)
+                                               : static_cast<double>(stop.location),
+                              QColor(color.r, color.g, color.b, color.a));
+  }
+
+  QRect document_rect;
+  // The gradient covers the canvas unless transparency is locked (core draw_gradient grows
+  // the layer; GitHub issue 498), so the preview does too.
+  // A Fill Layer mode drag (GitHub issue 580) makes a canvas-wide fill layer whatever
+  // the active layer's locks.
+  if (fills_canvas || editing_grayscale_target() || !active_layer_locks_transparent_pixels()) {
+    document_rect =
+        QRect(0, 0, document_ != nullptr ? document_->width() : 0, document_ != nullptr ? document_->height() : 0);
+  } else if (const auto layer_rect = active_layer_document_rect()) {
+    document_rect = *layer_rect;
+  }
+  if (document_ != nullptr) {
+    document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
+  }
+  if (has_selection() && selected_document_rect().has_value()) {
+    document_rect = document_rect.intersected(*selected_document_rect());
+  }
+  if (!document_rect.isEmpty()) {
+    const auto fill_rect = widget_rect_for_document_rect(QRectF(document_rect));
+    painter.save();
+    painter.setClipRect(fill_rect);
+    if (has_selection()) {
+      QRegion widget_selection;
+      for (const auto& rect : selection_.intersected(document_rect)) {
+        widget_selection += widget_rect_for_document_rect(rect);
+      }
+      painter.setClipRegion(widget_selection, Qt::IntersectClip);
+    }
+    if (gradient_method_ == GradientMethod::Linear || gradient_method_ == GradientMethod::Radial) {
+      painter.fillRect(fill_rect, QBrush(*raw_gradient));
+    } else {
+      painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+      painter.fillRect(fill_rect, sampled_gradient_preview_brush(
+                                      gradient_method_, QPointF(a), QPointF(b), stops,
+                                      static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_,
+                                      fill_rect, false));
+    }
+    painter.restore();
+  }
+
+  if (!end_points) {
+    return;
+  }
+  painter.setPen(QPen(QColor(230, 235, 242), 1));
+  const auto first = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 0.0);
+  const auto last = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 1.0);
+  painter.setBrush(QColor(first.r, first.g, first.b, first.a));
+  painter.drawEllipse(a, 4, 4);
+  painter.setBrush(QColor(last.r, last.g, last.b, last.a));
+  painter.drawEllipse(b, 4, 4);
 }
 
 QPainterPath CanvasWidget::shape_drag_preview_path(double line_weight) const {

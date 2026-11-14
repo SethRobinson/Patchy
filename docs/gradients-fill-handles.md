@@ -47,6 +47,16 @@ Two things keep a handle at the pointer on a large document.
 
 The release still bakes 19 Mpx exactly on the GUI thread; it is shorter because the frame from before the drag no longer rebuilds its display mips under the held preview. Through the document (GitHub issue 663 follow-up, metroid): 4000x3000 took 22 to 27 ms per move (an 11 ms draft) against 110 to 160 ms with an exact 92 ms bake per preview, 8000x8000 about 160 ms, mostly allocating and writing the 256 MB raster.
 
+## Release of a new gradient
+
+A Fill Layer mode drag away from the handles previews as a painted overlay ([gradients.md](gradients.md#gradient-tool-fill-layer-mode)), and its release bakes the new or redrawn Gradient Fill layer at once. On a document of 8 Mpx or more the recomposite then runs in the background with the previous frame on screen, so the picture from before the drag showed between the release and the layer (GitHub #714 follow-up). The canvas therefore keeps the drag's overlay, without its end dots, until that composite is on screen (`GradientFillDragHold`, canvas_widget_gradient_handles.cpp):
+
+- `begin_gradient_fill_drag_hold` runs before the host is told, so a repaint during the bake shows the overlay too; `settle_gradient_fill_drag_hold` runs when `handle_gradient_fill_drawn` returns. No document notification in between (a locked fill, a preview dialog that owns the document) means nothing is on its way, and the hold is dropped there.
+- A settled hold is tied to the layer active after the release and that layer's render and content revisions. `draw_shape_preview` paints it through `draw_gradient_drag_preview`, the drag's own painter, and `gradient_fill_drag_hold_drawn` drops it in the first paint after the render has settled. It costs what the drag's overlay costs: a brush over the visible fill rectangle, nothing proportional to the document.
+- It also ends with a document notification that finds the layer gone or changed, a document swap (Undo, Redo, a history jump, another document), a tool or Mode change, `cancel_pointer_gestures`, an edit lock, Esc and the next press. None of these undo the release's edit; they only stop the overlay standing in for it.
+- No layer is made at the press: a click without a drag would have to remove it again, and every drag would add history.
+- Tests: `ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows` (3580 x 5370: every frame painted between the release and the settled render shows the drag's gradient, never the picture from before, for a new layer and for a redrawn fill) and `ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show` (Undo, a tool switch, a locked fill, Esc, the next press).
+
 ## Under other tools
 
 The Shape Appearance window's **Show handles** boxes (GitHub issue 694, [vector-tools-appearance-window.md](vector-tools-appearance-window.md)) show the same handles without the Gradient tool, on the fill's gradient or the stroke's. `MainWindow::sync_shape_appearance_gradient_handles` sets `CanvasWidget::set_gradient_handles_forced(forced, preferred)` on every canvas while the window is open and a box is ticked (settings keys `shapeAppearance/showGradientHandles`, on by default: Seth's decision, November 2026, and `shapeAppearance/gradientHandlesOnStroke`, off by default); the canvas decides the rest.

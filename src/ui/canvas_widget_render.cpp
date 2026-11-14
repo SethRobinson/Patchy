@@ -405,6 +405,7 @@ void CanvasWidget::end_processing_operation() {
 
 void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
   note_document_changed_for_gradient_view_preview();
+  note_document_changed_for_gradient_drag_hold();
   invalidate_vector_preview();
   mark_object_select_embedding_unverified();
   if (document_changed_reason_callback_) {

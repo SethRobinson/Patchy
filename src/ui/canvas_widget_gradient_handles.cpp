@@ -503,6 +503,73 @@ void CanvasWidget::note_document_changed_for_gradient_view_preview() noexcept {
   gradient_view_preview_.reset();
 }
 
+void CanvasWidget::begin_gradient_fill_drag_hold(QPoint start, QPoint end) {
+  gradient_drag_hold_ = GradientFillDragHold{start, end};
+}
+
+void CanvasWidget::settle_gradient_fill_drag_hold() {
+  if (!gradient_drag_hold_.has_value()) {
+    return;
+  }
+  // No change (a locked fill, a preview dialog that owns the document): nothing is on its
+  // way, so nothing is held.
+  const auto active = gradient_drag_hold_->document_changed && document_ != nullptr
+                          ? std::as_const(*document_).active_layer_id()
+                          : std::optional<LayerId>();
+  const auto* layer = active.has_value() ? std::as_const(*document_).find_layer(*active) : nullptr;
+  if (layer == nullptr || !gradient_drag_makes_fill_layer()) {
+    clear_gradient_fill_drag_hold();
+    return;
+  }
+  gradient_drag_hold_->settled = true;
+  gradient_drag_hold_->layer_id = layer->id();
+  gradient_drag_hold_->render_revision = layer->render_revision();
+  gradient_drag_hold_->content_revision = layer->content_revision();
+}
+
+void CanvasWidget::clear_gradient_fill_drag_hold() {
+  if (!gradient_drag_hold_.has_value()) {
+    return;
+  }
+  gradient_drag_hold_.reset();
+  update();
+}
+
+bool CanvasWidget::gradient_fill_drag_hold_shown() const noexcept {
+  return gradient_drag_hold_.has_value();
+}
+
+bool CanvasWidget::gradient_fill_drag_hold_drawn() {
+  if (!gradient_drag_hold_.has_value()) {
+    return false;
+  }
+  if (gradient_drag_hold_->settled && render_settled() && !processing_operation_active()) {
+    // The composite with the layer is on screen now.
+    gradient_drag_hold_.reset();
+    return false;
+  }
+  return true;
+}
+
+void CanvasWidget::note_document_changed_for_gradient_drag_hold() noexcept {
+  if (!gradient_drag_hold_.has_value()) {
+    return;
+  }
+  if (!gradient_drag_hold_->settled) {
+    gradient_drag_hold_->document_changed = true;  // the release's own change
+    return;
+  }
+  // Like the held view preview: a later notification that leaves the layer as the release
+  // made it keeps the hold; any other change to it ends the hold.
+  const auto* layer =
+      document_ != nullptr ? std::as_const(*document_).find_layer(gradient_drag_hold_->layer_id) : nullptr;
+  if (layer != nullptr && layer->render_revision() == gradient_drag_hold_->render_revision &&
+      layer->content_revision() == gradient_drag_hold_->content_revision) {
+    return;
+  }
+  gradient_drag_hold_.reset();
+}
+
 Rect CanvasWidget::gradient_fill_handle_bounds(const Layer& layer) const {
   const auto canvas = Rect::from_size(document_->width(), document_->height());
   const auto target = gradient_handle_target(layer).value_or(GradientHandleTarget::Fill);
@@ -1117,6 +1184,7 @@ void CanvasWidget::abandon_gradient_fill_handle_drag() {
   // with it, so nothing is restored and a later call for this drag is stale.
   gradient_handle_drag_.reset();
   gradient_view_preview_.reset();
+  gradient_drag_hold_.reset();
   gradient_handle_hover_ = {};
   gradient_handle_cursor_ = GradientHandleCursor::None;
   gradient_handle_bounds_cache_.reset();

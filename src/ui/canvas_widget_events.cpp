@@ -682,6 +682,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
   flush_pending_drag_move();
+  clear_gradient_fill_drag_hold();  // a new gesture never draws under a held preview
   // A stroke in progress hides the Shift+click line preview (GitHub issue 445).
   const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
   if (!handling_tablet_event_) {
@@ -4085,7 +4086,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       clear_brush_stroke_tracking();
       update();
       if (shape_current_ != shape_start_) {
+        // The drag's preview stays up until the composite with the new or redrawn layer is
+        // on screen (GitHub #714 follow-up: on a large image the picture from before the
+        // drag flashed in between), unless the host changes nothing.
+        begin_gradient_fill_drag_hold(shape_start_, shape_current_);
         gradient_fill_drawn_callback_(shape_start_, shape_current_);
+        settle_gradient_fill_drag_hold();
       }
       return;
     }
@@ -4343,6 +4349,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
   // A modifier or Escape acts on the drag where the pointer really is.
   flush_pending_drag_move();
+  if (event->key() == Qt::Key_Escape) {
+    clear_gradient_fill_drag_hold();  // only the held picture; the release's edit stays
+  }
   if (event->key() != layer_nudge_hold_key_) {
     // Another key ends a held arrow's nudge run: the next nudge is a new undo step.
     end_layer_nudge_hold();
@@ -5421,6 +5430,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   cancel_patch_tool_drag();
   cancel_red_eye_gesture();
   cancel_shape_resize_drag();
+  clear_gradient_fill_drag_hold();
   drawing_shape_ = dragging_text_rect_ = dragging_text_entry_selection_ = false;
   shape_press_adds_to_shape_ = shape_temp_path_select_ = false;
   move_drag_pending_ = moving_layer_ = false;
