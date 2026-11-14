@@ -51,6 +51,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QSet>
 #include <QSpinBox>
@@ -1528,37 +1529,36 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(contributors != nullptr);
     CHECK(contributors->textFormat() == Qt::RichText);
     CHECK(contributors->openExternalLinks());
-    CHECK(contributors->text().startsWith(QStringLiteral("Incredible people who donated suggestions, bug reports, and code: ")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/mcapogna\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">mcapogna</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/csbun\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">csbun</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/ifloppy\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">ifloppy</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/lucastucious\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">lucastucious</a>")));
-    // Code contributors come first, in the order their first pull request merged.
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/softwaregames1\"")));
-    CHECK(contributors->text().indexOf(QStringLiteral(">softwaregames1</a>")) >
-          contributors->text().indexOf(QStringLiteral(">lucastucious</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/Oppa-YA\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">Oppa-YA</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/YuFu-Onship\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">YuFu-Onship</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/Uthopik\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">Uthopik</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/spgrhy-lab\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">spgrhy-lab</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/saeedsabe\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">saeedsabe</a>")));
-    CHECK(contributors->text().indexOf(QStringLiteral(">chiddekel</a>")) >
-          contributors->text().indexOf(QStringLiteral(">softwaregames1</a>")));
-    CHECK(contributors->text().indexOf(QStringLiteral(">chiddekel</a>")) <
-          contributors->text().indexOf(QStringLiteral(">c-sanchez</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/LiveFreeDead\"")));
-    CHECK(contributors->text().contains(QStringLiteral(">LiveFreeDead</a>")));
-    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/heshmatagha\"")));
-    CHECK(contributors->text().endsWith(QStringLiteral(">heshmatagha</a>")));
+    // Every credit reads "handle (N)": the handle linked to its GitHub profile,
+    // then the person's points as plain text. The entries come from
+    // scripts/dev/update-contributors.py and their counts change with every
+    // release, so the checks parse the rendered list instead of pinning
+    // positions: every entry has that form, and the points never go up.
+    const QString prefix = QStringLiteral("Incredible people who donated suggestions, bug reports, and code: ");
+    CHECK(contributors->text().startsWith(prefix));
+    const QRegularExpression entry_pattern(QStringLiteral(
+        "^<a style=\"color:#[0-9a-f]{6}; text-decoration:none;\" href=\"https://github.com/([A-Za-z0-9-]+)\">"
+        "([A-Za-z0-9-]+)</a>&nbsp;\\(([1-9][0-9]*)\\)$"));
+    const QStringList entries = contributors->text().mid(prefix.size()).split(QStringLiteral(", "));
+    CHECK(entries.size() >= 30);
+    QStringList handles;
+    int previous_count = (std::numeric_limits<int>::max)();
+    for (const QString& entry : entries) {
+      const auto match = entry_pattern.match(entry);
+      CHECK(match.hasMatch());
+      // The link text is the handle its URL names, never a display name.
+      CHECK(match.captured(1) == match.captured(2));
+      const int count = match.captured(3).toInt();
+      CHECK(count >= 1);
+      CHECK(count <= previous_count);
+      previous_count = count;
+      CHECK(!handles.contains(match.captured(2), Qt::CaseInsensitive));
+      handles.append(match.captured(2));
+    }
+    CHECK(handles.contains(QStringLiteral("mcapogna")));
+    CHECK(handles.contains(QStringLiteral("philipzae")));
+    CHECK(handles.contains(QStringLiteral("heshmatagha")));
+    CHECK(!handles.contains(QStringLiteral("SethRobinson"), Qt::CaseInsensitive));
     CHECK(!contributors->text().contains(QLatin1Char('@')));
 
     auto* settings_caption = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsCaption"));
