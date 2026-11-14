@@ -555,6 +555,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"window.panel_paths", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Paths panel")},
     {"window.panel_properties", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Properties panel")},
     {"window.reset_panels", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Restore the default panel layout")},
+    {"window.show_panel_titles",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Hide or show the name row above each side panel")},
     {"windowToolPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide the tool palette")},
     {"windowToolOptionsAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide the options bar")},
     // Help

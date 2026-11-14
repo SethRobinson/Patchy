@@ -21920,6 +21920,10 @@ Sostituirlo?</translation>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation>Alterna tra gli strumenti Pennello e Sostituzione colore</translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation>Nascondi o mostra la riga del nome sopra ogni pannello laterale</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36231,6 +36235,10 @@ Bloccato: %1</translation>
     <message>
         <source>Cycle Brush Tools</source>
         <translation>Alterna strumenti pennello</translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
+        <translation>Mostra titoli dei pannelli</translation>
     </message>
 </context>
 <context>

@@ -154,6 +154,7 @@ bool McpActivity::action_allowed(const QAction* action) const {
       !id.startsWith(QStringLiteral("view.clear_"))) return true;
   // Showing, hiding and resetting panels leaves the document alone.
   return id == QStringLiteral("window.force_refresh") || id == QStringLiteral("window.reset_panels") ||
+         id == QStringLiteral("window.show_panel_titles") ||
          action->objectName().startsWith(QStringLiteral("windowSetScreenSize")) ||
          action->objectName().startsWith(QStringLiteral("windowPanel"));
 }

@@ -21920,6 +21920,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation>Basculer entre les outils Pinceau et Remplacement de couleur</translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation>Masquer ou afficher la ligne du nom au-dessus de chaque panneau latéral</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36231,6 +36235,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Cycle Brush Tools</source>
         <translation>Alterner les outils de pinceau</translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
+        <translation>Afficher les titres des panneaux</translation>
     </message>
 </context>
 <context>

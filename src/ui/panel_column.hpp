@@ -10,8 +10,10 @@
 // section as tabs. Dragging a tab sideways reorders its group's tabs, and dragged out
 // between sections it becomes a section of its own. A click on a collapsed section's
 // title row expands it and a double click on an expanded one collapses it (GitHub issue
-// 335). Patchy owns this layout: nothing floats, nothing is a QDockWidget, no drag
-// leaves the window, and every size is set through plain layout and splitter calls.
+// 335). With the title rows hidden (Window > Show Panel Titles off, GitHub issue 721) an
+// expanded section is its panel alone, or its tab bar over the panel; a collapsed section
+// keeps its title row. Patchy owns this layout: nothing floats, nothing is a QDockWidget,
+// no drag leaves the window, and every size is set through plain layout and splitter calls.
 
 #include <QByteArray>
 #include <QPoint>
@@ -53,7 +55,8 @@ struct PanelSpec {
   // (the Color panel's slider views). Asked each time, so it sees the current style.
   std::function<int()> preferred_content_height{};
   // A small button at the right end of the title row (the Color panel's settings gear),
-  // reparented into it. At most 18 px tall, so every title row keeps one height.
+  // reparented into it. At most 18 px tall, so every title row keeps one height. While
+  // the title rows are hidden it sits at the end of its group's tab bar instead.
   QWidget* header_widget{nullptr};
 };
 
@@ -98,6 +101,17 @@ public:
 
   // Tab texts follow the title labels; call after a language switch rebinds them.
   void refresh_tab_titles();
+
+  // Whether expanded sections show their title rows (GitHub issue 721). Off, an expanded
+  // section is its panel alone, or its tab bar over the panel, and the front tab's
+  // header widget (a settings gear) sits at the end of the tab bar. A collapsed section
+  // keeps its title row, which is how it expands again, and so does a section of its
+  // own whose panel has a header widget, which has no tab bar to move to. Sections keep
+  // their heights; one sized to its content (the Color panel's slider views) refits.
+  [[nodiscard]] bool titles_visible() const;
+  void set_titles_visible(bool visible);
+  // Whether `id`'s title row shows now (its section open and, in a group, in front).
+  [[nodiscard]] bool title_row_shown(const QString& id) const;
 
   // The sections' heights, for the saved layout; restore refuses a state from a
   // different section count.
@@ -195,11 +209,20 @@ private:
   [[nodiscard]] int section_index(const Section* section) const;
   Page* build_page(Section& section, const PanelSpec& spec);
   void apply_section_state(Section& section);
+  // Whether the section's pages show their title rows in its current state.
+  [[nodiscard]] bool shows_title_row(const Section& section) const;
+  // Each header widget of the section where it belongs: its own title row, or the end
+  // of the tab bar for the front tab while the title rows are hidden.
+  void place_header_widgets(Section& section);
+  void return_header_widget(Page& page);
   void update_section_visibility(Section& section);
   void grant_preferred_height(Section& section);
   void fit_section_to_preferred(Section& section);
   void settle_sizes(const Section& changed);
   [[nodiscard]] int collapsed_height(const Section& section) const;
+  // The height of what sits above the panel now: the tab bar, and the title row while
+  // it shows. A collapsed section's is its collapsed_height.
+  [[nodiscard]] int header_height(const Section& section) const;
   [[nodiscard]] int section_floor(const Section& section) const;
   [[nodiscard]] int section_preferred(const Section& section) const;
   [[nodiscard]] Section* section_for_drag_handle(const QObject* handle) const;
@@ -257,6 +280,8 @@ private:
   QString fill_panel_id_;
   // add_tab_group's name, which every group takes.
   QString group_name_{QStringLiteral("panelTabGroup")};
+  // Window > Show Panel Titles.
+  bool show_titles_{true};
 };
 
 }  // namespace patchy::ui

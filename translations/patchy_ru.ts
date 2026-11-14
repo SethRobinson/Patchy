@@ -21982,6 +21982,10 @@ Do you want to replace it?</source>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation>Переключаться между инструментами «Кисть» и «Замена цвета»</translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation>Скрыть или показать строку с названием над каждой боковой панелью</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36340,6 +36344,10 @@ Locked: %1</source>
     <message>
         <source>Cycle Brush Tools</source>
         <translation>Сменить инструмент кисти</translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
+        <translation>Показывать заголовки панелей</translation>
     </message>
 </context>
 <context>

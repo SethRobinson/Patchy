@@ -1,6 +1,7 @@
 #include <QClipboard>
 #include <QDragEnterEvent>
 #include <QMimeData>
+#include <QPointer>
 #include <QUrl>
 #include "ui/qt_paths.hpp"
 #include "unicode_path_names.hpp"
@@ -1478,22 +1479,25 @@ void ui_window_menu_lists_panels_and_toolbars() {
   CHECK(entry_texts == QStringList({QStringLiteral("Channels"), QStringLiteral("Color"), QStringLiteral("History"),
                                     QStringLiteral("Info"), QStringLiteral("Layers"), QStringLiteral("Palette"),
                                     QStringLiteral("Paths"), QStringLiteral("Properties"),
-                                    QStringLiteral("Tool Palette"), QStringLiteral("Tool Options")}));
+                                    QStringLiteral("Tool Palette"), QStringLiteral("Tool Options"),
+                                    QStringLiteral("Show Panel Titles")}));
   // The toolbar pair stands apart: a separator before Tool Palette, one after Tool Options,
-  // then Reset Panels.
+  // then Show Panel Titles and Reset Panels.
   {
     const auto actions = window_menu->actions();
     auto* palette_toggle = window.findChild<QToolBar*>(QStringLiteral("toolPalette"))->toggleViewAction();
     auto* options_toggle = window.findChild<QToolBar*>(QStringLiteral("Options"))->toggleViewAction();
     const auto at = actions.indexOf(palette_toggle);
-    CHECK(at > 0 && at + 3 < actions.size());
-    if (at > 0 && at + 3 < actions.size()) {
+    CHECK(at > 0 && at + 4 < actions.size());
+    if (at > 0 && at + 4 < actions.size()) {
       CHECK(actions[at - 1]->isSeparator());
       CHECK(actions[at + 1] == options_toggle);
       CHECK(actions[at + 2]->isSeparator());
-      CHECK(actions[at + 3] == require_action(window, "windowResetPanelsAction"));
+      CHECK(actions[at + 3] == require_action(window, "windowShowPanelTitlesAction"));
+      CHECK(actions[at + 4] == require_action(window, "windowResetPanelsAction"));
       CHECK(!actions[at - 2]->isSeparator());
     }
+    CHECK(require_action(window, "windowShowPanelTitlesAction")->menuRole() == QAction::NoRole);
     CHECK(options_toggle->menuRole() == QAction::NoRole);
   }
 
@@ -2573,9 +2577,377 @@ void ui_panel_title_click_expands_and_double_click_collapses() {
   save_widget_artifact("ui_panel_title_click_expands_and_double_click_collapses", *column);
 }
 
+// Window > Show Panel Titles (GitHub issue 721). Off, an expanded panel drops its title row:
+// a section of its own is the panel alone, a tab group its tab bar over the panel, with the
+// front tab's settings gear at the end of the bar. A collapsed section keeps its row, the
+// sections keep their heights with no gap, and turning the option back on returns the
+// layout as it was. Reset Panels leaves the option alone.
+void ui_panel_titles_hide_for_expanded_panels() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* action = require_action(window, "windowShowPanelTitlesAction");
+  CHECK(column != nullptr && action != nullptr);
+  if (column == nullptr || action == nullptr) {
+    return;
+  }
+  const auto layers = QStringLiteral("layersDock");
+  const auto channels = QStringLiteral("channelsDock");
+  const auto properties = QStringLiteral("propertiesDock");
+  const auto history = QStringLiteral("historyDock");
+  auto* splitter = column->splitter();
+  auto* tab_bar = column->tab_bar(layers);
+  QPointer<QToolButton> gear = window.findChild<QToolButton*>(QStringLiteral("layersPanelSettingsButton"));
+  auto* layers_title = window.findChild<QWidget*>(QStringLiteral("layersDockTitle"));
+  CHECK(tab_bar != nullptr && gear != nullptr && layers_title != nullptr);
+  if (tab_bar == nullptr || gear == nullptr || layers_title == nullptr) {
+    return;
+  }
+  CHECK(action->isCheckable() && action->isChecked() && column->titles_visible());
+  CHECK(action->text().remove(QLatin1Char('&')) == QStringLiteral("Show Panel Titles"));
+
+  // Properties expanded (a section of its own, no gear), History collapsed.
+  patchy::ui::MainWindowTestAccess::show_panel(window, properties);
+  column->set_panel_expanded(history, false);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  const auto check_filled = [&](const char* context) {
+    QApplication::processEvents();
+    QApplication::processEvents();
+    int expected_top = 0;
+    int last_bottom = -1;
+    for (int index = 0; index < splitter->count(); ++index) {
+      auto* section = splitter->widget(index);
+      if (section->isHidden()) {
+        continue;
+      }
+      if (section->y() != expected_top) {
+        std::printf("%s: section %s at y %d, expected %d\n", context, qPrintable(section->objectName()),
+                    section->y(), expected_top);
+      }
+      CHECK(section->y() == expected_top);
+      expected_top = section->geometry().bottom() + 1 + splitter->handleWidth();
+      last_bottom = section->geometry().bottom();
+    }
+    CHECK(last_bottom == splitter->height() - 1);
+  };
+  // The panel under a page's title row: the second item of the page's layout.
+  const auto body_of = [&](const QString& id) { return column->panel_page(id)->layout()->itemAt(1)->widget(); };
+  check_filled("titles shown");
+  for (const auto& id : {layers, properties, history}) {
+    CHECK(column->title_row_shown(id));
+  }
+  CHECK(gear->parentWidget() == layers_title && gear->isVisible());
+  const auto sizes_shown = splitter->sizes();
+  const auto layers_body_height = body_of(layers)->height();
+  const auto title_height = layers_title->height();
+  CHECK(title_height > 0);
+  const auto history_height = column->section_widget(history)->height();
+  // Captures for review: test-artifacts/ui_panel_titles_shown.png and ui_panel_titles_hidden.png.
+  save_widget_artifact("ui_panel_titles_shown", *column);
+
+  action->trigger();
+  check_filled("titles hidden");
+  CHECK(!action->isChecked() && !column->titles_visible());
+  // The tab group keeps its tab bar and loses the row under it; the panel takes the room.
+  CHECK(!column->title_row_shown(layers) && !layers_title->isVisible());
+  CHECK(tab_bar->isVisible());
+  CHECK(body_of(layers)->height() == layers_body_height + title_height);
+  // A section of its own is its panel alone, from the section's top edge.
+  CHECK(!column->title_row_shown(properties));
+  CHECK(body_of(properties)->y() == 0);
+  CHECK(body_of(properties)->height() == column->section_widget(properties)->height());
+  // A collapsed section keeps its row, at the same height.
+  CHECK(column->title_row_shown(history));
+  CHECK(column->section_widget(history)->height() == history_height);
+  // No section changed height.
+  if (splitter->sizes() != sizes_shown) {
+    std::printf("sizes changed with the titles hidden\n");
+  }
+  CHECK(splitter->sizes() == sizes_shown);
+  // The Layers gear sits at the end of the tab bar's row, and only while Layers is in front.
+  auto* section = column->section_widget(layers);
+  CHECK(gear != nullptr && gear->isVisible());
+  CHECK(gear->parentWidget() != nullptr && gear->parentWidget()->objectName() == QStringLiteral("panelTabGroupCorner"));
+  {
+    const auto gear_center = gear->mapTo(section, gear->rect().center());
+    const QRect bar(tab_bar->mapTo(section, QPoint(0, 0)), tab_bar->size());
+    CHECK(gear_center.y() >= bar.top() && gear_center.y() <= bar.bottom());
+    CHECK(gear_center.x() > bar.right());
+  }
+  save_widget_artifact("ui_panel_titles_hidden", *column);
+
+  // Back on, the layout is the one it started from; then off again for the rest.
+  action->trigger();
+  check_filled("titles shown again");
+  CHECK(action->isChecked() && column->titles_visible());
+  for (const auto& id : {layers, properties, history}) {
+    CHECK(column->title_row_shown(id));
+  }
+  CHECK(gear->parentWidget() == layers_title && gear->isVisible());
+  CHECK(splitter->sizes() == sizes_shown);
+  CHECK(body_of(layers)->height() == layers_body_height);
+  CHECK(body_of(properties)->y() == title_height);
+  action->trigger();
+  check_filled("titles hidden again");
+  CHECK(!column->title_row_shown(layers) && !column->title_row_shown(properties));
+  CHECK(splitter->sizes() == sizes_shown);
+
+  column->bring_to_front(channels);
+  QApplication::processEvents();
+  CHECK(!column->title_row_shown(channels));
+  CHECK(!gear->isVisible());
+  column->bring_to_front(layers);
+  QApplication::processEvents();
+  CHECK(gear->isVisible());
+
+  // Collapsed, the group shows its title row again (the gear back in it); a click on the
+  // row expands it and the row goes.
+  column->set_panel_expanded(layers, false);
+  check_filled("group collapsed with titles hidden");
+  CHECK(column->title_row_shown(layers));
+  CHECK(gear->parentWidget() == layers_title && gear->isVisible());
+  {
+    auto* label = column->title_label(layers);
+    const QPoint at(30, label->height() / 2);
+    send_mouse(*label, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*label, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+  }
+  check_filled("group expanded by a click with titles hidden");
+  CHECK(column->panel_expanded(layers) && !column->title_row_shown(layers));
+  CHECK(gear->parentWidget()->objectName() == QStringLiteral("panelTabGroupCorner"));
+  // The same for a section of its own, through its collapse button.
+  column->collapse_button(history)->click();
+  check_filled("history expanded with titles hidden");
+  CHECK(column->panel_expanded(history) && !column->title_row_shown(history));
+  column->set_panel_expanded(history, false);
+  check_filled("history collapsed with titles hidden");
+  CHECK(column->title_row_shown(history));
+  CHECK(column->section_widget(history)->height() == history_height);
+
+  // The tab bar's right-click menu still collapses the group and holds the option.
+  {
+    bool saw_menu = false;
+    QTimer::singleShot(0, guarded([&] {
+      auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+      CHECK(menu != nullptr);
+      if (menu == nullptr) {
+        return;
+      }
+      saw_menu = true;
+      CHECK(menu->actions().contains(action));
+      auto* collapse = menu->findChild<QAction*>(QStringLiteral("panelHeaderCollapseAction"));
+      CHECK(collapse != nullptr);
+      menu->close();
+      if (collapse != nullptr) {
+        collapse->trigger();
+      }
+    }));
+    const QPoint position(tab_bar->tabRect(0).center());
+    QContextMenuEvent event(QContextMenuEvent::Mouse, position, tab_bar->mapToGlobal(position));
+    QApplication::sendEvent(tab_bar, &event);
+    QApplication::processEvents();
+    CHECK(saw_menu);
+    CHECK(!column->panel_expanded(layers));
+    column->set_panel_expanded(layers, true);
+    check_filled("group expanded again");
+  }
+
+  // Reset Panels restores places and sizes, not this option.
+  require_action(window, "windowResetPanelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!action->isChecked() && !column->titles_visible());
+  CHECK(!column->title_row_shown(layers));
+
+  // Back on after a layout made while hidden: every row returns with no gap, and no
+  // section moves by more than the row it got back (one that sat at its floor grows by it).
+  patchy::ui::MainWindowTestAccess::show_panel(window, properties);
+  column->set_panel_expanded(history, false);
+  QApplication::processEvents();
+  const auto sizes_hidden = splitter->sizes();
+  action->trigger();
+  check_filled("titles shown after a reset");
+  CHECK(action->isChecked() && column->titles_visible());
+  for (const auto& id : {layers, properties, history}) {
+    CHECK(column->title_row_shown(id));
+  }
+  CHECK(gear->parentWidget() == layers_title && gear->isVisible());
+  const auto sizes_after = splitter->sizes();
+  CHECK(sizes_after.size() == sizes_hidden.size());
+  for (int index = 0; index < sizes_after.size() && index < sizes_hidden.size(); ++index) {
+    const auto moved = std::abs(sizes_after[index] - sizes_hidden[index]);
+    if (moved > title_height) {
+      std::printf("section %d went from %d to %d with the titles back\n", index, sizes_hidden[index],
+                  sizes_after[index]);
+    }
+    CHECK(moved <= title_height);
+  }
+  CHECK(body_of(properties)->y() == title_height);
+
+  // The hidden state in Light: the tab bars and the gears beside them, no row left over.
+  action->trigger();
+  {
+    ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
+    check_filled("titles hidden in Light");
+    CHECK(!column->title_row_shown(layers) && !column->title_row_shown(properties));
+    CHECK(column->title_row_shown(history));
+    CHECK(gear->isVisible() && gear->parentWidget()->objectName() == QStringLiteral("panelTabGroupCorner"));
+    save_widget_artifact("ui_panel_titles_hidden_light", *column);
+  }
+  QApplication::processEvents();
+}
+
+// With the title rows hidden, a panel that has a settings gear keeps it wherever it goes: at
+// the end of the tab bar in a group, and in its own title row (which stays) as a section of
+// its own. A group that dissolves hands the gear back before its container is deleted.
+void ui_panel_titles_hidden_keep_settings_gears() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* action = require_action(window, "windowShowPanelTitlesAction");
+  CHECK(column != nullptr && action != nullptr);
+  if (column == nullptr || action == nullptr) {
+    return;
+  }
+  const auto layers = QStringLiteral("layersDock");
+  const auto channels = QStringLiteral("channelsDock");
+  const auto color = QStringLiteral("colorDock");
+  const auto palette = QStringLiteral("paletteDock");
+  QPointer<QToolButton> layers_gear = window.findChild<QToolButton*>(QStringLiteral("layersPanelSettingsButton"));
+  QPointer<QToolButton> color_gear = window.findChild<QToolButton*>(QStringLiteral("colorPanelSettingsButton"));
+  CHECK(layers_gear != nullptr && color_gear != nullptr);
+  if (layers_gear == nullptr || color_gear == nullptr) {
+    return;
+  }
+  const auto settle = [] {
+    QApplication::processEvents();
+    QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QApplication::processEvents();
+  };
+  const auto in_corner = [](const QPointer<QToolButton>& gear) {
+    return gear != nullptr && gear->parentWidget() != nullptr &&
+           gear->parentWidget()->objectName() == QStringLiteral("panelTabGroupCorner") && gear->isVisible();
+  };
+  const auto in_title_row = [](const QPointer<QToolButton>& gear, const char* row) {
+    return gear != nullptr && gear->parentWidget() != nullptr &&
+           gear->parentWidget()->objectName() == QLatin1String(row) && gear->isVisible();
+  };
+  action->trigger();
+  settle();
+  CHECK(in_corner(layers_gear));
+  CHECK(in_corner(color_gear));
+  // Its menu still opens from there.
+  CHECK(color_gear->menu() != nullptr && layers_gear->menu() != nullptr);
+
+  // Layers pulled out into a section of its own: its title row stays, with the gear.
+  column->separate_panel(layers, 0);
+  settle();
+  CHECK(!column->in_tab_group(layers));
+  CHECK(column->title_row_shown(layers));
+  CHECK(in_title_row(layers_gear, "layersDockTitle"));
+  // Channels and Paths, left in the group, have no gear and no row.
+  CHECK(!column->title_row_shown(channels));
+  // Back into the group, in front: the row goes and the gear returns to the tab bar.
+  column->merge_panel(layers, channels, 0);
+  settle();
+  CHECK(column->in_tab_group(layers) && column->panel_in_front(layers));
+  CHECK(!column->title_row_shown(layers));
+  CHECK(in_corner(layers_gear));
+
+  // Palette leaves the Color group, which dissolves: the gear outlives the group's widgets
+  // and Color keeps its row.
+  column->separate_panel(palette, column->section_order().size());
+  settle();
+  CHECK(!column->in_tab_group(color) && !column->in_tab_group(palette));
+  CHECK(color_gear != nullptr);
+  CHECK(column->title_row_shown(color));
+  CHECK(in_title_row(color_gear, "colorDockTitle"));
+  // Palette, a section of its own with no gear, has no row while expanded.
+  column->set_panel_expanded(palette, true);
+  settle();
+  CHECK(!column->title_row_shown(palette));
+  // A closed front tab hands the corner on: nothing of Layers shows once it is closed.
+  column->set_panel_visible(layers, false);
+  settle();
+  CHECK(layers_gear != nullptr && !layers_gear->isVisible());
+  column->set_panel_visible(layers, true);
+  settle();
+  CHECK(in_corner(layers_gear));
+
+  action->trigger();
+  settle();
+  CHECK(in_title_row(layers_gear, "layersDockTitle"));
+  CHECK(in_title_row(color_gear, "colorDockTitle"));
+  CHECK(column->title_row_shown(palette));
+}
+
+// Show Panel Titles is saved with the panel layout and read back before the first show,
+// whatever the layout version; a record without it shows the titles.
+void ui_panel_titles_setting_returns_in_the_next_window() {
+  const QStringList keys = {QStringLiteral("window/panelLayoutVersion"), QStringLiteral("window/hiddenPanels"),
+                            QStringLiteral("window/collapsedPanels"), QStringLiteral("window/frontPanel"),
+                            QStringLiteral("window/panelColumnWidth"), QStringLiteral("window/panelSplitterState"),
+                            QStringLiteral("window/panelOrder"), QStringLiteral("window/panelGroups"),
+                            QStringLiteral("window/frontPanels"), QStringLiteral("window/showPanelTitles")};
+  std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
+  for (const auto& key : keys) {
+    restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    for (const auto& key : keys) {
+      settings.remove(key);
+    }
+    settings.sync();
+  }
+  const auto titles_key = QStringLiteral("window/showPanelTitles");
+  const auto layers = QStringLiteral("layersDock");
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    CHECK(column->titles_visible());
+    require_action(window, "windowShowPanelTitlesAction")->trigger();
+    QApplication::processEvents();
+    // An offscreen window writes nothing on its own, on the toggle or on close.
+    CHECK(!patchy::ui::app_settings().contains(titles_key));
+    patchy::ui::MainWindowTestAccess::write_panel_layout(window);
+    const auto settings = patchy::ui::app_settings();
+    CHECK(settings.contains(titles_key) && !settings.value(titles_key).toBool());
+  }
+  const auto titles_in_next_window = [&](bool toggle_and_write) {
+    patchy::ui::MainWindow window;
+    patchy::ui::MainWindowTestAccess::read_panel_layout(window);
+    show_window(window);
+    auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    const bool visible = column->titles_visible();
+    CHECK(require_action(window, "windowShowPanelTitlesAction")->isChecked() == visible);
+    CHECK(column->title_row_shown(layers) == visible);
+    if (toggle_and_write) {
+      require_action(window, "windowShowPanelTitlesAction")->trigger();
+      QApplication::processEvents();
+      patchy::ui::MainWindowTestAccess::write_panel_layout(window);
+    }
+    return visible;
+  };
+  CHECK(!titles_in_next_window(false));
+  {
+    // The option is no part of the versioned layout: another version's record keeps it.
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("window/panelLayoutVersion"), 999);
+    settings.sync();
+  }
+  CHECK(!titles_in_next_window(true));
+  CHECK(patchy::ui::app_settings().value(titles_key).toBool());
+  CHECK(titles_in_next_window(false));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(titles_key);
+    settings.sync();
+  }
+  CHECK(titles_in_next_window(false));
+}
+
 // Right-clicking a panel's title row opens the panel menu (collapse or expand, close, the
-// panel toggles and Reset Panels); on the tab group's tab bar the close entry closes the
-// whole group.
+// panel toggles, Show Panel Titles and Reset Panels); on the tab group's tab bar the close
+// entry closes the whole group.
 void ui_panel_header_right_click_opens_panel_menu() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -2599,6 +2971,7 @@ void ui_panel_header_right_click_opens_panel_menu() {
       CHECK(close != nullptr && close->text() == expected_close);
       CHECK(menu->findChild<QAction*>(QStringLiteral("panelHeaderCollapseAction")) != nullptr);
       CHECK(menu->actions().contains(require_action(window, "windowResetPanelsAction")));
+      CHECK(menu->actions().contains(require_action(window, "windowShowPanelTitlesAction")));
       CHECK(menu->actions().contains(require_action(window, "windowPanelPaletteAction")));
       QAction* chosen = trigger.isEmpty() ? nullptr : menu->findChild<QAction*>(trigger);
       menu->close();
@@ -2661,7 +3034,8 @@ void ui_panel_list_opens_on_toolbar_right_click() {
     CHECK(menu->objectName() == QStringLiteral("toolbarPanelMenu"));
     for (const char* name : {"windowPanelLayersAction", "windowPanelChannelsAction", "windowPanelPathsAction",
                              "windowPanelHistoryAction", "windowPanelPropertiesAction", "windowPanelInfoAction",
-                             "windowPanelColorAction", "windowPanelPaletteAction", "windowResetPanelsAction"}) {
+                             "windowPanelColorAction", "windowPanelPaletteAction", "windowShowPanelTitlesAction",
+                             "windowResetPanelsAction"}) {
       CHECK(menu->actions().contains(require_action(window, name)));
     }
     for (const char* name : {"toolPalette", "Options"}) {
@@ -2698,7 +3072,7 @@ void ui_panel_layout_returns_in_the_next_window() {
                             QStringLiteral("window/collapsedPanels"), QStringLiteral("window/frontPanel"),
                             QStringLiteral("window/panelColumnWidth"), QStringLiteral("window/panelSplitterState"),
                             QStringLiteral("window/panelOrder"), QStringLiteral("window/panelGroups"),
-                            QStringLiteral("window/frontPanels")};
+                            QStringLiteral("window/frontPanels"), QStringLiteral("window/showPanelTitles")};
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
   for (const auto& key : keys) {
     restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
@@ -5769,6 +6143,9 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_drag_onto_header_merges_into_tabs", ui_panel_drag_onto_header_merges_into_tabs},
       {"ui_panel_title_click_expands_and_double_click_collapses",
        ui_panel_title_click_expands_and_double_click_collapses},
+      {"ui_panel_titles_hide_for_expanded_panels", ui_panel_titles_hide_for_expanded_panels},
+      {"ui_panel_titles_hidden_keep_settings_gears", ui_panel_titles_hidden_keep_settings_gears},
+      {"ui_panel_titles_setting_returns_in_the_next_window", ui_panel_titles_setting_returns_in_the_next_window},
       {"ui_panel_header_right_click_opens_panel_menu", ui_panel_header_right_click_opens_panel_menu},
       {"ui_panel_list_opens_on_toolbar_right_click", ui_panel_list_opens_on_toolbar_right_click},
       {"ui_panel_layout_returns_in_the_next_window", ui_panel_layout_returns_in_the_next_window},

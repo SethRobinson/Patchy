@@ -812,7 +812,7 @@ private:
   void toggle_window_panel(const QString& panel_id);
   void show_panel(const QString& panel_id);
   // Right-click on a panel's title row or tab: collapse/expand, close, the panel
-  // toggles and Reset Panels.
+  // toggles, Show Panel Titles and Reset Panels.
   void show_panel_header_menu(const QString& panel_id, const QPoint& global_position, bool on_tab_bar);
   // The saved panel layout (docs/right-docks.md "Saved panel layout"): which panels and
   // toolbars are closed, which are collapsed, the tab group's tab order and front panel,
@@ -827,6 +827,9 @@ private:
   void apply_collapsed_panels(const QStringList& collapsed);
   // Window > Reset Panels: the first-launch layout, column width included.
   void reset_panels();
+  // Window > Show Panel Titles (GitHub issue 721): the column's title rows and the
+  // entry's check mark together.
+  void set_panel_titles_visible(bool visible);
   void create_palette_dock(std::vector<PanelSpec>& specs);
   // The Color panel (GitHub issue 365): a pick sets the foreground, or the background
   // when Alt was held at the press.
@@ -4427,6 +4430,7 @@ private:
   QAction* window_toolbars_separator_{nullptr};
   std::vector<QAction*> window_toolbar_actions_;  // Tool Palette, Tool Options: a fixed pair after the panels
   QAction* window_reset_panels_separator_{nullptr};
+  QAction* window_show_panel_titles_action_{nullptr};
   QAction* window_reset_panels_action_{nullptr};
   QStringList default_collapsed_panels_;
   QStringList default_panel_order_;

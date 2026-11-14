@@ -1038,6 +1038,20 @@ void MainWindow::install_window_panel_entries() {
       window_toolbar_actions_.push_back(toolbar->toggleViewAction());
     }
   }
+  // Window > Show Panel Titles (GitHub issue 721): off, expanded panels drop their title
+  // rows (PanelColumn::set_titles_visible). It sits with Reset Panels in every menu that
+  // has it, so it can always be turned back on.
+  window_show_panel_titles_action_ = new QAction(window_menu);
+  window_show_panel_titles_action_->setObjectName(QStringLiteral("windowShowPanelTitlesAction"));
+  window_show_panel_titles_action_->setCheckable(true);
+  window_show_panel_titles_action_->setChecked(panel_column_->titles_visible());
+  window_show_panel_titles_action_->setMenuRole(QAction::NoRole);
+  window_show_panel_titles_action_->setProperty(kWorksWithoutDocumentProperty, true);
+  bind_action_text(window_show_panel_titles_action_,
+                   QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Show Panel Titles"));
+  register_hotkey(window_show_panel_titles_action_, "window.show_panel_titles", QKeySequence());
+  connect(window_show_panel_titles_action_, &QAction::toggled, this,
+          [this](bool checked) { set_panel_titles_visible(checked); });
   // Window > Reset Panels closes the list: every panel and toolbar back to the layout a
   // first launch has (reset_panels).
   window_reset_panels_separator_ = new QAction(window_menu);
@@ -1087,6 +1101,7 @@ void MainWindow::sort_window_panel_entries() {
   std::vector<QAction*> trailing{window_toolbars_separator_};
   trailing.insert(trailing.end(), window_toolbar_actions_.begin(), window_toolbar_actions_.end());
   trailing.push_back(window_reset_panels_separator_);
+  trailing.push_back(window_show_panel_titles_action_);
   trailing.push_back(window_reset_panels_action_);
   for (auto* action : trailing) {
     if (action != nullptr) {
@@ -1136,6 +1151,7 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
   add_window_toolbar_entries(menu);
   if (window_reset_panels_action_ != nullptr) {
     menu.addSeparator();
+    menu.addAction(window_show_panel_titles_action_);
     menu.addAction(window_reset_panels_action_);
   }
   menu.exec(global_position);
@@ -1308,6 +1324,7 @@ QMenu* MainWindow::createPopupMenu() {
   add_window_toolbar_entries(*menu);
   if (window_reset_panels_action_ != nullptr) {
     menu->addSeparator();
+    menu->addAction(window_show_panel_titles_action_);
     menu->addAction(window_reset_panels_action_);
   }
   return menu;
@@ -1349,6 +1366,9 @@ QString panel_order_key() { return QStringLiteral("window/panelOrder"); }
 // Version 4: one entry per tab group, its panel ids in tab order joined by commas. Panels
 // in no entry have sections of their own.
 QString panel_groups_key() { return QStringLiteral("window/panelGroups"); }
+// Window > Show Panel Titles (GitHub issue 721). Not part of the versioned layout: it is
+// read whatever the layout version, and a record without it shows the titles.
+QString show_panel_titles_key() { return QStringLiteral("window/showPanelTitles"); }
 
 // The two toolbars, by object name, with the area each starts in.
 struct DefaultToolbar {
@@ -1435,6 +1455,7 @@ void MainWindow::write_panel_layout() {
   }
   settings.setValue(panel_groups_key(), groups);
   settings.setValue(panel_heights_key(), panel_column_->save_heights());
+  settings.setValue(show_panel_titles_key(), panel_column_->titles_visible());
   if (right_dock_width_follows_minimum_ || right_dock_pinned_width_ <= 0) {
     settings.remove(panel_column_width_key());
   } else {
@@ -1451,8 +1472,13 @@ void MainWindow::restore_panel_layout() {
 void MainWindow::read_panel_layout() {
   const auto settings = app_settings();
   const auto version = settings.value(panel_layout_version_key(), 0).toInt();
-  if (panel_column_ == nullptr || (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeTabOrder &&
-                                    version != kPanelLayoutVersionBeforeColor)) {
+  if (panel_column_ == nullptr) {
+    return;
+  }
+  // A view choice, not part of the versioned layout: it stands whatever the version.
+  set_panel_titles_visible(settings.value(show_panel_titles_key(), true).toBool());
+  if (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeTabOrder &&
+      version != kPanelLayoutVersionBeforeColor) {
     return;
   }
   const auto color_panel = QString::fromLatin1(kColorPanel);
@@ -1523,12 +1549,34 @@ void MainWindow::read_panel_layout() {
   }
 }
 
+void MainWindow::set_panel_titles_visible(bool visible) {
+  if (panel_column_ == nullptr) {
+    return;
+  }
+  if (window_show_panel_titles_action_ != nullptr && window_show_panel_titles_action_->isChecked() != visible) {
+    window_show_panel_titles_action_->setChecked(visible);  // comes back here through toggled
+    return;
+  }
+  if (panel_column_->titles_visible() == visible) {
+    return;
+  }
+  panel_column_->set_titles_visible(visible);
+  // Returning title rows raise the sections' floors: keep the window on its screen, as
+  // an expand does (GitHub issue 108).
+  fit_right_dock_floors_to_screen();
+#ifdef Q_OS_WASM
+  // The wasm backing store keeps stale pixels where a relayout moved the panels.
+  update();
+#endif
+}
+
 void MainWindow::reset_panels() {
   if (panel_column_ == nullptr) {
     return;
   }
   // Every panel open in the first-launch groups, section and tab order, collapse states
-  // and heights, Layers in front. The window keeps its size and place.
+  // and heights, Layers in front. The window keeps its size and place. Show Panel Titles
+  // is a view choice, not a place or a size, and stays as set.
   // Floors a short screen lowered stay lowered: putting them back would ask for more
   // height than the window has and grow it past the screen.
   for (const auto& id : panel_column_->panel_ids()) {

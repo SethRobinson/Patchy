@@ -21902,6 +21902,10 @@ Do you want to replace it?</source>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36148,6 +36152,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Cycle Brush Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

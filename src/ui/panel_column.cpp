@@ -239,6 +239,9 @@ struct PanelColumn::Section {
   QWidget* widget{nullptr};
   QTabBar* tabs{nullptr};
   QStackedWidget* stack{nullptr};
+  // Beside the tab bar's end: holds the front tab's header widget while the title rows
+  // are hidden, and is hidden itself otherwise.
+  QWidget* corner{nullptr};
   std::vector<std::unique_ptr<Page>> pages;
   bool expanded{true};
   // The section holding the first panel added (Layers): it takes the column's spare
@@ -395,7 +398,21 @@ void PanelColumn::build_group_widgets(Section& section) {
   // The tab bar is the group's handle too: a press still switches tabs, a drag moves.
   tabs->installEventFilter(this);
   section.stack = new QStackedWidget(section.widget);
-  layout->addWidget(tabs);
+  // The bar's row: the bar, then the corner that takes the front tab's header widget
+  // while the title rows are hidden (place_header_widgets). Hidden, the corner takes no
+  // room and the bar spans the section.
+  auto* bar_row = new QHBoxLayout();
+  bar_row->setContentsMargins(0, 0, 0, 0);
+  bar_row->setSpacing(0);
+  bar_row->addWidget(tabs, 1);
+  section.corner = new QWidget(section.widget);
+  section.corner->setObjectName(group_name_ + QStringLiteral("Corner"));
+  auto* corner_layout = new QHBoxLayout(section.corner);
+  corner_layout->setContentsMargins(6, 0, 7, 0);
+  corner_layout->setSpacing(0);
+  section.corner->hide();
+  bar_row->addWidget(section.corner);
+  layout->addLayout(bar_row);
   layout->addWidget(section.stack, 1);
   // The group is looked up by its bar, never captured: groups form and dissolve as
   // panels move.
@@ -403,6 +420,7 @@ void PanelColumn::build_group_widgets(Section& section) {
     auto* group = section_for_drag_handle(tabs);
     if (group != nullptr && index >= 0 && index < group->stack->count()) {
       group->stack->setCurrentIndex(index);
+      place_header_widgets(*group);  // the corner follows the front tab
     }
   });
   connect(tabs, &QWidget::customContextMenuRequested, this, [this, tabs](const QPoint& position) {
@@ -610,12 +628,98 @@ int PanelColumn::collapsed_height(const Section& section) const {
   return header + (section.tabs != nullptr ? section.tabs->sizeHint().height() : 0);
 }
 
+int PanelColumn::header_height(const Section& section) const {
+  const auto header = shows_title_row(section) ? section.front()->header->sizeHint().height() : 0;
+  return header + (section.tabs != nullptr ? section.tabs->sizeHint().height() : 0);
+}
+
+bool PanelColumn::shows_title_row(const Section& section) const {
+  if (show_titles_ || !section.expanded) {
+    return true;  // a collapsed section is its title row: the way back to expanded
+  }
+  // A section of its own has no tab bar to take a header widget (a settings gear), so a
+  // panel that has one keeps its row.
+  return section.tabs == nullptr && section.front()->spec.header_widget != nullptr;
+}
+
+bool PanelColumn::titles_visible() const { return show_titles_; }
+
+bool PanelColumn::title_row_shown(const QString& id) const {
+  const auto* found = page(id);
+  return found != nullptr && found->header->isVisibleTo(this);
+}
+
+void PanelColumn::set_titles_visible(bool visible) {
+  if (show_titles_ == visible) {
+    return;
+  }
+  // A section sitting at a height fitted to its content (the Color panel's slider views)
+  // follows the row in or out; every other section keeps its height, and its panel
+  // takes or gives the row's room.
+  const bool laid_out = isVisible() && !preferred_heights_pending_;
+  const auto sizes = splitter_->sizes();
+  std::vector<Section*> fitted;
+  if (laid_out) {
+    for (int index = 0; index < static_cast<int>(sections_.size()) && index < sizes.size(); ++index) {
+      auto& section = *sections_[static_cast<std::size_t>(index)];
+      const auto& spec = section.front()->spec;
+      if (section.expanded && section.widget->isVisibleTo(this) && spec.preferred_content_height &&
+          spec.preferred_content_height() > 0 && sizes[index] == section_preferred(section)) {
+        fitted.push_back(&section);
+      }
+    }
+  }
+  show_titles_ = visible;
+  for (const auto& section : sections_) {
+    apply_section_state(*section);
+  }
+  if (!sections_.empty()) {
+    // Floors that rose with the returning rows are honored at once.
+    settle_sizes(*sections_.front());
+  }
+  for (auto* section : fitted) {
+    fit_section_to_preferred(*section);
+  }
+}
+
+void PanelColumn::return_header_widget(Page& page) {
+  auto* widget = page.spec.header_widget;
+  if (widget != nullptr && widget->parentWidget() != page.header) {
+    page.header->layout()->addWidget(widget);  // after the title, where build_page put it
+    widget->show();
+  }
+}
+
+void PanelColumn::place_header_widgets(Section& section) {
+  const bool in_corner = section.tabs != nullptr && !shows_title_row(section);
+  const auto* front = section.front();
+  bool corner_used = false;
+  for (const auto& member : section.pages) {
+    auto* widget = member->spec.header_widget;
+    if (widget == nullptr) {
+      continue;
+    }
+    if (in_corner && member.get() == front && member->open) {
+      if (widget->parentWidget() != section.corner) {
+        section.corner->layout()->addWidget(widget);
+        widget->show();
+      }
+      corner_used = true;
+    } else {
+      return_header_widget(*member);
+    }
+  }
+  if (section.corner != nullptr) {
+    section.corner->setVisible(corner_used);
+  }
+}
+
 int PanelColumn::section_floor(const Section& section) const {
   const auto& spec = section.front()->spec;
   if (spec.expanded_minimum_height <= 0) {
     return 0;
   }
-  const auto floor = std::max(collapsed_height(section), spec.expanded_minimum_height - section.floor_reduction);
+  const auto floor = std::max(header_height(section), spec.expanded_minimum_height - section.floor_reduction);
   // The explicit floor hides the content's own minimum from the splitter, so a panel
   // that needs more (the Layers panel with its footer wrapped) would be clipped. While
   // the screen fit has not lowered it, the floor is at least that minimum; a lowered
@@ -627,7 +731,7 @@ int PanelColumn::section_floor(const Section& section) const {
     for (const auto& page : section.pages) {
       body = std::max(body, page->body->minimumSizeHint().height());
     }
-    return std::max(floor, collapsed_height(section) + body);
+    return std::max(floor, header_height(section) + body);
   }
   return floor;
 }
@@ -644,7 +748,7 @@ int PanelColumn::section_preferred(const Section& section) const {
   const auto& spec = section.front()->spec;
   const auto floor = std::max(section_floor(section), section.widget->minimumSizeHint().height());
   const auto content = spec.preferred_content_height ? spec.preferred_content_height() : 0;
-  const auto preferred = content > 0 ? collapsed_height(section) + content : spec.preferred_height;
+  const auto preferred = content > 0 ? header_height(section) + content : spec.preferred_height;
   return std::clamp(std::max(preferred, floor), floor, spec.expanded_maximum_height);
 }
 
@@ -661,7 +765,9 @@ void PanelColumn::apply_section_state(Section& section) {
                             "QObject");
     apply_bound_translation(member->toggle);
     member->body->setVisible(section.expanded);
+    member->header->setVisible(shows_title_row(section));
   }
+  place_header_widgets(section);
   // A collapsed section is exactly its title row (and the group's tab bar): the
   // splitter can neither stretch it nor leave a band under the header.
   if (!section.expanded) {
@@ -882,7 +988,7 @@ int PanelColumn::lower_floors(int excess, int keep, bool keep_content) {
     const auto content = keep_content && section.widget->layout() != nullptr
                              ? section.widget->layout()->minimumSize().height()
                              : 0;
-    const auto lowest = std::max(collapsed_height(section) + keep, content);
+    const auto lowest = std::max(header_height(section) + keep, content);
     const auto current = spec.expanded_minimum_height - section.floor_reduction;
     const auto take = std::min(excess, std::max(0, current - lowest));
     if (take <= 0) {
@@ -1056,7 +1162,9 @@ PanelColumn::Drop PanelColumn::drop_at(const QPoint& column_position) const {
     if (y > rect.bottom()) {
       continue;
     }
-    const auto header = collapsed_height(*section);
+    // With the title rows hidden a section of its own has no header to join: a drop on it
+    // lands above or below its middle.
+    const auto header = header_height(*section);
     const auto edge = std::clamp(header / 4, 3, 8);
     if (y < rect.top() + edge) {
       slot = index;
@@ -1204,7 +1312,7 @@ void PanelColumn::show_tab_line(const Section& section, int slot) {
 
 void PanelColumn::show_merge_frame(const Section& section) {
   const auto origin = section.widget->mapTo(this, QPoint(0, 0));
-  merge_indicator_->setGeometry(origin.x(), origin.y(), section.widget->width(), collapsed_height(section));
+  merge_indicator_->setGeometry(origin.x(), origin.y(), section.widget->width(), header_height(section));
   merge_indicator_->show();
   merge_indicator_->raise();
 }
@@ -1549,10 +1657,13 @@ void PanelColumn::dissolve_group(Section& section) {
   auto* container = section.widget;
   auto* tabs = section.tabs;
   auto* page_widget = section.pages.front()->widget;
+  // Out of the group's corner before the container goes.
+  return_header_widget(*section.pages.front());
   section.stack->removeWidget(page_widget);
   section.widget = page_widget;
   section.tabs = nullptr;
   section.stack = nullptr;
+  section.corner = nullptr;
   splitter_->replaceWidget(splitter_->indexOf(container), page_widget);
   tabs->disconnect(this);
   tabs->removeEventFilter(this);
@@ -1582,6 +1693,7 @@ std::unique_ptr<PanelColumn::Page> PanelColumn::detach_page(const QString& id) {
   const auto index = static_cast<int>(found - section->pages.begin());
   auto page = std::move(*found);
   section->pages.erase(found);
+  return_header_widget(*page);  // out of the group's corner: it leaves with its panel
   // The stack first: the bar's currentChanged then names the index the stack shows.
   section->stack->removeWidget(page->widget);
   section->tabs->removeTab(index);
