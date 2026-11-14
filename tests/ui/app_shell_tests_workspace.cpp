@@ -2581,7 +2581,7 @@ void ui_panel_title_click_expands_and_double_click_collapses() {
 // a section of its own is the panel alone, a tab group its tab bar over the panel, with the
 // front tab's settings gear at the end of the bar. A collapsed section keeps its row, the
 // sections keep their heights with no gap, and turning the option back on returns the
-// layout as it was. Reset Panels leaves the option alone.
+// layout as it was. Reset Panels turns the option back on with the rest of the defaults.
 void ui_panel_titles_hide_for_expanded_panels() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -2752,20 +2752,31 @@ void ui_panel_titles_hide_for_expanded_panels() {
     check_filled("group expanded again");
   }
 
-  // Reset Panels restores places and sizes, not this option.
-  require_action(window, "windowResetPanelsAction")->trigger();
-  QApplication::processEvents();
+  // Reset Panels returns this default with the rest: the option on, the entry checked and
+  // every title row back, in the tab groups and on the panels of their own, with no gap.
   CHECK(!action->isChecked() && !column->titles_visible());
-  CHECK(!column->title_row_shown(layers));
+  require_action(window, "windowResetPanelsAction")->trigger();
+  check_filled("reset panels with titles hidden");
+  CHECK(action->isChecked() && column->titles_visible());
+  CHECK(gear->parentWidget() == layers_title && gear->isVisible());
+  patchy::ui::MainWindowTestAccess::show_panel(window, properties);
+  check_filled("properties expanded after the reset");
+  for (const auto& id : {layers, QStringLiteral("colorDock"), properties, history, QStringLiteral("infoDock")}) {
+    CHECK(column->title_row_shown(id));
+  }
+  CHECK(body_of(properties)->y() == title_height);
+  CHECK(body_of(layers)->y() == title_height);
 
   // Back on after a layout made while hidden: every row returns with no gap, and no
   // section moves by more than the row it got back (one that sat at its floor grows by it).
-  patchy::ui::MainWindowTestAccess::show_panel(window, properties);
+  action->trigger();
   column->set_panel_expanded(history, false);
-  QApplication::processEvents();
+  column->apply_preferred_heights();
+  check_filled("first-launch heights with titles hidden");
+  CHECK(!column->titles_visible() && !column->title_row_shown(layers));
   const auto sizes_hidden = splitter->sizes();
   action->trigger();
-  check_filled("titles shown after a reset");
+  check_filled("titles shown after a layout made while hidden");
   CHECK(action->isChecked() && column->titles_visible());
   for (const auto& id : {layers, properties, history}) {
     CHECK(column->title_row_shown(id));
@@ -2941,6 +2952,28 @@ void ui_panel_titles_setting_returns_in_the_next_window() {
     auto settings = patchy::ui::app_settings();
     settings.remove(titles_key);
     settings.sync();
+  }
+  CHECK(titles_in_next_window(false));
+  {
+    // A window that starts with the titles hidden: Reset Panels turns them back on, the
+    // layout written after it holds the default, and the next window shows the titles.
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(titles_key, false);
+    settings.sync();
+  }
+  {
+    patchy::ui::MainWindow window;
+    patchy::ui::MainWindowTestAccess::read_panel_layout(window);
+    show_window(window);
+    auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    auto* titles = require_action(window, "windowShowPanelTitlesAction");
+    CHECK(!column->titles_visible() && !titles->isChecked() && !column->title_row_shown(layers));
+    require_action(window, "windowResetPanelsAction")->trigger();
+    QApplication::processEvents();
+    CHECK(column->titles_visible() && titles->isChecked() && column->title_row_shown(layers));
+    patchy::ui::MainWindowTestAccess::write_panel_layout(window);
+    const auto written = patchy::ui::app_settings();
+    CHECK(written.contains(titles_key) && written.value(titles_key).toBool());
   }
   CHECK(titles_in_next_window(false));
 }
@@ -3197,8 +3230,8 @@ void ui_panel_layout_returns_in_the_next_window() {
 }
 
 // Window > Reset Panels returns the first-launch layout: closed panels and toolbars back, the
-// first-launch section and tab order, the default collapse states, Layers in front and the content-fit column
-// width.
+// first-launch section and tab order, the default collapse states, Layers in front, the content-fit column
+// width and the title rows shown (Show Panel Titles back on).
 void ui_reset_panels_restores_first_launch_layout() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -3233,12 +3266,23 @@ void ui_reset_panels_restores_first_launch_layout() {
   CHECK(!column->panel_visible(QStringLiteral("paletteDock")));
   CHECK(tool_palette->isHidden());
   CHECK(!patchy::ui::MainWindowTestAccess::right_dock_width_follows_content(window));
+  auto* show_titles = require_action(window, "windowShowPanelTitlesAction");
+  show_titles->trigger();
+  QApplication::processEvents();
+  CHECK(!show_titles->isChecked() && !column->titles_visible());
 
   require_action(window, "windowResetPanelsAction")->trigger();
   QApplication::processEvents();
   QApplication::processEvents();
   for (const auto& id : column->panel_ids()) {
     CHECK(column->panel_visible(id));
+  }
+  // Show Panel Titles is back on, and every section shows its title row: the front tab of
+  // each group and each panel of its own.
+  CHECK(show_titles->isChecked() && column->titles_visible());
+  for (const auto& id : {QStringLiteral("colorDock"), QStringLiteral("layersDock"), QStringLiteral("propertiesDock"),
+                         QStringLiteral("infoDock"), QStringLiteral("historyDock")}) {
+    CHECK(column->title_row_shown(id));
   }
   CHECK(column->panel_in_front(QStringLiteral("layersDock")));
   CHECK(collapse_states() == defaults);

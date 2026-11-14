@@ -1575,10 +1575,12 @@ void MainWindow::reset_panels() {
     return;
   }
   // Every panel open in the first-launch groups, section and tab order, collapse states
-  // and heights, Layers in front. The window keeps its size and place. Show Panel Titles
-  // is a view choice, not a place or a size, and stays as set.
+  // and heights, Layers in front, and the title rows shown (Show Panel Titles back on, its
+  // default: GitHub issue 721). The window keeps its size and place.
   // Floors a short screen lowered stay lowered: putting them back would ask for more
   // height than the window has and grow it past the screen.
+  // The titles first, so the heights below are measured with the rows in place.
+  set_panel_titles_visible(true);
   for (const auto& id : panel_column_->panel_ids()) {
     panel_column_->set_panel_visible(id, true);
   }

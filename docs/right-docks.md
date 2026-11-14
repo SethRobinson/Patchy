@@ -53,8 +53,8 @@ Window > Show Panel Titles (`window.show_panel_titles`, `windowShowPanelTitlesAc
 - **Collapsed section.** Keeps its title row, which is how it expands again (a click on the row or its button); expanded, the row goes.
 - **Settings gears.** A `PanelSpec::header_widget` (the Layers and Color gears) never becomes unreachable. In a group, `place_header_widgets` moves the front tab's gear into `panelTabGroupCorner`, a holder at the end of the tab bar's row that takes no room while empty; it follows the front tab and goes back to its title row when the row returns, the panel leaves the group or the group dissolves (before the container is deleted). A section of its own whose panel has a gear keeps its title row: it has no tab bar to move to.
 - **Heights.** `header_height` is what sits above the panel now (the tab bar, plus the title row while shown) and replaces `collapsed_height` in the floors, the preferred heights, the screen fit and the drop targets. Sections keep their heights when the option changes, so the panel takes or gives the row's room and nothing shifts; a section sitting at a content-fitted height (the Color panel's slider views) refits. Turning the option back on returns the same layout.
-- **What is lost while hidden.** A section of its own has no collapse button, no title-row drag and no header to drop a panel onto, and its header menu is gone. Tab groups keep all of that on their tab bar (Collapse Panel in its right-click menu). Show Panel Titles itself stays in the Window menu, the tab bar menu and the toolbar right-click menu. Panel bodies get no new right-click menu.
-- **Reset Panels** leaves the option as set: it restores places and sizes, and this is a view choice.
+- **What is lost while hidden.** A section of its own has no collapse button, no title-row drag and no header to drop a panel onto, and its header menu is gone. Tab groups keep all of that on their tab bar (Collapse Panel in its right-click menu). Show Panel Titles itself stays in the Window menu, the tab bar menu and the toolbar right-click menu, and Reset Panels brings the rows back too. Panel bodies get no new right-click menu.
+- **Reset Panels** turns the option back on (its default) before it restores the layout, so every title row returns and the heights are measured with the rows in place; the layout saved after it holds `window/showPanelTitles` true.
 
 `ui_panel_titles_hide_for_expanded_panels`, `ui_panel_titles_hidden_keep_settings_gears`, `ui_panel_titles_setting_returns_in_the_next_window`.
 
@@ -87,6 +87,7 @@ The keys are compatibility contracts:
 Offscreen runs neither read nor write the record (`panel_layout_persists`). A UI test that closes a panel must not leak into the next one, and `--headless` or the MCP connector's own window must not change the user's layout. Tests drive it through `MainWindowTestAccess::write_panel_layout`/`read_panel_layout` (`ui_panel_layout_returns_in_the_next_window`).
 
 Window > Reset Panels (`reset_panels`) does the following:
+- turns Show Panel Titles back on ([Hidden title rows](#hidden-title-rows)),
 - reopens every panel,
 - restores the first-launch groups and tab order (`default_tab_groups_`, through `set_tab_groups`) and section order (`default_panel_order_`),
 - applies the collapse states captured right after `create_docks` (`default_collapsed_panels_`),

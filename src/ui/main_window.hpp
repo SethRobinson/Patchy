@@ -825,7 +825,7 @@ private:
   void read_panel_layout();
   QStringList collapsed_panel_names();
   void apply_collapsed_panels(const QStringList& collapsed);
-  // Window > Reset Panels: the first-launch layout, column width included.
+  // Window > Reset Panels: the first-launch layout, column width and title rows included.
   void reset_panels();
   // Window > Show Panel Titles (GitHub issue 721): the column's title rows and the
   // entry's check mark together.
