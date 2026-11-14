@@ -281,6 +281,11 @@ int TextEngineBlock::font_index(const std::string& postscript_name) {
 // is the contour reversed, the form Photoshop 2026 itself turns such a frame into on open. Any
 // other key (vertical type's /1, a path-type effect or alignment, settings Patchy has not
 // seen) leaves the layer protected.
+//
+// Older Photoshop CC versions write every path frame with /11 << /3 0 /5 0.0 /7 false >> and
+// /12 1 (GitHub issue 717). Photoshop 2025 and 2026 lay such a frame out exactly as one without
+// those keys, so the values an ordinary path text holds are read as plain path text; any other
+// value of them keeps the layer protected (docs/path-text.md, "Older Photoshop CC frames").
 static TextFrameGeometry path_frame_geometry(const EngineNode& frame) {
   const auto* settings = frame.at_path({"0", "2"});
   if (!settings || !settings->is_dict()) return {};
@@ -297,10 +302,22 @@ static TextFrameGeometry path_frame_geometry(const EngineNode& frame) {
           // The effect (Rainbow is 0) and the alignment to the path (Baseline is 0): Photoshop
           // 2025 draws Skew and the other values; Patchy does not.
           if (option.value.integer() != 0) return {};
+        } else if (option.key == "3") {
+          // Older CC: Photoshop 2025 names it pathTypeAlignTo (0 toPathTop, what those versions
+          // write; 1 toPathBottom; 2 toPathCenter).
+          if (option.value.integer() != 0) return {};
+        } else if (option.key == "5") {
+          if (option.value.number() != 0.0) return {};
+        } else if (option.key == "7") {
+          // Older versions write /7 false into the /11 of every frame, point and box included.
+          const auto set = option.value.boolean();
+          if (!set || *set) return {};
         } else if (option.key != "22") {
           return {};
         }
       }
+    } else if (entry.key == "12") {
+      if (entry.value.integer() != 1) return {};
     } else if (entry.key != "0" && entry.key != "2" && entry.key != "6") {
       return {};
     }

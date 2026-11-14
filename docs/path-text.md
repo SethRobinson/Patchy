@@ -104,18 +104,60 @@ text object names. A path frame, key for key as Photoshop 2026 writes it:
 - `/0/2/1 2`: vertical type. A path frame has no baseline rule.
 - `/0/2/11`: the path options of Photoshop 2025 and earlier (above): `/0` the flip, `/1` the
   effect, `/2` the alignment to the path, `/22 .025` always beside them. Photoshop 2026 never
-  writes this key.
+  writes this key for its own path text. Older versions fill it differently (below).
+- `/0/2/12 1`: written by older Photoshop CC versions (below).
+
+### Older Photoshop CC frames
+
+A file saved by an older "Adobe Photoshop CC" (GitHub issue 717, a reporter's file with two
+texts on curves; engine version `/98 << /0 7 >>`) writes every path frame as
+
+```
+/2 << /0 2 /2 [ 1.0 0.0 0.0 1.0 -25.0 -79.26834 ] /6 [ 0.0 .75545 ] /11 << /3 0 /5 0.0 /7 false >> /12 1 >>
+```
+
+What the keys are, from that file opened with each one changed (Photoshop 2025 26.9.0 and
+Photoshop 2026 27.11.0, over COM, November 2026):
+
+- `/11/3`: Photoshop 2025 reads it as `pathTypeAlignTo` in the layer descriptor: 0
+  `toPathTop`, 1 `toPathBottom`, 2 `toPathCenter` (also what a frame without the key reads).
+  Photoshop 2026 has no such descriptor key and drops `/3` when it saves.
+- `/11/5`: a number neither version shows in the descriptor. Photoshop 2025 keeps it on save
+  (20.0 stayed 20.0); Photoshop 2026 drops it.
+- `/11/7`: a flag both versions keep when true and drop when false. Versions up to about 24
+  write `/7 false` into the `/11` of every frame, point and box frames included.
+- `/12`: both versions keep 1 and drop 0, and neither names it in the descriptor. A layer of
+  this file whose frame lacks `/12 1` reads `textWarningLevel` 1 when the file opens (0 with
+  it), in both versions; a re-layout clears it.
+- **None of them moves the text.** Each version re-laid every variant (`/3` 1, 2 and 3, `/5`
+  20 and -20, `/7` true, `/12` 0, 2 and 3, the keys removed) to what it draws for the
+  unchanged file: identical pixels in Photoshop 2026, the same layer bounds and pixels within
+  one level (the flatten's dither) in Photoshop 2025, whose result differs from the raster
+  the older version saved only in anti-aliasing. So the frame is plain path text.
+
+Saved again, Photoshop 2025 writes the frame with `/11 << /3 0 /5 0.0 >> /12 1` and Photoshop
+2026 with `/12 1` alone. Patchy keeps an untouched layer's frame as it is and writes an edited
+one as its own plain path frame, without `/11` or `/12`. Acceptance (the issue 717 file saved
+by Patchy untouched, with one layer edited and with both edited; Photoshop 2026 through
+`scripts/dev/photoshop-open-check.ps1` and Photoshop 2025 over COM): no prompt, every layer
+`char onACurve` with its range, `textWarningLevel` 0 and no `oldText` (the authored frames
+too: the level 1 above needs the file's cached layout, which Patchy empties), and
+Photoshop 2026's re-layout of the edited text put the ink where Patchy drew it (ink bounds
+within 1 px).
 
 The layer's `TySh` records a box (`/ShapeType 1`) whose `/BoxBounds` are the contour's bounds
 in text-local coordinates, and its transform maps text-local space into the document.
 
 **Reading.** `TextEngineBlock::object_geometry` returns `Kind::Path` with the contour and the
-normalized range for a frame whose `/0/2` holds only the keys `0`, `2`, `6` and `11`, whose
-range is finite with the end past the start, and whose segments join. Of `/11` it accepts the
-flip, `/22`, and an effect and alignment of 0: a flip of true is read as the contour reversed
+normalized range for a frame whose `/0/2` holds only the keys `0`, `2`, `6`, `11` and `12`,
+whose range is finite with the end past the start, and whose segments join. Of `/11` it accepts
+the flip, `/22`, and an effect and alignment of 0: a flip of true is read as the contour reversed
 with `reversed_text_path_range` of the stored range, which is what Photoshop 2026 makes of the
-same frame. Any other path frame (vertical type, a Skew or other effect, an alignment other
-than the baseline, a key not listed here, a reversed range) stays `Unsupported`: the layer
+same frame. The older keys are accepted only at the values an ordinary path text of those
+versions holds (`/11/3` 0, `/11/5` 0, `/11/7` false, `/12` 1), each optional, so the frame also
+reads after Photoshop 2025 or 2026 saved it again. Any other path frame (vertical type, a Skew
+or other effect, an alignment other than the baseline, another value of the older keys, a key
+not listed here, a reversed range) stays `Unsupported`: the layer
 keeps its saved pixels and native data and is protected from editing, as before. An untouched
 imported layer keeps its frame, flip key included, when the document is saved again, and
 keeps Photoshop's raster until it is edited. The named-key engine of Photoshop CS-era files is
@@ -241,6 +283,11 @@ or a layer that is not editable text.
 ## Tests
 
 `tests/core/text_path_tests.cpp` (arc lengths, range rules, reversal, Photoshop frames read and
-authored, the legacy-engine refusal) and `tests/ui/text_path_tests.cpp` (the line plan,
-placement against the captures, scripting, the Type tool's targeting, the marks, the caret and
-clicks).
+authored, the older CC keys, the legacy-engine refusal) and `tests/ui/text_path_tests.cpp` (the
+line plan, placement against the captures, scripting, the Type tool's targeting, the marks, the
+caret and clicks). The issue 717 file is local
+(`local-test-fixtures/psd/issue-717/photoshop-cc-text-on-a-path.psd`, a reporter's file, not
+committed): `text_engine_path_frames_read_older_photoshop_cc_file_if_available` and the two
+`ui_text_path_older_photoshop_cc_file_*_if_available` tests (redraw against the saved raster,
+a Type tool edit of each layer) skip without it; the committed
+`text_engine_path_frames_read_older_photoshop_cc_options` covers the key rules everywhere.
