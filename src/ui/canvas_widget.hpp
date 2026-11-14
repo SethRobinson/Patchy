@@ -578,6 +578,10 @@ public:
   void hold_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds);
   void clear_gradient_fill_view_preview();
   [[nodiscard]] bool gradient_fill_view_preview_shown() const noexcept;
+  // Whether the preview of a Fill Layer mode drag is still up after its release (GitHub #714
+  // follow-up): it stays until the composite with the new or redrawn Gradient Fill layer is
+  // on screen, so the picture from before the drag never shows in between.
+  [[nodiscard]] bool gradient_fill_drag_hold_shown() const noexcept;
   // Off, every preview goes through the document as before GitHub #714 (the timing test
   // compares the two; PATCHY_GRADIENT_VIEW_PREVIEW=0 turns it off for a session).
   void set_gradient_fill_view_preview_enabled_for_testing(bool enabled) noexcept;
@@ -3358,6 +3362,20 @@ private:
   [[nodiscard]] bool gradient_fill_view_preview_drawn();
   // A document change the preview did not make itself ends it.
   void note_document_changed_for_gradient_view_preview() noexcept;
+  // The release of a Fill Layer mode drag (docs/gradients-fill-handles.md, "Release of a new
+  // gradient"): begin before the host is told, settle once it has answered. Settling keeps
+  // the drag's preview only when the document changed, and ties it to the layer that is
+  // active then.
+  void begin_gradient_fill_drag_hold(QPoint start, QPoint end);
+  void settle_gradient_fill_drag_hold();
+  void clear_gradient_fill_drag_hold();
+  // Whether paint still draws that preview; drops it once the render has settled.
+  [[nodiscard]] bool gradient_fill_drag_hold_drawn();
+  void note_document_changed_for_gradient_drag_hold() noexcept;
+  // The Gradient tool's drag preview on a layer: the gradient from `a` to `b` (widget
+  // points) over the canvas or the active layer, clipped to the selection, and the two end
+  // dots.
+  void draw_gradient_drag_preview(QPainter& painter, QPoint a, QPoint b, bool fills_canvas, bool end_points);
   // The shape tools' bounding-box handles (canvas_widget_shape_resize.cpp, GitHub issues 690
   // and 716): the Move tool's transform-controls box without its rotate stem, on the active
   // shape layer, on the picked components of a work or saved path in Path mode, or on the
@@ -4566,6 +4584,19 @@ private:
     Document document;
   };
   std::optional<GradientFillViewPreviewSource> gradient_view_preview_source_;
+  // The preview of a Fill Layer mode drag kept after its release: the drag's two document
+  // points. `settled` once the host has made its change; from then on it lasts while the
+  // layer it stands in for keeps the revisions it had, until the render settles.
+  struct GradientFillDragHold {
+    QPoint start;
+    QPoint end;
+    bool document_changed{false};
+    bool settled{false};
+    LayerId layer_id{0};
+    std::uint64_t render_revision{0};
+    std::uint64_t content_revision{0};
+  };
+  std::optional<GradientFillDragHold> gradient_drag_hold_;
   bool gradient_view_preview_enabled_{qEnvironmentVariable("PATCHY_GRADIENT_VIEW_PREVIEW") != QLatin1String("0")};
   std::uint64_t gradient_handle_drag_serial_{0};
   QElapsedTimer gradient_handle_preview_clock_;
