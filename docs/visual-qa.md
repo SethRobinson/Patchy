@@ -89,7 +89,7 @@ The base style paints with the application palette, and the theme sets neither (
 
 Useful diagnostic variables:
 
-- `PATCHY_NO_SINGLE_INSTANCE=1` allows multiple instances.
+- `PATCHY_NO_SINGLE_INSTANCE=1` allows multiple instances. `PATCHY_SINGLE_INSTANCE_NAME=<name>` keeps single-instance forwarding but under another pipe or socket name, apart from the user's running Patchy ([scripting.md](scripting.md#single-instance)).
 - `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses native scanner acquisition in tests.
 - `PATCHY_REV_TRACE=1` logs revision bumps.
 - `PATCHY_ZOOM_TRACE=1` logs paint and zoom phases over 2 ms.

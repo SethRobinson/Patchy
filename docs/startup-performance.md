@@ -29,6 +29,7 @@ Phases, in order (`mw.*` are children of `main_window.construct`):
 | `theme.load` | saved color scheme and custom theme |
 | `cli.parse` | option table and parse |
 | `single_instance.forward_probe` | connect attempt to a running instance |
+| `single_instance.listen` | the startup claim when nothing answered: lock file, second probe, listener thread start ([scripting.md](scripting.md#single-instance)) |
 | `main_window.construct` | the whole constructor; children below |
 | `mw.recovery_start` | status bar class, recovery coordinator |
 | `mw.filters_codecs` | built-in filter registry, ICO/RTTEX codecs |
@@ -44,7 +45,6 @@ Phases, in order (`mw.*` are children of `main_window.construct`):
 | `mw.geometry_layout` | title, saved geometry, panel layout restore |
 | `mw.stylesheet` | `setStyleSheet(photoshop_style())` over the whole widget tree |
 | `mw.status_bar` | status bar widgets and zoom controls; in a real window also the native window's creation (`ensure_native_resizable_frame` calls `winId()`), where Qt queries the GPU ("Real window" below) |
-| `single_instance.listen` | the second-launch server |
 | `main_window.show` | polish, layout, native window creation |
 | `update_check.start` | update-check setup (the request itself is asynchronous) |
 | `recovery.orphan_scan` | crashed-instance recovery scan |

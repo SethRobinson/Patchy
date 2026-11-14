@@ -39,13 +39,10 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
-#include <QDataStream>
 #include <QFileOpenEvent>
 #include <QFont>
 #include <QFontDatabase>
 #include <QImageReader>
-#include <QLocalServer>
-#include <QLocalSocket>
 #include <QLoggingCategory>
 #include <QRect>
 #include <QSaveFile>
@@ -127,30 +124,6 @@ void apply_gui_scale_factor() {
   qputenv("QT_SCALE_FACTOR", QByteArray::number(percent / 100.0));
 }
 
-// Per-user name for the single-instance local socket. Scoping it to the user keeps separate Windows
-// login sessions from fighting over one pipe on a shared machine.
-QString single_instance_server_name() {
-  QString user = qEnvironmentVariable("USERNAME");
-  if (user.isEmpty()) {
-    user = qEnvironmentVariable("USER");
-  }
-  const auto name = QStringLiteral("Patchy-SingleInstance-") + user;
-#ifdef Q_OS_LINUX
-  // Inside Flatpak, QLocalServer's default socket location is the per-sandbox /tmp, so a
-  // second `flatpak run` would never find the first instance's socket. $XDG_RUNTIME_DIR/
-  // app/<app-id>/ is shared across sandboxes of the same app id; use an absolute socket
-  // path there (QLocalServer treats a path-shaped name as the literal socket path).
-  if (qEnvironmentVariableIsSet("FLATPAK_ID")) {
-    const auto runtime_dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
-    if (!runtime_dir.isEmpty()) {
-      return runtime_dir + QStringLiteral("/app/") + qEnvironmentVariable("FLATPAK_ID") +
-             QStringLiteral("/") + name;
-    }
-  }
-#endif
-  return name;
-}
-
 // Screenshot requests ride the single-instance file list as one reserved entry. Real entries are
 // absolute file paths, which can never start with this prefix nor contain newlines, so the two
 // kinds cannot collide. Fields are newline-separated: prefix, output path, widget name, region.
@@ -194,30 +167,6 @@ QRect parse_screenshot_rect(const QString& text) {
     }
   }
   return QRect(values[0], values[1], values[2], values[3]);
-}
-
-// Try to hand the file list to an already-running Patchy. Returns true if a running instance accepted
-// the request (in which case this process should exit without opening its own window).
-bool forward_to_running_instance(const QStringList& files) {
-  QLocalSocket socket;
-  socket.connectToServer(single_instance_server_name());
-  if (!socket.waitForConnected(300)) {
-    return false;
-  }
-  // Grant before sending: once the payload lands the receiver may activate at any moment.
-  (void)patchy::ui::allow_local_socket_server_to_take_foreground(socket);
-  QByteArray payload;
-  QDataStream stream(&payload, QIODevice::WriteOnly);
-  stream.setVersion(QDataStream::Qt_5_15);
-  stream << files;
-  socket.write(payload);
-  socket.flush();
-  socket.waitForBytesWritten(1000);
-  socket.disconnectFromServer();
-  if (socket.state() != QLocalSocket::UnconnectedState) {
-    socket.waitForDisconnected(1000);
-  }
-  return true;
 }
 
 // macOS delivers Finder opens (double-clicked documents, dock drops) to the RUNNING
@@ -825,11 +774,27 @@ int main(int argc, char* argv[]) {
         encode_run_script_command(run_script_path, script_output_path, script_args));
   }
   parse_phase.end();
+  // Declared before the window, so it outlives every connection made to it below.
+  patchy::ui::SingleInstanceServer single_instance_server;
+  const QString single_instance_name = single_instance_enabled ? patchy::ui::single_instance_server_name() : QString();
   patchy::startup_trace::Scope forward_phase("single_instance.forward_probe");
-  if (single_instance_enabled && forward_to_running_instance(forward_payload)) {
+  if (single_instance_enabled && patchy::ui::forward_to_single_instance(single_instance_name, forward_payload)) {
     return 0;
   }
   forward_phase.end();
+  // Nothing answered: become the instance now, before the window is built. A file manager that
+  // opens several files starts one Patchy per file at the same moment; when each built its
+  // window first and listened afterwards, every one of them found nobody listening and stayed
+  // (GitHub issue 722). The claim runs under a per-user lock, so exactly one process listens and
+  // the rest forward to it and exit here. Its listener thread takes their files while this
+  // thread builds the window; they are opened once the window is up (below).
+  patchy::startup_trace::Scope listen_phase("single_instance.listen");
+  if (single_instance_enabled &&
+      patchy::ui::claim_single_instance(single_instance_server, single_instance_name, forward_payload) ==
+          patchy::ui::SingleInstanceRole::Forwarded) {
+    return 0;
+  }
+  listen_phase.end();
 
   // Wakes the audio output while the window builds, so the theme's startup sound
   // (fired below for the same runs) keeps its start.
@@ -850,7 +815,7 @@ int main(int argc, char* argv[]) {
     window.set_cli_automation_mode(true);
   }
 
-  // Become the primary instance: listen for future launches and adopt the files they forward.
+  // The primary instance adopts the files later launches forward (claimed above).
   std::deque<QStringList> forwarded_requests;
   QTimer forwarded_request_timer;
   forwarded_request_timer.setInterval(50);
@@ -886,65 +851,43 @@ int main(int argc, char* argv[]) {
       window.activate_for_second_instance(forwarded_files);
     }
   });
-  QLocalServer single_instance_server;
-  patchy::startup_trace::Scope listen_phase("single_instance.listen");
-  if (single_instance_enabled) {
-    // A previous crash can leave a stale pipe/socket that blocks listen(); clear it first.
-    QLocalServer::removeServer(single_instance_server_name());
-    if (single_instance_server.listen(single_instance_server_name())) {
-      QObject::connect(&single_instance_server, &QLocalServer::newConnection, &window, [&] {
-        QLocalSocket* client = single_instance_server.nextPendingConnection();
-        if (client == nullptr) {
-          return;
+  // What other launches forwarded, in arrival order (the listener thread received them; some
+  // may have come in while the window was being built).
+  const auto accept_forwarded_requests = [&] {
+    for (auto& forwarded : single_instance_server.take_requests()) {
+      // Peel screenshot commands off the file list. A capture must not raise or focus the
+      // window (that would perturb the very state being captured), so a pure-screenshot
+      // request skips activation; a bare relaunch (no files, no commands) still activates.
+      QStringList deferred;
+      bool handled_command = false;
+      for (const auto& entry : forwarded) {
+        if (entry.startsWith(kScreenshotCommandPrefix)) {
+          const auto parts = entry.split(QLatin1Char('\n'));
+          if (parts.size() == 4) {
+            (void)window.save_debug_screenshot(parts[1], parts[2], parse_screenshot_rect(parts[3]));
+          }
+          handled_command = true;
+        } else {
+          deferred.append(entry);
         }
-        // Accumulate until the sender disconnects, then decode the whole payload in one shot so a
-        // chunked write can't be parsed half-read.
-        auto buffer = std::make_shared<QByteArray>();
-        QObject::connect(client, &QLocalSocket::readyRead, client, [client, buffer] { buffer->append(client->readAll()); });
-        QObject::connect(client, &QLocalSocket::disconnected, &window, [&, client, buffer] {
-          buffer->append(client->readAll());
-          QStringList forwarded;
-          QDataStream stream(buffer.get(), QIODevice::ReadOnly);
-          stream.setVersion(QDataStream::Qt_5_15);
-          stream >> forwarded;
-          // Peel screenshot commands off the file list. A capture must not raise or focus the
-          // window (that would perturb the very state being captured), so a pure-screenshot
-          // request skips activation; a bare relaunch (no files, no commands) still activates.
-          QStringList deferred;
-          bool handled_command = false;
-          for (const auto& entry : forwarded) {
-            if (entry.startsWith(kScreenshotCommandPrefix)) {
-              const auto parts = entry.split(QLatin1Char('\n'));
-              if (parts.size() == 4) {
-                (void)window.save_debug_screenshot(parts[1], parts[2], parse_screenshot_rect(parts[3]));
-              }
-              handled_command = true;
-            } else {
-              deferred.append(entry);
-            }
-          }
-          // Come forward now, as the dispatch below will for this request (files, or a bare
-          // relaunch): that waits out modal dialogs and a running script, and Windows only
-          // honors the relaunch's foreground grant for a moment.
-          bool has_files = false;
-          bool has_run_script = false;
-          for (const auto& entry : deferred) {
-            (entry.startsWith(kRunScriptCommandPrefix) ? has_run_script : has_files) = true;
-          }
-          if (has_files || (!handled_command && !has_run_script)) {
-            window.bring_to_front_for_second_instance();
-          }
-          if (!deferred.isEmpty() || !handled_command) {
-            forwarded_requests.push_back(std::move(deferred));
-            forwarded_request_timer.start();
-          }
-          client->deleteLater();
-        });
-      });
+      }
+      // Come forward now, as the dispatch below will for this request (files, or a bare
+      // relaunch): that waits out modal dialogs and a running script, and Windows only
+      // honors the relaunch's foreground grant for a moment.
+      bool has_files = false;
+      bool has_run_script = false;
+      for (const auto& entry : deferred) {
+        (entry.startsWith(kRunScriptCommandPrefix) ? has_run_script : has_files) = true;
+      }
+      if (has_files || (!handled_command && !has_run_script)) {
+        window.bring_to_front_for_second_instance();
+      }
+      if (!deferred.isEmpty() || !handled_command) {
+        forwarded_requests.push_back(std::move(deferred));
+        forwarded_request_timer.start();
+      }
     }
-  }
-
-  listen_phase.end();
+  };
 
   std::unique_ptr<StartupTraceObserver> startup_observer;
   if (patchy::startup_trace::enabled()) {
@@ -953,6 +896,11 @@ int main(int argc, char* argv[]) {
   patchy::startup_trace::Scope show_phase("main_window.show");
   window.show();
   show_phase.end();
+  // From here on forwarded requests are handled as they arrive; first the ones that came in
+  // during startup.
+  QObject::connect(&single_instance_server, &patchy::ui::SingleInstanceServer::request_ready, &window,
+                   accept_forwarded_requests);
+  accept_forwarded_requests();
   // Not at once: unloading the driver holds the loader lock, and the first event-loop
   // turns load libraries of their own (the plug-in scan, sound, image formats).
   QTimer::singleShot(std::chrono::seconds(2), &window,
@@ -969,7 +917,10 @@ int main(int argc, char* argv[]) {
   // which nothing can interrupt, and waiting for it is the issue 48 quit freeze.
   // The process then ends without destructors: settings were flushed by
   // closeEvent, and the recovery folder is dropped here by hand.
-  const auto finish_after_event_loop = [&window, &first_window_gpu_warmup](int result) {
+  const auto finish_after_event_loop = [&window, &first_window_gpu_warmup, &single_instance_server](int result) {
+    // Nothing handles a forwarded request any more: stop answering, so a launch during the
+    // wait below starts its own Patchy instead of handing its files to one that is quitting.
+    single_instance_server.close();
     first_window_gpu_warmup.release();  // its worker is one of those waited for
     if (patchy::ui::wait_for_tracked_background_workers(std::chrono::seconds(10))) {
       return result;
@@ -1005,7 +956,11 @@ int main(int argc, char* argv[]) {
     // No instance was running (a forwarded request already returned above):
     // run the script unattended in this instance and exit with its status.
     window.set_cli_automation_mode(true);
-    window.open_command_line_files(files);
+    {
+      // Opening pumps events; requests forwarded meanwhile wait for it (see the timer above).
+      const QScopedValueRollback startup_opens(processing_forwarded_request, true);
+      window.open_command_line_files(files);
+    }
     window.run_cli_script(run_script_path, script_output_path, script_args);
     return finish_after_event_loop(app.exec());
   }
@@ -1027,6 +982,11 @@ int main(int argc, char* argv[]) {
   files += app.pending_file_opens;
   app.pending_file_opens.clear();
 
+  // Recovery and the command-line opens below pump events while they decode. Files other
+  // launches forwarded meanwhile (the rest of a multi-file open from the file manager) wait
+  // until this instance's own are open, then follow in arrival order (the timer above).
+  std::optional<QScopedValueRollback<bool>> startup_opens;
+  startup_opens.emplace(processing_forwarded_request, true);
 #ifndef Q_OS_WASM
   // Documents a crashed instance left recovery copies of come back first, as
   // modified "(Recovered)" sessions (docs/document-recovery.md). Never for a
@@ -1045,6 +1005,7 @@ int main(int argc, char* argv[]) {
     const patchy::startup_trace::Scope open_phase("cli.open_files");
     window.open_command_line_files(files);
   }
+  startup_opens.reset();
 
   if (screenshot_mode) {
     // Solo capture launch: no instance was running, so this one captures itself once startup

@@ -2792,6 +2792,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
       tests/ui/companion_tests.cpp
+      tests/ui/single_instance_tests.cpp
       tests/ui/openai_images_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/legacy_plugin_tests.cpp

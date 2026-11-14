@@ -245,6 +245,46 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
   without showing, and menu Undo/Redo/Quit are rejected while the script owns the
   transaction.
 
+### Single instance
+
+A launch hands its files and command entries to the running Patchy and exits.
+`PATCHY_NO_SINGLE_INSTANCE`, `--headless`, `--export`, `--stress-test` and
+`--startup-benchmark` opt out. `ui/single_instance.{hpp,cpp}` owns the mechanism; `main.cpp`
+decides the mode and handles the requests.
+
+- **Name.** `single_instance_server_name()`: `Patchy-SingleInstance-<user>`, a pipe on
+  Windows, a socket in the temp folder elsewhere, under `$XDG_RUNTIME_DIR/app/<id>/` inside a
+  Flatpak. It is a compatibility contract: an old and a new Patchy must find each other.
+  `PATCHY_SINGLE_INSTANCE_NAME=<name>` replaces it, so a test never reaches the user's Patchy.
+- **Wire format.** One connection per request: a `QDataStream` (`Qt_5_15`) `QStringList` of
+  absolute paths and reserved `patchy-cmd:` entries, then a disconnect; the receiver decodes
+  on disconnect. An empty list is a bare relaunch (raise the window), so never connect
+  without sending.
+- **Startup claim** (GitHub issue 722). A file manager that opens several files may start one
+  process per file at the same moment. Each probes first (the fast path of a normal
+  relaunch). When nothing answers it calls `claim_single_instance` before the main window is
+  built: under a per-user `QLockFile` (`single_instance_lock_path`: beside a socket path,
+  else `<temp>/<name>.lock`) it probes again, forwards when an instance now answers, and
+  otherwise listens. Exactly one process becomes the instance; the others, queued on the
+  lock, forward to it and exit without building a window. A socket nothing answers on (a
+  crashed instance's, Unix only) is removed only inside the claim: outside the lock a
+  starting process could delete the socket another had just made, which is how every
+  process used to stay.
+- **Lock rules.** It is held for milliseconds. A lock not taken within `lock_wait_ms` (6 s)
+  is skipped and the claim goes on without it, so a start is delayed at worst, never
+  blocked. A lock older than `stale_lock_ms` whose owner is gone is removed; a live owner
+  holds the file open (Windows) or `flock`ed (Unix), so its lock is never broken. The age
+  rule is there for a Flatpak sandbox's own pid namespace, where a pid proves nothing.
+- **Listener thread.** `SingleInstanceServer` accepts and reads on its own thread, so a
+  forwarding process is answered and exits while the GUI thread builds the window or decodes
+  a file. Requests queue in arrival order (`take_requests`, `request_ready` on the GUI
+  thread). `main.cpp` handles them from `window.show()` on; file and script requests wait
+  for its own recovery and command-line opens, a modal dialog, or a running script. The
+  server closes when the event loop ends, so a launch during quit starts its own instance.
+- Tests: `ui_single_instance_*` (`tests/ui/single_instance_tests.cpp`).
+  `ui_single_instance_simultaneous_launches_share_one_window` starts six `patchy` processes
+  at once under a test-scoped name and expects one instance holding every file.
+
 The Script Manager's C:\ button shows that command for the selected script (tree
 selection first, else the loaded file), built by `script_cli_example_command`; metadata
 is re-read on every click, and the dialog opens with `open()` (no nested loop).

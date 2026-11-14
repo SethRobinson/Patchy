@@ -498,6 +498,7 @@ int main(int argc, char* argv[]) {
            document_rename_tests,
            mcp_tests,
            companion_tests,
+           single_instance_tests,
            openai_images_tests,
            unicode_path_tests,
            legacy_plugin_tests,
