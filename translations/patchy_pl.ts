@@ -21982,6 +21982,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation>Przełączaj między narzędziami Pędzel i Zastępowanie kolorów</translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation>Ukryj lub pokaż wiersz z nazwą nad każdym panelem bocznym</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36340,6 +36344,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Cycle Brush Tools</source>
         <translation>Przełącz narzędzia pędzla</translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
+        <translation>Pokaż tytuły paneli</translation>
     </message>
 </context>
 <context>

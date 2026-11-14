@@ -21858,6 +21858,10 @@ Do you want to replace it?</source>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation>在画笔工具和颜色替换工具之间切换</translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation>隐藏或显示每个侧面板上方的名称行</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36122,6 +36126,10 @@ Locked: %1</source>
     <message>
         <source>Cycle Brush Tools</source>
         <translation>循环切换画笔工具</translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
+        <translation>显示面板标题</translation>
     </message>
 </context>
 <context>

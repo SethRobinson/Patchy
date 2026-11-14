@@ -21920,6 +21920,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Switch between the Brush and Color Replacement tools</source>
         <translation>Zwischen Pinsel und Farbe-ersetzen-Werkzeug wechseln</translation>
     </message>
+    <message>
+        <source>Hide or show the name row above each side panel</source>
+        <translation>Die Namenszeile über jedem Seitenbedienfeld aus- oder einblenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -36231,6 +36235,10 @@ Fixiert: %1</translation>
     <message>
         <source>Cycle Brush Tools</source>
         <translation>Pinsel-Werkzeuge durchschalten</translation>
+    </message>
+    <message>
+        <source>Show Panel Titles</source>
+        <translation>Bedienfeldtitel anzeigen</translation>
     </message>
 </context>
 <context>
