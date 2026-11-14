@@ -572,6 +572,236 @@ void text_engine_path_frames_read_photoshop_2025_flip() {
   CHECK(with_options(engine_list()).kind == TextFrameGeometry::Kind::Unsupported);
 }
 
+bool paths_close(const VectorPath& a, const VectorPath& b, double tolerance) {
+  if (a.subpaths.size() != 1 || b.subpaths.size() != 1) return false;
+  const auto& left = a.subpaths.front();
+  const auto& right = b.subpaths.front();
+  if (left.closed != right.closed || left.anchors.size() != right.anchors.size()) return false;
+  for (std::size_t i = 0; i < left.anchors.size(); ++i) {
+    const auto& p = left.anchors[i];
+    const auto& q = right.anchors[i];
+    if (!close_to(p.anchor_x, q.anchor_x, tolerance) || !close_to(p.anchor_y, q.anchor_y, tolerance) ||
+        !close_to(p.in_x, q.in_x, tolerance) || !close_to(p.in_y, q.in_y, tolerance) ||
+        !close_to(p.out_x, q.out_x, tolerance) || !close_to(p.out_y, q.out_y, tolerance)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Older Photoshop CC versions write every path frame with /11 << /3 0 /5 0.0 /7 false >> and
+// /12 1 (GitHub issue 717). Photoshop 2025 and 2026 lay such a frame out exactly as one without
+// the keys, so those values read as plain path text; any other value keeps the layer protected
+// (docs/path-text.md, "Older Photoshop CC frames").
+void text_engine_path_frames_read_older_photoshop_cc_options() {
+  using namespace patchy;
+  using namespace patchy::psd;
+  auto engine = TextEngineBlock::from_template();
+  TextEngineInputs input;
+  input.text = "On a path\r";
+  input.boxed = true;
+  input.path = arc_path();
+  input.path_range = {0.2, 0.9};
+  engine.append_object(input);
+  auto* settings = engine.root().at_path({"0", "8", "0", "0", "0", "2"});
+  CHECK(settings != nullptr);
+  if (settings == nullptr) return;
+  const auto plain = *settings;
+  const auto old_options = [](long long align_to, double number, bool flag) {
+    return engine_dict_of({{"3", engine_integer(align_to)}, {"5", engine_number(number)}, {"7", engine_bool(flag)}});
+  };
+  const auto read = [&](std::optional<EngineNode> options, std::optional<EngineNode> key12) {
+    *settings = plain;
+    if (options) settings->set("11", std::move(*options));
+    if (key12) settings->set("12", std::move(*key12));
+    return engine.object_geometry(0);
+  };
+  const auto is_plain_path = [&](const TextFrameGeometry& geometry) {
+    return geometry.kind == TextFrameGeometry::Kind::Path && geometry.path == arc_path() &&
+           geometry.path_range == TextPathRange{0.2, 0.9};
+  };
+  const auto unsupported = [](const TextFrameGeometry& geometry) {
+    return geometry.kind == TextFrameGeometry::Kind::Unsupported;
+  };
+  // As the older versions write it, and as Photoshop 2025 (/7 dropped) and Photoshop 2026 (the
+  // whole /11 dropped) save the same frame again.
+  CHECK(is_plain_path(read(old_options(0, 0.0, false), engine_integer(1))));
+  CHECK(is_plain_path(read(engine_dict_of({{"3", engine_integer(0)}, {"5", engine_number(0.0)}}), engine_integer(1))));
+  CHECK(is_plain_path(read(std::nullopt, engine_integer(1))));
+  CHECK(is_plain_path(read(old_options(0, 0.0, false), std::nullopt)));
+  // The flip of those versions is the key Photoshop 2025 writes, beside the older ones.
+  auto flipped_options = old_options(0, 0.0, false);
+  flipped_options.set("0", engine_bool(true));
+  const auto flipped = read(std::move(flipped_options), engine_integer(1));
+  CHECK(flipped.kind == TextFrameGeometry::Kind::Path && flipped.path == reversed_text_path(arc_path()));
+  CHECK(close_to(flipped.path_range.start, 0.1, 1e-9) && close_to(flipped.path_range.end, 0.8, 1e-9));
+  // Any other value stays protected: Patchy has no setting to keep it in.
+  CHECK(unsupported(read(old_options(1, 0.0, false), engine_integer(1))));
+  CHECK(unsupported(read(old_options(2, 0.0, false), engine_integer(1))));
+  CHECK(unsupported(read(old_options(0, 20.0, false), engine_integer(1))));
+  CHECK(unsupported(read(old_options(0, -20.0, false), engine_integer(1))));
+  CHECK(unsupported(read(old_options(0, 0.0, true), engine_integer(1))));
+  CHECK(unsupported(read(old_options(0, 0.0, false), engine_integer(0))));
+  CHECK(unsupported(read(old_options(0, 0.0, false), engine_integer(2))));
+  CHECK(unsupported(read(old_options(0, 0.0, false), engine_bool(true))));
+  CHECK(unsupported(read(engine_dict_of({{"3", engine_bool(false)}}), std::nullopt)));
+  CHECK(unsupported(read(engine_dict_of({{"7", engine_integer(0)}}), std::nullopt)));
+  CHECK(unsupported(read(std::nullopt, engine_dict())));
+
+  // Through a document: Photoshop's own path text with the older keys added opens editable and an
+  // untouched save keeps them; a value Patchy does not model protects the layer.
+  auto document = DocumentIo::read_file(test::committed_psd_fixture_path("photoshop-path-flip-drag.psd"));
+  const auto text = std::find_if(document.layers().begin(), document.layers().end(), [](const Layer& l) {
+    return layer_is_text(l);
+  });
+  CHECK(text != document.layers().end());
+  if (text == document.layers().end()) return;
+  const auto expected_path = text_path_for_layer(*text);
+  CHECK(expected_path.has_value());
+  const auto rewrite_frame = [&](long long align_to) {
+    for (auto& block : document.metadata().unknown_psd_resources) {
+      if (block.key != "Txt2") continue;
+      auto parsed = TextEngineBlock::parse(block.payload);
+      CHECK(parsed.has_value());
+      if (!parsed) return;
+      const auto frame_index = parsed->object_frame_index(0);
+      CHECK(frame_index.has_value());
+      if (!frame_index) return;
+      auto* frame_settings = parsed->root().at_path({"0", "8", "0", std::to_string(*frame_index), "0", "2"});
+      CHECK(frame_settings != nullptr);
+      if (frame_settings == nullptr) return;
+      frame_settings->set("11", old_options(align_to, 0.0, false));
+      frame_settings->set("12", engine_integer(1));
+      block.payload = parsed->serialize();
+    }
+    import_text_frame_geometry(document);
+  };
+  rewrite_frame(1);
+  CHECK(text_geometry_is_protected(*text));
+  rewrite_frame(0);
+  CHECK(!text_geometry_is_protected(*text));
+  CHECK(text_path_for_layer(*text) == expected_path);
+  const auto saved_payload = text_engine_payload(DocumentIo::write_layered_rgb8(document));
+  CHECK(saved_payload.has_value());
+  if (!saved_payload) return;
+  const auto saved_engine = TextEngineBlock::parse(*saved_payload);
+  CHECK(saved_engine.has_value());
+  if (!saved_engine) return;
+  const auto saved_frame = saved_engine->object_frame_index(0);
+  CHECK(saved_frame.has_value());
+  if (!saved_frame) return;
+  const auto saved_index = std::to_string(*saved_frame);
+  const auto* kept_align_to = saved_engine->root().at_path({"0", "8", "0", saved_index, "0", "2", "11", "3"});
+  CHECK(kept_align_to != nullptr && kept_align_to->integer() == 0);
+  const auto* kept_key12 = saved_engine->root().at_path({"0", "8", "0", saved_index, "0", "2", "12"});
+  CHECK(kept_key12 != nullptr && kept_key12->integer() == 1);
+  CHECK(saved_engine->object_geometry(0).kind == TextFrameGeometry::Kind::Path);
+}
+
+// A reporter's file from an older Photoshop CC (GitHub issue 717): two texts on curves, both
+// frames with the older keys and the path in document coordinates behind an affine.
+void text_engine_path_frames_read_older_photoshop_cc_file_if_available() {
+  using namespace patchy;
+  using namespace patchy::psd;
+  const auto path = test::local_psd_fixture_path("issue-717/photoshop-cc-text-on-a-path.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto bytes = read_all(path);
+  const auto payload = text_engine_payload(bytes);
+  CHECK(payload.has_value());
+  if (!payload) return;
+  const auto engine = TextEngineBlock::parse(*payload);
+  CHECK(engine.has_value());
+  if (!engine) return;
+  CHECK(engine->object_count() == 2);
+  struct Expected {
+    const char* text;
+    VectorPath contour;  // text-local: the stored contour moved by the frame's affine
+    TextPathRange range;
+  };
+  const Expected expected[] = {
+      {"This is a test",
+       contour({knot(0, 35.73166, 0, 35.73166, 0, 35.73166), knot(347, 39.73166, 194, -47.26834, 347, 39.73166)}, false),
+       {0.0, 0.75545}},
+      {"Text on a Path", contour({knot(0, 165, 0, 165, 0, 165), knot(321, 0, 321, 0, 321, 0)}, false), {0.0, 0.56873}},
+  };
+  // The frames as that Photoshop wrote them.
+  for (std::size_t object = 0; object < engine->object_count(); ++object) {
+    const auto frame_index = engine->object_frame_index(object);
+    CHECK(frame_index.has_value());
+    if (!frame_index) continue;
+    const auto index_text = std::to_string(*frame_index);
+    const auto* options = engine->root().at_path({"0", "8", "0", index_text, "0", "2", "11"});
+    CHECK(options != nullptr && options->is_dict() && options->dict.size() == 3);
+    const auto* key12 = engine->root().at_path({"0", "8", "0", index_text, "0", "2", "12"});
+    CHECK(key12 != nullptr && key12->integer() == 1);
+    CHECK(engine->object_geometry(object).kind == TextFrameGeometry::Kind::Path);
+  }
+
+  auto document = DocumentIo::read(bytes);
+  const auto find_text = [](Document& in, std::string_view text) {
+    return std::find_if(in.layers().begin(), in.layers().end(), [&](const Layer& l) {
+      const auto found = l.metadata().find(kLayerMetadataText);
+      return layer_is_text(l) && found != l.metadata().end() && found->second == text;
+    });
+  };
+  for (const auto& item : expected) {
+    const auto layer = find_text(document, item.text);
+    CHECK(layer != document.layers().end());
+    if (layer == document.layers().end()) continue;
+    CHECK(!text_geometry_is_protected(*layer));
+    const auto read_path = text_path_for_layer(*layer);
+    CHECK(read_path.has_value());
+    if (!read_path) continue;
+    // Not flipped: the contour runs the way it is stored.
+    CHECK(paths_close(*read_path, item.contour, 1e-4));
+    const auto range = text_path_range_for_layer(*layer, *read_path);
+    CHECK(close_to(range.start, item.range.start, 1e-5) && close_to(range.end, item.range.end, 1e-5));
+  }
+
+  // Untouched, the save keeps both of Photoshop's frames with their older keys. With the first
+  // layer edited, Patchy authors that one as its own plain path frame and keeps the other.
+  for (bool edited : {false, true}) {
+    if (edited) {
+      const auto layer = find_text(document, expected[0].text);
+      if (layer == document.layers().end()) return;
+      layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+    }
+    const auto saved = DocumentIo::write_layered_rgb8(document);
+    const auto saved_payload = text_engine_payload(saved);
+    CHECK(saved_payload.has_value());
+    if (!saved_payload) continue;
+    const auto saved_engine = TextEngineBlock::parse(*saved_payload);
+    CHECK(saved_engine.has_value());
+    if (!saved_engine) continue;
+    CHECK(saved_engine->object_count() == 2);
+    for (std::size_t object = 0; object < saved_engine->object_count(); ++object) {
+      const auto frame_index = saved_engine->object_frame_index(object);
+      CHECK(frame_index.has_value());
+      if (!frame_index) continue;
+      const auto index_text = std::to_string(*frame_index);
+      const bool authored = edited && saved_engine->object_text(object) == std::string(expected[0].text) + "\r";
+      const auto* key12 = saved_engine->root().at_path({"0", "8", "0", index_text, "0", "2", "12"});
+      const auto* options = saved_engine->root().at_path({"0", "8", "0", index_text, "0", "2", "11"});
+      CHECK((key12 == nullptr) == authored);
+      CHECK((options == nullptr) == authored);
+      CHECK(saved_engine->object_geometry(object).kind == TextFrameGeometry::Kind::Path);
+    }
+    auto reopened = DocumentIo::read(saved);
+    for (const auto& item : expected) {
+      const auto layer = find_text(reopened, item.text);
+      CHECK(layer != reopened.layers().end());
+      if (layer == reopened.layers().end()) continue;
+      CHECK(!text_geometry_is_protected(*layer));
+      const auto read_path = text_path_for_layer(*layer);
+      CHECK(read_path.has_value());
+      if (!read_path) continue;
+      CHECK(paths_close(*read_path, item.contour, 1e-4));
+      const auto range = text_path_range_for_layer(*layer, *read_path);
+      CHECK(close_to(range.start, item.range.start, 1e-5) && close_to(range.end, item.range.end, 1e-5));
+    }
+  }
+}
+
 void text_engine_path_frames_are_authored_like_photoshops() {
   using namespace patchy;
   using namespace patchy::psd;
@@ -721,6 +951,10 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text",
        text_engine_path_frame_after_photoshop_flip_drag_is_plain_path_text},
       {"text_engine_path_frames_read_photoshop_2025_flip", text_engine_path_frames_read_photoshop_2025_flip},
+      {"text_engine_path_frames_read_older_photoshop_cc_options",
+       text_engine_path_frames_read_older_photoshop_cc_options},
+      {"text_engine_path_frames_read_older_photoshop_cc_file_if_available",
+       text_engine_path_frames_read_older_photoshop_cc_file_if_available},
       {"text_engine_path_frames_are_authored_like_photoshops", text_engine_path_frames_are_authored_like_photoshops},
       {"text_engine_path_text_round_trips_and_refuses_legacy_engines",
        text_engine_path_text_round_trips_and_refuses_legacy_engines},

@@ -42,6 +42,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -378,6 +379,57 @@ void ui_text_path_photoshop_files_redraw_where_photoshop_drew_them_if_available(
   }
 }
 
+// A reporter's file from an older Photoshop CC (GitHub issue 717: two texts on curves whose
+// frames carry that version's /11 and /12 keys, docs/path-text.md): local, so tests that use it
+// skip where it is missing.
+std::filesystem::path older_photoshop_cc_fixture() {
+  return test::local_psd_fixture_path("issue-717/photoshop-cc-text-on-a-path.psd");
+}
+
+bool older_photoshop_cc_fonts_missing() {
+  if (arial_missing()) return true;
+  register_test_fonts(patchy::test::TestFontRole::Verdana);
+  if (QFontDatabase::hasFamily(QStringLiteral("Verdana"))) return false;
+  std::printf("  [SKIP] Verdana is not installed\n");
+  return true;
+}
+
+// Both layers drawn again by Patchy from their text land where that Photoshop drew them (the
+// raster saved in the file).
+void ui_text_path_older_photoshop_cc_file_redraws_where_photoshop_drew_it_if_available() {
+  const auto fixture = older_photoshop_cc_fixture();
+  patchy::test::skip_unless_exists(fixture);
+  if (older_photoshop_cc_fonts_missing()) return;
+  ensure_artifact_dir();
+  auto document = psd::DocumentIo::read_file(fixture);
+  const QSize size(document.width(), document.height());
+  int checked = 0;
+  for (auto& layer : document.layers()) {
+    if (!layer_is_text(std::as_const(layer))) continue;
+    ++checked;
+    CHECK(text_path_for_layer(std::as_const(layer)).has_value());
+    CHECK(!text_geometry_is_protected(std::as_const(layer)));
+    const auto theirs = layer_on_white(std::as_const(layer), size);
+    CHECK(rerender_text_layer_through_stored_transform(layer));
+    const auto ours = layer_on_white(std::as_const(layer), size);
+    CHECK(ours != theirs);  // Patchy's own glyphs now, not Photoshop's raster
+    save_image_artifact("ui_text_path_older_cc_layer_" + std::to_string(checked) + "_photoshop", theirs);
+    save_image_artifact("ui_text_path_older_cc_layer_" + std::to_string(checked) + "_patchy", ours);
+    const auto agreement = ink_agreement(ours, theirs);
+    const auto our_bounds = ink_bounds(ours);
+    const auto their_bounds = ink_bounds(theirs);
+    const int slack = std::max({std::abs(our_bounds.left() - their_bounds.left()),
+                                std::abs(our_bounds.top() - their_bounds.top()),
+                                std::abs(our_bounds.right() - their_bounds.right()),
+                                std::abs(our_bounds.bottom() - their_bounds.bottom())});
+    std::printf("  %s: ink agreement %.3f, ink bounds differ by at most %d px\n", layer.name().c_str(), agreement,
+                slack);
+    CHECK(agreement >= 0.90);
+    CHECK(slack <= 2);
+  }
+  CHECK(checked == 2);
+}
+
 // Photoshop's own file through the app: the layer opens as path text, an edit keeps the contour
 // and the range, the text still follows the arc, and the save is a path frame again.
 void ui_text_path_photoshop_file_edits_in_place() {
@@ -621,6 +673,133 @@ void click_canvas(CanvasWidget& canvas, QPoint document_point) {
   send_mouse(canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
   send_mouse(canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
+}
+
+// The same file through the app: a Type tool click on each text opens it on its path, typing
+// keeps the contour and the range, and the saved file opens as editable path text again.
+void ui_text_path_older_photoshop_cc_file_edits_with_the_type_tool_if_available() {
+  const auto fixture = older_photoshop_cc_fixture();
+  patchy::test::skip_unless_exists(fixture);
+  if (older_photoshop_cc_fonts_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  const auto quoted =
+      QString::fromUtf8(QJsonDocument(QJsonArray{to_qstring(fixture)}).toJson(QJsonDocument::Compact));
+  run(window, QStringLiteral(R"JS(
+    var d=app.open(%1[0]);
+    var texts=d.layers.filter(function(l){return l.isText;});
+    check(texts.length===2,'two type layers');
+    patchy.setResult(texts.map(function(t){return t.id;}));
+  )JS").arg(quoted));
+  const auto ids = window.script_engine_host().last_result().toArray();
+  CHECK(ids.size() == 2);
+  if (ids.size() != 2) return;
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  // A pixel of the layer's own ink, the one nearest the middle of its bounds.
+  const auto ink_point = [](const Layer& layer) {
+    const auto image = qimage_from_pixel_buffer(layer.pixels());
+    const QPoint middle(image.width() / 2, image.height() / 2);
+    QPoint best = middle;
+    int best_distance = -1;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        if (qAlpha(image.pixel(x, y)) < 200) continue;
+        const int distance = (QPoint(x, y) - middle).manhattanLength();
+        if (best_distance < 0 || distance < best_distance) {
+          best_distance = distance;
+          best = QPoint(x, y);
+        }
+      }
+    }
+    return QPoint(layer.bounds().x, layer.bounds().y) + best;
+  };
+  int edited = 0;
+  for (const auto& value : ids) {
+    const auto id = value.toString().toULongLong();
+    const auto* layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) continue;
+    const auto frame_before = text_path_frame_for_layer(*layer);
+    const auto story = QString::fromStdString(layer->metadata().at(kLayerMetadataText));
+    click_canvas(*canvas, ink_point(*layer));
+    if (edited == 0) save_widget_artifact("ui_text_path_older_cc_clicked", window);
+    CHECK(!text_geometry_is_protected(*layer));
+    auto* editor = session_editor(*canvas);
+    CHECK(editor != nullptr);
+    if (!editor) continue;
+    CHECK(editor->property("patchy.editingLayerId").toULongLong() == id);
+    CHECK(!editor->property("patchy.documentTextPath").toString().isEmpty());
+    CHECK(editor->toPlainText() == story);
+    auto* overlay = wait_for_path_overlay(*canvas);
+    CHECK(overlay != nullptr && overlay->isVisible());
+    if (!overlay) continue;
+    CHECK(overlay->property("patchy.transformedTextPathHandleCenters").toList().size() == 3);
+    // Short enough to fit the range, so no word is hidden.
+    const auto typed = edited == 0 ? QStringLiteral("Now editable") : QStringLiteral("Editable too");
+    editor->selectAll();
+    editor->insertPlainText(typed);
+    process_events_for(150);
+    CHECK(!editor->property("patchy.textHiddenLines").toBool());
+    if (edited == 0) save_widget_artifact("ui_text_path_older_cc_editing", window);
+    send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(session_editor(*canvas) == nullptr);
+    layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) continue;
+    CHECK(QString::fromStdString(layer->metadata().at(kLayerMetadataText)) == typed);
+    // The edit kept the contour and the range.
+    const auto frame_after = text_path_frame_for_layer(*layer);
+    CHECK(frame_before.has_value() && frame_after.has_value());
+    if (frame_before && frame_after) {
+      CHECK(frame_after->path == frame_before->path);
+      CHECK(std::abs(frame_after->range.start - frame_before->range.start) < 1e-9);
+      CHECK(std::abs(frame_after->range.end - frame_before->range.end) < 1e-9);
+    }
+    ++edited;
+  }
+  CHECK(edited == 2);
+  save_widget_artifact("ui_text_path_older_cc_edited", *canvas);
+
+  // The file holds five decimals of each coordinate.
+  const auto same_contour = [](const VectorPath& a, const VectorPath& b) {
+    if (a.subpaths.size() != 1 || b.subpaths.size() != 1) return false;
+    const auto& left = a.subpaths.front().anchors;
+    const auto& right = b.subpaths.front().anchors;
+    if (left.size() != right.size() || a.subpaths.front().closed != b.subpaths.front().closed) return false;
+    for (std::size_t i = 0; i < left.size(); ++i) {
+      const double gap = std::max({std::abs(left[i].anchor_x - right[i].anchor_x), std::abs(left[i].anchor_y - right[i].anchor_y),
+                                   std::abs(left[i].in_x - right[i].in_x), std::abs(left[i].in_y - right[i].in_y),
+                                   std::abs(left[i].out_x - right[i].out_x), std::abs(left[i].out_y - right[i].out_y)});
+      if (gap > 1e-4) return false;
+    }
+    return true;
+  };
+  const auto reopened = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(doc));
+  int kept = 0;
+  for (const auto& candidate : reopened.layers()) {
+    if (!layer_is_text(candidate)) continue;
+    const auto frame = text_path_frame_for_layer(candidate);
+    CHECK(frame.has_value() && !text_geometry_is_protected(candidate));
+    if (!frame) continue;
+    for (const auto& value : ids) {
+      const auto* source = doc.find_layer(value.toString().toULongLong());
+      if (source == nullptr || source->metadata().at(kLayerMetadataText) != candidate.metadata().at(kLayerMetadataText)) {
+        continue;
+      }
+      const auto source_frame = text_path_frame_for_layer(*source);
+      if (source_frame && same_contour(frame->path, source_frame->path) &&
+          std::abs(frame->range.start - source_frame->range.start) < 1e-5 &&
+          std::abs(frame->range.end - source_frame->range.end) < 1e-5) {
+        ++kept;
+      }
+    }
+  }
+  CHECK(kept == 2);
 }
 
 // The Type tool on a shape: its edge starts text along the outline, its inside fills the shape,
@@ -1452,6 +1631,10 @@ std::vector<patchy::test::TestCase> text_path_tests() {
        ui_text_path_glyphs_match_photoshop_placement_if_available},
       {"ui_text_path_photoshop_files_redraw_where_photoshop_drew_them_if_available",
        ui_text_path_photoshop_files_redraw_where_photoshop_drew_them_if_available},
+      {"ui_text_path_older_photoshop_cc_file_redraws_where_photoshop_drew_it_if_available",
+       ui_text_path_older_photoshop_cc_file_redraws_where_photoshop_drew_it_if_available},
+      {"ui_text_path_older_photoshop_cc_file_edits_with_the_type_tool_if_available",
+       ui_text_path_older_photoshop_cc_file_edits_with_the_type_tool_if_available},
       {"ui_text_path_photoshop_file_edits_in_place", ui_text_path_photoshop_file_edits_in_place},
       {"ui_text_path_script_creation_range_flip_and_undo", ui_text_path_script_creation_range_flip_and_undo},
       {"ui_text_path_type_tool_targets_shape_edges_and_reopens", ui_text_path_type_tool_targets_shape_edges_and_reopens},
