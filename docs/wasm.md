@@ -54,7 +54,7 @@ From the repo root in PowerShell/cmd, never a POSIX shell: `scripts\vs-env.bat`
 supplies cmake/ninja; `emsdk_env.bat` supplies emcc.
 
 ```powershell
-cmd /s /c 'call .deps\emsdk\emsdk_env.bat >nul 2>&1 && call scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --preset wasm-core'
+cmd /s /c 'call .deps\emsdk\emsdk_env.bat >nul 2>&1 && call scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && cmake --preset wasm-core'
 ```
 
 Build: same wrapper, `--build --preset wasm-core`, zero warnings. Output:

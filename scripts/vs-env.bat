@@ -4,6 +4,12 @@ rem forwarding every argument to VsDevCmd.bat:
 rem
 rem   scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && cmake --build --preset opt-dev
 rem
+rem Afterward a bare `cmake` is the copy that ships with that Visual Studio, on every
+rem machine and edition: its folder is put first on PATH below. VsDevCmd adds it too,
+rem but behind whatever the machine already had (a MinGW or standalone CMake of another
+rem version), and switching CMake versions regenerates a build folder. So commands and
+rem scripts name `cmake`, never a Visual Studio install path.
+rem
 rem No setlocal here on purpose: the point of the script is to leave VsDevCmd's
 rem variables behind for whoever called it.
 rem
@@ -30,4 +36,7 @@ echo VsDevCmd.bat was not found (no VS 2026 Community, and vswhere found no VC t
 exit /b 0
 :found
 call "%PATCHY_VS_DEV_CMD%" %*
-exit /b %ERRORLEVEL%
+set "PATCHY_VS_ENV_EXIT=%ERRORLEVEL%"
+for %%i in ("%PATCHY_VS_DEV_CMD%\..\..\..") do set "PATCHY_VS_CMAKE_BIN=%%~fi\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
+if exist "%PATCHY_VS_CMAKE_BIN%\cmake.exe" set "PATH=%PATCHY_VS_CMAKE_BIN%;%PATH%"
+exit /b %PATCHY_VS_ENV_EXIT%

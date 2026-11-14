@@ -37,7 +37,7 @@ Required handoff steps:
 1. Build the opt-dev preset:
 
    ```powershell
-   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && scripts\run-throttled.bat "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset opt-dev -j 20'
+   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && scripts\run-throttled.bat cmake --build --preset opt-dev -j 20'
    ```
 
    Rules ([reasons](docs/building.md#local-windows-release-build)): builds, tests and batch files run only through `scripts\run-throttled.bat`, builds with `-j 20`. A second `cmake --build` on the box is refused (exit 3): wait, or offload as step 4 allows. Run from the repository root in PowerShell or real cmd, never Git Bash, and require compile/link lines or `ninja: no work to do`, not just exit 0. Iterate with `--target <what you run>` (remote: `-BuildTarget`, `-Preset opt-dev`); build everything once, at handoff. A worktree configures once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64`. Never kill a running `patchy.exe` or `patchy-mcp.exe` (the link renames it aside), never package a `.stale-` file.
