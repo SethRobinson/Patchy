@@ -99,9 +99,9 @@ When bumping the release version, update the version fields:
   README entry. `RELEASE-HISTORY.md` stays newest-first and must not duplicate
   the release still shown in the README.
 - The contributor credits (`src/ui/app_credits.cpp`, mirrored in the README's
-  "Incredible people" line): add anyone whose pull request was accepted or whose
-  issue was resolved since the last release, by GitHub handle (see "What's New
-  author credits" below).
+  "Incredible people" line): run `python scripts/dev/update-contributors.py`,
+  which recounts everyone's points from GitHub and rewrites both (see "What's
+  New author credits" below).
 
 ## What's New author credits
 
@@ -114,18 +114,35 @@ assuming, and when one bullet mixes work from more than one person, credit the
 specific clause that person wrote (see the existing 0.10/0.12 entries in
 `RELEASE-HISTORY.md` for the mid-bullet style).
 
-Every version bump also checks for new contributors: accepted pull requests
-(`gh pr list --state merged --limit 50 --json number,title,author,mergedAt`, plus
-`git log --format='%an <%ae>' | sort -u` for work merged by hand) and reporters
-whose issue's fix ships in this release. Each new contributor gets an entry in
-`kContributors` (`src/ui/app_credits.cpp`: code contributors first in the order
-their first pull request merged, then issue reporters in the order their first
-issue was resolved). The list feeds only the About dialog (update the
-`splashContributors` check in `tests/ui/app_shell_tests_language_chrome.cpp`; the start panel
-shows no contributors) and is mirrored, same order, in the README's "Incredible
-people" line under Credits. Credit the GitHub handle, never the person's real or
-display name (they may not want it broadcast), linked to
-`https://github.com/<handle>`.
+Every version bump also refreshes the contributor credits with
+`python scripts/dev/update-contributors.py` (it reads GitHub through `gh` and
+posts nothing; `--dry-run` prints the table, `--check` exits 1 when a file is
+out of date). It rewrites `kContributors` (`src/ui/app_credits.cpp`) and the
+README's "Incredible people" line under Credits in one go, so never edit either
+by hand:
+
+- **Points.** One for each merged pull request a person authored and one for
+  each issue they opened that was accepted: closed as completed, or still open
+  with the `fixed in main` label (so run it after this release's issues are
+  labeled). Issues closed as not planned or labeled `wontfix`, `duplicate` or
+  `invalid` do not count; neither do Seth and bots. A pull request landed by
+  hand counts once GitHub shows it merged (the push does that for a `--no-ff`
+  merge, [pr-review.md](pr-review.md)).
+- **Order.** Most points first. Equal points keep the order the list already
+  has; a newcomer goes after them, earliest first contribution first, so a
+  rerun with the same GitHub data changes nothing.
+- **Display.** Each credit is `handle (N)`: the GitHub handle linked to
+  `https://github.com/<handle>`, never the person's real or display name (they
+  may not want it broadcast), then the points as plain text.
+- **Kept entries.** Someone already credited whose contributions GitHub no
+  longer lists (a deleted account) stays with the count the file has; the
+  script prints a note for each.
+
+The list feeds only the About dialog (the start panel shows no contributors).
+Its `splashContributors` check in `tests/ui/app_shell_tests_language_chrome.cpp`
+(`ui_about_dialog_shows_labeled_external_links`) parses the rendered list for
+the `handle (N)` form and the descending order, so new entries need no test
+edit.
 
 ## Build and upload order
 
