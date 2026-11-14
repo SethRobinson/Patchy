@@ -20,7 +20,7 @@ QString contributors_link_html(const QString& link_color) {
   // them by hand.
   static constexpr Contributor kContributors[] = {
       {"philipzae", "https://github.com/philipzae", 546},
-      {"malnaanah", "https://github.com/malnaanah", 25},
+      {"malnaanah", "https://github.com/malnaanah", 26},
       {"KevDoy", "https://github.com/KevDoy", 22},
       {"lucastucious", "https://github.com/lucastucious", 12},
       {"egofree71", "https://github.com/egofree71", 11},

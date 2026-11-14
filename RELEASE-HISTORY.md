@@ -3,6 +3,14 @@
 Older Patchy release notes are collected here. The most recent release
 remains in [README.md](README.md#whats-new).
 
+## 1.35 - November 14, 2026
+
+- Text: text on a path. Click an open path or the edge of a shape with the Type tool to type along it; marks on the path move where the text starts and ends and flip it to the other side, and Type > Flip Text on Path flips a finished layer. Path text in Photoshop files opens editable and is saved as native Photoshop path text ([issue 717](https://github.com/SethRobinson/Patchy/issues/717)), ([issue 718](https://github.com/SethRobinson/Patchy/issues/718))
+- Painting: a Color Replacement tool in the Brush flyout (Shift+B) repaints the pixels close to a sampled color with the foreground color in Hue, Saturation, Color or Luminosity mode, with Sampling, Limits, Tolerance and Anti-alias settings ([issue 720](https://github.com/SethRobinson/Patchy/issues/720))
+- Transform: Warp Transform has a Cylinder style that wraps a layer like a label round a can ([issue 719](https://github.com/SethRobinson/Patchy/issues/719))
+- Shapes: in Pixels mode, rectangles, ellipses, polygons and custom shapes paint from the same Fill and Stroke controls as shape layers (a fill, a stroke or both, in a solid color, a gradient or a pattern, with dashes, saved stroke presets and alignment), and a pixel shape stays editable until you click off it, press Enter or switch tools; a path drawn in Path mode shows the resize box too, a drag from just outside a corner rotates the shape, and Normal, Fixed Ratio and Fixed Size drawing work in every mode ([issue 716](https://github.com/SethRobinson/Patchy/issues/716)), ([issue 697](https://github.com/SethRobinson/Patchy/issues/697)); a polygon or star dragged by its center point snaps to guides, the grid, the canvas and other layers ([issue 695](https://github.com/SethRobinson/Patchy/issues/695)); Shape Appearance's angle rows put the dial before the field ([issue 713](https://github.com/SethRobinson/Patchy/issues/713))
+- Also: Gradient Fill handle drags keep up with the pointer on large images ([issue 714](https://github.com/SethRobinson/Patchy/issues/714)); the Layers panel shows an open eye for a visible layer and a closed lid for a hidden one ([issue 715](https://github.com/SethRobinson/Patchy/issues/715)); in the Paths panel, Delete and Delete Path act on the selected row: a saved path is removed, a vector mask row removes the mask, and a shape path or text boundary row deletes that layer
+
 ## 1.34 - November 13, 2026
 
 - Select: Select > Color Range selects by sampled colors (click the image; Shift adds, Alt subtracts), a hue band, or the highlights, midtones or shadows, with a Fuzziness soft edge, Invert and a mask preview ([issue 709](https://github.com/SethRobinson/Patchy/issues/709))

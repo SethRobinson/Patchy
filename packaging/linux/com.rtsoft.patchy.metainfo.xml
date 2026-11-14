@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.36" date="2026-11-15">
+      <description>
+        <ul>
+          <li>Window &gt; Show Panel Titles hides panel title rows to give panels more room</li>
+          <li>Opening several files at once starts one Patchy with all of them</li>
+          <li>Path text from older Photoshop CC files opens editable</li>
+          <li>Gradient tool Fill Layer drags no longer flash the earlier picture on large documents</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.35" date="2026-11-14">
       <description>
         <ul>
