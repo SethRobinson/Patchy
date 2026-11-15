@@ -578,6 +578,23 @@ public:
   void hold_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds);
   void clear_gradient_fill_view_preview();
   [[nodiscard]] bool gradient_fill_view_preview_shown() const noexcept;
+  // A commit the host bakes in the background (GitHub #714 follow-up,
+  // docs/gradients-fill-handles.md "Release without a pause"): the document still holds the
+  // layer from before, so until finish_gradient_fill_pending_commit the canvas shows
+  // `gradient` at view resolution and draws the handles on it, and a press on a handle edits
+  // from it at once. False, with nothing kept, when the view preview cannot show it: the
+  // host then commits on the spot.
+  bool begin_gradient_fill_pending_commit(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds);
+  // The same for a Gradient Fill layer that does not exist yet: the Fill Layer drag's held
+  // preview stays up, and the next press asks the host to finish first (the flush callback),
+  // so the press finds the layer and its handles.
+  void begin_gradient_fill_pending_new_layer();
+  // The host has written the pending commit to the document and notified the canvas
+  // (`landed`), or dropped it.
+  void finish_gradient_fill_pending_commit(bool landed);
+  [[nodiscard]] bool gradient_fill_commit_pending() const noexcept;
+  // Asks the host to finish its pending commit now, waiting for the bake.
+  void set_gradient_fill_pending_flush_callback(std::function<void()> callback);
   // Whether the preview of a Fill Layer mode drag is still up after its release (GitHub #714
   // follow-up): it stays until the composite with the new or redrawn Gradient Fill layer is
   // on screen, so the picture from before the drag never shows in between.
@@ -2258,6 +2275,14 @@ private:
   bool patch_render_cache_rect(QRect document_rect, const QImage& partial);
   bool patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches);
   void invalidate_display_mip_cache() noexcept;
+  // Whether a full invalidation leaves the frame on screen while the recomposite runs in
+  // the background (the documents should_defer_full_refresh_to_async defers). The frame's
+  // display mips then stay with it: the image they were built from has not changed, and
+  // rebuilding them for a frame about to be replaced held the GUI thread for 190 ms at
+  // 19 Mpx and 500 ms at 48 Mpx after every such change (GitHub #714 follow-up). Whatever
+  // next writes render_cache_ (a synchronous render, the background frame, a patch)
+  // invalidates or patches the mips itself.
+  [[nodiscard]] bool stale_frame_stays_on_screen() const noexcept;
   void patch_display_mip_cache(const std::vector<RenderedDocumentPatch>& patches);
   void refresh_curves_clipping_preview();
   void ensure_move_base_cache();
@@ -3362,6 +3387,10 @@ private:
   [[nodiscard]] bool gradient_fill_view_preview_drawn();
   // A document change the preview did not make itself ends it.
   void note_document_changed_for_gradient_view_preview() noexcept;
+  // Puts the pending commit's picture back after a drag that started on top of it ended
+  // without a commit of its own; asks the host to finish when the view cannot show it.
+  void restore_gradient_fill_pending_preview();
+  void flush_gradient_fill_pending_commit();
   // The release of a Fill Layer mode drag (docs/gradients-fill-handles.md, "Release of a new
   // gradient"): begin before the host is told, settle once it has answered. Settling keeps
   // the drag's preview only when the document changed, and ties it to the layer that is
@@ -4572,8 +4601,25 @@ private:
     bool held{false};
     std::uint64_t held_render_revision{0};
     std::uint64_t held_content_revision{0};
+    // Held for a commit the host has not written yet (gradient_pending_commit_): it stays
+    // through every notification and a settled render, and is rendered again when the view
+    // it was made for changes.
+    bool awaiting_commit{false};
+    Rect gradient_bounds;
+    QTransform view;
+    QSize view_size;
   };
   std::optional<GradientFillViewPreview> gradient_view_preview_;
+  // The commit the host is baking in the background: an existing fill's new gradient, or a
+  // new layer on its way (layer_id 0).
+  struct GradientFillPendingCommit {
+    LayerId layer_id{0};
+    LayerStyleGradient gradient;
+    Rect gradient_bounds;
+    bool new_layer{false};
+  };
+  std::optional<GradientFillPendingCommit> gradient_pending_commit_;
+  std::function<void()> gradient_fill_pending_flush_callback_;
   // The fill's raster for those previews, allocated once and written again by each.
   PixelBuffer gradient_view_preview_raster_;
   // The document those previews composite: a copy at `level` without the fill's raster,

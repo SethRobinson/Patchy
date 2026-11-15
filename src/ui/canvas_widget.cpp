@@ -356,6 +356,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   gradient_view_preview_source_.reset();
   gradient_view_preview_raster_ = PixelBuffer();
   gradient_drag_hold_.reset();
+  gradient_pending_commit_.reset();
   cancel_move_commit_job();
   active_document_path_.reset();
   last_saved_path_target_.reset();

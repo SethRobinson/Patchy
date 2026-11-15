@@ -2477,10 +2477,41 @@ private:
                                                                const ShapeAppearanceSettings& settings,
                                                                bool keep_unchanged, bool* drafted = nullptr);
   void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
-  [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
+  // `bake` off leaves the raster for the caller (a background bake).
+  [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name, bool bake = true);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
+  // `bake_in_background` lets a large fill's raster be made off the GUI thread (the
+  // Gradient tool's release, below); the layer then joins the document when it is ready.
   void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label,
-                         float opacity = 1.0F);
+                         float opacity = 1.0F, bool bake_in_background = false);
+  // A Gradient Fill commit whose exact raster is baked in the background (GitHub #714
+  // follow-up, docs/gradients-fill-handles.md "Release without a pause"): the release of a
+  // handle drag or of a Fill Layer mode drag returns at once, the canvas keeps the
+  // committed picture and handles up, and the document takes the layer, as one undo step,
+  // when the bake is done. Until then the document is exactly as it was before the release.
+  // A commit made on the same fill while one is pending queues behind it (its bake starts
+  // at once, from the pending shape), so a second quick drag does not wait either; they
+  // land in order, one undo step each.
+  // finish_pending_gradient_fill_bake() waits for every bake and lands them now; everything
+  // that reads or changes the document as a whole calls it first
+  // (finish_pending_shape_appearance_edit does).
+  struct PendingGradientFillBake;
+  // The oldest pending commit; later ones hang off it in order.
+  std::shared_ptr<PendingGradientFillBake> pending_gradient_fill_bake_;
+  std::uint64_t gradient_fill_bake_token_{0};
+  [[nodiscard]] bool gradient_fill_bake_runs_in_background(const Layer& fill);
+  void start_gradient_fill_bake(std::shared_ptr<PendingGradientFillBake> pending);
+  void finish_pending_gradient_fill_bake();
+  // Lands the pending commits in order: all of them, waiting for their bakes (`wait`), or
+  // only those whose bake is done.
+  void land_gradient_fill_bakes(bool wait);
+  void land_gradient_fill_bake(const PendingGradientFillBake& pending, PendingGradientFillBake* next);
+  // The last pending commit when every pending one edits `layer_id` and the layer is still
+  // as the first found it, so one more can queue behind them; null otherwise.
+  [[nodiscard]] std::shared_ptr<PendingGradientFillBake> gradient_fill_bake_queue_tail(LayerId layer_id);
+  // finish_pending_shape_appearance_edit without landing a gradient bake: for the handle
+  // drag that starts on top of one.
+  void finish_pending_shape_appearance_edit_alone();
   // The Gradient tool's Fill Layer mode (GitHub issue 580): a released drag rewrites the
   // active Gradient Fill layer's gradient, or adds a new Gradient Fill layer above.
   void handle_gradient_fill_drawn(QPoint from, QPoint to);
