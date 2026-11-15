@@ -13,7 +13,7 @@ canvas context menus ([tools.md](tools.md)), the options-bar Appearance gear, La
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
 the shape's geometry. All of them open [the stay-open window](vector-tools-appearance-window.md);
-the modal dialog with the same rows is what New Fill Layer shows. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
+New Fill Layer's Gradient... and Pattern... open it on the layer they make. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
 (`StrokeDashPreset` ids as item data, Custom last). Custom's Dash pattern field
 (`shapeStrokeDashPatternEdit`, `parse_dash_pattern_text`) takes lengths in stroke widths,
 space separated; an odd count repeats once (as SVG) and one length must be above 0.

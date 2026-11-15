@@ -11,8 +11,17 @@ nested event loop and no edit lock, so the document stays editable while it is o
 select, undo, switch or close documents. Its rows are a page (`shapeAppearanceBody`) built by
 `build_shape_appearance_body` in `Live` mode: Reset and Close, no OK, Cancel or Preview.
 `edit_active_shape_appearance_modal` keeps the modal dialog (`shapeAppearanceDialog`, the same
-rows in `Modal` mode, under the preview-dialog edit lock) for New Fill Layer, the options bar's
-color and pattern pickers, and the dialogs the window's own rows open.
+rows in `Modal` mode, under the preview-dialog edit lock) for the options bar's color and
+pattern pickers and the dialogs the window's own rows open.
+
+Layer > New Fill Layer > Gradient... and Pattern... (and the Layers panel's button menu,
+`create_fill_layer_with_appearance`) open this window too: the layer is made at once as one
+undo step, "New fill layer", and its settings open here, each change an undo step of its own
+as when editing. Undo takes the new layer away; there is no Cancel. The command used to run
+the modal dialog, whose edit lock refused the new gradient's handles on the canvas (GitHub
+#714 follow-up). Gradient... also switches to the Gradient tool, which shows the fill's
+handles whatever the Show handles box says. Under automation the window does not open and
+the layer keeps its defaults. Test: `ui_new_gradient_fill_layer_opens_the_stay_open_settings`.
 
 Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
 

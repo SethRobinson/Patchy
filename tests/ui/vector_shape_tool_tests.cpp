@@ -5878,6 +5878,19 @@ void ui_new_fill_layer_clips_to_targeted_path() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 100)), Qt::white, 8));
 }
 
+// New Fill Layer > Gradient... and Pattern... make the layer at once and open the stay-open
+// Fill Layer Settings window on it (GitHub #714 follow-up; docs/vector-tools-appearance-window.md).
+// The tests here look at the rows of the modal dialog: this closes the window and opens that
+// dialog on the new layer, for the driver armed before the command.
+void open_new_fill_layer_dialog(patchy::ui::MainWindow& window) {
+  auto* panel = window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow"));
+  CHECK(panel != nullptr && panel->isVisible());
+  if (panel != nullptr) {
+    panel->close();
+  }
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+}
+
 void ui_new_gradient_fill_layer_spans_canvas() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -5895,6 +5908,9 @@ void ui_new_gradient_fill_layer_spans_canvas() {
   auto* action = window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"));
   CHECK(action != nullptr);
   action->trigger();
+  // The layer is there at once, under the Gradient tool, whose handles edit it.
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Gradient);
+  open_new_fill_layer_dialog(window);
   QApplication::processEvents();
 
   const auto active = document.active_layer_id();
@@ -5964,6 +5980,11 @@ void ui_new_fill_layer_spans_canvas_with_shape_layer_active() {
     auto* action = window.findChild<QAction*>(QString::fromLatin1(fill_case.action));
     CHECK(action != nullptr);
     action->trigger();
+    // One undo step, made by the command itself (the color picker's OK for Solid Color).
+    if (appearance_dialog) {
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+      open_new_fill_layer_dialog(window);
+    }
     QApplication::processEvents();
     if (appearance_dialog) {
       save_widget_artifact(std::string(fill_case.artifact) + "_added", window);
@@ -5994,12 +6015,15 @@ void ui_new_fill_layer_spans_canvas_with_shape_layer_active() {
     CHECK(shape_after->path == shape_before.path);
     CHECK(shape_after->fill == shape_before.fill);
     CHECK(shape_after->stroke == shape_before.stroke);
-    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+    if (!appearance_dialog) {
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+    }
   }
 }
 
-// GitHub #710: Cancel in the fill dialog with a shape layer active leaves the document as
-// it was, the rectangle's own fill included.
+// GitHub #710: backing out of a new fill layer with a shape layer active leaves the document
+// as it was, the rectangle's own fill included: Cancel in the color picker for Solid Color,
+// Undo for Gradient and Pattern, whose layer is made at once (GitHub #714 follow-up).
 void ui_new_fill_cancel_with_shape_layer_active_restores_document() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -6023,6 +6047,13 @@ void ui_new_fill_cancel_with_shape_layer_active_restores_document() {
     auto* action = window.findChild<QAction*>(QString::fromLatin1(fill_case.action));
     CHECK(action != nullptr);
     action->trigger();
+    if (fill_case.artifact != nullptr) {
+      CHECK(std::as_const(document).layers().size() == layers_before + 1);
+      open_new_fill_layer_dialog(window);  // the armed driver rejects it: the layer stays as made
+      QApplication::processEvents();
+      CHECK(std::as_const(document).layers().size() == layers_before + 1);
+      patchy::ui::MainWindowTestAccess::undo(window);
+    }
     QApplication::processEvents();
     CHECK(cancelled);
     CHECK(std::as_const(document).layers().size() == layers_before);
@@ -6087,6 +6118,7 @@ void ui_new_gradient_fill_layer_clips_to_targeted_work_path() {
     dialog.accept();
   });
   window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"))->trigger();
+  open_new_fill_layer_dialog(window);
   QApplication::processEvents();
 
   CHECK(title == QStringLiteral("Shape Appearance"));
@@ -6155,6 +6187,7 @@ void ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill() {
       check_fill_dialog(defaults ? "issue578_new_gradient_fill_default_colors" : "issue578_new_gradient_fill");
     });
     window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"))->trigger();
+    open_new_fill_layer_dialog(window);
     QApplication::processEvents();
   }
   // Editing the layer later shows the same preset.
@@ -7664,12 +7697,20 @@ void ui_new_fill_cancel_preserves_document_and_history() {
     auto* action = window.findChild<QAction*>(QString::fromLatin1(name));
     CHECK(action != nullptr);
     action->trigger();
+    // The layer is made at once, as one undo step (GitHub #714 follow-up); Cancel in the
+    // modal dialog opened on it changes nothing more, and Undo takes the layer away again.
+    CHECK(std::as_const(document).layers().size() == layers + 1);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo + 1);
+    open_new_fill_layer_dialog(window);
     QApplication::processEvents();
     CHECK(cancelled);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo + 1);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
     CHECK(std::as_const(document).layers().size() == layers);
     CHECK(document.active_layer_id() == active);
     CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo);
-    CHECK(patchy::ui::MainWindowTestAccess::active_session_redo_depth(window) == 0);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_redo_depth(window) == 1);
     CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
   }
 }

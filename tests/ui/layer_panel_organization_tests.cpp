@@ -4526,6 +4526,12 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
 
   QTimer::singleShot(0, inspect_and(true));
   require_action(window, "layerNewGradientFillAction")->trigger();
+  // The layer is made at once and the stay-open settings window opens on it (GitHub #714
+  // follow-up); the checks below are on the modal dialog's rows for that layer.
+  if (auto* panel = window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow")); panel != nullptr) {
+    panel->close();
+  }
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(title == QStringLiteral("Fill Layer Settings"));
   CHECK(fill_only);

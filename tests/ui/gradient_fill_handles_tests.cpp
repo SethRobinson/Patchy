@@ -4,6 +4,7 @@
 // while a drag away from them still draws a new gradient.
 #include "core/blend_math.hpp"
 #include "core/gradient_presets.hpp"
+#include "core/pattern_presets.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
@@ -2554,6 +2555,89 @@ void ui_gradient_drag_preview_shows_what_the_release_gives() {
   CHECK(fill.gradient() != drawn);
 }
 
+// GitHub #714 follow-up: Layer > New Fill Layer > Gradient... (and the Layers panel's button
+// menu) ran the modal dialog, whose edit lock refused the new gradient's handles on the
+// canvas ("Finish the open dialog before editing the document"). The command now makes the
+// layer at once, as one undo step, switches to the Gradient tool and opens the stay-open
+// Fill Layer Settings window, the one that edits an existing fill layer: the handles work
+// while it is open, each change is an undo step of its own, and Undo takes the layer away.
+// Pattern... opens the same window and keeps the tool.
+void ui_new_gradient_fill_layer_opens_the_stay_open_settings() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  MainWindowTestAccess::create_document(window, 400, 300);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == CanvasTool::Move);
+  auto& document = MainWindowTestAccess::document(window);
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  const auto layers = [&] { return std::as_const(document).layers().size(); };
+  const auto base_depth = depth();
+  const auto base_layers = layers();
+  const auto settings_window = [&] { return window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow")); };
+
+  require_action(window, "layerNewGradientFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layers() == base_layers + 1);
+  CHECK(depth() == base_depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("New fill layer"));
+  CHECK(canvas->tool() == CanvasTool::Gradient);
+  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+  auto* panel = settings_window();
+  CHECK(panel != nullptr && panel->isVisible());
+  if (panel == nullptr) {
+    return;
+  }
+  CHECK(panel->windowTitle() == QStringLiteral("Fill Layer Settings"));
+  const auto fill_id = std::as_const(document).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value() || !canvas->gradient_fill_handles().has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *fill_id};
+  const auto created = fill.gradient();
+
+  // A handle drag while the window is open changes the layer: its own undo step.
+  const auto end = part_position(*canvas, Kind::End);
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(end), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, rounded(end + QPointF(60.0, 30.0)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(end + QPointF(60.0, 30.0)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(fill.gradient() != created);
+  CHECK(depth() == base_depth + 2);
+  CHECK(fill.label() == QStringLiteral("Move Gradient End Point"));
+  CHECK(panel->isVisible());
+
+  // Undo steps back through the drag and then the layer.
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(fill.gradient() == created);
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(layers() == base_layers);
+  CHECK(depth() == base_depth);
+
+  // Pattern...: the same window, and the tool stays.
+  document.metadata().patterns.adopt(patchy::builtin_pattern_resource(patchy::builtin_pattern_presets().front().id));
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "layerNewPatternFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layers() == base_layers + 1);
+  CHECK(depth() == base_depth + 1);
+  CHECK(canvas->tool() == CanvasTool::Move);
+  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+  panel = settings_window();
+  CHECK(panel != nullptr && panel->isVisible());
+  if (panel != nullptr) {
+    CHECK(panel->windowTitle() == QStringLiteral("Fill Layer Settings"));
+    panel->close();
+  }
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
       {"ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows",
@@ -2572,6 +2656,7 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
       {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
       {"ui_gradient_release_timing", ui_gradient_release_timing},
       {"ui_gradient_drag_preview_shows_what_the_release_gives", ui_gradient_drag_preview_shows_what_the_release_gives},
+      {"ui_new_gradient_fill_layer_opens_the_stay_open_settings", ui_new_gradient_fill_layer_opens_the_stay_open_settings},
       {"ui_gradient_fill_release_bakes_in_the_background", ui_gradient_fill_release_bakes_in_the_background},
       {"ui_gradient_fill_redraw_bakes_in_the_background", ui_gradient_fill_redraw_bakes_in_the_background},
       {"ui_gradient_drag_starts_on_the_pasteboard", ui_gradient_drag_starts_on_the_pasteboard},

@@ -2140,30 +2140,21 @@ void MainWindow::create_fill_layer_with_appearance(const VectorFill& fill, const
     show_preview_dialog_edit_lock_message();
     return;
   }
-  auto& doc = document();
-  const auto original = doc;
-  auto restore = qScopeGuard([&] {
-    doc = original;
-    canvas_->document_changed();
-    refresh_layer_list();
-    refresh_layer_controls();
-  });
-  auto temporary = build_fill_layer(fill, name);
-  const auto id = temporary.id();
-  doc.add_layer(std::move(temporary));
-  doc.set_active_layer(id);
-  canvas_->document_changed();
-  if (!edit_active_shape_appearance_modal(false)) {
+  if (refuse_layer_dialog_during_transform()) {
     return;
   }
-  auto completed = doc;
-  doc = original;
-  push_undo_snapshot(tr("New fill layer"));
-  doc = std::move(completed);
-  restore.dismiss();
-  canvas_->document_changed();
-  refresh_layer_list();
-  refresh_layer_controls();
+  // The layer is made at once, as one undo step, and its settings open in the stay-open
+  // Fill Layer Settings window, the one that edits an existing fill layer (GitHub #714
+  // follow-up). The creation used to run the modal dialog, whose edit lock refused the
+  // gradient's handles on the canvas. Changes made in the window are undo steps of their
+  // own, as when editing; Undo takes the new layer away again.
+  create_fill_layer(fill, name, tr("New fill layer"));
+  if (fill.kind == VectorFillKind::Gradient && canvas_->tool() != CanvasTool::Gradient) {
+    // The Gradient tool shows the new fill's handles whatever the window's Show handles
+    // box says, and under the tools that otherwise own every press.
+    activate_tool(CanvasTool::Gradient);
+  }
+  edit_active_shape_appearance();
 }
 
 void MainWindow::populate_new_fill_layer_menu(QMenu* menu, const QString& object_name_prefix) {
