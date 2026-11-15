@@ -12,7 +12,7 @@ src/ui/canvas_types.hpp 1
 src/ui/canvas_widget.hpp 6
 src/ui/canvas_widget_brush.cpp 13
 src/ui/canvas_widget_crop.cpp 5
-src/ui/canvas_widget_cursors.cpp 20
+src/ui/canvas_widget_cursors.cpp 18
 src/ui/canvas_widget_draw_tools.cpp 6
 src/ui/canvas_widget_move.cpp 5
 src/ui/canvas_widget_object_select.cpp 2

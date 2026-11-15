@@ -429,7 +429,7 @@ QCursor outlined_type_cursor(QPoint hot_spot, const Draw& draw) {
   pixmap.fill(Qt::transparent);
   QPainter painter(&pixmap);
   painter.setRenderHint(QPainter::Antialiasing);
-  for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {
+  for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {  // color-literal-ok: cursor artwork
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
     draw(painter);
