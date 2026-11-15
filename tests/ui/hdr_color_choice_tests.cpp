@@ -17,16 +17,19 @@
 #include <QApplication>
 #include <QColor>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QSlider>
 #include <QTableWidget>
 #include <QTimer>
 #include <QScopeGuard>
 #include <QString>
 #include <cmath>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 #include "scripting_test_support.hpp"
@@ -134,6 +137,95 @@ void ui_hdr_color_choice_captures() {
     if (bits != 16) {
       save_capture(*dialog, QStringLiteral("dialog-%1bit").arg(bits));
       save_capture(*panel, QStringLiteral("panel-%1bit").arg(bits));
+    }
+    dialog->close();
+  }
+}
+
+// The Foreground Color window's 32-bit controls sit under a line in the picker's two
+// columns (GitHub issue 255): the caption and the swatches exactly as wide as the swatch
+// column, the Intensity and the linear fields starting where the picker column does. That
+// holds at the window's opening size, its smallest and a large one, in Dark and Light, with
+// nothing clipped, and the window still opens at its usual width. Captures:
+// test-artifacts/ui_hdr_color_window_<size>_<scheme>.png.
+void ui_hdr_color_window_columns_follow_the_picker() {
+  patchy::set_deep_editing_override(true);
+  const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  SettingsValueRestorer view_setting(QStringLiteral("colorPanel/view"));
+  SettingsValueRestorer foreground_setting(QStringLiteral("tools/foregroundColor"));
+  ColorSchemeRestorer restore_scheme;
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1400, 900);
+    CHECK(run_script(window, QStringLiteral("var doc = app.newDocument(64, 48); doc.convertBitDepth(32);")));
+    auto* panel = open_color_panel(window);
+    if (panel == nullptr) {
+      CHECK(false);
+      return;
+    }
+    set_panel_rgb(*panel, 149, 33, 33);
+    auto* dialog = open_foreground_window(window, *panel);
+    auto* hdr = dialog != nullptr ? window_hdr(*dialog) : nullptr;
+    CHECK(hdr != nullptr && shown_in(hdr, dialog));
+    if (hdr == nullptr) {
+      return;
+    }
+    hdr->intensity_spin()->setValue(1.7);
+    auto* swatches = dialog->findChild<QWidget*>(QStringLiteral("patchyColorSwatchColumn"));
+    auto* picker_column = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPickerColumn"));
+    auto* caption = hdr->findChild<QLabel*>(QStringLiteral("hdrColorCaption"));
+    auto* line = hdr->findChild<QWidget*>(QStringLiteral("hdrColorSeparator"));
+    auto* slider = hdr->findChild<QSlider*>(QStringLiteral("hdrIntensitySlider"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>();
+    auto* strip = hdr->preview_strip();
+    CHECK(swatches != nullptr && picker_column != nullptr && caption != nullptr && line != nullptr &&
+          slider != nullptr && buttons != nullptr);
+    if (swatches == nullptr || picker_column == nullptr || caption == nullptr || line == nullptr ||
+        slider == nullptr || buttons == nullptr) {
+      return;
+    }
+    const auto in_dialog = [dialog](const QWidget* widget) {
+      return QRect(widget->mapTo(dialog, QPoint(0, 0)), widget->size());
+    };
+    QApplication::processEvents();
+    const auto opening = dialog->size();
+    for (const char* label : {"opening", "smallest", "large"}) {
+      const std::string name(label);
+      dialog->resize(name == "opening" ? opening : name == "smallest" ? QSize(1, 1) : QSize(1100, 780));
+      QApplication::processEvents();
+      QApplication::processEvents();
+      const auto left = in_dialog(swatches);
+      const auto right = in_dialog(picker_column);
+      const auto area = in_dialog(hdr);
+      // Left column: the caption and the swatches, edge to edge with the swatch column.
+      CHECK(in_dialog(caption).left() == left.left() && caption->width() == left.width());
+      CHECK(in_dialog(strip).left() == left.left() && strip->width() == left.width());
+      CHECK(in_dialog(strip).top() > in_dialog(caption).bottom());
+      // Right column: the titles, the slider and the fields from the picker column's edge.
+      CHECK(in_dialog(slider).left() == right.left());
+      CHECK(in_dialog(hdr->linear_spin(0)).left() > right.left());
+      CHECK(in_dialog(hdr->linear_spin(2)).right() <= right.right());
+      CHECK(in_dialog(hdr->linear_spin(0)).top() > in_dialog(slider).bottom());
+      // The line spans the section, above both columns and under the picker.
+      CHECK(in_dialog(line).left() == area.left() && line->width() == area.width() && line->height() == 1);
+      CHECK(in_dialog(line).top() == area.top() && in_dialog(caption).top() > in_dialog(line).bottom());
+      CHECK(area.top() > right.bottom() && area.bottom() < in_dialog(buttons).top());
+      // Nothing is clipped or squeezed under its minimum, the wrapped caption included.
+      for (auto* child : hdr->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+        if (!child->isVisibleTo(hdr)) {
+          continue;
+        }
+        CHECK(hdr->rect().contains(child->geometry()));
+        CHECK(child->width() >= child->minimumSizeHint().width());
+        CHECK(child->height() >= child->minimumSizeHint().height());
+      }
+      CHECK(caption->height() >= caption->heightForWidth(caption->width()));
+      // The three linear fields set the smallest width; it stays under the opening one.
+      CHECK(name != "smallest" || dialog->width() <= opening.width());
+      (void)capture_widget_artifact("ui_hdr_color_window_" + name + "_" + scheme, *dialog);
     }
     dialog->close();
   }
@@ -388,6 +480,7 @@ void ui_hdr_gradient_stops_carry_intensity() {
 std::vector<patchy::test::TestCase> hdr_color_choice_tests() {
   return {
       {"ui_hdr_color_choice_captures", ui_hdr_color_choice_captures},
+      {"ui_hdr_color_window_columns_follow_the_picker", ui_hdr_color_window_columns_follow_the_picker},
       {"ui_hdr_color_intensity_paints_and_follows", ui_hdr_color_intensity_paints_and_follows},
       {"ui_hdr_eyedropper_keeps_32_bit_values", ui_hdr_eyedropper_keeps_32_bit_values},
       {"ui_hdr_gradient_stops_carry_intensity", ui_hdr_gradient_stops_carry_intensity},

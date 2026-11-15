@@ -36,6 +36,9 @@ constexpr int kFullSwatchHeight = 30;
 constexpr int kCompactSwatch = 18;
 constexpr int kCompactCurrentSwatch = 30;
 constexpr int kCompactSwatchHeight = 14;
+// The Full form's gap between its two columns when it follows no window's columns: the
+// color picker's own.
+constexpr int kColumnGap = 14;
 
 QColor qcolor(const std::array<std::uint8_t, 3>& rgb) { return QColor(rgb[0], rgb[1], rgb[2]); }
 
@@ -62,26 +65,79 @@ QString offset_text(int offset) {
   return offset > 0 ? QStringLiteral("+%1").arg(offset) : QString::number(offset);
 }
 
+// The Full form's caption: a wrapped label exactly as wide as the left column (its fixed
+// width) and as tall as its text there. A plain QLabel's minimum is one line, and the hint
+// it caches does not follow a width change, so a window could be sized to clip it.
+class ColumnCaption final : public QLabel {
+public:
+  using QLabel::QLabel;
+  [[nodiscard]] QSize sizeHint() const override { return {minimumWidth(), heightForWidth(minimumWidth())}; }
+  [[nodiscard]] QSize minimumSizeHint() const override { return sizeHint(); }
+};
+
+// The line above the Full form, in the dialog divider's color.
+class SectionLine final : public QWidget {
+public:
+  explicit SectionLine(QWidget* parent) : QWidget(parent) {
+    setFixedHeight(1);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.fillRect(rect(), theme().dlg_divider);
+  }
+};
+
 }  // namespace
 
 HdrColorControls::HdrColorControls(Form form, QWidget* parent) : QWidget(parent) {
   setObjectName(QStringLiteral("hdrColorControls"));
   const bool compact = form == Form::Compact;
-  auto* grid = new QGridLayout(this);
+  // Compact: one grid. Full: a line, then the caption and the swatches in a left column
+  // and this grid, with the Intensity and the linear fields, as the right column.
+  auto* grid = new QGridLayout;
   grid->setContentsMargins(0, 0, 0, 0);
   grid->setHorizontalSpacing(6);
   grid->setVerticalSpacing(compact ? 4 : 6);
 
   int row = 0;
-  if (!compact) {
-    caption_ = new QLabel(this);
+  QVBoxLayout* left = nullptr;
+  if (compact) {
+    setLayout(grid);
+  } else {
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->setSpacing(8);
+    auto* line = new SectionLine(this);
+    line->setObjectName(QStringLiteral("hdrColorSeparator"));
+    root->addWidget(line);
+    columns_ = new QHBoxLayout;
+    columns_->setContentsMargins(0, 0, 0, 0);
+    columns_->setSpacing(kColumnGap);
+    root->addLayout(columns_);
+    left = new QVBoxLayout;
+    left->setContentsMargins(0, 0, 0, 0);
+    left->setSpacing(6);
+    columns_->addLayout(left);
+    columns_->addLayout(grid, 1);
+
+    caption_ = new ColumnCaption(this);
     caption_->setObjectName(QStringLiteral("hdrColorCaption"));
     caption_->setWordWrap(true);
-    grid->addWidget(caption_, row++, 0, 1, 4);
+    caption_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    left->addWidget(caption_);
   }
   strip_ = new HdrStopPreviewStrip(compact, this);
   strip_->setObjectName(QStringLiteral("hdrStopPreviewStrip"));
-  grid->addWidget(strip_, row++, 0, 1, 4, compact ? Qt::Alignment() : Qt::AlignLeft);
+  if (compact) {
+    grid->addWidget(strip_, row++, 0, 1, 4);
+  } else {
+    left->addWidget(strip_);
+    left->addStretch(1);
+  }
 
   intensity_label_ = new QLabel(this);
   intensity_spin_ = new QDoubleSpinBox(this);
@@ -92,8 +148,8 @@ HdrColorControls::HdrColorControls(Form form, QWidget* parent) : QWidget(parent)
   intensity_spin_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   intensity_spin_->setKeyboardTracking(false);
   stops_label_ = new QLabel(this);
-  grid->addWidget(intensity_label_, row, 0);
   if (compact) {
+    grid->addWidget(intensity_label_, row, 0);
     auto* line = new QHBoxLayout;
     line->setContentsMargins(0, 0, 0, 0);
     line->setSpacing(6);
@@ -111,15 +167,18 @@ HdrColorControls::HdrColorControls(Form form, QWidget* parent) : QWidget(parent)
     intensity_slider_->setRange(static_cast<int>(kMinColorIntensityStops) * kSliderScale,
                                 static_cast<int>(kMaxColorIntensityStops) * kSliderScale);
     intensity_slider_->setPageStep(kSliderScale);
-    grid->addWidget(intensity_slider_, row, 1);
-    grid->addWidget(intensity_spin_, row, 2);
-    grid->addWidget(stops_label_, row++, 3);
+    // Each title sits above its controls, so the slider and the three fields get the
+    // column's whole width.
+    grid->addWidget(intensity_label_, row++, 0, 1, 3);
+    grid->addWidget(intensity_slider_, row, 0);
+    grid->addWidget(intensity_spin_, row, 1);
+    grid->addWidget(stops_label_, row++, 2);
     connect(intensity_slider_, &QSlider::valueChanged, this, [this](int value) {
       take_intensity(static_cast<double>(value) / kSliderScale);
     });
 
     linear_title_ = new QLabel(this);
-    grid->addWidget(linear_title_, row, 0);
+    grid->addWidget(linear_title_, row++, 0, 1, 3);
     auto* fields = new QHBoxLayout;
     fields->setContentsMargins(0, 0, 0, 0);
     fields->setSpacing(6);
@@ -138,8 +197,10 @@ HdrColorControls::HdrColorControls(Form form, QWidget* parent) : QWidget(parent)
       fields->addWidget(linear_channel_labels_[c]);
       fields->addWidget(spin, 1);
     }
-    grid->addLayout(fields, row++, 1, 1, 3);
-    grid->setColumnStretch(1, 1);
+    grid->addLayout(fields, row++, 0, 1, 3);
+    grid->setColumnStretch(0, 1);
+    grid->setRowStretch(row, 1);
+    fit_columns();
   }
   connect(intensity_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) { take_intensity(value); });
   connect(strip_, &HdrStopPreviewStrip::offset_clicked, this,
@@ -246,8 +307,62 @@ void HdrColorControls::retranslate() {
 void HdrColorControls::changeEvent(QEvent* event) {
   if (event->type() == QEvent::LanguageChange) {
     retranslate();
+  } else if (event->type() == QEvent::LayoutDirectionChange) {
+    fit_columns();
   }
   QWidget::changeEvent(event);
+}
+
+void HdrColorControls::follow_columns(QWidget* left, QWidget* right) {
+  if (columns_ == nullptr || left == nullptr || right == nullptr) {
+    return;
+  }
+  left_like_ = left;
+  right_like_ = right;
+  followed_laid_out_ = false;
+  left->installEventFilter(this);
+  right->installEventFilter(this);
+  fit_columns();
+}
+
+bool HdrColorControls::eventFilter(QObject* watched, QEvent* event) {
+  if ((watched == left_like_.data() || watched == right_like_.data()) &&
+      (event->type() == QEvent::Resize || event->type() == QEvent::Move)) {
+    followed_laid_out_ = true;
+    fit_columns();
+  }
+  return QWidget::eventFilter(watched, event);
+}
+
+void HdrColorControls::fit_columns() {
+  if (columns_ == nullptr) {
+    return;
+  }
+  // Never narrower than the swatches at their own size.
+  const int least = strip_->sizeHint().width();
+  int width = least;
+  int gap = kColumnGap;
+  if (left_like_ != nullptr && right_like_ != nullptr) {
+    if (followed_laid_out_) {
+      const auto left = left_like_->geometry();
+      const auto right = right_like_->geometry();
+      width = std::max(least, left.width());
+      // The right column starts where the followed one does, also when the left column
+      // had to stay wider than the one it follows.
+      const int between = isRightToLeft() ? left.left() - right.right() - 1 : right.left() - left.right() - 1;
+      gap = std::max(0, between - (width - left.width()));
+    } else {
+      // Before the window's first layout its columns still have a new widget's size.
+      width = std::max(least, left_like_->sizeHint().width());
+    }
+  }
+  if (caption_->minimumWidth() != width || caption_->maximumWidth() != width) {
+    caption_->setFixedWidth(width);
+    strip_->setFixedWidth(width);
+  }
+  if (columns_->spacing() != gap) {
+    columns_->setSpacing(gap);
+  }
 }
 
 HdrStopPreviewStrip::HdrStopPreviewStrip(bool compact, QWidget* parent) : QWidget(parent), compact_(compact) {
@@ -338,6 +453,9 @@ void HdrStopPreviewStrip::mousePressEvent(QMouseEvent* event) {
 HdrColorControls* add_hdr_color_controls(QDialog& dialog) {
   auto* controls = new HdrColorControls(HdrColorControls::Form::Full, &dialog);
   controls->hide();
+  // The picker's two columns (color_panel.cpp, build_ui).
+  controls->follow_columns(dialog.findChild<QWidget*>(QStringLiteral("patchyColorSwatchColumn")),
+                           dialog.findChild<QWidget*>(QStringLiteral("patchyColorPickerColumn")));
   auto* buttons = dialog.findChild<QDialogButtonBox*>();
   int index = -1;
   auto* layout = buttons != nullptr ? box_layout_holding(buttons->parentWidget()->layout(), buttons, index) : nullptr;

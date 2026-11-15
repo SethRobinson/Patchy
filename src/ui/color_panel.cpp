@@ -1151,7 +1151,10 @@ void PatchyColorPickerPrivate::build_ui() {
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(14);
 
+  // The two columns carry names so the 32-bit controls under the picker can line up with
+  // them (add_hdr_color_controls).
   auto* swatch_column = new QWidget(&owner_);
+  swatch_column->setObjectName(QStringLiteral("patchyColorSwatchColumn"));
   auto* swatch_layout = new QVBoxLayout(swatch_column);
   swatch_layout->setContentsMargins(0, 0, 0, 0);
   swatch_layout->setSpacing(7);
@@ -1220,6 +1223,7 @@ void PatchyColorPickerPrivate::build_ui() {
   root->addWidget(swatch_column, 0);
 
   auto* picker_column = new QWidget(&owner_);
+  picker_column->setObjectName(QStringLiteral("patchyColorPickerColumn"));
   auto* picker_layout = new QVBoxLayout(picker_column);
   picker_layout->setContentsMargins(0, 0, 0, 0);
   picker_layout->setSpacing(12);
