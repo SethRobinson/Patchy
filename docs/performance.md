@@ -87,7 +87,10 @@ the first non-const access. Worker strips calling non-const `row()`/`pixel()`/`d
 still-shared buffer race to detach, each copying while another's replacement frees the bytes
 (access violations, or heap corruption long after). Call `pixels.data()` once on the launching
 thread and hand the workers spans or raw pointers; `apply_row_spans_in_parallel`
-(src/ui/filter_workflows.cpp) and `heal_mask_from_surroundings` are the references. A
+(src/ui/filter_workflows.cpp) and `heal_mask_from_surroundings` are the references;
+`paint_rows_in_strips` (src/core/pixel_tools.cpp, the Gradient tool's paint) is the one for a
+paint that ticks: batches of strips, a tick on the calling thread between them, the storage
+taken anew for each batch. A
 progress tick pumps events, and a pumped render or recovery snapshot re-shares the bytes, so
 take the span after the last tick, or re-take it after each tick of a sequential walk (the
 Spot Healing, Healing Brush and Patch tool walks do;

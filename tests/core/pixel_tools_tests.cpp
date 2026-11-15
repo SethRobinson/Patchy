@@ -1,7 +1,11 @@
 #include <string_view>
+#include <ranges>
+#include <thread>
+#include "core/blend_math.hpp"
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
+#include "core/environment.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_shape_style.hpp"
@@ -1731,6 +1735,376 @@ void tool_gradient_styles_render_angle_reflected_and_diamond() {
   paint(patchy::GradientMethod::Diamond, true, {{32, 24, blue}, {40, 32, red}});
 }
 
+enum class GradientPaintSelection { None, Rect, LowerRect, Feathered, Mask };
+
+// One Gradient tool paint (Mode: Pixels) for the strip tests and the timing below.
+struct GradientPaintCase {
+  const char* name;
+  patchy::GradientMethod method{patchy::GradientMethod::Linear};
+  patchy::BitDepth depth{patchy::BitDepth::UInt8};
+  GradientPaintSelection selection{GradientPaintSelection::None};
+  bool definition{true};    // the tool's own two-track gradient; false paints the flat stops
+  bool transparent{false};  // the gradient ends at opacity 0
+  bool reverse{false};
+  bool locked{false};       // Lock Transparent Pixels
+  bool noise{false};
+  bool palette{false};      // Palette Mode's snap
+  bool small_layer{false};  // a layer smaller than the canvas, which the paint grows
+  float opacity{1.0F};      // the tool's Opacity
+};
+
+struct GradientPaintRun {
+  patchy::Document document;
+  patchy::LayerId layer_id{};
+  patchy::Rect dirty;
+  double ms{0.0};
+  int ticks{0};
+  int ticks_off_the_calling_thread{0};
+  // The documents copied in the first progress ticks (`snapshot_in_ticks`): each shares the
+  // layer's bytes until the paint writes again.
+  std::vector<patchy::Document> snapshots;
+};
+
+GradientPaintRun paint_gradient_case(const GradientPaintCase& test_case, std::int32_t width, std::int32_t height,
+                                     bool single_threaded, bool snapshot_in_ticks = false) {
+  GradientPaintRun run{patchy::Document(width, height, patchy::PixelFormat::rgba8())};
+  auto& document = run.document;
+  {
+    // Every blend branch in one layer: transparent, partly transparent and opaque bands
+    // over changing colors.
+    const auto layer_rect =
+        test_case.small_layer ? patchy::Rect{width / 6, height / 5, width * 2 / 3, height / 2} : patchy::Rect{0, 0, width, height};
+    patchy::PixelBuffer pixels(layer_rect.width, layer_rect.height, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < layer_rect.height; ++y) {
+      auto row = pixels.row(y);
+      for (std::int32_t x = 0; x < layer_rect.width; ++x) {
+        auto* px = row.data() + static_cast<std::size_t>(x) * 4U;
+        px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+        px[1] = static_cast<std::uint8_t>((y * 5 + x) % 256);
+        px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+        const auto band = (x / 37 + y / 23) % 4;
+        px[3] = static_cast<std::uint8_t>(band == 0 ? 0 : band == 1 ? 96 + (x + y) % 64 : 255);
+      }
+    }
+    run.layer_id = document.add_pixel_layer("Paint", patchy::PixelBuffer(width, height, patchy::PixelFormat::rgba8())).id();
+    auto* layer = document.find_layer(run.layer_id);
+    layer->set_pixels(std::move(pixels));
+    layer->set_bounds(layer_rect);
+  }
+  if (test_case.depth != patchy::BitDepth::UInt8) {
+    patchy::convert_document_depth(document, test_case.depth);
+  }
+
+  auto options = tool_options(230, 30, 20);
+  options.secondary = patchy::EditColor{20, 40, 220, 255};
+  options.lock_transparent_pixels = test_case.locked;
+  switch (test_case.selection) {
+    case GradientPaintSelection::None:
+      break;
+    case GradientPaintSelection::Rect:
+      options.selection = patchy::Rect{width / 8, height / 6, width / 2, height / 2};
+      break;
+    case GradientPaintSelection::LowerRect:
+      options.selection = patchy::Rect{width / 3, height * 2 / 5, width / 2, height / 2};
+      break;
+    case GradientPaintSelection::Feathered: {
+      options.selection = patchy::Rect{width / 10, height / 10, width - width / 5, height - height / 5};
+      const auto center_x = static_cast<float>(width) * 0.5F;
+      const auto center_y = static_cast<float>(height) * 0.5F;
+      const auto radius = static_cast<float>(std::min(width, height)) * 0.4F;
+      options.selection_coverage = [center_x, center_y, radius](std::int32_t x, std::int32_t y) {
+        const auto dx = static_cast<float>(x) - center_x;
+        const auto dy = static_cast<float>(y) - center_y;
+        return std::clamp(1.2F - std::sqrt(dx * dx + dy * dy) / radius, 0.0F, 1.0F);
+      };
+      break;
+    }
+    case GradientPaintSelection::Mask:
+      options.selection = patchy::Rect{width / 10, height / 10, width - width / 5, height - height / 5};
+      options.selection_mask = [](std::int32_t x, std::int32_t y) { return (x / 7 + y / 5) % 3 != 0; };
+      break;
+  }
+  patchy::PaletteLut lut;
+  patchy::PaletteSnapContext snap;
+  if (test_case.palette) {
+    const std::array<patchy::RgbColor, 6> colors{patchy::RgbColor{0, 0, 0},     patchy::RgbColor{255, 255, 255},
+                                                 patchy::RgbColor{230, 30, 20}, patchy::RgbColor{250, 220, 40},
+                                                 patchy::RgbColor{20, 40, 220}, patchy::RgbColor{40, 160, 90}};
+    lut.build(colors);
+    snap.lut = &lut;
+    options.palette_snap = &snap;
+  }
+  const auto caller = std::this_thread::get_id();
+  options.progress_callback = [&run, &document, caller, snapshot_in_ticks] {
+    ++run.ticks;
+    if (std::this_thread::get_id() != caller) {
+      ++run.ticks_off_the_calling_thread;
+    }
+    if (snapshot_in_ticks && run.snapshots.size() < 3U) {
+      run.snapshots.push_back(document);
+    }
+  };
+
+  patchy::GradientOptions gradient;
+  gradient.method = test_case.method;
+  gradient.reverse = test_case.reverse;
+  gradient.opacity = test_case.opacity;
+  gradient.single_threaded = single_threaded;
+  gradient.stops = {patchy::GradientStop{0.0F, patchy::EditColor{230, 30, 20, 255}},
+                    patchy::GradientStop{0.35F, patchy::EditColor{250, 220, 40, 255}, 1.5F, 0.3F},
+                    patchy::GradientStop{1.0F, patchy::EditColor{20, 40, 220, static_cast<std::uint8_t>(
+                                                                                test_case.transparent ? 0 : 255)}}};
+  if (test_case.definition) {
+    patchy::LayerStyleGradient definition;
+    if (test_case.noise) {
+      definition.form = patchy::GradientDefinitionForm::Noise;
+      definition.noise.seed = 20261115U;
+      definition.noise.add_transparency = test_case.transparent;
+    } else {
+      patchy::GradientColorStop middle{0.35F, patchy::RgbColor{250, 220, 40}, 0.3F};
+      middle.intensity_stops = 1.5F;
+      definition.color_stops = {patchy::GradientColorStop{0.0F, patchy::RgbColor{230, 30, 20}}, middle,
+                                patchy::GradientColorStop{1.0F, patchy::RgbColor{20, 40, 220}}};
+      definition.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F},
+                                patchy::GradientAlphaStop{1.0F, test_case.transparent ? 0.0F : 1.0F, 0.4F}};
+    }
+    gradient.definition = definition;
+  }
+
+  // A slanted drag inside the canvas, so every style has pixels before, on and past its ramp.
+  const auto started = std::chrono::steady_clock::now();
+  run.dirty = patchy::draw_gradient(document, run.layer_id, width / 4, height / 3, width * 3 / 4, height * 3 / 5,
+                                    options, gradient);
+  run.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  return run;
+}
+
+std::vector<GradientPaintCase> gradient_paint_cases() {
+  using patchy::BitDepth;
+  using patchy::GradientMethod;
+  using Selection = GradientPaintSelection;
+  std::vector<GradientPaintCase> cases{
+      {.name = "Linear"},
+      {.name = "Radial", .method = GradientMethod::Radial},
+      {.name = "Angle", .method = GradientMethod::Angle},
+      {.name = "Reflected", .method = GradientMethod::Reflected},
+      {.name = "Diamond", .method = GradientMethod::Diamond},
+      {.name = "Linear, Transparency", .transparent = true},
+      {.name = "Radial, Transparency, Reverse", .method = GradientMethod::Radial, .transparent = true, .reverse = true},
+      {.name = "Linear, Opacity 40%", .opacity = 0.4F},
+      {.name = "Linear, rectangle selection", .selection = Selection::Rect},
+      {.name = "Diamond, feathered selection, Transparency",
+       .method = GradientMethod::Diamond,
+       .selection = Selection::Feathered,
+       .transparent = true},
+      {.name = "Angle, mask selection", .method = GradientMethod::Angle, .selection = Selection::Mask},
+      {.name = "Linear, Lock Transparent Pixels", .transparent = true, .locked = true},
+      {.name = "Reflected, a layer smaller than the canvas", .method = GradientMethod::Reflected, .small_layer = true},
+      {.name = "Linear, a smaller layer, locked", .locked = true, .small_layer = true},
+      // Strips that start below the top of the layer's buffer and right of its left edge.
+      {.name = "Radial, a smaller layer, locked, a selection across its lower edge",
+       .method = GradientMethod::Radial,
+       .selection = Selection::LowerRect,
+       .locked = true,
+       .small_layer = true},
+      {.name = "Linear, Noise gradient", .transparent = true, .noise = true},
+      {.name = "Radial, Palette Mode", .method = GradientMethod::Radial, .transparent = true, .palette = true},
+      {.name = "Linear, flat stops", .definition = false, .transparent = true},
+      {.name = "Angle, flat stops, feathered selection",
+       .method = GradientMethod::Angle,
+       .selection = Selection::Feathered,
+       .definition = false,
+       .reverse = true},
+  };
+  // Every style again at 16 and 32 bits, plus the options that change the deep blend.
+  for (const auto depth : {BitDepth::UInt16, BitDepth::Float32}) {
+    const auto* bits = depth == BitDepth::UInt16 ? "16-bit" : "32-bit";
+    for (const auto method : {GradientMethod::Linear, GradientMethod::Radial, GradientMethod::Angle,
+                              GradientMethod::Reflected, GradientMethod::Diamond}) {
+      cases.push_back({.name = bits, .method = method, .depth = depth, .transparent = method != GradientMethod::Linear});
+    }
+    cases.push_back({.name = bits, .depth = depth, .selection = Selection::Feathered, .opacity = 0.6F});
+    cases.push_back({.name = bits, .depth = depth, .transparent = true, .locked = true});
+    cases.push_back({.name = bits, .depth = depth, .definition = false, .transparent = true});
+    cases.push_back({.name = bits, .depth = depth, .transparent = true, .noise = true});
+  }
+  return cases;
+}
+
+bool same_gradient_paint(const GradientPaintRun& a, const GradientPaintRun& b) {
+  const auto& left = *std::as_const(a.document).find_layer(a.layer_id);
+  const auto& right = *std::as_const(b.document).find_layer(b.layer_id);
+  return a.dirty == b.dirty && left.bounds() == right.bounds() && left.pixels().format() == right.pixels().format() &&
+         std::ranges::equal(left.pixels().data(), right.pixels().data());
+}
+
+// Letting go of a Gradient drag in Pixels mode painted the layer on one thread: 3 to 4 s at
+// 48 Mpx. Every pixel depends only on its position and on what the layer holds there, so
+// row strips on workers leave the bytes of the one-thread walk: for each style, at 8, 16
+// and 32 bits, with Transparency, Reverse and Opacity, under each kind of selection, the
+// transparency lock, Palette Mode, a Noise gradient, the flat stops, and on a layer the
+// paint has to grow.
+void tool_gradient_strips_keep_bytes() {
+  constexpr std::int32_t kWidth = 900;
+  constexpr std::int32_t kHeight = 700;
+  for (const auto& test_case : gradient_paint_cases()) {
+    const auto single = paint_gradient_case(test_case, kWidth, kHeight, true);
+    const auto strips = paint_gradient_case(test_case, kWidth, kHeight, false);
+    const bool same = same_gradient_paint(single, strips);
+    if (!same) {
+      std::cerr << "gradient strips differ: " << test_case.name << ", style " << static_cast<int>(test_case.method)
+                << '\n';
+    }
+    CHECK(same);
+    CHECK(!strips.dirty.empty());
+    // The progress callback belongs to the caller's thread (the canvas pumps events in it).
+    CHECK(strips.ticks > 0);
+    CHECK(strips.ticks_off_the_calling_thread == 0);
+    CHECK(single.ticks_off_the_calling_thread == 0);
+  }
+}
+
+// Each painted pixel is the gradient at that pixel's own ramp position, whichever strip and
+// thread painted it. On an empty layer the paint leaves the gradient's own color and
+// opacity, so every pixel is compared with gradient_color and gradient_stop_opacity at
+// gradient_tool_position, for each style, forward and reversed, on one thread and in strips:
+// a check of the strips that does not lean on the one-thread walk.
+void tool_gradient_paints_each_pixel_from_its_own_position() {
+  constexpr std::int32_t kWidth = 320;
+  constexpr std::int32_t kHeight = 230;
+  constexpr std::int32_t kX0 = 110;
+  constexpr std::int32_t kY0 = 80;
+  constexpr std::int32_t kX1 = 205;
+  constexpr std::int32_t kY1 = 140;
+  patchy::LayerStyleGradient definition;
+  definition.color_stops = {patchy::GradientColorStop{0.0F, patchy::RgbColor{230, 30, 20}},
+                            patchy::GradientColorStop{0.35F, patchy::RgbColor{250, 220, 40}, 0.3F},
+                            patchy::GradientColorStop{1.0F, patchy::RgbColor{20, 40, 220}}};
+  definition.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F}, patchy::GradientAlphaStop{0.6F, 0.7F},
+                            patchy::GradientAlphaStop{1.0F, 0.0F, 0.4F}};
+  for (const auto method : {patchy::GradientMethod::Linear, patchy::GradientMethod::Radial, patchy::GradientMethod::Angle,
+                            patchy::GradientMethod::Reflected, patchy::GradientMethod::Diamond}) {
+    for (const bool reverse : {false, true}) {
+      for (const bool single_threaded : {true, false}) {
+        patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+        const auto id =
+            document.add_pixel_layer("Paint", patchy::PixelBuffer(kWidth, kHeight, patchy::PixelFormat::rgba8())).id();
+        patchy::GradientOptions gradient;
+        gradient.method = method;
+        gradient.reverse = reverse;
+        gradient.definition = definition;
+        gradient.single_threaded = single_threaded;
+        CHECK(!patchy::draw_gradient(document, id, kX0, kY0, kX1, kY1, tool_options(), gradient).empty());
+        const auto& pixels = std::as_const(document).find_layer(id)->pixels();
+        int wrong = 0;
+        int transparent = 0;
+        for (std::int32_t y = 0; y < kHeight; ++y) {
+          for (std::int32_t x = 0; x < kWidth; ++x) {
+            const auto t = patchy::gradient_tool_position(method, static_cast<double>(x - kX0),
+                                                          static_cast<double>(y - kY0),
+                                                          static_cast<double>(kX1 - kX0),
+                                                          static_cast<double>(kY1 - kY0));
+            const auto position = static_cast<float>(std::clamp(reverse ? 1.0 - t : t, 0.0, 1.0));
+            const auto alpha = static_cast<std::uint8_t>(std::clamp(
+                std::lround(patchy::gradient_stop_opacity(definition, position, true) * 255.0F), 0L, 255L));
+            const auto color = patchy::gradient_color(definition, position, true);
+            const auto* px = pixels.pixel(x, y);
+            const bool same = alpha == 0 ? px[3] == 0
+                                         : px[0] == color.red && px[1] == color.green && px[2] == color.blue &&
+                                               px[3] == alpha;
+            wrong += same ? 0 : 1;
+            transparent += alpha == 0 ? 1 : 0;
+          }
+        }
+        if (wrong != 0) {
+          std::cerr << "gradient style " << static_cast<int>(method) << (reverse ? " reversed" : "")
+                    << (single_threaded ? ", one thread: " : ", strips: ") << wrong << " pixels differ\n";
+        }
+        CHECK(wrong == 0);
+        // The probe has fully transparent pixels past one end and painted ones before the other.
+        CHECK(transparent > 0 && transparent < kWidth * kHeight);
+      }
+    }
+  }
+}
+
+// A paint large enough for several batches of strips, with a progress tick between them.
+// A tick may copy the document (the canvas pumps events there: a render or a recovery
+// snapshot), which shares the layer's bytes again; the next batch must write its own copy,
+// never the snapshot's.
+void tool_gradient_strips_survive_a_snapshot_in_a_progress_tick() {
+  constexpr std::int32_t kWidth = 2600;
+  constexpr std::int32_t kHeight = 3400;
+  using patchy::GradientMethod;
+  for (const auto& test_case :
+       {GradientPaintCase{.name = "Diamond", .method = GradientMethod::Diamond},
+        GradientPaintCase{.name = "Linear, 16-bit, mask selection",
+                          .depth = patchy::BitDepth::UInt16,
+                          .selection = GradientPaintSelection::Mask}}) {
+    const auto single = paint_gradient_case(test_case, kWidth, kHeight, true);
+    const auto strips = paint_gradient_case(test_case, kWidth, kHeight, false, true);
+    const bool same = same_gradient_paint(single, strips);
+    if (!same) {
+      std::cerr << "gradient strips differ under snapshots: " << test_case.name << '\n';
+    }
+    CHECK(same);
+    CHECK(strips.ticks_off_the_calling_thread == 0);
+    CHECK(strips.ticks >= 2);
+    CHECK(!strips.snapshots.empty());
+    if (strips.snapshots.empty() || strips.ticks < 2) {
+      continue;
+    }
+    // The first tick comes before the last rows are painted: its snapshot still holds them
+    // as they were, and the finished layer does not.
+    const auto& before = *std::as_const(strips.snapshots.front()).find_layer(strips.layer_id);
+    const auto& after = *std::as_const(strips.document).find_layer(strips.layer_id);
+    const auto& reference = *std::as_const(single.document).find_layer(single.layer_id);
+    const auto last_row = strips.dirty.y + strips.dirty.height - 1 - after.bounds().y;
+    CHECK(!std::ranges::equal(before.pixels().row(last_row), after.pixels().row(last_row)));
+    CHECK(std::ranges::equal(after.pixels().row(last_row), reference.pixels().row(last_row)));
+    CHECK(before.pixels().data().data() != after.pixels().data().data());
+  }
+}
+
+// Prints what one Gradient tool paint costs on one thread and in strips, per style, depth
+// and selection. 1600 x 1200 by default; PATCHY_GRADIENT_PAINT_TIMING=1 times 3580 x 5370
+// and 8000 x 6000 (up to 0.8 GB per layer at 32 bits). Prints only.
+void tool_gradient_paint_timing() {
+  std::vector<std::pair<std::int32_t, std::int32_t>> sizes{{1600, 1200}};
+  if (patchy::environment_variable("PATCHY_GRADIENT_PAINT_TIMING").value_or("") == "1") {
+    sizes = {{3580, 5370}, {8000, 6000}};
+  }
+  using patchy::BitDepth;
+  using patchy::GradientMethod;
+  using Selection = GradientPaintSelection;
+  const std::vector<GradientPaintCase> cases{
+      {.name = "8-bit Linear"},
+      {.name = "8-bit Radial", .method = GradientMethod::Radial},
+      {.name = "8-bit Angle", .method = GradientMethod::Angle},
+      {.name = "8-bit Reflected", .method = GradientMethod::Reflected},
+      {.name = "8-bit Diamond", .method = GradientMethod::Diamond},
+      {.name = "8-bit Linear, Transparency", .transparent = true},
+      {.name = "8-bit Linear, rectangle selection", .selection = Selection::Rect},
+      {.name = "8-bit Linear, feathered selection", .selection = Selection::Feathered},
+      {.name = "8-bit Linear, Lock Transparent Pixels", .locked = true},
+      {.name = "8-bit Linear, Noise gradient", .noise = true},
+      {.name = "8-bit Linear, flat stops", .definition = false},
+      {.name = "16-bit Linear", .depth = BitDepth::UInt16},
+      {.name = "16-bit Radial, Transparency", .method = GradientMethod::Radial, .depth = BitDepth::UInt16, .transparent = true},
+      {.name = "32-bit Linear", .depth = BitDepth::Float32},
+      {.name = "32-bit Angle, Transparency", .method = GradientMethod::Angle, .depth = BitDepth::Float32, .transparent = true},
+  };
+  for (const auto& [width, height] : sizes) {
+    for (const auto& test_case : cases) {
+      const auto single_ms = paint_gradient_case(test_case, width, height, true).ms;
+      const auto strips_ms = paint_gradient_case(test_case, width, height, false).ms;
+      std::printf("  %dx%d %s: one thread %.0f ms, strips %.0f ms\n", width, height, test_case.name, single_ms,
+                  strips_ms);
+    }
+  }
+  std::fflush(stdout);
+}
+
 void tool_fill_selection_draws_only_selection_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2629,6 +3003,12 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
        tool_gradient_supports_custom_stops_radial_reverse_and_alpha},
       {"tool_gradient_styles_render_angle_reflected_and_diamond",
        tool_gradient_styles_render_angle_reflected_and_diamond},
+      {"tool_gradient_strips_keep_bytes", tool_gradient_strips_keep_bytes},
+      {"tool_gradient_paints_each_pixel_from_its_own_position",
+       tool_gradient_paints_each_pixel_from_its_own_position},
+      {"tool_gradient_strips_survive_a_snapshot_in_a_progress_tick",
+       tool_gradient_strips_survive_a_snapshot_in_a_progress_tick},
+      {"tool_gradient_paint_timing", tool_gradient_paint_timing},
       {"tool_fill_selection_draws_only_selection_and_writes_artifact", tool_fill_selection_draws_only_selection_and_writes_artifact},
       {"tool_clear_selection_erases_only_selection_and_writes_artifact", tool_clear_selection_erases_only_selection_and_writes_artifact},
       {"tool_clear_transparent_selection_is_noop", tool_clear_transparent_selection_is_noop},

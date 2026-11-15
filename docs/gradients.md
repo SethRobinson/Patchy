@@ -82,6 +82,29 @@ The Gradient tool's options bar starts with Mode (`gradientModeCombo`: Pixels, F
 
 The options bar's Style list (`gradientMethodCombo`, label "Style", GitHub issue 610) offers the Gradient Fill dialog's five styles in its order: Linear, Radial, Angle, Reflected, Diamond. `GradientMethod` (src/core/pixel_tools.hpp) is append-only and saved by value as `tools/gradientMethod` (0 Linear and 1 Radial keep their meaning; unknown values load as Linear). `gradient_tool_position` is the one ramp function for `draw_gradient`, the mask and channel gradient (`CanvasWidget::draw_mask_gradient`) and the drag preview: Linear projects onto the drag over its length; Reflected is the absolute projection; Radial the distance over the drag length; Diamond the L1 distance in the drag's frame (a square with a corner at the drag end); Angle sweeps one ramp per turn starting on the drag direction, clockwise on screen (the start pixel is position 0.25, like Photoshop's angle fills). These are `gradient_position`'s fill-layer shapes, so Fill Layer mode matches. Qt has no Angle, Reflected or Diamond gradient, so the preview samples `gradient_tool_position` on a grid of at most 160,000 cells over the visible fill rect and draws it smooth-scaled (`sampled_gradient_preview_brush`, canvas_widget_draw_tools.cpp). Both gradient combos use `use_scrolling_list_popup`, so their lists open below the box rather than as a menu with the current row over it. Tests: `tool_gradient_styles_render_angle_reflected_and_diamond`, `ui_gradient_style_combo_lists_five_styles`, and the restore check in `ui_startup_restores_stored_brush_and_gradient_settings`.
 
+## Gradient tool Pixels mode paint
+
+Letting go of a Pixels mode drag paints the layer on the GUI thread (`draw_gradient`, src/core/pixel_tools.cpp). The paint used to walk the layer pixel by pixel on one thread, seconds on a large image; it runs in row strips on workers (`paint_rows_in_strips`).
+
+- **Same bytes.** A pixel depends only on its position and on what the layer holds there (the tool has no dither, and nothing is carried from pixel to pixel), so the strips leave the bytes of the one-thread walk for every style, bit depth and selection, with Opacity, Transparency, Reverse, the transparency lock, Palette Mode and Noise gradients. `GradientOptions::single_threaded` (the canvas sets it under `PATCHY_RENDER_SINGLE_THREADED`) keeps the walk, as do a paint under 65,536 pixels or 32 rows and a machine with one worker.
+- **Batches and ticks.** Rows go in batches of about 4 Mpx, each split over up to 16 strips, the calling thread painting the first. The progress callback (the canvas's "Processing..." overlay, which pumps events) runs on the calling thread between batches, never while a worker writes. A render or snapshot pumped there shares the layer's bytes again, so each batch takes the storage anew before its workers start ([performance.md](performance.md#parallel-strip-rendering)).
+- **Selection callbacks run on the workers.** `CanvasWidget::selection_alpha_at` reads the mask's alpha or the rasterized lookup, which is built once under a mutex. Any `EditOptions` selection callback handed to `draw_gradient` must be safe to call from several threads.
+- **Noise tables by reference.** `noise_gradient_table` (blend_math.cpp) returned a `shared_ptr` copy for every sample; strips on several threads counting one table's references were slower than one thread (7.5 s against 4.3 s at 48 Mpx). It returns a reference the calling thread keeps alive, which a Noise Gradient Fill's bake gains from too.
+
+On an i9-11900KF (16 threads), November 2026: `ui_gradient_release_timing` with `PATCHY_GRADIENT_HANDLE_TIMING=1` for the release, core `tool_gradient_paint_timing` with `PATCHY_GRADIENT_PAINT_TIMING=1` for the paint alone (a layer with transparent, partly transparent and opaque areas, three color stops).
+
+| Case | 3580 x 5370, one thread | strips | 8000 x 6000, one thread | strips |
+| --- | --- | --- | --- | --- |
+| Release in the app, Linear on a Background layer | 760 to 1100 ms | 155 to 195 ms | 2.2 to 3.7 s | 395 to 520 ms |
+| Paint alone, 8-bit Linear | 1.16 s | 154 ms | 2.85 s | 370 ms |
+| 8-bit Angle | 1.95 s | 232 ms | 4.70 s | 578 ms |
+| 8-bit Noise gradient | 1.68 s | 200 ms | 4.18 s | 507 ms |
+| 16-bit Linear | 1.58 s | 224 ms | 3.92 s | 554 ms |
+| 32-bit Linear | 4.68 s | 523 ms | 11.4 s | 1.25 s |
+| 32-bit Angle with Transparency | 6.46 s | 674 ms | 16.1 s | 1.69 s |
+
+The release still waits for the paint (it is not baked in the background like a Gradient Fill), and the mask and channel gradient (`CanvasWidget::draw_mask_gradient`) still walks on one thread. Tests: `tool_gradient_strips_keep_bytes`, `tool_gradient_paints_each_pixel_from_its_own_position`, `tool_gradient_strips_survive_a_snapshot_in_a_progress_tick`, `ui_gradient_pixels_release_paints_in_strips`.
+
 ## Noise gradients
 
 A clean-room, black-box model (October 2026): fitted only to the rendered output of 16-bit 4096x2 noise Gradient Fills that a licensed Photoshop 2026 drew over COM, with no Photoshop code inspected, decompiled, or disassembled (see [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets)). The generator family and its constants were identified by matching that output against public algorithms. `build_noise_gradient_table` (src/core/blend_math.cpp) implements it and `noise_gradient_matches_photoshop_samples` pins Photoshop's bytes. Patchy matches within half an 8-bit level up to 50% roughness and about one level at 100%.

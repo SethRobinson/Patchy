@@ -1349,6 +1349,7 @@ GradientOptions CanvasWidget::current_gradient_options() const {
   gradient.stops = effective_gradient_stops();
   // The tool's own two-track gradient draws (the flat stops serve previews only).
   gradient.definition = resolved_gradient();
+  gradient.single_threaded = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
   return gradient;
 }
 

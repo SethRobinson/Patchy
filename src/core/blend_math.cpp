@@ -508,10 +508,15 @@ std::shared_ptr<const NoiseGradientTable> build_noise_gradient_table(
   return table;
 }
 
-std::shared_ptr<const NoiseGradientTable> noise_gradient_table(const GradientNoiseSettings &noise) {
+// The table for `noise`, kept alive by the calling thread until its next lookup of other
+// settings. A reference, not a shared_ptr copy: every sample of a noise gradient comes
+// through here (four per pixel), and row strips on several threads counting the one table's
+// references up and down made a parallel paint slower than one thread (8000 x 6000:
+// 7.5 s in strips against 4.3 s).
+const NoiseGradientTable &noise_gradient_table(const GradientNoiseSettings &noise) {
   thread_local std::shared_ptr<const NoiseGradientTable> last;
   if (last != nullptr && last->settings == noise) {
-    return last;
+    return *last;
   }
   static std::mutex mutex;
   static std::vector<std::shared_ptr<const NoiseGradientTable>> cache;
@@ -520,7 +525,7 @@ std::shared_ptr<const NoiseGradientTable> noise_gradient_table(const GradientNoi
     for (const auto &entry : cache) {
       if (entry->settings == noise) {
         last = entry;
-        return last;
+        return *last;
       }
     }
   }
@@ -534,16 +539,16 @@ std::shared_ptr<const NoiseGradientTable> noise_gradient_table(const GradientNoi
     cache.push_back(table);
   }
   last = std::move(table);
-  return last;
+  return *last;
 }
 
 double gradient_noise_channel(const GradientNoiseSettings &noise, int channel,
                               double position) {
-  const auto table = noise_gradient_table(noise);
+  const auto &table = noise_gradient_table(noise);
   const auto scaled = std::floor(std::clamp(position, 0.0, 1.0) * kNoiseTableSize);
   const auto index = static_cast<std::size_t>(
       std::clamp(static_cast<int>(scaled), 0, kNoiseTableSize - 1));
-  return table->samples[index][static_cast<std::size_t>(std::clamp(channel, 0, 3))];
+  return table.samples[index][static_cast<std::size_t>(std::clamp(channel, 0, 3))];
 }
 
 }  // namespace

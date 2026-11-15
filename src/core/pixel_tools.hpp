@@ -194,6 +194,9 @@ struct GradientOptions {
   // Foreground and Background stop kinds must already be resolved; a color stop's
   // intensity_stops lifts 32-bit output.
   std::optional<LayerStyleGradient> definition;
+  // Paint on the calling thread only (PATCHY_RENDER_SINGLE_THREADED); otherwise a large paint
+  // fans its rows out over strips with the same bytes.
+  bool single_threaded{false};
 };
 
 struct SmudgeState {

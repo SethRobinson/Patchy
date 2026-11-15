@@ -3537,6 +3537,76 @@ double gradient_tool_position(GradientMethod method, double px, double py, doubl
   return along / length_squared;
 }
 
+namespace {
+
+// Runs `paint_rows(strip_options, bytes, row_begin, row_end)` over the buffer rows
+// [row_begin, row_end) of a paint whose every pixel depends only on its position and on what
+// the layer holds there, so the rows can be painted in any order and on any thread with the
+// same bytes. `bytes` is the first byte of the layer's storage and `strip_options` a copy of
+// `options` the caller may write its per-pixel color into.
+//
+// A large paint goes in batches of row strips, the calling thread painting the first strip
+// of each batch and reporting progress once per batch (one thread took 3 to 4 s for a
+// Gradient at 48 Mpx). The progress callback pumps events on the canvas, and a render or
+// recovery snapshot pumped there shares the layer's bytes again, so each batch takes the
+// storage anew on the calling thread before its workers start (docs/performance.md,
+// "Parallel strip rendering"); no worker runs during a tick. A small paint, a single
+// worker and `allow_parallel` off walk the rows on the calling thread, one tick per row.
+template <typename PaintRows>
+void paint_rows_in_strips(PixelBuffer& pixels, std::int32_t row_begin, std::int32_t row_end, std::int32_t row_pixels,
+                          const EditOptions& options, bool allow_parallel, PaintRows&& paint_rows) {
+  constexpr std::int64_t kParallelPixels = 64 * 1024;
+  constexpr std::int32_t kMinRowsPerStrip = 16;
+  // A few milliseconds of strips between ticks: the "Processing..." overlay keeps animating
+  // on a huge layer, and starting the workers stays a small part of each batch.
+  constexpr std::int64_t kBatchPixels = 4 * 1024 * 1024;
+  const auto rows = row_end - row_begin;
+  if (rows <= 0 || row_pixels <= 0) {
+    return;
+  }
+  int workers = 1;
+  if (allow_parallel && static_cast<std::int64_t>(rows) * row_pixels >= kParallelPixels &&
+      rows >= 2 * kMinRowsPerStrip) {
+    workers = max_blocking_fanout_workers(
+        std::clamp(std::min(rows / kMinRowsPerStrip, hardware_worker_threads()), 1, 16));
+  }
+  if (workers < 2) {
+    auto strip_options = options;
+    for (auto y = row_begin; y < row_end; ++y) {
+      paint_rows(strip_options, pixels.data().data(), y, y + 1);
+      report_edit_progress(options);
+    }
+    return;
+  }
+  std::vector<EditOptions> strip_options(static_cast<std::size_t>(workers), options);
+  const auto batch_rows = static_cast<std::int32_t>(std::clamp<std::int64_t>(
+      (kBatchPixels + row_pixels - 1) / row_pixels, static_cast<std::int64_t>(workers) * kMinRowsPerStrip, rows));
+  for (auto batch_begin = row_begin; batch_begin < row_end;) {
+    const auto batch_end = static_cast<std::int32_t>(
+        std::min<std::int64_t>(static_cast<std::int64_t>(batch_begin) + batch_rows, row_end));
+    const auto strip_rows = (batch_end - batch_begin + workers - 1) / workers;
+    // Detached here, on the calling thread, after the previous batch's tick.
+    auto* const bytes = pixels.data().data();
+    std::vector<std::future<void>> strips;
+    strips.reserve(static_cast<std::size_t>(workers) - 1U);
+    std::size_t strip = 1;
+    for (auto start = batch_begin + strip_rows; start < batch_end; start += strip_rows, ++strip) {
+      const auto end = std::min(batch_end, start + strip_rows);
+      strips.push_back(std::async(std::launch::async, [&paint_rows, &strip_options, strip, bytes, start, end] {
+        paint_rows(strip_options[strip], bytes, start, end);
+      }));
+    }
+    paint_rows(strip_options.front(), bytes, batch_begin, std::min(batch_end, batch_begin + strip_rows));
+    for (auto& worker : strips) {
+      worker.get();
+    }
+    report_edit_progress(options);
+    batch_begin = batch_end;
+  }
+}
+
+}  // namespace
+
 Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                    std::int32_t y1, const EditOptions& options, const GradientOptions& gradient) {
   auto* layer = paintable_layer(document, layer_id);
@@ -3564,6 +3634,14 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
   if (affected.empty()) {
     return {};
   }
+  // Nothing below is random or carried from one pixel to the next (the tool has no dither),
+  // so the rows are painted in strips. Strip rows are the layer buffer's.
+  const auto stride = pixels.stride_bytes();
+  const auto first_row = affected.y - bounds.y;
+  const auto paint_in_strips = [&](auto&& paint_rows) {
+    paint_rows_in_strips(pixels, first_row, first_row + affected.height, affected.width, options,
+                         !gradient.single_threaded, paint_rows);
+  };
 
   const auto dx = static_cast<double>(x1 - x0);
   const auto dy = static_cast<double>(y1 - y0);
@@ -3574,7 +3652,6 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
                                                    GradientStop{1.0F, options.secondary,
                                                                 gradient_intensity_from_gain(options.secondary_gain)}}
                                              : gradient.stops);
-  auto gradient_options = options;
   if (gradient.definition.has_value()) {
     // The two-track gradient, evaluated the way a Gradient Fill layer evaluates it.
     const auto& definition = *gradient.definition;
@@ -3605,8 +3682,49 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
       }
       return intensity.back().second;
     };
-    for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
-      auto row = pixels.row(y - bounds.y);
+    paint_in_strips([&](EditOptions& gradient_options, std::uint8_t* bytes, std::int32_t row_begin,
+                        std::int32_t row_end) {
+      for (auto buffer_y = row_begin; buffer_y < row_end; ++buffer_y) {
+        const auto y = buffer_y + bounds.y;
+        auto* const row = bytes + static_cast<std::size_t>(buffer_y) * stride;
+        for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
+          const auto selected_coverage = selection_coverage(options, x, y);
+          if (selected_coverage <= 0.0F) {
+            continue;
+          }
+          const double t = gradient_tool_position(gradient.method, static_cast<double>(x - x0),
+                                                  static_cast<double>(y - y0), dx, dy);
+          const auto position = static_cast<float>(std::clamp(gradient.reverse ? 1.0 - t : t, 0.0, 1.0));
+          const auto alpha = gradient_stop_opacity(definition, position, true) * opacity;
+          if (deep) {
+            const auto alpha_deep = alpha * 255.0F;
+            if (alpha_deep <= 0.0F) {
+              continue;
+            }
+            const auto color = gradient_color_precise(definition, position, true, linear);
+            const auto gain = intensity.empty() ? 1.0F : color_intensity_gain(intensity_at(position));
+            gradient_options.deep_primary = {static_cast<float>(color[0]) * gain, static_cast<float>(color[1]) * gain,
+                                             static_cast<float>(color[2]) * gain, alpha_deep};
+          } else {
+            const auto alpha_byte = static_cast<std::uint8_t>(std::clamp(std::lround(alpha * 255.0F), 0L, 255L));
+            if (alpha_byte == 0) {
+              continue;
+            }
+            const auto color = gradient_color(definition, position, true);
+            gradient_options.primary = EditColor{color.red, color.green, color.blue, alpha_byte};
+          }
+          auto* px = row + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
+          write_pixel(pixels, px, gradient_options, false, selected_coverage);
+        }
+      }
+    });
+    return affected;
+  }
+  paint_in_strips([&](EditOptions& gradient_options, std::uint8_t* bytes, std::int32_t row_begin,
+                      std::int32_t row_end) {
+    for (auto buffer_y = row_begin; buffer_y < row_end; ++buffer_y) {
+      const auto y = buffer_y + bounds.y;
+      auto* const row = bytes + static_cast<std::size_t>(buffer_y) * stride;
       for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
         const auto selected_coverage = selection_coverage(options, x, y);
         if (selected_coverage <= 0.0F) {
@@ -3614,59 +3732,24 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
         }
         const double t = gradient_tool_position(gradient.method, static_cast<double>(x - x0),
                                                 static_cast<double>(y - y0), dx, dy);
-        const auto position = static_cast<float>(std::clamp(gradient.reverse ? 1.0 - t : t, 0.0, 1.0));
-        const auto alpha = gradient_stop_opacity(definition, position, true) * opacity;
         if (deep) {
-          const auto alpha_deep = alpha * 255.0F;
-          if (alpha_deep <= 0.0F) {
+          const auto color = gradient_color_at_deep(stops, gradient.opacity, gradient.reverse, t, linear);
+          if (color[3] <= 0.0F) {
             continue;
           }
-          const auto color = gradient_color_precise(definition, position, true, linear);
-          const auto gain = intensity.empty() ? 1.0F : color_intensity_gain(intensity_at(position));
-          gradient_options.deep_primary = {static_cast<float>(color[0]) * gain, static_cast<float>(color[1]) * gain,
-                                           static_cast<float>(color[2]) * gain, alpha_deep};
+          gradient_options.deep_primary = color;
         } else {
-          const auto alpha_byte = static_cast<std::uint8_t>(std::clamp(std::lround(alpha * 255.0F), 0L, 255L));
-          if (alpha_byte == 0) {
+          const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
+          if (color.a == 0) {
             continue;
           }
-          const auto color = gradient_color(definition, position, true);
-          gradient_options.primary = EditColor{color.red, color.green, color.blue, alpha_byte};
+          gradient_options.primary = color;
         }
-        auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
+        auto* px = row + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
         write_pixel(pixels, px, gradient_options, false, selected_coverage);
       }
-      report_edit_progress(options);
     }
-    return affected;
-  }
-  for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
-    auto row = pixels.row(y - bounds.y);
-    for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-      const auto selected_coverage = selection_coverage(options, x, y);
-      if (selected_coverage <= 0.0F) {
-        continue;
-      }
-      const double t = gradient_tool_position(gradient.method, static_cast<double>(x - x0),
-                                              static_cast<double>(y - y0), dx, dy);
-      if (deep) {
-        const auto color = gradient_color_at_deep(stops, gradient.opacity, gradient.reverse, t, linear);
-        if (color[3] <= 0.0F) {
-          continue;
-        }
-        gradient_options.deep_primary = color;
-      } else {
-        const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
-        if (color.a == 0) {
-          continue;
-        }
-        gradient_options.primary = color;
-      }
-      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
-      write_pixel(pixels, px, gradient_options, false, selected_coverage);
-    }
-    report_edit_progress(options);
-  }
+  });
   return affected;
 }
 

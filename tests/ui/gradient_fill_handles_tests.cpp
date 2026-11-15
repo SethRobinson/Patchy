@@ -1840,12 +1840,21 @@ void ui_gradient_release_timing() {
                    size.width(), size.height(), name, release_ms, stalls.settled_ms, stalls.busy_ms,
                    stalls.longest_ms);
     };
-    // Pixels mode: the drag paints the layer.
+    // Pixels mode: the drag paints the layer. First on one thread, as every release painted
+    // before the paint went to row strips, then in strips.
     mode->setCurrentIndex(0);
     QApplication::processEvents();
     press_and_move(*canvas, at(0.2, 0.5), at(0.8, 0.5));
     canvas->repaint();
-    auto release = timed_ms([&] { release_at(*canvas, at(0.8, 0.5)); });
+    auto release = timed_ms([&] {
+      const EnvironmentVariableRestorer restore_single_threaded("PATCHY_RENDER_SINGLE_THREADED");
+      qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+      release_at(*canvas, at(0.8, 0.5));
+    });
+    report("Pixels drag on one thread", release, run_until_settled(*canvas));
+    press_and_move(*canvas, at(0.2, 0.5), at(0.8, 0.5));
+    canvas->repaint();
+    release = timed_ms([&] { release_at(*canvas, at(0.8, 0.5)); });
     report("Pixels drag", release, run_until_settled(*canvas));
     // The same again, with a press and a move as soon as the release returns.
     press_and_move(*canvas, at(0.2, 0.4), at(0.8, 0.4));
@@ -2366,6 +2375,110 @@ void ui_gradient_drag_starts_on_the_pasteboard() {
   CHECK(std::as_const(document).layers().size() == layer_count + 1);
 }
 
+// Letting go of a Gradient drag in Pixels mode paints the layer in row strips on worker
+// threads (core `tool_gradient_strips_keep_bytes`; one thread took 3 to 4 s at 48 Mpx).
+// Through the canvas the workers also read the selection: none, a hard selection of many
+// spans (the rasterized lookup) and a soft one (the mask's alpha). The layer holds the bytes
+// of the one-thread paint (PATCHY_RENDER_SINGLE_THREADED) each time, and the release is one
+// undo step.
+void ui_gradient_pixels_release_paints_in_strips() {
+  const GradientSettingsGuard settings_guard;
+  const EnvironmentVariableRestorer restore_single_threaded("PATCHY_RENDER_SINGLE_THREADED");
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 1400;
+  constexpr int kHeight = 1000;
+  MainWindowTestAccess::create_document(window, kWidth, kHeight);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(mode != nullptr && style != nullptr);
+  if (mode == nullptr || style == nullptr) {
+    return;
+  }
+  mode->setCurrentIndex(0);  // Pixels
+  style->setCurrentIndex(style->findData(static_cast<int>(patchy::GradientMethod::Diamond)));
+  QApplication::processEvents();
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(80);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{0.5F, patchy::EditColor{240, 220, 60, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 0}}});
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+
+  auto& document = MainWindowTestAccess::document(window);
+  const auto layer_bytes = [&] {
+    const auto id = std::as_const(document).active_layer_id();
+    CHECK(id.has_value());
+    const auto* layer = id.has_value() ? std::as_const(document).find_layer(*id) : nullptr;
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return std::vector<std::uint8_t>{};
+    }
+    const auto bytes = layer->pixels().data();
+    return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+  };
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  // Rings: every row crosses several of them, so the region has hundreds of spans. `soft`
+  // gives their edges partial coverage.
+  const auto ring_mask = [](bool soft) {
+    QImage mask(kWidth, kHeight, QImage::Format_Grayscale8);
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = mask.scanLine(y);
+      for (int x = 0; x < kWidth; ++x) {
+        const auto distance = std::hypot(x - kWidth * 0.5, y - kHeight * 0.5);
+        const auto wave = 0.5 + 0.5 * std::cos(distance / 30.0);
+        row[x] = static_cast<uchar>(soft ? std::lround(wave * 255.0) : (wave >= 0.5 ? 255 : 0));
+      }
+    }
+    return mask;
+  };
+  const auto from = widget_at(*canvas, QPointF(kWidth * 0.45, kHeight * 0.4));
+  const auto to = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.7));
+  const auto original = layer_bytes();
+  CHECK(!original.empty());
+
+  enum class Selection { None, Hard, Soft };
+  for (const auto selection : {Selection::None, Selection::Hard, Selection::Soft}) {
+    if (selection != Selection::None) {
+      canvas->apply_selection_mask(QRect(0, 0, kWidth, kHeight), ring_mask(selection == Selection::Soft),
+                                   patchy::ui::SelectionMode::Replace, QStringLiteral("Test Selection"));
+      QApplication::processEvents();
+      CHECK(canvas->has_selection());
+      CHECK(canvas->selection_has_partial_alpha() == (selection == Selection::Soft));
+    }
+    const auto paint = [&](bool single_threaded) {
+      if (single_threaded) {
+        qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+      } else {
+        qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+      }
+      const auto depth_before = depth();
+      drag_and_release(*canvas, from, to);
+      wait_until_settled(*canvas);
+      QApplication::processEvents();
+      qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+      CHECK(depth() == depth_before + 1);
+      auto painted = layer_bytes();
+      MainWindowTestAccess::undo(window);
+      wait_until_settled(*canvas);
+      QApplication::processEvents();
+      CHECK(depth() == depth_before);
+      CHECK(layer_bytes() == original);
+      return painted;
+    };
+    const auto single = paint(true);
+    const auto strips = paint(false);
+    CHECK(single != original);
+    CHECK(strips == single);
+  }
+}
+
 // GitHub #714 follow-up: the Gradient tool's drag was previewed as the bare gradient painted
 // over the canvas, so on a layer with a Color Overlay the drag showed the gradient and the
 // release showed the overlay's flat color (the pixels were right; the preview left the
@@ -2655,6 +2768,7 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
       {"ui_gradient_fill_handles_show_a_presets_own_stops", ui_gradient_fill_handles_show_a_presets_own_stops},
       {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
       {"ui_gradient_release_timing", ui_gradient_release_timing},
+      {"ui_gradient_pixels_release_paints_in_strips", ui_gradient_pixels_release_paints_in_strips},
       {"ui_gradient_drag_preview_shows_what_the_release_gives", ui_gradient_drag_preview_shows_what_the_release_gives},
       {"ui_new_gradient_fill_layer_opens_the_stay_open_settings", ui_new_gradient_fill_layer_opens_the_stay_open_settings},
       {"ui_gradient_fill_release_bakes_in_the_background", ui_gradient_fill_release_bakes_in_the_background},
