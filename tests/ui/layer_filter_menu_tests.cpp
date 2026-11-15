@@ -487,7 +487,9 @@ void ui_layer_filter_menu_has_blend_mode() {
     doc.add_layer(std::move(loose));
     patchy::Layer board(doc.allocate_layer_id(), "Board", patchy::LayerKind::Group);
     board.set_blend_mode(patchy::BlendMode::Normal);
-    board.set_artboard(patchy::LayerArtboard{patchy::Rect{0, 0, 40, 40}});
+    patchy::LayerArtboard artboard;
+    artboard.rect = patchy::Rect{0, 0, 40, 40};
+    board.set_artboard(std::move(artboard));
     doc.add_layer(std::move(board));
     patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
     QApplication::processEvents();
