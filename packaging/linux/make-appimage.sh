@@ -38,8 +38,10 @@ fi
 VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/CMakeLists.txt" | head -1)
 [ -n "$VERSION" ] || { echo "ERROR: could not read the project version from CMakeLists.txt" >&2; exit 1; }
 
-# Every core but four (at least one), so the build host stays usable.
-JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
+# Every core but four (at least one), so the build host stays usable. A machine that only
+# builds sets PATCHY_BUILD_JOBS in ~/.patchy-build-env (docs/building.md).
+if [ -f "$HOME/.patchy-build-env" ]; then . "$HOME/.patchy-build-env"; fi
+JOBS=${PATCHY_BUILD_JOBS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))}
 [ "$JOBS" -ge 1 ] || JOBS=1
 
 IMAGE_HASH=$(cat appimage/Containerfile "$ROOT/scripts/setup-ai-deps.sh" | sha256sum | cut -c1-16)

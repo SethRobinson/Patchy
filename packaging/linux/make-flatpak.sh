@@ -7,7 +7,8 @@
 # PATCHY_FLATPAK_IMPORT_BUNDLES="aarch64=<path> ..." adds other arches built elsewhere (an
 # unsigned bundle from make-flatpak.sh on that arch) to the signed repository, so one
 # repository and one flatpakref serve every arch (packaging/linux/README.md, "aarch64").
-# PATCHY_FLATPAK_JOBS overrides the build's job count (default: every core but four).
+# PATCHY_FLATPAK_JOBS overrides the build's job count, else PATCHY_BUILD_JOBS from
+# ~/.patchy-build-env (default: every core but four).
 # Prerequisites (one-time):
 #   sudo apt-get install -y flatpak flatpak-builder ostree
 #   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -76,8 +77,10 @@ fi
 
 mkdir -p "$PACKAGE_DIR"
 # Every core but four (at least one), so the remote machine stays usable. A dedicated
-# build VM passes PATCHY_FLATPAK_JOBS to use all of its cores.
-JOBS=${PATCHY_FLATPAK_JOBS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))}
+# build VM passes PATCHY_FLATPAK_JOBS to use all of its cores; a machine that only builds
+# sets PATCHY_BUILD_JOBS in ~/.patchy-build-env (docs/building.md).
+if [ -f "$HOME/.patchy-build-env" ]; then . "$HOME/.patchy-build-env"; fi
+JOBS=${PATCHY_FLATPAK_JOBS:-${PATCHY_BUILD_JOBS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))}}
 [ "$JOBS" -ge 1 ] || JOBS=1
 # Delete ALL previous bundles up front (not just this version's): if the build fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.

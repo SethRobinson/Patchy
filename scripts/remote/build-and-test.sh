@@ -90,8 +90,11 @@ if [ ! -f /.flatpak-info ] && [ -d "$HOME/.patchy-tools/sysroot/usr" ]; then
 fi
 
 cd "$HOME/patchy/src"
-# Every core but four (at least one), so the remote machine stays usable.
-JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
+# Every core but four (at least one), so the remote machine stays usable. A machine that
+# only builds sets PATCHY_BUILD_JOBS in ~/.patchy-build-env (docs/building.md); the file is
+# read here because a command run over ssh loads no login profile.
+if [ -f "$HOME/.patchy-build-env" ]; then . "$HOME/.patchy-build-env"; fi
+JOBS=${PATCHY_BUILD_JOBS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))}
 [ "$JOBS" -ge 1 ] || JOBS=1
 
 if [ "$WARNCHECK" = "1" ]; then
