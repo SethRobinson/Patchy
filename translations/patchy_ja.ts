@@ -15897,6 +15897,158 @@ Do you want to replace it?</source>
         <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
         <translation>このドキュメントに保持されているテキストエンジンのデータでは、新しいパス上テキストを保存できません。</translation>
     </message>
+    <message>
+        <source>The contour file is too large</source>
+        <translation>輪郭ファイルが大きすぎます</translation>
+    </message>
+    <message>
+        <source>Not a Photoshop contour file</source>
+        <translation>Photoshop の輪郭ファイルではありません</translation>
+    </message>
+    <message>
+        <source>Unsupported contour file version</source>
+        <translation>サポートされていない輪郭ファイルのバージョンです</translation>
+    </message>
+    <message>
+        <source>Skipped a contour with fewer than two points</source>
+        <translation>ポイントが2つ未満の輪郭をスキップしました</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded contour</source>
+        <translation>最後に読み込めた輪郭より後ろでファイルが破損しています</translation>
+    </message>
+    <message>
+        <source>The file holds no usable contours</source>
+        <translation>このファイルには使える輪郭がありません</translation>
+    </message>
+    <message>
+        <source>Contour graph</source>
+        <translation>輪郭グラフ</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>クリックしてポイントを追加します。ポイントをドラッグすると移動し、グラフの外へドラッグすると削除します。</translation>
+    </message>
+    <message>
+        <source>Edit Contour</source>
+        <translation>輪郭を編集</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s input level, left to right on the graph</source>
+        <translation>選択したポイントの入力レベル (グラフの左から右)</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s output level, bottom to top on the graph</source>
+        <translation>選択したポイントの出力レベル (グラフの下から上)</translation>
+    </message>
+    <message>
+        <source>Corner</source>
+        <translation>コーナー</translation>
+    </message>
+    <message>
+        <source>The curve turns sharply at this point instead of bending through it</source>
+        <translation>カーブはこのポイントを滑らかに通らず、鋭く折れ曲がります</translation>
+    </message>
+    <message>
+        <source>Delete Point</source>
+        <translation>ポイントを削除</translation>
+    </message>
+    <message>
+        <source>Put the curve back the way it was when this dialog opened</source>
+        <translation>このダイアログを開いたときのカーブに戻します</translation>
+    </message>
+    <message>
+        <source>Click the graph to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>グラフをクリックしてポイントを追加します。ポイントをドラッグすると移動し、グラフの外へドラッグすると削除します。</translation>
+    </message>
+    <message>
+        <source>Save Contours</source>
+        <translation>輪郭を保存</translation>
+    </message>
+    <message>
+        <source>Contours to save in the file:</source>
+        <translation>ファイルに保存する輪郭:</translation>
+    </message>
+    <message>
+        <source>The current style on a sample</source>
+        <translation>現在のスタイルを適用したサンプル</translation>
+    </message>
+    <message>
+        <source>Style preview</source>
+        <translation>スタイルのプレビュー</translation>
+    </message>
+    <message>
+        <source>Click the curve to edit this contour</source>
+        <translation>カーブをクリックするとこの輪郭を編集できます</translation>
+    </message>
+    <message>
+        <source>Edit…</source>
+        <translation>編集…</translation>
+    </message>
+    <message>
+        <source>Edit this contour&apos;s curve</source>
+        <translation>この輪郭のカーブを編集します</translation>
+    </message>
+    <message>
+        <source>Library</source>
+        <translation>ライブラリ</translation>
+    </message>
+    <message>
+        <source>Save this contour under a name, or load and save contour files</source>
+        <translation>この輪郭に名前を付けて保存するか、輪郭ファイルを読み込み・保存します</translation>
+    </message>
+    <message>
+        <source>New Contour…</source>
+        <translation>新規輪郭…</translation>
+    </message>
+    <message>
+        <source>Rename Contour…</source>
+        <translation>輪郭の名前を変更…</translation>
+    </message>
+    <message>
+        <source>Delete Contour</source>
+        <translation>輪郭を削除</translation>
+    </message>
+    <message>
+        <source>Load Contours…</source>
+        <translation>輪郭を読み込み…</translation>
+    </message>
+    <message>
+        <source>Save Contours…</source>
+        <translation>輪郭を保存…</translation>
+    </message>
+    <message>
+        <source>New Contour</source>
+        <translation>新規輪郭</translation>
+    </message>
+    <message>
+        <source>Contour %1</source>
+        <translation>輪郭 %1</translation>
+    </message>
+    <message>
+        <source>Could not save the contour.</source>
+        <translation>輪郭を保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>Rename Contour</source>
+        <translation>輪郭の名前を変更</translation>
+    </message>
+    <message>
+        <source>Could not rename the contour.</source>
+        <translation>輪郭の名前を変更できませんでした。</translation>
+    </message>
+    <message>
+        <source>Load Contours</source>
+        <translation>輪郭を読み込み</translation>
+    </message>
+    <message>
+        <source>Photoshop Contours (*.shc)</source>
+        <translation>Photoshop 輪郭 (*.shc)</translation>
+    </message>
+    <message>
+        <source>Contours.shc</source>
+        <translation>輪郭.shc</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21948,6 +22100,33 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is starting...</source>
         <translation>%1 は起動中です...</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ContourLibrary</name>
+    <message>
+        <source>Contour %1</source>
+        <translation>輪郭 %1</translation>
+    </message>
+    <message>
+        <source>Could not read the contour file.</source>
+        <translation>輪郭ファイルを読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>The contour file is too large.</source>
+        <translation>輪郭ファイルが大きすぎます。</translation>
+    </message>
+    <message>
+        <source>Could not save the contour &quot;%1&quot;.</source>
+        <translation>輪郭「%1」を保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>Choose at least one contour to save.</source>
+        <translation>保存する輪郭を1つ以上選択してください。</translation>
+    </message>
+    <message>
+        <source>Could not write the contour file.</source>
+        <translation>輪郭ファイルを書き込めませんでした。</translation>
     </message>
 </context>
 <context>

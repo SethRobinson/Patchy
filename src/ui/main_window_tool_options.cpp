@@ -53,6 +53,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "ui/contour_library.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/pattern_manager_dialog.hpp"
@@ -813,6 +814,15 @@ GradientLibrary& MainWindow::gradient_library() {
     }
   }
   return *gradient_library_;
+}
+
+ContourLibrary& MainWindow::contour_library() {
+  // Built when the Layer Style dialog first opens, never at startup: the folder
+  // is empty until the user saves a contour.
+  if (contour_library_ == nullptr) {
+    contour_library_ = new ContourLibrary({}, this);
+  }
+  return *contour_library_;
 }
 
 StyleLibrary& MainWindow::style_library() {

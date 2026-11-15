@@ -16009,6 +16009,158 @@ Do you want to replace it?</source>
         <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
         <translation>Сохранённый текстовый движок этого документа не поддерживает сохранение нового текста по контуру.</translation>
     </message>
+    <message>
+        <source>The contour file is too large</source>
+        <translation>Файл контуров слишком большой</translation>
+    </message>
+    <message>
+        <source>Not a Photoshop contour file</source>
+        <translation>Это не файл контуров Photoshop</translation>
+    </message>
+    <message>
+        <source>Unsupported contour file version</source>
+        <translation>Неподдерживаемая версия файла контуров</translation>
+    </message>
+    <message>
+        <source>Skipped a contour with fewer than two points</source>
+        <translation>Пропущен контур, в котором меньше двух точек</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded contour</source>
+        <translation>Файл повреждён после последнего прочитанного контура</translation>
+    </message>
+    <message>
+        <source>The file holds no usable contours</source>
+        <translation>В файле нет пригодных контуров</translation>
+    </message>
+    <message>
+        <source>Contour graph</source>
+        <translation>График контура</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>Нажмите, чтобы добавить точку. Перетащите точку, чтобы переместить её, или за пределы графика, чтобы удалить.</translation>
+    </message>
+    <message>
+        <source>Edit Contour</source>
+        <translation>Изменить контур</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s input level, left to right on the graph</source>
+        <translation>Входной уровень выбранной точки, слева направо на графике</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s output level, bottom to top on the graph</source>
+        <translation>Выходной уровень выбранной точки, снизу вверх на графике</translation>
+    </message>
+    <message>
+        <source>Corner</source>
+        <translation>Угол</translation>
+    </message>
+    <message>
+        <source>The curve turns sharply at this point instead of bending through it</source>
+        <translation>Кривая резко поворачивает в этой точке, а не проходит через неё плавно</translation>
+    </message>
+    <message>
+        <source>Delete Point</source>
+        <translation>Удалить точку</translation>
+    </message>
+    <message>
+        <source>Put the curve back the way it was when this dialog opened</source>
+        <translation>Возвращает кривую к виду, который она имела при открытии этого диалога</translation>
+    </message>
+    <message>
+        <source>Click the graph to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>Нажмите на график, чтобы добавить точку. Перетащите точку, чтобы переместить её, или за пределы графика, чтобы удалить.</translation>
+    </message>
+    <message>
+        <source>Save Contours</source>
+        <translation>Сохранить контуры</translation>
+    </message>
+    <message>
+        <source>Contours to save in the file:</source>
+        <translation>Контуры для сохранения в файл:</translation>
+    </message>
+    <message>
+        <source>The current style on a sample</source>
+        <translation>Текущий стиль на образце</translation>
+    </message>
+    <message>
+        <source>Style preview</source>
+        <translation>Предпросмотр стиля</translation>
+    </message>
+    <message>
+        <source>Click the curve to edit this contour</source>
+        <translation>Нажмите на кривую, чтобы изменить этот контур</translation>
+    </message>
+    <message>
+        <source>Edit…</source>
+        <translation>Изменить…</translation>
+    </message>
+    <message>
+        <source>Edit this contour&apos;s curve</source>
+        <translation>Изменить кривую этого контура</translation>
+    </message>
+    <message>
+        <source>Library</source>
+        <translation>Библиотека</translation>
+    </message>
+    <message>
+        <source>Save this contour under a name, or load and save contour files</source>
+        <translation>Сохранить этот контур под именем либо загрузить и сохранить файлы контуров</translation>
+    </message>
+    <message>
+        <source>New Contour…</source>
+        <translation>Новый контур…</translation>
+    </message>
+    <message>
+        <source>Rename Contour…</source>
+        <translation>Переименовать контур…</translation>
+    </message>
+    <message>
+        <source>Delete Contour</source>
+        <translation>Удалить контур</translation>
+    </message>
+    <message>
+        <source>Load Contours…</source>
+        <translation>Загрузить контуры…</translation>
+    </message>
+    <message>
+        <source>Save Contours…</source>
+        <translation>Сохранить контуры…</translation>
+    </message>
+    <message>
+        <source>New Contour</source>
+        <translation>Новый контур</translation>
+    </message>
+    <message>
+        <source>Contour %1</source>
+        <translation>Контур %1</translation>
+    </message>
+    <message>
+        <source>Could not save the contour.</source>
+        <translation>Не удалось сохранить контур.</translation>
+    </message>
+    <message>
+        <source>Rename Contour</source>
+        <translation>Переименовать контур</translation>
+    </message>
+    <message>
+        <source>Could not rename the contour.</source>
+        <translation>Не удалось переименовать контур.</translation>
+    </message>
+    <message>
+        <source>Load Contours</source>
+        <translation>Загрузить контуры</translation>
+    </message>
+    <message>
+        <source>Photoshop Contours (*.shc)</source>
+        <translation>Контуры Photoshop (*.shc)</translation>
+    </message>
+    <message>
+        <source>Contours.shc</source>
+        <translation>Контуры.shc</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22072,6 +22224,33 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is starting...</source>
         <translation>%1 запускается...</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ContourLibrary</name>
+    <message>
+        <source>Contour %1</source>
+        <translation>Контур %1</translation>
+    </message>
+    <message>
+        <source>Could not read the contour file.</source>
+        <translation>Не удалось прочитать файл контуров.</translation>
+    </message>
+    <message>
+        <source>The contour file is too large.</source>
+        <translation>Файл контуров слишком большой.</translation>
+    </message>
+    <message>
+        <source>Could not save the contour &quot;%1&quot;.</source>
+        <translation>Не удалось сохранить контур «%1».</translation>
+    </message>
+    <message>
+        <source>Choose at least one contour to save.</source>
+        <translation>Выберите хотя бы один контур для сохранения.</translation>
+    </message>
+    <message>
+        <source>Could not write the contour file.</source>
+        <translation>Не удалось записать файл контуров.</translation>
     </message>
 </context>
 <context>

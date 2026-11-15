@@ -164,6 +164,7 @@ int main(int argc, char** argv) {
            layer_alignment_tests,
            brush_engine_tests,
            pat_asl_abr_tests,
+           contour_tests,
            pixel_tools_tests,
            palette_tests,
            document_ops_filters_tests,

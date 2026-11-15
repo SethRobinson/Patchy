@@ -468,6 +468,7 @@ int main(int argc, char* argv[]) {
            artboard_ui_tests,
            image_adjustments_curves_tests,
            adjustment_presets_tests,
+           contour_editor_tests,
            selection_engines_tests,
            ai_selection_ui_tests,
            misc_visuals_outline_stress_tests,
