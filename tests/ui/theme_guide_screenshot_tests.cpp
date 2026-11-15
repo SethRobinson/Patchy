@@ -514,7 +514,7 @@ void ui_theme_guide_shot_backdrop() {
   close_untitled_start_tab(window);
   process_events_for(100);
   std::vector<std::pair<QString, QImage>> parts;
-  for (const auto mode : {QStringLiteral("tile"), QStringLiteral("stretch"), QStringLiteral("center")}) {
+  for (const auto& mode : {QStringLiteral("tile"), QStringLiteral("stretch"), QStringLiteral("center")}) {
     const QString id = QStringLiteral("Backdrop ") + mode;
     QJsonObject backdrop;
     backdrop.insert(QStringLiteral("image"), QStringLiteral("images/backdrop.png"));
@@ -553,7 +553,7 @@ void ui_theme_guide_shot_effects() {
     return;
   }
   std::vector<std::pair<QString, QImage>> parts;
-  for (const auto name : {QStringLiteral("fireworks"), QStringLiteral("sparkles"), QStringLiteral("confetti")}) {
+  for (const auto& name : {QStringLiteral("fireworks"), QStringLiteral("sparkles"), QStringLiteral("confetti")}) {
     overlay->clear();
     CHECK(overlay->play(QVariantMap{{QStringLiteral("name"), name}}, nullptr));
     overlay->advance_for_testing(name == QStringLiteral("confetti") ? 900 : 550);
