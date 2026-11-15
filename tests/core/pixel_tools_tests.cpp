@@ -1762,7 +1762,7 @@ struct GradientPaintRun {
   int ticks_off_the_calling_thread{0};
   // The documents copied in the first progress ticks (`snapshot_in_ticks`): each shares the
   // layer's bytes until the paint writes again.
-  std::vector<patchy::Document> snapshots;
+  std::vector<patchy::Document> snapshots{};
 };
 
 GradientPaintRun paint_gradient_case(const GradientPaintCase& test_case, std::int32_t width, std::int32_t height,
