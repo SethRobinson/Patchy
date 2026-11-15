@@ -580,6 +580,10 @@ public:
   // more and keeps that frame on screen until the recomposite of the committed document
   // lands, instead of the frame from before the edit.
   void hold_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds);
+  // Whether the Gradient tool's drag in progress is shown through the composite (its
+  // layer's effects, opacity and blend mode, the layers above) instead of the painted
+  // overlay (GitHub #714 follow-up, docs/gradients-fill-handles.md "Drag preview").
+  [[nodiscard]] bool gradient_drag_view_preview_shown() const noexcept;
   void clear_gradient_fill_view_preview();
   [[nodiscard]] bool gradient_fill_view_preview_shown() const noexcept;
   // A commit the host bakes in the background (GitHub #714 follow-up,
@@ -3413,6 +3417,23 @@ private:
   [[nodiscard]] bool gradient_fill_view_preview_drawn();
   // A document change the preview did not make itself ends it.
   void note_document_changed_for_gradient_view_preview() noexcept;
+  // What the view preview's raster is: an edited fill (a handle drag: 1 Mpx and up), a fill
+  // being redrawn by a Fill Layer mode drag (any size), or the Pixels mode gradient painted
+  // over the active pixel layer.
+  enum class GradientViewPreviewKind { FillEdit, FillDrag, PixelsDrag };
+  bool show_gradient_view_preview(LayerId layer_id, const LayerStyleGradient& gradient, Rect gradient_bounds,
+                                  GradientViewPreviewKind kind);
+  // Turns the preview raster (the gradient alone) into the layer as Pixels mode leaves it.
+  void paint_gradient_view_preview_over_layer(const Layer& scaled_layer, QRect raster_rect, std::int32_t step);
+  // The Gradient tool's drag from `from` to `to` as a view preview; false when the layer or
+  // the view cannot take it (the painted overlay shows the drag then).
+  bool show_gradient_drag_view_preview(QPoint from, QPoint to);
+  // Once per paint: renders the drag's preview for the newest pointer position, and drops it
+  // when the drag has ended without a commit.
+  void refresh_gradient_drag_view_preview();
+  // The Pixels mode release, around the paint into the layer: the preview for the final
+  // points, then held until the composite with the painted layer is on screen.
+  void hold_gradient_drag_view_preview();
   // Puts the pending commit's picture back after a drag that started on top of it ended
   // without a commit of its own; asks the host to finish when the view cannot show it.
   void restore_gradient_fill_pending_preview();
@@ -4634,6 +4655,11 @@ private:
     Rect gradient_bounds;
     QTransform view;
     QSize view_size;
+    // A Gradient tool drag in progress (not a handle edit): its two document points. The
+    // handles do not follow it.
+    bool drag{false};
+    QPoint drag_from;
+    QPoint drag_to;
   };
   std::optional<GradientFillViewPreview> gradient_view_preview_;
   // The commit the host is baking in the background: an existing fill's new gradient, or a
@@ -4653,7 +4679,13 @@ private:
   struct GradientFillViewPreviewSource {
     LayerId layer_id{0};
     int level{0};
+    // Whether the layer's own raster was left out (a fill: every preview supplies it) or
+    // kept (Pixels mode paints over it).
+    bool keeps_layer_pixels{false};
     Document document;
+    // The selection's coverage over `selection_rect` (source pixels), for Pixels mode.
+    std::vector<std::uint8_t> selection_alpha;
+    QRect selection_rect;
   };
   std::optional<GradientFillViewPreviewSource> gradient_view_preview_source_;
   // The preview of a Fill Layer mode drag kept after its release: the drag's two document

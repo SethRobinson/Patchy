@@ -4,6 +4,7 @@
 // while a drag away from them still draws a new gradient.
 #include "core/blend_math.hpp"
 #include "core/gradient_presets.hpp"
+#include "core/pattern_presets.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
@@ -43,11 +44,13 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <functional>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -1648,7 +1651,8 @@ void ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows() {
   CHECK(std::as_const(document).active_layer_id() == fill_id);
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
   CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Edit Gradient Fill"));
-  CHECK(canvas->gradient_fill_drag_hold_shown());
+  // A redrawn fill's drag shows through the composite, and that picture is the one held.
+  CHECK(canvas->gradient_fill_drag_hold_shown() || canvas->gradient_fill_view_preview_shown());
   CHECK(!canvas->render_settled());
   frames = frames_until_settled(*canvas, sample, start_color, end_color,
                                 "ui_gradient_fill_drag_release_redrawn_fill_first_frame");
@@ -1746,7 +1750,7 @@ void ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show() {
   // Esc while the redrawn fill is still on its way drops the preview; the edit stays.
   drag_and_release(*canvas, upper_right, upper_left);
   CHECK(depth() == locked_depth + 1);
-  CHECK(canvas->gradient_fill_drag_hold_shown());
+  CHECK(canvas->gradient_fill_drag_hold_shown() || canvas->gradient_fill_view_preview_shown());
   send_key(*canvas, Qt::Key_Escape);
   CHECK(!canvas->gradient_fill_drag_hold_shown());
   CHECK(depth() == locked_depth + 1);
@@ -1757,7 +1761,7 @@ void ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show() {
   // So does the next press: a new gesture never draws under an old preview.
   drag_and_release(*canvas, left, right);
   CHECK(depth() == locked_depth + 2);
-  CHECK(canvas->gradient_fill_drag_hold_shown());
+  CHECK(canvas->gradient_fill_drag_hold_shown() || canvas->gradient_fill_view_preview_shown());
   send_mouse(*canvas, QEvent::MouseButtonPress, upper_left, Qt::LeftButton, Qt::LeftButton);
   CHECK(!canvas->gradient_fill_drag_hold_shown());
   release_at(*canvas, upper_left);  // a click without a drag makes nothing
@@ -2362,6 +2366,278 @@ void ui_gradient_drag_starts_on_the_pasteboard() {
   CHECK(std::as_const(document).layers().size() == layer_count + 1);
 }
 
+// GitHub #714 follow-up: the Gradient tool's drag was previewed as the bare gradient painted
+// over the canvas, so on a layer with a Color Overlay the drag showed the gradient and the
+// release showed the overlay's flat color (the pixels were right; the preview left the
+// layer's effects out). The drag now shows through the composite: the layer's effects,
+// opacity and blend mode, and the layers above. Pinned by the frame during the drag
+// matching the frame after the release, on a layer with an opaque Color Overlay, with a
+// Drop Shadow only, at half opacity, and on a Gradient Fill layer with a Color Overlay
+// redrawn in Fill Layer mode.
+void ui_gradient_drag_preview_shows_what_the_release_gives() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 400;
+  constexpr int kHeight = 300;
+  MainWindowTestAccess::create_document(window, kWidth, kHeight);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(mode != nullptr && style != nullptr);
+  if (mode == nullptr || style == nullptr) {
+    return;
+  }
+  mode->setCurrentIndex(0);  // Pixels
+  style->setCurrentIndex(style->findData(static_cast<int>(patchy::GradientMethod::Linear)));
+  QApplication::processEvents();
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(100);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 255}}});
+  auto& document = MainWindowTestAccess::document(window);
+  // An opaque white pixel layer on top, active.
+  const auto add_layer = [&](const char* name) {
+    patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    pixels.clear(255);
+    patchy::Layer layer(document.allocate_layer_id(), name, std::move(pixels));
+    layer.set_bounds(patchy::Rect::from_size(kWidth, kHeight));
+    const auto id = std::as_const(layer).id();
+    document.add_layer(std::move(layer));
+    MainWindowTestAccess::select_layers(window, {id}, id);
+    canvas->document_changed();
+    QApplication::processEvents();
+    return id;
+  };
+  const patchy::RgbColor overlay_color{30, 170, 60};
+  const QColor overlay_shown(30, 170, 60);
+  const auto add_overlay = [&](patchy::LayerId id) {
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    overlay.color = overlay_color;
+    document.find_layer(id)->layer_style().color_overlays.push_back(overlay);
+    canvas->document_changed();
+    QApplication::processEvents();
+  };
+  // A level drag across the middle; the samples sit below it, clear of the end dots.
+  const auto from = widget_at(*canvas, QPointF(40.0, 150.0));
+  const auto to = widget_at(*canvas, QPointF(360.0, 150.0));
+  const std::array<double, 3> sample_x{70.0, 200.0, 330.0};
+  const auto ramp = [&](double x) {
+    const auto t = std::clamp((x - 40.0) / 320.0, 0.0, 1.0);
+    const auto mix = [t](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * t)); };
+    return QColor(mix(start_color.red(), end_color.red()), mix(start_color.green(), end_color.green()),
+                  mix(start_color.blue(), end_color.blue()));
+  };
+  const auto samples = [&](const QImage& frame) {
+    std::array<QColor, 3> colors;
+    for (std::size_t index = 0; index < sample_x.size(); ++index) {
+      colors[index] = frame.pixelColor(widget_at(*canvas, QPointF(sample_x[index], 250.0)));
+    }
+    return colors;
+  };
+  // Drags from `press` to `release`: the colors at the samples during the drag and once the
+  // release is on screen. `composite` is whether the drag showed through the composite.
+  struct DragFrames {
+    std::array<QColor, 3> preview;
+    std::array<QColor, 3> committed;
+    bool composite{false};
+  };
+  const auto drag_frames = [&](QPoint press, QPoint release, const char* artifact) {
+    DragFrames frames;
+    press_and_move(*canvas, press, release);
+    const auto preview = render_widget_image(*canvas);
+    frames.composite = canvas->gradient_drag_view_preview_shown();
+    frames.preview = samples(preview);
+    if (artifact != nullptr) {
+      save_image_artifact(std::string(artifact) + "_drag", preview);
+    }
+    release_at(*canvas, release);
+    wait_until_settled(*canvas);
+    QApplication::processEvents();
+    const auto committed = render_widget_image(*canvas);
+    frames.committed = samples(committed);
+    if (artifact != nullptr) {
+      save_image_artifact(std::string(artifact) + "_released", committed);
+    }
+    return frames;
+  };
+  const auto check_same = [&](const DragFrames& frames) {
+    for (std::size_t index = 0; index < sample_x.size(); ++index) {
+      CHECK(color_near(frames.preview[index], frames.committed[index], 6));
+    }
+  };
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+
+  // An opaque Color Overlay covers whatever the layer holds: the drag shows the overlay's
+  // color, as the release does, not the gradient. The frame of the painted overlay alone
+  // (the preview before this fix) is saved for comparison.
+  const auto overlay_layer = add_layer("Overlay");
+  add_overlay(overlay_layer);
+  canvas->set_gradient_fill_view_preview_enabled_for_testing(false);
+  press_and_move(*canvas, from, to);
+  const auto painted_overlay = render_widget_image(*canvas);
+  save_image_artifact("ui_gradient_drag_preview_color_overlay_before", painted_overlay);
+  CHECK(!canvas->gradient_drag_view_preview_shown());
+  CHECK(color_near(samples(painted_overlay)[0], ramp(sample_x[0]), 8));  // the bare gradient
+  release_at(*canvas, to);
+  wait_until_settled(*canvas);
+  MainWindowTestAccess::undo(window);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  canvas->set_gradient_fill_view_preview_enabled_for_testing(true);
+  auto base_depth = depth();
+  auto frames = drag_frames(from, to, "ui_gradient_drag_preview_color_overlay");
+  CHECK(frames.composite);
+  check_same(frames);
+  for (std::size_t index = 0; index < sample_x.size(); ++index) {
+    CHECK(color_near(frames.preview[index], overlay_shown, 6));
+  }
+  CHECK(depth() == base_depth + 1);
+  CHECK(!canvas->gradient_fill_view_preview_shown());
+
+  // A Drop Shadow alone changes nothing inside the layer: the drag shows the gradient.
+  const auto shadow_layer = add_layer("Shadow");
+  {
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    document.find_layer(shadow_layer)->layer_style().drop_shadows.push_back(shadow);
+    canvas->document_changed();
+    QApplication::processEvents();
+  }
+  frames = drag_frames(from, to, nullptr);
+  CHECK(frames.composite);
+  check_same(frames);
+  for (std::size_t index = 0; index < sample_x.size(); ++index) {
+    CHECK(color_near(frames.preview[index], ramp(sample_x[index]), 8));
+  }
+
+  // Half opacity: the drag shows the gradient mixed with what is under the layer. The
+  // drag runs the other way, so the layer under it (the ramp just painted) differs.
+  const auto faint_layer = add_layer("Faint");
+  document.find_layer(faint_layer)->set_opacity(0.5F);
+  canvas->document_changed();
+  QApplication::processEvents();
+  frames = drag_frames(to, from, nullptr);
+  CHECK(frames.composite);
+  check_same(frames);
+  CHECK(!color_near(frames.preview[0], ramp(sample_x[2]), 20));  // not the bare gradient
+
+  // Fill Layer mode: a Gradient Fill layer with a Color Overlay, drawn again from a press
+  // away from its handles. The drag shows the overlay too.
+  mode->setCurrentIndex(1);
+  QApplication::processEvents();
+  drag_and_release(*canvas, from, to);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  const auto fill_id = std::as_const(document).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value()) {
+    return;
+  }
+  add_overlay(*fill_id);
+  const auto upper_from = widget_at(*canvas, QPointF(340.0, 60.0));
+  const auto upper_to = widget_at(*canvas, QPointF(60.0, 60.0));
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(upper_from)).kind == Kind::None);
+  const FillProbe fill{window, *fill_id};
+  const auto drawn = fill.gradient();
+  frames = drag_frames(upper_from, upper_to, "ui_gradient_drag_preview_fill_color_overlay");
+  CHECK(frames.composite);
+  check_same(frames);
+  for (std::size_t index = 0; index < sample_x.size(); ++index) {
+    CHECK(color_near(frames.preview[index], overlay_shown, 6));
+  }
+  CHECK(fill.gradient() != drawn);
+}
+
+// GitHub #714 follow-up: Layer > New Fill Layer > Gradient... (and the Layers panel's button
+// menu) ran the modal dialog, whose edit lock refused the new gradient's handles on the
+// canvas ("Finish the open dialog before editing the document"). The command now makes the
+// layer at once, as one undo step, switches to the Gradient tool and opens the stay-open
+// Fill Layer Settings window, the one that edits an existing fill layer: the handles work
+// while it is open, each change is an undo step of its own, and Undo takes the layer away.
+// Pattern... opens the same window and keeps the tool.
+void ui_new_gradient_fill_layer_opens_the_stay_open_settings() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  MainWindowTestAccess::create_document(window, 400, 300);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == CanvasTool::Move);
+  auto& document = MainWindowTestAccess::document(window);
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  const auto layers = [&] { return std::as_const(document).layers().size(); };
+  const auto base_depth = depth();
+  const auto base_layers = layers();
+  const auto settings_window = [&] { return window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow")); };
+
+  require_action(window, "layerNewGradientFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layers() == base_layers + 1);
+  CHECK(depth() == base_depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("New fill layer"));
+  CHECK(canvas->tool() == CanvasTool::Gradient);
+  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+  auto* panel = settings_window();
+  CHECK(panel != nullptr && panel->isVisible());
+  if (panel == nullptr) {
+    return;
+  }
+  CHECK(panel->windowTitle() == QStringLiteral("Fill Layer Settings"));
+  const auto fill_id = std::as_const(document).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value() || !canvas->gradient_fill_handles().has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *fill_id};
+  const auto created = fill.gradient();
+
+  // A handle drag while the window is open changes the layer: its own undo step.
+  const auto end = part_position(*canvas, Kind::End);
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(end), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, rounded(end + QPointF(60.0, 30.0)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(end + QPointF(60.0, 30.0)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(fill.gradient() != created);
+  CHECK(depth() == base_depth + 2);
+  CHECK(fill.label() == QStringLiteral("Move Gradient End Point"));
+  CHECK(panel->isVisible());
+
+  // Undo steps back through the drag and then the layer.
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(fill.gradient() == created);
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(layers() == base_layers);
+  CHECK(depth() == base_depth);
+
+  // Pattern...: the same window, and the tool stays.
+  document.metadata().patterns.adopt(patchy::builtin_pattern_resource(patchy::builtin_pattern_presets().front().id));
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "layerNewPatternFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layers() == base_layers + 1);
+  CHECK(depth() == base_depth + 1);
+  CHECK(canvas->tool() == CanvasTool::Move);
+  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+  panel = settings_window();
+  CHECK(panel != nullptr && panel->isVisible());
+  if (panel != nullptr) {
+    CHECK(panel->windowTitle() == QStringLiteral("Fill Layer Settings"));
+    panel->close();
+  }
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
       {"ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows",
@@ -2379,6 +2655,8 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
       {"ui_gradient_fill_handles_show_a_presets_own_stops", ui_gradient_fill_handles_show_a_presets_own_stops},
       {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
       {"ui_gradient_release_timing", ui_gradient_release_timing},
+      {"ui_gradient_drag_preview_shows_what_the_release_gives", ui_gradient_drag_preview_shows_what_the_release_gives},
+      {"ui_new_gradient_fill_layer_opens_the_stay_open_settings", ui_new_gradient_fill_layer_opens_the_stay_open_settings},
       {"ui_gradient_fill_release_bakes_in_the_background", ui_gradient_fill_release_bakes_in_the_background},
       {"ui_gradient_fill_redraw_bakes_in_the_background", ui_gradient_fill_redraw_bakes_in_the_background},
       {"ui_gradient_drag_starts_on_the_pasteboard", ui_gradient_drag_starts_on_the_pasteboard},

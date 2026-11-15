@@ -804,7 +804,10 @@ void CanvasWidget::draw_gradient_drag_preview(QPainter& painter, QPoint a, QPoin
   if (has_selection() && selected_document_rect().has_value()) {
     document_rect = document_rect.intersected(*selected_document_rect());
   }
-  if (!document_rect.isEmpty()) {
+  // A drag shown through the composite (its layer's effects, opacity and blend mode, the
+  // layers above: GitHub #714 follow-up) needs no painted gradient over it; only the dots.
+  const bool composite_shown = end_points && drawing_shape_ && gradient_drag_view_preview_shown();
+  if (!document_rect.isEmpty() && !composite_shown) {
     const auto fill_rect = widget_rect_for_document_rect(QRectF(document_rect));
     painter.save();
     painter.setClipRect(fill_rect);
