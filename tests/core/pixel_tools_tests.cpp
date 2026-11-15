@@ -1756,7 +1756,7 @@ struct GradientPaintCase {
 struct GradientPaintRun {
   patchy::Document document;
   patchy::LayerId layer_id{};
-  patchy::Rect dirty;
+  patchy::Rect dirty{};
   double ms{0.0};
   int ticks{0};
   int ticks_off_the_calling_thread{0};
