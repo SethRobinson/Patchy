@@ -67,6 +67,8 @@ constexpr int kSwatchHeight = 40;
 // Small enough that the list and the details fit the dialog's minimum width (issue 451).
 constexpr int kPreviewWidth = 240;
 constexpr int kPreviewHeight = 144;
+// "Problems found" lists this many lines and counts the rest.
+constexpr int kMaxProblemLines = 12;
 
 const QString kCustomPrefix = QStringLiteral("custom:");
 
@@ -261,6 +263,9 @@ class ThemesPage final {
   void add_theme_row(const QString& token, const QString& name, const QString& subtitle, const QPixmap& swatch,
                      const QString& tooltip, bool enabled);
   void add_custom_theme_row(const QString& id, const ThemeLoadResult& result);
+  [[nodiscard]] QString row_subtitle(const QString& id, const CustomTheme& custom) const;
+  // The folder watcher reread the package `id` (ThemeManager::active_package_reloaded).
+  void package_reloaded(const QString& id, const ThemeLoadResult& result);
   // The list holds package summaries (theme.json and backdrop); this loads the package
   // `id` in full before it is shown in detail or applied. A full load that fails turns
   // its row into a "Could not be loaded" one and returns null.
@@ -285,6 +290,9 @@ class ThemesPage final {
   std::optional<QString> entry_custom_id_;
   // Summaries until ensure_full_theme loads one in full.
   QHash<QString, CustomTheme> custom_themes_;
+  // What the last load of each theme left out (ThemeLoadResult::warnings), by id: a
+  // package's manifest warnings until its full load, then all of them.
+  QHash<QString, QStringList> problems_;
   // Run-scripts edits per theme id, stored on OK.
   QHash<QString, bool> script_choices_;
   // Themes whose "needs a newer Patchy" warning this dialog already showed.
@@ -297,6 +305,8 @@ class ThemesPage final {
   QLabel* name_ = nullptr;
   QLabel* meta_ = nullptr;
   QLabel* compatibility_ = nullptr;
+  QLabel* problems_heading_ = nullptr;
+  QLabel* problems_list_ = nullptr;
   QCheckBox* scripts_check_ = nullptr;
   QLabel* scripts_note_ = nullptr;
   QLabel* description_heading_ = nullptr;
@@ -360,6 +370,25 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   set_themed_style(*compatibility_, QStringLiteral("color: @console_warning_text;"));
   compatibility_->hide();
   details_layout->addWidget(compatibility_);
+  // What the theme's last load left out (a misspelled role, an icon under a name no
+  // built-in icon has), one line each; both hidden for a theme with none. The lines
+  // quote theme-supplied names, so plain text here too.
+  problems_heading_ = new QLabel(MainWindow::tr("Problems found:"), details);
+  problems_heading_->setObjectName(QStringLiteral("preferencesThemeProblemsHeading"));
+  problems_heading_->setTextFormat(Qt::PlainText);
+  problems_heading_->setWordWrap(true);
+  auto problems_font = problems_heading_->font();
+  problems_font.setBold(true);
+  problems_heading_->setFont(problems_font);
+  set_themed_style(*problems_heading_, QStringLiteral("color: @console_warning_text;"));
+  problems_heading_->hide();
+  details_layout->addWidget(problems_heading_);
+  problems_list_ = new QLabel(details);
+  problems_list_->setObjectName(QStringLiteral("preferencesThemeProblems"));
+  problems_list_->setTextFormat(Qt::PlainText);
+  problems_list_->setWordWrap(true);
+  problems_list_->hide();
+  details_layout->addWidget(problems_list_);
   // Per theme: the box shows the stored answer of the theme the list shows (a theme
   // downloaded from anywhere must never inherit another theme's yes). Edits wait in
   // script_choices_ and are stored on OK, before the theme commit restarts the host.
@@ -521,6 +550,9 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   // A trust prompt answered while a theme is previewed here.
   QObject::connect(&ThemeScriptHost::instance(), &ThemeScriptHost::trust_changed, &dialog_,
                    [this] { refresh_scripts_check(); });
+  // The authoring loop: a folder theme edited while this page shows it.
+  QObject::connect(&ThemeManager::instance(), &ThemeManager::active_package_reloaded, &dialog_,
+                   [this](const QString& id, const ThemeLoadResult& result) { package_reloaded(id, result); });
 }
 
 QString ThemesPage::current_token() const {
@@ -581,6 +613,14 @@ void ThemesPage::add_custom_theme_row(const QString& id, const ThemeLoadResult& 
   }
   const auto& custom = *result.theme;
   custom_themes_.insert(id, custom);
+  problems_.insert(id, result.warnings);
+  const auto backdrop = custom.assets != nullptr ? custom.assets->backdrop : QImage();
+  add_theme_row(kCustomPrefix + id, custom.name.isEmpty() ? id : custom.name, row_subtitle(id, custom),
+                theme_preview_pixmap(&custom.palette, backdrop, swatch_size, dpr),
+                is_bundled_theme_id(id) ? QString() : id, true);
+}
+
+QString ThemesPage::row_subtitle(const QString& id, const CustomTheme& custom) const {
   QStringList parts;
   if (!custom.info.version.isEmpty()) {
     parts << MainWindow::tr("Version %1").arg(custom.info.version);
@@ -596,16 +636,47 @@ void ThemesPage::add_custom_theme_row(const QString& id, const ThemeLoadResult& 
   if (theme_needs_newer_patchy(custom.info)) {
     parts << MainWindow::tr("Needs Patchy %1").arg(custom.info.min_patchy_version);
   }
-  const auto backdrop = custom.assets != nullptr ? custom.assets->backdrop : QImage();
-  add_theme_row(kCustomPrefix + id, custom.name.isEmpty() ? id : custom.name,
-                parts.join(QStringLiteral(" · ")), theme_preview_pixmap(&custom.palette, backdrop, swatch_size, dpr),
-                is_bundled_theme_id(id) ? QString() : id, true);
+  return parts.join(QStringLiteral(" · "));
+}
+
+// The watcher applied the reread package already (or kept the earlier one showing):
+// this page's copy, its row and the details follow, so the "Problems found" list is the
+// one for the files as they are now.
+void ThemesPage::package_reloaded(const QString& id, const ThemeLoadResult& result) {
+  const auto found = custom_themes_.find(id);
+  if (!populated_ || found == custom_themes_.end()) {
+    return;
+  }
+  if (result.theme) {
+    found.value() = *result.theme;
+    problems_.insert(id, result.warnings);
+    const auto& custom = found.value();
+    for (int row = 0; row < list_->count(); ++row) {
+      auto* item = list_->item(row);
+      if (item->data(Qt::UserRole).toString() == kCustomPrefix + id) {
+        item->setText(custom.name.isEmpty() ? id : custom.name);
+        item->setData(kSubtitleRole, row_subtitle(id, custom));
+        item->setData(kPreviewRole,
+                      theme_preview_pixmap(&custom.palette,
+                                           custom.assets != nullptr ? custom.assets->backdrop : QImage(),
+                                           QSize(kSwatchWidth, kSwatchHeight), list_->devicePixelRatioF()));
+      }
+    }
+  } else {
+    // A save that left the folder unloadable: the earlier version stays, and its author
+    // reads why here instead of wondering why nothing moved.
+    problems_.insert(id, {MainWindow::tr("The latest change was not loaded: %1").arg(result.error)});
+  }
+  if (current_custom_id() == id) {
+    refresh_details();
+  }
 }
 
 void ThemesPage::rebuild_list(const QString& token) {
   const QSignalBlocker blocker(list_);
   list_->clear();
   custom_themes_.clear();
+  problems_.clear();
   const auto dpr = list_->devicePixelRatioF();
   const auto swatch_size = QSize(kSwatchWidth, kSwatchHeight);
   add_header(MainWindow::tr("Dark and Light"));
@@ -646,9 +717,11 @@ const CustomTheme* ThemesPage::ensure_full_theme(const QString& id) {
   auto result = load_theme_by_id(id);
   if (result.theme) {
     found.value() = std::move(*result.theme);
+    problems_.insert(id, result.warnings);
     return &found.value();
   }
   custom_themes_.erase(found);
+  problems_.remove(id);
   for (int row = 0; row < list_->count(); ++row) {
     auto* item = list_->item(row);
     if (item->data(Qt::UserRole).toString() == kCustomPrefix + id) {
@@ -794,6 +867,20 @@ void ThemesPage::refresh_details() {
     compatibility_->hide();
   }
   meta_->setText(lines.join(QLatin1Char('\n')));
+  // "Problems found": what the load left out, one line each, the first few when a theme
+  // has many (a whole icon folder under the wrong names).
+  const auto problems = custom != nullptr ? problems_.value(current_custom_id()) : QStringList();
+  QStringList problem_lines;
+  for (const auto& problem : problems.mid(0, kMaxProblemLines)) {
+    problem_lines << QStringLiteral("\u2022 ") + problem;
+  }
+  if (problems.size() > kMaxProblemLines) {
+    problem_lines << MainWindow::tr("%n more problem(s) not shown.", nullptr,
+                                    static_cast<int>(problems.size()) - kMaxProblemLines);
+  }
+  problems_list_->setText(problem_lines.join(QLatin1Char('\n')));
+  problems_heading_->setVisible(!problems.isEmpty());
+  problems_list_->setVisible(!problems.isEmpty());
   const auto description = custom != nullptr ? custom->info.description : QString();
   description_->setText(description);
   description_heading_->setVisible(!description.isEmpty());

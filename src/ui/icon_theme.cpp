@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QPaintDevice>
 #include <QPixmap>
+#include <QRegularExpression>
 #include <QStyle>
 #include <QStyleOption>
 #include <QSvgRenderer>
@@ -62,7 +63,9 @@ IconFace load_icon_face(const QString& name) {
     const auto found = assets->icons.constFind(name);
     if (found != assets->icons.constEnd()) {
       if (!found->svg.isEmpty()) {
-        const auto svg = assets->options.recolor_icons ? recolor_icon_svg(found->svg) : found->svg;
+        // currentColor is resolved after the recolor, so the ink put in is never swapped again.
+        const auto svg = resolve_svg_current_color(
+            assets->options.recolor_icons ? recolor_icon_svg(found->svg) : found->svg, theme().icon_ink);
         face.svg = std::make_unique<QSvgRenderer>(svg);
         if (face.svg->isValid()) {
           return face;
@@ -282,6 +285,40 @@ QByteArray recolor_icon_svg(QByteArray svg) {
       svg.replace(needle, replacement);
     }
   }
+  return svg;
+}
+
+QByteArray resolve_svg_current_color(QByteArray svg, const QColor& color) {
+  static constexpr QByteArrayView keyword{"currentColor"};
+  // CSS keywords ignore case and QtSvg knows only this spelling: normalize the others.
+  bool found = false;
+  const auto lower = svg.toLower();
+  for (auto at = lower.indexOf("currentcolor"); at >= 0; at = lower.indexOf("currentcolor", at + keyword.size())) {
+    svg.replace(at, keyword.size(), keyword);
+    found = true;
+  }
+  if (!found) {
+    return svg;
+  }
+  // The root element's open tag: "<svg" followed by a space, "/" or ">".
+  qsizetype open = -1;
+  for (auto at = svg.indexOf("<svg"); at >= 0; at = svg.indexOf("<svg", at + 4)) {
+    const char next = at + 4 < svg.size() ? svg.at(at + 4) : '\0';
+    if (next == ' ' || next == '\t' || next == '\r' || next == '\n' || next == '>' || next == '/') {
+      open = at;
+      break;
+    }
+  }
+  const auto close = open < 0 ? qsizetype(-1) : svg.indexOf('>', open);
+  if (close < 0) {
+    return svg;
+  }
+  // A root that sets its own color (attribute or style) keeps it.
+  static const QRegularExpression own_color(QStringLiteral("(?:[\\s\"';]color\\s*[=:])"));
+  if (own_color.match(QString::fromLatin1(svg.mid(open, close - open))).hasMatch()) {
+    return svg;
+  }
+  svg.insert(open + 4, " color=\"" + color.name(QColor::HexRgb).toLatin1() + '"');
   return svg;
 }
 

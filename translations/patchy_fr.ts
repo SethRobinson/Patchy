@@ -36256,6 +36256,21 @@ Verrouillé : %1</translation>
         <source>Could not open the theme guide in your web browser.</source>
         <translation>Impossible d&apos;ouvrir le guide des thèmes dans le navigateur web.</translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation>Problèmes détectés :</translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation>La dernière modification n&apos;a pas été chargée : %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation>
+            <numerusform>%n autre problème non affiché.</numerusform>
+            <numerusform>%n autres problèmes non affichés.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

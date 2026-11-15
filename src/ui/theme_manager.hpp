@@ -107,6 +107,10 @@ class ThemeManager : public QObject {
  signals:
   // Emitted only when the resolved scheme actually moves.
   void color_scheme_changed(ColorScheme scheme);
+  // The folder watcher reread the active package `id`: `result` is that load, applied
+  // already when it holds a theme, and otherwise the error that kept the earlier
+  // version showing. Preferences refreshes its details and "Problems found" from it.
+  void active_package_reloaded(const QString& id, const patchy::ui::ThemeLoadResult& result);
 
  private:
   ThemeManager();

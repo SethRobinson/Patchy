@@ -31,6 +31,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QByteArray>
+#include <QColor>
 #include <QIcon>
 #include <QString>
 #include <QStringList>
@@ -46,6 +47,14 @@ namespace patchy::ui {
 // the recoloring themed_icon_svg applies (also used for a theme package's SVG
 // overrides when its "recolorIcons" is on).
 [[nodiscard]] QByteArray recolor_icon_svg(QByteArray svg);
+// Gives a theme package's SVG the color its "currentColor" stands for: icon sets such
+// as Tabler and Lucide write stroke="currentColor" for the page to fill in, and QtSvg
+// alone draws that black. The root <svg> gets color="<color>", so every currentColor
+// (attribute or style, stroke or fill) resolves to it; an SVG whose root sets its own
+// color keeps it, and one that never says currentColor comes back unchanged. Applied
+// whatever "recolorIcons" says. Built-in icons never use currentColor
+// (ui_icon_color_map_covers_every_authored_color).
+[[nodiscard]] QByteArray resolve_svg_current_color(QByteArray svg, const QColor& color);
 
 // Every SVG stem in the icon resources (light/ variants left out), sorted, and one
 // stem's bytes as authored.

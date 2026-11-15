@@ -77,7 +77,7 @@ Press **OK** to keep the theme.
 
 From here on you do not need Reload Themes for this theme. While a theme folder is the one showing, Patchy watches it: save `theme.json`, or add or change a file in the folder, and the window updates within a moment. Keep Patchy and your editor side by side and try a few colors.
 
-If the theme is greyed out in the list and says "Could not be loaded", `theme.json` has a mistake. Point at the row to read what Patchy found. [Troubleshooting](making-themes-advanced.md#troubleshooting) lists the usual causes.
+If the theme is greyed out in the list and says "Could not be loaded", `theme.json` has a mistake. Point at the row to read what Patchy found. A smaller mistake, such as a misspelled role, does not stop the theme: Patchy leaves that part out and names it under **Problems found**, beside the list. [Troubleshooting](making-themes-advanced.md#troubleshooting) lists the usual causes.
 
 ## Step 3: find the color you want to change
 
@@ -135,15 +135,18 @@ The names are what matter. You can edit a template file in a drawing program suc
 
 ### Icons from an icon set
 
-Icons from free sets such as Tabler Icons and Lucide work, with one change. Their files say `currentColor` where a color goes, so that a web page can choose it. Patchy has no color to hand them, and such an icon comes out black. Open the file in a text editor and replace `currentColor` with a color:
+Icons from free sets such as Tabler Icons and Lucide work as downloaded: save the file under the template's name and it is in use.
+
+![A line icon from an icon set used as the Brush icon](images/themes/icon_set.png)
+
+Their files say `currentColor` where a color goes, so that a web page can choose it:
 
 ```xml
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-     stroke="#dce2eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 ```
 
-- `#dce2eb` makes the icon follow the theme: it is the template's line color, which Patchy swaps for `icon_ink`.
-- Any other color is drawn as written.
+Patchy draws `currentColor` in the theme's `icon_ink`, so such an icon follows the theme the way the built-in ones do. To give one icon a color of its own, replace `currentColor` in its file with that color.
 
 Check the set's license before you share the theme. Most free sets ask you to keep their license text or a credit with the icons; a README file in your theme folder is the place for it.
 

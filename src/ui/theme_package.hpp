@@ -100,8 +100,10 @@ struct ThemePackageLimits {
 [[nodiscard]] ThemeLoadResult load_theme_package_zip_summary(const QByteArray& zip,
                                                              const ThemePackageLimits& limits = {});
 
-// A zip holding theme.json (`palette` under `name`, with `assets`' options) at its
-// root and every file in `assets`, in path order. `assets` may be null.
+// A zip holding theme.json at its root and every file in `assets`, in path order.
+// theme.json is `palette` under `name` with `assets`' options and information, plus
+// every other key of `assets`' own theme.json as written (events, menuTitle, cursors,
+// panelBackgrounds, splash, keys this build does not know). `assets` may be null.
 [[nodiscard]] QByteArray serialize_theme_package_zip(const ThemePalette& palette, ColorScheme base,
                                                      const QString& name, const ThemeAssets* assets);
 

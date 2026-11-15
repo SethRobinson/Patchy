@@ -43,7 +43,7 @@ Patchy reads `theme.json` and those four folders and nothing else, so a README o
 
 The folder's name is how Patchy remembers the theme. Rename the folder and Patchy treats it as a new theme: select it again, and allow its scripts again.
 
-While a theme folder is the theme showing (selected in Preferences or in use), Patchy watches it and reloads it a moment after any file in it changes. A save that leaves `theme.json` broken is ignored until the file is valid again. Zips and `.patchytheme` files are not watched: use **Reload Themes** for those.
+While a theme folder is the theme showing (selected in Preferences or in use), Patchy watches it and reloads it a moment after any file in it changes. A save that leaves `theme.json` broken is ignored until the file is valid again; while Preferences is open, **Problems found** says what is wrong with it. Zips and `.patchytheme` files are not watched: use **Reload Themes** for those.
 
 ## theme.json
 
@@ -160,6 +160,8 @@ With `"recolorIcons": true` (the default), Patchy looks in your SVG for the ten 
 
 PNG and BMP icons are never recolored.
 
+`currentColor`, which files from icon sets use in place of a color, is drawn in the theme's `icon_ink`, with `"recolorIcons"` on or off. An SVG whose `<svg>` line sets a `color` of its own uses that color instead.
+
 ### What an SVG icon may contain
 
 A theme's SVG must be self-contained. Patchy leaves out, and keeps its own icon for, an SVG that:
@@ -227,7 +229,7 @@ All three take PNG, JPEG or BMP files. The bundled Dink Smallwood theme uses eac
 
 A zipped theme works exactly like the folder. To edit one you received, unzip it into the themes folder so it becomes a folder.
 
-**Export Theme Package** saves the selected theme as a zip with a freshly written `theme.json` that lists every role. It is a quick way to turn any theme, a bundled one included, into a package you can unpack and study. At present it writes only the colors, the theme information, `recolorIcons`, `iconScaling` and `backdrop` into that `theme.json` (all the package's files are kept), and leaves out `events`, `menuTitle`, `cursors`, `panelBackgrounds` and `splash`, along with any file outside the four folders, such as a README. For a theme of your own, zip the folder yourself.
+**Export Theme Package** saves the selected theme as a zip with a freshly written `theme.json` that lists every role and keeps every other setting, with all the package's files. It is a quick way to turn any theme, a bundled one included, into a package you can unpack and study. The theme's name becomes the name you save the zip under, and files outside the four folders, such as a README, are not included.
 
 **Delete Theme** removes the selected theme of yours: a file is deleted, a folder goes to the system trash.
 
@@ -250,7 +252,11 @@ A package past the first four does not load. A picture past its limit is left ou
 
 ## Troubleshooting
 
-Patchy tells you when a theme cannot load at all. When only one part is wrong (a misspelled role, an icon under the wrong name), it leaves that part out without a message and loads the rest, so go through the list for the part that is missing.
+Patchy tells you when a theme cannot load at all. When only one part is wrong (a misspelled role, an icon under the wrong name), it leaves that part out, loads the rest, and lists what it left out. Select the theme in Preferences > Colors and Themes and read **Problems found**, beside the theme list:
+
+![A theme with a misspelled role and a misnamed icon file, and the Problems found list](images/themes/problems_found.png)
+
+Each line names the part and what is wrong with it. While a theme folder is the theme showing, the list follows your edits; for a zip or a `.patchytheme`, click **Reload Themes**. A theme with nothing wrong shows no list. Start there, then go through the cases below for the part that is missing.
 
 **The theme is greyed out and says "Could not be loaded".** Point at the row: the tooltip says what is wrong.
 
@@ -265,11 +271,11 @@ Patchy tells you when a theme cannot load at all. When only one part is wrong (a
 
 **The theme is not in the list.** Click **Reload Themes**. Check that `theme.json` is directly inside the theme folder, not one folder deeper, that it is not named `theme.json.txt`, and that the folder is inside the one **Open Themes Folder** opens.
 
-**A color does not change.** The role name is misspelled (compare it with an exported `.patchytheme`), or that surface is drawn by another role. Change one role at a time and watch what moves.
+**A color does not change.** The role name is misspelled (**Problems found** says "Unknown color role"; compare the name with an exported `.patchytheme`), or that surface is drawn by another role. Change one role at a time and watch what moves.
 
-**An icon does not change.** Its file name does not match a template name, it is in a subfolder of `icons`, it is not an SVG, PNG or BMP, a bitmap is larger than 1024 pixels, or the SVG refers to something outside itself ([What an SVG icon may contain](#what-an-svg-icon-may-contain)).
+**An icon does not change.** **Problems found** names the file and the reason: its file name does not match a template name, it is not an SVG, PNG or BMP, a bitmap is larger than 1024 pixels, or the SVG refers to something outside itself ([What an SVG icon may contain](#what-an-svg-icon-may-contain)). A file in a subfolder of `icons` is skipped without a line.
 
-**An SVG icon is black.** It says `currentColor` instead of naming a color, as icons from web icon sets do. Replace `currentColor` in the file with a color ([Icons from an icon set](making-themes.md#icons-from-an-icon-set)).
+**An SVG icon is black.** Its shapes name no color at all, and an SVG shape without one is black. Add `fill="currentColor"` to the file's `<svg>` line to draw it in the theme's `icon_ink`, or name a color there.
 
 **An SVG icon shows in the wrong colors.** It uses one of the ten template colors, which Patchy swaps. Set `"recolorIcons": false`.
 

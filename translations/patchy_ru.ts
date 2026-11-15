@@ -36365,6 +36365,22 @@ Locked: %1</source>
         <source>Could not open the theme guide in your web browser.</source>
         <translation>Не удалось открыть руководство по темам в браузере.</translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation>Найденные проблемы:</translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation>Последнее изменение не загружено: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation>
+            <numerusform>Ещё %n проблема не показана.</numerusform>
+            <numerusform>Ещё %n проблемы не показаны.</numerusform>
+            <numerusform>Ещё %n проблем не показано.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

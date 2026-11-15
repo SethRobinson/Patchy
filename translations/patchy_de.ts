@@ -36256,6 +36256,21 @@ Fixiert: %1</translation>
         <source>Could not open the theme guide in your web browser.</source>
         <translation>Die Design-Anleitung konnte nicht im Webbrowser geöffnet werden.</translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation>Gefundene Probleme:</translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation>Die letzte Änderung wurde nicht geladen: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation>
+            <numerusform>%n weiteres Problem wird nicht angezeigt.</numerusform>
+            <numerusform>%n weitere Probleme werden nicht angezeigt.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

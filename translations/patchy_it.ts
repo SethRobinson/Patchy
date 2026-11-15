@@ -36256,6 +36256,21 @@ Bloccato: %1</translation>
         <source>Could not open the theme guide in your web browser.</source>
         <translation>Impossibile aprire la guida ai temi nel browser web.</translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation>Problemi rilevati:</translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation>L&apos;ultima modifica non è stata caricata: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation>
+            <numerusform>%n altro problema non mostrato.</numerusform>
+            <numerusform>Altri %n problemi non mostrati.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

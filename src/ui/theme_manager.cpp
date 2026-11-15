@@ -341,9 +341,11 @@ void ThemeManager::reload_active_package() {
     // Mid-edit JSON is common; keep showing the last good version.
     qWarning("Theme package \"%s\" did not reload: %s", qPrintable(id), qPrintable(result.error));
     watch_active_package();
+    emit active_package_reloaded(id, result);
     return;
   }
   set_custom_theme(id, *result.theme, /*persist=*/false);
+  emit active_package_reloaded(id, result);
 }
 
 void ThemeManager::set_system_color_scheme_for_testing(std::optional<Qt::ColorScheme> scheme) {

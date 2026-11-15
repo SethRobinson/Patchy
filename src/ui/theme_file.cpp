@@ -14,6 +14,7 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QRegularExpression>
+#include <QSet>
 #include <QStandardPaths>
 #include <QVersionNumber>
 
@@ -314,6 +315,16 @@ QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base
   return QJsonDocument(object).toJson(QJsonDocument::Indented);
 }
 
+bool is_serialized_theme_key(const QString& key) {
+  static const QSet<QString> keys{
+      QStringLiteral("format"),       QStringLiteral("name"),        QStringLiteral("base"),
+      QStringLiteral("roles"),        QStringLiteral("version"),     QStringLiteral("author"),
+      QStringLiteral("description"),  QStringLiteral("minPatchyVersion"),
+      QStringLiteral("recolorIcons"), QStringLiteral("iconScaling"), QStringLiteral("backdrop"),
+  };
+  return keys.contains(key);
+}
+
 QString running_patchy_version() { return QStringLiteral(PATCHY_VERSION); }
 
 bool theme_needs_newer_patchy(const ThemeInfo& info) {
@@ -384,7 +395,15 @@ ThemeLoadResult load_theme_for_id(const QString& id, bool summary) {
 
 }  // namespace
 
-ThemeLoadResult load_theme_by_id(const QString& id) { return load_theme_for_id(id, /*summary=*/false); }
+ThemeLoadResult load_theme_by_id(const QString& id) {
+  auto result = load_theme_for_id(id, /*summary=*/false);
+  // The parts left out, once per load, for a run from a terminal; Preferences lists the
+  // same lines under "Problems found" (docs/theme-files-preferences.md).
+  for (const auto& warning : std::as_const(result.warnings)) {
+    qWarning("Theme \"%s\": %s", qPrintable(id), qPrintable(warning));
+  }
+  return result;
+}
 
 ThemeLoadResult load_theme_summary_by_id(const QString& id) { return load_theme_for_id(id, /*summary=*/true); }
 

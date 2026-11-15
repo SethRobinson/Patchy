@@ -286,7 +286,9 @@ Users can change their answer at any time with **Run this theme's scripts** in t
 - The file in `sounds` is not named exactly after an event, or the path in `"events"` does not match the file.
 - The event name in `"events"` is misspelled. Patchy skips an event it does not know.
 
-**An effect does not show.** **Play theme effects** is off, the effect name is not one of the four, or a sprite's `image` is not in the package. A `"start-screen"` sprite plays only while no document is open.
+For the last three, the theme's details in Preferences name the file or the event under **Problems found** ([Troubleshooting](making-themes-advanced.md#troubleshooting)).
+
+**An effect does not show.** **Play theme effects** is off, the effect name is not one of the four, or a sprite's `image` is not in the package (**Problems found** names either mistake). A `"start-screen"` sprite plays only while no document is open.
 
 **The script does nothing.**
 
@@ -313,6 +315,6 @@ Its files are in the repository: [themes/bundled/dink-smallwood](../themes/bundl
 | [scripts/main.js](../themes/bundled/dink-smallwood/scripts/main.js) | A splash at startup, a sprite that walks across the Home Screen on `idle`, looping brush sounds on `stroke-start` and `stroke-end`, and five menu commands |
 | [README.txt](../themes/bundled/dink-smallwood/README.txt) | Where every picture and sound came from: a good habit for any theme you share |
 
-To get the same files on your own computer, select Dink Smallwood in Preferences, click **Export Theme Package** and unzip the result. Use the `theme.json` from the repository rather than the exported one, which leaves some settings out ([Sharing a theme](making-themes-advanced.md#sharing-a-theme)).
+To get the same files on your own computer, select Dink Smallwood in Preferences, click **Export Theme Package** and unzip the result. The exported `theme.json` holds the same settings as the one in the repository, with every role written out ([Sharing a theme](making-themes-advanced.md#sharing-a-theme)).
 
 The art and sounds in that theme belong to Dink Smallwood and are there under its own license, so make your own for a theme you share.

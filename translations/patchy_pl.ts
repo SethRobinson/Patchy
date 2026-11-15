@@ -36365,6 +36365,22 @@ Zablokowano: %1</translation>
         <source>Could not open the theme guide in your web browser.</source>
         <translation>Nie można otworzyć przewodnika po motywach w przeglądarce.</translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation>Znalezione problemy:</translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation>Ostatnia zmiana nie została wczytana: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation>
+            <numerusform>Nie pokazano jeszcze %n problemu.</numerusform>
+            <numerusform>Nie pokazano jeszcze %n problemów.</numerusform>
+            <numerusform>Nie pokazano jeszcze %n problemów.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

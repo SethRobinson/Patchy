@@ -554,8 +554,25 @@ ThemeLoadResult load_theme_package_zip_file(const QString& path, const ThemePack
 QByteArray serialize_theme_package_zip(const ThemePalette& palette, ColorScheme base, const QString& name,
                                        const ThemeAssets* assets) {
   std::vector<ora::detail::ZipEntry> entries;
-  const auto manifest = serialize_theme_to_json(palette, base, name, assets != nullptr ? &assets->options : nullptr,
-                                                assets != nullptr ? &assets->info : nullptr);
+  auto manifest = serialize_theme_to_json(palette, base, name, assets != nullptr ? &assets->options : nullptr,
+                                          assets != nullptr ? &assets->info : nullptr);
+  if (assets != nullptr) {
+    // The serializer writes the keys it parses. Everything else the source theme.json
+    // holds ("events", "menuTitle", "cursors", "panelBackgrounds", "splash", and any key
+    // a newer Patchy reads) goes back as written, or the exported package would lose it
+    // while still carrying the files those keys name.
+    auto object = QJsonDocument::fromJson(manifest).object();
+    bool carried = false;
+    for (auto it = assets->manifest.constBegin(); it != assets->manifest.constEnd(); ++it) {
+      if (!is_serialized_theme_key(it.key())) {
+        object.insert(it.key(), it.value());
+        carried = true;
+      }
+    }
+    if (carried) {
+      manifest = QJsonDocument(object).toJson(QJsonDocument::Indented);
+    }
+  }
   entries.push_back({std::string(kThemePackageManifest.data(), kThemePackageManifest.size()),
                      to_bytes(manifest), true});
   if (assets != nullptr) {

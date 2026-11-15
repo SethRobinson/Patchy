@@ -36174,6 +36174,21 @@ Locked: %1</source>
         <source>Could not open the theme guide in your web browser.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

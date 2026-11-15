@@ -85,6 +85,11 @@ struct ThemeLoadResult {
                                                   const ThemePackageOptions* options = nullptr,
                                                   const ThemeInfo* info = nullptr);
 
+// True for a top-level key serialize_theme_to_json writes itself (format, name, base,
+// roles, the ThemeInfo keys and the ThemePackageOptions keys). Export Theme Package
+// copies every other key of the source theme.json as written.
+[[nodiscard]] bool is_serialized_theme_key(const QString& key);
+
 // True when the theme names a "minPatchyVersion" newer than this build.
 [[nodiscard]] bool theme_needs_newer_patchy(const ThemeInfo& info);
 // This build's version, as theme files compare against it ("1.19").
@@ -112,7 +117,8 @@ inline constexpr QLatin1StringView kBundledThemeIdPrefix{"bundled:"};
 // directory (wasm).
 [[nodiscard]] QString theme_file_path_for_id(const QString& id);
 // Reads and parses the file, zip or folder behind an id. A missing or unreadable
-// one is an error like any other, so callers have one branch.
+// one is an error like any other, so callers have one branch. Each warning is also
+// written to the log (qWarning), once per call.
 [[nodiscard]] ThemeLoadResult load_theme_by_id(const QString& id);
 // load_theme_by_id for a list row: a package reads only its theme.json and backdrop
 // (ThemeAssets::summary, theme_package.hpp); single-file themes load in full.

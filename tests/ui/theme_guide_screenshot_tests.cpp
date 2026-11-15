@@ -36,6 +36,7 @@
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -652,6 +653,84 @@ void ui_theme_guide_shot_load_error() {
   });
 }
 
+
+// "Icons from an icon set": a line icon that says stroke="currentColor", the way Tabler
+// and Lucide files do, used as the Brush icon exactly as downloaded. Patchy draws it in
+// the theme's icon_ink.
+void ui_theme_guide_shot_icon_set() {
+  GuideThemesDir themes;
+  patchy::ui::MainWindow window;
+  stage_document_window(window);
+  // Move is the active tool, so the brush button shows on the plain palette.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  write_guide_theme(themes, GuideStep::IconColors);
+  CHECK(apply_guide_theme(kGuideThemeId));
+  const auto built_in = tools_corner(window);
+  // Drawn for this guide in the icon sets' format: 24 units, no fill, a 2-unit round stroke.
+  const QByteArray line_brush = QByteArrayLiteral(
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"\n"
+      "     stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n"
+      "  <path d=\"M20 4L10.5 13.5\"/>\n"
+      "  <path d=\"M12.5 15.5L8.5 11.5\"/>\n"
+      "  <path d=\"M8.5 11.5C5.5 12 4.5 15 4.5 17.5C4.5 18.5 4 19.5 3 20C7 20.5 12 19.5 12.5 15.5\"/>\n"
+      "</svg>\n");
+  CHECK(!line_brush.contains("#"));
+  write_bytes(themes.file(kGuideThemeId + QStringLiteral("/icons/tool-brush.svg")), line_brush);
+  CHECK(apply_guide_theme(kGuideThemeId));
+  const auto from_set = tools_corner(window);
+  save_guide_shot("theme_guide_icon_set", labeled_row({{QStringLiteral("Built-in Brush icon"), built_in},
+                                                       {QStringLiteral("An icon-set file as tool-brush.svg"), from_set}}));
+  CHECK(from_set != built_in);
+  // The file's lines are the theme's icon_ink, and nothing in the icon is left black.
+  const auto ink = patchy::ui::theme().icon_ink;
+  CHECK(ink == QColor(QStringLiteral("#f1dcc0")));
+  const auto drawn = patchy::ui::themed_svg_icon(QStringLiteral("tool-brush")).pixmap(QSize(48, 48)).toImage();
+  int in_ink = 0;
+  int black = 0;
+  for (int y = 0; y < drawn.height(); ++y) {
+    for (int x = 0; x < drawn.width(); ++x) {
+      const auto pixel = drawn.pixelColor(x, y);
+      if (pixel.alpha() == 255) {
+        in_ink += pixel == ink ? 1 : 0;
+        black += pixel == QColor(0, 0, 0) ? 1 : 0;
+      }
+    }
+  }
+  CHECK(in_ink > 40);
+  CHECK(black == 0);
+}
+
+// Troubleshooting: a theme that loads with two mistakes in it (a misspelled role, an icon
+// under a name no built-in icon has) selected in Preferences, which lists both under
+// "Problems found".
+void ui_theme_guide_shot_problems() {
+  GuideThemesDir themes;
+  patchy::ui::MainWindow window;
+  stage_document_window(window);
+  auto manifest = guide_manifest(GuideStep::Colors);
+  auto roles = manifest.value(QStringLiteral("roles")).toObject();
+  roles.insert(QStringLiteral("acent"), roles.take(QStringLiteral("accent")));
+  manifest.insert(QStringLiteral("roles"), roles);
+  write_bytes(themes.file(kGuideThemeId + QStringLiteral("/theme.json")), QJsonDocument(manifest).toJson());
+  write_bytes(themes.file(kGuideThemeId + QStringLiteral("/icons/tool-brsh.svg")),
+              example_bytes(QStringLiteral("icons/tool-brush.svg")));
+  const auto loaded = patchy::ui::load_theme_by_id(kGuideThemeId);
+  CHECK(loaded.theme.has_value());
+  CHECK(loaded.warnings.size() == 2);
+  with_preferences(window, [](QDialog& dialog) {
+    const auto token = QStringLiteral("custom:") + kGuideThemeId;
+    CHECK(select_preferences_theme(dialog, token));
+    scroll_to_theme(dialog, token);
+    save_guide_shot("theme_guide_problems_found", grab_themed(dialog), /*window_corners=*/true);
+    auto* heading = dialog.findChild<QLabel*>(QStringLiteral("preferencesThemeProblemsHeading"));
+    auto* problems = dialog.findChild<QLabel*>(QStringLiteral("preferencesThemeProblems"));
+    CHECK(heading != nullptr && heading->isVisible());
+    CHECK(problems != nullptr && problems->isVisible() && problems->text().contains(QStringLiteral("\"acent\"")) &&
+          problems->text().contains(QStringLiteral("\"tool-brsh.svg\"")));
+  });
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> theme_guide_screenshot_tests() {
@@ -666,5 +745,7 @@ std::vector<patchy::test::TestCase> theme_guide_screenshot_tests() {
       {"ui_theme_guide_shot_theme_menu", ui_theme_guide_shot_theme_menu},
       {"ui_theme_guide_shot_script_trust", ui_theme_guide_shot_script_trust},
       {"ui_theme_guide_shot_load_error", ui_theme_guide_shot_load_error},
+      {"ui_theme_guide_shot_icon_set", ui_theme_guide_shot_icon_set},
+      {"ui_theme_guide_shot_problems", ui_theme_guide_shot_problems},
   };
 }

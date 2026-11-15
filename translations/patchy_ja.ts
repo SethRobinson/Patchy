@@ -36147,6 +36147,20 @@ Locked: %1</source>
         <source>Could not open the theme guide in your web browser.</source>
         <translation>テーマガイドを Web ブラウザーで開けませんでした。</translation>
     </message>
+    <message>
+        <source>Problems found:</source>
+        <translation>見つかった問題:</translation>
+    </message>
+    <message>
+        <source>The latest change was not loaded: %1</source>
+        <translation>最新の変更は読み込まれませんでした: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n more problem(s) not shown.</source>
+        <translation>
+            <numerusform>ほかに %n 件の問題は表示されていません。</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

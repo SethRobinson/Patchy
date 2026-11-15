@@ -39,6 +39,7 @@
 #include <QFileInfo>
 #include <QIcon>
 #include <QImage>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -1437,6 +1438,322 @@ void ui_theme_description_parses_round_trips_and_shows_in_details() {
   CHECK(!patchy::ui::has_active_custom_palette());
 }
 
+
+// A theme's load warnings reach its author: Preferences > Colors and Themes lists the
+// selected theme's under "Problems found" (docs/theme-files-preferences.md), follows the
+// folder watcher's reload and Reload Themes, and shows nothing for a theme without any.
+void ui_preferences_theme_details_list_load_problems() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir themes;
+  const QByteArray misspelled = QByteArrayLiteral("{\"base\": \"dark\", \"roles\": {\"acent\": \"#ff0000\"}}");
+  const QByteArray corrected = QByteArrayLiteral("{\"base\": \"dark\", \"roles\": {\"accent\": \"#ff0000\"}}");
+  write_bytes(themes.file(QStringLiteral("Test/theme.json")), misspelled);
+  write_bytes(themes.file(QStringLiteral("Test/icons/tool-brsh.svg")), red_svg());
+  write_bytes(themes.file(QStringLiteral("Clean/theme.json")), corrected);
+  write_bytes(themes.file(QStringLiteral("Clean/icons/tool-brush.svg")), red_svg());
+  // A whole icon folder under the wrong names: the list shows the first lines and counts the rest.
+  write_bytes(themes.file(QStringLiteral("Many/theme.json")), corrected);
+  for (int i = 0; i < 15; ++i) {
+    write_bytes(themes.file(QStringLiteral("Many/icons/wrong-name-%1.svg").arg(i)), red_svg());
+  }
+
+  // Both mistakes are collected by the loader, each naming what it skipped.
+  const auto loaded = patchy::ui::load_theme_by_id(QStringLiteral("Test"));
+  CHECK(loaded.theme.has_value() && loaded.error.isEmpty());
+  CHECK(loaded.warnings.size() == 2);
+  CHECK(loaded.warnings.filter(QStringLiteral("\"acent\"")).size() == 1);
+  CHECK(loaded.warnings.filter(QStringLiteral("\"tool-brsh.svg\"")).size() == 1);
+  CHECK(patchy::ui::load_theme_by_id(QStringLiteral("Clean")).warnings.isEmpty());
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, &window, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* heading = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeProblemsHeading"));
+    auto* problems = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeProblems"));
+    CHECK(preferences_theme_list(*dialog) != nullptr);
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Test")));
+    process_events_for(50);
+    // The card's picture, saved before the checks so an unfixed build still writes one.
+    dialog->resize(std::max(dialog->minimumSizeHint().width(), 800), std::max(dialog->height(), 640));
+    process_events_for(50);
+    save_widget_artifact("preferences_theme_problems_found", *dialog);
+    CHECK(heading != nullptr && problems != nullptr);
+    if (heading == nullptr || problems == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(heading->isVisible() && heading->text() == QStringLiteral("Problems found:"));
+    CHECK(problems->isVisible() && problems->textFormat() == Qt::PlainText && problems->wordWrap());
+    CHECK(problems->text().split(QLatin1Char('\n')).size() == 2);
+    CHECK(problems->text().contains(QStringLiteral("Unknown color role \"acent\"")));
+    CHECK(problems->text().contains(QStringLiteral("Icon \"tool-brsh.svg\" matches no built-in icon")));
+
+    // The authoring loop: the folder is watched while it is the theme showing, and each
+    // save brings the list up to date.
+    write_bytes(themes.file(QStringLiteral("Test/theme.json")), corrected);
+    CHECK(process_events_until([problems] { return !problems->text().contains(QStringLiteral("acent")); }, 5000));
+    CHECK(heading->isVisible() && problems->text().split(QLatin1Char('\n')).size() == 1);
+    CHECK(problems->text().contains(QStringLiteral("tool-brsh.svg")));
+    // A save that cannot load keeps the theme and says why.
+    write_bytes(themes.file(QStringLiteral("Test/theme.json")), QByteArrayLiteral("{ \"base\": "));
+    CHECK(process_events_until(
+        [problems] { return problems->text().contains(QStringLiteral("The latest change was not loaded")); }, 5000));
+    CHECK(heading->isVisible());
+    CHECK(ThemeManager::instance().active_custom_theme_id() == QStringLiteral("Test"));
+    // Both mistakes fixed: nothing extra shows.
+    CHECK(QFile::rename(themes.file(QStringLiteral("Test/icons/tool-brsh.svg")),
+                        themes.file(QStringLiteral("Test/icons/tool-brush.svg"))));
+    write_bytes(themes.file(QStringLiteral("Test/theme.json")), corrected);
+    CHECK(process_events_until([heading] { return !heading->isVisible(); }, 5000));
+    CHECK(!problems->isVisible() && problems->text().isEmpty());
+
+    // Reload Themes rereads the folder: a mistake made while another theme showed.
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Clean")));
+    process_events_for(50);
+    CHECK(!heading->isVisible() && !problems->isVisible());
+    write_bytes(themes.file(QStringLiteral("Test/theme.json")), misspelled);
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Test")));
+    auto* reload = dialog->findChild<QPushButton*>(QStringLiteral("preferencesReloadThemesButton"));
+    CHECK(reload != nullptr);
+    if (reload != nullptr) {
+      reload->click();
+    }
+    process_events_for(50);
+    CHECK(heading->isVisible() && problems->text().contains(QStringLiteral("\"acent\"")));
+
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Many")));
+    process_events_for(50);
+    const auto lines = problems->text().split(QLatin1Char('\n'));
+    CHECK(heading->isVisible() && lines.size() == 13);
+    CHECK(lines.value(0).contains(QStringLiteral("wrong-name-")));
+    CHECK(lines.value(12).startsWith(QStringLiteral("3 more")));
+
+    // Themes without warnings, built-in and bundled, show nothing extra.
+    for (const auto& token : {QStringLiteral("dark"), QStringLiteral("custom:bundled:dink-smallwood"),
+                              QStringLiteral("custom:bundled:nord.patchytheme")}) {
+      CHECK(select_preferences_theme(*dialog, token));
+      process_events_for(50);
+      CHECK(!heading->isVisible() && !problems->isVisible());
+    }
+    saw_dialog = true;
+    dialog->reject();
+  }));
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(!patchy::ui::has_active_custom_palette());
+}
+
+// Export Theme Package writes back every theme.json key, not only the ones the palette
+// serializer knows: exporting Dink Smallwood and importing the zip gives the same events,
+// menu title, cursors and panel backgrounds, and a splash or a key from a newer Patchy
+// survives the same way.
+void ui_theme_package_export_keeps_every_manifest_key() {
+  const auto id = patchy::ui::kBundledThemeIdPrefix + QStringLiteral("dink-smallwood");
+  const auto source = patchy::ui::load_theme_by_id(id);
+  CHECK(source.theme.has_value() && source.theme->assets != nullptr);
+  if (!source.theme || source.theme->assets == nullptr) {
+    return;
+  }
+  const auto& original = *source.theme->assets;
+  const auto zip = patchy::ui::serialize_theme_package_zip(source.theme->palette, source.theme->base,
+                                                           QStringLiteral("Dink Copy"), &original);
+  const auto back = patchy::ui::load_theme_package_zip(zip);
+  CHECK(back.error.isEmpty());
+  CHECK(back.warnings.isEmpty());
+  CHECK(back.theme.has_value() && back.theme->assets != nullptr);
+  if (!back.theme || back.theme->assets == nullptr) {
+    return;
+  }
+  const auto& exported = *back.theme->assets;
+  for (const auto& key : {QStringLiteral("events"), QStringLiteral("menuTitle"), QStringLiteral("cursors"),
+                          QStringLiteral("panelBackgrounds")}) {
+    if (!original.manifest.contains(key)) {
+      std::printf("  Dink Smallwood has no \"%s\"\n", qPrintable(key));
+      CHECK(false);
+    }
+    CHECK(exported.manifest.value(key) == original.manifest.value(key));
+  }
+  CHECK(exported.manifest.value(QStringLiteral("splash")) == original.manifest.value(QStringLiteral("splash")));
+  // The parsed side agrees: the same events with their sounds and effects, and every file.
+  auto exported_events = exported.events.keys();
+  auto original_events = original.events.keys();
+  exported_events.sort();
+  original_events.sort();
+  CHECK(!original_events.isEmpty() && exported_events == original_events);
+  for (const auto& event : original_events) {
+    CHECK(exported.events.value(event).sound == original.events.value(event).sound);
+    CHECK(exported.events.value(event).effect == original.events.value(event).effect);
+  }
+  CHECK(exported.files == original.files);
+  CHECK(exported.has_scripts() == original.has_scripts());
+  // What the serializer owns still comes from the serializer: the name given, every role.
+  CHECK(back.theme->name == QStringLiteral("Dink Copy"));
+  CHECK(exported.manifest.value(QStringLiteral("menuTitle")).toString() == QStringLiteral("Dink"));
+  CHECK(back.theme->palette.window_bg == source.theme->palette.window_bg);
+  CHECK(back.theme->info.description == source.theme->info.description);
+  CHECK(exported.manifest.value(QStringLiteral("roles")).toObject().size() ==
+        static_cast<qsizetype>(patchy::ui::theme_palette_roles().size()));
+
+  // A splash, and a key this build does not read, in a package of the user's.
+  PackageThemesDir themes;
+  const QJsonObject splash{{QStringLiteral("image"), QStringLiteral("images/tile.png")}};
+  const QJsonArray future{1, QStringLiteral("two")};
+  write_sample_package(themes.file(QStringLiteral("Keys")), QColor(40, 50, 60),
+                       QJsonObject{{QStringLiteral("splash"), splash},
+                                   {QStringLiteral("futureKey"), future},
+                                   {QStringLiteral("menuTitle"), QStringLiteral("Keys Menu")},
+                                   {QStringLiteral("recolorIcons"), QStringLiteral("not a bool")}});
+  const auto keys = patchy::ui::load_theme_by_id(QStringLiteral("Keys"));
+  CHECK(keys.theme.has_value() && keys.theme->assets != nullptr);
+  if (keys.theme && keys.theme->assets != nullptr) {
+    const auto keys_zip = patchy::ui::serialize_theme_package_zip(keys.theme->palette, keys.theme->base,
+                                                                  QStringLiteral("Keys"), keys.theme->assets.get());
+    const auto keys_back = patchy::ui::load_theme_package_zip(keys_zip);
+    CHECK(keys_back.theme.has_value() && keys_back.theme->assets != nullptr);
+    if (keys_back.theme && keys_back.theme->assets != nullptr) {
+      const auto& manifest = keys_back.theme->assets->manifest;
+      CHECK(manifest.value(QStringLiteral("splash")).toObject() == splash);
+      CHECK(manifest.value(QStringLiteral("futureKey")).toArray() == future);
+      CHECK(manifest.value(QStringLiteral("menuTitle")).toString() == QStringLiteral("Keys Menu"));
+      // A key the serializer owns is never copied as written: the bad value is gone.
+      CHECK(!manifest.contains(QStringLiteral("recolorIcons")));
+      CHECK(keys_back.warnings.isEmpty());
+    }
+  }
+  // A theme without a package still exports: theme.json alone.
+  const auto plain = patchy::ui::load_theme_package_zip(patchy::ui::serialize_theme_package_zip(
+      patchy::ui::dark_palette(), patchy::ui::ColorScheme::Dark, QStringLiteral("Plain"), nullptr));
+  CHECK(plain.theme.has_value() && plain.theme->name == QStringLiteral("Plain"));
+}
+
+// "currentColor" in a theme's SVG icon is the theme's icon_ink (docs/theme-files.md,
+// "Icons"): icon sets such as Tabler and Lucide write it for the page to fill in, and
+// QtSvg alone draws it black. Built-in icons never say it, so they do not change.
+void ui_theme_package_svg_current_color_draws_in_icon_ink() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir themes;
+  const QColor ink(0, 160, 90);
+  // The header the icon sets use, around a plus that covers the middle pixel.
+  const auto icon_set_svg = [](const QByteArray& paint) {
+    return QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" ") +
+           paint +
+           QByteArrayLiteral(" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+                             "<path d=\"M4 12h16\"/><path d=\"M12 4v16\"/></svg>");
+  };
+  const auto stroked = icon_set_svg(QByteArrayLiteral("fill=\"none\" stroke=\"currentColor\""));
+  const auto write_theme = [&themes, &ink](const QString& id, const QByteArray& svg, const QJsonObject& extra = {},
+                                           patchy::ui::ColorScheme base = patchy::ui::ColorScheme::Dark,
+                                           bool set_ink = true) {
+    auto palette = patchy::ui::theme(base);
+    if (set_ink) {
+      palette.icon_ink = ink;
+    }
+    auto object =
+        QJsonDocument::fromJson(patchy::ui::serialize_theme_to_json(palette, base, id)).object();
+    for (auto it = extra.begin(); it != extra.end(); ++it) {
+      object.insert(it.key(), it.value());
+    }
+    write_bytes(themes.file(id + QStringLiteral("/theme.json")), QJsonDocument(object).toJson());
+    write_bytes(themes.file(id + QStringLiteral("/icons/apply.svg")), svg);
+  };
+  const auto icon = patchy::ui::themed_svg_icon(QStringLiteral("apply"));
+  // Every fully covered pixel of the drawing is `color`, and there are plenty of them.
+  const auto drawn_in = [&icon](const QColor& color) {
+    const auto image = icon.pixmap(QSize(32, 32)).toImage().convertToFormat(QImage::Format_ARGB32);
+    int solid = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto pixel = image.pixelColor(x, y);
+        if (pixel.alpha() != 255) {
+          continue;
+        }
+        if (pixel != color) {
+          std::printf("  pixel %d,%d is %s, expected %s\n", x, y, qPrintable(pixel.name()), qPrintable(color.name()));
+          return false;
+        }
+        ++solid;
+      }
+    }
+    return solid > 100;
+  };
+
+  // QtSvg alone, the way Patchy drew it before: black, nearly invisible on a dark theme.
+  CHECK(!stroked.contains("#"));
+  write_theme(QStringLiteral("Set"), stroked);
+  apply_package(QStringLiteral("Set"));
+  CHECK(patchy::ui::theme().icon_ink == ink);
+  CHECK(drawn_in(ink));
+  CHECK(icon_center(icon, 32) == ink);
+
+  // "recolorIcons": false leaves the file's own colors alone and still fills currentColor in.
+  write_theme(QStringLiteral("AsDrawn"), stroked, QJsonObject{{QStringLiteral("recolorIcons"), false}});
+  apply_package(QStringLiteral("AsDrawn"));
+  CHECK(drawn_in(ink));
+
+  // As a fill (Bootstrap Icons), in a style attribute, and in the CSS spelling.
+  write_theme(QStringLiteral("Fill"),
+              QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"currentColor\">"
+                                "<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\"/></svg>"));
+  apply_package(QStringLiteral("Fill"));
+  CHECK(drawn_in(ink));
+  write_theme(QStringLiteral("Style"),
+              QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\">"
+                                "<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" style=\"fill:currentColor\"/></svg>"));
+  apply_package(QStringLiteral("Style"));
+  CHECK(drawn_in(ink));
+  write_theme(QStringLiteral("Lower"), icon_set_svg(QByteArrayLiteral("fill=\"none\" stroke=\"currentcolor\"")));
+  apply_package(QStringLiteral("Lower"));
+  CHECK(drawn_in(ink));
+
+  // An SVG that sets its own color keeps it: currentColor means that color there.
+  write_theme(QStringLiteral("Own"),
+              icon_set_svg(QByteArrayLiteral("color=\"#ff0000\" fill=\"none\" stroke=\"currentColor\"")));
+  apply_package(QStringLiteral("Own"));
+  CHECK(drawn_in(QColor(255, 0, 0)));
+
+  // A Light-based theme that sets no icon_ink: the light scheme's dark ink, not black.
+  write_theme(QStringLiteral("Light"), stroked, {}, patchy::ui::ColorScheme::Light, /*set_ink=*/false);
+  apply_package(QStringLiteral("Light"));
+  const auto light_ink = patchy::ui::theme(patchy::ui::ColorScheme::Light).icon_ink;
+  CHECK(light_ink != QColor(0, 0, 0) && patchy::ui::theme().icon_ink == light_ink);
+  CHECK(drawn_in(light_ink));
+
+  // The disabled drawing still goes through the style, as for every theme icon.
+  apply_package(QStringLiteral("Set"));
+  CHECK(icon.pixmap(QSize(32, 32), QIcon::Disabled).toImage() != icon.pixmap(QSize(32, 32)).toImage());
+
+  ThemeManager::instance().clear_custom_theme(/*persist=*/false);
+  QApplication::processEvents();
+
+  // The text step on its own: the root gets the color, once, and nothing else moves.
+  const auto resolved = patchy::ui::resolve_svg_current_color(stroked, ink);
+  CHECK(resolved.startsWith("<svg color=\"#00a05a\" xmlns="));
+  CHECK(resolved.count("color=\"#00a05a\"") == 1 && resolved.size() == stroked.size() + 16);
+  CHECK(patchy::ui::resolve_svg_current_color(red_svg(), ink) == red_svg());
+  const QByteArray own_style = QByteArrayLiteral("<svg style=\"color:red\" stroke=\"currentColor\"/>");
+  CHECK(patchy::ui::resolve_svg_current_color(own_style, ink) == own_style);
+  CHECK(patchy::ui::resolve_svg_current_color(QByteArrayLiteral("<svg stop-color=\"CURRENTCOLOR\"/>"), ink) ==
+        QByteArrayLiteral("<svg color=\"#00a05a\" stop-color=\"currentColor\"/>"));
+  // Built-in icons never say currentColor, so nothing about them changes.
+  for (const auto& stem : patchy::ui::builtin_icon_stems()) {
+    if (patchy::ui::builtin_icon_svg(stem).toLower().contains("currentcolor")) {
+      std::printf("  built-in icon %s uses currentColor\n", qPrintable(stem));
+      CHECK(false);
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> theme_package_tests() {
@@ -1472,5 +1789,8 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_theme_sounds_refuse_malformed_wav", ui_theme_sounds_refuse_malformed_wav},
       {"ui_theme_wav_loop_helpers_and_player", ui_theme_wav_loop_helpers_and_player},
       {"ui_theme_cache_prunes_old_files_and_caps_writes", ui_theme_cache_prunes_old_files_and_caps_writes},
+      {"ui_preferences_theme_details_list_load_problems", ui_preferences_theme_details_list_load_problems},
+      {"ui_theme_package_export_keeps_every_manifest_key", ui_theme_package_export_keeps_every_manifest_key},
+      {"ui_theme_package_svg_current_color_draws_in_icon_ink", ui_theme_package_svg_current_color_draws_in_icon_ink},
   };
 }
