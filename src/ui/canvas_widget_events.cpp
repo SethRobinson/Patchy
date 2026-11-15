@@ -1964,6 +1964,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                        : begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape")))) {
       const auto snapped_point = snapped_document_point(document_point);
       clear_brush_stroke_tracking();
+      if (tool_ == CanvasTool::Gradient) {
+        // The drag's composite preview samples the selection once: start from a fresh source.
+        gradient_view_preview_source_.reset();
+      }
       drawing_shape_ = true;
       spacebar_repositioning_drag_rect_ = false;
       shape_start_ = snapped_point;
@@ -4176,7 +4180,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (tool_ == CanvasTool::Line) {
       dirty = draw_line(shape_start_, shape_current_, erase);
     } else if (tool_ == CanvasTool::Gradient) {
+      // The drag's composite preview, for the final points, stays up until the composite
+      // with the painted layer is on screen (the frame from before would show otherwise).
+      refresh_gradient_drag_view_preview();
       dirty = draw_gradient(shape_start_, shape_current_);
+      hold_gradient_drag_view_preview();
     } else if (tool_ == CanvasTool::Rectangle) {
       dirty = draw_rectangle(shape_from, shape_end, erase);
     } else if (tool_ == CanvasTool::Ellipse) {

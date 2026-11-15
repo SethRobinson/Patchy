@@ -81,7 +81,7 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
   (`shapeFillGradientHandlesCheck`, `shapeStrokeGradientHandlesCheck`), so each shows only
   while its paint is a gradient. While the window is open and one is ticked, the canvas shows
   that gradient's handles under the other tools
-  ([gradients-fill-handles.md](gradients-fill-handles.md#under-other-tools)). One gradient has
+  ([gradients-fill-handles-other-tools.md](gradients-fill-handles-other-tools.md#under-other-tools)). One gradient has
   handles at a time: ticking a box unticks the other, unticking the ticked one turns the
   handles off, and with only one gradient on the shape that one's box is the ticked one
   (`sync_handle_checks` in the builder, the canvas's own rule). The state is the window's

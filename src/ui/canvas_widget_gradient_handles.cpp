@@ -286,7 +286,7 @@ const LayerStyleGradient& CanvasWidget::gradient_handle_gradient(const Layer& la
   }
   // A live edit shown through the view preview has not reached the layer yet (GitHub #714):
   // the handles, the stop colors and the opacity popup follow the gradient on screen.
-  if (gradient_view_preview_.has_value() &&
+  if (gradient_view_preview_.has_value() && !gradient_view_preview_->drag &&
       (!gradient_view_preview_->held || gradient_view_preview_->awaiting_commit) &&
       gradient_view_preview_->layer_id == layer.id()) {
     return gradient_view_preview_->gradient;
@@ -321,11 +321,17 @@ bool find_with_styled_ancestor(const Layer& layer, LayerId id, bool& styled_ance
 
 bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient,
                                                    Rect gradient_bounds) {
+  return show_gradient_view_preview(layer_id, gradient, gradient_bounds, GradientViewPreviewKind::FillEdit);
+}
+
+bool CanvasWidget::show_gradient_view_preview(LayerId layer_id, const LayerStyleGradient& gradient,
+                                              Rect gradient_bounds, GradientViewPreviewKind kind) {
   if (document_ == nullptr || !gradient_view_preview_enabled_ || !isVisible() || width() <= 0 || height() <= 0) {
     return false;
   }
   const auto& document = std::as_const(*document_);
   const QRect canvas_rect(0, 0, document.width(), document.height());
+  const auto canvas = Rect::from_size(document.width(), document.height());
   // The patches go over the composite as it is shown, so the view must be showing that
   // composite: no mask or channel picture, no palette display, no clipping view.
   if (render_cache_.isNull() || render_cache_.size() != canvas_rect.size() ||
@@ -337,23 +343,42 @@ bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const Layer
     return false;
   }
   const auto* layer = document.find_layer(layer_id);
-  if (layer == nullptr ||
-      !gradient_fill_draft_supported(*layer, Rect::from_size(document.width(), document.height())) ||
-      layer->bounds() != Rect::from_size(document.width(), document.height())) {
+  if (layer == nullptr) {
     return false;
   }
-  // Layer effects on the fill, or on a group around it, read the layer's edge (a stroke, an
+  const bool paints_pixels = kind == GradientViewPreviewKind::PixelsDrag;
+  if (paints_pixels) {
+    // Pixels mode paints over the layer's own 8-bit pixels.
+    const auto format = layer->pixels().format();
+    if (layer->kind() != LayerKind::Pixel || layer_is_vector_shape(*layer) ||
+        (!layer->pixels().empty() && (format.bit_depth != BitDepth::UInt8 || format.channels < 3))) {
+      return false;
+    }
+  } else if (kind == GradientViewPreviewKind::FillEdit) {
+    if (!gradient_fill_draft_supported(*layer, canvas) || layer->bounds() != canvas) {
+      return false;
+    }
+  } else {
+    // A fill redrawn by a drag: what the draft covers, at any document size.
+    const auto* shape = layer->vector_shape();
+    if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient ||
+        !(shape->path.empty() || shape->path_disabled) || shape->path_inverted || shape->feather > 0.05 ||
+        shape->density != 255 || !shape->stroke.fill_enabled || layer->bounds() != canvas) {
+      return false;
+    }
+  }
+  // Layer effects on the layer, or on a group around it, read the layer's edge (a stroke, an
   // inner shadow, a gradient overlay aligned with the layer), so the raster then keeps the
-  // fill's whole extent. They also read the fill's silhouette, which for a gradient with
-  // transparent stops is a plane only the exact bake makes: that case previews through the
-  // document.
+  // layer's whole extent. For a fill they also read its silhouette, which for a gradient
+  // with transparent stops is a plane only the exact bake makes: that case previews through
+  // the document (or, for a drag, as the painted overlay).
   bool styled = !layer->layer_style().empty();
   for (const auto& top : document.layers()) {
     if (find_with_styled_ancestor(top, layer_id, styled)) {
       break;
     }
   }
-  if (styled) {
+  if (styled && !paints_pixels) {
     for (int sample = 0; sample <= 64; ++sample) {
       if (gradient_stop_opacity(gradient, static_cast<float>(sample) / 64.0F, true) < 0.999F) {
         return false;
@@ -367,9 +392,9 @@ bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const Layer
   if (level == 0 && view_zoom() < 1.0) {
     level = 1;
   }
-  // The document at that level, built once per edit. The fill's own raster is left out:
+  // The document at that level, built once per edit. A fill's own raster is left out:
   // every preview supplies it, so scaling the one in the layer down would be wasted work
-  // proportional to the document.
+  // proportional to the document. Pixels mode paints over the layer's raster and keeps it.
   QElapsedTimer stage_timer;
   stage_timer.start();
   const auto stage_ms = [&stage_timer] {
@@ -378,17 +403,21 @@ bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const Layer
     return elapsed;
   };
   if (!gradient_view_preview_source_.has_value() || gradient_view_preview_source_->layer_id != layer_id ||
-      gradient_view_preview_source_->level != level) {
+      gradient_view_preview_source_->level != level ||
+      gradient_view_preview_source_->keeps_layer_pixels != paints_pixels) {
     ++render_cache_diagnostics_.gradient_view_preview_source_builds;
     Document source(document);
-    if (auto* fill = source.find_layer(layer_id); fill != nullptr) {
-      fill->set_pixels(PixelBuffer());
+    if (!paints_pixels) {
+      if (auto* fill = source.find_layer(layer_id); fill != nullptr) {
+        fill->set_pixels(PixelBuffer());
+      }
     }
     if (!preview_scale_cache_) {
       preview_scale_cache_ = std::make_shared<PreviewScaleCache>();
     }
     gradient_view_preview_source_ = GradientFillViewPreviewSource{
-        layer_id, level, build_preview_scaled_document(source, level, preview_scale_cache_.get())};
+        layer_id, level, paints_pixels, build_preview_scaled_document(source, level, preview_scale_cache_.get()),
+        {}, QRect()};
   }
   render_cache_diagnostics_.gradient_view_preview_source_ms += stage_ms();
   const Document& composite_document = gradient_view_preview_source_->document;
@@ -412,11 +441,14 @@ bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const Layer
   preview.view = view_transform().to_widget();
   preview.view_size = size();
   if (!patch_rect.isEmpty()) {
-    // The fill is rendered for the area on screen only, or whole under layer effects.
+    // The gradient is rendered for the area on screen only, or whole under layer effects.
     const QRect raster_rect = styled ? composite_canvas : patch_rect;
     const std::int32_t step = std::int32_t{1} << level;
     render_gradient_fill_draft(gradient, gradient_bounds, raster_rect.x() * step, raster_rect.y() * step, step,
                                raster_rect.width(), raster_rect.height(), gradient_view_preview_raster_);
+    if (paints_pixels) {
+      paint_gradient_view_preview_over_layer(*composite_layer, raster_rect, step);
+    }
     render_cache_diagnostics_.gradient_view_preview_raster_ms += stage_ms();
     preview.patches = qimage_patch_from_document_rect_with_layer_pixels_banded(
         composite_document, patch_rect, true, layer_id, gradient_view_preview_raster_,
@@ -445,6 +477,159 @@ bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const Layer
   return true;
 }
 
+void CanvasWidget::paint_gradient_view_preview_over_layer(const Layer& scaled_layer, QRect raster_rect,
+                                                          std::int32_t step) {
+  // What core draw_gradient leaves in the layer, at the preview's scale: the gradient at
+  // the tool's Opacity over the layer's pixels, inside the selection, keeping the layer's
+  // alpha under a transparency lock. The layer's raster is `scaled_layer`'s, in the same
+  // scaled pixels as `raster_rect`.
+  auto& raster = gradient_view_preview_raster_;
+  const auto width = raster_rect.width();
+  const auto height = raster_rect.height();
+  const auto& base = scaled_layer.pixels();
+  const auto base_bounds = base.empty() ? Rect{} : scaled_layer.bounds();
+  const auto base_channels = base.empty() ? 0 : static_cast<int>(base.format().channels);
+  const bool lock_alpha = active_layer_locks_transparent_pixels();
+  const auto opacity = std::clamp(gradient_opacity_, 0, 100) * 255 / 100;
+  // The selection's coverage for these pixels, sampled once per drag (the document point in
+  // the middle of each scaled pixel).
+  const std::uint8_t* selection = nullptr;
+  if (has_selection() && gradient_view_preview_source_.has_value()) {
+    auto& source = *gradient_view_preview_source_;
+    if (source.selection_rect != raster_rect ||
+        source.selection_alpha.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height)) {
+      source.selection_rect = raster_rect;
+      source.selection_alpha.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
+      const auto half = step / 2;
+      for (int y = 0; y < height; ++y) {
+        auto* row = source.selection_alpha.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+        for (int x = 0; x < width; ++x) {
+          row[x] = selection_alpha_at(
+              QPoint((raster_rect.x() + x) * step + half, (raster_rect.y() + y) * step + half));
+        }
+      }
+    }
+    selection = source.selection_alpha.data();
+  }
+  auto* bytes = raster.data().data();
+  const auto stride = raster.stride_bytes();
+  for (int y = 0; y < height; ++y) {
+    auto* row = bytes + static_cast<std::size_t>(y) * stride;
+    const auto base_y = raster_rect.y() + y - base_bounds.y;
+    const bool base_row = base_channels >= 3 && base_y >= 0 && base_y < base_bounds.height;
+    for (int x = 0; x < width; ++x) {
+      auto* px = row + static_cast<std::size_t>(x) * 4U;
+      int source_alpha = px[3] * opacity / 255;
+      if (selection != nullptr) {
+        source_alpha = source_alpha * selection[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                                static_cast<std::size_t>(x)] / 255;
+      }
+      const auto base_x = raster_rect.x() + x - base_bounds.x;
+      int under[4] = {0, 0, 0, 0};
+      if (base_row && base_x >= 0 && base_x < base_bounds.width) {
+        const auto* under_px = base.pixel(base_x, base_y);
+        under[0] = under_px[0];
+        under[1] = under_px[1];
+        under[2] = under_px[2];
+        under[3] = base_channels >= 4 ? under_px[3] : 255;
+      }
+      if (lock_alpha) {
+        // Color only where the layer has pixels; its alpha stays.
+        for (int c = 0; c < 3; ++c) {
+          px[c] = static_cast<std::uint8_t>((px[c] * source_alpha + under[c] * (255 - source_alpha) + 127) / 255);
+        }
+        px[3] = static_cast<std::uint8_t>(under[3]);
+        continue;
+      }
+      const int kept = under[3] * (255 - source_alpha) / 255;
+      const int out_alpha = source_alpha + kept;
+      if (out_alpha <= 0) {
+        px[0] = px[1] = px[2] = px[3] = 0;
+        continue;
+      }
+      for (int c = 0; c < 3; ++c) {
+        px[c] = static_cast<std::uint8_t>((px[c] * source_alpha + under[c] * kept + out_alpha / 2) / out_alpha);
+      }
+      px[3] = static_cast<std::uint8_t>(std::min(out_alpha, 255));
+    }
+  }
+}
+
+bool CanvasWidget::show_gradient_drag_view_preview(QPoint from, QPoint to) {
+  if (document_ == nullptr || from == to) {
+    return false;
+  }
+  const auto& document = std::as_const(*document_);
+  const auto active = document.active_layer_id();
+  const auto* layer = active.has_value() ? document.find_layer(*active) : nullptr;
+  if (layer == nullptr) {
+    return false;
+  }
+  const auto canvas = Rect::from_size(document.width(), document.height());
+  // The gradient a Fill Layer made from this drag holds; Pixels mode paints the same ramp
+  // (gradient_fill_from_drag_renders_the_gradient_tool_drag).
+  const auto gradient =
+      gradient_fill_from_drag(resolved_gradient(), gradient_method_, gradient_reverse_, canvas, from.x(), from.y(),
+                              to.x(), to.y());
+  GradientViewPreviewKind kind = GradientViewPreviewKind::PixelsDrag;
+  if (gradient_drag_makes_fill_layer()) {
+    // Only a drag that redraws the active fill: a new layer does not exist yet, and has no
+    // effects to show.
+    if (!layer_is_vector_shape(*layer) || !vector_lock_reason(*layer).empty() ||
+        layer_effectively_locks_image_pixels(*layer)) {
+      return false;
+    }
+    kind = GradientViewPreviewKind::FillDrag;
+  }
+  if (!show_gradient_view_preview(*active, gradient, canvas, kind)) {
+    return false;
+  }
+  gradient_view_preview_->drag = true;
+  gradient_view_preview_->drag_from = from;
+  gradient_view_preview_->drag_to = to;
+  return true;
+}
+
+void CanvasWidget::refresh_gradient_drag_view_preview() {
+  const bool shown = gradient_view_preview_.has_value() && gradient_view_preview_->drag;
+  const bool dragging = drawing_shape_ && tool_ == CanvasTool::Gradient && shape_current_ != shape_start_;
+  if (!dragging) {
+    if (shown && !gradient_view_preview_->held) {
+      // The drag ended without a commit (Esc, a lost release, a click).
+      gradient_view_preview_.reset();
+      restore_gradient_fill_pending_preview();
+    }
+    return;
+  }
+  if (shown && gradient_view_preview_->drag_from == shape_start_ && gradient_view_preview_->drag_to == shape_current_ &&
+      gradient_view_preview_->view == view_transform().to_widget() && gradient_view_preview_->view_size == size()) {
+    return;
+  }
+  if (!show_gradient_drag_view_preview(shape_start_, shape_current_) && shown) {
+    gradient_view_preview_.reset();
+    restore_gradient_fill_pending_preview();
+  }
+}
+
+void CanvasWidget::hold_gradient_drag_view_preview() {
+  if (!gradient_view_preview_.has_value() || !gradient_view_preview_->drag || document_ == nullptr) {
+    return;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(gradient_view_preview_->layer_id);
+  if (layer == nullptr) {
+    gradient_view_preview_.reset();
+    return;
+  }
+  gradient_view_preview_->drag = false;
+  gradient_view_preview_->held = true;
+  gradient_view_preview_->held_render_revision = layer->render_revision();
+  gradient_view_preview_->held_content_revision = layer->content_revision();
+}
+
+bool CanvasWidget::gradient_drag_view_preview_shown() const noexcept {
+  return gradient_view_preview_.has_value() && gradient_view_preview_->drag;
+}
+
 void CanvasWidget::hold_gradient_fill_view_preview(LayerId layer_id, const LayerStyleGradient& gradient,
                                                    Rect gradient_bounds) {
   if (!gradient_view_preview_.has_value() || gradient_view_preview_->layer_id != layer_id) {
@@ -454,7 +639,9 @@ void CanvasWidget::hold_gradient_fill_view_preview(LayerId layer_id, const Layer
   // The throttle may have left an older gradient on screen: the held frame shows the
   // committed one.
   if (gradient_view_preview_->gradient != gradient &&
-      !show_gradient_fill_view_preview(layer_id, gradient, gradient_bounds)) {
+      !show_gradient_view_preview(layer_id, gradient, gradient_bounds,
+                                  gradient_view_preview_->drag ? GradientViewPreviewKind::FillDrag
+                                                               : GradientViewPreviewKind::FillEdit)) {
     clear_gradient_fill_view_preview();
     return;
   }
@@ -464,8 +651,10 @@ void CanvasWidget::hold_gradient_fill_view_preview(LayerId layer_id, const Layer
     return;
   }
   gradient_view_preview_->held = true;
+  gradient_view_preview_->drag = false;
   gradient_view_preview_->held_render_revision = layer->render_revision();
   gradient_view_preview_->held_content_revision = layer->content_revision();
+  gradient_drag_hold_.reset();  // a Fill Layer mode release: this frame is its picture, not the overlay
 }
 
 void CanvasWidget::clear_gradient_fill_view_preview() {
@@ -487,6 +676,7 @@ bool CanvasWidget::begin_gradient_fill_pending_commit(LayerId layer_id, const La
   }
   gradient_view_preview_->held = true;
   gradient_view_preview_->awaiting_commit = true;
+  gradient_view_preview_->drag = false;
   gradient_pending_commit_ = GradientFillPendingCommit{layer_id, gradient, gradient_bounds, false};
   gradient_drag_hold_.reset();  // the view preview is the release's picture now
   update();

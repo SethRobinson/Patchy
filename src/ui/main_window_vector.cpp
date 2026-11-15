@@ -1844,6 +1844,13 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
     layer->set_vector_shape(std::move(content));
     update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
     mark_layer_vector_block_dirty(*layer);
+    if (canvas_->gradient_drag_view_preview_shown()) {
+      // The drag was shown through the composite: that picture, for the committed
+      // gradient, stays until the layer is composited, in place of the painted overlay.
+      const auto& committed = std::as_const(*layer);
+      canvas_->hold_gradient_fill_view_preview(*active_id, committed.vector_shape()->fill.gradient,
+                                               gradient_fill_alignment_bounds(committed, canvas_rect));
+    }
     canvas_->document_changed();
     refresh_layer_list();
     refresh_layer_controls();
