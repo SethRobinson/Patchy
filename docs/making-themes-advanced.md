@@ -227,7 +227,7 @@ All three take PNG, JPEG or BMP files. The bundled Dink Smallwood theme uses eac
 
 A zipped theme works exactly like the folder. To edit one you received, unzip it into the themes folder so it becomes a folder.
 
-**Export Theme Package** saves the selected theme as a zip with a freshly written `theme.json` that lists every role. It is a quick way to turn any theme, a bundled one included, into a package you can unpack and study. At present it writes only the colors, the theme information, `recolorIcons`, `iconScaling` and `backdrop` into that `theme.json` (all the package's files are kept), and leaves out `events`, `menuTitle`, `cursors`, `panelBackgrounds` and `splash`. For a theme that uses those, zip the folder yourself.
+**Export Theme Package** saves the selected theme as a zip with a freshly written `theme.json` that lists every role. It is a quick way to turn any theme, a bundled one included, into a package you can unpack and study. At present it writes only the colors, the theme information, `recolorIcons`, `iconScaling` and `backdrop` into that `theme.json` (all the package's files are kept), and leaves out `events`, `menuTitle`, `cursors`, `panelBackgrounds` and `splash`, along with any file outside the four folders, such as a README. For a theme of your own, zip the folder yourself.
 
 **Delete Theme** removes the selected theme of yours: a file is deleted, a folder goes to the system trash.
 
@@ -268,6 +268,8 @@ Patchy tells you when a theme cannot load at all. When only one part is wrong (a
 **A color does not change.** The role name is misspelled (compare it with an exported `.patchytheme`), or that surface is drawn by another role. Change one role at a time and watch what moves.
 
 **An icon does not change.** Its file name does not match a template name, it is in a subfolder of `icons`, it is not an SVG, PNG or BMP, a bitmap is larger than 1024 pixels, or the SVG refers to something outside itself ([What an SVG icon may contain](#what-an-svg-icon-may-contain)).
+
+**An SVG icon is black.** It says `currentColor` instead of naming a color, as icons from web icon sets do. Replace `currentColor` in the file with a color ([Icons from an icon set](making-themes.md#icons-from-an-icon-set)).
 
 **An SVG icon shows in the wrong colors.** It uses one of the ten template colors, which Patchy swaps. Set `"recolorIcons": false`.
 

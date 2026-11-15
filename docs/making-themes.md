@@ -129,9 +129,23 @@ My First Theme/
     tool-eraser.png
 ```
 
-The names are what matter. You can edit a template file in a drawing program such as Inkscape, draw a new one, or use an icon from a free icon set whose license allows it, as long as it is saved under the template's name. Only the icons you put in the folder change; the rest stay Patchy's.
+The names are what matter. You can edit a template file in a drawing program such as Inkscape, draw a new one, or take one from an icon set, as long as it is saved under the template's name. Only the icons you put in the folder change; the rest stay Patchy's.
 
 ![Three tool icons replaced by the theme's own files](images/themes/icons_replaced.png)
+
+### Icons from an icon set
+
+Icons from free sets such as Tabler Icons and Lucide work, with one change. Their files say `currentColor` where a color goes, so that a web page can choose it. Patchy has no color to hand them, and such an icon comes out black. Open the file in a text editor and replace `currentColor` with a color:
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+     stroke="#dce2eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+```
+
+- `#dce2eb` makes the icon follow the theme: it is the template's line color, which Patchy swaps for `icon_ink`.
+- Any other color is drawn as written.
+
+Check the set's license before you share the theme. Most free sets ask you to keep their license text or a credit with the icons; a README file in your theme folder is the place for it.
 
 ### SVG, PNG and BMP
 
