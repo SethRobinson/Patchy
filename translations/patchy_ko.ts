@@ -36131,6 +36131,18 @@ Locked: %1</source>
         <source>Show Panel Titles</source>
         <translation>패널 제목 표시</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>테마 만드는 방법</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>웹 브라우저에서 테마 제작 안내서를 엽니다.</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>웹 브라우저에서 테마 안내서를 열 수 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

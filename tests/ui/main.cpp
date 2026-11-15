@@ -525,6 +525,7 @@ int main(int argc, char* argv[]) {
            composite_render_tests,
            theme_package_tests,
            theme_script_tests,
+           theme_guide_screenshot_tests,
            painted_chrome_scheme_tests,
            readme_screenshot_tests,
            brush_adjust_pointer_lock_tests,

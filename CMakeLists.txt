@@ -2820,6 +2820,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/composite_render_tests.cpp
       tests/ui/theme_package_tests.cpp
       tests/ui/theme_script_tests.cpp
+      tests/ui/theme_guide_screenshot_tests.cpp
       tests/ui/painted_chrome_scheme_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp

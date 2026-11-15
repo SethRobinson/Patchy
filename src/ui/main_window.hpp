@@ -232,6 +232,10 @@ inline constexpr char kWorksWithoutDocumentProperty[] = "patchy.worksWithoutDocu
 // Help > Patchy Help (F1, GitHub issue 584) opens the feature list in the browser.
 inline constexpr char kPatchyHelpUrl[] = "https://github.com/SethRobinson/Patchy/blob/main/docs/features.md";
 inline constexpr char kHelpUrlProperty[] = "patchy.helpUrl";
+// Preferences > Colors and Themes > How to Make a Theme opens the guide for theme authors.
+// Released builds keep opening this address, so the page never moves.
+inline constexpr char kPatchyThemeGuideUrl[] =
+    "https://github.com/SethRobinson/Patchy/blob/main/docs/making-themes.md";
 // Whether a menu-bar command stays enabled on the empty workspace (GitHub issue
 // 162). Every other menu-bar command is a document action, disabled until a
 // document is open; `command_id` is its hotkey id or empty.

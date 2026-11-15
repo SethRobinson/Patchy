@@ -50,6 +50,7 @@
 #include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUrl>
 #include <QWidget>
 
 #include <algorithm>
@@ -871,6 +872,53 @@ void ui_theme_package_icon_template_and_example_package() {
     CHECK(!assets->backdrop.isNull());
     CHECK(!patchy::ui::theme_sound_for_event(assets, patchy::ui::ThemeSoundEvent::SaveDone).isEmpty());
   }
+
+  // The zip the theme guide offers as a download (scripts/dev/make-example-theme-zip.py)
+  // holds exactly the folder's files, so the two never drift apart.
+  QFile zip(QDir(QStringLiteral(PATCHY_SOURCE_DIR)).filePath(QStringLiteral("themes/example-package.zip")));
+  CHECK(zip.open(QIODevice::ReadOnly));
+  const auto zipped = patchy::ui::load_theme_package_zip(zip.readAll());
+  CHECK(zipped.error.isEmpty());
+  CHECK(zipped.warnings.isEmpty());
+  CHECK(zipped.theme.has_value());
+  if (result.theme && zipped.theme) {
+    CHECK(zipped.theme->assets->manifest == result.theme->assets->manifest);
+    CHECK(zipped.theme->assets->files == result.theme->assets->files);
+  }
+}
+
+// Preferences > Colors and Themes > How to Make a Theme carries the address of the theme
+// guide on GitHub, and that address names a page this repository holds. (Clicking it
+// would open a browser, so the test reads the button instead.)
+void ui_preferences_theme_guide_button_names_the_guide() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, &window, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(preferences_theme_list(*dialog) != nullptr);
+    auto* button = dialog->findChild<QPushButton*>(QStringLiteral("preferencesThemeGuideButton"));
+    CHECK(button != nullptr);
+    if (button != nullptr) {
+      CHECK(button->isVisible());
+      CHECK(!button->autoDefault());
+      CHECK(!button->toolTip().isEmpty());
+      const auto url = button->property(patchy::ui::kHelpUrlProperty).toUrl();
+      CHECK(url == QUrl(QString::fromLatin1(patchy::ui::kPatchyThemeGuideUrl)));
+      const auto prefix = QStringLiteral("https://github.com/SethRobinson/Patchy/blob/main/");
+      CHECK(url.toString().startsWith(prefix));
+      CHECK(QFile::exists(QDir(QStringLiteral(PATCHY_SOURCE_DIR)).filePath(url.toString().mid(prefix.size()))));
+    }
+    saw_dialog = true;
+    dialog->reject();
+  }));
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
 }
 
 // A bundled package (docs/bundled-themes.md, "Theme packages") loads from the generated
@@ -1413,6 +1461,7 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_preferences_theme_list_loads_packages_when_selected", ui_preferences_theme_list_loads_packages_when_selected},
       {"ui_preferences_theme_row_plays_its_startup_sound", ui_preferences_theme_row_plays_its_startup_sound},
       {"ui_theme_package_icon_template_and_example_package", ui_theme_package_icon_template_and_example_package},
+      {"ui_preferences_theme_guide_button_names_the_guide", ui_preferences_theme_guide_button_names_the_guide},
       {"ui_bundled_theme_package_loads_from_resources_and_source",
        ui_bundled_theme_package_loads_from_resources_and_source},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},

@@ -115,6 +115,8 @@ palette mode, Camera Raw, Perspective Planes, and more.
   automation.
 
 Twelve interface languages, dark and light schemes, and importable themes are included.
+To make a theme of your own (colors, icons, sounds, effects), see
+[Making a Patchy theme](docs/making-themes.md).
 
 ## Platform support
 

@@ -36240,6 +36240,18 @@ Verrouillé : %1</translation>
         <source>Show Panel Titles</source>
         <translation>Afficher les titres des panneaux</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>Comment créer un thème</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>Ouvrir le guide de création de thèmes dans le navigateur web.</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>Impossible d&apos;ouvrir le guide des thèmes dans le navigateur web.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

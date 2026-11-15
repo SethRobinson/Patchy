@@ -36349,6 +36349,18 @@ Zablokowano: %1</translation>
         <source>Show Panel Titles</source>
         <translation>Pokaż tytuły paneli</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>Jak utworzyć motyw</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>Otwórz przewodnik tworzenia motywów w przeglądarce.</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>Nie można otworzyć przewodnika po motywach w przeglądarce.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

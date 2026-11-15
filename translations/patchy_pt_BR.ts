@@ -36240,6 +36240,18 @@ Bloqueado: %1</translation>
         <source>Show Panel Titles</source>
         <translation>Mostrar títulos dos painéis</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>Como criar um tema</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>Abrir o guia de criação de temas no navegador.</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>Não foi possível abrir o guia de temas no navegador.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
