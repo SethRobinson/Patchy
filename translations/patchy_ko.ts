@@ -19508,6 +19508,26 @@ Do you want to replace it?</source>
         <source>Color replacement</source>
         <translation>색상 대체</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>%1에는 열린 문서가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>배경 지우개</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>마스크나 채널을 편집하는 동안에는 %1를 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>%1에는 편집 가능한 픽셀 레이어가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>자동 지우개</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22029,6 +22049,18 @@ Do you want to replace it?</source>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>각 사이드 패널 위의 이름 줄 숨기기 또는 표시</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>색상 위를 칠해 그 색상만 지우기</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>비슷한 색상의 영역을 한 번의 클릭으로 지우기</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>지우개, 배경 지우개, 자동 지우개 간 전환</translation>
     </message>
 </context>
 <context>
@@ -36356,6 +36388,58 @@ Locked: %1</source>
             <numerusform>문제 %n개가 더 있지만 표시되지 않습니다.</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>지울 색상: 계속은 드래그하는 동안 포인터 아래의 색상, 한 번은 획이 시작된 곳의 색상, 배경 색상 견본은 배경색을 사용합니다</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>지울 일치 픽셀: 인접하지 않음은 브러시 아래의 모든 픽셀, 연속은 포인터와 연결된 픽셀만, 가장자리 찾기는 연결된 픽셀을 지우되 선명한 가장자리를 유지합니다</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>샘플링한 색상과 얼마나 가까운 색상을 지울지 정합니다. 0%는 정확히 일치하는 색상만 지웁니다</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>클릭한 색상과 다른 색의 픽셀을 어디까지 지울지 정하는 허용 범위</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>지워진 영역의 가장자리를 부드럽게 합니다</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>클릭에 연결된 픽셀로 지우기를 제한합니다.</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>지울 영역을 활성 레이어만이 아니라 이미지 전체에서 찾습니다</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>색상 위를 칠하면 지워집니다. 브러시 중심 아래의 색상과 가까운 픽셀만 지워집니다.</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>색상을 클릭하면 지워집니다. 허용치는 색상이 얼마나 가까워야 하는지를 정하고, 연속은 클릭과 연결된 영역으로 제한합니다.</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>지우개 도구</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>배경 지우개</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>자동 지우개</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>지우개 도구 전환</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39610,6 +39694,38 @@ Locked: %1</source>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor에는 편집 가능한 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2은(는) %3에서 %4 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2는 색상 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: 알 수 없는 %2 값입니다.</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: %2 항목이 있는 옵션 객체를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points는 1개에서 100000개의 {x, y} 점으로 된 배열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: sampling &quot;background&quot;에는 backgroundColor가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1에는 문서의 활성 레이어가 필요합니다(먼저 doc.activeLayer를 설정하세요).</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1에는 편집 가능한 픽셀 레이어가 필요합니다.</translation>
     </message>
 </context>
 <context>

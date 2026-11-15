@@ -19508,6 +19508,26 @@ Do you want to replace it?</source>
         <source>Color replacement</source>
         <translation>顏色取代</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>%1工具需要一個已開啟的文件</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>背景橡皮擦</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>編輯遮色片或色版時無法使用%1工具</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>%1工具需要可編輯的像素圖層</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>魔術橡皮擦</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22029,6 +22049,18 @@ Do you want to replace it?</source>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>隱藏或顯示每個側面板上方的名稱列</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>在一種顏色上塗抹，將其擦除並保留其餘部分</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>點按一次即可擦除顏色相近的區域</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>在橡皮擦、背景橡皮擦和魔術橡皮擦之間切換</translation>
     </message>
 </context>
 <context>
@@ -36356,6 +36388,58 @@ Locked: %1</source>
             <numerusform>另有 %n 個問題未顯示。</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>要擦除的顏色: 「連續」在拖移時取指標下的顏色，「一次」取筆觸起點的顏色，「背景色票」取背景色</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>哪些相符的像素會被擦除: 「非連續的」為筆刷下的所有相符像素，「連續的」僅為與指標相連的像素，「尋找邊緣」為相連的像素並保持銳利的邊緣</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>顏色與取樣顏色要多接近才會被擦除；0% 只擦除完全相符的顏色</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>像素顏色與點按顏色相差多少仍會被擦除</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>柔化被擦除區域的邊緣</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>將擦除限制在與點按位置相連的像素</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>在整個影像而不只是使用中圖層中尋找要擦除的區域</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>在一種顏色上塗抹即可將其擦除。只有與筆刷中心下的顏色相近的像素會被擦除。</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>點按一種顏色即可將其擦除。「容許度」決定顏色需要多接近；「連續的」只擦除與點按位置相連的區域。</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>橡皮擦工具</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>背景橡皮擦</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>魔術橡皮擦</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>循環切換橡皮擦工具</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39610,6 +39694,38 @@ Locked: %1</source>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor 需要可編輯的像素圖層。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2 必須是 %3 到 %4 之間的數字。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2 必須是顏色字串。</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: 未知的 %2 值。</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: 請傳入包含 %2 的選項物件。</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points 必須是包含 1 到 100000 個 {x, y} 點的陣列。</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: sampling &quot;background&quot; 需要 backgroundColor。</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1 需要文件的作用中圖層（請先設定 doc.activeLayer）。</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1 需要可編輯的像素圖層。</translation>
     </message>
 </context>
 <context>

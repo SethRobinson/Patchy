@@ -2709,13 +2709,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // so its bar starts with Tip.
   add_option_label(QT_TR_NOOP("Tip:"),
                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                   CanvasTool::Eraser, CanvasTool::ColorReplace});
+                   CanvasTool::Eraser, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser});
   brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
   // The options bar is built after load_tool_settings() reset the active tip to Round.
   brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
   add_option_widget(brush_tip_picker_,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                     CanvasTool::Eraser, CanvasTool::ColorReplace});
+                     CanvasTool::Eraser, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser});
   // The floating Brush Tips window hands the keys it does not use to the active canvas.
   brush_tip_picker_->set_window_key_target([this]() -> QWidget* { return canvas_; });
   connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
@@ -2792,7 +2792,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Separators follow the grouping rules in docs/options-bar.md; a group a tool or mode hides
   // drops its separator by itself (stray_option_separators).
   add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone,
-                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::ColorReplace});
+                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser});
 
   // Mode sits FIRST for the shape tools so it never moves when the Pixels-mode
   // brush controls below appear (Seth, September 2026).
@@ -2844,7 +2844,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       QT_TR_NOOP("Size:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
        CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-       CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
+       CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser,
        CanvasTool::Eraser, CanvasTool::Line}));
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
@@ -2855,7 +2855,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_size,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser,
                      CanvasTool::Eraser, CanvasTool::Line});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
@@ -2871,10 +2871,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser,
                      CanvasTool::Eraser, CanvasTool::Line});
   add_option_separator({CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing,
-                        CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::ColorReplace});
+                        CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser});
   // Brush Mode (core/paint_mode.hpp), Brush only: the Eraser's Mode would mean its tip
   // shape (Round/Square already cover that) and the retouch tools paint by their own math.
   add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Brush});
@@ -3030,14 +3030,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     auto* separator = make_option_separator();
     register_option_action(separator, {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone,
                                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser,
-                                       CanvasTool::Line, CanvasTool::ColorReplace});
+                                       CanvasTool::Line, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser});
     vector_pixel_only_option_widgets_.push_back(separator);
   }
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Soft:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
        CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-       CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
+       CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser,
        CanvasTool::Eraser, CanvasTool::Line}));
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
@@ -3048,7 +3048,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_softness,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::ColorReplace, CanvasTool::BackgroundEraser,
                      CanvasTool::Eraser, CanvasTool::Line});
   register_retranslation([brush_softness] {
     brush_softness->setToolTip(resolve_modifier_names(MainWindow::tr("Brush edge softness: %ALT%+Right-drag up or down on the canvas")));
@@ -3808,8 +3808,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     };
     // A combo whose items are MainWindow strings, retranslated in place; item data is the enum value.
     const auto add_choice_combo = [&](const char* label, const char* object_name, const char* tooltip,
-                                      std::initializer_list<Choice> choices, int current) {
-      add_option_label(label, {CanvasTool::ColorReplace});
+                                      std::initializer_list<Choice> choices, int current,
+                                      CanvasTool tool = CanvasTool::ColorReplace) {
+      add_option_label(label, {tool});
       auto* combo = new QComboBox(toolbar);
       combo->setObjectName(QString::fromLatin1(object_name));
       const std::vector<Choice> items(choices);
@@ -3818,7 +3819,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
       combo->setCurrentIndex(std::max(0, combo->findData(current)));
       bind_tooltip(combo, tooltip);
-      add_option_widget(combo, {CanvasTool::ColorReplace});
+      add_option_widget(combo, {tool});
       QPointer<QComboBox> guarded(combo);
       register_retranslation([guarded, items] {
         if (guarded == nullptr) {
@@ -3889,6 +3890,122 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     connect(color_replace_anti_alias_check_, &QCheckBox::toggled, this, [this](bool checked) {
       current_color_replace_options_.anti_alias = checked;
       apply_color_replace_settings();
+    });
+
+    // Background Eraser (canvas_widget_erasers.cpp, GitHub issue 727): the same Sampling and
+    // Limits choices and the same Tolerance scale, with its own values and settings keys.
+    add_option_separator({CanvasTool::BackgroundEraser});
+    background_eraser_sampling_combo_ = add_choice_combo(
+        QT_TR_NOOP("Sampling:"), "backgroundEraserSamplingCombo",
+        QT_TR_NOOP("The color that gets erased: Continuous takes the color under the pointer as you drag, Once "
+                   "the color where the stroke starts, Background Swatch the background color"),
+        {{QT_TR_NOOP("Continuous"), static_cast<int>(patchy::ColorMatchSampling::Continuous)},
+         {QT_TR_NOOP("Once"), static_cast<int>(patchy::ColorMatchSampling::Once)},
+         {QT_TR_NOOP("Background Swatch"), static_cast<int>(patchy::ColorMatchSampling::BackgroundSwatch)}},
+        static_cast<int>(current_background_eraser_sampling_), CanvasTool::BackgroundEraser);
+    connect(background_eraser_sampling_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+      if (index < 0 || background_eraser_sampling_combo_ == nullptr) {
+        return;
+      }
+      current_background_eraser_sampling_ =
+          static_cast<patchy::ColorMatchSampling>(background_eraser_sampling_combo_->itemData(index).toInt());
+      apply_eraser_tool_settings();
+    });
+    background_eraser_limits_combo_ = add_choice_combo(
+        QT_TR_NOOP("Limits:"), "backgroundEraserLimitsCombo",
+        QT_TR_NOOP("Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those "
+                   "connected to the pointer, Find Edges connected ones while keeping sharp edges sharp"),
+        {{QT_TR_NOOP("Discontiguous"), static_cast<int>(patchy::ColorMatchLimits::Discontiguous)},
+         {QT_TR_NOOP("Contiguous"), static_cast<int>(patchy::ColorMatchLimits::Contiguous)},
+         {QT_TR_NOOP("Find Edges"), static_cast<int>(patchy::ColorMatchLimits::FindEdges)}},
+        static_cast<int>(current_background_eraser_options_.limits), CanvasTool::BackgroundEraser);
+    connect(background_eraser_limits_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+      if (index < 0 || background_eraser_limits_combo_ == nullptr) {
+        return;
+      }
+      current_background_eraser_options_.limits =
+          static_cast<patchy::ColorMatchLimits>(background_eraser_limits_combo_->itemData(index).toInt());
+      apply_eraser_tool_settings();
+    });
+    add_option_separator({CanvasTool::BackgroundEraser});
+    add_option_label(QT_TR_NOOP("Tolerance:"), {CanvasTool::BackgroundEraser});
+    background_eraser_tolerance_spin_ = new QSpinBox(toolbar);
+    background_eraser_tolerance_spin_->setObjectName(QStringLiteral("backgroundEraserToleranceSpin"));
+    background_eraser_tolerance_spin_->setRange(patchy::kMinColorMatchTolerance, patchy::kMaxColorMatchTolerance);
+    background_eraser_tolerance_spin_->setValue(current_background_eraser_options_.tolerance);
+    background_eraser_tolerance_spin_->setSuffix(percent_suffix());
+    configure_toolbar_spinbox(background_eraser_tolerance_spin_, 52);
+    bind_tooltip(background_eraser_tolerance_spin_,
+                 QT_TR_NOOP("How close a color must be to the sampled color to be erased; 0% erases exact "
+                            "matches only"));
+    add_option_widget(background_eraser_tolerance_spin_, {CanvasTool::BackgroundEraser});
+    connect(background_eraser_tolerance_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+      current_background_eraser_options_.tolerance = value;
+      apply_eraser_tool_settings();
+    });
+
+    // Magic Eraser (core magic_erase): the Fill tool's Tolerance and Contiguous on the Magic
+    // Wand's 0..255 scale, then how the edge and the sampled layers are treated, then Opacity.
+    add_option_label(QT_TR_NOOP("Tolerance:"), {CanvasTool::MagicEraser});
+    magic_eraser_tolerance_spin_ = new QSpinBox(toolbar);
+    magic_eraser_tolerance_spin_->setObjectName(QStringLiteral("magicEraserToleranceSpin"));
+    magic_eraser_tolerance_spin_->setRange(0, 255);
+    magic_eraser_tolerance_spin_->setValue(current_magic_eraser_options_.tolerance);
+    configure_toolbar_spinbox(magic_eraser_tolerance_spin_, 46);
+    bind_tooltip(magic_eraser_tolerance_spin_,
+                 QT_TR_NOOP("How far a pixel's color may differ from the clicked color and still be erased"));
+    add_option_widget(magic_eraser_tolerance_spin_, {CanvasTool::MagicEraser});
+    connect(magic_eraser_tolerance_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+      current_magic_eraser_options_.tolerance = value;
+      apply_eraser_tool_settings();
+    });
+    add_option_separator({CanvasTool::MagicEraser});
+    const auto add_magic_eraser_check = [&](const char* text, const char* object_name, const char* tooltip,
+                                            bool MagicEraserOptions::* field) {
+      auto* check = new CheckGlyphBox(tr(text), toolbar);
+      bind_widget_text(check, text);
+      check->setObjectName(QString::fromLatin1(object_name));
+      check->setChecked(current_magic_eraser_options_.*field);
+      bind_tooltip(check, tooltip);
+      add_option_widget(check, {CanvasTool::MagicEraser});
+      connect(check, &QCheckBox::toggled, this, [this, field](bool checked) {
+        current_magic_eraser_options_.*field = checked;
+        apply_eraser_tool_settings();
+      });
+      return check;
+    };
+    magic_eraser_anti_alias_check_ =
+        add_magic_eraser_check(QT_TR_NOOP("Anti-alias"), "magicEraserAntiAliasCheck",
+                               QT_TR_NOOP("Soften the edge of the erased area"), &MagicEraserOptions::anti_alias);
+    magic_eraser_contiguous_check_ =
+        add_magic_eraser_check(QT_TR_NOOP("Contiguous"), "magicEraserContiguousCheck",
+                               QT_TR_NOOP("Limit the erase to pixels connected to the click"),
+                               &MagicEraserOptions::contiguous);
+    magic_eraser_sample_all_layers_check_ = add_magic_eraser_check(
+        QT_TR_NOOP("Sample All Layers"), "magicEraserSampleAllLayersCheck",
+        QT_TR_NOOP("Find the area to erase in the whole image instead of the active layer alone"),
+        &MagicEraserOptions::sample_all_layers);
+    add_option_separator({CanvasTool::MagicEraser});
+    add_option_label(QT_TR_NOOP("Opacity:"), {CanvasTool::MagicEraser});
+    magic_eraser_opacity_spin_ = new QSpinBox(toolbar);
+    magic_eraser_opacity_spin_->setObjectName(QStringLiteral("magicEraserOpacitySpin"));
+    magic_eraser_opacity_spin_->setRange(0, 100);  // 0% erases nothing, as the Fill tool's 0% fills nothing
+    magic_eraser_opacity_spin_->setValue(current_magic_eraser_options_.opacity);
+    magic_eraser_opacity_spin_->setSuffix(percent_suffix());
+    configure_toolbar_spinbox(magic_eraser_opacity_spin_, 52);
+    add_option_widget(magic_eraser_opacity_spin_, {CanvasTool::MagicEraser});
+    magic_eraser_opacity_slider_ = new QSlider(Qt::Horizontal, toolbar);
+    magic_eraser_opacity_slider_->setObjectName(QStringLiteral("magicEraserOpacitySlider"));
+    magic_eraser_opacity_slider_->setProperty(kOptionsBarCollapsibleProperty, true);
+    magic_eraser_opacity_slider_->setRange(0, 100);
+    magic_eraser_opacity_slider_->setValue(current_magic_eraser_options_.opacity);
+    magic_eraser_opacity_slider_->setFixedWidth(120);
+    add_option_widget(magic_eraser_opacity_slider_, {CanvasTool::MagicEraser});
+    connect(magic_eraser_opacity_spin_, &QSpinBox::valueChanged, magic_eraser_opacity_slider_, &QSlider::setValue);
+    connect(magic_eraser_opacity_slider_, &QSlider::valueChanged, magic_eraser_opacity_spin_, &QSpinBox::setValue);
+    connect(magic_eraser_opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+      current_magic_eraser_options_.opacity = value;
+      apply_eraser_tool_settings();
     });
   }
 

@@ -228,6 +228,8 @@ add_library(patchy_core
   src/core/selection_modify.cpp
   src/core/color_range.cpp
   src/core/color_replace.cpp
+  src/core/color_match_stroke.cpp
+  src/core/background_eraser.cpp
   src/core/rect_utils.cpp
   src/core/smart_filter_adjustment.cpp
   src/core/smart_filter_effects.cpp
@@ -1328,6 +1330,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_spot_healing.cpp
       src/ui/canvas_widget_red_eye.cpp
       src/ui/canvas_widget_color_replace.cpp
+      src/ui/canvas_widget_erasers.cpp
       src/ui/canvas_widget_transform.cpp
       src/ui/canvas_widget_path_edits.cpp
       src/ui/canvas_widget_vector_tools.cpp
@@ -2539,6 +2542,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/infra_selection_tests.cpp
     tests/core/color_range_tests.cpp
     tests/core/color_replace_tests.cpp
+    tests/core/eraser_tools_tests.cpp
     tests/core/pipl_tests.cpp
     tests/core/guide_layout_tests.cpp
     tests/core/layer_alignment_tests.cpp
@@ -2669,6 +2673,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/filter_dialog_selection_tests.cpp
       tests/ui/color_range_tests.cpp
       tests/ui/color_replace_tests.cpp
+      tests/ui/eraser_tools_tests.cpp
       tests/ui/layer_style_gradient_tests.cpp
       tests/ui/layer_style_gradient_tests_effects.cpp
       tests/ui/layer_style_gradient_tests_presets.cpp

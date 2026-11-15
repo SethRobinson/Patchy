@@ -2039,6 +2039,79 @@ bool ScriptEngineHost::red_eye(std::int64_t session_id, LayerId layer_id, QPoint
   return true;
 }
 
+CanvasWidget* ScriptEngineHost::eraser_call_canvas(std::int64_t session_id, LayerId layer_id, const char* function) {
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return nullptr;
+  }
+  if (session->document.find_layer(layer_id) == nullptr) {
+    throw_js_error(tr("The layer no longer exists."));
+    return nullptr;
+  }
+  const auto active_id = std::as_const(session->document).active_layer_id();
+  if (!active_id.has_value() || *active_id != layer_id) {
+    throw_js_error(tr("%1 needs the document's active layer (set doc.activeLayer first).").arg(QLatin1String(function)));
+    return nullptr;
+  }
+  return session->canvas;
+}
+
+bool ScriptEngineHost::erase_background(std::int64_t session_id, LayerId layer_id,
+                                        const BackgroundEraserScriptStroke& stroke, QRect* changed) {
+  pump_progress_indicator();
+  auto* canvas = eraser_call_canvas(session_id, layer_id, "eraseBackground");
+  if (canvas == nullptr || !prepare_mutation(session_id)) {
+    return false;
+  }
+  const auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  const auto result = canvas->apply_background_eraser_stroke(stroke);
+  if (!result.ok) {
+    throw_js_error(result.error.isEmpty()
+                       ? tr("%1 needs an editable pixel layer.").arg(QStringLiteral("eraseBackground"))
+                       : result.error);
+    return false;
+  }
+  if (changed != nullptr) {
+    *changed = result.changed;
+  }
+  if (!result.changed.isEmpty()) {
+    note_pixels_changed(session_id, result.changed);
+  }
+  return true;
+}
+
+bool ScriptEngineHost::magic_erase(std::int64_t session_id, LayerId layer_id, QPoint point,
+                                   const MagicEraserOptions& options, const QColor& background, QRect* changed) {
+  pump_progress_indicator();
+  auto* canvas = eraser_call_canvas(session_id, layer_id, "magicErase");
+  if (canvas == nullptr || !prepare_mutation(session_id)) {
+    return false;
+  }
+  const auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  const auto result = canvas->apply_magic_eraser(point, options, background);
+  if (!result.ok) {
+    throw_js_error(result.error.isEmpty() ? tr("%1 needs an editable pixel layer.").arg(QStringLiteral("magicErase"))
+                                          : result.error);
+    return false;
+  }
+  if (changed != nullptr) {
+    *changed = result.changed;
+  }
+  if (!result.changed.isEmpty()) {
+    note_pixels_changed(session_id, result.changed);
+  }
+  return true;
+}
+
 bool ScriptEngineHost::color_replace(std::int64_t session_id, LayerId layer_id,
                                      const ColorReplaceScriptStroke& stroke, QRect* changed) {
   pump_progress_indicator();

@@ -99,6 +99,7 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
     case CanvasTool::Eraser:
       return true;
     default:
@@ -107,7 +108,8 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
 }
 
 // The brushes that share the toning stroke plumbing (press, spacing, release): Dodge, Burn,
-// Sponge, Blur, Sharpen, and Color Replacement, which paints through its own segment function.
+// Sponge, Blur, Sharpen, and Color Replacement and the Background Eraser, which paint through
+// their own segment function.
 bool is_local_adjustment_tool(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Dodge:
@@ -116,6 +118,7 @@ bool is_local_adjustment_tool(CanvasTool tool) noexcept {
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
       return true;
     default:
       return false;
@@ -1041,6 +1044,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::BlurBrush:
       case CanvasTool::SharpenBrush:
       case CanvasTool::ColorReplace:
+      case CanvasTool::BackgroundEraser:
+      case CanvasTool::MagicEraser:
       case CanvasTool::Text:
       case CanvasTool::TypeMask:
       case CanvasTool::Pen:
@@ -1104,7 +1109,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        effective_tool == CanvasTool::Healing || effective_tool == CanvasTool::SpotHealing ||
        uses_patch_drag(effective_tool) || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
-       is_local_adjustment_tool(effective_tool) ||
+       is_local_adjustment_tool(effective_tool) || effective_tool == CanvasTool::MagicEraser ||
        is_type_tool(effective_tool) || effective_tool == CanvasTool::Crop ||
        effective_tool == CanvasTool::PerspectiveCrop || effective_tool == CanvasTool::RedEye)) {
     report_status_error(tr("This tool is unavailable while viewing a document channel"));
@@ -1286,7 +1291,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (editing_grayscale_target()) {
       report_status_error(effective_tool == CanvasTool::ColorReplace
                               ? tr("Color Replacement is unavailable while editing a mask or channel")
-                              : tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
+                              : effective_tool == CanvasTool::BackgroundEraser
+                                    ? tr("%1 is unavailable while editing a mask or channel").arg(tr("Background Eraser"))
+                                    : tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
       return;
     }
     // Alt (Ctrl in the GIMP-style tool modifiers) at the press paints the stroke with the
@@ -1312,6 +1319,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         break;
       case CanvasTool::ColorReplace:
         label = tr("Color replacement");
+        break;
+      case CanvasTool::BackgroundEraser:
+        label = tr("Background Eraser");
         break;
       default:
         break;
@@ -1838,6 +1848,22 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::MagicEraser) {
+    // One click erases the region the Fill tool would flood (canvas_widget_erasers.cpp).
+    if (editing_grayscale_target()) {
+      report_status_error(tr("%1 is unavailable while editing a mask or channel").arg(tr("Magic Eraser")));
+      return;
+    }
+    if (begin_edit(tr("Magic Eraser"))) {
+      begin_processing_operation();
+      const auto dirty = magic_erase_pixels(document_point, magic_eraser_options_, secondary_color_);
+      tick_processing_operation();
+      active_edit_target_changed_impl(QRegion(dirty));
+      end_processing_operation();
+    }
+    return;
+  }
+
   if (tool_ == CanvasTool::Fill) {
     const auto paint_layer_artboard = retarget_paint_to_clicked_artboard(document_point);
     if (begin_edit(tr("Fill"))) {
@@ -1993,7 +2019,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 bool CanvasWidget::toning_segment_waits_for_spacing(QPoint from, QPoint to) const {
   const auto operation = local_adjustment_operation();
   if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush ||
-      operation == CanvasTool::ColorReplace) {
+      operation == CanvasTool::ColorReplace || operation == CanvasTool::BackgroundEraser) {
     return false;
   }
   const auto spacing = std::max(1.0, static_cast<double>(effective_brush_input().size) / 10.0);

@@ -2,7 +2,9 @@
 // is a row of brush dabs a quarter of the brush apart; each dab compares the layer's stroke-start
 // pixels under the tip with one sampled color and paints the foreground color over the ones
 // that match (core/color_replace.hpp). The pixels are written at once and nothing about the
-// stroke is kept afterwards.
+// stroke is kept afterwards. The Background Eraser (GitHub issue 727, docs/eraser-tools.md)
+// walks the same stroke and erases the matching pixels instead (core/background_eraser.hpp);
+// its options and script call are in canvas_widget_erasers.cpp.
 //
 // Legal boundary (docs/legal-constraints-selection.md, "Color Replacement tool"): one sampled point in
 // display RGB with the Magic Wand's tolerance metric. Never a Lab point or area model, a
@@ -84,20 +86,54 @@ patchy::ColorReplaceSampling CanvasWidget::color_replace_sampling() const noexce
   return color_replace_sampling_;
 }
 
-// One segment of a Color Replacement stroke (local_adjustment_brush_segment hands it over): the
-// first dab at the press, then one every quarter of the brush diameter, measured by distance so
-// the pointer's event rate does not matter. Work is bounded to each dab's box.
-QRect CanvasWidget::color_replace_brush_segment(QPoint from, QPoint to) {
+// The selection and the canvas limit of a stroke on a layer at `layer_bounds` (buffer
+// coordinates in, coverage 0..1 out): pixels of the layer outside the canvas stay as they are.
+patchy::ColorMatchStroke::SelectionCoverage CanvasWidget::color_match_stroke_coverage(patchy::Rect layer_bounds) {
+  const auto paint_rect =
+      QRect(0, 0, document_->width(), document_->height()).intersected(to_qrect(layer_bounds));
+  const bool selection_active = has_selection();
+  return [this, layer_bounds, paint_rect, selection_active](std::int32_t x, std::int32_t y) {
+    const QPoint point(x + layer_bounds.x, y + layer_bounds.y);
+    if (!paint_rect.contains(point)) {
+      return 0.0F;
+    }
+    if (!selection_active) {
+      return 1.0F;
+    }
+    return selection_allows(point) ? static_cast<float>(selection_alpha_at(point)) / 255.0F : 0.0F;
+  };
+}
+
+// One segment of a Color Replacement or Background Eraser stroke (local_adjustment_brush_segment
+// hands it over): the first dab at the press, then one every quarter of the brush diameter,
+// measured by distance so the pointer's event rate does not matter. Work is bounded to each
+// dab's box. `erase` is the Background Eraser: the same dabs, erased instead of repainted.
+QRect CanvasWidget::color_match_brush_segment(QPoint from, QPoint to, bool erase) {
   auto* layer = active_pixel_layer();
   if (document_ == nullptr || layer == nullptr) {
     return {};
+  }
+  if (erase && !background_eraser_stroke_.has_value() && !active_layer_locks_transparent_pixels() &&
+      std::as_const(*layer).pixels().format().channels == 3) {
+    // As the Eraser: an unlocked layer without alpha gains one, so the erase is transparency.
+    patchy::ensure_layer_alpha_for_erase(*layer);
   }
   const auto& start_pixels = std::as_const(*layer).pixels();
   if (start_pixels.empty() || start_pixels.format().channels < 3) {
     return {};
   }
   const auto layer_bounds = std::as_const(*layer).bounds();
-  if (!color_replace_stroke_.has_value()) {
+  if (erase) {
+    if (!background_eraser_stroke_.has_value()) {
+      const auto gain = start_pixels.format().bit_depth == BitDepth::Float32
+                            ? patchy::color_intensity_gain(paint_intensity_.background)
+                            : 1.0F;
+      background_eraser_stroke_.emplace(start_pixels, background_eraser_options_, background_eraser_sampling_,
+                                        edit_color_of(secondary_color_), active_layer_locks_transparent_pixels(),
+                                        gain);
+      background_eraser_stroke_->set_palette_snap(palette_snap_for_edits());
+    }
+  } else if (!color_replace_stroke_.has_value()) {
     const auto gain = start_pixels.format().bit_depth == BitDepth::Float32
                           ? patchy::color_intensity_gain(paint_intensity_.foreground)
                           : 1.0F;
@@ -131,17 +167,7 @@ QRect CanvasWidget::color_replace_brush_segment(QPoint from, QPoint to) {
     return {};
   }
   // Pixels of the layer outside the canvas stay as they are, and the selection limits the rest.
-  const bool selection_active = has_selection();
-  const patchy::ColorReplaceStroke::SelectionCoverage coverage = [&](std::int32_t x, std::int32_t y) {
-    const QPoint point(x + layer_bounds.x, y + layer_bounds.y);
-    if (!paint_rect.contains(point)) {
-      return 0.0F;
-    }
-    if (!selection_active) {
-      return 1.0F;
-    }
-    return selection_allows(point) ? static_cast<float>(selection_alpha_at(point)) / 255.0F : 0.0F;
-  };
+  const auto coverage = color_match_stroke_coverage(layer_bounds);
 
   auto& pixels = layer->pixels();
   QRect dirty;
@@ -154,8 +180,11 @@ QRect CanvasWidget::color_replace_brush_segment(QPoint from, QPoint to) {
     const patchy::Rect rect{footprint.rect.x() - layer_bounds.x, footprint.rect.y() - layer_bounds.y,
                             footprint.rect.width(), footprint.rect.height()};
     const auto hot = footprint.rect.center();
-    const auto changed = color_replace_stroke_->dab(pixels, hot.x() - layer_bounds.x, hot.y() - layer_bounds.y, rect,
-                                                    footprint.coverage, coverage);
+    const auto changed =
+        erase ? background_eraser_stroke_->dab(pixels, hot.x() - layer_bounds.x, hot.y() - layer_bounds.y, rect,
+                                               footprint.coverage, coverage)
+              : color_replace_stroke_->dab(pixels, hot.x() - layer_bounds.x, hot.y() - layer_bounds.y, rect,
+                                           footprint.coverage, coverage);
     render_cache_diagnostics_.toning_segment_pixels +=
         static_cast<std::int64_t>(footprint.rect.width()) * footprint.rect.height();
     if (!changed.empty()) {
@@ -207,19 +236,7 @@ CanvasWidget::ColorReplaceResult CanvasWidget::apply_color_replace_stroke(const 
     return result;
   }
   const auto layer_bounds = std::as_const(*layer).bounds();
-  const auto paint_rect =
-      QRect(0, 0, document_->width(), document_->height()).intersected(to_qrect(layer_bounds));
-  const bool selection_active = has_selection();
-  const patchy::ColorReplaceStroke::SelectionCoverage coverage = [&](std::int32_t x, std::int32_t y) {
-    const QPoint point(x + layer_bounds.x, y + layer_bounds.y);
-    if (!paint_rect.contains(point)) {
-      return 0.0F;
-    }
-    if (!selection_active) {
-      return 1.0F;
-    }
-    return selection_allows(point) ? static_cast<float>(selection_alpha_at(point)) / 255.0F : 0.0F;
-  };
+  const auto coverage = color_match_stroke_coverage(layer_bounds);
 
   patchy::ColorReplaceStroke engine(std::as_const(*layer).pixels(), stroke.options, stroke.sampling,
                                     edit_color_of(stroke.foreground), edit_color_of(stroke.background));

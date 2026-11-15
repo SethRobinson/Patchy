@@ -19570,6 +19570,26 @@ Do you want to replace it?</source>
         <source>Color replacement</source>
         <translation>Sustitución de color</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>%1 necesita un documento abierto</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Borrador de fondos</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>%1 no está disponible mientras se edita una máscara o un canal</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>%1 necesita una capa de píxeles editable</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Borrador mágico</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22091,6 +22111,18 @@ Do you want to replace it?</source>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>Ocultar o mostrar la fila del nombre sobre cada panel lateral</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>Pintar sobre un color para borrarlo y conservar el resto</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>Borrar un área de color similar con un clic</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>Alternar entre Borrador, Borrador de fondos y Borrador mágico</translation>
     </message>
 </context>
 <context>
@@ -36466,6 +36498,58 @@ Bloqueada: %1</translation>
             <numerusform>No se muestran %n problemas más.</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>El color que se borra: Continuo toma el color bajo el puntero al arrastrar, Una vez el color donde empieza el trazo, Muestra de fondo el color de fondo</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>Qué píxeles coincidentes se borran: No contiguo todos los que están bajo el pincel, Contiguo solo los conectados con el puntero, Hallar bordes los conectados manteniendo nítidos los bordes definidos</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>Cuánto debe parecerse un color al color muestreado para borrarse; 0% borra solo las coincidencias exactas</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>Cuánto puede diferir el color de un píxel del color en el que se hizo clic y aun así borrarse</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>Suavizar el borde del área borrada</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>Limitar el borrado a los píxeles contiguos al punto de clic</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>Buscar el área que se borra en toda la imagen en lugar de solo en la capa activa</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>Pinte sobre un color para borrarlo. Solo se borran los píxeles parecidos al color situado bajo el centro del pincel.</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>Haga clic en un color para borrarlo. Tolerancia define cuánto debe parecerse un color; Contiguo se limita al área conectada con el punto de clic.</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>Herramientas de borrador</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Borrador de fondos</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Borrador mágico</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>Alternar herramientas de borrador</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39724,6 +39808,38 @@ Bloqueada: %1</translation>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor necesita una capa de píxeles editable.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2 debe ser un número de %3 a %4.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2 debe ser una cadena de color.</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: valor desconocido para %2.</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: pase un objeto de opciones con %2.</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points debe ser una matriz de 1 a 100000 puntos {x, y}.</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: sampling &quot;background&quot; necesita backgroundColor.</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1 necesita la capa activa del documento (establezca primero doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1 necesita una capa de píxeles editable.</translation>
     </message>
 </context>
 <context>

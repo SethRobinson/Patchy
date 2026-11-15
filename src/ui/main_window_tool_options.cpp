@@ -2898,6 +2898,35 @@ void MainWindow::load_tool_settings() {
   canvas_->set_color_replace_options(current_color_replace_options_);
   canvas_->set_color_replace_sampling(current_color_replace_sampling_);
   sync_color_replace_controls();
+  // Background Eraser and Magic Eraser (GitHub issue 727): tokens and plain values, so an
+  // unknown token or an unreadable number is the default.
+  {
+    const auto token = [&settings](const char* key) { return settings.value(QLatin1String(key)).toString().toStdString(); };
+    current_background_eraser_sampling_ =
+        patchy::color_match_sampling_from_token(token("tools/backgroundEraserSampling"))
+            .value_or(patchy::ColorMatchSampling::Continuous);
+    current_background_eraser_options_.limits =
+        patchy::color_match_limits_from_token(token("tools/backgroundEraserLimits"))
+            .value_or(patchy::ColorMatchLimits::Contiguous);
+    current_background_eraser_options_.tolerance =
+        stored_int(settings, "tools/backgroundEraserTolerance", patchy::kDefaultColorMatchTolerance,
+                   patchy::kMinColorMatchTolerance, patchy::kMaxColorMatchTolerance);
+    const MagicEraserOptions magic_defaults;
+    current_magic_eraser_options_.tolerance =
+        stored_int(settings, "tools/magicEraserTolerance", magic_defaults.tolerance, 0, 255);
+    current_magic_eraser_options_.anti_alias =
+        stored_bool(settings, "tools/magicEraserAntiAlias", magic_defaults.anti_alias);
+    current_magic_eraser_options_.contiguous =
+        stored_bool(settings, "tools/magicEraserContiguous", magic_defaults.contiguous);
+    current_magic_eraser_options_.sample_all_layers =
+        stored_bool(settings, "tools/magicEraserSampleAllLayers", magic_defaults.sample_all_layers);
+    current_magic_eraser_options_.opacity =
+        stored_int(settings, "tools/magicEraserOpacity", magic_defaults.opacity, 0, 100);
+  }
+  canvas_->set_background_eraser_options(current_background_eraser_options_);
+  canvas_->set_background_eraser_sampling(current_background_eraser_sampling_);
+  canvas_->set_magic_eraser_options(current_magic_eraser_options_);
+  sync_eraser_tool_controls();
   current_perspective_crop_show_grid_ = stored_bool(settings, "tools/perspectiveCropShowGrid", true);
   if (perspective_crop_grid_check_ != nullptr) {
     const QSignalBlocker blocker(perspective_crop_grid_check_);
@@ -3318,6 +3347,45 @@ void MainWindow::apply_color_replace_settings() {
   schedule_save_tool_settings();
 }
 
+void MainWindow::apply_eraser_tool_settings() {
+  if (canvas_ != nullptr) {
+    canvas_->set_background_eraser_options(current_background_eraser_options_);
+    canvas_->set_background_eraser_sampling(current_background_eraser_sampling_);
+    canvas_->set_magic_eraser_options(current_magic_eraser_options_);
+  }
+  schedule_save_tool_settings();
+}
+
+void MainWindow::sync_eraser_tool_controls() {
+  const auto select = [](QComboBox* combo, int value) {
+    if (combo != nullptr) {
+      const QSignalBlocker blocker(combo);
+      combo->setCurrentIndex(std::max(0, combo->findData(value)));
+    }
+  };
+  const auto set_value = [](auto* control, int value) {
+    if (control != nullptr) {
+      const QSignalBlocker blocker(control);
+      control->setValue(value);
+    }
+  };
+  const auto set_checked = [](QCheckBox* check, bool checked) {
+    if (check != nullptr) {
+      const QSignalBlocker blocker(check);
+      check->setChecked(checked);
+    }
+  };
+  select(background_eraser_sampling_combo_, static_cast<int>(current_background_eraser_sampling_));
+  select(background_eraser_limits_combo_, static_cast<int>(current_background_eraser_options_.limits));
+  set_value(background_eraser_tolerance_spin_, current_background_eraser_options_.tolerance);
+  set_value(magic_eraser_tolerance_spin_, current_magic_eraser_options_.tolerance);
+  set_checked(magic_eraser_anti_alias_check_, current_magic_eraser_options_.anti_alias);
+  set_checked(magic_eraser_contiguous_check_, current_magic_eraser_options_.contiguous);
+  set_checked(magic_eraser_sample_all_layers_check_, current_magic_eraser_options_.sample_all_layers);
+  set_value(magic_eraser_opacity_spin_, current_magic_eraser_options_.opacity);
+  set_value(magic_eraser_opacity_slider_, current_magic_eraser_options_.opacity);
+}
+
 void MainWindow::sync_color_replace_controls() {
   const auto select = [](QComboBox* combo, int value) {
     if (combo != nullptr) {
@@ -3501,7 +3569,7 @@ namespace {
 // The tools whose options bar carries the Tip picker (build_options_bar).
 [[nodiscard]] bool tool_takes_brush_tip(CanvasTool tool) {
   return tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::PatternStamp ||
-         tool == CanvasTool::Eraser || tool == CanvasTool::ColorReplace;
+         tool == CanvasTool::Eraser || tool == CanvasTool::ColorReplace || tool == CanvasTool::BackgroundEraser;
 }
 
 }  // namespace
@@ -3680,6 +3748,17 @@ void MainWindow::save_tool_settings() const {
                     token_text(patchy::color_replace_limits_token(current_color_replace_options_.limits)));
   settings.setValue(QStringLiteral("tools/colorReplaceTolerance"), current_color_replace_options_.tolerance);
   settings.setValue(QStringLiteral("tools/colorReplaceAntiAlias"), current_color_replace_options_.anti_alias);
+  settings.setValue(QStringLiteral("tools/backgroundEraserSampling"),
+                    token_text(patchy::color_match_sampling_token(current_background_eraser_sampling_)));
+  settings.setValue(QStringLiteral("tools/backgroundEraserLimits"),
+                    token_text(patchy::color_match_limits_token(current_background_eraser_options_.limits)));
+  settings.setValue(QStringLiteral("tools/backgroundEraserTolerance"), current_background_eraser_options_.tolerance);
+  settings.setValue(QStringLiteral("tools/magicEraserTolerance"), current_magic_eraser_options_.tolerance);
+  settings.setValue(QStringLiteral("tools/magicEraserAntiAlias"), current_magic_eraser_options_.anti_alias);
+  settings.setValue(QStringLiteral("tools/magicEraserContiguous"), current_magic_eraser_options_.contiguous);
+  settings.setValue(QStringLiteral("tools/magicEraserSampleAllLayers"),
+                    current_magic_eraser_options_.sample_all_layers);
+  settings.setValue(QStringLiteral("tools/magicEraserOpacity"), current_magic_eraser_options_.opacity);
   if (crop_overlay_combo_ != nullptr && current_crop_overlay_ >= 0 &&
       current_crop_overlay_ < crop_overlay_combo_->count()) {
     settings.setValue(QStringLiteral("tools/cropOverlay"), crop_overlay_combo_->itemData(current_crop_overlay_));

@@ -1784,6 +1784,209 @@ QJSValue ScriptLayerObject::replaceColor(const QJSValue& options) {
   return result;
 }
 
+namespace {
+
+// The option readers the two eraser calls share. Each throws a JS error naming `function` and
+// the key, and returns false, on a value of the wrong kind or out of range.
+struct EraserOptionReader {
+  ScriptEngineHost& host;
+  const char* function;
+
+  [[nodiscard]] QString name() const { return QLatin1String(function); }
+  bool fail(const QString& message) const {
+    host.throw_js_error(message);
+    return false;
+  }
+  bool number(const QString& key, const QJSValue& value, int minimum, int maximum, int* out) const {
+    if (!value.isNumber() || !std::isfinite(value.toNumber()) || value.toNumber() < minimum ||
+        value.toNumber() > maximum) {
+      return fail(ScriptEngineHost::tr("%1: %2 must be a number from %3 to %4.")
+                      .arg(name(), key)
+                      .arg(minimum)
+                      .arg(maximum));
+    }
+    *out = static_cast<int>(std::lround(value.toNumber()));
+    return true;
+  }
+  bool boolean(const QString& key, const QJSValue& value, bool* out) const {
+    if (!value.isBool()) {
+      return fail(ScriptEngineHost::tr("%1: %2 must be true or false.").arg(name(), key));
+    }
+    *out = value.toBool();
+    return true;
+  }
+  bool color(const QString& key, const QJSValue& value, QColor* out) const {
+    if (!value.isString()) {
+      return fail(ScriptEngineHost::tr("%1: %2 must be a color string.").arg(name(), key));
+    }
+    return parse_color(host, value.toString(), out);  // throws its own error
+  }
+  template <typename Parse, typename Out>
+  bool token(const QString& key, const QJSValue& value, const Parse& parse, Out* out) const {
+    const auto parsed = value.isString() ? parse(value.toString().toStdString()) : std::nullopt;
+    if (!parsed.has_value()) {
+      return fail(ScriptEngineHost::tr("%1: unknown %2 value.").arg(name(), key));
+    }
+    *out = *parsed;
+    return true;
+  }
+  bool unknown(const QString& key) const {
+    return fail(ScriptEngineHost::tr("%1: unknown option %2.").arg(name(), key));
+  }
+  bool required(const QString& keys) const {
+    return fail(ScriptEngineHost::tr("%1: pass an options object with %2.").arg(name(), keys));
+  }
+};
+
+[[nodiscard]] QJSValue changed_bounds_object(ScriptEngineHost& host, const QRect& changed) {
+  auto result = host.engine()->newObject();
+  result.setProperty(QStringLiteral("x"), changed.x());
+  result.setProperty(QStringLiteral("y"), changed.y());
+  result.setProperty(QStringLiteral("width"), changed.width());
+  result.setProperty(QStringLiteral("height"), changed.height());
+  return result;
+}
+
+}  // namespace
+
+// The Background Eraser through the session's canvas (the layer must be the active one): one
+// stroke with a round tip. Strict: an unknown key or a value of the wrong kind throws before
+// anything is erased.
+QJSValue ScriptLayerObject::eraseBackground(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const EraserOptionReader read{host_, "eraseBackground"};
+  if (!options.isObject()) {
+    read.required(QStringLiteral("points"));
+    return QJSValue();
+  }
+  BackgroundEraserScriptStroke stroke;
+  bool has_background = false;
+  int hardness = 100;
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    if (key == QLatin1String("points")) {
+      const auto length = value.isArray() ? value.property(QStringLiteral("length")).toInt() : 0;
+      bool valid = length >= 1 && length <= 100000;
+      stroke.points.reserve(static_cast<std::size_t>(std::max(0, length)));
+      for (int index = 0; valid && index < length; ++index) {
+        const auto point = value.property(static_cast<quint32>(index));
+        const auto x = point.property(QStringLiteral("x"));
+        const auto y = point.property(QStringLiteral("y"));
+        valid = point.isObject() && x.isNumber() && y.isNumber() && std::isfinite(x.toNumber()) &&
+                std::isfinite(y.toNumber()) && std::abs(x.toNumber()) <= 100000.0 && std::abs(y.toNumber()) <= 100000.0;
+        if (valid) {
+          stroke.points.emplace_back(x.toNumber(), y.toNumber());
+        }
+      }
+      if (!valid) {
+        read.fail(ScriptEngineHost::tr("%1: points must be an array of 1 to 100000 {x, y} points.").arg(read.name()));
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("backgroundColor")) {
+      if (!read.color(key, value, &stroke.background)) {
+        return QJSValue();
+      }
+      has_background = true;
+    } else if (key == QLatin1String("size")) {
+      if (!read.number(key, value, 1, kMaxBrushSize, &stroke.size)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("hardness")) {
+      if (!read.number(key, value, 0, 100, &hardness)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("tolerance")) {
+      if (!read.number(key, value, patchy::kMinColorMatchTolerance, patchy::kMaxColorMatchTolerance,
+                       &stroke.options.tolerance)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("sampling")) {
+      if (!read.token(key, value, patchy::color_match_sampling_from_token, &stroke.sampling)) {
+        return QJSValue();
+      }
+    } else if (key == QLatin1String("limits")) {
+      if (!read.token(key, value, patchy::color_match_limits_from_token, &stroke.options.limits)) {
+        return QJSValue();
+      }
+    } else {
+      read.unknown(key);
+      return QJSValue();
+    }
+  }
+  if (stroke.points.empty()) {
+    read.required(QStringLiteral("points"));
+    return QJSValue();
+  }
+  if (stroke.sampling == patchy::ColorMatchSampling::BackgroundSwatch && !has_background) {
+    read.fail(ScriptEngineHost::tr("%1: sampling \"background\" needs backgroundColor.").arg(read.name()));
+    return QJSValue();
+  }
+  stroke.softness = 100 - hardness;
+  QRect changed;
+  if (!host_.erase_background(session_id_, layer_id_, stroke, &changed)) {
+    return QJSValue();
+  }
+  return changed_bounds_object(host_, changed);
+}
+
+// The Magic Eraser through the session's canvas (the layer must be the active one): one click.
+// Strict like eraseBackground.
+QJSValue ScriptLayerObject::magicErase(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const EraserOptionReader read{host_, "magicErase"};
+  if (!options.isObject()) {
+    read.required(QStringLiteral("x, y"));
+    return QJSValue();
+  }
+  MagicEraserOptions erase;
+  QColor background(Qt::white);  // color-literal-ok: a script call's default paint, not chrome
+  int x = 0;
+  int y = 0;
+  bool has_x = false;
+  bool has_y = false;
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    bool ok = true;
+    if (key == QLatin1String("x")) {
+      ok = has_x = read.number(key, value, -100000, 100000, &x);
+    } else if (key == QLatin1String("y")) {
+      ok = has_y = read.number(key, value, -100000, 100000, &y);
+    } else if (key == QLatin1String("tolerance")) {
+      ok = read.number(key, value, 0, 255, &erase.tolerance);
+    } else if (key == QLatin1String("opacity")) {
+      ok = read.number(key, value, 0, 100, &erase.opacity);
+    } else if (key == QLatin1String("antiAlias")) {
+      ok = read.boolean(key, value, &erase.anti_alias);
+    } else if (key == QLatin1String("contiguous")) {
+      ok = read.boolean(key, value, &erase.contiguous);
+    } else if (key == QLatin1String("sampleAllLayers")) {
+      ok = read.boolean(key, value, &erase.sample_all_layers);
+    } else if (key == QLatin1String("backgroundColor")) {
+      ok = read.color(key, value, &background);
+    } else {
+      ok = read.unknown(key);
+    }
+    if (!ok) {
+      return QJSValue();
+    }
+  }
+  if (!has_x || !has_y) {
+    read.required(QStringLiteral("x, y"));
+    return QJSValue();
+  }
+  QRect changed;
+  if (!host_.magic_erase(session_id_, layer_id_, QPoint(x, y), erase, background, &changed)) {
+    return QJSValue();
+  }
+  return changed_bounds_object(host_, changed);
+}
+
 QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   ImageTraceOptions trace_options;

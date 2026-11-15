@@ -10,6 +10,7 @@ Related documents:
 - [brushes-ui.md](brushes-ui.md): the tip picker and Brush Tips manager, the floating Brush Tips window, footprint cursors and the brush overlay, and the modifiers every footprint-cursor tool shares (Ctrl Move, Shift line, the Left/Right tip rotation keys, stroke points as pixel indices).
 - [brushes-local-adjustments.md](brushes-local-adjustments.md): Dodge, Burn, Sponge, Blur and Sharpen, their fixed algorithms, the Alt swap, and the Photoshop calibration of the Dodge/Burn ranges and of Blur and Sharpen.
 - [color-replacement.md](color-replacement.md): the Color Replacement tool in the Brush flyout, a brush that repaints pixels matching a sampled color with the foreground color (Hue, Saturation, Color or Luminosity), using the Brush's tip, Size and Soft.
+- [eraser-tools.md](eraser-tools.md): the Background Eraser (the same match, erasing instead of repainting, with the Eraser's Size and Soft) and the Magic Eraser (the Fill tool's flood region, erased) in the Eraser flyout.
 
 ## Core stamping engine
 

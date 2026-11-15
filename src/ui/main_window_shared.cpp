@@ -711,6 +711,7 @@ bool tool_shows_brush_softness(CanvasTool tool) noexcept {
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
     case CanvasTool::Eraser:
     case CanvasTool::Line:
     case CanvasTool::Rectangle:
@@ -920,6 +921,10 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye");
     case CanvasTool::ColorReplace:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color Replacement");
+    case CanvasTool::BackgroundEraser:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Background Eraser");
+    case CanvasTool::MagicEraser:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magic Eraser");
     case CanvasTool::Crop:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop");
     case CanvasTool::PerspectiveCrop:

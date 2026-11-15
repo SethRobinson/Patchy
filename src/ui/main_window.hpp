@@ -3,6 +3,7 @@
 #include "color/color_management.hpp"
 #include "core/text_path.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/background_eraser.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/channel_view.hpp"
 #include "core/color_replace.hpp"
@@ -3242,6 +3243,10 @@ private:
   // every canvas, saved. apply_ pushes the mirrors to the active canvas after a control changed.
   void apply_color_replace_settings();
   void sync_color_replace_controls();
+  // Background Eraser and Magic Eraser options-bar values (GitHub issue 727): the same
+  // pattern, one apply_ and one sync_ for both tools.
+  void apply_eraser_tool_settings();
+  void sync_eraser_tool_controls();
   // Writes only tools/activeTool: a tool picked with no document open (no canvas for
   // save_tool_settings to read, or the startup load still pending).
   void save_active_tool_setting() const;
@@ -4055,6 +4060,15 @@ private:
   QComboBox* color_replace_limits_combo_{nullptr};
   QSpinBox* color_replace_tolerance_spin_{nullptr};
   QCheckBox* color_replace_anti_alias_check_{nullptr};
+  QComboBox* background_eraser_sampling_combo_{nullptr};
+  QComboBox* background_eraser_limits_combo_{nullptr};
+  QSpinBox* background_eraser_tolerance_spin_{nullptr};
+  QSpinBox* magic_eraser_tolerance_spin_{nullptr};
+  QCheckBox* magic_eraser_anti_alias_check_{nullptr};
+  QCheckBox* magic_eraser_contiguous_check_{nullptr};
+  QCheckBox* magic_eraser_sample_all_layers_check_{nullptr};
+  QSpinBox* magic_eraser_opacity_spin_{nullptr};
+  QSlider* magic_eraser_opacity_slider_{nullptr};
   QCheckBox* object_select_sample_all_layers_check_{nullptr};
   QComboBox* object_select_model_combo_{nullptr};
   QPushButton* select_subject_button_{nullptr};
@@ -4765,6 +4779,12 @@ private:
   // ...Tolerance, ...AntiAlias).
   patchy::ColorReplaceOptions current_color_replace_options_{};
   patchy::ColorReplaceSampling current_color_replace_sampling_{patchy::ColorReplaceSampling::Continuous};
+  // Background Eraser (settings keys tools/backgroundEraserSampling and ...Limits as tokens,
+  // ...Tolerance) and Magic Eraser (tools/magicEraserTolerance, ...AntiAlias, ...Contiguous,
+  // ...SampleAllLayers, ...Opacity).
+  patchy::BackgroundEraserOptions current_background_eraser_options_{};
+  patchy::ColorMatchSampling current_background_eraser_sampling_{patchy::ColorMatchSampling::Continuous};
+  MagicEraserOptions current_magic_eraser_options_{};
   // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
   // and tools/cropShieldOpacity; every canvas draws with these.
   CropOverlayOptions current_crop_overlay_options_;

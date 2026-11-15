@@ -19632,6 +19632,26 @@ Czy chcesz go zastąpić?</translation>
         <source>Color replacement</source>
         <translation>Zastępowanie kolorów</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>%1 wymaga otwartego dokumentu</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Gumka tła</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>%1 jest niedostępne podczas edycji maski lub kanału</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>%1 wymaga edytowalnej warstwy pikseli</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Magiczna gumka</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22153,6 +22173,18 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>Ukryj lub pokaż wiersz z nazwą nad każdym panelem bocznym</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>Maluj po kolorze, aby go wymazać i zachować resztę</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>Wymaż obszar o podobnym kolorze jednym kliknięciem</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>Przełączaj między narzędziami Gumka, Gumka tła i Magiczna gumka</translation>
     </message>
 </context>
 <context>
@@ -36576,6 +36608,58 @@ Zablokowano: %1</translation>
             <numerusform>Nie pokazano jeszcze %n problemów.</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>Kolor, który jest wymazywany: Ciągłe pobiera kolor spod wskaźnika podczas przeciągania, Raz kolor z początku pociągnięcia, Próbka tła kolor tła</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>Które pasujące piksele są wymazywane: Niesąsiadujące wszystkie pod pędzlem, Sąsiadujące tylko połączone ze wskaźnikiem, Znajdź krawędzie połączone, z zachowaniem ostrych krawędzi</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>Jak bliski próbkowanemu kolorowi musi być kolor, aby został wymazany; 0% wymazuje tylko dokładne dopasowania</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>Jak bardzo kolor piksela może różnić się od klikniętego koloru i nadal być wymazany</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>Wygładź krawędź wymazanego obszaru</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>Ogranicz wymazywanie do pikseli połączonych z kliknięciem</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>Szukaj obszaru do wymazania w całym obrazie, a nie tylko na aktywnej warstwie</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>Maluj po kolorze, aby go wymazać. Wymazywane są tylko piksele zbliżone do koloru pod środkiem pędzla.</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>Kliknij kolor, aby go wymazać. Tolerancja określa, jak bliski musi być kolor; Sąsiadujące ogranicza do obszaru połączonego z kliknięciem.</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>Narzędzia gumki</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Gumka tła</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Magiczna gumka</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>Przełącz narzędzia gumki</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39838,6 +39922,38 @@ Zablokowano: %1</translation>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor wymaga edytowalnej warstwy pikseli.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2 musi być liczbą od %3 do %4.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2 musi być ciągiem koloru.</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: nieznana wartość %2.</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: przekaż obiekt opcji z %2.</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points musi być tablicą od 1 do 100000 punktów {x, y}.</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: sampling &quot;background&quot; wymaga backgroundColor.</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1 wymaga aktywnej warstwy dokumentu (najpierw ustaw doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1 wymaga edytowalnej warstwy pikseli.</translation>
     </message>
 </context>
 <context>

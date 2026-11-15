@@ -1518,6 +1518,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   toning_dab_placed_ = false;
   toning_dab_distance_ = 0.0;
   color_replace_stroke_.reset();
+  background_eraser_stroke_.reset();
   toning_pending_point_.reset();
   toning_tail_timer_.stop();
   brush_stroke_paint_mode_ = {};
@@ -1702,6 +1703,7 @@ bool CanvasWidget::tool_supports_shift_click_stroke_connect(CanvasTool tool) noe
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
     case CanvasTool::Eraser:
       return true;
     default:
@@ -4021,10 +4023,10 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   if (const auto detail_operation = local_adjustment_operation();
       detail_operation == CanvasTool::BlurBrush || detail_operation == CanvasTool::SharpenBrush) {
     return blur_sharpen_brush_segment(from, to, detail_operation);  // per dab, builds up
-  } else if (detail_operation == CanvasTool::ColorReplace) {
-    // A tool of its own that shares this stroke plumbing (canvas_widget_color_replace.cpp); the
-    // boundary comment below is about Dodge, Burn and Sponge, not about it.
-    return color_replace_brush_segment(from, to);
+  } else if (detail_operation == CanvasTool::ColorReplace || detail_operation == CanvasTool::BackgroundEraser) {
+    // Tools of their own that share this stroke plumbing (canvas_widget_color_replace.cpp); the
+    // boundary comment below is about Dodge, Burn and Sponge, not about them.
+    return color_match_brush_segment(from, to, detail_operation == CanvasTool::BackgroundEraser);
   }
 
   const auto layer_id = *document_->active_layer_id();

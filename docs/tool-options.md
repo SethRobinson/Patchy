@@ -68,9 +68,9 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Brush | Airbrush (`brushAirbrushCheck`) | `brushAirbrush` | no | yes |
 | Brush, Mixer, Eraser | Smooth and its four options | `brushSmoothing`, `...PulledString`, `...CatchUp`, `...CatchUpEnd`, `...ZoomAdjust` | yes | yes |
 | Brush | Show Outline, Show Overlay and Overlay Opacity (`brushOutlineAction`, `brushOverlayAction`, `brushOverlayOpacitySpin` in the Smoothing gear) | `brushOutline`, `brushOverlay`, `brushOverlayOpacity` | new (issue 517) | yes |
-| Brush, Mixer, Pattern Stamp, Eraser, Color Replacement | Tip (`BrushTipPicker`) | `brushTip` | no | yes |
+| Brush, Mixer, Pattern Stamp, Eraser, Color Replacement, Background Eraser | Tip (`BrushTipPicker`) | `brushTip` | no | yes |
 | Brush | Dynamics button | per-tip sidecar; Round/Square session | sidecar | sidecar |
-| Eraser | Size, Opacity, Soft (own set) | `eraserSize` (before), `eraserOpacity`, `eraserSoftness` | size only | yes |
+| Eraser, Background Eraser | Size, Opacity, Soft (own set; the Background Eraser shows Size and Soft and shares them) | `eraserSize` (before), `eraserOpacity`, `eraserSoftness` | size only | yes |
 | Mixer Brush | Wet, Load, Mix, Flow, Sample All Layers | `mixerWet`, `mixerLoad`, `mixerMix`, `mixerFlow`, `mixerSampleAllLayers` | yes | yes |
 | Pattern Stamp | Pattern (by pattern id), Aligned | `patternStampPatternId`, `patternStampAligned` | yes | yes |
 | Clone | Aligned | `cloneAligned` | yes | yes |
@@ -84,6 +84,8 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Content-Aware Move | Object Selection (`contentAwareMoveObjectSelectionCheck`; builds with the Object Selection model only) | `contentAwareMoveObjectSelection` (default off) | new (issue 599) | yes |
 | Color Replacement | Mode, Sampling, Limits (`colorReplaceModeCombo`, `colorReplaceSamplingCombo`, `colorReplaceLimitsCombo`; tokens, [color-replacement.md](color-replacement.md)) | `colorReplaceMode`, `colorReplaceSampling`, `colorReplaceLimits` | new (issue 720) | yes |
 | Color Replacement | Tolerance, Anti-alias (`colorReplaceToleranceSpin`, `colorReplaceAntiAliasCheck`); Size and Soft are the Brush family's | `colorReplaceTolerance`, `colorReplaceAntiAlias` | new (issue 720) | yes |
+| Background Eraser | Sampling, Limits, Tolerance (`backgroundEraserSamplingCombo`, `backgroundEraserLimitsCombo`, `backgroundEraserToleranceSpin`; tokens, [eraser-tools.md](eraser-tools.md)) | `backgroundEraserSampling`, `backgroundEraserLimits`, `backgroundEraserTolerance` | new (issue 727) | yes |
+| Magic Eraser | Tolerance, Anti-alias, Contiguous, Sample All Layers, Opacity (`magicEraserToleranceSpin`, `magicEraserAntiAliasCheck`, `magicEraserContiguousCheck`, `magicEraserSampleAllLayersCheck`, `magicEraserOpacitySpin`) | `magicEraserTolerance`, `magicEraserAntiAlias`, `magicEraserContiguous`, `magicEraserSampleAllLayers`, `magicEraserOpacity` | new (issue 727) | yes |
 | Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Smudge | Strength (`smudgeStrengthSpin`, 0..100, default 50; replaces Opacity on its bar) | `smudgeStrength` | new (issue 675) | yes |

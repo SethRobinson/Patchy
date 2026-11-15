@@ -2,6 +2,7 @@
 
 // Canvas values shared by tools, document sessions and window controllers.
 // Persisted enum values are append-only. CanvasWidget keeps aliases for callers.
+#include "core/background_eraser.hpp"
 #include "core/color_replace.hpp"
 #include "core/layer.hpp"
 #include "core/document_channel.hpp"
@@ -112,7 +113,12 @@ enum class CanvasTool {
   TypeMask,
   // November 2026 Color Replacement (append-only: values ride persisted settings). A brush
   // that repaints pixels matching a sampled color (docs/color-replacement.md).
-  ColorReplace
+  ColorReplace,
+  // November 2026 Background Eraser and Magic Eraser (append-only: values ride persisted
+  // settings; GitHub issue 727, docs/eraser-tools.md). A brush that erases pixels matching a
+  // sampled color, and a click that erases a flood region.
+  BackgroundEraser,
+  MagicEraser
 };
 
 // The tools that open the inline text editor on a click: Type and Type Mask.
@@ -641,6 +647,28 @@ struct ColorReplaceScriptStroke {
   QColor background{Qt::white};  // color-literal-ok: a script stroke's default paint, not chrome
   patchy::ColorReplaceOptions options{};
   patchy::ColorReplaceSampling sampling{patchy::ColorReplaceSampling::Continuous};
+};
+
+// One Background Eraser stroke for scripts (CanvasWidget::apply_background_eraser_stroke,
+// docs/eraser-tools.md): points in document pixels, a round tip.
+struct BackgroundEraserScriptStroke {
+  std::vector<QPointF> points;
+  int size{40};
+  int softness{0};
+  QColor background{Qt::white};  // color-literal-ok: a script stroke's default paint, not chrome
+  patchy::BackgroundEraserOptions options{};
+  patchy::ColorMatchSampling sampling{patchy::ColorMatchSampling::Continuous};
+};
+
+// The Magic Eraser's options (docs/eraser-tools.md). Tolerance is the Magic Wand's 0..255.
+struct MagicEraserOptions {
+  int tolerance{32};
+  bool anti_alias{true};
+  bool contiguous{true};
+  bool sample_all_layers{false};
+  int opacity{100};  // percent
+
+  friend bool operator==(const MagicEraserOptions&, const MagicEraserOptions&) = default;
 };
 
 }  // namespace patchy::ui
