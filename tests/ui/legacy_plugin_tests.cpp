@@ -42,6 +42,7 @@
 #include "ui_test_support.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QColor>
 #include <QComboBox>
 #include <QMessageBox>
 #include <QCoreApplication>
@@ -422,18 +423,28 @@ void ui_legacy_plugin_mehdi_dialog_capture_if_available() {
     }
   });
   probe.start(15);
-  CHECK(run_script(window, QStringLiteral("patchy.plugins.folders = ['%1'];\n"
-                                          "app.activeDocument.activeLayer.fillRect(0, 0, 300, 300, '#4080c0');\n"
-                                          "var list = patchy.plugins.list();\n"
-                                          "for (var i = 0; i < list.length; ++i) {\n"
-                                          "  if (list[i].category === 'Mehdi' && list[i].architecture === 'x64' && list[i].supported) {\n"
-                                          "    app.activeDocument.activeLayer.applyPlugin(list[i].id, {dialog: false, captureDialog: '%2'});\n"
-                                          "    console.log('captured ' + list[i].id);\n"
-                                          "    break;\n"
-                                          "  }\n"
-                                          "}\n"
-                                          "patchy.plugins.folders = [];\n")
-                               .arg(QDir::fromNativeSeparators(patchy::ui::to_qstring(mehdi)), png)));
+  // Patchy is per-monitor DPI aware and the plug-in helper is not. The offscreen platform
+  // leaves this process unaware, so take Patchy's awareness for the capture: on a scaled
+  // display the window rectangle then comes back in physical pixels, as it does in the app.
+  const DPI_AWARENESS_CONTEXT previous_dpi_context =
+      SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+  const bool script_ran =
+      run_script(window, QStringLiteral("patchy.plugins.folders = ['%1'];\n"
+                                        "app.activeDocument.activeLayer.fillRect(0, 0, 300, 300, '#4080c0');\n"
+                                        "var list = patchy.plugins.list();\n"
+                                        "for (var i = 0; i < list.length; ++i) {\n"
+                                        "  if (list[i].category === 'Mehdi' && list[i].architecture === 'x64' && list[i].supported) {\n"
+                                        "    app.activeDocument.activeLayer.applyPlugin(list[i].id, {dialog: false, captureDialog: '%2'});\n"
+                                        "    console.log('captured ' + list[i].id);\n"
+                                        "    break;\n"
+                                        "  }\n"
+                                        "}\n"
+                                        "patchy.plugins.folders = [];\n")
+                             .arg(QDir::fromNativeSeparators(patchy::ui::to_qstring(mehdi)), png));
+  if (previous_dpi_context != nullptr) {
+    SetThreadDpiAwarenessContext(previous_dpi_context);
+  }
+  CHECK(script_ran);
   probe.stop();
   CHECK(backlog_contains(window, QStringLiteral("captured legacy.photoshop.")));
   CHECK(saw_waiting);
@@ -442,6 +453,22 @@ void ui_legacy_plugin_mehdi_dialog_capture_if_available() {
   const QImage image(png);
   CHECK(!image.isNull());
   CHECK(image.width() > 200 && image.height() > 100);
+  // The dialog fills the picture. At 150% scaling the bitmap was once measured in Patchy's
+  // pixels while the window drew at its own size, so its right third and lower third stayed
+  // black. The dialog's lower right corner is its pale background.
+  int lit = 0;
+  int sampled = 0;
+  for (int y = image.height() * 3 / 4; y < image.height() - 12; y += 4) {
+    for (int x = image.width() * 3 / 4; x < image.width() - 12; x += 4) {
+      const QColor color = image.pixelColor(x, y);
+      ++sampled;
+      if (color.red() + color.green() + color.blue() > 90) {
+        ++lit;
+      }
+    }
+  }
+  CHECK(sampled > 0);
+  CHECK(lit * 2 > sampled);
 }
 
 // Plugins > Repeat Last Plug-in and Last Plug-in Settings... (no default keys: Ctrl+F is

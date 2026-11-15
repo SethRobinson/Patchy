@@ -134,9 +134,31 @@ BOOL CALLBACK find_ok_button(HWND hwnd, LPARAM lparam) {
 #define PW_RENDERFULLCONTENT 0x00000002
 #endif
 
+// Measures and renders in the window's own DPI context for as long as it lives. The
+// plug-in helper is not DPI aware: on a scaled display Windows stretches its windows,
+// PrintWindow still renders them at their own size, and GetWindowRect answers in the
+// caller's (Patchy's, per-monitor) pixels. At 150% that made the bitmap half again as
+// large as the picture drawn into its corner.
+class WindowDpiContextScope {
+public:
+  explicit WindowDpiContextScope(HWND hwnd)
+      : previous_(SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hwnd))) {}
+  ~WindowDpiContextScope() {
+    if (previous_ != nullptr) {
+      SetThreadDpiAwarenessContext(previous_);
+    }
+  }
+  WindowDpiContextScope(const WindowDpiContextScope&) = delete;
+  WindowDpiContextScope& operator=(const WindowDpiContextScope&) = delete;
+
+private:
+  DPI_AWARENESS_CONTEXT previous_;
+};
+
 // Saves a top-level window of another process to a PNG (its client and
 // non-client area, as PrintWindow renders it).
 bool capture_window_to_png(HWND hwnd, const QString& path) {
+  const WindowDpiContextScope window_pixels(hwnd);
   RECT rect{};
   if (!GetWindowRect(hwnd, &rect)) {
     return false;
