@@ -55,6 +55,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -166,6 +168,41 @@ const Layer* topmost_move_layer_at_recursive(const std::vector<Layer>& layers, Q
   return nullptr;
 }
 
+// The largest type size of a text layer, in text-local pixels. The runs carry the sizes
+// (column 3 of each patchy.text.runs line); the layer-level size key is only what a session
+// starts from, and a script-made layer keeps a small default there.
+double largest_text_size(const Layer& layer) {
+  double size = 0.0;
+  if (const auto found = layer.metadata().find(kLayerMetadataTextSize); found != layer.metadata().end()) {
+    size = static_cast<double>(std::atoi(found->second.c_str()));
+  }
+  const auto runs = layer.metadata().find(kLayerMetadataTextRuns);
+  if (runs == layer.metadata().end()) {
+    return size;
+  }
+  const std::string_view text = runs->second;
+  std::size_t line_start = 0;
+  while (line_start < text.size()) {
+    auto line_end = text.find('\n', line_start);
+    if (line_end == std::string_view::npos) {
+      line_end = text.size();
+    }
+    // start, length, size: the third tab-separated field. The version line has no tabs.
+    const auto line = text.substr(line_start, line_end - line_start);
+    const auto first_tab = line.find('\t');
+    const auto second_tab = first_tab == std::string_view::npos ? first_tab : line.find('\t', first_tab + 1);
+    if (second_tab != std::string_view::npos) {
+      const std::string field(line.substr(second_tab + 1, line.find('\t', second_tab + 1) - second_tab - 1));
+      const double run_size = std::strtod(field.c_str(), nullptr);
+      if (std::isfinite(run_size)) {
+        size = std::max(size, run_size);
+      }
+    }
+    line_start = line_end + 1;
+  }
+  return size;
+}
+
 // Whether a Type tool press at the point lands on this text layer (CanvasWidget::
 // type_tool_hits_text_layer; `path_reach` is its type_tool_path_reach).
 bool text_layer_contains_type_point(const Layer& layer, QPoint document_point, double path_reach) {
@@ -185,13 +222,9 @@ bool text_layer_contains_type_point(const Layer& layer, QPoint document_point, d
   // corners around a slanted line) belongs to whatever else is there.
   const auto transform = text_area_transform(layer);
   const double scale = std::sqrt(std::abs(transform[0] * transform[3] - transform[1] * transform[2]));
-  int size = 0;
-  if (const auto found = layer.metadata().find(kLayerMetadataTextSize); found != layer.metadata().end()) {
-    size = std::atoi(found->second.c_str());
-  }
   // As far as glyphs reach either side of the line (the session's own measure, main_window.cpp
   // path_text_reach), in document pixels.
-  const double glyph_reach = std::max(12.0, 1.6 * static_cast<double>(std::max(1, size))) * std::max(scale, 0.0001);
+  const double glyph_reach = std::max(12.0, 1.6 * std::max(1.0, largest_text_size(layer))) * std::max(scale, 0.0001);
   const double reach = in_bounds ? std::max(path_reach, glyph_reach) : path_reach;
   if (const auto contour_bounds = path->bounds();
       !contour_bounds || document_point.x() < contour_bounds->left - reach ||

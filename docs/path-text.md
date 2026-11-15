@@ -241,8 +241,9 @@ line inside the range as in a box).
   through to the path under it (the active text's own contour is the targeted path) and a
   press there started a second text on a copy of the line (the issue 717 follow-up).
 - **What path text takes**: its line within the reach, bare parts included, and inside its
-  bounds the band its glyphs stand in (1.6 times the type size from the line, at least 12 px,
-  scaled by the text transform). The rest of its bounding box, the middle of a ring of text or
+  bounds the band its glyphs stand in (1.6 times the largest type size from the line, at least
+  12 px, scaled by the text transform; the size comes from the runs, since the layer's own
+  size key can hold a small default). The rest of its bounding box, the middle of a ring of text or
   the corners around a slanted line, is free for other text (while a ring's text is the active
   layer its closed line is the targeted path, so the middle starts text that fills it).
 - **Cursor**: it names the frame a press works in, new text and existing text alike. The
@@ -275,6 +276,17 @@ line inside the range as in a box).
   `refresh_layer_controls`). Test: `ui_text_path_flip_command_flips_a_committed_layer`.
 - **Re-edit.** A click on the text, or within the reach of the bare part of its contour,
   opens the layer. The whole session is one undo step.
+- **The caret of the opening click** is where a second click at the same spot puts it. Every
+  caret-from-a-point answer goes through `text_editor_position_at_local_point`
+  (main_window.cpp), which unbends the point with the plan's `unmap` first; the opening click
+  used to skip that and read a contour point as a straight one. Three more things keep the two
+  clicks equal: the canvas hands `add_text_at` the press's exact point
+  (`CanvasWidget::text_request_precise_point`, a whole document pixel is many screen pixels at
+  zoom); a session that edits through the overlay reads that point from the overlay's
+  whole-pixel origin, as the overlay will; and before the first letter or past the last one
+  (the bare line, the unused part of the range) the nearer end of the text wins, whatever the
+  paragraph direction (Qt names the far end for Latin text in a right-to-left paragraph, which
+  is how the issue 717 file reads). Point, box and area text open through the same code.
 - **The contour as a path.** With the path-text layer active, the Direct Selection and Path
   Selection tools edit its contour like an area boundary (`text_area_edit_target_path`): the
   text follows, the range stays where it was in segment units, and points cannot be added or
@@ -306,9 +318,12 @@ authored, the older CC keys, the legacy-engine refusal) and `tests/ui/text_path_
 line plan, placement against the captures, scripting, the Type tool's targeting, the marks, the
 caret and clicks; the cursor and its agreement with the press in the
 `ui_text_path_type_tool_cursor_*` tests and
-`ui_text_path_type_tool_leaves_the_inside_of_a_ring_of_text_free`). The issue 717 file is local
+`ui_text_path_type_tool_leaves_the_inside_of_a_ring_of_text_free`; the opening click's caret
+in the `ui_text_path_first_click_*` tests and
+`ui_text_first_click_on_point_and_area_text_puts_the_caret_at_the_click`). The issue 717 file is local
 (`local-test-fixtures/psd/issue-717/photoshop-cc-text-on-a-path.psd`, a reporter's file, not
-committed): `text_engine_path_frames_read_older_photoshop_cc_file_if_available` and the three
+committed): `text_engine_path_frames_read_older_photoshop_cc_file_if_available` and the four
 `ui_text_path_older_photoshop_cc_file_*_if_available` tests (redraw against the saved raster,
-a Type tool edit of each layer, the cursor along each line) skip without it; the committed
+a Type tool edit of each layer, the cursor along each line, the opening click's caret) skip
+without it; the committed
 `text_engine_path_frames_read_older_photoshop_cc_options` covers the key rules everywhere.

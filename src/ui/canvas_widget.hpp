@@ -1876,6 +1876,12 @@ public:
   void set_brush_settings_changed_callback(std::function<void()> callback);
   void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
+  // The exact document point (between whole pixels) of the press the text-requested callback is
+  // being called for; nullopt outside such a call and for requests that are not a press on
+  // existing text. MainWindow::add_text_at places the caret of the text it opens from it.
+  [[nodiscard]] std::optional<QPointF> text_request_precise_point() const noexcept {
+    return text_request_precise_point_;
+  }
   // Type Mask (GitHub issue 670; docs/type-mask.md). The modifiers of the press that opened the
   // last Type Mask session: Shift adds its letters to the selection, Alt subtracts, both
   // intersect, none replaces.
@@ -5518,6 +5524,10 @@ private:
   std::function<void()> brush_settings_changed_callback_;
   std::function<void(PenButtonAction)> pen_button_action_callback_;
   std::function<void(QPoint, QRect)> text_requested_callback_;
+  std::optional<QPointF> text_request_precise_point_;
+  // Calls the text-requested callback for a press at widget_position on existing text, with
+  // text_request_precise_point set for the length of the call.
+  void request_text_at_press(QPoint document_point, QPointF widget_position);
   std::function<bool(QPointF, bool)> text_entry_selection_drag_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(int)> layer_opacity_digit_callback_;

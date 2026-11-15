@@ -1231,12 +1231,36 @@ int text_editor_position_at_local_point(const QTextEdit& editor, QPointF local_p
   if (const auto plan = text_editor_path_line_plan(editor, *layout_document)) {
     // The click resolves from the nearest point of the contour.
     local_point = plan->unmap(local_point);
+    // Before the first letter or past the last one (the bare line, the unused part of the
+    // range) the nearer end of the line's text wins. QTextLine::xToCursor answers there by the
+    // paragraph's direction, which names the far end for Latin text in a right-to-left
+    // paragraph; where it already names the near end its answer stands. Half a pixel inside
+    // either end counts too: Qt compares in 1/64 pixel steps and still calls a point a
+    // hundredth of a pixel past the first letter's edge "before the text".
+    if (const auto& line = plan->line.line; line.isValid() && line.textLength() > 0) {
+      const int first = line.textStart();
+      const int last = first + line.textLength();
+      const qreal x = local_point.x() - plan->line.block_origin.x();
+      const qreal first_x = line.cursorToX(first);
+      const qreal last_x = line.cursorToX(last);
+      if (x <= std::min(first_x, last_x) + 0.5 || x >= std::max(first_x, last_x) - 0.5) {
+        const bool first_is_nearer = std::abs(x - first_x) <= std::abs(x - last_x);
+        const qreal near_x = first_is_nearer ? first_x : last_x;
+        if (std::abs(line.cursorToX(line.xToCursor(x)) - near_x) > 0.5) {
+          return std::clamp(plan->line.block_position + (first_is_nearer ? first : last), 0,
+                            std::max(0, layout_document->characterCount() - 1));
+        }
+      }
+    }
   }
   return text_editor_line_geometry(editor, *layout_document).position_at(local_point);
 }
 
 // Same, for a point in the editor viewport's own pixels (the inverse of
-// scale_document_rect_to_viewport).
+// scale_document_rect_to_viewport). It goes through text_editor_position_at_local_point, so
+// every caret-from-a-point answer, path text's unbending included, comes from one place: the
+// press that opens a session used to skip the unbending and put the caret of text on a curve
+// somewhere else than a second click did (GitHub issue 717 follow-up).
 int text_editor_position_at_viewport_point(const QTextEdit& editor, QPointF viewport_point) {
   double zoom = 1.0;
   const auto* layout_document = text_editor_document_space_layout(editor, zoom);
@@ -1244,9 +1268,8 @@ int text_editor_position_at_viewport_point(const QTextEdit& editor, QPointF view
     return editor.textCursor().position();
   }
   const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
-  return text_editor_line_geometry(editor, *layout_document)
-      .position_at(QPointF((viewport_point.x() + scroll_offset.x()) / zoom,
-                           (viewport_point.y() + scroll_offset.y()) / zoom));
+  return text_editor_position_at_local_point(editor, QPointF((viewport_point.x() + scroll_offset.x()) / zoom,
+                                                             (viewport_point.y() + scroll_offset.y()) / zoom));
 }
 
 // GitHub issue 74: a third click, within the double-click interval of a double-click and near
@@ -7675,6 +7698,29 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   }
 
   const QPoint requested_document_point = document_point;
+  // The press's own point, between whole pixels, when the canvas delivered this request from a
+  // press: a re-edit's caret resolves from it, as an in-session click resolves from the pointer.
+  // A whole document pixel is many screen pixels at zoom, and its corner is not where the
+  // click was.
+  QPointF requested_document_point_f(requested_document_point);
+  if (const auto precise = canvas_->text_request_precise_point();
+      precise.has_value() && std::abs(precise->x() - (requested_document_point.x() + 0.5)) <= 1.0 &&
+      std::abs(precise->y() - (requested_document_point.y() + 0.5)) <= 1.0) {
+    requested_document_point_f = *precise;
+  }
+  // The same point as the transformed overlay will read it once the session is open. The
+  // overlay places the document on whole screen pixels (its origin is the rounded widget
+  // position of the document's corner), so the opening click of a session that edits through
+  // it resolves that way too; otherwise it and a second click at the same spot differ by the
+  // rounding wherever the middle of a letter falls between the two.
+  const QPointF requested_overlay_point = [&] {
+    if (!canvas_->view_axis_aligned()) {
+      return requested_document_point_f;
+    }
+    const auto exact_origin = canvas_->widget_position_f(QPointF(0.0, 0.0));
+    const QPointF overlay_origin(canvas_->widget_position_for_document_point(QPoint(0, 0)));
+    return requested_document_point_f + (exact_origin - overlay_origin) / std::max(0.0001, canvas_->zoom());
+  }();
   if (requested_area && valid_text_area(*requested_area)) {
     const auto bounds = requested_area->bounds();
     const auto left = std::floor(bounds->left), top = std::floor(bounds->top);
@@ -7957,7 +8003,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
           bool invertible = false;
           const auto inverse = text_transform->inverted(&invertible);
           if (invertible) {
-            initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+            initial_cursor_local_position = inverse.map(requested_overlay_point);
           }
           const auto transformed_origin = text_transform->map(QPointF(0.0, 0.0));
           document_point = QPoint(snapped_pixel_coordinate(transformed_origin.x()),
@@ -8300,7 +8346,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
       set_text_editor_transform_override(*editor, text_area_transform(*layer));
       bool invertible = false;
       const auto inverse = qtransform_from_affine(text_area_transform(*layer)).inverted(&invertible);
-      if (invertible) initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+      if (invertible) initial_cursor_local_position = inverse.map(requested_overlay_point);
     }
   } else if (editing_layer_warp_session_transform.has_value()) {
     // Warped layer: the entry-time session transform is the geometry authority for the whole
@@ -8331,7 +8377,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
           bool invertible = false;
           const auto inverse = qtransform_from_affine(*transform).inverted(&invertible);
           if (invertible) {
-            initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+            initial_cursor_local_position = inverse.map(requested_document_point_f);
           }
         }
       }
@@ -8419,8 +8465,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     if (initial_cursor_local_position.has_value()) {
       click_viewport_point = *initial_cursor_local_position * canvas_->zoom();
     } else {
-      const auto click_widget_point = canvas_->widget_position_for_document_point(requested_document_point);
-      click_viewport_point = QPointF(editor->viewport()->mapFrom(canvas_, click_widget_point));
+      const auto click_widget_point = canvas_->widget_position_f(requested_document_point_f);
+      click_viewport_point = click_widget_point - QPointF(editor->viewport()->mapTo(canvas_, QPoint(0, 0)));
     }
     auto cursor = editor->textCursor();
     cursor.setPosition(text_editor_position_at_viewport_point(*editor, click_viewport_point));

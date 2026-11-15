@@ -1397,6 +1397,430 @@ void ui_text_path_older_photoshop_cc_file_shows_the_path_cursor_along_each_line_
   }
 }
 
+// The x centres of the separate marks of a layer's ink (runs of columns holding opaque
+// pixels), in the document. A row of capital I on a level line gives one per letter.
+std::vector<double> ink_column_centres(const Layer& layer) {
+  const auto image = qimage_from_pixel_buffer(layer.pixels());
+  std::vector<double> centres;
+  int run_start = -1;
+  for (int x = 0; x <= image.width(); ++x) {
+    bool ink = false;
+    for (int y = 0; x < image.width() && y < image.height() && !ink; ++y) {
+      ink = qAlpha(image.pixel(x, y)) > 128;
+    }
+    if (ink && run_start < 0) {
+      run_start = x;
+    } else if (!ink && run_start >= 0) {
+      centres.push_back(layer.bounds().x + (run_start + x) / 2.0);
+      run_start = -1;
+    }
+  }
+  return centres;
+}
+
+// The carets two Type tool clicks at one canvas point give: `first` from the click that opens
+// the text under it, `second` from the same click again in the open session (the caret is
+// parked elsewhere in between, so the second click has to move it). -1 where there was no
+// session to ask; `second` is also -1 where the point lies on one of a path session's marks,
+// since a press there drags the mark. The session is cancelled afterwards.
+struct ClickCarets {
+  int first{-1};
+  int second{-1};
+  bool second_asked{false};
+  qulonglong layer{0};
+};
+
+ClickCarets carets_from_two_clicks(CanvasWidget& canvas, QPoint widget_point, bool path_session = false) {
+  ClickCarets result;
+  send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = session_editor(canvas);
+  if (editor == nullptr) return result;
+  result.first = editor->textCursor().hasSelection() ? -2 : editor->textCursor().position();
+  result.layer = editor->property("patchy.editingLayerId").toULongLong();
+  bool on_a_mark = false;
+  if (path_session) {
+    if (const auto* overlay = wait_for_path_overlay(canvas); overlay != nullptr) {
+      for (const auto& centre : overlay->property("patchy.transformedTextPathHandleCenters").toList()) {
+        const auto offset = centre.toPointF() - QPointF(widget_point);
+        on_a_mark = on_a_mark || std::hypot(offset.x(), offset.y()) < 16.0;
+      }
+    }
+  } else {
+    process_events_for(30);
+  }
+  editor = session_editor(canvas);
+  if (editor != nullptr && !on_a_mark) {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(result.first == 0 ? std::max(0, editor->document()->characterCount() - 1) : 0);
+    editor->setTextCursor(cursor);
+    // click_widget_like_a_user, except that the release goes to whatever is under the point by
+    // then: a press that moves the caret can make the session replace its overlay widget.
+    const auto under_point = [&]() -> QWidget* {
+      auto* child = canvas.childAt(widget_point);
+      return child != nullptr ? child : &canvas;
+    };
+    const auto local_point = [&](QWidget* receiver) {
+      return receiver == &canvas ? widget_point : receiver->mapFrom(&canvas, widget_point);
+    };
+    QPointer<QWidget> receiver = under_point();
+    QWidget* focus_target = receiver;
+    while (focus_target != nullptr && (focus_target->focusPolicy() & Qt::ClickFocus) != Qt::ClickFocus) {
+      focus_target = focus_target->parentWidget();
+    }
+    if (focus_target != nullptr) {
+      focus_target->setFocus(Qt::MouseFocusReason);
+      QApplication::processEvents();
+    }
+    if (receiver == nullptr) receiver = under_point();
+    send_mouse(*receiver, QEvent::MouseButtonPress, local_point(receiver), Qt::LeftButton, Qt::LeftButton);
+    if (receiver == nullptr) receiver = under_point();
+    send_mouse(*receiver, QEvent::MouseButtonRelease, local_point(receiver), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    result.second_asked = true;
+    editor = session_editor(canvas);
+    if (editor != nullptr) {
+      result.second = editor->textCursor().hasSelection() ? -2 : editor->textCursor().position();
+    }
+  }
+  if (editor != nullptr) {
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+  return result;
+}
+
+// One click per letter of a row of capital I: three pixels right of a letter's centre the caret
+// goes after that letter, three pixels left of it before, on the opening click as on a second
+// one. `y` is a document row the letters cross. Returns how many answers were wrong.
+int wrong_carets_across_letters(CanvasWidget& canvas, const Layer& layer, int y, bool path_session, const char* what) {
+  const auto id = layer.id();
+  const auto centres = ink_column_centres(layer);
+  int wrong = 0;
+  for (std::size_t letter = 0; letter < centres.size(); ++letter) {
+    for (const int side : {-3, 3}) {
+      const QPoint at(static_cast<int>(std::floor(centres[letter])) + side, y);
+      const int want = static_cast<int>(letter) + (side > 0 ? 1 : 0);
+      const auto carets = carets_from_two_clicks(canvas, canvas.widget_position_for_document_point(at), path_session);
+      if (carets.layer != id || carets.first != want || (carets.second_asked && carets.second != want)) {
+        std::printf("  %s: click at (%d, %d): first caret %d, second %d, want %d\n", what, at.x(), at.y(), carets.first,
+                    carets.second, want);
+        ++wrong;
+      }
+    }
+  }
+  return wrong;
+}
+
+// Zoomed in on the first letters, a click every screen pixel across them (a fraction of a
+// document pixel apart): the opening click and a second click always agree, also where the
+// caret flips from one side of a letter to the other inside one document pixel.
+int wrong_carets_at_sub_pixel_clicks(CanvasWidget& canvas, const Layer& layer, int y, bool path_session,
+                                     const char* what) {
+  const auto centres = ink_column_centres(layer);
+  if (centres.size() < 3) return 1;
+  const int left = static_cast<int>(std::floor(centres[0])) - 2;
+  const int right = static_cast<int>(std::ceil(centres[2])) + 2;
+  const auto from = canvas.widget_position_for_document_point(QPoint(left, y));
+  const auto to = canvas.widget_position_for_document_point(QPoint(right, y));
+  int wrong = 0;
+  int flips = 0;
+  int last = -1;
+  for (int x = from.x(); x <= to.x(); ++x) {
+    const auto carets = carets_from_two_clicks(canvas, QPoint(x, from.y() + 1), path_session);
+    if (carets.first < 0 || (carets.second_asked && carets.second != carets.first) || carets.first < last) {
+      std::printf("  %s: click at widget x %d: first caret %d, second %d (after %d)\n", what, x, carets.first,
+                  carets.second, last);
+      ++wrong;
+    }
+    if (last >= 0 && carets.first != last) ++flips;
+    last = carets.first;
+  }
+  // The sweep crossed the first three letters: the caret moved on at each of their centres.
+  if (flips < 3) {
+    std::printf("  %s: the caret moved %d times across three letters\n", what, flips);
+    ++wrong;
+  }
+  return wrong;
+}
+
+// The Type tool click that opens text on a path puts the caret where the click landed, the way
+// a second click there does (GitHub issue 717 follow-up): between the letters under the
+// pointer, and at the nearest end of the text for a click on the bare line before or past it.
+void ui_text_path_first_click_puts_the_caret_at_the_click() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:260},{x:580,y:260}]}]};
+    var t=d.addTextLayer('IIIIIIII',{font:'Arial',size:48,path:p,pathRange:{start:0.2,end:1}});
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const auto centres = ink_column_centres(*layer);
+  CHECK(centres.size() == 8);
+  if (centres.size() != 8) return;
+  // The range starts at 0.2 of the segment (x = 132, the range counts in Bezier units), so the
+  // line is bare on both sides of the row.
+  if (!(centres.front() > 130.0 && centres.back() < 320.0)) {
+    std::printf("  letters from x %.1f to %.1f\n", centres.front(), centres.back());
+  }
+  CHECK(centres.front() > 130.0 && centres.back() < 320.0);
+
+  CHECK(wrong_carets_across_letters(*canvas, *layer, 250, true, "path text") == 0);
+  // The tops of the letters, far from the line but in the band the type stands in. The band is
+  // sized from the runs: this layer's own size key holds a small default, as a script leaves it.
+  CHECK(layer->metadata().contains(kLayerMetadataTextSize) &&
+        std::atoi(layer->metadata().at(kLayerMetadataTextSize).c_str()) < 24);
+  CHECK(wrong_carets_across_letters(*canvas, *layer, 232, true, "path text, top of the letters") == 0);
+
+  // The bare line, and the reach beside it: the nearest end of the text.
+  const auto first_caret_at = [&](QPoint at) {
+    return carets_from_two_clicks(*canvas, canvas->widget_position_for_document_point(at), true);
+  };
+  for (const auto at : {QPoint(100, 260), QPoint(100, 256), QPoint(100, 264), QPoint(84, 260)}) {
+    const auto carets = first_caret_at(at);
+    CHECK(carets.layer == id && carets.first == 0);
+    CHECK(!carets.second_asked || carets.second == 0);
+  }
+  for (const auto at : {QPoint(450, 260), QPoint(450, 256), QPoint(450, 264), QPoint(576, 260)}) {
+    const auto carets = first_caret_at(at);
+    CHECK(carets.layer == id && carets.first == 8);
+    CHECK(!carets.second_asked || carets.second == 8);
+  }
+
+  // Zoomed in, between whole document pixels.
+  canvas->zoom_to_document_rect(QRect(static_cast<int>(centres.front()) - 14, 215, 110, 60));
+  QApplication::processEvents();
+  CHECK(canvas->zoom() > 2.0);
+  CHECK(wrong_carets_at_sub_pixel_clicks(*canvas, *layer, 250, true, "path text, zoomed") == 0);
+  CHECK(doc.find_layer(id) != nullptr &&
+        QString::fromStdString(doc.find_layer(id)->metadata().at(kLayerMetadataText)) == QStringLiteral("IIIIIIII"));
+}
+
+// A right-to-left paragraph holding Latin letters (the reporter's file of the issue 717
+// follow-up reads that way): the row stands at the far end of its range, each letter still
+// takes the caret on the side that was clicked, and the bare line on either side of the row
+// gives the nearer end of the text. Qt's own answer there goes by the paragraph's direction and
+// names the far end.
+void ui_text_path_first_click_in_a_right_to_left_paragraph_takes_the_nearer_end() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:260},{x:580,y:260}]}]};
+    var t=d.addTextLayer('IIIIIIII',{font:'Arial',size:48,path:p,direction:'rtl'});
+    check(t.textDirection==='rtl','right to left');
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const auto centres = ink_column_centres(*layer);
+  CHECK(centres.size() == 8);
+  if (centres.size() != 8) return;
+  // The row ends where the line ends, so the line is bare before it.
+  CHECK(centres.front() > 400.0);
+  CHECK(wrong_carets_across_letters(*canvas, *layer, 250, true, "right-to-left paragraph") == 0);
+  for (const auto at : {QPoint(200, 260), QPoint(200, 256), QPoint(380, 264)}) {
+    const auto carets = carets_from_two_clicks(*canvas, canvas->widget_position_for_document_point(at), true);
+    if (carets.layer != id || carets.first != 0 || (carets.second_asked && carets.second != 0)) {
+      std::printf("  before the row at (%d, %d): first caret %d, second %d\n", at.x(), at.y(), carets.first,
+                  carets.second);
+    }
+    CHECK(carets.layer == id && carets.first == 0);
+    CHECK(!carets.second_asked || carets.second == 0);
+  }
+}
+
+// The same on a curve, where the line the letters stand on has to be unbent to find the caret:
+// along the whole contour and a few pixels to either side the opening click agrees with a
+// second click, the caret only moves forward as the click moves along the line, and the two
+// ends of the line give the two ends of the text.
+void ui_text_path_first_click_on_a_curve_matches_a_second_click() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:360,outX:200,outY:60},{x:580,y:360,inX:460,inY:60}]}]};
+    var t=d.addTextLayer('One two three four',{font:'Arial',size:24,path:p,pathRange:{start:0.25,end:1}});
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const auto in_document = text_path_in_document(*layer);
+  CHECK(in_document.has_value());
+  if (!in_document) return;
+  const TextPathCurve curve(*in_document);
+  const int length = static_cast<int>(QString::fromStdString(layer->metadata().at(kLayerMetadataText)).size());
+  CHECK(length == 18);
+  int wrong = 0;
+  int asked_twice = 0;
+  int inside = 0;
+  for (const double offset : {0.0, -4.0, 4.0}) {
+    int last = 0;
+    for (int step = 1; step < 40; ++step) {
+      const auto sample = curve.sample(curve.length() * step / 40.0);
+      const QPoint at(static_cast<int>(std::lround(sample.x - sample.tangent_y * offset)),
+                      static_cast<int>(std::lround(sample.y + sample.tangent_x * offset)));
+      const auto carets = carets_from_two_clicks(*canvas, canvas->widget_position_for_document_point(at), true);
+      const bool agrees = !carets.second_asked || carets.second == carets.first;
+      if (carets.layer != id || carets.first < last || carets.first > length || !agrees) {
+        std::printf("  curve: click at (%d, %d): first caret %d, second %d (after %d)\n", at.x(), at.y(), carets.first,
+                    carets.second, last);
+        ++wrong;
+      }
+      if (carets.second_asked) ++asked_twice;
+      if (carets.first > 0 && carets.first < length) ++inside;
+      // Before the text starts (a quarter along) and well past its last letter.
+      if (step <= 8 && carets.first != 0) ++wrong;
+      if (step >= 36 && carets.first != length) ++wrong;
+      last = std::max(last, carets.first);
+    }
+  }
+  CHECK(wrong == 0);
+  CHECK(asked_twice > 90);
+  // The clicks on the letters landed among them, not at an end.
+  CHECK(inside >= 12);
+}
+
+// The reporter's file of the issue 717 follow-up: a click on either text opens it with the
+// caret where the click landed, as a second click puts it.
+void ui_text_path_older_photoshop_cc_file_first_click_puts_the_caret_at_the_click_if_available() {
+  const auto fixture = older_photoshop_cc_fixture();
+  patchy::test::skip_unless_exists(fixture);
+  if (older_photoshop_cc_fonts_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  const auto quoted =
+      QString::fromUtf8(QJsonDocument(QJsonArray{to_qstring(fixture)}).toJson(QJsonDocument::Compact));
+  run(window, QStringLiteral(R"JS(
+    var d=app.open(%1[0]);
+    var texts=d.layers.filter(function(l){return l.isText;});
+    check(texts.length===2,'two type layers');
+    patchy.setResult(texts.map(function(t){return t.id;}));
+  )JS").arg(quoted));
+  const auto ids = window.script_engine_host().last_result().toArray();
+  CHECK(ids.size() == 2);
+  if (ids.size() != 2) return;
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  for (const auto& value : ids) {
+    const auto id = value.toString().toULongLong();
+    const auto* layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) continue;
+    const int length = static_cast<int>(QString::fromStdString(layer->metadata().at(kLayerMetadataText)).size());
+    const auto in_document = text_path_in_document(*layer);
+    CHECK(in_document.has_value() && length > 4);
+    if (!in_document) continue;
+    const TextPathCurve curve(*in_document);
+    // A click on the letters: among them, and where a second click goes.
+    const auto on_ink = carets_from_two_clicks(*canvas, canvas->widget_position_for_document_point(ink_point(*layer)), true);
+    CHECK(on_ink.layer == id && on_ink.first > 0 && on_ink.first < length);
+    CHECK(!on_ink.second_asked || on_ink.second == on_ink.first);
+    int wrong = 0;
+    int inside = 0;
+    int last = 0;
+    int smallest = length;
+    int largest = 0;
+    for (int step = 1; step < 50; ++step) {
+      const auto sample = curve.sample(curve.length() * step / 50.0);
+      const QPoint at(static_cast<int>(std::lround(sample.x)), static_cast<int>(std::lround(sample.y)));
+      if (at.x() < 0 || at.y() < 0 || at.x() >= doc.width() || at.y() >= doc.height()) continue;
+      // Where the two texts come close the other one may take the click.
+      if (canvas->type_tool_target_at(at).layer != layer) continue;
+      const auto carets = carets_from_two_clicks(*canvas, canvas->widget_position_for_document_point(at), true);
+      const bool agrees = !carets.second_asked || carets.second == carets.first;
+      if (carets.layer != id || carets.first < last || carets.first > length || !agrees) {
+        std::printf("  layer %llu: click at (%d, %d): first caret %d, second %d (after %d)\n", id, at.x(), at.y(),
+                    carets.first, carets.second, last);
+        ++wrong;
+      }
+      if (carets.first > 0 && carets.first < length) ++inside;
+      smallest = std::min(smallest, carets.first);
+      largest = std::max(largest, carets.first);
+      last = std::max(last, carets.first);
+    }
+    CHECK(wrong == 0);
+    CHECK(inside >= 3);
+    // Both lines run on past their letters: the bare parts give the two ends of the text.
+    CHECK(smallest == 0);
+    CHECK(largest == length);
+  }
+}
+
+// Ordinary text and text that fills a shape open the same way: the caret goes where the opening
+// click landed, between whole document pixels too.
+void ui_text_first_click_on_point_and_area_text_puts_the_caret_at_the_click() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var point=d.addTextLayer('IIIIIIII',{font:'Arial',size:48,x:100,y:120});
+    var box={subpaths:[{closed:true,anchors:[{x:100,y:260},{x:560,y:260},{x:560,y:420},{x:100,y:420}]}]};
+    var area=d.addTextLayer('IIIIIIII',{font:'Arial',size:48,area:box});
+    patchy.setResult([point.id,area.id]);
+  )JS");
+  const auto ids = window.script_engine_host().last_result().toArray();
+  CHECK(ids.size() == 2);
+  if (ids.size() != 2) return;
+  auto* canvas = require_canvas(window);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const char* names[] = {"point text", "area text"};
+  for (int index = 0; index < 2; ++index) {
+    const auto* layer = doc.find_layer(ids[index].toString().toULongLong());
+    CHECK(layer != nullptr);
+    if (layer == nullptr) continue;
+    CHECK(ink_column_centres(*layer).size() == 8);
+    const int y = layer->bounds().y + layer->bounds().height / 2;
+    canvas->set_zoom(1.0);
+    QApplication::processEvents();
+    CHECK(wrong_carets_across_letters(*canvas, *layer, y, false, names[index]) == 0);
+    const auto bounds = layer->bounds();
+    canvas->zoom_to_document_rect(QRect(bounds.x - 12, bounds.y - 12, 110, bounds.height + 24));
+    QApplication::processEvents();
+    CHECK(canvas->zoom() > 2.0);
+    CHECK(wrong_carets_at_sub_pixel_clicks(*canvas, *layer, y, false, names[index]) == 0);
+  }
+}
+
 QPoint overlay_point(const QWidget& overlay, const QVariant& canvas_point) {
   return canvas_point.toPointF().toPoint() - overlay.pos();
 }
@@ -2063,6 +2487,15 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"ui_text_path_type_tool_cursor_refreshes_without_a_move", ui_text_path_type_tool_cursor_refreshes_without_a_move},
       {"ui_text_path_older_photoshop_cc_file_shows_the_path_cursor_along_each_line_if_available",
        ui_text_path_older_photoshop_cc_file_shows_the_path_cursor_along_each_line_if_available},
+      {"ui_text_path_first_click_puts_the_caret_at_the_click", ui_text_path_first_click_puts_the_caret_at_the_click},
+      {"ui_text_path_first_click_in_a_right_to_left_paragraph_takes_the_nearer_end",
+       ui_text_path_first_click_in_a_right_to_left_paragraph_takes_the_nearer_end},
+      {"ui_text_path_first_click_on_a_curve_matches_a_second_click",
+       ui_text_path_first_click_on_a_curve_matches_a_second_click},
+      {"ui_text_path_older_photoshop_cc_file_first_click_puts_the_caret_at_the_click_if_available",
+       ui_text_path_older_photoshop_cc_file_first_click_puts_the_caret_at_the_click_if_available},
+      {"ui_text_first_click_on_point_and_area_text_puts_the_caret_at_the_click",
+       ui_text_first_click_on_point_and_area_text_puts_the_caret_at_the_click},
       {"ui_text_path_handles_move_the_range_and_flip", ui_text_path_handles_move_the_range_and_flip},
       {"ui_text_path_flip_command_flips_a_committed_layer", ui_text_path_flip_command_flips_a_committed_layer},
       {"ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer",

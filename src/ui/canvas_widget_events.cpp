@@ -1383,9 +1383,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
       activate_layer(*layer);
-      if (text_requested_callback_) {
-        text_requested_callback_(document_point, QRect());
-      }
+      request_text_at_press(document_point, event->position());
       // The session opened inside this press, so the drag that follows arrives here and not at
       // the new editor: keep it selecting from the caret the press placed, as one gesture.
       dragging_text_entry_selection_ =
@@ -2979,6 +2977,15 @@ void CanvasWidget::refresh_tool_cursor() {
   }
 }
 
+void CanvasWidget::request_text_at_press(QPoint document_point, QPointF widget_position) {
+  if (!text_requested_callback_) {
+    return;
+  }
+  text_request_precise_point_ = document_position_f(widget_position);
+  text_requested_callback_(document_point, QRect());
+  text_request_precise_point_.reset();
+}
+
 void CanvasWidget::refresh_type_tool_cursor() {
   if (tool_ == CanvasTool::Text && !dragging_text_rect_ && !text_layer_move_active_) {
     refresh_tool_cursor();
@@ -4284,9 +4291,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
         finish_free_transform();
         if (auto* layer = document_ != nullptr ? document_->find_layer(text_layer_id) : nullptr; layer != nullptr) {
           activate_layer(*layer);
-          if (text_requested_callback_) {
-            text_requested_callback_(document_point, QRect());
-          }
+          request_text_at_press(document_point, event->position());
           event->accept();
           return;
         }
@@ -4312,9 +4317,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
                                                                         : nullptr;
         layer != nullptr) {
       activate_layer(*layer);
-      if (text_requested_callback_) {
-        text_requested_callback_(document_point, QRect());
-      }
+      request_text_at_press(document_point, event->position());
       event->accept();
       return;
     }
