@@ -682,6 +682,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
   flush_pending_drag_move();
+  if (gradient_pending_commit_.has_value() &&
+      (gradient_pending_commit_->new_layer || event->button() != Qt::LeftButton)) {
+    // A Gradient Fill layer still on its way (GitHub #714 follow-up) lands before the press
+    // looks for its handles; a menu press reads the layer itself, so an existing fill's
+    // pending gradient lands first too. A left press on an existing fill does not wait.
+    flush_gradient_fill_pending_commit();
+  }
   clear_gradient_fill_drag_hold();  // a new gesture never draws under a held preview
   // A stroke in progress hides the Shift+click line preview (GitHub issue 445).
   const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
@@ -1123,8 +1130,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // brush strokes may also begin there, and Zoom uses the nearest frame point.
     // Shape, Line and Text drags start there too, as in Photoshop: a shape or
     // text box may hang partly off the canvas, and a pixel-mode shape clips to
-    // the document on commit (the release paths handle both already).
+    // the document on commit (the release paths handle both already). A Gradient
+    // drag starts there as well (GitHub #725): the ramp may begin off the canvas,
+    // as its end already could.
     const bool allows_off_canvas_press = (tool_ == CanvasTool::Move && event->button() == Qt::LeftButton) ||
+                                         (tool_ == CanvasTool::Gradient && event->button() == Qt::LeftButton) ||
                                          tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
@@ -4215,6 +4225,9 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  // A double-click opens editors that read the layer: a gradient commit still being baked
+  // (GitHub #714 follow-up) lands first.
+  flush_gradient_fill_pending_commit();
   const auto document_point = document_position(event->pos());
   if (edit_locked_) {
     // Under a filter dialog that lets the selection change, only the double-click

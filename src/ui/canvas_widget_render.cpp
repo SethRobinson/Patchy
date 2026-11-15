@@ -268,6 +268,20 @@ bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
          total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
 }
 
+bool CanvasWidget::stale_frame_stays_on_screen() const noexcept {
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;
+  }
+  if (document_ == nullptr || !isVisible() || render_cache_.isNull() ||
+      render_cache_.size() != QSize(document_->width(), document_->height())) {
+    return false;
+  }
+  const auto canvas_area =
+      static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
+  return canvas_area >= kProcessingOverlayDirtyAreaThreshold ||
+         total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
+}
+
 bool CanvasWidget::live_preview_change_should_refresh_async(const QRegion& document_region,
                                                            DocumentChangeReason reason) const {
   if constexpr (kBackgroundWorkRunsInline) {
@@ -430,7 +444,9 @@ void CanvasWidget::document_changed() {
   mask_display_image_layer_ = 0;
   mask_display_image_channel_ = 0;
   mask_display_image_revision_ = 0;
-  invalidate_display_mip_cache();
+  if (!stale_frame_stays_on_screen()) {
+    invalidate_display_mip_cache();
+  }
   cancel_transform_sessions_on_removed_layers();
   refresh_free_transform_preview_caches();
   notify_document_changed();
@@ -729,7 +745,9 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   }
   const auto mark_full_dirty = [this, reason] {
     render_cache_dirty_ = true;
-    invalidate_display_mip_cache();
+    if (!stale_frame_stays_on_screen()) {
+      invalidate_display_mip_cache();
+    }
     notify_document_changed(reason);
     if (isVisible()) {
       update();

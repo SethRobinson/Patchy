@@ -6273,6 +6273,34 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     wasm_files::restore_qt_dom_focus();
   }
 #endif
+  // A Gradient Fill commit still being baked in the background (GitHub #714 follow-up) lands
+  // before a command can read the document: at a key that is not a bare modifier, and at a
+  // press on anything but its canvas (File > Save, a panel, a toolbar). The canvas decides for
+  // its own presses, and a key during a drag there belongs to the drag (Esc, Shift).
+  if (pending_gradient_fill_bake_ != nullptr && watched->isWidgetType()) {
+    bool lands = false;
+    switch (event->type()) {
+      case QEvent::KeyPress:
+      case QEvent::ShortcutOverride: {
+        const int key = static_cast<QKeyEvent*>(event)->key();
+        lands = key != Qt::Key_Shift && key != Qt::Key_Control && key != Qt::Key_Alt && key != Qt::Key_Meta &&
+                key != Qt::Key_AltGr && key != Qt::Key_unknown &&
+                !(canvas_ != nullptr && canvas_->pointer_gesture_active());
+        break;
+      }
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonDblClick:
+      case QEvent::TabletPress:
+      case QEvent::ContextMenu:
+        lands = watched != canvas_;
+        break;
+      default:
+        break;
+    }
+    if (lands) {
+      finish_pending_gradient_fill_bake();
+    }
+  }
   // The type size field's slider popup leaves the keyboard on the field when it closes; a live
   // session gets it back like any other options-bar pick (GitHub issue 175).
   if (event->type() == QEvent::Hide && watched->isWidgetType() &&
@@ -7250,6 +7278,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       return;
     }
     handle_gradient_fill_drawn(from, to);
+  });
+  canvas->set_gradient_fill_pending_flush_callback([this, canvas] {
+    if (canvas == canvas_) {
+      finish_pending_gradient_fill_bake();
+    }
   });
   canvas->set_gradient_fill_edit_callback([this, canvas](LayerId layer_id, const LayerStyleGradient& gradient,
                                                          GradientFillEditPhase phase, std::uint64_t serial,

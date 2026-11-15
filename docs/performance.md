@@ -99,7 +99,7 @@ Shape drag-out commits, combine-extend drags, Direct/Path Select anchor drags, v
 
 ## Deferred full-refresh paint
 
-`paintEvent` defers a FULL recomposite to the fire-and-forget async refresh and keeps drawing the previous frame whenever `CanvasWidget::should_defer_full_refresh_to_async()` says so (cache dirty + same-size previous frame + no processing operation + document at or above the compile-time `kProcessingOverlayDirtyAreaThreshold`, 8 Mpx, or the layer-count gate above; never on single-thread wasm, as above). Big documents do not flash checkerboard on add-layer/undo/blend changes. Deliberately keyed on compile-time constants (not the `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` override) so overlay-path tests keep their blocking semantics; documents under both gates render synchronously in paint.
+`paintEvent` defers a FULL recomposite to the fire-and-forget async refresh and keeps drawing the previous frame whenever `CanvasWidget::should_defer_full_refresh_to_async()` says so (cache dirty + same-size previous frame + no processing operation + document at or above the compile-time `kProcessingOverlayDirtyAreaThreshold`, 8 Mpx, or the layer-count gate above; never on single-thread wasm, as above). Big documents do not flash checkerboard on add-layer/undo/blend changes. The frame kept on screen keeps its display mips (`stale_frame_stays_on_screen`; [gradients-fill-handles.md](gradients-fill-handles.md#release-without-a-pause)). Deliberately keyed on compile-time constants (not the `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` override) so overlay-path tests keep their blocking semantics; documents under both gates render synchronously in paint.
 
 ## Wasm memory diagnostics
 

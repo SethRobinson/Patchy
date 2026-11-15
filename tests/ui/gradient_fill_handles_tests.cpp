@@ -36,6 +36,7 @@
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QTest>
+#include <QThread>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -45,6 +46,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -118,6 +120,16 @@ CanvasWidget* open_gradient_fill(patchy::ui::MainWindow& window, patchy::Gradien
   QApplication::processEvents();
   return canvas;
 }
+
+// Bakes every Gradient Fill commit on the spot, as documents under 1 Mpx, 16 and 32-bit
+// documents and the web build always do, for tests that look at the document right after a
+// release. ui_gradient_fill_release_bakes_in_the_background covers the background bake.
+struct SynchronousBakeGuard {
+  SynchronousBakeGuard() { qputenv("PATCHY_GRADIENT_FILL_BACKGROUND_BAKE", "0"); }
+  ~SynchronousBakeGuard() { qunsetenv("PATCHY_GRADIENT_FILL_BACKGROUND_BAKE"); }
+  SynchronousBakeGuard(const SynchronousBakeGuard&) = delete;
+  SynchronousBakeGuard& operator=(const SynchronousBakeGuard&) = delete;
+};
 
 // The Gradient tool settings these tests change through the options bar.
 struct GradientSettingsGuard {
@@ -500,11 +512,12 @@ int fill_frames_shown(const CanvasWidget& canvas) {
   return diagnostics.gradient_view_previews + diagnostics.intermediate_refreshes + diagnostics.full_refreshes;
 }
 
-// Waits (at most 30 s) for the canvas to show the document as it is.
+// Waits (at most 30 s) for the canvas to show the document as it is, a Gradient Fill
+// commit still being baked in the background included.
 void wait_until_settled(CanvasWidget& canvas) {
   QElapsedTimer timer;
   timer.start();
-  while (!canvas.render_settled() && timer.elapsed() < 30000) {
+  while ((!canvas.render_settled() || canvas.gradient_fill_commit_pending()) && timer.elapsed() < 30000) {
     QTest::qWait(2);
   }
 }
@@ -539,10 +552,12 @@ void ui_gradient_fill_handles_drag_timing() {
     const QPointF from(size.width() * 0.2, size.height() * 0.5);
     const QPointF to(size.width() * 0.8, size.height() * 0.5);
     drag(*canvas, widget_at(*canvas, from), widget_at(*canvas, to));
+    wait_until_settled(*canvas);
     QApplication::processEvents();
     CHECK(canvas->gradient_fill_handles().has_value());
     // A third stop so there is a midpoint to drag.
     window_click(*canvas, widget_at(*canvas, (from + to) / 2.0));
+    wait_until_settled(*canvas);
     CHECK(canvas->gradient_fill_handles().has_value() &&
           canvas->gradient_fill_handles()->gradient.color_stops.size() == 3U);
     const auto time_drag = [&](const char* name, Part part, QPointF step) {
@@ -633,6 +648,7 @@ void ui_gradient_fill_handles_drag_timing() {
 // view, the exact bake on release, and Esc putting everything back.
 void ui_gradient_fill_handle_drag_previews_at_view_resolution() {
   const GradientSettingsGuard settings_guard;
+  const SynchronousBakeGuard synchronous_bake;
   auto&& [window, first_canvas] = ShownWindowFixture{};
   (void)first_canvas;
   constexpr int kWidth = 3580;
@@ -832,6 +848,7 @@ void ui_gradient_fill_handle_drag_previews_at_view_resolution() {
 // view transform, and either way the drag shows what the release then bakes.
 void ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation() {
   const GradientSettingsGuard settings_guard;
+  const SynchronousBakeGuard synchronous_bake;
   auto&& [window, first_canvas] = ShownWindowFixture{};
   (void)first_canvas;
   constexpr int kWidth = 1400;
@@ -926,6 +943,7 @@ void ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation() {
 // and a move recorded right before the release still lands.
 void ui_gradient_fill_handle_drag_coalesces_queued_moves() {
   const GradientSettingsGuard settings_guard;
+  const SynchronousBakeGuard synchronous_bake;
   auto&& [window, first_canvas] = ShownWindowFixture{};
   (void)first_canvas;
   auto* canvas = open_gradient_fill(window, patchy::GradientMethod::Linear, QPoint(100, 150), QPoint(300, 150));
@@ -1538,7 +1556,7 @@ FramesUntilSettled frames_until_settled(CanvasWidget& canvas, QPoint sample, QCo
   while (timer.elapsed() < 30000) {
     const auto frame = render_widget_image(canvas);
     // Settled after the paint: this frame was drawn from the document as it is.
-    const bool settled = canvas.render_settled();
+    const bool settled = canvas.render_settled() && !canvas.gradient_fill_commit_pending();
     if (first_frame_artifact != nullptr) {
       save_image_artifact(first_frame_artifact, frame);
       first_frame_artifact = nullptr;
@@ -1567,6 +1585,7 @@ FramesUntilSettled frames_until_settled(CanvasWidget& canvas, QPoint sample, QCo
 // on screen, for a new layer and for a drag that redraws an existing fill.
 void ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows() {
   const GradientSettingsGuard settings_guard;
+  const SynchronousBakeGuard synchronous_bake;
   auto&& [window, first_canvas] = ShownWindowFixture{};
   (void)first_canvas;
   constexpr int kWidth = 3580;
@@ -1650,6 +1669,7 @@ void ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows() {
 // a tool switch, Esc or the next press while the composite is still on its way.
 void ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show() {
   const GradientSettingsGuard settings_guard;
+  const SynchronousBakeGuard synchronous_bake;
   auto&& [window, first_canvas] = ShownWindowFixture{};
   (void)first_canvas;
   constexpr int kWidth = 3000;
@@ -1748,6 +1768,600 @@ void ui_gradient_fill_drag_hold_clears_when_the_layer_does_not_show() {
   CHECK(color_near(shown_at_sample(), start_color, 12));
 }
 
+namespace {
+
+// The event loop from now until the canvas shows the document as it is: the longest single
+// pass (what a press would have waited for) and the time in passes over 5 ms.
+struct LoopStalls {
+  double longest_ms{0.0};
+  double busy_ms{0.0};
+  double settled_ms{0.0};
+};
+
+LoopStalls run_until_settled(CanvasWidget& canvas) {
+  LoopStalls stalls;
+  QElapsedTimer total;
+  total.start();
+  while (total.elapsed() < 60000) {
+    QElapsedTimer pass;
+    pass.start();
+    QApplication::processEvents();
+    const auto ms = static_cast<double>(pass.nsecsElapsed()) / 1e6;
+    stalls.longest_ms = std::max(stalls.longest_ms, ms);
+    if (ms > 5.0) {
+      stalls.busy_ms += ms;
+    }
+    if (canvas.render_settled() && !canvas.gradient_fill_commit_pending()) {
+      break;
+    }
+    QThread::msleep(1);
+  }
+  stalls.settled_ms = static_cast<double>(total.nsecsElapsed()) / 1e6;
+  return stalls;
+}
+
+double timed_ms(const std::function<void()>& work) {
+  QElapsedTimer timer;
+  timer.start();
+  work();
+  return static_cast<double>(timer.nsecsElapsed()) / 1e6;
+}
+
+}  // namespace
+
+// Where the time after a Gradient release goes (GitHub #714 follow-up: a pause before the
+// next drag on a large image): the release handler, the event loop until the canvas has
+// settled, and a press and first move made right after the release. Prints only; the larger
+// sizes run with PATCHY_GRADIENT_HANDLE_TIMING=1.
+void ui_gradient_release_timing() {
+  const GradientSettingsGuard settings_guard;
+  std::vector<QSize> sizes{QSize(1600, 1200)};
+  if (qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TIMING") != 0) {
+    sizes = {QSize(3580, 5370), QSize(8000, 6000)};
+  }
+  for (const auto size : sizes) {
+    auto&& [window, first_canvas] = ShownWindowFixture{};
+    (void)first_canvas;
+    auto* canvas = open_large_fill_layer_document(window, size.width(), size.height());
+    auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+    CHECK(mode != nullptr);
+    if (mode == nullptr) {
+      return;
+    }
+    const auto at = [&](double x, double y) { return widget_at(*canvas, QPointF(size.width() * x, size.height() * y)); };
+    const auto report = [&](const char* name, double release_ms, const LoopStalls& stalls) {
+      std::fprintf(stderr,
+                   "  %dx%d %s: release %.1f ms; then settled after %.1f ms, event loop busy %.1f ms, longest "
+                   "pass %.1f ms\n",
+                   size.width(), size.height(), name, release_ms, stalls.settled_ms, stalls.busy_ms,
+                   stalls.longest_ms);
+    };
+    // Pixels mode: the drag paints the layer.
+    mode->setCurrentIndex(0);
+    QApplication::processEvents();
+    press_and_move(*canvas, at(0.2, 0.5), at(0.8, 0.5));
+    canvas->repaint();
+    auto release = timed_ms([&] { release_at(*canvas, at(0.8, 0.5)); });
+    report("Pixels drag", release, run_until_settled(*canvas));
+    // The same again, with a press and a move as soon as the release returns.
+    press_and_move(*canvas, at(0.2, 0.4), at(0.8, 0.4));
+    canvas->repaint();
+    release = timed_ms([&] { release_at(*canvas, at(0.8, 0.4)); });
+    auto press = timed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonPress, at(0.2, 0.6), Qt::LeftButton, Qt::LeftButton);
+    });
+    auto move = timed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseMove, at(0.8, 0.6), Qt::NoButton, Qt::LeftButton);
+      canvas->repaint();
+    });
+    std::fprintf(stderr, "  %dx%d Pixels drag, then at once: release %.1f ms, press %.1f ms, first move %.1f ms\n",
+                 size.width(), size.height(), release, press, move);
+    release = timed_ms([&] { release_at(*canvas, at(0.8, 0.6)); });
+    report("Pixels drag (second)", release, run_until_settled(*canvas));
+
+    // Fill Layer mode: a new layer, then the same fill drawn again.
+    mode->setCurrentIndex(1);
+    QApplication::processEvents();
+    press_and_move(*canvas, at(0.2, 0.5), at(0.8, 0.5));
+    canvas->repaint();
+    release = timed_ms([&] { release_at(*canvas, at(0.8, 0.5)); });
+    report("Fill Layer new layer", release, run_until_settled(*canvas));
+    CHECK(canvas->gradient_fill_handles().has_value());
+    press_and_move(*canvas, at(0.8, 0.25), at(0.2, 0.25));
+    canvas->repaint();
+    release = timed_ms([&] { release_at(*canvas, at(0.2, 0.25)); });
+    press = timed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonPress, at(0.2, 0.75), Qt::LeftButton, Qt::LeftButton);
+    });
+    move = timed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseMove, at(0.8, 0.75), Qt::NoButton, Qt::LeftButton);
+      canvas->repaint();
+    });
+    std::fprintf(stderr, "  %dx%d Fill Layer redraw, then at once: release %.1f ms, press %.1f ms, first move %.1f ms\n",
+                 size.width(), size.height(), release, press, move);
+    release = timed_ms([&] { release_at(*canvas, at(0.8, 0.75)); });
+    report("Fill Layer redraw (second)", release, run_until_settled(*canvas));
+
+    // A handle drag, then another one as soon as the release returns.
+    const auto drag_end = [&](QPointF step, bool settle) {
+      const auto start = canvas->gradient_fill_handle_widget_position(Part{Kind::End, -1});
+      CHECK(start.has_value());
+      if (!start.has_value()) {
+        return;
+      }
+      const auto press_ms = timed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonPress, rounded(*start), Qt::LeftButton, Qt::LeftButton);
+      });
+      const auto first_move_ms = timed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseMove, rounded(*start + step), Qt::NoButton, Qt::LeftButton);
+        canvas->repaint();
+      });
+      for (int index = 2; index <= 6; ++index) {
+        send_mouse(*canvas, QEvent::MouseMove, rounded(*start + step * index), Qt::NoButton, Qt::LeftButton);
+        canvas->repaint();
+        QTest::qWait(20);
+      }
+      const auto release_ms = timed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(*start + step * 6), Qt::LeftButton, Qt::NoButton);
+      });
+      std::fprintf(stderr, "  %dx%d handle drag%s: press %.1f ms, first move %.1f ms, release %.1f ms\n",
+                   size.width(), size.height(), settle ? "" : " (right after a release)", press_ms, first_move_ms,
+                   release_ms);
+      if (settle) {
+        report("handle drag", release_ms, run_until_settled(*canvas));
+      }
+    };
+    drag_end(QPointF(0.0, 4.0), false);
+    drag_end(QPointF(0.0, -4.0), false);
+    drag_end(QPointF(0.0, 4.0), true);
+  }
+}
+
+namespace {
+
+// Holds the background bake of a Gradient Fill commit (MainWindow reads the variable while
+// the worker waits), so a test can look at the time between a release and its landing.
+// Four seconds, not forever: code that wrongly waits for the bake fails a check, not the run.
+struct BakeGate {
+  BakeGate() { hold(); }
+  ~BakeGate() { open(); }
+  BakeGate(const BakeGate&) = delete;
+  BakeGate& operator=(const BakeGate&) = delete;
+  void hold() { qputenv("PATCHY_GRADIENT_FILL_BAKE_TEST_DELAY_MS", "4000"); }
+  void open() { qunsetenv("PATCHY_GRADIENT_FILL_BAKE_TEST_DELAY_MS"); }
+};
+
+// Runs the event loop until the pending commit has landed (at most 30 s).
+void wait_until_landed(CanvasWidget& canvas) {
+  QElapsedTimer timer;
+  timer.start();
+  while (canvas.gradient_fill_commit_pending() && timer.elapsed() < 30000) {
+    QTest::qWait(2);
+  }
+}
+
+// The layer's raster is what a bake on the spot makes: the same bounds and bytes.
+void check_baked_exactly(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  const auto& document = std::as_const(MainWindowTestAccess::document(window));
+  const auto* layer = document.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  auto exact = *layer;
+  patchy::update_vector_shape_raster(exact, patchy::Rect::from_size(document.width(), document.height()),
+                                     &document.metadata().patterns);
+  CHECK(std::as_const(exact).bounds() == layer->bounds());
+  CHECK(std::ranges::equal(std::as_const(exact).pixels().data(), layer->pixels().data()));
+}
+
+}  // namespace
+
+// GitHub #714 follow-up: after letting go of a Gradient drag on a large image the next drag
+// had to wait, because the release baked the full-size fill on the GUI thread (0.45 s at
+// 19 Mpx, over a second at 48 Mpx). The release now returns at once: the bake runs on a
+// worker, the canvas keeps the committed gradient and its handles on screen, a press on a
+// handle is taken at once and edits from the committed gradient, a second release queues
+// behind the first, and the document takes each drag as its own undo step when its bake
+// is done. A new layer's handles do not exist
+// until it lands, so the first press after that release waits for it.
+void ui_gradient_fill_release_bakes_in_the_background() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 3000;
+  constexpr int kHeight = 2800;
+  auto* canvas = open_large_fill_layer_document(window, kWidth, kHeight);
+  auto& document = MainWindowTestAccess::document(window);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  const auto mix = [&](double t) {
+    const auto channel = [t](int from, int to) { return static_cast<int>(std::lround(from + (to - from) * t)); };
+    return QColor(channel(start_color.red(), end_color.red()), channel(start_color.green(), end_color.green()),
+                  channel(start_color.blue(), end_color.blue()));
+  };
+  // Low on the left: a sixth of the way along the first ramp, before the start of the
+  // second, and under half way along the third.
+  const auto sample = widget_at(*canvas, QPointF(kWidth * 0.3, kHeight * 0.95));
+  CHECK(canvas_content_rect(*canvas).contains(sample));
+  const auto shown_at_sample = [&] { return render_widget_image(*canvas).pixelColor(sample); };
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  const auto label = [&] { return MainWindowTestAccess::current_history_label(window); };
+  const auto layers = [&] { return std::as_const(document).layers().size(); };
+  const auto base_depth = depth();
+  const auto base_layers = layers();
+  const QColor background = shown_at_sample();
+  CHECK(!color_close(background, mix(1.0 / 6.0), 40));
+  BakeGate gate;
+
+  // A new layer. The release returns with nothing in the document yet and the drag's
+  // preview still up.
+  const auto from = widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.5));
+  const auto to = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.5));
+  drag_and_release(*canvas, from, to);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(layers() == base_layers);
+  CHECK(depth() == base_depth);
+  CHECK(canvas->gradient_fill_drag_hold_shown());
+  CHECK(color_near(shown_at_sample(), mix(1.0 / 6.0), 14));
+  // Moving the pointer does not wait for it.
+  send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(layers() == base_layers);
+  // The next press does: the layer lands, and the press finds its end handle.
+  gate.open();
+  send_mouse(*canvas, QEvent::MouseButtonPress, to, Qt::LeftButton, Qt::LeftButton);
+  CHECK(!canvas->gradient_fill_commit_pending());
+  CHECK(layers() == base_layers + 1);
+  CHECK(depth() == base_depth + 1);
+  CHECK(label() == QStringLiteral("New Gradient Fill"));
+  const auto fill_id = std::as_const(document).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value() || !canvas->gradient_fill_handles().has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *fill_id};
+  check_baked_exactly(window, *fill_id);
+  const auto drawn = fill.gradient();
+  const auto layer_pixels = [&] {
+    const auto* layer = std::as_const(document).find_layer(*fill_id);
+    return layer != nullptr ? layer->pixels().data().data() : nullptr;
+  };
+  const auto drawn_pixels = layer_pixels();
+
+  // That press holds the end handle: drag it up until the sample lies before the start.
+  gate.hold();
+  const QPointF up(widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.1)));
+  const auto drag_to = [&](QPointF target) {
+    const auto begin = part_position(*canvas, Kind::End);
+    for (int move = 1; move <= 4; ++move) {
+      send_mouse(*canvas, QEvent::MouseMove, rounded(begin + (target - begin) * move / 4), Qt::NoButton,
+                 Qt::LeftButton);
+      QTest::qWait(45);  // past the preview interval
+    }
+  };
+  drag_to(up);
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(color_near(shown_at_sample(), start_color, 10));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(up), Qt::LeftButton, Qt::NoButton);
+  // The release did not bake: the document is as it was, the canvas shows the commit.
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  CHECK(fill.gradient() == drawn);
+  CHECK(layer_pixels() == drawn_pixels);
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(color_near(shown_at_sample(), start_color, 10));
+  CHECK(near(part_position(*canvas, Kind::End), up, 1.5));
+  const auto first_commit = canvas->gradient_fill_handles()->gradient;
+  CHECK(first_commit != drawn);
+
+  // A press right after the release is taken at once, without waiting for the bake, and
+  // the drag starts from the committed gradient.
+  const QPointF down(widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.9)));
+  const auto third_color = mix(0.434);  // the sample along a ramp from (0.2, 0.5) to (0.8, 0.9)
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(part_position(*canvas, Kind::End)), Qt::LeftButton,
+             Qt::LeftButton);
+  CHECK(canvas->pointer_gesture_active());
+  drag_to(down);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  CHECK(fill.gradient() == drawn);
+  CHECK(near(part_position(*canvas, Kind::End), down, 1.5));
+  CHECK(color_near(shown_at_sample(), third_color, 14));
+  // Esc puts back the commit that is still on its way, not the layer from before it.
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  CHECK(near(part_position(*canvas, Kind::End), up, 1.5));
+  CHECK(color_near(shown_at_sample(), start_color, 10));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(down), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+
+  // The same drag again, released: a second commit behind the first, and that release does
+  // not wait for the first bake either.
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(part_position(*canvas, Kind::End)), Qt::LeftButton,
+             Qt::LeftButton);
+  drag_to(down);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(down), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  CHECK(fill.gradient() == drawn);
+  CHECK(layer_pixels() == drawn_pixels);
+  CHECK(near(part_position(*canvas, Kind::End), down, 1.5));
+  CHECK(color_near(shown_at_sample(), third_color, 14));
+  const auto second_commit = canvas->gradient_fill_handles()->gradient;
+  CHECK(second_commit != first_commit);
+
+  // A third drag is under way when the two land, in order and each as its own undo step;
+  // the drag's picture and handle stay where the pointer has them.
+  const QPointF across(widget_at(*canvas, QPointF(kWidth * 0.5, kHeight * 0.9)));
+  const auto fourth_color = mix(0.814);  // the sample along a ramp from (0.2, 0.5) to (0.5, 0.9)
+  send_mouse(*canvas, QEvent::MouseButtonPress, rounded(part_position(*canvas, Kind::End)), Qt::LeftButton,
+             Qt::LeftButton);
+  drag_to(across);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  gate.open();
+  wait_until_landed(*canvas);
+  CHECK(!canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 3);
+  CHECK(label() == QStringLiteral("Move Gradient End Point"));
+  CHECK(fill.gradient() == second_commit);
+  check_baked_exactly(window, *fill_id);
+  CHECK(canvas->pointer_gesture_active());
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(near(part_position(*canvas, Kind::End), across, 1.5));
+  CHECK(color_near(shown_at_sample(), fourth_color, 14));
+  // Its release is the next commit, pending in turn, and lands as the fourth step.
+  send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(across), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 3);
+  CHECK(fill.gradient() == second_commit);
+  const auto third_commit = canvas->gradient_fill_handles()->gradient;
+  CHECK(third_commit != second_commit);
+  CHECK(color_near(shown_at_sample(), fourth_color, 14));
+  // No frame on the way to the settled render shows the gradient from before.
+  const auto frames = frames_until_settled(*canvas, sample, third_color, fourth_color);
+  CHECK(!frames.showed_old_picture);
+  CHECK(frames.all_expected);
+  CHECK(!canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 4);
+  CHECK(label() == QStringLiteral("Move Gradient End Point"));
+  CHECK(fill.gradient() == third_commit);
+  check_baked_exactly(window, *fill_id);
+  CHECK(!canvas->gradient_fill_view_preview_shown());
+  CHECK(color_near(shown_at_sample(), fourth_color, 14));
+
+  // Undo walks back one drag at a time.
+  MainWindowTestAccess::undo(window);
+  CHECK(fill.gradient() == second_commit);
+  MainWindowTestAccess::undo(window);
+  CHECK(fill.gradient() == first_commit);
+  MainWindowTestAccess::undo(window);
+  CHECK(fill.gradient() == drawn);
+  MainWindowTestAccess::undo(window);
+  CHECK(layers() == base_layers);
+  CHECK(depth() == base_depth);
+}
+
+// The same for a Fill Layer mode drag that redraws the active Gradient Fill: the release
+// returns at once, with the view preview standing in for the drag's overlay and the handles
+// on the new line. Undo before the bake has landed still undoes that drag: the commit lands
+// first. A click that adds a stop goes the same way.
+void ui_gradient_fill_redraw_bakes_in_the_background() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 3000;
+  constexpr int kHeight = 2800;
+  auto* canvas = open_large_fill_layer_document(window, kWidth, kHeight);
+  auto& document = MainWindowTestAccess::document(window);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  const auto sample = widget_at(*canvas, QPointF(kWidth * 0.1, kHeight * 0.9));
+  CHECK(canvas_content_rect(*canvas).contains(sample));
+  const auto shown_at_sample = [&] { return render_widget_image(*canvas).pixelColor(sample); };
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  const auto label = [&] { return MainWindowTestAccess::current_history_label(window); };
+  const auto base_depth = depth();
+
+  // The layer to redraw, landed and settled: the sample is before its start.
+  drag_and_release(*canvas, widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.5)),
+                   widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.5)));
+  CHECK(canvas->gradient_fill_commit_pending());
+  wait_until_landed(*canvas);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(depth() == base_depth + 1);
+  const auto fill_id = std::as_const(document).active_layer_id();
+  CHECK(fill_id.has_value() && canvas->gradient_fill_handles().has_value());
+  if (!fill_id.has_value() || !canvas->gradient_fill_handles().has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *fill_id};
+  const auto drawn = fill.gradient();
+  CHECK(color_near(shown_at_sample(), start_color, 12));
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+
+  // Drawn again right to left, from a press away from its handles: the sample is past the
+  // end now.
+  BakeGate gate;
+  const auto again_from = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.25));
+  const auto again_to = widget_at(*canvas, QPointF(kWidth * 0.2, kHeight * 0.25));
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(again_from)).kind == Kind::None);
+  drag_and_release(*canvas, again_from, again_to);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  CHECK(fill.gradient() == drawn);
+  // The view preview shows the redrawn fill; the drag's overlay is not needed under it.
+  CHECK(canvas->gradient_fill_view_preview_shown());
+  CHECK(!canvas->gradient_fill_drag_hold_shown());
+  CHECK(color_near(shown_at_sample(), end_color, 12));
+  const auto handles = canvas->gradient_fill_handles();
+  CHECK(handles.has_value());
+  if (!handles.has_value()) {
+    return;
+  }
+  CHECK(near(part_position(*canvas, Kind::Start), QPointF(again_from), 2.0));
+  CHECK(near(part_position(*canvas, Kind::End), QPointF(again_to), 2.0));
+  const auto redrawn = handles->gradient;
+  CHECK(redrawn != drawn);
+
+  // Undo while it is still on its way: the commit lands, then that step is undone.
+  gate.open();
+  MainWindowTestAccess::undo(window);
+  CHECK(!canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 1);
+  CHECK(label() == QStringLiteral("New Gradient Fill"));
+  CHECK(fill.gradient() == drawn);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(color_near(shown_at_sample(), start_color, 12));
+  MainWindowTestAccess::redo(window);
+  CHECK(depth() == base_depth + 2);
+  CHECK(label() == QStringLiteral("Edit Gradient Fill"));
+  CHECK(fill.gradient() == redrawn);
+  check_baked_exactly(window, *fill_id);
+  wait_until_settled(*canvas);
+  QApplication::processEvents();
+  CHECK(color_near(shown_at_sample(), end_color, 12));
+
+  // A click on the line adds a stop the same way: shown and selectable at once, in the
+  // layer when the bake is done.
+  gate.hold();
+  const auto middle = rounded((part_position(*canvas, Kind::Start) + part_position(*canvas, Kind::End)) / 2.0);
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(middle)).kind == Kind::Line);
+  send_mouse(*canvas, QEvent::MouseButtonPress, middle, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, middle, Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->gradient_fill_commit_pending());
+  CHECK(depth() == base_depth + 2);
+  CHECK(fill.gradient().color_stops.size() == 2U);
+  CHECK(canvas->gradient_fill_handles().has_value() &&
+        canvas->gradient_fill_handles()->gradient.color_stops.size() == 3U);
+  CHECK(canvas->gradient_fill_handle_widget_position(Part{Kind::ColorStop, 1}).has_value());
+  gate.open();
+  wait_until_landed(*canvas);
+  CHECK(depth() == base_depth + 3);
+  CHECK(label() == QStringLiteral("Add Color Stop"));
+  CHECK(fill.gradient().color_stops.size() == 3U);
+  check_baked_exactly(window, *fill_id);
+}
+
+// GitHub #725: a Gradient drag could not start on the pasteboard, the grey area around the
+// canvas; the press there was ignored, though the end of a drag could already go there. The
+// press now starts the drag in Pixels mode and in Fill Layer mode, and the ramp runs from
+// that point: at the canvas edge it is already part of the way along.
+void ui_gradient_drag_starts_on_the_pasteboard() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 400;
+  constexpr int kHeight = 300;
+  MainWindowTestAccess::create_document(window, kWidth, kHeight);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  canvas->set_zoom_centered(canvas->zoom() * 0.5);  // room for the pasteboard on every side
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(mode != nullptr && style != nullptr);
+  if (mode == nullptr || style == nullptr) {
+    return;
+  }
+  style->setCurrentIndex(style->findData(static_cast<int>(patchy::GradientMethod::Linear)));
+  QApplication::processEvents();
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(100);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 255}}});
+  auto& document = MainWindowTestAccess::document(window);
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+
+  // A level drag from left of the canvas to four fifths of the way across it.
+  const auto press = widget_at(*canvas, QPointF(-kWidth * 0.2, kHeight * 0.5));
+  const auto release = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.5));
+  CHECK(canvas_content_rect(*canvas).contains(press));
+  CHECK(canvas_content_rect(*canvas).contains(release));
+  // The press is on the pasteboard: left of the document's first column.
+  const double start_x = canvas->document_point_for_widget_position(press).x();
+  const double end_x = canvas->document_point_for_widget_position(release).x();
+  CHECK(start_x < -20.0 && end_x > start_x + 100.0 && end_x < kWidth);
+  // The ramp's color at a document column, for a drag between those two points.
+  const auto ramp = [&](double x) {
+    const auto t = std::clamp((x - start_x) / (end_x - start_x), 0.0, 1.0);
+    const auto mix = [t](int from, int to) { return static_cast<int>(std::lround(from + (to - from) * t)); };
+    return QColor(mix(start_color.red(), end_color.red()), mix(start_color.green(), end_color.green()),
+                  mix(start_color.blue(), end_color.blue()));
+  };
+  // The composite at a document point below the drag's line, away from handles.
+  const auto shown = [&](double x) {
+    QApplication::processEvents();
+    return render_widget_image(*canvas).pixelColor(widget_at(*canvas, QPointF(x, kHeight * 0.85)));
+  };
+  const auto check_ramp = [&] {
+    // The left edge is a sixth of the way along, not the start color: the ramp began outside.
+    CHECK(color_near(shown(2.0), ramp(2.0), 10));
+    CHECK(!color_close(shown(2.0), start_color, 12));
+    CHECK(color_near(shown(kWidth * 0.4), ramp(kWidth * 0.4), 10));
+    CHECK(color_near(shown(kWidth - 3.0), end_color, 10));
+  };
+
+  // Pixels mode: the drag paints the layer, one undo step.
+  mode->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::Pixels);
+  const auto pixels_depth = depth();
+  const auto layer_count = std::as_const(document).layers().size();
+  press_and_move(*canvas, press, release);
+  CHECK(canvas->pointer_gesture_active());
+  release_at(*canvas, release);
+  CHECK(depth() == pixels_depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Gradient"));
+  CHECK(std::as_const(document).layers().size() == layer_count);
+  check_ramp();
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(depth() == pixels_depth);
+  CHECK(!color_near(shown(kWidth * 0.4), ramp(kWidth * 0.4), 10));
+
+  // Fill Layer mode: a new Gradient Fill layer whose line starts where the press was.
+  mode->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::FillLayer);
+  press_and_move(*canvas, press, release);
+  CHECK(canvas->pointer_gesture_active());
+  save_image_artifact("ui_gradient_drag_starts_on_the_pasteboard_drag", render_widget_image(*canvas));
+  release_at(*canvas, release);
+  CHECK(depth() == pixels_depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("New Gradient Fill"));
+  CHECK(std::as_const(document).layers().size() == layer_count + 1);
+  const auto handles = canvas->gradient_fill_handles();
+  CHECK(handles.has_value());
+  if (handles.has_value()) {
+    CHECK(near(QPointF(handles->line.start_x, handles->line.start_y), QPointF(start_x, kHeight * 0.5), 1.5));
+    CHECK(near(QPointF(handles->line.end_x, handles->line.end_y), QPointF(end_x, kHeight * 0.5), 1.5));
+    // The start handle sits on the pasteboard, where the press was.
+    CHECK(near(part_position(*canvas, Kind::Start), QPointF(press), 2.0));
+  }
+  check_ramp();
+  save_image_artifact("ui_gradient_drag_starts_on_the_pasteboard_fill_layer", render_widget_image(*canvas));
+
+  // A click on the pasteboard without a drag still makes nothing.
+  const auto away = widget_at(*canvas, QPointF(-kWidth * 0.2, kHeight * 0.2));
+  CHECK(canvas_content_rect(*canvas).contains(away));
+  CHECK(canvas->document_point_for_widget_position(away).x() < 0);
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(away)).kind == Kind::None);
+  send_mouse(*canvas, QEvent::MouseButtonPress, away, Qt::LeftButton, Qt::LeftButton);
+  release_at(*canvas, away);
+  CHECK(depth() == pixels_depth + 1);
+  CHECK(std::as_const(document).layers().size() == layer_count + 1);
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
       {"ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows",
@@ -1764,6 +2378,10 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
        ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view},
       {"ui_gradient_fill_handles_show_a_presets_own_stops", ui_gradient_fill_handles_show_a_presets_own_stops},
       {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
+      {"ui_gradient_release_timing", ui_gradient_release_timing},
+      {"ui_gradient_fill_release_bakes_in_the_background", ui_gradient_fill_release_bakes_in_the_background},
+      {"ui_gradient_fill_redraw_bakes_in_the_background", ui_gradient_fill_redraw_bakes_in_the_background},
+      {"ui_gradient_drag_starts_on_the_pasteboard", ui_gradient_drag_starts_on_the_pasteboard},
       {"ui_gradient_fill_handle_drag_previews_at_view_resolution",
        ui_gradient_fill_handle_drag_previews_at_view_resolution},
       {"ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation",

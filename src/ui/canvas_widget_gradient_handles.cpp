@@ -286,9 +286,16 @@ const LayerStyleGradient& CanvasWidget::gradient_handle_gradient(const Layer& la
   }
   // A live edit shown through the view preview has not reached the layer yet (GitHub #714):
   // the handles, the stop colors and the opacity popup follow the gradient on screen.
-  if (gradient_view_preview_.has_value() && !gradient_view_preview_->held &&
+  if (gradient_view_preview_.has_value() &&
+      (!gradient_view_preview_->held || gradient_view_preview_->awaiting_commit) &&
       gradient_view_preview_->layer_id == layer.id()) {
     return gradient_view_preview_->gradient;
+  }
+  // So does a commit the host is still baking (GitHub #714 follow-up): the layer keeps the
+  // gradient from before until the bake lands.
+  if (gradient_pending_commit_.has_value() && !gradient_pending_commit_->new_layer &&
+      gradient_pending_commit_->layer_id == layer.id()) {
+    return gradient_pending_commit_->gradient;
   }
   return shape->fill.gradient;
 }
@@ -401,6 +408,9 @@ bool CanvasWidget::show_gradient_fill_view_preview(LayerId layer_id, const Layer
   preview.layer_id = layer_id;
   preview.gradient = gradient;
   preview.level = level;
+  preview.gradient_bounds = gradient_bounds;
+  preview.view = view_transform().to_widget();
+  preview.view_size = size();
   if (!patch_rect.isEmpty()) {
     // The fill is rendered for the area on screen only, or whole under layer effects.
     const QRect raster_rect = styled ? composite_canvas : patch_rect;
@@ -466,6 +476,88 @@ void CanvasWidget::clear_gradient_fill_view_preview() {
   update();
 }
 
+bool CanvasWidget::begin_gradient_fill_pending_commit(LayerId layer_id, const LayerStyleGradient& gradient,
+                                                      Rect gradient_bounds) {
+  // The picture on screen may be an older gradient (the throttle), another layer's, or the
+  // drag overlay of a Fill Layer mode release: the kept frame shows the committed one.
+  if ((!gradient_view_preview_.has_value() || gradient_view_preview_->layer_id != layer_id ||
+       gradient_view_preview_->gradient != gradient) &&
+      !show_gradient_fill_view_preview(layer_id, gradient, gradient_bounds)) {
+    return false;
+  }
+  gradient_view_preview_->held = true;
+  gradient_view_preview_->awaiting_commit = true;
+  gradient_pending_commit_ = GradientFillPendingCommit{layer_id, gradient, gradient_bounds, false};
+  gradient_drag_hold_.reset();  // the view preview is the release's picture now
+  update();
+  return true;
+}
+
+void CanvasWidget::begin_gradient_fill_pending_new_layer() {
+  gradient_pending_commit_ = GradientFillPendingCommit{0, LayerStyleGradient{}, Rect{}, true};
+}
+
+void CanvasWidget::finish_gradient_fill_pending_commit(bool landed) {
+  if (!gradient_pending_commit_.has_value()) {
+    return;
+  }
+  const auto pending = std::move(*gradient_pending_commit_);
+  gradient_pending_commit_.reset();
+  if (pending.new_layer) {
+    // The host's notification marked the held drag preview; tie it to the layer now.
+    if (landed) {
+      settle_gradient_fill_drag_hold();
+    } else {
+      clear_gradient_fill_drag_hold();
+    }
+    return;
+  }
+  if (!gradient_view_preview_.has_value() || !gradient_view_preview_->awaiting_commit) {
+    return;  // a later drag's own preview is up, or nothing is
+  }
+  const auto* layer =
+      landed && document_ != nullptr ? std::as_const(*document_).find_layer(pending.layer_id) : nullptr;
+  if (layer == nullptr) {
+    clear_gradient_fill_view_preview();
+    return;
+  }
+  // From here it is the held frame of an ordinary commit: up until the composite lands.
+  gradient_view_preview_->awaiting_commit = false;
+  gradient_view_preview_->held = true;
+  gradient_view_preview_->held_render_revision = layer->render_revision();
+  gradient_view_preview_->held_content_revision = layer->content_revision();
+  update();
+}
+
+bool CanvasWidget::gradient_fill_commit_pending() const noexcept {
+  return gradient_pending_commit_.has_value();
+}
+
+void CanvasWidget::set_gradient_fill_pending_flush_callback(std::function<void()> callback) {
+  gradient_fill_pending_flush_callback_ = std::move(callback);
+}
+
+void CanvasWidget::flush_gradient_fill_pending_commit() {
+  if (gradient_pending_commit_.has_value() && gradient_fill_pending_flush_callback_) {
+    gradient_fill_pending_flush_callback_();
+  }
+}
+
+void CanvasWidget::restore_gradient_fill_pending_preview() {
+  if (!gradient_pending_commit_.has_value() || gradient_pending_commit_->new_layer ||
+      (gradient_view_preview_.has_value() && gradient_view_preview_->awaiting_commit)) {
+    return;
+  }
+  const auto pending = *gradient_pending_commit_;
+  if (show_gradient_fill_view_preview(pending.layer_id, pending.gradient, pending.gradient_bounds)) {
+    gradient_view_preview_->held = true;
+    gradient_view_preview_->awaiting_commit = true;
+    return;
+  }
+  // The view cannot show it any more: the layer itself has to.
+  flush_gradient_fill_pending_commit();
+}
+
 bool CanvasWidget::gradient_fill_view_preview_shown() const noexcept {
   return gradient_view_preview_.has_value();
 }
@@ -478,6 +570,24 @@ bool CanvasWidget::gradient_fill_view_preview_drawn() {
   if (!gradient_view_preview_.has_value()) {
     return false;
   }
+  if (gradient_view_preview_->awaiting_commit) {
+    // Kept for a commit the host is baking. A zoom, pan or rotation since it was made left
+    // it covering the old view: render it once for the view as it is now.
+    const auto view = view_transform().to_widget();
+    if (gradient_view_preview_->view != view || gradient_view_preview_->view_size != size()) {
+      const auto layer_id = gradient_view_preview_->layer_id;
+      const auto gradient = gradient_view_preview_->gradient;
+      const auto bounds = gradient_view_preview_->gradient_bounds;
+      if (show_gradient_fill_view_preview(layer_id, gradient, bounds)) {
+        gradient_view_preview_->held = true;
+        gradient_view_preview_->awaiting_commit = true;
+      } else {
+        gradient_view_preview_->view = view;
+        gradient_view_preview_->view_size = size();
+      }
+    }
+    return true;
+  }
   if (gradient_view_preview_->held && render_settled() && !processing_operation_active()) {
     // The committed document's composite is on screen now.
     gradient_view_preview_.reset();
@@ -489,6 +599,16 @@ bool CanvasWidget::gradient_fill_view_preview_drawn() {
 void CanvasWidget::note_document_changed_for_gradient_view_preview() noexcept {
   gradient_view_preview_source_.reset();
   if (!gradient_view_preview_.has_value()) {
+    return;
+  }
+  if (gradient_view_preview_->awaiting_commit) {
+    return;  // the host ends it when its bake lands (finish_gradient_fill_pending_commit)
+  }
+  if (gradient_pending_commit_.has_value() && !gradient_pending_commit_->new_layer &&
+      !gradient_view_preview_->held && gradient_handle_drag_.has_value() &&
+      gradient_handle_drag_->layer_id == gradient_view_preview_->layer_id) {
+    // The pending commit landing under a drag that began on top of it: the drag's own
+    // preview still shows what the pointer holds.
     return;
   }
   if (gradient_view_preview_->held && document_ != nullptr) {
@@ -510,6 +630,10 @@ void CanvasWidget::begin_gradient_fill_drag_hold(QPoint start, QPoint end) {
 void CanvasWidget::settle_gradient_fill_drag_hold() {
   if (!gradient_drag_hold_.has_value()) {
     return;
+  }
+  if (!gradient_drag_hold_->document_changed && gradient_pending_commit_.has_value() &&
+      gradient_pending_commit_->new_layer) {
+    return;  // the host is baking the new layer: the preview waits for it to land
   }
   // No change (a locked fill, a preview dialog that owns the document): nothing is on its
   // way, so nothing is held.
@@ -1146,6 +1270,7 @@ bool CanvasWidget::release_gradient_fill_handle(QMouseEvent* event) {
   if (gradient_view_preview_.has_value() && !gradient_view_preview_->held) {
     gradient_view_preview_.reset();
   }
+  restore_gradient_fill_pending_preview();
   gradient_handle_hover_ = {};
   set_gradient_fill_handle_hover(gradient_fill_handle_layer() != nullptr
                                      ? gradient_fill_handle_part_at(event->position())
@@ -1173,6 +1298,7 @@ void CanvasWidget::cancel_gradient_fill_handle_drag() {
   if (gradient_view_preview_.has_value() && !gradient_view_preview_->held) {
     gradient_view_preview_.reset();
   }
+  restore_gradient_fill_pending_preview();
   gradient_handle_hover_ = {};
   gradient_handle_cursor_ = GradientHandleCursor::None;
   update_tool_cursor();
@@ -1185,6 +1311,7 @@ void CanvasWidget::abandon_gradient_fill_handle_drag() {
   gradient_handle_drag_.reset();
   gradient_view_preview_.reset();
   gradient_drag_hold_.reset();
+  gradient_pending_commit_.reset();  // the host finishes its bake before it swaps a document
   gradient_handle_hover_ = {};
   gradient_handle_cursor_ = GradientHandleCursor::None;
   gradient_handle_bounds_cache_.reset();

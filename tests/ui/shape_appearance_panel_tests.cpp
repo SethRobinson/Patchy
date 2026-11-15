@@ -863,9 +863,16 @@ void ui_shape_appearance_window_step_timing() {
   QApplication::processEvents();
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(400, 400)),
        canvas->widget_position_for_document_point(QPoint(3400, 2400)));
+  // A fill this large is baked in the background; the layer joins the document when it is
+  // ready (docs/gradients-fill-handles.md, "Release without a pause").
+  QElapsedTimer landing;
+  landing.start();
+  while (canvas->gradient_fill_commit_pending() && landing.elapsed() < 30000) {
+    QTest::qWait(2);
+  }
   QApplication::processEvents();
   const auto fill_id = document.active_layer_id();
-  CHECK(fill_id.has_value() && *fill_id != id);
+  CHECK(fill_id.has_value() && *fill_id != id && *fill_id != *background);
   if (!fill_id.has_value()) return;
   CHECK(panel_usable(*panel));
   CHECK(panel->windowTitle() == QStringLiteral("Fill Layer Settings"));

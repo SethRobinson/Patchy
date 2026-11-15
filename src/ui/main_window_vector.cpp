@@ -117,6 +117,9 @@
 #include <cmath>
 #include <iterator>
 #include <functional>
+#include <thread>
+#include <future>
+#include <chrono>
 #include <cstdint>
 #include <cstddef>
 #include <exception>
@@ -1354,7 +1357,7 @@ bool MainWindow::edit_active_shape_appearance_modal(bool record_undo,
   return true;
 }
 
-Layer MainWindow::build_fill_layer(const VectorFill& fill, const QString& name) {
+Layer MainWindow::build_fill_layer(const VectorFill& fill, const QString& name, bool bake) {
   auto& doc = document();
   Layer layer(doc.allocate_layer_id(), name.toStdString(), PixelBuffer());
   VectorShapeContent content;  // empty path = the whole canvas
@@ -1375,8 +1378,10 @@ Layer MainWindow::build_fill_layer(const VectorFill& fill, const QString& name) 
   layer.set_vector_shape(std::move(content));
   layer.metadata()[kLayerMetadataVectorShape] = "1";
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
-  update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()),
-                             &doc.metadata().patterns);
+  if (bake) {
+    update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()),
+                               &doc.metadata().patterns);
+  }
   const auto selection = canvas_->selected_document_region();
   const auto selection_rect =
       selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
@@ -1399,11 +1404,277 @@ QString MainWindow::unique_fill_layer_name(const QString& base) {
   return QString::fromStdString(name);
 }
 
-void MainWindow::create_fill_layer(const VectorFill& fill, const QString& name, QString label, float opacity) {
+// What a background Gradient Fill bake needs to land: where the layer goes, what the layer
+// was when the bake began, and the worker's result.
+struct MainWindow::PendingGradientFillBake {
+  std::int64_t session_id{0};
+  std::uint64_t token{0};
+  LayerId layer_id{0};
+  // A layer the document does not hold yet, inserted above `anchor_id`; otherwise the
+  // existing fill `layer_id` takes `gradient`.
+  bool new_layer{false};
+  std::optional<LayerId> anchor_id;
+  LayerStyleGradient gradient;
+  std::uint64_t base_render_revision{0};
+  std::uint64_t base_content_revision{0};
+  QString undo_label;
+  QString status;
+  // The layer with the committed shape and no raster, and the worker's copy with it.
+  Layer unbaked;
+  std::shared_future<Layer> baked;
+  // Set by the worker before it posts its completion. The future only turns ready once the
+  // worker has returned, a moment after that post, so "is it done" reads this flag.
+  std::shared_ptr<std::atomic<bool>> done{std::make_shared<std::atomic<bool>>(false)};
+  // The commit made after this one, while it was pending.
+  std::shared_ptr<PendingGradientFillBake> next;
+};
+
+namespace {
+
+int gradient_fill_bake_test_delay_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_GRADIENT_FILL_BAKE_TEST_DELAY_MS", &ok);
+  return ok ? std::max(0, value) : 0;
+}
+
+}  // namespace
+
+bool MainWindow::gradient_fill_bake_runs_in_background(const Layer& fill) {
+#if defined(Q_OS_WASM)
+  // A blocked wait on a worker is not safe there (docs/wasm.md); the bake stays inline.
+  (void)fill;
+  return false;
+#else
+  // Read per commit (PATCHY_GRADIENT_FILL_BACKGROUND_BAKE=0 bakes on the spot, as before
+  // GitHub #714's third follow-up; tests of that path set it).
+  const bool disabled = qEnvironmentVariable("PATCHY_GRADIENT_FILL_BACKGROUND_BAKE") == QLatin1String("0");
+  if (kBackgroundWorkRunsInline || disabled || canvas_ == nullptr || !has_active_document()) {
+    return false;
+  }
+  // The fills the canvas previews at view resolution: pathless, 8-bit, 1 Mpx and up.
+  const auto& doc = std::as_const(document());
+  return doc.color_state().bit_depth == BitDepth::UInt8 &&
+         gradient_fill_draft_supported(fill, Rect::from_size(doc.width(), doc.height()));
+#endif
+}
+
+void MainWindow::start_gradient_fill_bake(std::shared_ptr<PendingGradientFillBake> pending) {
+  const auto& doc = std::as_const(document());
+  pending->session_id = session().session_id;
+  pending->token = ++gradient_fill_bake_token_;
+  // The worker's layer shares nothing the GUI thread writes: the old raster is dropped here.
+  pending->unbaked.set_pixels(PixelBuffer());
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  auto patterns = std::make_shared<const PatternStore>(doc.metadata().patterns);
+  auto* app = QCoreApplication::instance();
+  const QPointer<MainWindow> self(this);
+  pending->baked = launch_async([layer = pending->unbaked, canvas_rect, patterns = std::move(patterns), app, self,
+                                 done = pending->done]() mutable {
+                     // Posted however the bake ends; the GUI thread then takes the result
+                     // (or the exception) from the future.
+                     const auto notify = qScopeGuard([app, self, done] {
+                       done->store(true);
+                       if (app == nullptr) {
+                         return;
+                       }
+                       QMetaObject::invokeMethod(
+                           app,
+                           [self] {
+                             if (self != nullptr) {
+                               self->land_gradient_fill_bakes(false);
+                             }
+                           },
+                           Qt::QueuedConnection);
+                     });
+                     // A test holds the bake by setting the delay and lets it go by clearing it.
+                     const auto started = std::chrono::steady_clock::now();
+                     while (std::chrono::steady_clock::now() - started <
+                            std::chrono::milliseconds(gradient_fill_bake_test_delay_ms())) {
+                       std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                     }
+                     update_vector_shape_raster(layer, canvas_rect, patterns.get());
+                     return layer;
+                   }).share();
+  if (pending_gradient_fill_bake_ == nullptr) {
+    pending_gradient_fill_bake_ = std::move(pending);
+    return;
+  }
+  auto* tail = pending_gradient_fill_bake_.get();
+  while (tail->next != nullptr) {
+    tail = tail->next.get();
+  }
+  tail->next = std::move(pending);
+}
+
+std::shared_ptr<MainWindow::PendingGradientFillBake> MainWindow::gradient_fill_bake_queue_tail(LayerId layer_id) {
+  if (pending_gradient_fill_bake_ == nullptr || !has_active_document() ||
+      session().session_id != pending_gradient_fill_bake_->session_id) {
+    return nullptr;
+  }
+  const auto* layer = std::as_const(document()).find_layer(layer_id);
+  if (layer == nullptr || layer->render_revision() != pending_gradient_fill_bake_->base_render_revision ||
+      layer->content_revision() != pending_gradient_fill_bake_->base_content_revision) {
+    return nullptr;
+  }
+  auto tail = pending_gradient_fill_bake_;
+  while (true) {
+    if (tail->new_layer || tail->layer_id != layer_id) {
+      return nullptr;
+    }
+    if (tail->next == nullptr) {
+      return tail;
+    }
+    tail = tail->next;
+  }
+}
+
+void MainWindow::finish_pending_gradient_fill_bake() {
+  land_gradient_fill_bakes(true);
+}
+
+void MainWindow::land_gradient_fill_bakes(bool wait) {
+  while (pending_gradient_fill_bake_ != nullptr && (wait || pending_gradient_fill_bake_->done->load())) {
+    // Detached while it lands: the history snapshot it takes ends pending edits, and must
+    // not pull the commits behind this one in ahead of it.
+    const auto front = std::move(pending_gradient_fill_bake_);
+    pending_gradient_fill_bake_.reset();
+    auto rest = std::move(front->next);
+    land_gradient_fill_bake(*front, rest.get());
+    if (rest != nullptr) {
+      // A commit that started during the landing (none can: it takes no input) goes last.
+      if (pending_gradient_fill_bake_ != nullptr) {
+        auto* tail = rest.get();
+        while (tail->next != nullptr) {
+          tail = tail->next.get();
+        }
+        tail->next = std::move(pending_gradient_fill_bake_);
+      }
+      pending_gradient_fill_bake_ = std::move(rest);
+    }
+    if (!wait && pending_gradient_fill_bake_ != nullptr && pending_gradient_fill_bake_->done->load()) {
+      // One landing per pass of the event loop: a pointer held on a handle keeps moving
+      // between them (three in a row took 300 ms at 48 Mpx).
+      const QPointer<MainWindow> self(this);
+      QMetaObject::invokeMethod(
+          this,
+          [self] {
+            if (self != nullptr) {
+              self->land_gradient_fill_bakes(false);
+            }
+          },
+          Qt::QueuedConnection);
+      return;
+    }
+  }
+}
+
+void MainWindow::land_gradient_fill_bake(const PendingGradientFillBake& landing, PendingGradientFillBake* next) {
+  const auto* pending = &landing;
+  if (canvas_ == nullptr || !has_active_document() || session().session_id != pending->session_id) {
+    return;  // its document is gone (every switch and close finishes the bake first)
+  }
+  // The canvas keeps the newest commit's picture and handles until the last one lands.
+  const auto finish_on_canvas = [this, next](bool landed) {
+    if (next == nullptr) {
+      canvas_->finish_gradient_fill_pending_commit(landed);
+    }
+  };
+  auto& doc = document();
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  Layer baked;
+  try {
+    baked = pending->baked.get();  // waits when the worker has not finished
+  } catch (...) {
+    baked = pending->unbaked;
+    update_vector_shape_raster(baked, canvas_rect, &doc.metadata().patterns);
+  }
+  if (pending->new_layer) {
+    push_undo_snapshot(pending->undo_label);
+    insert_layer_after_anchor(doc, std::move(baked), pending->anchor_id);
+    doc.set_active_layer(pending->layer_id);
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+    finish_on_canvas(true);
+    statusBar()->showMessage(pending->status);
+    return;
+  }
+  const auto* current = std::as_const(doc).find_layer(pending->layer_id);
+  const auto* shape = current != nullptr && layer_is_vector_shape(*current) ? current->vector_shape() : nullptr;
+  if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient) {
+    finish_on_canvas(false);
+    return;
+  }
+  // The bake stands for the layer it was made from. Anything that changed the layer since
+  // (a mask, the path, another gradient) gets the gradient written into the layer as it is
+  // now and baked here instead.
+  const bool unchanged = current->render_revision() == pending->base_render_revision &&
+                         current->content_revision() == pending->base_content_revision &&
+                         std::as_const(baked).vector_shape() != nullptr;
+  push_undo_snapshot(pending->undo_label);
+  auto* layer = doc.find_layer(pending->layer_id);
+  if (layer == nullptr) {
+    finish_on_canvas(false);
+    return;
+  }
+  if (unchanged) {
+    layer->set_vector_shape(*std::as_const(baked).vector_shape());
+    layer->set_pixels(std::as_const(baked).pixels());
+    layer->set_bounds(std::as_const(baked).bounds());
+    layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+  } else {
+    apply_gradient_fill_handle_gradient(pending->layer_id, pending->gradient);
+  }
+  mark_layer_vector_block_dirty(*layer);
+  if (unchanged && next != nullptr && !next->new_layer && next->layer_id == pending->layer_id) {
+    // The commit queued behind this one was baked from this one's shape: the layer it
+    // expects is the layer as this landing leaves it (read after the last write above).
+    next->base_render_revision = std::as_const(*layer).render_revision();
+    next->base_content_revision = std::as_const(*layer).content_revision();
+  }
+  canvas_->document_changed();
+  finish_on_canvas(true);
+  refresh_layer_list();
+  refresh_layer_controls();
+  if (!pending->status.isEmpty()) {
+    statusBar()->showMessage(pending->status);
+  }
+}
+
+void MainWindow::create_fill_layer(const VectorFill& fill, const QString& name, QString label, float opacity,
+                                   bool bake_in_background) {
   auto& doc = document();
   auto anchor_id = doc.active_layer_id();
   if (const auto selected_ids = selected_layer_ids(); !selected_ids.empty()) {
     anchor_id = selected_ids.front();
+  }
+  if (bake_in_background) {
+    // The layer is built without its raster; when a worker can make it, the layer joins
+    // the document (and the history) once that is done.
+    auto unbaked = build_fill_layer(fill, name, false);
+    unbaked.set_opacity(std::clamp(opacity, 0.0F, 1.0F));
+    if (gradient_fill_bake_runs_in_background(std::as_const(unbaked))) {
+      auto pending = std::make_shared<PendingGradientFillBake>();
+      pending->layer_id = std::as_const(unbaked).id();
+      pending->new_layer = true;
+      pending->anchor_id = anchor_id;
+      pending->undo_label = std::move(label);
+      pending->status = tr("Created fill layer %1.").arg(name);
+      pending->unbaked = std::move(unbaked);
+      canvas_->begin_gradient_fill_pending_new_layer();
+      start_gradient_fill_bake(std::move(pending));
+      return;
+    }
+    push_undo_snapshot(std::move(label));
+    update_vector_shape_raster(unbaked, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+    const auto layer_id = std::as_const(unbaked).id();
+    insert_layer_after_anchor(doc, std::move(unbaked), anchor_id);
+    doc.set_active_layer(layer_id);
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+    statusBar()->showMessage(tr("Created fill layer %1.").arg(name));
+    return;
   }
   push_undo_snapshot(std::move(label));
   auto layer = build_fill_layer(fill, name);
@@ -1518,6 +1789,16 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
     show_preview_dialog_edit_lock_message();
     return;
   }
+  // Commits still being baked land first, each as its own step, unless they are on the
+  // active fill, where this one can queue behind them (below).
+  auto queue_tail = std::shared_ptr<PendingGradientFillBake>();
+  if (pending_gradient_fill_bake_ != nullptr) {
+    const auto pending_active = std::as_const(document()).active_layer_id();
+    queue_tail = pending_active.has_value() ? gradient_fill_bake_queue_tail(*pending_active) : nullptr;
+    if (queue_tail == nullptr) {
+      finish_pending_gradient_fill_bake();
+    }
+  }
   auto& doc = document();
   const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
   auto gradient = gradient_fill_from_drag(canvas_->resolved_gradient(), canvas_->gradient_method(),
@@ -1534,17 +1815,39 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
       show_status_error(tr("Unlock the Gradient Fill layer to change its gradient"));
       return;
     }
+    // Behind a pending commit the shape to change is that commit's.
+    auto content = queue_tail != nullptr && std::as_const(queue_tail->unbaked).vector_shape() != nullptr
+                       ? *std::as_const(queue_tail->unbaked).vector_shape()
+                       : *active_shape;
+    content.fill.gradient = std::move(gradient);
+    const auto changed_status = tr("Changed the gradient of %1.").arg(QString::fromStdString(active->name()));
+    // A large fill bakes in the background (GitHub #714 follow-up): the canvas shows the
+    // new gradient and its handles at once, and the layer takes it when the bake is done.
+    if (gradient_fill_bake_runs_in_background(*active) &&
+        canvas_->begin_gradient_fill_pending_commit(*active_id, content.fill.gradient,
+                                                    gradient_fill_alignment_bounds(*active, canvas_rect))) {
+      auto pending = std::make_shared<PendingGradientFillBake>();
+      pending->layer_id = *active_id;
+      pending->gradient = content.fill.gradient;
+      pending->base_render_revision = active->render_revision();
+      pending->base_content_revision = active->content_revision();
+      pending->undo_label = tr("Edit Gradient Fill");
+      pending->status = changed_status;
+      pending->unbaked = queue_tail != nullptr ? queue_tail->unbaked : *active;
+      pending->unbaked.set_vector_shape(std::move(content));
+      start_gradient_fill_bake(std::move(pending));
+      return;
+    }
+    finish_pending_gradient_fill_bake();  // not queued after all: the pending ones land first
     push_undo_snapshot(tr("Edit Gradient Fill"));
     auto* layer = doc.find_layer(*active_id);
-    auto content = *active_shape;
-    content.fill.gradient = std::move(gradient);
     layer->set_vector_shape(std::move(content));
     update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
     mark_layer_vector_block_dirty(*layer);
     canvas_->document_changed();
     refresh_layer_list();
     refresh_layer_controls();
-    statusBar()->showMessage(tr("Changed the gradient of %1.").arg(QString::fromStdString(layer->name())));
+    statusBar()->showMessage(changed_status);
     return;
   }
   VectorFill fill;
@@ -1552,7 +1855,7 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
   fill.gradient = std::move(gradient);
   // The options bar's Opacity becomes the layer's opacity; the stops keep their own alpha.
   create_fill_layer(fill, unique_fill_layer_name(tr("Gradient Fill %1")), tr("New Gradient Fill"),
-                    static_cast<float>(canvas_->gradient_opacity()) / 100.0F);
+                    static_cast<float>(canvas_->gradient_opacity()) / 100.0F, true);
 }
 
 void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient,
@@ -1620,10 +1923,21 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
     }
     return;
   }
+  // Earlier commits still being baked land first, each as its own step, unless this commit
+  // can queue behind them (they edit this fill). A preview does not wait for them: a drag
+  // that starts on top of a pending commit previews at view resolution and leaves the
+  // document alone (below).
+  auto queue_tail = std::shared_ptr<PendingGradientFillBake>();
+  if (phase == GradientFillEditPhase::Commit && pending_gradient_fill_bake_ != nullptr) {
+    queue_tail = on_stroke ? nullptr : gradient_fill_bake_queue_tail(layer_id);
+    if (queue_tail == nullptr) {
+      finish_pending_gradient_fill_bake();
+    }
+  }
   // A gesture still open in the Shape Appearance window ends before this one writes: its
   // next value would otherwise be written over the handle's preview.
   if (!previewing) {
-    finish_pending_shape_appearance_edit();
+    finish_pending_shape_appearance_edit_alone();
   }
   const auto* layer = std::as_const(doc).find_layer(layer_id);
   const auto* shape = layer != nullptr && layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
@@ -1673,6 +1987,19 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
       }
       return;
     }
+    if (pending_gradient_fill_bake_ != nullptr) {
+      // This preview goes through the document, so the commit still being baked lands
+      // first and the edit starts from the layer it makes.
+      finish_pending_gradient_fill_bake();
+      const auto* landed = std::as_const(doc).find_layer(layer_id);
+      if (landed == nullptr || !gradient_fill_handle_preview_.has_value()) {
+        gradient_fill_handle_preview_.reset();
+        return;
+      }
+      if (!gradient_fill_handle_preview_->document_touched) {
+        gradient_fill_handle_preview_->original = *landed;
+      }
+    }
     gradient_fill_handle_preview_->document_touched = true;
     // Otherwise a live preview takes the draft bake and an asynchronous recomposite that never
     // cancels the one in flight (GitHub issue 663 follow-up: an exact bake and a cancelled
@@ -1690,7 +2017,40 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
   }
   // Commit: the history snapshot must hold the layer as it was before the drag.
   const auto view_bounds = view_previewing ? gradient_fill_handle_preview_->gradient_bounds : Rect{};
+  // The layer is as it was before the edit when no preview went through the document.
+  const bool layer_untouched = !previewing || view_previewing;
   restore();
+  if (!on_stroke && layer_untouched) {
+    // A large fill bakes in the background (GitHub #714 follow-up): the canvas keeps the
+    // committed gradient and its handles on screen, the next press works at once, and the
+    // layer takes the gradient, as this one undo step, when the bake is done.
+    const auto* fill_layer = std::as_const(doc).find_layer(layer_id);
+    if (fill_layer != nullptr && fill_layer->vector_shape() != nullptr &&
+        gradient_fill_bake_runs_in_background(*fill_layer) &&
+        canvas_->begin_gradient_fill_pending_commit(
+            layer_id, gradient,
+            view_previewing ? view_bounds
+                            : gradient_fill_alignment_bounds(*fill_layer,
+                                                             Rect::from_size(doc.width(), doc.height())))) {
+      auto pending = std::make_shared<PendingGradientFillBake>();
+      pending->layer_id = layer_id;
+      pending->gradient = gradient;
+      pending->base_render_revision = fill_layer->render_revision();
+      pending->base_content_revision = fill_layer->content_revision();
+      pending->undo_label = undo_label.isEmpty() ? tr("Edit Gradient Fill") : undo_label;
+      // Behind a pending commit the layer to change is that commit's.
+      const Layer& base = queue_tail != nullptr && std::as_const(queue_tail->unbaked).vector_shape() != nullptr
+                              ? std::as_const(queue_tail->unbaked)
+                              : *fill_layer;
+      auto content = *base.vector_shape();
+      content.fill.gradient = gradient;
+      pending->unbaked = base;
+      pending->unbaked.set_vector_shape(std::move(content));
+      start_gradient_fill_bake(std::move(pending));
+      return;
+    }
+  }
+  finish_pending_gradient_fill_bake();  // not queued after all: the pending ones land first
   push_undo_snapshot(undo_label.isEmpty() ? tr("Edit Gradient Fill") : undo_label);
   apply_gradient_fill_handle_gradient(layer_id, gradient, std::nullopt, target);
   if (view_previewing) {
@@ -1708,6 +2068,7 @@ void MainWindow::handle_gradient_fill_stop_color_requested(LayerId layer_id, int
   if (canvas_ == nullptr || !has_active_document() || stop_index < 0) {
     return;
   }
+  finish_pending_gradient_fill_bake();  // the picker starts from the layer's own gradient
   const auto* layer = std::as_const(document()).find_layer(layer_id);
   const auto* shape = layer != nullptr ? layer->vector_shape() : nullptr;
   const auto* paint =
@@ -3670,6 +4031,13 @@ bool MainWindow::commit_options_bar_appearance_fields(const std::vector<std::str
 }
 
 void MainWindow::finish_pending_shape_appearance_edit() {
+  // Every history, selection, document and tab transition comes through here, so a
+  // Gradient Fill commit still being baked (GitHub #714 follow-up) lands before any of them.
+  finish_pending_gradient_fill_bake();
+  finish_pending_shape_appearance_edit_alone();
+}
+
+void MainWindow::finish_pending_shape_appearance_edit_alone() {
   if (vector_appearance_apply_timer_) vector_appearance_apply_timer_->stop();
   auto pending = std::move(pending_shape_appearance_edit_);
   pending_shape_appearance_edit_ = {};
