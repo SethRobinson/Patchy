@@ -8202,6 +8202,10 @@ void ui_shape_create_rectangle_radius_link() {
     seen = true;
     CHECK(link->isChecked());
     CHECK(radius->isVisible());
+    // The framed 24 px chain button of Shape Appearance, level with the field (GitHub issue
+    // 723): it used to take the app's tool button look, a 34 px box taller than the field.
+    CHECK(link->size() == QSize(24, 24));
+    CHECK(std::abs(link->geometry().center().y() - radius->geometry().center().y()) <= 1);
     CHECK(!visible_child(dialog, "shapeCreateRadiusTopLeftSpin"));
     CHECK(std::abs(radius->value() - 6.0) < 1e-9);
     radius->setValue(9.0);
@@ -10968,7 +10972,8 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
       const auto bracket_rect = rect_in_dialog(*size_bracket);
       const int width_top = width->mapTo(dialog, QPoint(0, 0)).y();
       const int height_bottom = height->mapTo(dialog, QPoint(0, height->height())).y();
-      CHECK(link_rect.width() <= 26 && link_rect.height() <= 26);
+      CHECK(link_rect.size() == QSize(24, 24));
+      CHECK(bracket_rect.contains(link_rect));  // the bracket cuts nothing off (GitHub issue 723)
       CHECK(bracket_rect.top() <= width_top && bracket_rect.bottom() + 1 >= height_bottom);
       CHECK(link_rect.top() > width_top && link_rect.bottom() < height_bottom);
       CHECK(link_rect.right() < width->mapTo(dialog, QPoint(0, 0)).x());
@@ -10976,7 +10981,8 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
       const auto radius_bracket_rect = rect_in_dialog(*radius_bracket);
       const int corners_top = corners[0]->mapTo(dialog, QPoint(0, 0)).y();
       const int corners_bottom = corners[3]->mapTo(dialog, QPoint(0, corners[3]->height())).y();
-      CHECK(radius_rect.width() <= 26 && radius_rect.height() <= 26);
+      CHECK(radius_rect.size() == QSize(24, 24));
+      CHECK(radius_bracket_rect.contains(radius_rect));
       CHECK(radius_bracket_rect.top() <= corners_top && radius_bracket_rect.bottom() + 1 >= corners_bottom);
       CHECK(radius_rect.top() > corners_top && radius_rect.bottom() < corners_bottom);
       CHECK(radius_rect.right() < corners[0]->mapTo(dialog, QPoint(0, 0)).x());

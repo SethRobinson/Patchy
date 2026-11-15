@@ -26,6 +26,12 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
   new page from the layers (the rows depend on the target: gradient rows, a line's rows, the
   batch summary, the Fill Layer Settings title), keeps the scroll position, and grows the window
   only when the page needs it. Fields are never refilled in place.
+- **Row styles never name the host.** The rows are built into the modal dialog and into the
+  window's page, so a style rule for a row selects the row's own widget (a property or its
+  object name) and is appended to the host's sheet. A rule that begins
+  `QDialog#shapeAppearanceDialog` matches nothing in the window, where the widget then takes
+  the app sheet's look (GitHub issue 723: the chain buttons drew as 34 px frameless tool
+  buttons, cut off by their 24 px brackets).
 - **The button row ends the window.** The page's own layout has no bottom margin inside the
   window (the chrome's 12 px is the margin under Reset and Close), and the window's size grip
   sits in the window's corner over that margin, outside the layout

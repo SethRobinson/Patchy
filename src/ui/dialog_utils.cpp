@@ -2866,6 +2866,41 @@ QToolButton* make_spin_presets_button(QSpinBox* spin, QWidget* parent, const QSt
   return button;
 }
 
+QToolButton* make_link_toggle_button(QWidget* parent, const QString& object_name, const QString& tooltip) {
+  auto* button = new QToolButton(parent);
+  button->setObjectName(object_name);
+  button->setProperty("linkToggleButton", true);
+  button->setCheckable(true);
+  button->setIcon(simple_icon(QStringLiteral("link")));
+  button->setIconSize(QSize(18, 18));
+  button->setToolTip(tooltip);
+  button->setAccessibleName(tooltip);
+  button->setFixedSize(kLinkToggleButtonSize, kLinkToggleButtonSize);
+  return button;
+}
+
+ThemedQss link_toggle_button_style() {
+  // The widths and heights are the content box: QStyleSheetStyle adds the border to them and
+  // makes the sum the button's real minimum and maximum size, over any setFixedSize. Left to
+  // the app sheet's QToolButton rule the button is a 34 px box with no frame.
+  return ThemedQss(QStringLiteral(R"(
+    QToolButton[linkToggleButton="true"] {
+      background: @dlg_button_bg;
+      border: 1px solid @dlg_button_border;
+      border-radius: 4px;
+      padding: 0;
+      min-width: @@INNER@@px;
+      max-width: @@INNER@@px;
+      min-height: @@INNER@@px;
+      max-height: @@INNER@@px;
+    }
+    QToolButton[linkToggleButton="true"]:checked {
+      border-color: @dlg_focus_border;
+      background: @dlg_anchor_active_bg;
+    }
+  )").replace(QStringLiteral("@@INNER@@"), QString::number(kLinkToggleButtonSize - 2)));
+}
+
 ThemedQss spin_presets_button_style() {
   return ThemedQss(QStringLiteral(R"(
     QToolButton[spinPresetsButton="true"] {

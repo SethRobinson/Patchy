@@ -336,6 +336,9 @@ public:
     layout->addWidget(button_, 0, Qt::AlignHCenter);
     layout->addStretch(1);
     setFixedWidth(button_->maximumWidth());
+    // Styled transparent by the host's sheet: a plain QWidget otherwise fills itself with the
+    // app sheet's widget background, a paler strip behind the bracket in Light.
+    setProperty("linkBracket", true);
     QObject::connect(button_, &QToolButton::toggled, this, qOverload<>(&QWidget::update));
   }
 
@@ -363,7 +366,7 @@ private:
 // cannot span, and stays empty on rows without one. The form sections use the link
 // column's width as their label-to-field gap, so their fields start at the same x.
 constexpr int kSectionColumnGap = 8;
-constexpr int kSectionLinkColumnWidth = 24;
+constexpr int kSectionLinkColumnWidth = kLinkToggleButtonSize;
 constexpr int kSectionFormFieldGap = kSectionColumnGap * 2 + kSectionLinkColumnWidth;
 
 struct GridSection {
@@ -410,14 +413,7 @@ int add_grid_spin_row(GridSection& section, std::map<QWidget*, QWidget*>& field_
 // widget (its objectName), `name` the button.
 QToolButton* add_grid_link_button(GridSection& section, const char* name, const char* bracket_name,
                                   const QString& tooltip, int first_row, int row_count) {
-  auto* button = new QToolButton(nullptr);
-  button->setObjectName(QLatin1String(name));
-  button->setProperty("geometryLink", true);
-  button->setCheckable(true);
-  button->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
-  button->setIconSize(QSize(18, 18));
-  button->setToolTip(tooltip);
-  button->setFixedSize(kSectionLinkColumnWidth, kSectionLinkColumnWidth);
+  auto* button = make_link_toggle_button(nullptr, QLatin1String(name), tooltip);
   auto* bracket = new LinkBracket(button, section.rows[static_cast<std::size_t>(first_row)],
                                   section.rows[static_cast<std::size_t>(first_row + row_count - 1)], section.group);
   bracket->setObjectName(QLatin1String(bracket_name));
@@ -1048,24 +1044,11 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     left_column->addWidget(section.group);
   }
   if (!left_grids.empty()) {
-    // The link buttons: a flat chain glyph that lights up while linked (the
-    // Image Size dialog's Width / Height link).
-    append_themed_style(dialog, QStringLiteral(R"(
-      QDialog#shapeAppearanceDialog QToolButton[geometryLink="true"] {
-        background: @dlg_button_bg;
-        border: 1px solid @dlg_button_border;
-        border-radius: 4px;
-        padding: 0;
-        min-width: 24px;
-        max-width: 24px;
-        min-height: 24px;
-        max-height: 24px;
-      }
-      QDialog#shapeAppearanceDialog QToolButton[geometryLink="true"]:checked {
-        border-color: @dlg_focus_border;
-        background: @dlg_anchor_active_bg;
-      }
-    )"));
+    // The link buttons: a framed chain glyph that lights up while linked (the Image Size
+    // dialog's Width / Height link). `dialog` is the modal dialog or a page of the stay-open
+    // window, so the rule names neither (GitHub issue 723).
+    append_themed_style(dialog, link_toggle_button_style());
+    append_themed_style(dialog, QStringLiteral("QWidget[linkBracket=\"true\"] { background: transparent; }"));
   }
 
   // --- Arrowheads (line layers; GitHub #622 follow-up) ---
