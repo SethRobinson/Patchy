@@ -611,6 +611,7 @@ void CanvasWidget::notify_view_changed() {
   sync_scroll_bars();  // before the callback so observers see consistent bars
   // The warp preview covers only the area on screen at the view's level.
   schedule_warp_preview_view_refresh();
+  refresh_type_tool_cursor();  // another part of the document is under the pointer now
   if (view_changed_callback_) {
     view_changed_callback_();
   }

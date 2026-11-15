@@ -1374,7 +1374,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
     }
-    if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
+    // One answer for the press and the cursor (type_tool_target_at): an existing text layer
+    // first, then a line, then the inside of a shape, else new text where the press lands.
+    const auto target = type_tool_target_at(document_point);
+    if (auto* layer = target.layer; layer != nullptr) {
       if (layer_effectively_locks_image_pixels(*layer)) {
         show_layer_pixels_locked_message();
         return;
@@ -1392,7 +1395,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       update();
       return;
     }
-    if (text_path_at(QPointF(document_point)) || text_area_at(document_point)) {
+    if (target.kind != TypeToolTargetKind::NewText) {
       if (text_requested_callback_) text_requested_callback_(document_point, QRect());
       event->accept();
       update();
@@ -2973,6 +2976,12 @@ void CanvasWidget::refresh_tool_cursor() {
   // to an arrow when the window is re-activated.
   if (!panning_ && !pen_zoom_dragging_ && !dragging_transform_ && !transforming_layer_ && !color_picking_) {
     update_tool_cursor();
+  }
+}
+
+void CanvasWidget::refresh_type_tool_cursor() {
+  if (tool_ == CanvasTool::Text && !dragging_text_rect_ && !text_layer_move_active_) {
+    refresh_tool_cursor();
   }
 }
 

@@ -254,12 +254,31 @@ word-space justification of a right-to-left or cursive line on a path (Qt's own 
 
 ## The Type tool
 
-- **Targeting** (`CanvasWidget::text_path_at`): existing text first, then the targeted path,
-  then the topmost visible shape whose outline passes within six screen pixels of the pointer.
-  A hit on a line wins over the inside of a closed shape, so the edge of a shape starts path
-  text and its inside starts area text. The cursor over a line is an I-beam on a wavy stroke.
-  The range runs from the clicked point to the end of an open contour, or once around a closed
-  one.
+- **Targeting** (`CanvasWidget::type_tool_target_at`, the one answer the press, the cursor
+  and `add_text_at` share): existing text first (`type_tool_hits_text_layer`), then a line
+  (`text_path_at`: the targeted path, then the topmost visible shape whose outline passes
+  within reach), then the inside of a closed shape, else new text. A hit on a line wins over
+  the inside of a closed shape, so the edge of a shape starts path text and its inside starts
+  area text. The range runs from the clicked point to the end of an open contour, or once
+  around a closed one.
+- **Reach** (`type_tool_path_reach`): six screen pixels either side of a line, never under a
+  pixel and a half of the document, for a path and for the line of existing path text alike.
+  The two must stay equal: with a shorter reach for the text, a strip beside its line fell
+  through to the path under it (the active text's own contour is the targeted path) and a
+  press there started a second text on a copy of the line (the issue 717 follow-up).
+- **What path text takes**: its line within the reach, bare parts included, and inside its
+  bounds the band its glyphs stand in (1.6 times the type size from the line, at least 12 px,
+  scaled by the text transform). The rest of its bounding box, the middle of a ring of text or
+  the corners around a slanted line, is free for other text (while a ring's text is the active
+  layer its closed line is the targeted path, so the middle starts text that fills it).
+- **Cursor**: it names the frame a press works in, new text and existing text alike. The
+  I-beam on a wavy stroke (`text_path_cursor`) over a line and over path text; the I-beam in a
+  ring (`text_area_cursor`) inside a closed shape and over text that fills one; the plain
+  I-beam (the one a theme may replace) over other text and on empty canvas; the Move cursor
+  with Ctrl over text. Each hover move sets it from that move's position, and
+  `refresh_type_tool_cursor` sets it again when the view scrolls or zooms, the document
+  changes or the targeted path changes, since each of those changes what lies under a resting
+  pointer.
 - **Session.** Path text edits on the transformed overlay, like area text
   (`kTextEditorPathProperty`, `kTextEditorPathRangeProperty` on the editor). The caret is a bar
   across the line and selections are strips, both bent from `TextLineGeometry` answers in
@@ -280,7 +299,7 @@ word-space justification of a right-to-left or cursive line on a path (Qt's own 
   `rerender_text_layer_through_stored_transform`). Enabled only while the active layer is
   editable text on a path (`refresh_flip_text_on_path_action_state`, from
   `refresh_layer_controls`). Test: `ui_text_path_flip_command_flips_a_committed_layer`.
-- **Re-edit.** A click on the text, or within a few pixels of the bare part of its contour,
+- **Re-edit.** A click on the text, or within the reach of the bare part of its contour,
   opens the layer. The whole session is one undo step.
 - **The contour as a path.** With the path-text layer active, the Direct Selection and Path
   Selection tools edit its contour like an area boundary (`text_area_edit_target_path`): the
@@ -311,11 +330,14 @@ or a layer that is not editable text.
 `tests/core/text_path_tests.cpp` (arc lengths, range rules, reversal, Photoshop frames read and
 authored, the older CC keys, the legacy-engine refusal) and `tests/ui/text_path_tests.cpp` (the
 line plan, placement against the captures, scripting, the Type tool's targeting, the marks, the
-caret and clicks). The issue 717 file is local
+caret and clicks; the cursor and its agreement with the press in the
+`ui_text_path_type_tool_cursor_*` tests and
+`ui_text_path_type_tool_leaves_the_inside_of_a_ring_of_text_free`). The issue 717 file is local
 (`local-test-fixtures/psd/issue-717/photoshop-cc-text-on-a-path.psd`, a reporter's file, not
-committed): `text_engine_path_frames_read_older_photoshop_cc_file_if_available` and the two
+committed): `text_engine_path_frames_read_older_photoshop_cc_file_if_available` and the four
 `ui_text_path_older_photoshop_cc_file_*_if_available` tests (redraw against the saved raster,
-a Type tool edit of each layer, the alignment the controls show) skip without it; the committed
+a Type tool edit of each layer, the cursor along each line, the alignment the controls show) skip
+without it; the committed
 `text_engine_path_frames_read_older_photoshop_cc_options` covers the key rules everywhere.
 `ui_text_path_justify_modes_draw_like_photoshop_and_show_plain_alignment` pins the justify
 modes against Photoshop's ink columns and the controls for path, point and box text.
