@@ -92,7 +92,9 @@ Concavity) are its Arrowheads section
 ([vector-tools-lines.md](vector-tools-lines.md#weight-and-arrowheads)). A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
-on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
+on by default only when the corners agree. Each is `make_link_toggle_button` (dialog_utils: a framed 24 px
+button, `link_toggle_button_style()`, the Shape dialog's Radius link too), centered on a `LinkBracket` that
+reaches the middle of the first and last row it ties. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
 the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
 (Edge group); all PSD-native, one undo entry.
 

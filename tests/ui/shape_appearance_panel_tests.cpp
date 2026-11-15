@@ -10,6 +10,9 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_file.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -24,9 +27,11 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QGroupBox>
+#include <QImage>
 #include <QLabel>
 #include <QLayout>
 #include <QLineF>
+#include <QPainter>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -38,9 +43,11 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -304,6 +311,152 @@ void ui_shape_appearance_window_ends_with_its_button_row() {
     CHECK(panel->size() == dragged);
     CHECK(patchy::ui::app_settings().value(QStringLiteral("shapeAppearance/windowUserSized"), false).toBool());
     check_row("the user's size, reopened", false);
+    page_of(*panel)->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+    QApplication::processEvents();
+  }
+}
+
+// The chain buttons of the Geometry and Radius sections (GitHub issue 723). In the stay-open
+// window each is a 24 px button with its own frame, whole inside its bracket, centered
+// between the rows it ties with the bracket's ends showing past it, in Dark, Light and a
+// bundled theme. Their style rule used to name the modal dialog, so in the window the
+// buttons fell back to the app's tool button look: no frame, a 34 px box the bracket cut
+// off on the right and that hung below its middle, and the accent block when checked.
+void ui_shape_appearance_window_link_buttons_sit_on_their_brackets() {
+  struct LinkTheme {
+    const char* label;
+    patchy::ui::ColorSchemePreference scheme;
+    const char* bundled;  // a bundled theme's file name, or null for the plain scheme
+  };
+  constexpr std::array<LinkTheme, 3> themes{{
+      {"dark", patchy::ui::ColorSchemePreference::Dark, nullptr},
+      {"light", patchy::ui::ColorSchemePreference::Light, nullptr},
+      {"medium_gray", patchy::ui::ColorSchemePreference::Dark, "medium-gray.patchytheme"},
+  }};
+  const auto near_color = [](const QColor& got, const QColor& want) {
+    return std::abs(got.red() - want.red()) <= 8 && std::abs(got.green() - want.green()) <= 8 &&
+           std::abs(got.blue() - want.blue()) <= 8;
+  };
+  const auto hex = [](const QColor& color) { return color.name().toStdString(); };
+  auto& manager = patchy::ui::ThemeManager::instance();
+  ColorSchemeRestorer restore_scheme;
+  // Declared after the scheme's restorer, so the bundled theme goes first, whatever ends the test.
+  struct ClearCustomTheme {
+    ~ClearCustomTheme() { patchy::ui::ThemeManager::instance().clear_custom_theme(/*persist=*/false); }
+  } clear_custom_theme;
+  for (const auto& link_theme : themes) {
+    manager.clear_custom_theme(/*persist=*/false);
+    ColorSchemeRestorer::apply(link_theme.scheme);
+    if (link_theme.bundled != nullptr) {
+      const QString id = patchy::ui::kBundledThemeIdPrefix + QString::fromLatin1(link_theme.bundled);
+      const auto loaded = patchy::ui::load_theme_by_id(id);
+      CHECK(loaded.theme.has_value());
+      if (loaded.theme) {
+        manager.set_custom_theme(id, *loaded.theme, /*persist=*/false);
+      }
+    }
+    QApplication::processEvents();
+
+    VectorSettingsGuard settings_guard;
+    SettingsValueRestorer size_setting{QStringLiteral("shapeAppearance/windowSize")};
+    SettingsValueRestorer sized_setting{QStringLiteral("shapeAppearance/windowUserSized")};
+    SettingsValueRestorer open_setting{QStringLiteral("shapeAppearance/windowOpen")};
+    patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/windowSize"));
+    patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/windowUserSized"));
+    auto&& [window, canvas] = ShownWindowFixture{};
+    make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+    auto* panel = open_panel(window);
+    if (panel == nullptr) {
+      continue;
+    }
+    struct Link {
+      const char* what;
+      const char* button;
+      const char* bracket;
+      const char* first_row;
+      const char* last_row;
+    };
+    constexpr std::array<Link, 2> links{{
+        {"Width / Height", "shapeGeometryLinkButton", "shapeGeometryLinkBracket", "shapeGeometryWidthSpin",
+         "shapeGeometryHeightSpin"},
+        {"Radius", "shapeGeometryRadiusLinkButton", "shapeGeometryRadiusLinkBracket",
+         "shapeGeometryRadiusTopLeftSpin", "shapeGeometryRadiusBottomLeftSpin"},
+    }};
+    const auto in_panel = [panel](const QWidget& widget) {
+      return QRect(widget.mapTo(panel, QPoint(0, 0)), widget.size());
+    };
+    // Both states first, saved side by side, then the checks: a failure still leaves its picture
+    // and the line of every button (the checks record a failure and go on).
+    QRect shot_rect;
+    std::array<QImage, 2> shots;  // unlinked, linked
+    for (const bool linked : {false, true}) {
+      for (const auto& link : links) {
+        field<QToolButton>(*panel, link.button)->setChecked(linked);
+      }
+      panel->layout()->activate();
+      QApplication::processEvents();
+      const auto image = panel->grab().toImage();
+      const auto& palette = patchy::ui::theme();
+      for (const auto& link : links) {
+        auto* button = field<QToolButton>(*panel, link.button);
+        auto* bracket = field<QWidget>(*panel, link.bracket);
+        auto* first_row = field<QDoubleSpinBox>(*panel, link.first_row);
+        auto* last_row = field<QDoubleSpinBox>(*panel, link.last_row);
+        const auto button_rect = in_panel(*button);
+        const auto bracket_rect = in_panel(*bracket);
+        const double first_middle = in_panel(*first_row).top() + first_row->height() / 2.0;
+        const double last_middle = in_panel(*last_row).top() + last_row->height() / 2.0;
+        const double button_middle = button_rect.top() + button_rect.height() / 2.0;
+        const QColor frame = image.pixelColor(button_rect.left(), button_rect.top() + button_rect.height() / 2);
+        const QColor face = image.pixelColor(button_rect.left() + 2, button_rect.top() + 6);
+        const QColor want_frame = linked ? palette.dlg_focus_border : palette.dlg_button_border;
+        const QColor want_face = linked ? palette.dlg_anchor_active_bg : palette.dlg_button_bg;
+        std::printf("  %-11s %-14s %s: button %d x %d at y %d to %d, rows' middles %.1f and %.1f, bracket x %d to %d, "
+                    "frame %s (want %s), face %s (want %s)\n",
+                    link_theme.label, link.what, linked ? "linked  " : "unlinked", button_rect.width(),
+                    button_rect.height(), button_rect.top(), button_rect.bottom(), first_middle, last_middle,
+                    bracket_rect.left(), bracket_rect.right(), hex(frame).c_str(), hex(want_frame).c_str(),
+                    hex(face).c_str(), hex(want_face).c_str());
+        const auto expect = [&](bool ok, const char* rule) {
+          if (!ok) {
+            patchy::test::report_failure(std::string(link_theme.label) + ", " + link.what +
+                                         (linked ? ", linked: " : ", unlinked: ") + rule);
+          }
+        };
+        expect(button_rect.size() == QSize(24, 24), "the button is 24 x 24");
+        expect(bracket_rect.contains(button_rect), "the bracket cuts none of the button off");
+        expect(std::abs(button_middle - (first_middle + last_middle) / 2.0) <= 1.5,
+               "the button is centered between the rows the bracket ties");
+        expect(first_middle < button_rect.top() && button_rect.bottom() < last_middle,
+               "the bracket's ends show past the button");
+        expect(near_color(frame, want_frame), "the button has its own frame, from the dialog roles");
+        expect(near_color(face, want_face), "the button has its own face, from the dialog roles");
+        // The bracket draws its lines on the section, with no fill of its own (Light showed a
+        // paler strip behind it).
+        expect(image.pixelColor(bracket_rect.left() + 1, bracket_rect.top() + 1) ==
+                   image.pixelColor(bracket_rect.left() - 2, bracket_rect.top() + 1),
+               "the bracket has no background of its own");
+        if (auto* group = bracket->parentWidget(); group != nullptr) {
+          shot_rect = shot_rect.united(in_panel(*group));
+        }
+      }
+      shots[linked ? 1 : 0] = image;
+    }
+    // The two sections, unlinked beside linked.
+    const auto mismatch = capture_theme_mismatch(*panel);
+    if (!mismatch.isEmpty()) {
+      patchy::test::report_failure(std::string(link_theme.label) +
+                                   ": the window is not themed whole: " + mismatch.toStdString());
+    }
+    shot_rect = shot_rect.adjusted(-6, -6, 6, 6).intersected(panel->rect());
+    if (!shot_rect.isEmpty() && !shots[0].isNull() && !shots[1].isNull()) {
+      QImage sheet(shot_rect.width() * 2, shot_rect.height(), QImage::Format_RGB32);
+      QPainter painter(&sheet);
+      painter.drawImage(QPoint(0, 0), shots[0], shot_rect);
+      painter.drawImage(QPoint(shot_rect.width(), 0), shots[1], shot_rect);
+      painter.end();
+      save_image_artifact(std::string("issue_723_link_buttons_") + link_theme.label, sheet);
+    }
     page_of(*panel)->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
     QApplication::processEvents();
   }
@@ -1122,6 +1275,8 @@ void ui_shape_appearance_window_shows_handles_for_a_stroke_gradient() {
 std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
   return {
       {"ui_shape_appearance_window_ends_with_its_button_row", ui_shape_appearance_window_ends_with_its_button_row},
+      {"ui_shape_appearance_window_link_buttons_sit_on_their_brackets",
+       ui_shape_appearance_window_link_buttons_sit_on_their_brackets},
       {"ui_shape_appearance_window_stays_open_while_editing", ui_shape_appearance_window_stays_open_while_editing},
       {"ui_shape_appearance_window_records_one_undo_step_per_gesture",
        ui_shape_appearance_window_records_one_undo_step_per_gesture},

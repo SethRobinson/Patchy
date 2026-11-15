@@ -136,13 +136,9 @@ std::optional<ShapeCreateResult> request_shape_create_settings(QWidget* parent,
       return std::abs(radius - radii.front()) < 1e-9;
     });
     radius_spin = make_radius_spin("shapeCreateRadiusSpin", radii.front());
-    radius_link = new QToolButton(&dialog);
-    radius_link->setObjectName(QStringLiteral("shapeCreateRadiusLinkButton"));
-    radius_link->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
-    radius_link->setIconSize(QSize(18, 18));
-    radius_link->setCheckable(true);
+    radius_link = make_link_toggle_button(&dialog, QStringLiteral("shapeCreateRadiusLinkButton"),
+                                          QObject::tr("Change all four corner radii together"));
     radius_link->setChecked(corners_agree);
-    radius_link->setToolTip(QObject::tr("Change all four corner radii together"));
     auto* radius_row = new QHBoxLayout();
     radius_row->setSpacing(6);
     radius_row->addWidget(radius_spin);
@@ -220,6 +216,9 @@ std::optional<ShapeCreateResult> request_shape_create_settings(QWidget* parent,
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   dialog_layout->addWidget(buttons);
   append_themed_style(dialog, dialog_spinbox_button_style());
+  if (radius_link != nullptr) {
+    append_themed_style(dialog, link_toggle_button_style());
+  }
   width_spin->setFocus();
   width_spin->selectAll();
 

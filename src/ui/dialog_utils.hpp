@@ -192,6 +192,17 @@ struct SpinPreset {
                                                     const std::vector<SpinPreset>& presets);
 // The field-faced chevron button as tall as the spin box beside it (QToolButton[spinPresetsButton]).
 [[nodiscard]] ThemedQss spin_presets_button_style();
+// The chain toggle that ties fields together (Shape Appearance's Width / Height and Radius
+// links, the Shape dialog's Radius link): a checkable 24 px button with the link icon and
+// its own frame, lit while on. Append link_toggle_button_style() to the sheet of the dialog
+// or page that holds it. The rule selects the button by its own property
+// (QToolButton[linkToggleButton]), never by its host's name: the same rows are built into a
+// modal dialog and into a page of a stay-open window, and a rule that named the dialog left
+// the window's buttons with the app's tool button look (GitHub issue 723).
+inline constexpr int kLinkToggleButtonSize = 24;
+[[nodiscard]] QToolButton* make_link_toggle_button(QWidget* parent, const QString& object_name,
+                                                   const QString& tooltip);
+[[nodiscard]] ThemedQss link_toggle_button_style();
 // A small "Patchy" pill placed beside a control whose setting Photoshop cannot
 // represent (the Patchy-only marker convention in docs/ui-conventions.md).
 // `explanation` becomes the badge's tooltip; callers put the same text on the
