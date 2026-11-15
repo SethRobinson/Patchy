@@ -2427,10 +2427,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   // The Edit and Library buttons sit between each contour list and its
   // Anti-aliased box (GitHub issue 726); they are wired up further down, once
   // emit_preview exists.
-  std::vector<ContourPickerTools> contour_pickers{
-      {bevel_gloss_contour, &custom_gloss_contour, LayerStyleEffectKind::BevelEmboss, "gloss_contour"},
-      {bevel_contour_combo, &custom_bevel_sub_contour, LayerStyleEffectKind::BevelContour, "contour"},
-      {shadow_contour, &custom_shadow_contour, LayerStyleEffectKind::DropShadow, "contour"}};
+  std::vector<ContourPickerTools> contour_pickers(3);
+  const auto bind_contour_picker = [&contour_pickers](std::size_t slot, QComboBox* combo, StyleContour* custom,
+                                                      LayerStyleEffectKind kind, const char* leaf) {
+    contour_pickers[slot].combo = combo;
+    contour_pickers[slot].custom = custom;
+    contour_pickers[slot].kind = kind;
+    contour_pickers[slot].leaf = leaf;
+  };
+  bind_contour_picker(0, bevel_gloss_contour, &custom_gloss_contour, LayerStyleEffectKind::BevelEmboss, "gloss_contour");
+  bind_contour_picker(1, bevel_contour_combo, &custom_bevel_sub_contour, LayerStyleEffectKind::BevelContour, "contour");
+  bind_contour_picker(2, shadow_contour, &custom_shadow_contour, LayerStyleEffectKind::DropShadow, "contour");
   for (auto& picker : contour_pickers) {
     auto* row = picker.combo->parentWidget();
     const auto stem = picker.combo->objectName();
