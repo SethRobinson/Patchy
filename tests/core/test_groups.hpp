@@ -61,6 +61,7 @@ std::vector<patchy::test::TestCase> font_style_class_tests();
 std::vector<patchy::test::TestCase> infra_selection_tests();
 std::vector<patchy::test::TestCase> color_range_tests();
 std::vector<patchy::test::TestCase> color_replace_tests();
+std::vector<patchy::test::TestCase> eraser_tools_tests();
 std::vector<patchy::test::TestCase> pipl_tests();
 std::vector<patchy::test::TestCase> vector_shape_tests();
 std::vector<patchy::test::TestCase> path_edits_tests();

@@ -342,6 +342,29 @@ struct BrushDabWalk {
 // options.fill_softness_feather (feathered inward from the filled region's edge).
 [[nodiscard]] Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                               const EditOptions& options);
+// A document-sized RGBA8 image a flood reads its colors from instead of the layer (the Magic
+// Eraser's Sample All Layers): the composite as it is displayed. Not owned.
+struct FloodSampleImage {
+  const std::uint8_t* rgba{nullptr};
+  std::int32_t width{0};
+  std::int32_t height{0};
+  std::size_t stride{0};
+};
+// The Magic Eraser (GitHub issue 727, docs/eraser-tools.md): erases the region the Fill tool
+// would flood from (x, y) with options.flood_tolerance and options.flood_contiguous (the same
+// region code), by options.primary.a as Opacity. With `anti_alias`, pixels just past the
+// tolerance are erased in part: those touching the region when Contiguous, otherwise all of
+// them. `composite` (Sample All Layers) supplies the colors the region is found in; the erase
+// is still written to the layer. The write is the Eraser's: alpha falls, or under
+// options.lock_transparent_pixels the pixel moves toward options.secondary and keeps its
+// alpha; an unlocked layer without alpha gains one. The layer never grows. Returns the
+// changed box (document coordinates).
+[[nodiscard]] Rect magic_erase(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
+                               const EditOptions& options, bool anti_alias,
+                               const FloodSampleImage* composite = nullptr);
+// Gives a color layer without alpha an opaque alpha channel at its depth, as the Eraser does
+// before it erases to transparency. A layer that has alpha is left alone.
+void ensure_layer_alpha_for_erase(Layer& layer);
 // Fills `rect` (clipped to the canvas and options.selection, weighted by selection coverage)
 // with options.primary at its alpha, composited by options.fill_paint_mode.
 [[nodiscard]] Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);

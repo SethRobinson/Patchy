@@ -393,6 +393,18 @@ public:
   // refused; `changed` is empty when no pixel matched.
   bool color_replace(std::int64_t session_id, LayerId layer_id, const ColorReplaceScriptStroke& stroke,
                      QRect* changed);
+  // The Background Eraser (one stroke with a round tip) and the Magic Eraser (one click) on
+  // the session's active layer through its canvas. They ride this run's undo snapshot. False
+  // (with a JS error thrown) when refused; `changed` is empty when nothing was erased.
+  // `background` is the color a transparency-locked layer is erased to.
+  bool erase_background(std::int64_t session_id, LayerId layer_id, const BackgroundEraserScriptStroke& stroke,
+                        QRect* changed);
+  bool magic_erase(std::int64_t session_id, LayerId layer_id, QPoint point, const MagicEraserOptions& options,
+                   const QColor& background, QRect* changed);
+  // The checks those two share before they reach the canvas: the document and the layer still
+  // exist, and the layer is the document's active one. Null (with a JS error naming
+  // `function` thrown) when one fails.
+  [[nodiscard]] CanvasWidget* eraser_call_canvas(std::int64_t session_id, LayerId layer_id, const char* function);
   // patchy.perspective (script_perspective.cpp, docs/perspective-planes.md): the document's
   // session planes, a layer's pixels as straight RGBA8 (active document only), and one
   // edit on the active document's `layer_id` through `plane`, written as Filter >

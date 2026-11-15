@@ -19552,6 +19552,26 @@ Do you want to replace it?</source>
         <source>Color replacement</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22072,6 +22092,18 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Hide or show the name row above each side panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -36384,6 +36416,58 @@ Locked: %1</source>
             <numerusform></numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39641,6 +39725,38 @@ Locked: %1</source>
     </message>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

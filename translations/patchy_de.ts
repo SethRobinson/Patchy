@@ -19570,6 +19570,26 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Color replacement</source>
         <translation>Farbe ersetzen</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>%1 benötigt ein geöffnetes Dokument</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Hintergrund-Radiergummi</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>%1 ist beim Bearbeiten einer Maske oder eines Kanals nicht verfügbar</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>%1 benötigt eine bearbeitbare Pixelebene</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Magischer Radiergummi</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22091,6 +22111,18 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>Die Namenszeile über jedem Seitenbedienfeld aus- oder einblenden</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>Eine Farbe übermalen, um sie zu radieren und den Rest zu behalten</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>Einen Bereich ähnlicher Farbe mit einem Klick radieren</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>Zwischen Radiergummi, Hintergrund-Radiergummi und Magischem Radiergummi wechseln</translation>
     </message>
 </context>
 <context>
@@ -36466,6 +36498,58 @@ Fixiert: %1</translation>
             <numerusform>%n weitere Probleme werden nicht angezeigt.</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>Die Farbe, die radiert wird: Kontinuierlich nimmt beim Ziehen die Farbe unter dem Zeiger auf, Einmal die Farbe am Anfang des Strichs, Hintergrundfarbfeld die Hintergrundfarbe</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>Welche passenden Pixel radiert werden: Nicht benachbart alle unter dem Pinsel, Benachbart nur die mit dem Zeiger verbundenen, Konturen finden verbundene Pixel, wobei scharfe Kanten scharf bleiben</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>Wie nah eine Farbe der aufgenommenen Farbe sein muss, um radiert zu werden; 0% radiert nur exakte Übereinstimmungen</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>Wie stark sich die Farbe eines Pixels von der angeklickten Farbe unterscheiden darf und trotzdem radiert wird</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>Die Kante des radierten Bereichs glätten</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>Radieren auf Pixel beschränken, die mit dem Klickpunkt verbunden sind</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>Den zu radierenden Bereich im gesamten Bild statt nur in der aktiven Ebene suchen</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>Übermalen Sie eine Farbe, um sie zu radieren. Nur Pixel, die der Farbe unter der Pinselmitte ähneln, werden radiert.</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>Klicken Sie auf eine Farbe, um sie zu radieren. Toleranz legt fest, wie ähnlich eine Farbe sein muss; Benachbart beschränkt auf den mit dem Klickpunkt verbundenen Bereich.</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>Radiergummi-Werkzeuge</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Hintergrund-Radiergummi</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Magischer Radiergummi</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>Radiergummi-Werkzeuge durchschalten</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39724,6 +39808,38 @@ Fixiert: %1</translation>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor benötigt eine bearbeitbare Pixelebene.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2 muss eine Zahl von %3 bis %4 sein.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2 muss eine Farbzeichenfolge sein.</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: unbekannter Wert für %2.</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: Übergeben Sie ein Optionsobjekt mit %2.</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points muss ein Array mit 1 bis 100000 Punkten {x, y} sein.</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: sampling &quot;background&quot; benötigt backgroundColor.</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1 benötigt die aktive Ebene des Dokuments (setzen Sie zuerst doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1 benötigt eine bearbeitbare Pixelebene.</translation>
     </message>
 </context>
 <context>

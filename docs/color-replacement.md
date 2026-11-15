@@ -33,8 +33,8 @@ Settings keys (permanent): `tools/colorReplaceMode` (`hue`, `saturation`, `color
 
 ## Where it lives
 
-- `src/core/color_replace.{hpp,cpp}`: the tokens, the match, one dab's weights (`color_replace_dab_weights`), the per-pixel paint and `ColorReplaceStroke` (stroke-start copy, sample, per-pixel largest weight in 64 px tiles). All work is bounded to the dab's box; nothing runs per repaint.
-- `src/ui/canvas_widget_color_replace.cpp`: the stroke segment (`color_replace_brush_segment`, reached from `local_adjustment_brush_segment`) and the script stroke. The stroke object lives in `color_replace_stroke_` and is dropped by `clear_brush_stroke_tracking`.
+- `src/core/color_match_stroke.{hpp,cpp}`: the match the tool shares with the Background Eraser ([eraser-tools.md](eraser-tools.md)): the Sampling and Limits tokens, the tolerance, one dab's weights (`color_match_dab_weights`) and `ColorMatchStroke` (stroke-start copy, sample, per-pixel largest weight in 64 px tiles). `src/core/color_replace.{hpp,cpp}`: the Mode tokens, the per-pixel paint and `ColorReplaceStroke`, which paints by those weights; its `color_replace_*` names for the match forward to the shared ones. All work is bounded to the dab's box; nothing runs per repaint.
+- `src/ui/canvas_widget_color_replace.cpp`: the stroke segment (`color_match_brush_segment`, reached from `local_adjustment_brush_segment`; the Background Eraser walks it too) and the script stroke. The stroke object lives in `color_replace_stroke_` and is dropped by `clear_brush_stroke_tracking`.
 - Options bar and settings: `main_window_actions_options_bar.cpp`, `main_window_tool_options.cpp` (`apply_color_replace_settings`, `sync_color_replace_controls`).
 - Icon: `src/ui/icons/tool-color-replace.svg`, Patchy's own drawing (a brush handle over an outlined disc and a filled accent disc).
 

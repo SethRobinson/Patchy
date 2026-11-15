@@ -19508,6 +19508,26 @@ Do you want to replace it?</source>
         <source>Color replacement</source>
         <translation>色の置き換え</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>%1には開いているドキュメントが必要です</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>背景消しゴム</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>マスクやチャンネルの編集中は%1を使用できません</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>%1には編集可能なピクセルレイヤーが必要です</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>マジック消しゴム</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22029,6 +22049,18 @@ Do you want to replace it?</source>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>各サイドパネル上部の名前行の表示と非表示</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>色の上をなぞってその色だけを消去する</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>似た色の範囲をクリック 1 回で消去する</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>消しゴム、背景消しゴム、マジック消しゴムを順に選択</translation>
     </message>
 </context>
 <context>
@@ -36356,6 +36388,58 @@ Locked: %1</source>
             <numerusform>ほかに %n 件の問題は表示されていません。</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>消去する色: 継続はドラッグ中のポインターの下の色、一度はストロークの開始位置の色、背景のスウォッチは背景色を使います</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>消去する一致ピクセル: 隣接されていないはブラシの下のすべて、隣接はポインターにつながったもののみ、輪郭検出はつながったものでくっきりした輪郭を保ちます</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>サンプルした色にどれだけ近い色を消去するか。0% は完全に一致する色のみ消去します</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>クリックした色からどれだけ離れた色までを消去するか</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>消去した範囲の縁を滑らかにします</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>消去をクリック位置とつながったピクセルに限定します</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>消去する範囲をアクティブレイヤーだけでなく画像全体から判定します</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>色の上をなぞると消去されます。ブラシの中心の下の色に近いピクセルだけが消去されます。</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>色をクリックすると消去されます。許容値はどれだけ近い色までを対象にするか、隣接はクリック位置とつながった範囲に限定するかを決めます。</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>消しゴムツール</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>背景消しゴム</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>マジック消しゴム</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>消しゴムツールを切り替え</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39610,6 +39694,38 @@ Locked: %1</source>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor には編集可能なピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2 は %3 から %4 までの数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2 は色の文字列である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: %2 の値が不明です。</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: %2 を含むオプションオブジェクトを渡してください。</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points は 1 から 100000 個の {x, y} 点の配列である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: sampling &quot;background&quot; には backgroundColor が必要です。</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1 にはドキュメントのアクティブレイヤーが必要です (先に doc.activeLayer を設定してください)。</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1 には編集可能なピクセルレイヤーが必要です。</translation>
     </message>
 </context>
 <context>

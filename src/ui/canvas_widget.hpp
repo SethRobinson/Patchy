@@ -779,6 +779,28 @@ public:
     QString error;
   };
   ColorReplaceResult apply_color_replace_stroke(const ColorReplaceScriptStroke& stroke);
+  // Background Eraser (canvas_widget_erasers.cpp, core/background_eraser.hpp; GitHub issue
+  // 727): Limits and Tolerance, and where the compared color comes from. It shares the Color
+  // Replacement tool's stroke (color_match_brush_segment).
+  void set_background_eraser_options(const patchy::BackgroundEraserOptions& options) noexcept;
+  [[nodiscard]] const patchy::BackgroundEraserOptions& background_eraser_options() const noexcept;
+  void set_background_eraser_sampling(patchy::ColorMatchSampling sampling) noexcept;
+  [[nodiscard]] patchy::ColorMatchSampling background_eraser_sampling() const noexcept;
+  // The two erasers for scripts, on the active pixel layer, honoring the selection and the
+  // layer's transparency lock. They record no undo step (a script run's own snapshot covers
+  // it). `ok` is false with `error` when the edit was refused; `changed` is empty when no
+  // pixel was erased.
+  using BackgroundEraserScriptStroke = patchy::ui::BackgroundEraserScriptStroke;
+  using EraserToolResult = ColorReplaceResult;
+  EraserToolResult apply_background_eraser_stroke(const BackgroundEraserScriptStroke& stroke);
+  // Magic Eraser (canvas_widget_erasers.cpp, core magic_erase; GitHub issue 727).
+  using MagicEraserOptions = patchy::ui::MagicEraserOptions;
+  void set_magic_eraser_options(const MagicEraserOptions& options) noexcept;
+  [[nodiscard]] const MagicEraserOptions& magic_eraser_options() const noexcept;
+  // `background` is the color a transparency-locked layer is erased to (a script's own, so
+  // the result never depends on the artist's swatches).
+  EraserToolResult apply_magic_eraser(QPoint document_point, const MagicEraserOptions& options,
+                                      const QColor& background);
   void set_local_adjustment_strength(int strength) noexcept;
   [[nodiscard]] int local_adjustment_strength() const noexcept;
   // Smudge's own Strength, 0..100 (GitHub issue 675); Smudge ignores the brush Opacity.
@@ -2117,7 +2139,7 @@ protected:
   [[nodiscard]] bool toning_stroke_tool_active() const noexcept {
     return tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
            tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush ||
-           tool_ == CanvasTool::ColorReplace;
+           tool_ == CanvasTool::ColorReplace || tool_ == CanvasTool::BackgroundEraser;
   }
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
@@ -2814,8 +2836,14 @@ private:
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
   // Blur and Sharpen: per-dab fixed 3x3 steps that build up (GitHub #660 follow-up).
   [[nodiscard]] QRect blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation);
-  // Color Replacement: per-dab tolerance match against a sampled color (GitHub issue 720).
-  [[nodiscard]] QRect color_replace_brush_segment(QPoint from, QPoint to);
+  // Color Replacement and the Background Eraser: per-dab tolerance match against a sampled
+  // color (GitHub issues 720 and 727). `erase` lowers alpha instead of painting the color.
+  [[nodiscard]] QRect color_match_brush_segment(QPoint from, QPoint to, bool erase);
+  // The selection and canvas limit of a color-match stroke on a layer at `layer_bounds`.
+  [[nodiscard]] patchy::ColorMatchStroke::SelectionCoverage color_match_stroke_coverage(patchy::Rect layer_bounds);
+  // The Magic Eraser's click on the active layer: the changed rect (document pixels).
+  [[nodiscard]] QRect magic_erase_pixels(QPoint document_point, const MagicEraserOptions& options,
+                                         const QColor& background);
   // Counts one toning or detail brush segment and its time (RenderCacheDiagnostics::toning_*).
   void count_toning_segment(std::chrono::steady_clock::time_point started) noexcept;
   // True while a Dodge, Burn or Sponge stroke has not yet moved its segment spacing from the
@@ -5202,6 +5230,12 @@ private:
   patchy::ColorReplaceOptions color_replace_options_{};
   patchy::ColorReplaceSampling color_replace_sampling_{patchy::ColorReplaceSampling::Continuous};
   std::optional<patchy::ColorReplaceStroke> color_replace_stroke_;
+  // Background Eraser and Magic Eraser (canvas_widget_erasers.cpp): the options, and the
+  // Background Eraser's live stroke, dropped with the stroke tracking.
+  patchy::BackgroundEraserOptions background_eraser_options_{};
+  patchy::ColorMatchSampling background_eraser_sampling_{patchy::ColorMatchSampling::Continuous};
+  std::optional<patchy::BackgroundEraserStroke> background_eraser_stroke_;
+  MagicEraserOptions magic_eraser_options_{};
   SpongeMode sponge_mode_{SpongeMode::Desaturate};
   bool sponge_vibrance_{true};
   int eyedropper_sample_size_{1};

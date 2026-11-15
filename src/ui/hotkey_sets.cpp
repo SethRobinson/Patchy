@@ -126,6 +126,8 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"tools.healing", "H"},
     HotkeySetEntry{"tools.brush", "P"},
     HotkeySetEntry{"tools.eraser", "Shift+E"},
+    // GIMP has no Background Eraser or Magic Eraser, and Shift+E is its Eraser.
+    HotkeySetEntry{"tools.cycle.eraser", ""},
     HotkeySetEntry{"tools.clone", "C"},
     HotkeySetEntry{"tools.fill", "Shift+B"},
     // GIMP has no Color Replacement tool, and Shift+B is its Bucket Fill.

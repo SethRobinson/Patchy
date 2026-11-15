@@ -1120,6 +1120,7 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
     case CanvasTool::Eraser:
     case CanvasTool::Line:
     case CanvasTool::Rectangle:
@@ -1145,6 +1146,7 @@ bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept {
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
     case CanvasTool::Eraser:
       return true;
     default:
@@ -1223,6 +1225,7 @@ bool tool_paints_with_brush_tip(CanvasTool tool) noexcept {
     case CanvasTool::PatternStamp:
     case CanvasTool::Eraser:
     case CanvasTool::ColorReplace:
+    case CanvasTool::BackgroundEraser:
       return true;
     default:
       return false;

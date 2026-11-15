@@ -142,6 +142,10 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.sharpen");
     case CanvasTool::Eraser:
       return QStringLiteral("tools.eraser");
+    case CanvasTool::BackgroundEraser:
+      return QStringLiteral("tools.background_eraser");
+    case CanvasTool::MagicEraser:
+      return QStringLiteral("tools.magic_eraser");
     case CanvasTool::Gradient:
       return QStringLiteral("tools.gradient");
     case CanvasTool::Line:
@@ -249,6 +253,12 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::ColorReplace:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paint over a color to replace it with the foreground color. Only pixels "
              "close to the color under the center of the brush change.");
+    case CanvasTool::BackgroundEraser:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paint over a color to erase it. Only pixels close to the color under the "
+             "center of the brush are erased.");
+    case CanvasTool::MagicEraser:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click a color to erase it. Tolerance sets how close a color must be; "
+             "Contiguous keeps to the area connected to the click.");
     default:
       return nullptr;
   }
@@ -1371,6 +1381,12 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Eraser:
       name = "tool-eraser";
       break;
+    case CanvasTool::BackgroundEraser:
+      name = "tool-background-eraser";
+      break;
+    case CanvasTool::MagicEraser:
+      name = "tool-magic-eraser";
+      break;
     case CanvasTool::Gradient:
       name = "tool-gradient";
       break;
@@ -1751,7 +1767,23 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Brush Tools"),
                         "toolCycleBrushAction", "tools.cycle.brush", QKeySequence(Qt::SHIFT | Qt::Key_B));
   brush_tool_action->setChecked(true);
-  add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E), cluster);
+  // Eraser, Background Eraser and Magic Eraser share a slot (GitHub issue 727;
+  // docs/eraser-tools.md). The group button keeps the Eraser tool's eraserToolButton name.
+  auto* eraser_tools_menu = new ToolFlyoutMenu(tr("Eraser Tools"), tool_palette);
+  eraser_tools_menu->setObjectName(QStringLiteral("eraserToolMenu"));
+  bind_widget_text(eraser_tools_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Eraser Tools"));
+  auto* eraser_tool_action =
+      create_flyout_tool_action(eraser_tools_menu, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
+  auto* background_eraser_action = create_flyout_tool_action(eraser_tools_menu, tr("Background Eraser"),
+                                                             CanvasTool::BackgroundEraser, QKeySequence());
+  auto* magic_eraser_action =
+      create_flyout_tool_action(eraser_tools_menu, tr("Magic Eraser"), CanvasTool::MagicEraser, QKeySequence());
+  auto* eraser_tool_button = new QToolButton(tool_palette);
+  eraser_tool_button->setObjectName(QStringLiteral("eraserToolButton"));
+  configure_tool_flyout(tool_palette, eraser_tools_menu, eraser_tool_button, eraser_tool_action,
+                        {eraser_tool_action, background_eraser_action, magic_eraser_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Eraser Tools"),
+                        "toolCycleEraserAction", "tools.cycle.eraser", QKeySequence(Qt::SHIFT | Qt::Key_E));
   auto* gradient_menu = new ToolFlyoutMenu(tr("Fill Tools"), tool_palette);
   gradient_menu->setObjectName(QStringLiteral("gradientToolMenu"));
   bind_widget_text(gradient_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fill Tools"));
@@ -1966,7 +1998,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
       fire_theme_event(ThemeSoundEvent::ToolChanged, {{QStringLiteral("tool"), theme_tool_id(selected)}});
     }
     apply_selection_edge_settings_for_tool(selected);
-    set_eraser_brush_settings_active(selected == CanvasTool::Eraser);
+    // The Background Eraser paints with the Eraser's own Size and Soft.
+    set_eraser_brush_settings_active(selected == CanvasTool::Eraser || selected == CanvasTool::BackgroundEraser);
     // The next launch starts on this tool (GitHub issue 254; tools/activeTool).
     if (canvas_ != nullptr) {
       schedule_save_tool_settings();

@@ -7131,7 +7131,7 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
                            "stampToolButton", "healingToolButton", "detailToolButton", "toneToolButton",
                            "shapeToolButton", "pathSelectToolButton", "penToolButton", "typeToolButton",
-                           "brushToolButton"}) {
+                           "brushToolButton", "eraserToolButton"}) {
     auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
     CHECK(button != nullptr);
     CHECK(button->property("toolFlyout").toBool());
@@ -7263,6 +7263,7 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
       {"toolCycleCropAction", "tools.cycle.crop"},
       {"toolCyclePickAction", "tools.cycle.pick"},      {"toolCycleTypeAction", "tools.cycle.type"},
       {"toolCycleBrushAction", "tools.cycle.brush"},
+      {"toolCycleEraserAction", "tools.cycle.eraser"},
   };
   for (const auto& [object_name, id] : cycles) {
     auto* action = require_action(window, object_name);
@@ -7743,9 +7744,9 @@ void ui_tool_button_right_click_selects_plain_tool() {
     const char* button_name;
     patchy::ui::CanvasTool tool;
   };
-  // The Hand and Type share flyouts (Rotate View, Type Mask), so Eraser and Zoom are the plain tools.
-  const PlainTool plain_tools[] = {{"toolEraserAction", "eraserToolButton", patchy::ui::CanvasTool::Eraser},
-                                   {"toolZoomAction", "zoomToolButton", patchy::ui::CanvasTool::Zoom}};
+  // The Hand, Type and Eraser share flyouts (Rotate View, Type Mask, the Background and Magic
+  // Erasers), so Zoom is the plain tool.
+  const PlainTool plain_tools[] = {{"toolZoomAction", "zoomToolButton", patchy::ui::CanvasTool::Zoom}};
   for (const auto& plain : plain_tools) {
     auto* action = require_action(window, plain.action_name);
     auto* button = palette->findChild<QToolButton*>(QLatin1String(plain.button_name));
@@ -8741,6 +8742,8 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolBlurAction", "Blur"},
       {"toolSharpenAction", "Sharpen"},
       {"toolEraserAction", "Eraser"},
+      {"toolBackgroundEraserAction", "Background Eraser"},
+      {"toolMagicEraserAction", "Magic Eraser"},
       {"toolGradientAction", "Gradient"},
       {"toolFillAction", "Fill"},
       {"toolLineAction", "Line"},

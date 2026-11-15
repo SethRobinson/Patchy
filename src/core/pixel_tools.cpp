@@ -3081,6 +3081,233 @@ std::array<std::uint8_t, 4> wand_seed_color(const std::uint8_t* rgba, std::int32
   return seed;
 }
 
+namespace {
+
+// Where a flood reads its colors: a layer's buffer at `bounds` in the document (pixels outside
+// it read as transparent), or a document-sized RGBA8 image (the Magic Eraser's Sample All
+// Layers).
+struct FloodSource {
+  const PixelBuffer* buffer{nullptr};
+  Rect bounds;
+  const FloodSampleImage* image{nullptr};
+  PixelFormat format{PixelFormat::rgba8()};
+
+  [[nodiscard]] const std::uint8_t* pixel(std::int32_t doc_x, std::int32_t doc_y) const noexcept {
+    if (image != nullptr) {
+      return doc_x >= 0 && doc_y >= 0 && doc_x < image->width && doc_y < image->height
+                 ? image->rgba + static_cast<std::size_t>(doc_y) * image->stride + static_cast<std::size_t>(doc_x) * 4U
+                 : nullptr;
+    }
+    const bool in_buffer = buffer != nullptr && !buffer->empty() && doc_x >= bounds.x && doc_y >= bounds.y &&
+                           doc_x < bounds.x + bounds.width && doc_y < bounds.y + bounds.height;
+    return in_buffer ? buffer->pixel(doc_x - bounds.x, doc_y - bounds.y) : nullptr;
+  }
+};
+
+// A flood's color test: the clicked pixel against any other, by the Magic Wand's metric
+// (color_within_tolerance). 16/32-bit layers (docs/high-bit-depth.md) compare display-encoded
+// values on the deep scale, so the tolerance means the same as on an 8-bit layer. With
+// `skip_transparent` (the transparency lock) fully transparent pixels never match, so a flood
+// neither writes nor travels through them. The Fill tool and the Magic Eraser share it.
+class FloodColorTest {
+ public:
+  FloodColorTest(const FloodSource& source, std::int32_t x, std::int32_t y, int tolerance, bool skip_transparent)
+      : source_(source),
+        channels_(source.format.channels),
+        deep_(source.format.bit_depth != BitDepth::UInt8),
+        tolerance_(std::clamp(tolerance, 0, 255)),
+        skip_transparent_(skip_transparent) {
+    const auto* start_pixel = source_.pixel(x, y);
+    for (std::uint16_t channel = 0; start_pixel != nullptr && channel < channels_ && channel < target_.size();
+         ++channel) {
+      target_[channel] = start_pixel[channel];
+    }
+    deep_target_ = deep_ ? encoded_pixel(start_pixel) : std::array<float, 4>{};
+  }
+
+  // The clicked pixel has no alpha at all (only meaningful with an alpha channel).
+  [[nodiscard]] bool seed_is_transparent() const noexcept {
+    return deep_ ? deep_target_[3] <= 0.0F : target_[3] == 0;
+  }
+
+  [[nodiscard]] bool matches(std::int32_t doc_x, std::int32_t doc_y) const noexcept {
+    const auto* px = source_.pixel(doc_x, doc_y);
+    if (deep_) {
+      const auto value = encoded_pixel(px);
+      if (skip_transparent_ && value[3] <= 0.0F) {
+        return false;
+      }
+      const auto compared = std::min<std::size_t>(channels_, 4U);
+      // As color_within_tolerance: an alpha-0 side compares alpha alone (GitHub issue 498).
+      const std::size_t first = compared == 4U && (value[3] <= 0.0F || deep_target_[3] <= 0.0F) ? 3U : 0U;
+      if (tolerance_ <= 0) {
+        for (std::size_t c = first; c < compared; ++c) {
+          if (value[c] != deep_target_[c]) {
+            return false;
+          }
+        }
+        return true;
+      }
+      double distance_squared = 0.0;
+      for (std::size_t c = first; c < compared; ++c) {
+        const auto delta = static_cast<double>(value[c]) - static_cast<double>(deep_target_[c]);
+        distance_squared += delta * delta;
+      }
+      const auto limit = static_cast<double>(std::min(tolerance_, 255));
+      return distance_squared <= limit * limit * 4.0;
+    }
+    if (px == nullptr) {
+      px = kTransparent.data();  // outside the buffer: only reached with alpha, so four channels
+    }
+    if (skip_transparent_ && px[3] == 0) {
+      return false;
+    }
+    return color_within_tolerance(px, target_.data(), channels_, tolerance_);
+  }
+
+  // How much of a pixel past the tolerance still counts, for an anti-aliased edge: 1 at the
+  // tolerance distance, falling in a straight line to 0 a quarter of that distance further
+  // (the fringe color_match_strength gives the brush tools). 0 at tolerance 0.
+  [[nodiscard]] float fringe(std::int32_t doc_x, std::int32_t doc_y) const noexcept {
+    if (tolerance_ <= 0) {
+      return 0.0F;
+    }
+    const auto* px = source_.pixel(doc_x, doc_y);
+    const auto compared = std::min<std::size_t>(channels_, 4U);
+    double distance_squared = 0.0;
+    if (deep_) {
+      const auto value = encoded_pixel(px);
+      if (skip_transparent_ && value[3] <= 0.0F) {
+        return 0.0F;
+      }
+      const std::size_t first = compared == 4U && (value[3] <= 0.0F || deep_target_[3] <= 0.0F) ? 3U : 0U;
+      for (std::size_t c = first; c < compared; ++c) {
+        const auto delta = static_cast<double>(value[c]) - static_cast<double>(deep_target_[c]);
+        distance_squared += delta * delta;
+      }
+    } else {
+      if (px == nullptr) {
+        px = kTransparent.data();
+      }
+      if (skip_transparent_ && px[3] == 0) {
+        return 0.0F;
+      }
+      const std::size_t first = compared == 4U && (px[3] == 0 || target_[3] == 0) ? 3U : 0U;
+      for (std::size_t c = first; c < compared; ++c) {
+        const auto delta = static_cast<double>(px[c]) - static_cast<double>(target_[c]);
+        distance_squared += delta * delta;
+      }
+    }
+    const auto limit = 2.0 * static_cast<double>(tolerance_);
+    const auto fringe_end = limit * 1.25;
+    const auto distance = std::sqrt(distance_squared);
+    if (distance <= limit) {
+      return 1.0F;
+    }
+    if (distance >= fringe_end) {
+      return 0.0F;
+    }
+    return static_cast<float>((fringe_end - distance) / (fringe_end - limit));
+  }
+
+ private:
+  static constexpr std::array<std::uint8_t, 4> kTransparent{0, 0, 0, 0};
+
+  [[nodiscard]] std::array<float, 4> encoded_pixel(const std::uint8_t* px) const noexcept {
+    if (px == nullptr) {
+      return std::array<float, 4>{};  // outside the buffer: transparent
+    }
+    auto values = load_pixel(source_.format, px);
+    if (source_.format.bit_depth == BitDepth::Float32) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        values[c] = static_cast<float>(srgb_encode(static_cast<double>(values[c]) / 255.0) * 255.0);
+      }
+    }
+    return values;
+  }
+
+  FloodSource source_;
+  std::uint16_t channels_;
+  bool deep_;
+  int tolerance_;
+  bool skip_transparent_;
+  std::array<std::uint8_t, 4> target_{};
+  std::array<float, 4> deep_target_{};
+};
+
+// The pixels of `area` (document coordinates) a flood takes: those matching the clicked color
+// and allowed by the selection, either joined to (x, y) (4-connected) or all of them.
+// Membership is decided against the clicked color, never against pixels already written, so a
+// translucent write cannot spread through its own output.
+struct FloodRegion {
+  enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
+
+  Rect area;
+  Rect rect;  // the region's bounds; empty when nothing matched
+  std::vector<std::uint8_t> state;
+
+  [[nodiscard]] bool in_area(std::int32_t doc_x, std::int32_t doc_y) const noexcept {
+    return doc_x >= area.x && doc_y >= area.y && doc_x < area.x + area.width && doc_y < area.y + area.height;
+  }
+  [[nodiscard]] std::uint8_t& at(std::int32_t doc_x, std::int32_t doc_y) noexcept {
+    return state[static_cast<std::size_t>(doc_y - area.y) * static_cast<std::size_t>(area.width) +
+                 static_cast<std::size_t>(doc_x - area.x)];
+  }
+  [[nodiscard]] bool contains(std::int32_t doc_x, std::int32_t doc_y) const noexcept {
+    return in_area(doc_x, doc_y) &&
+           state[static_cast<std::size_t>(doc_y - area.y) * static_cast<std::size_t>(area.width) +
+                 static_cast<std::size_t>(doc_x - area.x)] == kInRegion;
+  }
+};
+
+[[nodiscard]] FloodRegion collect_flood_region(Rect area, std::int32_t x, std::int32_t y, const EditOptions& options,
+                                               const FloodColorTest& test, std::size_t& progress_counter) {
+  FloodRegion region;
+  region.area = area;
+  region.state.assign(static_cast<std::size_t>(area.width) * static_cast<std::size_t>(area.height),
+                      FloodRegion::kUnvisited);
+  if (options.flood_contiguous) {
+    std::vector<std::pair<std::int32_t, std::int32_t>> stack;
+    stack.emplace_back(x, y);
+    while (!stack.empty()) {
+      report_edit_progress_periodically(options, progress_counter);
+      const auto [doc_x, doc_y] = stack.back();
+      stack.pop_back();
+      if (!region.in_area(doc_x, doc_y)) {
+        continue;
+      }
+      auto& cell = region.at(doc_x, doc_y);
+      if (cell != FloodRegion::kUnvisited) {
+        continue;
+      }
+      if (!selection_allows(options, doc_x, doc_y) || !test.matches(doc_x, doc_y)) {
+        cell = FloodRegion::kRejected;
+        continue;
+      }
+      cell = FloodRegion::kInRegion;
+      region.rect = unite_rect(region.rect, Rect{doc_x, doc_y, 1, 1});
+      stack.emplace_back(doc_x + 1, doc_y);
+      stack.emplace_back(doc_x - 1, doc_y);
+      stack.emplace_back(doc_x, doc_y + 1);
+      stack.emplace_back(doc_x, doc_y - 1);
+    }
+  } else {
+    for (std::int32_t doc_y = area.y; doc_y < area.y + area.height; ++doc_y) {
+      for (std::int32_t doc_x = area.x; doc_x < area.x + area.width; ++doc_x) {
+        report_edit_progress_periodically(options, progress_counter);
+        if (!selection_allows(options, doc_x, doc_y) || !test.matches(doc_x, doc_y)) {
+          continue;
+        }
+        region.at(doc_x, doc_y) = FloodRegion::kInRegion;
+        region.rect = unite_rect(region.rect, Rect{doc_x, doc_y, 1, 1});
+      }
+    }
+  }
+  return region;
+}
+
+}  // namespace
+
 Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options) {
   auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr || !canvas_rect(document).contains(x, y) || !selection_allows(options, x, y)) {
@@ -3095,8 +3322,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   const auto bounds = layer->bounds();
   const auto& source = std::as_const(*layer).pixels();
   const auto format = source.empty() ? PixelFormat::rgba8() : source.format();
-  const auto channels = format.channels;
-  const auto has_alpha = channels >= 4;
+  const auto has_alpha = format.channels >= 4;
   const bool grows = has_alpha && !options.lock_transparent_pixels;
   auto area = grows ? canvas_rect(document) : bounds;
   if (grows && options.selection.has_value()) {
@@ -3105,131 +3331,21 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   if (source.empty() && !grows) {
     return {};
   }
-  const auto in_buffer = [&](std::int32_t doc_x, std::int32_t doc_y) {
-    return !source.empty() && doc_x >= bounds.x && doc_y >= bounds.y && doc_x < bounds.x + bounds.width &&
-           doc_y < bounds.y + bounds.height;
-  };
-  const auto in_area = [&](std::int32_t doc_x, std::int32_t doc_y) {
-    return doc_x >= area.x && doc_y >= area.y && doc_x < area.x + area.width && doc_y < area.y + area.height;
-  };
-  if (!in_area(x, y) || (!grows && !in_buffer(x, y))) {
-    return {};
-  }
-  static constexpr std::array<std::uint8_t, 4> kTransparent{0, 0, 0, 0};
-  const auto source_pixel = [&](std::int32_t doc_x, std::int32_t doc_y) -> const std::uint8_t* {
-    return in_buffer(doc_x, doc_y) ? source.pixel(doc_x - bounds.x, doc_y - bounds.y) : nullptr;
-  };
-
-  std::array<std::uint8_t, 4> target{};
-  const auto* start_pixel = source_pixel(x, y);
-  for (std::uint16_t channel = 0; start_pixel != nullptr && channel < channels && channel < target.size(); ++channel) {
-    target[channel] = start_pixel[channel];
-  }
-  // 16/32-bit layers (docs/high-bit-depth.md) compare display-encoded values on the
-  // deep scale, so the tolerance means the same as on an 8-bit layer.
-  const bool deep = format.bit_depth != BitDepth::UInt8;
-  const auto encoded_pixel = [format](const std::uint8_t* px) {
-    if (px == nullptr) {
-      return std::array<float, 4>{};  // outside the buffer: transparent
-    }
-    auto values = load_pixel(format, px);
-    if (format.bit_depth == BitDepth::Float32) {
-      for (std::size_t c = 0; c < 3U; ++c) {
-        values[c] = static_cast<float>(srgb_encode(static_cast<double>(values[c]) / 255.0) * 255.0);
-      }
-    }
-    return values;
-  };
-  const auto deep_target = deep ? encoded_pixel(start_pixel) : std::array<float, 4>{};
-  if (options.lock_transparent_pixels && has_alpha && (deep ? deep_target[3] <= 0.0F : target[3] == 0)) {
+  const FloodSource flood_source{&source, bounds, nullptr, format};
+  if (!area.contains(x, y) || (!grows && flood_source.pixel(x, y) == nullptr)) {
     return {};
   }
 
-  // Pass 1: the region. Membership is decided against the clicked color, never against
-  // pixels already written, so a translucent fill cannot spread through its own output.
-  // Transparent pixels stay outside the region under the transparency lock, so the fill
-  // neither paints nor travels through them.
-  const auto tolerance = std::clamp(options.flood_tolerance, 0, 255);
-  const auto matches = [&](std::int32_t doc_x, std::int32_t doc_y) {
-    const auto* px = source_pixel(doc_x, doc_y);
-    if (deep) {
-      const auto value = encoded_pixel(px);
-      if (options.lock_transparent_pixels && has_alpha && value[3] <= 0.0F) {
-        return false;
-      }
-      const auto compared = std::min<std::size_t>(channels, 4U);
-      // As color_within_tolerance: an alpha-0 side compares alpha alone (GitHub issue 498).
-      const std::size_t first = compared == 4U && (value[3] <= 0.0F || deep_target[3] <= 0.0F) ? 3U : 0U;
-      if (tolerance <= 0) {
-        for (std::size_t c = first; c < compared; ++c) {
-          if (value[c] != deep_target[c]) {
-            return false;
-          }
-        }
-        return true;
-      }
-      double distance_squared = 0.0;
-      for (std::size_t c = first; c < compared; ++c) {
-        const auto delta = static_cast<double>(value[c]) - static_cast<double>(deep_target[c]);
-        distance_squared += delta * delta;
-      }
-      const auto limit = static_cast<double>(std::min(tolerance, 255));
-      return distance_squared <= limit * limit * 4.0;
-    }
-    if (px == nullptr) {
-      px = kTransparent.data();  // only reached with alpha (grows), so four channels
-    }
-    if (options.lock_transparent_pixels && has_alpha && px[3] == 0) {
-      return false;
-    }
-    return color_within_tolerance(px, target.data(), channels, tolerance);
-  };
-  enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
-  std::vector<std::uint8_t> state(static_cast<std::size_t>(area.width) * static_cast<std::size_t>(area.height),
-                                  kUnvisited);
-  const auto state_at = [&](std::int32_t doc_x, std::int32_t doc_y) -> std::uint8_t& {
-    return state[static_cast<std::size_t>(doc_y - area.y) * static_cast<std::size_t>(area.width) +
-                 static_cast<std::size_t>(doc_x - area.x)];
-  };
-  Rect region_rect;
+  // Pass 1: the region. Transparent pixels stay outside it under the transparency lock, so
+  // the fill neither paints nor travels through them.
+  const bool skip_transparent = options.lock_transparent_pixels && has_alpha;
+  const FloodColorTest test(flood_source, x, y, options.flood_tolerance, skip_transparent);
+  if (skip_transparent && test.seed_is_transparent()) {
+    return {};
+  }
   std::size_t progress_counter = 0;
-  if (options.flood_contiguous) {
-    std::vector<std::pair<std::int32_t, std::int32_t>> stack;
-    stack.emplace_back(x, y);
-    while (!stack.empty()) {
-      report_edit_progress_periodically(options, progress_counter);
-      const auto [doc_x, doc_y] = stack.back();
-      stack.pop_back();
-      if (!in_area(doc_x, doc_y)) {
-        continue;
-      }
-      auto& cell = state_at(doc_x, doc_y);
-      if (cell != kUnvisited) {
-        continue;
-      }
-      if (!selection_allows(options, doc_x, doc_y) || !matches(doc_x, doc_y)) {
-        cell = kRejected;
-        continue;
-      }
-      cell = kInRegion;
-      region_rect = unite_rect(region_rect, Rect{doc_x, doc_y, 1, 1});
-      stack.emplace_back(doc_x + 1, doc_y);
-      stack.emplace_back(doc_x - 1, doc_y);
-      stack.emplace_back(doc_x, doc_y + 1);
-      stack.emplace_back(doc_x, doc_y - 1);
-    }
-  } else {
-    for (std::int32_t doc_y = area.y; doc_y < area.y + area.height; ++doc_y) {
-      for (std::int32_t doc_x = area.x; doc_x < area.x + area.width; ++doc_x) {
-        report_edit_progress_periodically(options, progress_counter);
-        if (!selection_allows(options, doc_x, doc_y) || !matches(doc_x, doc_y)) {
-          continue;
-        }
-        state_at(doc_x, doc_y) = kInRegion;
-        region_rect = unite_rect(region_rect, Rect{doc_x, doc_y, 1, 1});
-      }
-    }
-  }
+  const auto region = collect_flood_region(area, x, y, options, test, progress_counter);
+  const auto region_rect = region.rect;
   if (region_rect.empty()) {
     return {};
   }
@@ -3246,7 +3362,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
     feather_rect = Rect{region_rect.x - pad, region_rect.y - pad, region_rect.width + 2 * pad,
                         region_rect.height + 2 * pad};
     const auto region_coverage = [&](std::int32_t doc_x, std::int32_t doc_y) -> float {
-      if (!in_area(doc_x, doc_y) || state_at(doc_x, doc_y) != kInRegion) {
+      if (!region.contains(doc_x, doc_y)) {
         return 0.0F;
       }
       return selection_coverage(options, doc_x, doc_y);
@@ -3264,7 +3380,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   for (std::int32_t doc_y = region_rect.y; doc_y < region_rect.y + region_rect.height; ++doc_y) {
     auto row = pixels.row(doc_y - written_bounds.y);
     for (std::int32_t doc_x = region_rect.x; doc_x < region_rect.x + region_rect.width; ++doc_x) {
-      if (state_at(doc_x, doc_y) != kInRegion) {
+      if (!region.contains(doc_x, doc_y)) {
         continue;
       }
       report_edit_progress_periodically(options, progress_counter);
@@ -3279,6 +3395,130 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
       }
       auto* px = row.data() + static_cast<std::size_t>(doc_x - written_bounds.x) * pixel_bytes;
       if (write_pixel(pixels, px, options, false, coverage)) {
+        dirty = unite_rect(dirty, Rect{doc_x, doc_y, 1, 1});
+      }
+    }
+  }
+  return dirty;
+}
+
+void ensure_layer_alpha_for_erase(Layer& layer) {
+  ensure_alpha_for_erase(layer);
+}
+
+Rect magic_erase(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options,
+                 bool anti_alias, const FloodSampleImage* composite) {
+  auto* layer = paintable_layer(document, layer_id);
+  if (layer == nullptr || !canvas_rect(document).contains(x, y) || !selection_allows(options, x, y)) {
+    return {};
+  }
+  const auto bounds = layer->bounds();
+  const auto& source = std::as_const(*layer).pixels();
+  if (source.empty()) {
+    return {};  // nothing to erase, and an erase never grows the layer
+  }
+  const auto format = source.format();
+  const auto has_alpha = format.channels >= 4;
+  const bool sample_image = composite != nullptr && composite->rgba != nullptr;
+
+  // The region is the one the Fill tool floods for the same click, Tolerance and Contiguous
+  // (collect_flood_region): over the whole canvas when the layer has alpha and no transparency
+  // lock (pixels outside the buffer read as transparent), otherwise inside the buffer. Sample
+  // All Layers reads the colors from the composite instead, over the whole canvas.
+  const bool whole_canvas = sample_image || (has_alpha && !options.lock_transparent_pixels);
+  auto area = whole_canvas ? canvas_rect(document) : bounds;
+  if (whole_canvas && options.selection.has_value()) {
+    area = intersect_rect(area, *options.selection);
+  }
+  const FloodSource flood_source =
+      sample_image ? FloodSource{nullptr, Rect{}, composite, PixelFormat::rgba8()}
+                   : FloodSource{&source, bounds, nullptr, format};
+  if (!area.contains(x, y) || (!whole_canvas && flood_source.pixel(x, y) == nullptr)) {
+    return {};
+  }
+  const bool skip_transparent = !sample_image && options.lock_transparent_pixels && has_alpha;
+  const FloodColorTest test(flood_source, x, y, options.flood_tolerance, skip_transparent);
+  if (skip_transparent && test.seed_is_transparent()) {
+    return {};
+  }
+  std::size_t progress_counter = 0;
+  const auto region = collect_flood_region(area, x, y, options, test, progress_counter);
+  if (region.rect.empty()) {
+    return {};
+  }
+
+  // How much of each pixel goes, worked out before the layer changes. Anti-alias adds the
+  // pixels just past the tolerance (FloodColorTest::fringe) in part: with Contiguous only
+  // those touching the region, otherwise every one of them.
+  auto write_rect = region.rect;
+  if (anti_alias) {
+    write_rect = options.flood_contiguous
+                     ? intersect_rect(Rect{write_rect.x - 1, write_rect.y - 1, write_rect.width + 2,
+                                           write_rect.height + 2},
+                                      area)
+                     : area;
+  }
+  write_rect = intersect_rect(write_rect, bounds);
+  if (write_rect.empty()) {
+    return {};
+  }
+  const auto touches_region = [&](std::int32_t doc_x, std::int32_t doc_y) {
+    for (std::int32_t offset_y = -1; offset_y <= 1; ++offset_y) {
+      for (std::int32_t offset_x = -1; offset_x <= 1; ++offset_x) {
+        if ((offset_x != 0 || offset_y != 0) && region.contains(doc_x + offset_x, doc_y + offset_y)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  std::vector<float> amounts(static_cast<std::size_t>(write_rect.width) * static_cast<std::size_t>(write_rect.height),
+                             0.0F);
+  bool any = false;
+  for (std::int32_t doc_y = write_rect.y; doc_y < write_rect.y + write_rect.height; ++doc_y) {
+    auto* out = amounts.data() + static_cast<std::size_t>(doc_y - write_rect.y) * static_cast<std::size_t>(write_rect.width);
+    for (std::int32_t doc_x = write_rect.x; doc_x < write_rect.x + write_rect.width; ++doc_x, ++out) {
+      report_edit_progress_periodically(options, progress_counter);
+      float amount = 0.0F;
+      if (region.contains(doc_x, doc_y)) {
+        amount = 1.0F;
+      } else if (anti_alias && selection_allows(options, doc_x, doc_y)) {
+        const auto partial = test.fringe(doc_x, doc_y);
+        if (partial > 0.0F && partial < 1.0F && (!options.flood_contiguous || touches_region(doc_x, doc_y))) {
+          amount = partial;
+        }
+      }
+      if (amount <= 0.0F) {
+        continue;
+      }
+      *out = amount * selection_coverage(options, doc_x, doc_y);
+      any = any || *out > 0.0F;
+    }
+  }
+  if (!any) {
+    return {};
+  }
+
+  // The write is the Eraser's (write_pixel): alpha falls by Opacity (options.primary.a) times
+  // the amount; under a transparency lock the pixel moves toward the background color and its
+  // alpha stays; an unlocked layer without alpha gains one first; palette mode snaps.
+  if (!options.lock_transparent_pixels) {
+    ensure_alpha_for_erase(*layer);
+  }
+  auto& pixels = layer->pixels();
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  Rect dirty;
+  for (std::int32_t doc_y = write_rect.y; doc_y < write_rect.y + write_rect.height; ++doc_y) {
+    auto row = pixels.row(doc_y - bounds.y);
+    const auto* amount =
+        amounts.data() + static_cast<std::size_t>(doc_y - write_rect.y) * static_cast<std::size_t>(write_rect.width);
+    for (std::int32_t doc_x = write_rect.x; doc_x < write_rect.x + write_rect.width; ++doc_x, ++amount) {
+      if (*amount <= 0.0F) {
+        continue;
+      }
+      report_edit_progress_periodically(options, progress_counter);
+      auto* px = row.data() + static_cast<std::size_t>(doc_x - bounds.x) * pixel_bytes;
+      if (write_pixel(pixels, px, options, true, *amount)) {
         dirty = unite_rect(dirty, Rect{doc_x, doc_y, 1, 1});
       }
     }

@@ -23,6 +23,29 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-16 (addition): `layer.eraseBackground(options)` and `layer.magicErase(options)` are the
+Background Eraser and the Magic Eraser (GitHub issue 727,
+[eraser-tools.md](eraser-tools.md#scripting)). `eraseBackground` erases one stroke with a round tip
+through `points` (`{x, y}` in document pixels, 1 to 100000 of them): the pixels matching a sampled
+color lose their alpha, the rest under the tip stay. Options: `size` (1 to 1024, default 40),
+`hardness` (0 to 100, default 100), `sampling` (`"continuous"` the default, `"once"`,
+`"background"`, which needs `backgroundColor`), `limits` (`"discontiguous"`, `"contiguous"` the
+default, `"findEdges"`) and `tolerance` (0 to 100, default 30). `magicErase` is one click at `x`,
+`y` (document pixels) that erases the area the Fill tool would flood from there. Options:
+`tolerance` (0 to 255, default 32), `antiAlias` (default true), `contiguous` (default true),
+`sampleAllLayers` (default false) and `opacity` (0 to 100, default 100). For both, the layer must
+be the document's active layer, a selection limits the erase, and a layer whose transparency is
+locked is painted with `backgroundColor` (default white) and keeps its alpha, as the Eraser does;
+an unlocked layer without alpha gains one. Both return the changed bounds `{x, y, width, height}`,
+all zero when nothing changed, throw before erasing on an unknown option, a wrong type or a value
+out of range, and never change the artist's tool or options. Permanent identifiers: the two
+methods, their keys and tokens, the hotkey command ids `tools.background_eraser`,
+`tools.magic_eraser` and `tools.cycle.eraser`, and the settings keys
+`tools/backgroundEraserSampling`, `tools/backgroundEraserLimits`, `tools/backgroundEraserTolerance`,
+`tools/magicEraserTolerance`, `tools/magicEraserAntiAlias`, `tools/magicEraserContiguous`,
+`tools/magicEraserSampleAllLayers`, `tools/magicEraserOpacity`. Works at 8, 16 and 32 bits. Pinned
+by `ui_script_erase_background_and_magic_erase`.
+
 2026-11-13 (addition): `layer.replaceColor(options)` is the Color Replacement tool (GitHub issue 720,
 [color-replacement.md](color-replacement.md#scripting)): one stroke with a round tip through
 `points` (`{x, y}` in document pixels, 1 to 100000 of them) that repaints the pixels matching a

@@ -6320,7 +6320,7 @@ void MainWindow::refresh_document_info() {
           lines << tr("Angle: %1°").arg(canvas_->crop_session_angle(), 0, 'f', 1);
         }
       }
-    } else if (current_tool_ == CanvasTool::ColorReplace) {
+    } else if (current_tool_ == CanvasTool::ColorReplace || current_tool_ == CanvasTool::BackgroundEraser) {
       lines << tr("Size: %1 px").arg(canvas_->brush_size()) << tr("Softness: %1%").arg(canvas_->brush_softness());
     } else if (current_tool_ == CanvasTool::Dodge || current_tool_ == CanvasTool::Burn ||
                current_tool_ == CanvasTool::Sponge || current_tool_ == CanvasTool::BlurBrush ||

@@ -757,6 +757,52 @@ interface PatchyLayer {
     antiAlias?: boolean;
   }): { x: number; y: number; width: number; height: number };
   /**
+   * The Background Eraser: one stroke with a round tip through `points` (document pixels)
+   * that erases the pixels matching a sampled color and leaves the rest under the tip alone.
+   * `sampling` picks the compared color: "continuous" (default) the pixel under each dab's
+   * center as the stroke began, "once" the pixel under the first dab, "background" the
+   * `backgroundColor` (required then). `limits`: "discontiguous" every matching pixel under
+   * the tip, "contiguous" (default) those connected to the dab's center, "findEdges"
+   * connected ones that also stop at abrupt color steps. `tolerance` is 0..100 (default 30;
+   * 0 = exact matches), `size` 1..1024 (default 40), `hardness` 0..100 (default 100). On a
+   * layer whose transparency is locked the pixels are painted with `backgroundColor`
+   * (default white) instead and keep their alpha; an unlocked layer without alpha gains one.
+   * A selection limits the erase. The layer must be the active layer. Returns the changed
+   * bounds (all zero when nothing matched); throws on an unknown option or a value out of
+   * range.
+   */
+  eraseBackground(options: {
+    points: Array<{ x: number; y: number }>;
+    size?: number;
+    hardness?: number;
+    sampling?: "continuous" | "once" | "background";
+    backgroundColor?: string;
+    limits?: "discontiguous" | "contiguous" | "findEdges";
+    tolerance?: number;
+  }): { x: number; y: number; width: number; height: number };
+  /**
+   * The Magic Eraser: one click at (`x`, `y`) in document pixels that erases the area the
+   * Fill tool would flood from there. `tolerance` is 0..255 (default 32, the Magic Wand's
+   * scale), `contiguous` keeps to the pixels connected to the click (default true),
+   * `antiAlias` partly erases the pixels just past the tolerance (default true),
+   * `sampleAllLayers` finds the area in the whole document instead of this layer (default
+   * false; the erase is still written to this layer), `opacity` is 0..100 (default 100). On
+   * a layer whose transparency is locked the area is painted with `backgroundColor`
+   * (default white) instead. A selection limits the erase. The layer must be the active
+   * layer. Returns the changed bounds (all zero when nothing changed); throws on an unknown
+   * option or a value out of range.
+   */
+  magicErase(options: {
+    x: number;
+    y: number;
+    tolerance?: number;
+    antiAlias?: boolean;
+    contiguous?: boolean;
+    sampleAllLayers?: boolean;
+    opacity?: number;
+    backgroundColor?: string;
+  }): { x: number; y: number; width: number; height: number };
+  /**
    * A copy of the layer's pixels (empty layers report width/height 0). Layers
    * that store opaque 8-bit RGB (photos opened from JPEG and similar) are
    * returned expanded to RGBA with alpha 255.

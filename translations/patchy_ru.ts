@@ -19632,6 +19632,26 @@ Do you want to replace it?</source>
         <source>Color replacement</source>
         <translation>Замена цвета</translation>
     </message>
+    <message>
+        <source>%1 needs an open document</source>
+        <translation>Для инструмента «%1» нужен открытый документ</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Фоновый ластик</translation>
+    </message>
+    <message>
+        <source>%1 is unavailable while editing a mask or channel</source>
+        <translation>Инструмент «%1» недоступен при редактировании маски или канала</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer</source>
+        <translation>Для инструмента «%1» нужен редактируемый пиксельный слой</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Волшебный ластик</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22153,6 +22173,18 @@ Do you want to replace it?</source>
     <message>
         <source>Hide or show the name row above each side panel</source>
         <translation>Скрыть или показать строку с названием над каждой боковой панелью</translation>
+    </message>
+    <message>
+        <source>Paint over one color to erase it and keep the rest</source>
+        <translation>Закрасить цвет, чтобы стереть его и сохранить остальное</translation>
+    </message>
+    <message>
+        <source>Erase an area of similar color with one click</source>
+        <translation>Стереть область похожего цвета одним щелчком</translation>
+    </message>
+    <message>
+        <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation>Переключаться между инструментами «Ластик», «Фоновый ластик» и «Волшебный ластик»</translation>
     </message>
 </context>
 <context>
@@ -36576,6 +36608,58 @@ Locked: %1</source>
             <numerusform>Ещё %n проблем не показано.</numerusform>
         </translation>
     </message>
+    <message>
+        <source>The color that gets erased: Continuous takes the color under the pointer as you drag, Once the color where the stroke starts, Background Swatch the background color</source>
+        <translation>Какой цвет стирается: «Непрерывно» берёт цвет под указателем при перетаскивании, «Однократно» — цвет в начале мазка, «Образец фона» — фоновый цвет</translation>
+    </message>
+    <message>
+        <source>Which matching pixels are erased: Discontiguous any under the brush, Contiguous only those connected to the pointer, Find Edges connected ones while keeping sharp edges sharp</source>
+        <translation>Какие подходящие пиксели стираются: «Все пиксели» — любые под кистью, «Смежные пиксели» — только связанные с указателем, «Выделение краев» — связанные, с сохранением резких краёв</translation>
+    </message>
+    <message>
+        <source>How close a color must be to the sampled color to be erased; 0% erases exact matches only</source>
+        <translation>Насколько цвет должен быть близок к взятому образцу, чтобы его стереть; 0% стирает только точные совпадения</translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be erased</source>
+        <translation>Насколько цвет пикселя может отличаться от цвета, по которому щёлкнули, и при этом стираться</translation>
+    </message>
+    <message>
+        <source>Soften the edge of the erased area</source>
+        <translation>Смягчить край стёртой области</translation>
+    </message>
+    <message>
+        <source>Limit the erase to pixels connected to the click</source>
+        <translation>Ограничить стирание пикселями, связанными с щелчком</translation>
+    </message>
+    <message>
+        <source>Find the area to erase in the whole image instead of the active layer alone</source>
+        <translation>Искать стираемую область во всём изображении, а не только в активном слое</translation>
+    </message>
+    <message>
+        <source>Paint over a color to erase it. Only pixels close to the color under the center of the brush are erased.</source>
+        <translation>Закрасьте цвет, чтобы стереть его. Стираются только пиксели, близкие к цвету под центром кисти.</translation>
+    </message>
+    <message>
+        <source>Click a color to erase it. Tolerance sets how close a color must be; Contiguous keeps to the area connected to the click.</source>
+        <translation>Щёлкните цвет, чтобы стереть его. «Допуск» задаёт, насколько близким должен быть цвет; «Смежные пиксели» ограничивает область связанной с щелчком частью.</translation>
+    </message>
+    <message>
+        <source>Eraser Tools</source>
+        <translation>Инструменты ластика</translation>
+    </message>
+    <message>
+        <source>Background Eraser</source>
+        <translation>Фоновый ластик</translation>
+    </message>
+    <message>
+        <source>Magic Eraser</source>
+        <translation>Волшебный ластик</translation>
+    </message>
+    <message>
+        <source>Cycle Eraser Tools</source>
+        <translation>Сменить инструмент ластика</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39838,6 +39922,38 @@ Locked: %1</source>
     <message>
         <source>replaceColor needs an editable pixel layer.</source>
         <translation>replaceColor требует редактируемый пиксельный слой.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a number from %3 to %4.</source>
+        <translation>%1: %2 должно быть числом от %3 до %4.</translation>
+    </message>
+    <message>
+        <source>%1: %2 must be a color string.</source>
+        <translation>%1: %2 должен быть строкой цвета.</translation>
+    </message>
+    <message>
+        <source>%1: unknown %2 value.</source>
+        <translation>%1: неизвестное значение %2.</translation>
+    </message>
+    <message>
+        <source>%1: pass an options object with %2.</source>
+        <translation>%1: передайте объект параметров с %2.</translation>
+    </message>
+    <message>
+        <source>%1: points must be an array of 1 to 100000 {x, y} points.</source>
+        <translation>%1: points должен быть массивом от 1 до 100000 точек {x, y}.</translation>
+    </message>
+    <message>
+        <source>%1: sampling &quot;background&quot; needs backgroundColor.</source>
+        <translation>%1: для sampling &quot;background&quot; нужен backgroundColor.</translation>
+    </message>
+    <message>
+        <source>%1 needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>%1 требует активный слой документа (сначала задайте doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>%1 needs an editable pixel layer.</source>
+        <translation>%1 требует редактируемый пиксельный слой.</translation>
     </message>
 </context>
 <context>

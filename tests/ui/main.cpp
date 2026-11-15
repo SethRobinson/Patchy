@@ -492,6 +492,7 @@ int main(int argc, char* argv[]) {
            text_outline_tests,
            type_mask_tests,
            color_replace_ui_tests,
+           eraser_tools_ui_tests,
            no_layer_warning_tests,
            scripting_tests,
            script_move_tests,
