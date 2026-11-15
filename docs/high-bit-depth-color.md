@@ -23,7 +23,12 @@ Pencil, pixel shapes, fills, Edit > Fill and Fill With Background Color paint va
   -3 to +3 stops around the color (`hdr_preview_color`: scaled, sRGB-encoded, clipped at
   white; a click moves the Intensity by that offset), the Intensity slider and spin, and
   editable linear R, G, B (`hdr_color_from_linear` splits a typed value into base and
-  stops). The Color panel shows the compact form (strip, Intensity, linear readout) below
+  stops). It is a divider line, then two columns that follow the picker's own
+  (`follow_columns` on the picker's `patchyColorSwatchColumn` and
+  `patchyColorPickerColumn`): caption and strip as wide as the swatch column, Intensity
+  and the linear fields from the picker column's left edge, each title above its
+  controls (#255). The caption's fixed width sets its wrapped height, so the window's
+  minimum size never clips it. The Color panel shows the compact form (strip, Intensity, linear readout) below
   its view, for the foreground. A base color picked in the window or the panel keeps the
   Intensity they show. 16 bits keep the 0-255 fields: they are display-encoded and narrow
   exactly, so a 0-1 or 0-32768 mode would add no precision a user can act on.
