@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Copies the theme guide's pictures from a UI test run into docs/images/themes/.
 
-The shot_theme_guide_* scenes of patchy_ui_visual_tests (tests/ui/theme_guide_screenshot_tests.cpp)
+The ui_theme_guide_shot_* scenes of patchy_ui_visual_tests (tests/ui/theme_guide_screenshot_tests.cpp)
 write test-artifacts/theme_guide_<name>.png; the guide (docs/making-themes.md and its
 advanced pages) shows docs/images/themes/<name>.png. Run the scenes, then this:
 
     cd build\\opt-dev
-    ..\\..\\scripts\\run-throttled.bat .\\patchy_ui_visual_tests.exe shot_theme_guide
+    ..\\..\\scripts\\run-throttled.bat .\\patchy_ui_visual_tests.exe ui_theme_guide_shot
     python ..\\..\\scripts\\dev\\copy-theme-guide-shots.py test-artifacts
 
 Usage: python scripts/dev/copy-theme-guide-shots.py <folder holding theme_guide_*.png>

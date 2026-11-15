@@ -1,5 +1,5 @@
 // The pictures of the theme guide (docs/making-themes.md and its advanced pages), as
-// shot_theme_guide_* scenes: each one stages the real windows offscreen, applies a theme
+// ui_theme_guide_shot_* scenes: each one stages the real windows offscreen, applies a theme
 // built from themes/example-package the way the guide's steps build it, and writes
 // test-artifacts/theme_guide_*.png. scripts/dev/copy-theme-guide-shots.py copies those
 // into docs/images/themes/. The scenes stay in the suite as smoke tests of the steps the
@@ -338,7 +338,7 @@ void scroll_to_theme(QDialog& dialog, const QString& token) {
 
 // Step 1 and 2 of "Your first theme": the Colors and Themes page as it opens, then the
 // new theme listed under Your themes and selected; the window before and after.
-void shot_theme_guide_first_theme() {
+void ui_theme_guide_shot_first_theme() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window);
@@ -368,7 +368,7 @@ void shot_theme_guide_first_theme() {
 
 // A contact sheet of some of the files Export Icon Template writes, each under its file
 // name: the names are what a theme's icons/ folder has to match.
-void shot_theme_guide_icon_template() {
+void ui_theme_guide_shot_icon_template() {
   GuideThemesDir themes;
   QTemporaryDir out;
   CHECK(out.isValid());
@@ -413,7 +413,7 @@ void shot_theme_guide_icon_template() {
 
 // The icon steps: the built-in icons recolored by the icon_* roles, then three of them
 // replaced by the theme's own files.
-void shot_theme_guide_icons() {
+void ui_theme_guide_shot_icons() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window);
@@ -440,7 +440,7 @@ void shot_theme_guide_icons() {
 
 // "recolorIcons": an SVG drawn in the template's own colors follows the theme (here a
 // Light-based one) unless the theme turns recoloring off.
-void shot_theme_guide_recolor_icons() {
+void ui_theme_guide_shot_recolor_icons() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window);
@@ -474,7 +474,7 @@ void shot_theme_guide_recolor_icons() {
 }
 
 // "iconScaling": the 16-pixel eraser drawn at 64 pixels, smooth and nearest.
-void shot_theme_guide_icon_scaling() {
+void ui_theme_guide_shot_icon_scaling() {
   GuideThemesDir themes;
   std::vector<std::pair<QString, QImage>> parts;
   for (const bool nearest : {false, true}) {
@@ -505,7 +505,7 @@ void shot_theme_guide_icon_scaling() {
 
 // The three backdrop modes behind the Home Screen, each a crop at full size: the tool
 // palette and the left of the Home Screen, where the picture's edges show.
-void shot_theme_guide_backdrop() {
+void ui_theme_guide_shot_backdrop() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   window.resize(1000, 560);
@@ -541,7 +541,7 @@ void shot_theme_guide_backdrop() {
 }
 
 // The three built-in effects, each caught part way through over a document.
-void shot_theme_guide_effects() {
+void ui_theme_guide_shot_effects() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window, QSize(1000, 660));
@@ -566,7 +566,7 @@ void shot_theme_guide_effects() {
 }
 
 // A theme script's menu: the example's one command, right of Help.
-void shot_theme_guide_theme_menu() {
+void ui_theme_guide_shot_theme_menu() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window);
@@ -592,7 +592,7 @@ void shot_theme_guide_theme_menu() {
 
 // What the user sees the first time a theme with scripts is applied, and the theme's
 // details in Preferences with its own Run this theme's scripts box.
-void shot_theme_guide_script_trust() {
+void ui_theme_guide_shot_script_trust() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window);
@@ -629,7 +629,7 @@ void shot_theme_guide_script_trust() {
 }
 
 // Troubleshooting: a theme whose theme.json has a mistake stays in the list, greyed out.
-void shot_theme_guide_load_error() {
+void ui_theme_guide_shot_load_error() {
   GuideThemesDir themes;
   patchy::ui::MainWindow window;
   stage_document_window(window);
@@ -656,15 +656,15 @@ void shot_theme_guide_load_error() {
 
 std::vector<patchy::test::TestCase> theme_guide_screenshot_tests() {
   return {
-      {"shot_theme_guide_first_theme", shot_theme_guide_first_theme},
-      {"shot_theme_guide_icon_template", shot_theme_guide_icon_template},
-      {"shot_theme_guide_icons", shot_theme_guide_icons},
-      {"shot_theme_guide_recolor_icons", shot_theme_guide_recolor_icons},
-      {"shot_theme_guide_icon_scaling", shot_theme_guide_icon_scaling},
-      {"shot_theme_guide_backdrop", shot_theme_guide_backdrop},
-      {"shot_theme_guide_effects", shot_theme_guide_effects},
-      {"shot_theme_guide_theme_menu", shot_theme_guide_theme_menu},
-      {"shot_theme_guide_script_trust", shot_theme_guide_script_trust},
-      {"shot_theme_guide_load_error", shot_theme_guide_load_error},
+      {"ui_theme_guide_shot_first_theme", ui_theme_guide_shot_first_theme},
+      {"ui_theme_guide_shot_icon_template", ui_theme_guide_shot_icon_template},
+      {"ui_theme_guide_shot_icons", ui_theme_guide_shot_icons},
+      {"ui_theme_guide_shot_recolor_icons", ui_theme_guide_shot_recolor_icons},
+      {"ui_theme_guide_shot_icon_scaling", ui_theme_guide_shot_icon_scaling},
+      {"ui_theme_guide_shot_backdrop", ui_theme_guide_shot_backdrop},
+      {"ui_theme_guide_shot_effects", ui_theme_guide_shot_effects},
+      {"ui_theme_guide_shot_theme_menu", ui_theme_guide_shot_theme_menu},
+      {"ui_theme_guide_shot_script_trust", ui_theme_guide_shot_script_trust},
+      {"ui_theme_guide_shot_load_error", ui_theme_guide_shot_load_error},
   };
 }
