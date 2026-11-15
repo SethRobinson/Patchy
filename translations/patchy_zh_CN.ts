@@ -36131,6 +36131,10 @@ Locked: %1</source>
         <source>Show Panel Titles</source>
         <translation>显示面板标题</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>有混合模式</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

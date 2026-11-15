@@ -439,6 +439,100 @@ void ui_layer_filter_menu_linked_and_smart_filters() {
   CHECK(!require_action(window, "layerFilterSmartFiltersAction")->isChecked());
 }
 
+// Properties > Has a Blend Mode lists the layers set to a mode other than the one their kind
+// starts with (issue 671 follow-up): Normal for a layer and an artboard, Pass Through for a
+// folder. A folder set to Normal counts; Pass Through never does.
+void ui_layer_filter_menu_has_blend_mode() {
+  FilterFixture fixture;
+  auto& window = fixture.window;
+  auto& list = *fixture.list;
+  const auto& ids = fixture.ids;
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    // The fixture's folder as New Group makes one.
+    doc.find_layer(ids.group)->set_blend_mode(patchy::BlendMode::PassThrough);
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+  }
+  // The entry sits right after Has a Layer Style.
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("layerFilterMenu"));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    const auto actions = menu->actions();
+    const auto style_index = actions.indexOf(require_action(window, "layerFilterStyleAction"));
+    CHECK(style_index >= 0);
+    CHECK(style_index + 1 < actions.size() &&
+          actions.at(style_index + 1) == require_action(window, "layerFilterBlendModeAction"));
+  }
+  CHECK(require_action(window, "layerFilterBlendModeAction")->text() == QStringLiteral("Has a Blend Mode"));
+
+  // Every layer is Normal and the folder Pass Through: nothing is listed.
+  set_filter(window, "layerFilterBlendModeAction", true);
+  CHECK(list.count() == 0);
+  CHECK(filter_button(window)->property("layerFilterActive").toBool());
+  set_filter(window, "layerFilterBlendModeAction", false);
+
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    doc.find_layer(ids.paint)->set_blend_mode(patchy::BlendMode::Multiply);
+    doc.find_layer(ids.tone)->set_blend_mode(patchy::BlendMode::Screen);
+    // A folder set to Normal, one left at Pass Through, and an artboard (which starts at Normal).
+    patchy::Layer isolated(doc.allocate_layer_id(), "Isolated", patchy::LayerKind::Group);
+    isolated.set_blend_mode(patchy::BlendMode::Normal);
+    isolated.add_child(pixel_layer(doc, "Inside", patchy::Rect{80, 8, 16, 16}, QColor(90, 90, 200)));
+    doc.add_layer(std::move(isolated));
+    patchy::Layer loose(doc.allocate_layer_id(), "Loose", patchy::LayerKind::Group);
+    loose.set_blend_mode(patchy::BlendMode::PassThrough);
+    loose.add_child(pixel_layer(doc, "Plain", patchy::Rect{100, 8, 16, 16}, QColor(200, 90, 90)));
+    doc.add_layer(std::move(loose));
+    patchy::Layer board(doc.allocate_layer_id(), "Board", patchy::LayerKind::Group);
+    board.set_blend_mode(patchy::BlendMode::Normal);
+    board.set_artboard(patchy::LayerArtboard{patchy::Rect{0, 0, 40, 40}});
+    doc.add_layer(std::move(board));
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+  }
+  CHECK(list.count() == 13);
+
+  set_filter(window, "layerFilterBlendModeAction", true);
+  // Multiply and Screen layers and the Normal folder; not the Normal layers, the Pass Through
+  // folders or the Normal artboard. The matching folder brings no children.
+  check_listed(list, {QStringLiteral("Paint"), QStringLiteral("Tone"), QStringLiteral("Isolated")});
+  CHECK(require_action(window, "layerFilterBlendModeAction")->isChecked());
+
+  // Within Properties any ticked entry matches; another group narrows it.
+  set_filter(window, "layerFilterStyleAction", true);
+  check_listed(list, {QStringLiteral("Paint"), QStringLiteral("Tone"), QStringLiteral("Isolated"),
+                      QStringLiteral("Box")});
+  set_filter(window, "layerFilterStyleAction", false);
+  set_filter(window, "layerFilterPixelAction", true);
+  check_listed(list, {QStringLiteral("Paint")});
+  set_filter(window, "layerFilterPixelAction", false);
+
+  // A Pass Through folder is listed only as the parent of a matching child; an artboard set
+  // to another mode is listed for itself.
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    doc.find_layer(ids.masked)->set_blend_mode(patchy::BlendMode::Overlay);
+    doc.find_layer(ids.paint)->set_blend_mode(patchy::BlendMode::Normal);
+    for (auto& layer : doc.layers()) {
+      if (layer.artboard().has_value()) {
+        layer.set_blend_mode(patchy::BlendMode::Multiply);
+      }
+    }
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+  }
+  check_listed(list, {QStringLiteral("Tone"), QStringLiteral("Isolated"), QStringLiteral("Group"),
+                      QStringLiteral("Masked"), QStringLiteral("Board")});
+
+  require_action(window, "layerFilterClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(list.count() == 13);
+  CHECK(!require_action(window, "layerFilterBlendModeAction")->isChecked());
+  CHECK(!filter_button(window)->property("layerFilterActive").toBool());
+}
+
 void ui_layer_filter_menu_groups_and_name_text_combine() {
   FilterFixture fixture;
   auto& window = fixture.window;
@@ -784,6 +878,7 @@ std::vector<patchy::test::TestCase> layer_filter_menu_tests() {
        ui_layer_filter_menu_finds_type_tool_and_psd_text_layers},
       {"ui_layer_filter_menu_each_layer_has_one_type", ui_layer_filter_menu_each_layer_has_one_type},
       {"ui_layer_filter_menu_linked_and_smart_filters", ui_layer_filter_menu_linked_and_smart_filters},
+      {"ui_layer_filter_menu_has_blend_mode", ui_layer_filter_menu_has_blend_mode},
       {"ui_layer_filter_menu_groups_and_name_text_combine", ui_layer_filter_menu_groups_and_name_text_combine},
       {"ui_layer_filter_menu_blocks_drag_reorder", ui_layer_filter_menu_blocks_drag_reorder},
       {"ui_layer_filter_menu_canvas_reveal_clears_criteria", ui_layer_filter_menu_canvas_reveal_clears_criteria},

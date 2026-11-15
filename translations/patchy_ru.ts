@@ -36349,6 +36349,10 @@ Locked: %1</source>
         <source>Show Panel Titles</source>
         <translation>Показывать заголовки панелей</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>Есть режим наложения</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

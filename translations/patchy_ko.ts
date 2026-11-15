@@ -36131,6 +36131,10 @@ Locked: %1</source>
         <source>Show Panel Titles</source>
         <translation>패널 제목 표시</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>혼합 모드 있음</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -46,9 +46,10 @@ inline constexpr std::uint32_t kLayerFilterHidden = 1U << 2U;
 inline constexpr std::uint32_t kLayerFilterLocked = 1U << 3U;
 inline constexpr std::uint32_t kLayerFilterLinked = 1U << 4U;           // linked to another layer
 inline constexpr std::uint32_t kLayerFilterHasSmartFilters = 1U << 5U;  // carries a Smart Filter stack
+inline constexpr std::uint32_t kLayerFilterHasBlendMode = 1U << 6U;     // a mode other than the one it starts with
 struct LayerListFilter {
   std::uint32_t kinds{0};       // kLayerFilterPixel...kLayerFilterFolder
-  std::uint32_t properties{0};  // kLayerFilterHasMask...kLayerFilterHasSmartFilters
+  std::uint32_t properties{0};  // kLayerFilterHasMask...kLayerFilterHasBlendMode
   std::uint32_t colors{0};      // bit (1 << LayerColorLabel)
   bool selected_only{false};
   // The layers Selected only lists, besides the active layer. Follows selection changes made

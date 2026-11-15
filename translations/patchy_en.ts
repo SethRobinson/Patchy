@@ -36158,6 +36158,10 @@ Locked: %1</source>
         <source>Show Panel Titles</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

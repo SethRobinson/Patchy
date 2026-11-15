@@ -36240,6 +36240,10 @@ Fixiert: %1</translation>
         <source>Show Panel Titles</source>
         <translation>Bedienfeldtitel anzeigen</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>Hat eine Füllmethode</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

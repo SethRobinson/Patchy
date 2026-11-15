@@ -36240,6 +36240,10 @@ Verrouillé : %1</translation>
         <source>Show Panel Titles</source>
         <translation>Afficher les titres des panneaux</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>A un mode de fusion</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -36349,6 +36349,10 @@ Zablokowano: %1</translation>
         <source>Show Panel Titles</source>
         <translation>Pokaż tytuły paneli</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>Ma tryb mieszania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

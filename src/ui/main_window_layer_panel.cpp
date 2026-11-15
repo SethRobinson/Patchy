@@ -3902,6 +3902,20 @@ std::uint32_t layer_list_filter_kind(const Layer& layer) {
   return kLayerFilterPixel;
 }
 
+// The filter menu's Has a Blend Mode: the layer blends in a mode other than the one its kind
+// starts with. A layer and an artboard start at Normal and a folder at Pass Through, so a
+// folder set to Normal counts and Pass Through never does.
+bool layer_has_chosen_blend_mode(const Layer& layer) {
+  const auto mode = layer.blend_mode();
+  if (mode == BlendMode::PassThrough) {
+    return false;
+  }
+  if (mode != BlendMode::Normal) {
+    return true;
+  }
+  return layer.kind() == LayerKind::Group && !layer.artboard().has_value();
+}
+
 // The filter menu's criteria (GitHub issue 671): within a group any ticked item matches, and
 // every group with a tick must match. `active_id` is listed by Selected only whatever the
 // snapshot holds; the Background (`background`, null when the document has none) counts as
@@ -3916,6 +3930,7 @@ bool layer_matches_list_filter(const Layer& layer, const LayerListFilter& filter
     const bool matches =
         (has(kLayerFilterHasMask) && (layer.mask().has_value() || layer.vector_mask() != nullptr)) ||
         (has(kLayerFilterHasStyle) && layer.layer_style().effect_count() > 0) ||
+        (has(kLayerFilterHasBlendMode) && layer_has_chosen_blend_mode(layer)) ||
         (has(kLayerFilterHidden) && !layer.visible()) ||
         (has(kLayerFilterLocked) && ((layer_lock_flags(layer) & kLayerLockAll) != kLayerLockNone ||
                                      (background != nullptr && background->id() == layer.id()))) ||
@@ -4142,6 +4157,7 @@ void MainWindow::build_layer_filter_menu() {
   add_header(menu, QT_TR_NOOP("Properties"), "layerFilterPropertiesHeader");
   add_toggle(menu, QT_TR_NOOP("Has a Mask"), "layerFilterMaskAction", 1, kLayerFilterHasMask);
   add_toggle(menu, QT_TR_NOOP("Has a Layer Style"), "layerFilterStyleAction", 1, kLayerFilterHasStyle);
+  add_toggle(menu, QT_TR_NOOP("Has a Blend Mode"), "layerFilterBlendModeAction", 1, kLayerFilterHasBlendMode);
   add_toggle(menu, QT_TR_NOOP("Hidden"), "layerFilterHiddenAction", 1, kLayerFilterHidden);
   add_toggle(menu, QT_TR_NOOP("Locked"), "layerFilterLockedAction", 1, kLayerFilterLocked);
   add_toggle(menu, QT_TR_NOOP("Linked"), "layerFilterLinkedAction", 1, kLayerFilterLinked);

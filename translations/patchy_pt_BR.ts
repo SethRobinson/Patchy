@@ -36240,6 +36240,10 @@ Bloqueado: %1</translation>
         <source>Show Panel Titles</source>
         <translation>Mostrar títulos dos painéis</translation>
     </message>
+    <message>
+        <source>Has a Blend Mode</source>
+        <translation>Tem modo de mesclagem</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
