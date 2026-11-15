@@ -378,13 +378,19 @@ bool CanvasWidget::show_gradient_view_preview(LayerId layer_id, const LayerStyle
       break;
     }
   }
-  if (styled && !paints_pixels) {
-    for (int sample = 0; sample <= 64; ++sample) {
-      if (gradient_stop_opacity(gradient, static_cast<float>(sample) / 64.0F, true) < 0.999F) {
-        return false;
-      }
-    }
+  bool opaque_gradient = true;
+  for (int sample = 0; sample <= 64 && opaque_gradient; ++sample) {
+    opaque_gradient = gradient_stop_opacity(gradient, static_cast<float>(sample) / 64.0F, true) >= 0.999F;
   }
+  if (styled && !paints_pixels && !opaque_gradient) {
+    return false;
+  }
+  // Pixels mode paints over the layer's raster. A gradient that covers it everywhere (opaque
+  // stops at full Opacity, no selection, no transparency lock) leaves none of it showing, so
+  // the raster is the gradient alone and the layer need not be scaled down for the preview
+  // (once per drag, and proportional to the layer).
+  const bool over_layer = paints_pixels && !(opaque_gradient && gradient_opacity_ >= 100 && !has_selection() &&
+                                             !active_layer_locks_transparent_pixels());
   // The display's composite level, as the Warp preview picks it (GitHub #200, #298): one
   // level down between 50% and 100%, where full resolution is up to twice the screen's
   // pixels each way.
@@ -404,10 +410,10 @@ bool CanvasWidget::show_gradient_view_preview(LayerId layer_id, const LayerStyle
   };
   if (!gradient_view_preview_source_.has_value() || gradient_view_preview_source_->layer_id != layer_id ||
       gradient_view_preview_source_->level != level ||
-      gradient_view_preview_source_->keeps_layer_pixels != paints_pixels) {
+      gradient_view_preview_source_->keeps_layer_pixels != over_layer) {
     ++render_cache_diagnostics_.gradient_view_preview_source_builds;
     Document source(document);
-    if (!paints_pixels) {
+    if (!over_layer) {
       if (auto* fill = source.find_layer(layer_id); fill != nullptr) {
         fill->set_pixels(PixelBuffer());
       }
@@ -416,7 +422,7 @@ bool CanvasWidget::show_gradient_view_preview(LayerId layer_id, const LayerStyle
       preview_scale_cache_ = std::make_shared<PreviewScaleCache>();
     }
     gradient_view_preview_source_ = GradientFillViewPreviewSource{
-        layer_id, level, paints_pixels, build_preview_scaled_document(source, level, preview_scale_cache_.get()),
+        layer_id, level, over_layer, build_preview_scaled_document(source, level, preview_scale_cache_.get()),
         {}, QRect()};
   }
   render_cache_diagnostics_.gradient_view_preview_source_ms += stage_ms();
@@ -446,7 +452,7 @@ bool CanvasWidget::show_gradient_view_preview(LayerId layer_id, const LayerStyle
     const std::int32_t step = std::int32_t{1} << level;
     render_gradient_fill_draft(gradient, gradient_bounds, raster_rect.x() * step, raster_rect.y() * step, step,
                                raster_rect.width(), raster_rect.height(), gradient_view_preview_raster_);
-    if (paints_pixels) {
+    if (over_layer) {
       paint_gradient_view_preview_over_layer(*composite_layer, raster_rect, step);
     }
     render_cache_diagnostics_.gradient_view_preview_raster_ms += stage_ms();
