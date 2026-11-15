@@ -15897,6 +15897,158 @@ Do you want to replace it?</source>
         <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
         <translation>이 문서에 보존된 텍스트 엔진은 새로운 패스 위의 텍스트를 저장할 수 없습니다.</translation>
     </message>
+    <message>
+        <source>The contour file is too large</source>
+        <translation>윤곽선 파일이 너무 큽니다</translation>
+    </message>
+    <message>
+        <source>Not a Photoshop contour file</source>
+        <translation>Photoshop 윤곽선 파일이 아닙니다</translation>
+    </message>
+    <message>
+        <source>Unsupported contour file version</source>
+        <translation>지원되지 않는 윤곽선 파일 버전입니다</translation>
+    </message>
+    <message>
+        <source>Skipped a contour with fewer than two points</source>
+        <translation>점이 두 개 미만인 윤곽선을 건너뛰었습니다</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded contour</source>
+        <translation>마지막으로 읽은 윤곽선 뒤에서 파일이 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>The file holds no usable contours</source>
+        <translation>파일에 사용할 수 있는 윤곽선이 없습니다</translation>
+    </message>
+    <message>
+        <source>Contour graph</source>
+        <translation>윤곽선 그래프</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>점을 추가하려면 클릭하세요. 점을 드래그하면 이동하고, 그래프 밖으로 드래그하면 제거됩니다.</translation>
+    </message>
+    <message>
+        <source>Edit Contour</source>
+        <translation>윤곽선 편집</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s input level, left to right on the graph</source>
+        <translation>선택한 점의 입력 레벨 (그래프의 왼쪽에서 오른쪽)</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s output level, bottom to top on the graph</source>
+        <translation>선택한 점의 출력 레벨 (그래프의 아래에서 위)</translation>
+    </message>
+    <message>
+        <source>Corner</source>
+        <translation>모퉁이</translation>
+    </message>
+    <message>
+        <source>The curve turns sharply at this point instead of bending through it</source>
+        <translation>곡선이 이 점을 부드럽게 지나는 대신 날카롭게 꺾입니다</translation>
+    </message>
+    <message>
+        <source>Delete Point</source>
+        <translation>점 삭제</translation>
+    </message>
+    <message>
+        <source>Put the curve back the way it was when this dialog opened</source>
+        <translation>이 대화 상자를 열었을 때의 곡선으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>Click the graph to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>점을 추가하려면 그래프를 클릭하세요. 점을 드래그하면 이동하고, 그래프 밖으로 드래그하면 제거됩니다.</translation>
+    </message>
+    <message>
+        <source>Save Contours</source>
+        <translation>윤곽선 저장</translation>
+    </message>
+    <message>
+        <source>Contours to save in the file:</source>
+        <translation>파일에 저장할 윤곽선:</translation>
+    </message>
+    <message>
+        <source>The current style on a sample</source>
+        <translation>현재 스타일을 적용한 샘플</translation>
+    </message>
+    <message>
+        <source>Style preview</source>
+        <translation>스타일 미리 보기</translation>
+    </message>
+    <message>
+        <source>Click the curve to edit this contour</source>
+        <translation>곡선을 클릭하면 이 윤곽선을 편집할 수 있습니다</translation>
+    </message>
+    <message>
+        <source>Edit…</source>
+        <translation>편집…</translation>
+    </message>
+    <message>
+        <source>Edit this contour&apos;s curve</source>
+        <translation>이 윤곽선의 곡선을 편집합니다</translation>
+    </message>
+    <message>
+        <source>Library</source>
+        <translation>라이브러리</translation>
+    </message>
+    <message>
+        <source>Save this contour under a name, or load and save contour files</source>
+        <translation>이 윤곽선을 이름을 붙여 저장하거나 윤곽선 파일을 불러오고 저장합니다</translation>
+    </message>
+    <message>
+        <source>New Contour…</source>
+        <translation>새 윤곽선…</translation>
+    </message>
+    <message>
+        <source>Rename Contour…</source>
+        <translation>윤곽선 이름 바꾸기…</translation>
+    </message>
+    <message>
+        <source>Delete Contour</source>
+        <translation>윤곽선 삭제</translation>
+    </message>
+    <message>
+        <source>Load Contours…</source>
+        <translation>윤곽선 불러오기…</translation>
+    </message>
+    <message>
+        <source>Save Contours…</source>
+        <translation>윤곽선 저장…</translation>
+    </message>
+    <message>
+        <source>New Contour</source>
+        <translation>새 윤곽선</translation>
+    </message>
+    <message>
+        <source>Contour %1</source>
+        <translation>윤곽선 %1</translation>
+    </message>
+    <message>
+        <source>Could not save the contour.</source>
+        <translation>윤곽선을 저장할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Rename Contour</source>
+        <translation>윤곽선 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Could not rename the contour.</source>
+        <translation>윤곽선 이름을 바꿀 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Load Contours</source>
+        <translation>윤곽선 불러오기</translation>
+    </message>
+    <message>
+        <source>Photoshop Contours (*.shc)</source>
+        <translation>Photoshop 윤곽선(*.shc)</translation>
+    </message>
+    <message>
+        <source>Contours.shc</source>
+        <translation>윤곽선.shc</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21948,6 +22100,33 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is starting...</source>
         <translation>%1이(가) 시작되는 중입니다...</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ContourLibrary</name>
+    <message>
+        <source>Contour %1</source>
+        <translation>윤곽선 %1</translation>
+    </message>
+    <message>
+        <source>Could not read the contour file.</source>
+        <translation>윤곽선 파일을 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The contour file is too large.</source>
+        <translation>윤곽선 파일이 너무 큽니다.</translation>
+    </message>
+    <message>
+        <source>Could not save the contour &quot;%1&quot;.</source>
+        <translation>윤곽선 &quot;%1&quot;을(를) 저장할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Choose at least one contour to save.</source>
+        <translation>저장할 윤곽선을 하나 이상 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Could not write the contour file.</source>
+        <translation>윤곽선 파일을 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>

@@ -5,6 +5,7 @@
 #include "ui/layer_style_gradient_controls.hpp"
 #include "ui/layer_style_effect_pages.hpp"
 
+#include "core/contour_editing.hpp"
 #include "core/contour_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/style_contour.hpp"
@@ -13,6 +14,8 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/contour_editor_dialog.hpp"
+#include "ui/contour_library.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/modifier_names.hpp"
@@ -32,6 +35,7 @@
 #include "ui/ui_text_size.hpp"
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QCheckBox>
 #include <QColor>
@@ -48,9 +52,11 @@
 #include <QIcon>
 #include <QIconEngine>
 #include <QImage>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QObject>
@@ -581,74 +587,45 @@ QIcon pattern_preset_icon(const PixelBuffer& tile, int extent = 24) {
          std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
 }
 
-// Thumbnail of a contour curve: the engine LUT drawn as a polyline on a chip. The
-// chip is painted from theme() roles when the icon is drawn, never baked into a
-// pixmap at build time, so the combo follows a scheme change without rebuilding.
-class ContourPresetIconEngine final : public QIconEngine {
-public:
-  explicit ContourPresetIconEngine(StyleContour contour) : contour_(std::move(contour)) {}
-
-  void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
-    painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
-  }
-
-  QSize actualSize(const QSize& size, QIcon::Mode, QIcon::State) override {
-    const QSize native(kWidth, kHeight);
-    if (native.width() <= size.width() && native.height() <= size.height()) {
-      return native;
-    }
-    return native.scaled(size, Qt::KeepAspectRatio);
-  }
-
-  QPixmap pixmap(const QSize&, QIcon::Mode mode, QIcon::State) override {
-    auto chip = QPixmap::fromImage(chip_image());
-    if (mode == QIcon::Disabled) {
-      QStyleOption option;
-      return QApplication::style()->generatedIconPixmap(QIcon::Disabled, chip, &option);
-    }
-    return chip;
-  }
-
-  QIconEngine* clone() const override { return new ContourPresetIconEngine(*this); }
-
-private:
-  static constexpr int kWidth = 32;
-  static constexpr int kHeight = 24;
-
-  [[nodiscard]] QImage chip_image() const {
-    const auto& palette = theme();
-    QImage image(kWidth, kHeight, QImage::Format_RGBA8888);
-    image.fill(palette.field_bg_large);
-    QPainter painter(&image);
-    painter.setPen(palette.field_border);
-    painter.drawRect(0, 0, kWidth - 1, kHeight - 1);
-    const auto lut = build_style_contour_lut(contour_);
-    QPolygonF line;
-    for (int x = 0; x < kWidth; ++x) {
-      const auto t = static_cast<float>(x) / static_cast<float>(kWidth - 1);
-      const auto value = sample_style_contour_lut(lut, t, true);
-      line << QPointF(1.0 + x * (kWidth - 3.0) / (kWidth - 1.0),
-                      (kHeight - 2.0) - value * (kHeight - 4.0) + 1.0);
-    }
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(palette.icon_ink, 1.2));
-    painter.drawPolyline(line);
-    painter.end();
-    return image;
-  }
-
-  StyleContour contour_;
-};
-
-QIcon contour_preset_icon(const StyleContour& contour) {
-  return QIcon(new ContourPresetIconEngine(contour));
-}
-
 constexpr int kPatternIdRole = Qt::UserRole;
 constexpr int kPatternPersistNameRole = Qt::UserRole + 1;
 constexpr int kPatternPickerIndexRole = Qt::UserRole + 2;
 constexpr int kPatternPickerIsLeafRole = Qt::UserRole + 3;
 constexpr const char *kContourCustomId = "custom";
+// Item data of a contour from the user's library: this prefix, then its storage id.
+constexpr const char *kContourUserPrefix = "user:";
+constexpr int kStyleSwatchExtent = 72;
+
+// A press on the curve swatch at the left of a contour picker opens the contour
+// editor; the rest of the picker opens its list as before.
+class ContourSwatchClickFilter final : public QObject {
+public:
+  ContourSwatchClickFilter(QComboBox* combo, std::function<void()> edit)
+      : QObject(combo), combo_(combo), edit_(std::move(edit)) {}
+
+  [[nodiscard]] static QRect swatch_rect(const QComboBox& combo) {
+    const int width = combo.iconSize().width() + 10;
+    return combo.layoutDirection() == Qt::RightToLeft ? QRect(combo.width() - width, 0, width, combo.height())
+                                                      : QRect(0, 0, width, combo.height());
+  }
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == combo_ && combo_->isEnabled() &&
+        (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)) {
+      const auto* mouse = static_cast<QMouseEvent*>(event);
+      if (mouse->button() == Qt::LeftButton && swatch_rect(*combo_).contains(mouse->position().toPoint())) {
+        // Queued: the editor runs its own event loop, which must not start inside this filter.
+        QTimer::singleShot(0, combo_, edit_);
+        return true;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QComboBox* combo_;
+  std::function<void()> edit_;
+};
 
 // QComboBox does not present hierarchical models as an expandable tree on all
 // Qt styles. Keep its flat model for the selected-value display and existing
@@ -861,6 +838,17 @@ enum class LayerStyleEffectKind {
   PatternOverlay,
   BevelContour,
   BevelTexture
+};
+
+// One contour picker (GitHub issue 726): its list, the host's custom curve, and the
+// Edit and Library buttons beside it. `kind` and `leaf` name the property for batch edits.
+struct ContourPickerTools {
+  QComboBox* combo{};
+  StyleContour* custom{};
+  LayerStyleEffectKind kind{LayerStyleEffectKind::None};
+  const char* leaf{""};
+  QPushButton* edit{};
+  QPushButton* library{};
 };
 
 std::string effect_property_prefix(LayerStyleEffectKind kind, int index) {
@@ -1338,7 +1326,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
     GradientLibrary *gradient_library, RgbColor foreground,
     RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
-    std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect) {
+    std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect,
+    ContourLibrary* contour_library) {
   const auto request_started = std::chrono::steady_clock::now();
   load_stored_effect_defaults();
   const LayerStyleSettings original_settings{
@@ -1584,13 +1573,66 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* category_actions = new QHBoxLayout();
   category_actions->setContentsMargins(0, 0, 0, 0);
   category_actions->setSpacing(4);
+  // Style preview swatch (GitHub issue 726): the current settings on the style
+  // presets' sample, under the effect list. Changes coalesce on a short timer,
+  // so a slider drag renders at most once per tick, and the render is always a
+  // kStyleSwatchExtent square, whatever the document's size.
+  auto* style_swatch = new QLabel(category_pane);
+  style_swatch->setObjectName(QStringLiteral("layerStyleSwatch"));
+  style_swatch->setFixedSize(kStyleSwatchExtent + 2, kStyleSwatchExtent + 2);
+  style_swatch->setAlignment(Qt::AlignCenter);
+  style_swatch->setToolTip(QObject::tr("The current style on a sample"));
+  style_swatch->setAccessibleName(QObject::tr("Style preview"));
+  set_themed_style(*style_swatch,
+                   QStringLiteral("QLabel#layerStyleSwatch { border: 1px solid @field_border; }"));
+  category_actions->addWidget(style_swatch);
+  const auto render_style_swatch = [style_swatch, document_patterns, pattern_library](const LayerStyleSettings& settings) {
+    std::vector<PatternResource> swatch_patterns;
+    std::vector<std::string> referenced_ids;
+    collect_referenced_pattern_ids(settings.style, referenced_ids);
+    for (const auto& id : referenced_ids) {
+      if (document_patterns != nullptr) {
+        if (const auto* resource = document_patterns->find(id); resource != nullptr) {
+          swatch_patterns.push_back(*resource);
+          continue;
+        }
+      }
+      if (pattern_library != nullptr) {
+        if (auto resource = pattern_library->resource(QString::fromStdString(id)); resource.has_value()) {
+          swatch_patterns.push_back(std::move(*resource));
+        }
+      }
+    }
+    style_swatch->setPixmap(render_style_preview(
+        settings.style,
+        psd::AslBlendSettings{settings.opacity, settings.blend_mode, settings.blend_if, settings.fill_opacity},
+        swatch_patterns, kStyleSwatchExtent));
+  };
+  auto* style_swatch_timer = new QTimer(&dialog);
+  style_swatch_timer->setObjectName(QStringLiteral("layerStyleSwatchTimer"));
+  style_swatch_timer->setSingleShot(true);
+  style_swatch_timer->setInterval(40);
+  const auto style_swatch_pending = std::make_shared<std::optional<LayerStyleSettings>>();
+  QObject::connect(style_swatch_timer, &QTimer::timeout, &dialog, [render_style_swatch, style_swatch_pending] {
+    if (style_swatch_pending->has_value()) {
+      const auto settings = std::move(**style_swatch_pending);
+      style_swatch_pending->reset();
+      render_style_swatch(settings);
+    }
+  });
+  const auto schedule_style_swatch = [style_swatch_timer, style_swatch_pending](const LayerStyleSettings& settings) {
+    *style_swatch_pending = settings;
+    if (!style_swatch_timer->isActive()) {
+      style_swatch_timer->start();
+    }
+  };
   category_actions->addStretch(1);
   auto* remove_selected_instance = new QPushButton(category_pane);
   remove_selected_instance->setObjectName(QStringLiteral("layerStyleRemoveSelectedInstanceButton"));
   remove_selected_instance->setIcon(dialog.style()->standardIcon(QStyle::SP_TrashIcon));
   remove_selected_instance->setFixedSize(26, 24);
   remove_selected_instance->setToolTip(QObject::tr("Remove Selected Instance"));
-  category_actions->addWidget(remove_selected_instance);
+  category_actions->addWidget(remove_selected_instance, 0, Qt::AlignBottom);
   category_layout->addLayout(category_actions);
   body->addWidget(category_pane);
 
@@ -1865,17 +1907,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     combo->setCurrentIndex(index >= 0 ? index : 0);
   };
 
-  // Contour pickers: the built-in shape roster plus a leading "Custom" entry
-  // whenever the current curve matches no preset (imported Photoshop curves).
-  // The host-retained custom curve is only replaced by a deliberate preset
-  // pick.
-  auto make_contour_combo = [&](QWidget* combo_parent, const QString& object_name,
-                                const StyleContour& current, const StyleContour& custom_value) {
-    auto* combo = new QComboBox(combo_parent);
-    combo->setObjectName(object_name);
-    combo->setIconSize(QSize(32, 24));
-    const auto* matching = find_builtin_contour_preset(current);
-    if (matching == nullptr) {
+  // Contour pickers: the built-in shapes, then the user's saved contours, with a
+  // leading "Custom" entry while the host-retained custom curve is neither (an
+  // imported Photoshop curve, or one drawn in the contour editor). That curve is
+  // only replaced by a new custom curve, never by picking a listed contour.
+  auto listed_contour = [contour_library](const StyleContour& value) {
+    return find_builtin_contour_preset(value) != nullptr ||
+           (contour_library != nullptr && contour_library->find_matching(value) != nullptr);
+  };
+  auto fill_contour_combo = [contour_library, listed_contour](QComboBox* combo, const StyleContour& current,
+                                                              const StyleContour& custom_value) {
+    const QSignalBlocker blocker(combo);
+    combo->clear();
+    if (!listed_contour(custom_value)) {
       combo->addItem(contour_preset_icon(custom_value), QObject::tr("Custom"),
                      QString::fromLatin1(kContourCustomId));
     }
@@ -1883,35 +1927,66 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       combo->addItem(contour_preset_icon(preset.contour), translate_data_text(preset.english_name),
                      QString::fromLatin1(preset.id));
     }
-    if (matching != nullptr) {
-      combo->setCurrentIndex(
-          std::max(0, combo->findData(QString::fromLatin1(matching->id), kPatternIdRole)));
-    } else {
-      combo->setCurrentIndex(0);
+    if (contour_library != nullptr && !contour_library->entries().empty()) {
+      combo->insertSeparator(combo->count());
+      for (const auto& entry : contour_library->entries()) {
+        combo->addItem(contour_preset_icon(entry.contour), entry.name,
+                       QLatin1String(kContourUserPrefix) + entry.storage_id);
+      }
     }
+    int index = -1;
+    if (const auto* matching = find_builtin_contour_preset(current); matching != nullptr) {
+      index = combo->findData(QString::fromLatin1(matching->id));
+    } else if (const auto* entry = contour_library != nullptr ? contour_library->find_matching(current) : nullptr;
+               entry != nullptr) {
+      index = combo->findData(QLatin1String(kContourUserPrefix) + entry->storage_id);
+    } else {
+      index = combo->findData(QString::fromLatin1(kContourCustomId));
+    }
+    combo->setCurrentIndex(std::max(0, index));
+    combo->view()->setMinimumWidth(combo->view()->sizeHintForColumn(0) + 2 * combo->view()->frameWidth() +
+                                   combo->style()->pixelMetric(QStyle::PM_ScrollBarExtent));
+  };
+  auto make_contour_combo = [&](QWidget* combo_parent, const QString& object_name,
+                                const StyleContour& current, const StyleContour& custom_value) {
+    auto* combo = new QComboBox(combo_parent);
+    combo->setObjectName(object_name);
+    combo->setIconSize(QSize(32, 24));
+    combo->setToolTip(QObject::tr("Click the curve to edit this contour"));
+    // The list stretches with its row, but its minimum stays short, so the Edit
+    // and Library buttons fit beside it without widening the dialog and a long
+    // saved name cannot. The drop-down still shows every name in full
+    // (fill_contour_combo sizes it).
+    combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    combo->setMinimumContentsLength(10);
+    fill_contour_combo(combo, current, custom_value);
     return combo;
   };
-  auto contour_combo_value = [](const QComboBox* combo, const StyleContour& custom_value) {
+  auto contour_combo_value = [contour_library](const QComboBox* combo, const StyleContour& custom_value) {
     const auto id = combo->currentData().toString();
     if (id == QLatin1String(kContourCustomId)) {
       return custom_value;
+    }
+    if (id.startsWith(QLatin1String(kContourUserPrefix))) {
+      const auto* entry =
+          contour_library != nullptr
+              ? contour_library->find_entry(id.mid(static_cast<qsizetype>(std::strlen(kContourUserPrefix))))
+              : nullptr;
+      return entry != nullptr ? entry->contour : custom_value;
     }
     if (const auto* preset = find_builtin_contour_preset(id.toStdString()); preset != nullptr) {
       return preset->contour;
     }
     return custom_value;
   };
-  auto set_contour_combo_value = [](QComboBox* combo, const StyleContour& value) {
-    const auto* matching = find_builtin_contour_preset(value);
-    if (matching != nullptr) {
-      const auto index = combo->findData(QString::fromLatin1(matching->id));
-      if (index >= 0) {
-        combo->setCurrentIndex(index);
-        return;
-      }
+  // Shows `value` in a picker: its listed entry, or Custom with `value` as the
+  // new host-retained curve.
+  auto load_contour_picker = [listed_contour, fill_contour_combo](QComboBox* combo, StyleContour& custom_value,
+                                                                  const StyleContour& value) {
+    if (!listed_contour(value)) {
+      custom_value = value;
     }
-    const auto custom_index = combo->findData(QString::fromLatin1(kContourCustomId));
-    combo->setCurrentIndex(std::max(0, custom_index));
+    fill_contour_combo(combo, value, custom_value);
   };
 
   auto* blending_group = new QGroupBox(QObject::tr("Blending Options"), controls);
@@ -2349,6 +2424,37 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& shadow_conceals = shadow_page.shadow_conceals;
   auto& shadow_contour = shadow_page.shadow_contour;
   auto& shadow_anti_aliased = shadow_page.shadow_anti_aliased;
+  // The Edit and Library buttons sit between each contour list and its
+  // Anti-aliased box (GitHub issue 726); they are wired up further down, once
+  // emit_preview exists.
+  std::vector<ContourPickerTools> contour_pickers(3);
+  const auto bind_contour_picker = [&contour_pickers](std::size_t slot, QComboBox* combo, StyleContour* custom,
+                                                      LayerStyleEffectKind kind, const char* leaf) {
+    contour_pickers[slot].combo = combo;
+    contour_pickers[slot].custom = custom;
+    contour_pickers[slot].kind = kind;
+    contour_pickers[slot].leaf = leaf;
+  };
+  bind_contour_picker(0, bevel_gloss_contour, &custom_gloss_contour, LayerStyleEffectKind::BevelEmboss, "gloss_contour");
+  bind_contour_picker(1, bevel_contour_combo, &custom_bevel_sub_contour, LayerStyleEffectKind::BevelContour, "contour");
+  bind_contour_picker(2, shadow_contour, &custom_shadow_contour, LayerStyleEffectKind::DropShadow, "contour");
+  for (auto& picker : contour_pickers) {
+    auto* row = picker.combo->parentWidget();
+    const auto stem = picker.combo->objectName();
+    picker.edit = new QPushButton(QObject::tr("Edit…"), row);
+    picker.edit->setObjectName(stem + QStringLiteral("EditButton"));
+    picker.edit->setToolTip(QObject::tr("Edit this contour's curve"));
+    picker.library = new QPushButton(QObject::tr("Library"), row);
+    picker.library->setObjectName(stem + QStringLiteral("LibraryButton"));
+    picker.library->setToolTip(QObject::tr("Save this contour under a name, or load and save contour files"));
+    if (auto* row_layout = qobject_cast<QBoxLayout*>(row->layout()); row_layout != nullptr) {
+      const auto at = row_layout->indexOf(picker.combo) + 1;
+      row_layout->insertWidget(at, picker.edit);
+      row_layout->insertWidget(at + 1, picker.library);
+    }
+    QWidget::setTabOrder(picker.combo, picker.edit);
+    QWidget::setTabOrder(picker.edit, picker.library);
+  }
   auto& shadow_rows = shadow_page.shadow_rows;
   auto& shadow_red = shadow_page.shadow_red;
   auto& shadow_green = shadow_page.shadow_green;
@@ -2798,20 +2904,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         set_combo_data(bevel_shadow_blend, static_cast<int>(value.shadow_blend_mode));
         bevel_shadow_color = value.shadow_color;
         bevel_shadow_opacity->setValue(static_cast<int>(std::round(value.shadow_opacity * 100.0F)));
-        if (find_builtin_contour_preset(value.gloss_contour) == nullptr) {
-          custom_gloss_contour = value.gloss_contour;
-        }
-        set_contour_combo_value(bevel_gloss_contour, value.gloss_contour);
+        load_contour_picker(bevel_gloss_contour, custom_gloss_contour, value.gloss_contour);
         bevel_gloss_anti_aliased->setChecked(value.gloss_anti_aliased);
         update_bevel_color_previews();
         break;
       }
       case LayerStyleEffectKind::BevelContour: {
         const auto value = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
-        if (find_builtin_contour_preset(value.contour.contour) == nullptr) {
-          custom_bevel_sub_contour = value.contour.contour;
-        }
-        set_contour_combo_value(bevel_contour_combo, value.contour.contour);
+        load_contour_picker(bevel_contour_combo, custom_bevel_sub_contour, value.contour.contour);
         bevel_contour_anti_aliased->setChecked(value.contour.anti_aliased);
         bevel_contour_range->setValue(
             std::clamp(static_cast<int>(std::round(value.contour.range * 100.0F)), 1, 100));
@@ -2957,10 +3057,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         shadow_size->setValue(static_cast<int>(std::round(value.size)));
         shadow_spread->setValue(static_cast<int>(std::round(value.spread)));
         shadow_conceals->setChecked(value.layer_conceals);
-        if (find_builtin_contour_preset(value.contour) == nullptr) {
-          custom_shadow_contour = value.contour;
-        }
-        set_contour_combo_value(shadow_contour, value.contour);
+        load_contour_picker(shadow_contour, custom_shadow_contour, value.contour);
         shadow_anti_aliased->setChecked(value.anti_aliased);
         shadow_continuous->setChecked(value.continuous);
         shadow_fade->setValue(static_cast<int>(std::round(value.fade)));
@@ -3317,6 +3414,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       settings.edits = std::make_shared<const AppearanceEdits<LayerStyleSettings>>(*batch_edits);
     }
     style = settings.style;
+    schedule_style_swatch(settings);
     auto preview_settings = batch || preview_check->isChecked() ? settings : original_settings;
     if (batch) preview_settings.preview_enabled = preview_check->isChecked();
     if (refresh_batch_mixed) refresh_batch_mixed();
@@ -3816,6 +3914,207 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(shadow_contour, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
+
+  // Contour tools (GitHub issue 726): each picker's Edit button, a click on its
+  // curve swatch, and the Library menu (the user's saved contours and Photoshop
+  // .shc files). Every picker's value is read before the library changes and
+  // shown again after, so a contour that was deleted stays on its effect as
+  // Custom.
+  const auto contour_picker_values = [&] {
+    std::vector<StyleContour> values;
+    for (const auto& picker : contour_pickers) {
+      values.push_back(contour_combo_value(picker.combo, *picker.custom));
+    }
+    return values;
+  };
+  const auto show_contour_picker_values = [&](const std::vector<StyleContour>& values) {
+    for (std::size_t index = 0; index < contour_pickers.size(); ++index) {
+      load_contour_picker(contour_pickers[index].combo, *contour_pickers[index].custom, values[index]);
+    }
+  };
+  const auto preview_contour_change = [&](const ContourPickerTools& picker, bool immediate) {
+    if (batch) {
+      const auto* current = categories->currentItem();
+      const auto index = item_kind(current) == picker.kind ? item_effect_index(current) : 0;
+      explicit_fields = {effect_property_prefix(picker.kind, index) + "." + picker.leaf};
+    }
+    emit_preview(immediate);
+  };
+  const auto edit_contour = [&](ContourPickerTools& picker) {
+    const auto custom_before = *picker.custom;
+    const auto value_before = contour_combo_value(picker.combo, *picker.custom);
+    std::optional<AppearanceEdits<LayerStyleSettings>> edits_before;
+    if (batch) {
+      edits_before = *batch_edits;
+    }
+    const auto show = [&](const StyleContour& value, bool immediate) {
+      load_contour_picker(picker.combo, *picker.custom, value);
+      preview_contour_change(picker, immediate);
+    };
+    const auto edited =
+        request_contour_edit(&dialog, value_before, [&show](const StyleContour& value) { show(value, false); });
+    if (edited.has_value()) {
+      show(*edited, true);
+      return;
+    }
+    // Cancel: the picker, the host's custom curve and the batch edits go back.
+    *picker.custom = custom_before;
+    fill_contour_combo(picker.combo, value_before, *picker.custom);
+    if (batch && edits_before.has_value()) {
+      *batch_edits = *edits_before;
+      reset_batch_capture();
+    }
+    emit_preview(true);
+  };
+  const auto request_contour_name = [&](const QString& title, const QString& initial) -> std::optional<QString> {
+    QInputDialog prompt(&dialog);
+    prompt.setObjectName(QStringLiteral("layerStyleContourNameDialog"));
+    prompt.setWindowTitle(title);
+    prompt.setLabelText(QObject::tr("Name:"));
+    prompt.setInputMode(QInputDialog::TextInput);
+    prompt.setTextValue(initial);
+    if (exec_dialog(prompt) != QDialog::Accepted || prompt.textValue().trimmed().isEmpty()) {
+      return std::nullopt;
+    }
+    return prompt.textValue().trimmed();
+  };
+  const auto selected_user_contour = [&](const ContourPickerTools& picker) -> const ContourLibraryEntry* {
+    const auto id = picker.combo->currentData().toString();
+    if (contour_library == nullptr || !id.startsWith(QLatin1String(kContourUserPrefix))) {
+      return nullptr;
+    }
+    return contour_library->find_entry(id.mid(static_cast<qsizetype>(std::strlen(kContourUserPrefix))));
+  };
+  for (std::size_t picker_index = 0; picker_index < contour_pickers.size(); ++picker_index) {
+    auto* picker = &contour_pickers[picker_index];
+    QObject::connect(picker->edit, &QPushButton::clicked, &dialog, [&edit_contour, picker] { edit_contour(*picker); });
+    picker->combo->installEventFilter(
+        new ContourSwatchClickFilter(picker->combo, [&edit_contour, picker] { edit_contour(*picker); }));
+    auto* menu = new QMenu(picker->library);
+    menu->setObjectName(picker->combo->objectName() + QStringLiteral("LibraryMenu"));
+    auto* new_action = menu->addAction(QObject::tr("New Contour…"));
+    new_action->setObjectName(QStringLiteral("contourLibraryNewAction"));
+    auto* rename_action = menu->addAction(QObject::tr("Rename Contour…"));
+    rename_action->setObjectName(QStringLiteral("contourLibraryRenameAction"));
+    auto* delete_action = menu->addAction(QObject::tr("Delete Contour"));
+    delete_action->setObjectName(QStringLiteral("contourLibraryDeleteAction"));
+    menu->addSeparator();
+    auto* load_action = menu->addAction(QObject::tr("Load Contours…"));
+    load_action->setObjectName(QStringLiteral("contourLibraryLoadAction"));
+    auto* save_action = menu->addAction(QObject::tr("Save Contours…"));
+    save_action->setObjectName(QStringLiteral("contourLibrarySaveAction"));
+    picker->library->setMenu(menu);
+    picker->library->setEnabled(contour_library != nullptr);
+    const auto sync_menu = [&selected_user_contour, contour_library, picker, rename_action, delete_action, save_action] {
+      const bool user_contour = selected_user_contour(*picker) != nullptr;
+      rename_action->setEnabled(user_contour);
+      delete_action->setEnabled(user_contour);
+      save_action->setEnabled(contour_library != nullptr && !contour_library->entries().empty());
+    };
+    sync_menu();
+    QObject::connect(menu, &QMenu::aboutToShow, &dialog, sync_menu);
+    if (contour_library == nullptr) {
+      continue;
+    }
+    QObject::connect(new_action, &QAction::triggered, &dialog, [&, picker, picker_index] {
+      const auto contour_name = request_contour_name(
+          QObject::tr("New Contour"), QObject::tr("Contour %1").arg(contour_library->entries().size() + 1U));
+      if (!contour_name.has_value()) {
+        return;
+      }
+      auto values = contour_picker_values();
+      const auto id = contour_library->add_contour(*contour_name, values[picker_index]);
+      const auto* entry = contour_library->find_entry(id);
+      if (entry == nullptr) {
+        show_critical_message(&dialog, QObject::tr("New Contour"), QObject::tr("Could not save the contour."),
+                              QStringLiteral("layerStyleContourErrorDialog"));
+        return;
+      }
+      // The picker now shows the saved contour (whole levels, under its name).
+      values[picker_index] = entry->contour;
+      show_contour_picker_values(values);
+      preview_contour_change(*picker, true);
+    });
+    QObject::connect(rename_action, &QAction::triggered, &dialog, [&, picker] {
+      const auto* entry = selected_user_contour(*picker);
+      if (entry == nullptr) {
+        return;
+      }
+      const auto storage_id = entry->storage_id;
+      const auto contour_name = request_contour_name(QObject::tr("Rename Contour"), entry->name);
+      if (!contour_name.has_value()) {
+        return;
+      }
+      auto values = contour_picker_values();
+      if (!contour_library->rename_contour(storage_id, *contour_name)) {
+        show_critical_message(&dialog, QObject::tr("Rename Contour"), QObject::tr("Could not rename the contour."),
+                              QStringLiteral("layerStyleContourErrorDialog"));
+        return;
+      }
+      if (const auto* renamed = contour_library->find_entry(storage_id); renamed != nullptr) {
+        for (auto& value : values) {
+          if (style_contours_same_shape(value, renamed->contour)) {
+            value.name = renamed->contour.name;
+          }
+        }
+      }
+      show_contour_picker_values(values);
+      emit_preview(true);
+    });
+    QObject::connect(delete_action, &QAction::triggered, &dialog, [&, picker] {
+      const auto* entry = selected_user_contour(*picker);
+      if (entry == nullptr) {
+        return;
+      }
+      // The effects keep the curve: it shows as Custom once it is off the list.
+      const auto values = contour_picker_values();
+      if (contour_library->remove_contour(entry->storage_id)) {
+        show_contour_picker_values(values);
+      }
+    });
+    QObject::connect(load_action, &QAction::triggered, &dialog, [&] {
+      const auto path = get_open_file_name(&dialog, QObject::tr("Load Contours"), {},
+                                           QObject::tr("Photoshop Contours (*.shc)"), nullptr,
+                                           QStringLiteral("layerStyleLoadContoursFileDialog"));
+      if (path.isEmpty()) {
+        return;
+      }
+      const auto values = contour_picker_values();
+      QString error;
+      QStringList warnings;
+      (void)contour_library->import_shc(path, error, warnings);
+      show_contour_picker_values(values);
+      if (!error.isEmpty()) {
+        show_critical_message(&dialog, QObject::tr("Load Contours"), error,
+                              QStringLiteral("layerStyleContourErrorDialog"));
+      } else if (!warnings.isEmpty()) {
+        show_information_message(&dialog, QObject::tr("Load Contours"), warnings.join(QLatin1Char('\n')),
+                                 QStringLiteral("layerStyleContourWarningsDialog"));
+      }
+    });
+    QObject::connect(save_action, &QAction::triggered, &dialog, [&] {
+      const auto ids = request_contours_to_save(&dialog, *contour_library);
+      if (ids.isEmpty()) {
+        return;
+      }
+      auto path = get_save_file_name(&dialog, QObject::tr("Save Contours"), QObject::tr("Contours.shc"),
+                                     QObject::tr("Photoshop Contours (*.shc)"), nullptr,
+                                     QStringLiteral("layerStyleSaveContoursFileDialog"));
+      if (path.isEmpty()) {
+        return;
+      }
+      if (!path.endsWith(QStringLiteral(".shc"), Qt::CaseInsensitive)) {
+        path += QStringLiteral(".shc");
+      }
+      QString error;
+      if (!contour_library->export_shc(ids, path, error)) {
+        show_critical_message(&dialog, QObject::tr("Save Contours"), error,
+                              QStringLiteral("layerStyleContourErrorDialog"));
+        return;
+      }
+      offer_browser_download_for_saved_file(path);
+    });
+  }
   QObject::connect(shadow_anti_aliased, &QCheckBox::toggled, &dialog,
                    [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(shadow_continuous, &QCheckBox::toggled, &dialog, [&emit_preview, sync_continuous_controls](bool) {
@@ -4376,6 +4675,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                  std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
                                                            request_started)
                      .count());
+  render_style_swatch(build_current_settings());
   const auto exec_started = std::chrono::steady_clock::now();
   const auto dialog_result = run_non_modal_dialog(dialog);
   if (const auto own_size = pane_cap->own_size(); own_size.isValid() && dialog.size() != own_size) {

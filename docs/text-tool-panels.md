@@ -55,7 +55,9 @@ session, selection and commit boundary; a layer is read once per revision) and
   Center + Justify `justifyCenter`, Right + Justify `justifyRight`; `justifyAll` checks Justify
   with none of L / C / R (the sync lifts the group's exclusivity to clear them). Pressing L, C
   or R while Justify is on keeps it and changes the last line; Justify off returns to the plain
-  alignment (Left from Justify all).
+  alignment (Left from Justify all). L and R are sides: a right-to-left paragraph stores the
+  opposite name, and point text and text on a path show a stored justify mode as its plain
+  alignment with Justify disabled ([text-tool-alignment.md](text-tool-alignment.md#justify-modes)).
 - **Vertical** and **RTL** are icon buttons (`text_flow_toggle_icon`), named for screen readers
   and explained by their tooltips.
 - **RTL** is checked only for an explicit right to left paragraph (Auto shows unchecked); a
@@ -82,7 +84,7 @@ session, selection and commit boundary; a layer is read once per revision) and
 
 ## Paragraph panel
 
-- Options bar > Paragraph... (Text tool); edits alignment (Left, Center, Right and the four justify modes, [text-tool.md](text-tool.md#justify-modes)) plus Photoshop's five metrics (first line, left and right indent, space before and after). The fields show points at the document's text PPI and store document pixels, as `patchy.text.paragraph_runs` (v2 columns 4 to 8) and the TySh EngineData carry them. A negative first line indent with a positive left indent is a hanging indent (`/Hanging true` in the EngineData).
+- Options bar > Paragraph... (Text tool); edits alignment (Left, Center, Right and the four justify modes, [text-tool-alignment.md](text-tool-alignment.md#justify-modes)) plus Photoshop's five metrics (first line, left and right indent, space before and after). The fields show points at the document's text PPI and store document pixels, as `patchy.text.paragraph_runs` (v2 columns 4 to 8) and the TySh EngineData carry them. A negative first line indent with a positive left indent is a hanging indent (`/Hanging true` in the EngineData).
 - Same session model as the Character panel: inline, a change merges into the block formats of the paragraphs the selection touches (a bare caret: its own paragraph); with no session, into every paragraph of every selected unlocked text layer through the hidden-session path, one Type undo step. Block margins live in editor pixels (document px times the canvas zoom, divided by a PSD-frame session's display scale, the same conversion leading uses).
 - The panel reads the caret's paragraph in a session, else the active layer's first paragraph (1:1 render document); `sync_text_character_dialog_from_editor` and the alignment sync refresh it.
 - Scripting: `layer.textParagraph` (read the first paragraph, set merges into every paragraph) and the `paragraph` option of `addTextLayer`, document pixels ([scripting.md](scripting.md)). Tests: `ui_text_paragraph_panel_sets_indents_and_spacing`, `ui_script_text_paragraph_reads_and_sets_metrics`.

@@ -93,7 +93,9 @@ TextPathLinePlan text_path_line_plan(const QTextDocument& document, const Vector
   plan.line.line = line;
   plan.line.block_position = block.position();
   // The line's own x (Qt's alignment inside the layout width) stays; its baseline moves to y 0.
-  plan.line.block_origin = QPointF(0.0, -(line.y() + line.ascent()));
+  // A justified paragraph that fits is its own last line, which Justify (last line centered) and
+  // (last line right) center and end in the range, as Photoshop draws them on a path.
+  plan.line.block_origin = QPointF(justified_last_line_shift(block, line), -(line.y() + line.ascent()));
   plan.line.clip_rect = QRectF();
   // Trailing white space where the line wraps does not count as hidden text.
   const auto text = block.text();

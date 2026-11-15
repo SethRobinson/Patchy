@@ -37,12 +37,13 @@ struct BarTextLayers {
   patchy::LayerId beta{0};
 };
 
-// Two rendered text layers, no session (the issue 31 no-session path).
-BarTextLayers build_bar_text_layers(patchy::ui::MainWindow& window) {
+// Two rendered text layers, no session (the issue 31 no-session path). Point text, or with
+// `beta_boxed` a text box for Beta: only a box takes the justify modes (GitHub issue 717).
+BarTextLayers build_bar_text_layers(patchy::ui::MainWindow& window, bool beta_boxed = false) {
   patchy::Document built(520, 360, patchy::PixelFormat::rgba8());
   built.add_pixel_layer("Background", solid_pixels(520, 360, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   const auto family = QApplication::font().family().toStdString();
-  const auto add = [&](const char* name, QPoint origin) {
+  const auto add = [&](const char* name, QPoint origin, bool boxed = false) {
     patchy::Layer layer(built.allocate_layer_id(), name,
                         solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
     const auto id = layer.id();
@@ -51,12 +52,17 @@ BarTextLayers build_bar_text_layers(patchy::ui::MainWindow& window) {
     layer.metadata()[patchy::kLayerMetadataTextSize] = "30";
     layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
     layer.metadata()[patchy::kLayerMetadataTextFont] = family;
+    if (boxed) {
+      layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+      layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "300";
+      layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "80";
+    }
     built.add_layer(std::move(layer));
     return id;
   };
   BarTextLayers ids;
   ids.alpha = add("Alpha", QPoint(40, 40));
-  ids.beta = add("Beta", QPoint(40, 160));
+  ids.beta = add("Beta", QPoint(40, 160), beta_boxed);
   built.set_active_layer(ids.alpha);
   window.add_document_session(std::move(built), QStringLiteral("Issue673Bar"));
   auto& document = MainWindowTestAccess::document(window);
@@ -198,7 +204,7 @@ void ui_text_options_bar_style_toggles_follow_the_character_panel() {
 void ui_text_options_bar_justify_toggle_sets_the_justify_modes() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::ui::MainWindow window;
-  const auto ids = build_bar_text_layers(window);
+  const auto ids = build_bar_text_layers(window, true);
   show_window(window);
   require_canvas(window)->set_zoom(1.0);
   auto& document = MainWindowTestAccess::document(window);
@@ -285,9 +291,13 @@ void ui_text_options_bar_justify_toggle_sets_the_justify_modes() {
   bar_button(window, "textParagraphButton")->click();
   QApplication::processEvents();
   CHECK(drove);
-  // Other layers keep their own alignment and the bar shows each.
+  // Other layers keep their own alignment and the bar shows each. Alpha is point text: one
+  // line, so Justify is off there and on again for the box.
   select_row(window, QStringLiteral("Alpha"));
   CHECK(shows(true, false, false, false));
+  CHECK(!justify->isEnabled());
+  select_row(window, QStringLiteral("Beta"));
+  CHECK(justify->isEnabled());
 }
 
 // RTL is checked only for an explicit right to left paragraph; a press sets right to left, the

@@ -126,6 +126,7 @@
 #include <QSize>
 #include <QSizeF>
 #include <QSpinBox>
+#include <QStandardItemModel>
 #include <QString>
 #include <QStringList>
 #include <QStringLiteral>
@@ -3094,38 +3095,113 @@ double text_editor_anchor_alignment_factor(const QTextEdit& editor) {
              : 0.0;
 }
 
+// The first paragraph of a layer's stored paragraph runs (patchy.text.paragraph_runs): its
+// alignment name as stored and its resolved base direction.
+struct LayerFirstParagraph {
+  QString alignment{QStringLiteral("left")};
+  Qt::LayoutDirection direction{Qt::LeftToRight};
+  bool has_run{false};
+};
+
+LayerFirstParagraph layer_first_paragraph(const Layer& layer) {
+  LayerFirstParagraph result;
+  QString direction_field;
+  if (const auto found = layer.metadata().find(kLayerMetadataTextParagraphRuns); found != layer.metadata().end()) {
+    const auto lines = QString::fromStdString(found->second).split(QLatin1Char('\n'));
+    for (const auto& raw_line : lines) {
+      const auto line = raw_line.trimmed();
+      if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2")) {
+        continue;
+      }
+      const auto fields = line.split(QLatin1Char('\t'));
+      if (fields.size() < 3) {
+        continue;
+      }
+      result.alignment = fields[2];
+      result.has_run = true;
+      if (fields.size() >= 10) {
+        direction_field = fields[9];
+      }
+      break;
+    }
+  }
+  if (direction_field == QStringLiteral("rtl")) {
+    result.direction = Qt::RightToLeft;
+  } else if (direction_field != QStringLiteral("ltr")) {
+    // Auto: the first paragraph's own text decides, as the layout does.
+    if (const auto text = layer.metadata().find(kLayerMetadataText); text != layer.metadata().end()) {
+      const auto first_paragraph = QString::fromStdString(text->second).section(QLatin1Char('\n'), 0, 0);
+      if (first_paragraph.isRightToLeft()) {
+        result.direction = Qt::RightToLeft;
+      }
+    }
+  }
+  return result;
+}
+
 // Same as text_editor_anchor_alignment_factor, derived from a layer's stored paragraph runs for
 // paths that re-render text without an open editor (e.g. free transform of a text layer).
 double layer_anchor_alignment_factor(const Layer& layer) {
-  const auto found = layer.metadata().find(kLayerMetadataTextParagraphRuns);
-  if (found == layer.metadata().end()) {
-    return 0.0;
+  const auto first = layer_first_paragraph(layer);
+  return first.has_run
+             ? horizontal_alignment_anchor_factor(paragraph_alignment_from_name(first.alignment), first.direction)
+             : 0.0;
+}
+
+// What holds the lines, for the alignment the controls show and take (text_document.hpp).
+// Vertical type keeps its own rules (Top / Center / Bottom, every justify mode), so it reads
+// as a box.
+TextAlignmentFlow text_editor_alignment_flow(const QTextEdit& editor) {
+  if (text_editor_is_vertical(editor)) {
+    return TextAlignmentFlow::Box;
   }
-  const auto lines = QString::fromStdString(found->second).split(QLatin1Char('\n'));
-  for (const auto& raw_line : lines) {
-    const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2")) {
-      continue;
-    }
-    const auto fields = line.split(QLatin1Char('\t'));
-    if (fields.size() < 3) {
-      continue;
-    }
-    auto direction = Qt::LeftToRight;
-    if (fields.size() >= 10 && fields[9] == QStringLiteral("rtl")) {
-      direction = Qt::RightToLeft;
-    } else if (fields.size() < 10 || fields[9] != QStringLiteral("ltr")) {
-      // Auto: the first paragraph's own text decides, as the layout does.
-      if (const auto text = layer.metadata().find(kLayerMetadataText); text != layer.metadata().end()) {
-        const auto first_paragraph = QString::fromStdString(text->second).section(QLatin1Char('\n'), 0, 0);
-        if (first_paragraph.isRightToLeft()) {
-          direction = Qt::RightToLeft;
-        }
-      }
-    }
-    return horizontal_alignment_anchor_factor(paragraph_alignment_from_name(fields[2]), direction);
+  if (!editor.property(kTextEditorPathProperty).toString().isEmpty()) {
+    return TextAlignmentFlow::Path;
   }
-  return 0.0;
+  return text_flow_is_box(editor.property("patchy.documentTextFlow").toString()) ||
+                 !editor.property(kTextEditorAreaProperty).toString().isEmpty()
+             ? TextAlignmentFlow::Box
+             : TextAlignmentFlow::Point;
+}
+
+TextAlignmentFlow layer_text_alignment_flow(const Layer& layer) {
+  const auto& metadata = layer.metadata();
+  if (layer_text_is_vertical(layer)) {
+    return TextAlignmentFlow::Box;
+  }
+  if (metadata.contains(kLayerMetadataTextArea)) {
+    return TextAlignmentFlow::Box;
+  }
+  if (metadata.contains(kLayerMetadataTextPath)) {
+    return TextAlignmentFlow::Path;
+  }
+  const auto flow = metadata.find(kLayerMetadataTextFlow);
+  return flow != metadata.end() && text_flow_is_box(QString::fromStdString(flow->second))
+             ? TextAlignmentFlow::Box
+             : TextAlignmentFlow::Point;
+}
+
+// The alignment the controls show (GitHub issues 683 and 717): the side the lines stand on, so
+// a right-to-left paragraph stored "left" (its start edge) shows Right, and the plain alignment
+// for point text and text on a path. A session shows the caret's paragraph, a layer its first.
+QString text_editor_shown_alignment_name(const QTextEdit& editor) {
+  const auto block = editor.textCursor().block();
+  const auto stored = paragraph_alignment_name(block.blockFormat());
+  if (text_editor_is_vertical(editor)) {
+    return stored;
+  }
+  return shown_paragraph_alignment_name(stored, resolved_block_direction(block),
+                                        text_editor_alignment_flow(editor));
+}
+
+QString layer_shown_alignment_name(const Layer& layer) {
+  const auto first = layer_first_paragraph(layer);
+  const auto canonical = canonical_paragraph_alignment_name(first.alignment);
+  const auto stored = canonical.isEmpty() ? QStringLiteral("left") : canonical;
+  if (layer_text_is_vertical(layer)) {
+    return stored;
+  }
+  return shown_paragraph_alignment_name(stored, first.direction, layer_text_alignment_flow(layer));
 }
 
 bool text_document_has_non_left_alignment(const QTextDocument& document) {
@@ -10295,19 +10371,23 @@ void MainWindow::sync_text_paragraph_dialog_from_editor() {
   }
   QTextBlockFormat format;
   QString alignment_name;
+  // The justify entries are off for point text and text on a path (one line, no justify choice).
+  bool justify_available = true;
   double zoom = 1.0;
   double display_scale = 1.0;
   if (session_open) {
     // The caret's paragraph, the one a bare-caret edit changes.
     format = editor->textCursor().blockFormat();
-    alignment_name = paragraph_alignment_name(format);
+    alignment_name = text_editor_shown_alignment_name(*editor);
+    justify_available = text_editor_alignment_flow(*editor) == TextAlignmentFlow::Box;
     zoom = std::max(0.0001, canvas_->zoom());
     display_scale = text_editor_size_display_scale(*editor);
   } else {
     const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
                                                   inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
     format = built.document->begin().blockFormat();
-    alignment_name = paragraph_alignment_name(format);
+    alignment_name = layer_shown_alignment_name(*layer);
+    justify_available = layer_text_alignment_flow(*layer) == TextAlignmentFlow::Box;
     if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
       const auto scale = std::hypot((*affine)[2], (*affine)[3]);
       if (std::isfinite(scale) && scale > 0.01) {
@@ -10321,6 +10401,14 @@ void MainWindow::sync_text_paragraph_dialog_from_editor() {
   const QSignalBlocker block_align(text_paragraph_align_combo_);
   const auto align_index = text_paragraph_align_combo_->findData(alignment_name);
   text_paragraph_align_combo_->setCurrentIndex(std::max(0, align_index));
+  if (auto* model = qobject_cast<QStandardItemModel*>(text_paragraph_align_combo_->model()); model != nullptr) {
+    for (int row = 0; row < model->rowCount(); ++row) {
+      if (auto* item = model->item(row);
+          item != nullptr && item->data(Qt::UserRole).toString().startsWith(QStringLiteral("justify"))) {
+        item->setEnabled(justify_available);
+      }
+    }
+  }
   const auto set_metric = [&to_display_pt](UnitSpinBox* spin, double editor_px) {
     const QSignalBlocker blocker(spin);
     const auto pt = to_display_pt(std::isfinite(editor_px) ? editor_px : 0.0);
@@ -13991,8 +14079,9 @@ void MainWindow::apply_text_alignment_to_active_editor(const QString& alignment)
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  // `alignment` is what a control shows: a side, which each paragraph stores by its direction.
   if (editor != nullptr) {
-    apply_text_alignment_to_editor(*editor, alignment);
+    apply_shown_text_alignment_to_editor(*editor, alignment);
     sync_text_alignment_buttons_from_editor();
     schedule_text_editor_preview(editor);
     return;
@@ -14003,10 +14092,35 @@ void MainWindow::apply_text_alignment_to_active_editor(const QString& alignment)
     auto cursor = target.textCursor();
     cursor.select(QTextCursor::Document);
     target.setTextCursor(cursor);
-    apply_text_alignment_to_editor(target, alignment);
+    apply_shown_text_alignment_to_editor(target, alignment);
     return true;
   });
   sync_text_alignment_buttons_from_editor();
+}
+
+void MainWindow::apply_shown_text_alignment_to_editor(QTextEdit& editor, const QString& alignment) {
+  if (text_editor_is_vertical(editor)) {
+    apply_text_alignment_to_editor(editor, alignment);
+    return;
+  }
+  // Each paragraph the selection touches stores the name for its own direction (GitHub issue
+  // 683), so Right puts a left-to-right and a right-to-left paragraph both on the right. Point
+  // text and text on a path take a justify mode as its plain alignment (issue 717).
+  const auto flow = text_editor_alignment_flow(editor);
+  const auto selection = editor.textCursor();
+  auto* document = editor.document();
+  QTextCursor edit(document);
+  edit.beginEditBlock();
+  for (auto block = document->findBlock(selection.selectionStart());
+       block.isValid() && block.position() <= selection.selectionEnd(); block = block.next()) {
+    QTextBlockFormat format;
+    set_paragraph_alignment(format,
+                            stored_paragraph_alignment_name(alignment, resolved_block_direction(block), flow));
+    // A cursor with no selection merges into its own block only.
+    QTextCursor(block).mergeBlockFormat(format);
+  }
+  edit.endEditBlock();
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_alignment_to_editor(QTextEdit& editor, const QString& alignment) {
@@ -14082,7 +14196,8 @@ void MainWindow::apply_text_direction_to_active_editor(Qt::LayoutDirection direc
     apply(*editor);
     mark_text_editor_changed(editor);
     relayout_text_editor(editor, true);
-    sync_text_orientation_controls_from_editor();
+    // The alignment buttons show sides, which a paragraph's direction swaps (GitHub issue 683).
+    sync_text_alignment_buttons_from_editor();
     schedule_text_editor_preview(editor);
     return;
   }
@@ -14094,7 +14209,7 @@ void MainWindow::apply_text_direction_to_active_editor(Qt::LayoutDirection direc
       return apply(target);
     });
   }
-  sync_text_orientation_controls_from_editor();
+  sync_text_alignment_buttons_from_editor();
 }
 
 void MainWindow::sync_text_orientation_controls_from_editor() {
@@ -14169,8 +14284,13 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
     return;
   }
   // L / C / R show the last line and Justify sits on top (GitHub issue 673); Justify all has no
-  // last-line alignment, so it shows Justify alone.
+  // last-line alignment, so it shows Justify alone. The name is the shown one: the side the
+  // lines stand on (issue 683), never a justify mode for point text or text on a path, where
+  // Justify is off (issue 717).
   const auto name = current_text_alignment_name();
+  if (text_justify_button_ != nullptr) {
+    text_justify_button_->setEnabled(current_text_justify_available());
+  }
   const bool justified = name.startsWith(QStringLiteral("justify"));
   const bool left = name == QStringLiteral("left") || name == QStringLiteral("justify");
   const bool center = name == QStringLiteral("center") || name == QStringLiteral("justifyCenter");
@@ -14219,7 +14339,7 @@ void MainWindow::refresh_type_menu_states() {
   int anti_alias = text_anti_alias_;
   QTextCharFormat format;
   if (session_open) {
-    alignment_name = paragraph_alignment_name(editor->textCursor().blockFormat());
+    alignment_name = text_editor_shown_alignment_name(*editor);
     direction = editor->textCursor().blockFormat().layoutDirection();
     vertical = text_editor_is_vertical(*editor);
     anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
@@ -14228,7 +14348,7 @@ void MainWindow::refresh_type_menu_states() {
     const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
                                                   inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
     const auto block = built.document->begin().blockFormat();
-    alignment_name = paragraph_alignment_name(block);
+    alignment_name = layer_shown_alignment_name(*layer);
     direction = block.layoutDirection();
     vertical = layer_text_is_vertical(*layer);
     if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias);
@@ -14575,24 +14695,27 @@ void MainWindow::choose_text_anti_alias(int value) {
 QString MainWindow::current_text_alignment_name() const {
   const auto* editor =
       canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  // The shown name: sides for a right-to-left paragraph, the plain alignment outside a box.
   if (editor != nullptr) {
-    return paragraph_alignment_name(editor->textCursor().blockFormat());
+    return text_editor_shown_alignment_name(*editor);
   }
   if (const auto* layer = text_character_target_layer(); layer != nullptr) {
     // No session: the active text layer's first paragraph (column 2 of patchy.text.paragraph_runs).
-    if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
-        found != layer->metadata().end()) {
-      for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
-        const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
-        if (fields.size() < 3) {
-          continue;
-        }
-        const auto name = canonical_paragraph_alignment_name(fields[2]);
-        return name.isEmpty() ? QStringLiteral("left") : name;
-      }
-    }
+    return layer_shown_alignment_name(*layer);
   }
   return QStringLiteral("left");
+}
+
+bool MainWindow::current_text_justify_available() const {
+  const auto* editor =
+      canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  if (editor != nullptr) {
+    return text_editor_alignment_flow(*editor) == TextAlignmentFlow::Box;
+  }
+  if (const auto* layer = text_character_target_layer(); layer != nullptr) {
+    return layer_text_alignment_flow(*layer) == TextAlignmentFlow::Box;
+  }
+  return true;
 }
 
 void MainWindow::apply_text_alignment_base_from_options_bar(const QString& base) {

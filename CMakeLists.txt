@@ -171,6 +171,7 @@ add_library(patchy_core
   src/core/brush_dynamics.cpp
   src/core/paint_mode.cpp
   src/core/brush_tip.cpp
+  src/core/contour_editing.cpp
   src/core/contour_presets.cpp
   src/core/document.cpp
   src/core/document_channel.cpp
@@ -439,6 +440,7 @@ add_library(patchy_psd
   src/psd/csh_io.cpp
   src/psd/grd_io.cpp
   src/psd/pat_reader.cpp
+  src/psd/shc_io.cpp
   src/psd/psd_adjustments.cpp
   src/psd/psd_artboard.cpp
   src/psd/psd_binary.cpp
@@ -1706,6 +1708,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/sprite_sheet_dialog.cpp
       src/ui/style_browser.hpp
       src/ui/style_browser.cpp
+      src/ui/contour_editor_dialog.hpp
+      src/ui/contour_editor_dialog.cpp
+      src/ui/contour_library.hpp
+      src/ui/contour_library.cpp
       src/ui/style_library.hpp
       src/ui/style_library.cpp
       src/ui/style_manager_dialog.hpp
@@ -2542,6 +2548,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/trustmark_tests.cpp
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
+    tests/core/contour_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
     tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
@@ -2758,6 +2765,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp
       tests/ui/adjustment_presets_tests.cpp
+      tests/ui/contour_editor_tests.cpp
       tests/ui/selection_engines_tests.cpp
       tests/ui/ai_selection_tests.cpp
       tests/ui/misc_visuals_outline_stress_tests.cpp

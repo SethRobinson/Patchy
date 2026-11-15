@@ -280,6 +280,50 @@ void set_paragraph_alignment(QTextBlockFormat& format, const QString& name) {
   format.setProperty(kTextBlockJustifyLastLineProperty, static_cast<int>(entry->last_line));
 }
 
+QString paragraph_alignment_name_for_direction(const QString& name, Qt::LayoutDirection direction) {
+  if (direction != Qt::RightToLeft) {
+    return name;
+  }
+  if (name == QLatin1String("left")) {
+    return QStringLiteral("right");
+  }
+  if (name == QLatin1String("right")) {
+    return QStringLiteral("left");
+  }
+  if (name == QLatin1String("justify")) {
+    return QStringLiteral("justifyRight");
+  }
+  if (name == QLatin1String("justifyRight")) {
+    return QStringLiteral("justify");
+  }
+  return name;
+}
+
+QString plain_paragraph_alignment_name(const QString& name, TextAlignmentFlow flow) {
+  if (flow == TextAlignmentFlow::Box || !name.startsWith(QLatin1String("justify"))) {
+    return name;
+  }
+  if (flow == TextAlignmentFlow::Path) {
+    if (name == QLatin1String("justifyCenter")) {
+      return QStringLiteral("center");
+    }
+    if (name == QLatin1String("justifyRight")) {
+      return QStringLiteral("right");
+    }
+  }
+  return QStringLiteral("left");
+}
+
+QString shown_paragraph_alignment_name(const QString& stored, Qt::LayoutDirection direction,
+                                       TextAlignmentFlow flow) {
+  return paragraph_alignment_name_for_direction(plain_paragraph_alignment_name(stored, flow), direction);
+}
+
+QString stored_paragraph_alignment_name(const QString& shown, Qt::LayoutDirection direction,
+                                        TextAlignmentFlow flow) {
+  return plain_paragraph_alignment_name(paragraph_alignment_name_for_direction(shown, direction), flow);
+}
+
 QTextCharFormat text_format_with_smoothing(QTextCharFormat format, int anti_alias) {
   auto font = format.font();
   configure_text_font_smoothing(font, anti_alias);
@@ -1748,7 +1792,8 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     // Before the forced flag below: this relays the document out once more.
     apply_word_space_justification_to_document(document);
   }
-  if ((settings.boxed || settings.area.has_value()) && !settings.vertical) {
+  // A line on a path is justified like a one-line box (Photoshop 2027 probes, GitHub issue 717).
+  if ((settings.boxed || settings.area.has_value() || on_path) && !settings.vertical) {
     apply_justify_all_to_document(document);
   }
   apply_text_smoothing_to_document(document, settings.anti_alias);

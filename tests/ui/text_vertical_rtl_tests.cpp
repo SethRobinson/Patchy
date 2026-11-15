@@ -33,6 +33,7 @@
 #include "ui/main_window.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/text_document.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
@@ -51,8 +52,12 @@
 #include <QFontComboBox>
 #include <QFontDatabase>
 #include <QListWidget>
+#include <QMenu>
 #include <QPushButton>
 #include <QTimer>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QTextEdit>
 #include <algorithm>
 #include <cmath>
@@ -1453,6 +1458,320 @@ void ui_script_add_text_layer_vertical_and_rtl_options() {
   CHECK(text_layers == 2);
 }
 
+// Column 2 (the stored alignment name) of each paragraph run of a text layer, in order.
+QStringList stored_paragraph_alignments(const patchy::Layer& layer) {
+  QStringList names;
+  const auto found = layer.metadata().find(patchy::kLayerMetadataTextParagraphRuns);
+  if (found == layer.metadata().end()) {
+    return names;
+  }
+  for (const auto& line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+    const auto fields = line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() >= 3) {
+      names.push_back(fields[2]);
+    }
+  }
+  return names;
+}
+
+// First and last ink column of a layer in document pixels; {-1, -1} for no ink.
+std::pair<int, int> ink_columns(const patchy::Layer& layer) {
+  const auto bands = ink_bands(layer.pixels(), true);
+  if (bands.empty()) {
+    return {-1, -1};
+  }
+  return {layer.bounds().x + bands.front().first, layer.bounds().x + bands.back().second};
+}
+
+// What the options bar's alignment buttons show: the checked one of L / C / R, "+justify" when
+// Justify is checked, "(justify off)" when the Justify button is disabled.
+QString bar_alignment(patchy::ui::MainWindow& window) {
+  QString shown;
+  for (const auto& [object_name, label] : {std::pair{"textAlignLeftButton", "left"},
+                                           std::pair{"textAlignCenterButton", "center"},
+                                           std::pair{"textAlignRightButton", "right"}}) {
+    const auto* button = window.findChild<QPushButton*>(QLatin1String(object_name));
+    CHECK(button != nullptr);
+    if (button != nullptr && button->isChecked()) {
+      shown += QLatin1String(label);
+    }
+  }
+  const auto* justify = window.findChild<QPushButton*>(QStringLiteral("textJustifyButton"));
+  CHECK(justify != nullptr);
+  if (justify != nullptr && justify->isChecked()) {
+    shown += QStringLiteral("+justify");
+  }
+  if (justify != nullptr && !justify->isEnabled()) {
+    shown += QStringLiteral("(justify off)");
+  }
+  return shown;
+}
+
+// The checked entry of Type > Alignment after the menu refreshes its checks.
+QString menu_alignment(patchy::ui::MainWindow& window) {
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("typeMenu"));
+  auto* alignment = window.findChild<QMenu*>(QStringLiteral("typeAlignmentMenu"));
+  CHECK(menu != nullptr && alignment != nullptr);
+  if (menu == nullptr || alignment == nullptr) {
+    return {};
+  }
+  emit menu->aboutToShow();
+  QString checked;
+  for (const auto* action : alignment->actions()) {
+    if (action->isChecked()) {
+      checked += action->data().toString();
+    }
+  }
+  return checked;
+}
+
+// GitHub issue 683: alignment is stored by the paragraph's start and end edge (as Qt and
+// Photoshop keep it), so a right-to-left paragraph stored "left" stands on the right. The
+// options bar, Type > Alignment and the Paragraph panel show the side the lines stand on and a
+// pick puts them on that side, in both directions, with and without a session; a selection of
+// paragraphs in both directions lands on one side.
+void ui_rtl_alignment_controls_show_and_set_sides() {
+  register_test_fonts(TestFontRole::UiDefault);
+  if (QFontDatabase::families(QFontDatabase::Hebrew).isEmpty()) {
+    patchy::test::skip("no Hebrew-capable font available on this machine");
+  }
+  {
+    using patchy::ui::shown_paragraph_alignment_name;
+    using patchy::ui::stored_paragraph_alignment_name;
+    using patchy::ui::TextAlignmentFlow;
+    for (const auto* name : {"left", "center", "right", "justify", "justifyCenter", "justifyRight", "justifyAll"}) {
+      const auto stored = QString::fromLatin1(name);
+      // Left to right in a box: stored and shown are the same; the mapping is its own inverse.
+      CHECK(shown_paragraph_alignment_name(stored, Qt::LeftToRight, TextAlignmentFlow::Box) == stored);
+      const auto shown = shown_paragraph_alignment_name(stored, Qt::RightToLeft, TextAlignmentFlow::Box);
+      CHECK(stored_paragraph_alignment_name(shown, Qt::RightToLeft, TextAlignmentFlow::Box) == stored);
+    }
+    CHECK(shown_paragraph_alignment_name(QStringLiteral("left"), Qt::RightToLeft, TextAlignmentFlow::Box) ==
+          QStringLiteral("right"));
+    CHECK(shown_paragraph_alignment_name(QStringLiteral("justifyRight"), Qt::RightToLeft, TextAlignmentFlow::Box) ==
+          QStringLiteral("justify"));
+    CHECK(shown_paragraph_alignment_name(QStringLiteral("justifyAll"), Qt::RightToLeft, TextAlignmentFlow::Box) ==
+          QStringLiteral("justifyAll"));
+    // Point text and text on a path show a justify mode as its plain alignment.
+    CHECK(shown_paragraph_alignment_name(QStringLiteral("justifyCenter"), Qt::LeftToRight, TextAlignmentFlow::Point) ==
+          QStringLiteral("left"));
+    CHECK(shown_paragraph_alignment_name(QStringLiteral("justifyCenter"), Qt::LeftToRight, TextAlignmentFlow::Path) ==
+          QStringLiteral("center"));
+    CHECK(shown_paragraph_alignment_name(QStringLiteral("justify"), Qt::RightToLeft, TextAlignmentFlow::Path) ==
+          QStringLiteral("right"));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Each box is 300 px wide from x = 40, so its middle is x = 190.
+  CHECK(run_script_to_end(window, QStringLiteral(R"JS(
+    var doc = app.newDocument(600, 420);
+    var hebrew = 'שלום עולם';
+    var rtl = doc.addTextLayer(hebrew, {font: 'Arial', size: 24, x: 40, y: 30, box: {width: 300, height: 60},
+                                        direction: 'rtl', align: 'left'});
+    rtl.name = 'Rtl';
+    var ltr = doc.addTextLayer('Hello world', {font: 'Arial', size: 24, x: 40, y: 110, box: {width: 300, height: 60}});
+    ltr.name = 'Ltr';
+    var mixed = doc.addTextLayer('Hello world\n' + hebrew,
+                                 {font: 'Arial', size: 24, x: 40, y: 190, box: {width: 300, height: 100}});
+    mixed.name = 'Mixed';
+    var point = doc.addTextLayer(hebrew, {font: 'Arial', size: 24, x: 300, y: 360, direction: 'rtl', align: 'justify'});
+    point.name = 'RtlPoint';
+  )JS")));
+  QApplication::processEvents();
+  // The new document's canvas, not the one the window opened with.
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_named = [&document](const char* name) -> const patchy::Layer* {
+    for (const auto& layer : std::as_const(document).layers()) {
+      if (layer.name() == name) {
+        return &layer;
+      }
+    }
+    return nullptr;
+  };
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* left = window.findChild<QPushButton*>(QStringLiteral("textAlignLeftButton"));
+  auto* center = window.findChild<QPushButton*>(QStringLiteral("textAlignCenterButton"));
+  auto* right = window.findChild<QPushButton*>(QStringLiteral("textAlignRightButton"));
+  auto* justify = window.findChild<QPushButton*>(QStringLiteral("textJustifyButton"));
+  auto* rtl_toggle = window.findChild<QPushButton*>(QStringLiteral("textRtlButton"));
+  CHECK(layer_list != nullptr && left != nullptr && center != nullptr && right != nullptr && justify != nullptr &&
+        rtl_toggle != nullptr);
+  CHECK(layer_named("Rtl") != nullptr && layer_named("Ltr") != nullptr && layer_named("Mixed") != nullptr &&
+        layer_named("RtlPoint") != nullptr);
+  if (layer_list == nullptr || left == nullptr || center == nullptr || right == nullptr || justify == nullptr ||
+      rtl_toggle == nullptr || layer_named("Rtl") == nullptr || layer_named("Ltr") == nullptr ||
+      layer_named("Mixed") == nullptr || layer_named("RtlPoint") == nullptr) {
+    return;
+  }
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto select = [&](const char* name) {
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(require_layer_item(*layer_list, QString::fromLatin1(name)));
+    QApplication::processEvents();
+  };
+  const auto click = [](QPushButton* button) {
+    button->click();
+    QApplication::processEvents();
+  };
+  const auto stored = [&](const char* name) { return stored_paragraph_alignments(*layer_named(name)); };
+  const auto report = [&](const char* step, const char* name) {
+    const auto columns = ink_columns(*layer_named(name));
+    std::printf("  %s: %s stored [%s], ink x %d..%d, bar %s\n", step, name,
+                stored(name).join(QLatin1Char(',')).toUtf8().constData(), columns.first, columns.second,
+                bar_alignment(window).toUtf8().constData());
+    std::fflush(stdout);
+  };
+
+  // Shown: stored "left" in a right-to-left box stands against the right edge and shows Right.
+  select("Rtl");
+  report("as made", "Rtl");
+  CHECK(stored("Rtl") == QStringList{QStringLiteral("left")});
+  CHECK(ink_columns(*layer_named("Rtl")).first > 190);
+  CHECK(bar_alignment(window) == QStringLiteral("right"));
+  CHECK(menu_alignment(window) == QStringLiteral("right"));
+  QString panel_shown;
+  with_paragraph_panel(window, [&panel_shown](QDialog& dialog) {
+    if (auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("textParagraphAlignCombo")); combo != nullptr) {
+      panel_shown = combo->currentData().toString();
+    }
+  });
+  CHECK(panel_shown == QStringLiteral("right"));
+
+  // Set: Left puts the lines on the left, which is this paragraph's end edge. One undo step.
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  click(left);
+  report("Left", "Rtl");
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(stored("Rtl") == QStringList{QStringLiteral("right")});
+  CHECK(ink_columns(*layer_named("Rtl")).second < 190);
+  CHECK(bar_alignment(window) == QStringLiteral("left"));
+  CHECK(menu_alignment(window) == QStringLiteral("left"));
+  // Justify on top of Left is Justify (last line left): the last line at the end edge.
+  click(justify);
+  CHECK(stored("Rtl") == QStringList{QStringLiteral("justifyRight")});
+  CHECK(bar_alignment(window) == QStringLiteral("left+justify"));
+  CHECK(menu_alignment(window) == QStringLiteral("justify"));
+  // Type > Alignment > Justify (last line right): the last line at the start edge.
+  require_action(window, "typeAlignJustifyRightAction")->trigger();
+  QApplication::processEvents();
+  CHECK(stored("Rtl") == QStringList{QStringLiteral("justify")});
+  CHECK(bar_alignment(window) == QStringLiteral("right+justify"));
+  CHECK(menu_alignment(window) == QStringLiteral("justifyRight"));
+  // The Paragraph panel sets a side too.
+  with_paragraph_panel(window, [](QDialog& dialog) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("textParagraphAlignCombo"));
+    CHECK(combo != nullptr);
+    if (combo != nullptr) {
+      CHECK(combo->currentData().toString() == QStringLiteral("justifyRight"));
+      combo->setCurrentIndex(combo->findData(QStringLiteral("right")));
+    }
+  });
+  report("panel Right", "Rtl");
+  CHECK(stored("Rtl") == QStringList{QStringLiteral("left")});
+  CHECK(ink_columns(*layer_named("Rtl")).first > 190);
+  CHECK(bar_alignment(window) == QStringLiteral("right"));
+
+  // Left to right text is as before, and turning its direction swaps the side it shows.
+  select("Ltr");
+  CHECK(bar_alignment(window) == QStringLiteral("left"));
+  click(right);
+  report("Right", "Ltr");
+  CHECK(stored("Ltr") == QStringList{QStringLiteral("right")});
+  CHECK(ink_columns(*layer_named("Ltr")).first > 190);
+  CHECK(bar_alignment(window) == QStringLiteral("right"));
+  click(rtl_toggle);
+  report("RTL on", "Ltr");
+  CHECK(stored("Ltr") == QStringList{QStringLiteral("right")});
+  CHECK(ink_columns(*layer_named("Ltr")).second < 190);
+  CHECK(bar_alignment(window) == QStringLiteral("left"));
+
+  // Both directions in one layer: Right puts every paragraph on the right, each by its own
+  // direction, and Left every one on the left.
+  select("Mixed");
+  CHECK(bar_alignment(window) == QStringLiteral("left"));
+  click(right);
+  report("Right", "Mixed");
+  CHECK(stored("Mixed") == (QStringList{QStringLiteral("right"), QStringLiteral("left")}));
+  CHECK(ink_columns(*layer_named("Mixed")).first > 190);
+  CHECK(bar_alignment(window) == QStringLiteral("right"));
+  click(left);
+  report("Left", "Mixed");
+  CHECK(stored("Mixed") == (QStringList{QStringLiteral("left"), QStringLiteral("right")}));
+  CHECK(ink_columns(*layer_named("Mixed")).second < 190);
+
+  // In a session the buttons follow the caret's paragraph and a pick reaches only the
+  // paragraphs the selection touches.
+  {
+    const auto bounds = layer_named("Mixed")->bounds();
+    const auto hit = canvas->widget_position_for_document_point(QPoint(bounds.x + 20, bounds.y + 12));
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    process_events_for(250);
+  }
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  const auto caret_to = [&](int position, int anchor = -1) {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(anchor >= 0 ? anchor : position);
+    if (anchor >= 0) {
+      cursor.setPosition(position, QTextCursor::KeepAnchor);
+    }
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+  };
+  const auto block_alignment = [&](int index) {
+    return editor->document()->findBlockByNumber(index).blockFormat().alignment();
+  };
+  CHECK(editor->document()->blockCount() == 2);
+  const int second = editor->document()->findBlockByNumber(1).position();
+  caret_to(0);
+  CHECK(bar_alignment(window) == QStringLiteral("left"));
+  caret_to(second + 1);
+  CHECK(bar_alignment(window) == QStringLiteral("left"));  // stored "right", a right-to-left paragraph
+  CHECK(menu_alignment(window) == QStringLiteral("left"));
+  click(right);
+  CHECK((block_alignment(1) & Qt::AlignLeft) != 0);
+  CHECK((block_alignment(0) & Qt::AlignLeft) != 0);  // the other paragraph is untouched
+  CHECK(bar_alignment(window) == QStringLiteral("right"));
+  caret_to(0);
+  CHECK(bar_alignment(window) == QStringLiteral("left"));
+  // A selection over both: Right is the end edge of one and the start edge of the other.
+  caret_to(second + 1, 1);
+  click(right);
+  CHECK((block_alignment(0) & Qt::AlignRight) != 0);
+  CHECK((block_alignment(1) & Qt::AlignLeft) != 0);
+  CHECK(bar_alignment(window) == QStringLiteral("right"));
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(200);
+  report("session Right", "Mixed");
+  CHECK(stored("Mixed") == (QStringList{QStringLiteral("right"), QStringLiteral("left")}));
+  CHECK(ink_columns(*layer_named("Mixed")).first > 190);
+
+  // Right-to-left point text storing a justify mode: it stands at its start edge, so it shows
+  // Right, and Justify is off (one line has nothing to justify).
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  select("RtlPoint");
+  CHECK(stored("RtlPoint") == QStringList{QStringLiteral("justify")});
+  CHECK(bar_alignment(window) == QStringLiteral("right(justify off)"));
+  CHECK(menu_alignment(window) == QStringLiteral("right"));
+  click(left);
+  CHECK(stored("RtlPoint") == QStringList{QStringLiteral("right")});
+  CHECK(bar_alignment(window) == QStringLiteral("left(justify off)"));
+  // A box takes Justify again.
+  select("Rtl");
+  CHECK(justify->isEnabled());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_vertical_rtl_tests() {
@@ -1465,6 +1784,7 @@ std::vector<patchy::test::TestCase> text_vertical_rtl_tests() {
        ui_vertical_text_recommit_keeps_origin_and_round_trips_psd},
       {"ui_text_orientation_toggle_converts_layer_and_undoes", ui_text_orientation_toggle_converts_layer_and_undoes},
       {"ui_rtl_hebrew_paragraph_direction_reorders_and_persists", ui_rtl_hebrew_paragraph_direction_reorders_and_persists},
+      {"ui_rtl_alignment_controls_show_and_set_sides", ui_rtl_alignment_controls_show_and_set_sides},
       {"ui_script_add_text_layer_vertical_and_rtl_options", ui_script_add_text_layer_vertical_and_rtl_options},
       {"ui_text_character_panel_leading_unlocks_and_applies", ui_text_character_panel_leading_unlocks_and_applies},
       {"ui_new_text_size_scales_with_the_document", ui_new_text_size_scales_with_the_document},

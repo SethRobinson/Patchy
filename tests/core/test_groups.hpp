@@ -37,6 +37,7 @@ std::vector<patchy::test::TestCase> guide_layout_tests();
 std::vector<patchy::test::TestCase> layer_alignment_tests();
 std::vector<patchy::test::TestCase> brush_engine_tests();
 std::vector<patchy::test::TestCase> pat_asl_abr_tests();
+std::vector<patchy::test::TestCase> contour_tests();
 std::vector<patchy::test::TestCase> pixel_tools_tests();
 std::vector<patchy::test::TestCase> palette_tests();
 std::vector<patchy::test::TestCase> document_ops_filters_tests();

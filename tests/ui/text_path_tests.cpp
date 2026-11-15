@@ -24,6 +24,8 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -36,9 +38,12 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPointer>
+#include <QPushButton>
+#include <QStandardItemModel>
 #include <QTest>
 #include <QTextCursor>
 #include <QTextEdit>
+#include <QTimer>
 #include <QWidget>
 
 #include <algorithm>
@@ -2463,6 +2468,241 @@ void ui_text_path_flip_command_flips_a_committed_layer() {
   QApplication::processEvents();
 }
 
+// Column 2 (the stored alignment name) of a text layer's first paragraph run.
+QString stored_alignment(const Document& document, LayerId id) {
+  const auto* layer = document.find_layer(id);
+  if (layer == nullptr) return {};
+  const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+  if (found == layer->metadata().end()) return {};
+  for (const auto& line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+    const auto fields = line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() >= 3) return fields[2];
+  }
+  return {};
+}
+
+// What the options bar's alignment buttons show: the checked one of L / C / R, "+justify" when
+// Justify is checked, "(justify off)" when the Justify button is disabled.
+QString bar_alignment(MainWindow& window) {
+  QString shown;
+  for (const auto& [object_name, label] : {std::pair{"textAlignLeftButton", "left"},
+                                           std::pair{"textAlignCenterButton", "center"},
+                                           std::pair{"textAlignRightButton", "right"}}) {
+    const auto* button = window.findChild<QPushButton*>(QLatin1String(object_name));
+    CHECK(button != nullptr);
+    if (button != nullptr && button->isChecked()) shown += QLatin1String(label);
+  }
+  const auto* justify = window.findChild<QPushButton*>(QStringLiteral("textJustifyButton"));
+  CHECK(justify != nullptr);
+  if (justify != nullptr && justify->isChecked()) shown += QStringLiteral("+justify");
+  if (justify != nullptr && !justify->isEnabled()) shown += QStringLiteral("(justify off)");
+  return shown;
+}
+
+// The checked entry of Type > Alignment after the menu refreshes its checks.
+QString menu_alignment(MainWindow& window) {
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("typeMenu"));
+  auto* alignment = window.findChild<QMenu*>(QStringLiteral("typeAlignmentMenu"));
+  CHECK(menu != nullptr && alignment != nullptr);
+  if (menu == nullptr || alignment == nullptr) return {};
+  emit menu->aboutToShow();
+  QString checked;
+  for (const auto* action : alignment->actions()) {
+    if (action->isChecked()) checked += action->data().toString();
+  }
+  return checked;
+}
+
+// The Paragraph panel's alignment entry, and how many of its four justify entries can be picked.
+struct PanelAlignment {
+  QString shown;
+  int justify_entries_enabled{-1};
+};
+
+PanelAlignment panel_alignment(MainWindow& window) {
+  PanelAlignment result;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    if (auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("textParagraphAlignCombo")); combo != nullptr) {
+      result.shown = combo->currentData().toString();
+      result.justify_entries_enabled = 0;
+      if (const auto* model = qobject_cast<QStandardItemModel*>(combo->model()); model != nullptr) {
+        for (int row = 0; row < model->rowCount(); ++row) {
+          const auto* item = model->item(row);
+          if (item != nullptr && item->data(Qt::UserRole).toString().startsWith(QStringLiteral("justify")) &&
+              item->isEnabled()) {
+            ++result.justify_entries_enabled;
+          }
+        }
+      }
+    }
+    dialog->reject();
+  }));
+  auto* button = window.findChild<QPushButton*>(QStringLiteral("textParagraphButton"));
+  CHECK(button != nullptr);
+  if (button != nullptr) button->click();
+  QApplication::processEvents();
+  return result;
+}
+
+void select_layer_row(MainWindow& window, const QString& name) {
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  if (list == nullptr) return;
+  list->clearSelection();
+  list->setCurrentItem(require_layer_item(*list, name));
+  QApplication::processEvents();
+}
+
+// GitHub issue 717: a line on a path is justified like a one-line box, as Photoshop draws it,
+// and the controls show its plain alignment with Justify off. The expected ink columns are
+// Photoshop 2027's (COM, November 2026): a 660 x 320 px document, a straight path from (80, 160)
+// to (580, 160), black Arial 48 px. "fits" is IIIII IIIII; "over" is ten such groups, of which
+// the range holds six.
+void ui_text_path_justify_modes_draw_like_photoshop_and_show_plain_alignment() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  struct Case {
+    const char* name;
+    const char* align;
+    bool over;
+    int left;
+    int right;  // one past the last ink column, as Photoshop's bounds give it
+    const char* shown;
+  };
+  const std::vector<Case> cases{
+      {"left", "left", false, 84, 222, "left"},
+      {"center", "center", false, 261, 399, "center"},
+      {"right", "right", false, 437, 576, "right"},
+      {"justify", "justify", false, 84, 222, "left"},
+      {"justifyCenter", "justifyCenter", false, 261, 399, "center"},
+      {"justifyRight", "justifyRight", false, 437, 576, "right"},
+      {"justifyAll", "justifyAll", false, 84, 576, "left"},
+      {"over-left", "left", true, 84, 542, "left"},
+      {"over-justify", "justify", true, 84, 576, "left"},
+      {"over-right", "right", true, 117, 576, "right"},
+  };
+  QJsonArray specs;
+  for (const auto& entry : cases) {
+    specs.push_back(QJsonObject{{"name", entry.name}, {"align", entry.align}, {"over", entry.over}});
+  }
+  const auto ids = run(window, QStringLiteral(R"JS(
+    var d=app.newDocument(660,320);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:160},{x:580,y:160}]}]};
+    var fits='IIIII IIIII',over=[];
+    for(var i=0;i<10;i++)over.push('IIIII');
+    var ids=%1.map(function(spec){
+      var t=d.addTextLayer(spec.over?over.join(' '):fits,{font:'Arial',size:48,path:p,align:spec.align});
+      t.name=spec.name;
+      check(t.textAlign===spec.align,'the stored alignment is the one asked for');
+      return t.id;
+    });
+    var point=d.addTextLayer('Point',{font:'Arial',size:24,x:40,y:60,align:'justifyCenter'});point.name='point';
+    var box=d.addTextLayer('Box text',
+        {font:'Arial',size:24,x:40,y:220,box:{width:200,height:60},align:'justifyCenter'});
+    box.name='box';
+    patchy.setResult(ids);
+  )JS").arg(QString::fromUtf8(QJsonDocument(specs).toJson(QJsonDocument::Compact)))).toArray();
+  CHECK(ids.size() == static_cast<qsizetype>(cases.size()));
+  if (ids.size() != static_cast<qsizetype>(cases.size())) return;
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  for (std::size_t i = 0; i < cases.size(); ++i) {
+    const auto& entry = cases[i];
+    const auto id = ids[static_cast<qsizetype>(i)].toString().toULongLong();
+    const auto* layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) continue;
+    const auto ink = ink_bounds(layer_on_white(*layer, QSize(660, 320)));
+    std::printf("  %s: ink x %d..%d (Photoshop %d..%d)\n", entry.name, ink.left(), ink.right() + 1, entry.left,
+                entry.right);
+    CHECK(std::abs(ink.left() - entry.left) <= 2);
+    CHECK(std::abs(ink.right() + 1 - entry.right) <= 2);
+    // The mode stays in the layer; the controls show the plain alignment and no Justify.
+    CHECK(stored_alignment(doc, id) == QLatin1String(entry.align));
+    select_layer_row(window, QLatin1String(entry.name));
+    CHECK(bar_alignment(window) == QLatin1String(entry.shown) + QStringLiteral("(justify off)"));
+    CHECK(menu_alignment(window) == QLatin1String(entry.shown));
+  }
+  std::fflush(stdout);
+
+  // The Paragraph panel shows the same and turns its justify entries off.
+  select_layer_row(window, QStringLiteral("justifyCenter"));
+  auto panel = panel_alignment(window);
+  CHECK(panel.shown == QStringLiteral("center"));
+  CHECK(panel.justify_entries_enabled == 0);
+  // Point text sets every justify mode at its start edge; a text box keeps the choice.
+  select_layer_row(window, QStringLiteral("point"));
+  CHECK(bar_alignment(window) == QStringLiteral("left(justify off)"));
+  CHECK(menu_alignment(window) == QStringLiteral("left"));
+  select_layer_row(window, QStringLiteral("box"));
+  CHECK(bar_alignment(window) == QStringLiteral("center+justify"));
+  CHECK(menu_alignment(window) == QStringLiteral("justifyCenter"));
+  panel = panel_alignment(window);
+  CHECK(panel.shown == QStringLiteral("justifyCenter"));
+  CHECK(panel.justify_entries_enabled == 4);
+
+  // An edit that leaves the alignment alone keeps the stored mode, so a save gives Photoshop
+  // back what it wrote; picking an alignment stores that one.
+  const auto center_id = ids[4].toString().toULongLong();
+  run(window, QStringLiteral("var t=app.activeDocument.findLayer('justifyCenter');t.text='IIIII III';"
+                             "check(t.textAlign==='justifyCenter','kept');"));
+  CHECK(stored_alignment(doc, center_id) == QStringLiteral("justifyCenter"));
+  select_layer_row(window, QStringLiteral("justifyCenter"));
+  CHECK(bar_alignment(window) == QStringLiteral("center(justify off)"));
+  auto* right = window.findChild<QPushButton*>(QStringLiteral("textAlignRightButton"));
+  CHECK(right != nullptr);
+  if (right == nullptr) return;
+  right->click();
+  QApplication::processEvents();
+  CHECK(stored_alignment(doc, center_id) == QStringLiteral("right"));
+  CHECK(bar_alignment(window) == QStringLiteral("right(justify off)"));
+  // A justify entry picked from the menu (or a key bound to it) comes to its plain alignment.
+  require_action(window, "typeAlignJustifyCenterAction")->trigger();
+  QApplication::processEvents();
+  CHECK(stored_alignment(doc, center_id) == QStringLiteral("center"));
+  CHECK(bar_alignment(window) == QStringLiteral("center(justify off)"));
+}
+
+// The reporter's file (GitHub issue 717): both texts are right-to-left paragraphs that store
+// Justify with the last line at the start edge and a first line indent, left over from the
+// Paragraph panel. Photoshop sets them from the right end of their range and shows no justify
+// mode; Patchy showed Left with Justify on.
+void ui_text_path_older_photoshop_cc_file_shows_plain_alignment_if_available() {
+  const auto fixture = older_photoshop_cc_fixture();
+  patchy::test::skip_unless_exists(fixture);
+  if (older_photoshop_cc_fonts_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  const auto quoted =
+      QString::fromUtf8(QJsonDocument(QJsonArray{to_qstring(fixture)}).toJson(QJsonDocument::Compact));
+  const auto layers = run(window, QStringLiteral(R"JS(
+    var d=app.open(%1[0]);
+    var texts=d.layers.filter(function(l){return l.isText;});
+    check(texts.length===2,'two type layers');
+    patchy.setResult(texts.map(function(t){return {id:t.id,name:t.name};}));
+  )JS").arg(quoted)).toArray();
+  CHECK(layers.size() == 2);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  for (const auto& value : layers) {
+    const auto entry = value.toObject();
+    const auto id = entry["id"].toString().toULongLong();
+    CHECK(stored_alignment(doc, id) == QStringLiteral("justify"));
+    select_layer_row(window, entry["name"].toString());
+    CHECK(bar_alignment(window) == QStringLiteral("right(justify off)"));
+    CHECK(menu_alignment(window) == QStringLiteral("right"));
+    CHECK(panel_alignment(window).shown == QStringLiteral("right"));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_path_tests() {
@@ -2498,6 +2738,10 @@ std::vector<patchy::test::TestCase> text_path_tests() {
        ui_text_first_click_on_point_and_area_text_puts_the_caret_at_the_click},
       {"ui_text_path_handles_move_the_range_and_flip", ui_text_path_handles_move_the_range_and_flip},
       {"ui_text_path_flip_command_flips_a_committed_layer", ui_text_path_flip_command_flips_a_committed_layer},
+      {"ui_text_path_justify_modes_draw_like_photoshop_and_show_plain_alignment",
+       ui_text_path_justify_modes_draw_like_photoshop_and_show_plain_alignment},
+      {"ui_text_path_older_photoshop_cc_file_shows_plain_alignment_if_available",
+       ui_text_path_older_photoshop_cc_file_shows_plain_alignment_if_available},
       {"ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer",
        ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer},
       {"ui_paths_panel_delete_key_on_text_boundary_row_deletes_the_text_layer",

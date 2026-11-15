@@ -15897,6 +15897,158 @@ Do you want to replace it?</source>
         <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
         <translation>此文档保留的文本引擎无法存储新的路径文本。</translation>
     </message>
+    <message>
+        <source>The contour file is too large</source>
+        <translation>等高线文件过大</translation>
+    </message>
+    <message>
+        <source>Not a Photoshop contour file</source>
+        <translation>不是 Photoshop 等高线文件</translation>
+    </message>
+    <message>
+        <source>Unsupported contour file version</source>
+        <translation>不支持的等高线文件版本</translation>
+    </message>
+    <message>
+        <source>Skipped a contour with fewer than two points</source>
+        <translation>已跳过一个少于两个点的等高线</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded contour</source>
+        <translation>文件在最后一个读取的等高线之后已损坏</translation>
+    </message>
+    <message>
+        <source>The file holds no usable contours</source>
+        <translation>文件中没有可用的等高线</translation>
+    </message>
+    <message>
+        <source>Contour graph</source>
+        <translation>等高线图</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>单击可添加点。拖动点可移动它，拖出图表可将其删除。</translation>
+    </message>
+    <message>
+        <source>Edit Contour</source>
+        <translation>编辑等高线</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s input level, left to right on the graph</source>
+        <translation>所选点的输入色阶，在图表上从左到右</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s output level, bottom to top on the graph</source>
+        <translation>所选点的输出色阶，在图表上从下到上</translation>
+    </message>
+    <message>
+        <source>Corner</source>
+        <translation>边角</translation>
+    </message>
+    <message>
+        <source>The curve turns sharply at this point instead of bending through it</source>
+        <translation>曲线在此点急转，而不是平滑地经过它</translation>
+    </message>
+    <message>
+        <source>Delete Point</source>
+        <translation>删除点</translation>
+    </message>
+    <message>
+        <source>Put the curve back the way it was when this dialog opened</source>
+        <translation>将曲线恢复为打开此对话框时的样子</translation>
+    </message>
+    <message>
+        <source>Click the graph to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>单击图表可添加点。拖动点可移动它，拖出图表可将其删除。</translation>
+    </message>
+    <message>
+        <source>Save Contours</source>
+        <translation>存储等高线</translation>
+    </message>
+    <message>
+        <source>Contours to save in the file:</source>
+        <translation>要存储到文件中的等高线:</translation>
+    </message>
+    <message>
+        <source>The current style on a sample</source>
+        <translation>应用于示例的当前样式</translation>
+    </message>
+    <message>
+        <source>Style preview</source>
+        <translation>样式预览</translation>
+    </message>
+    <message>
+        <source>Click the curve to edit this contour</source>
+        <translation>单击曲线可编辑此等高线</translation>
+    </message>
+    <message>
+        <source>Edit…</source>
+        <translation>编辑…</translation>
+    </message>
+    <message>
+        <source>Edit this contour&apos;s curve</source>
+        <translation>编辑此等高线的曲线</translation>
+    </message>
+    <message>
+        <source>Library</source>
+        <translation>库</translation>
+    </message>
+    <message>
+        <source>Save this contour under a name, or load and save contour files</source>
+        <translation>以名称存储此等高线，或载入和存储等高线文件</translation>
+    </message>
+    <message>
+        <source>New Contour…</source>
+        <translation>新建等高线…</translation>
+    </message>
+    <message>
+        <source>Rename Contour…</source>
+        <translation>重命名等高线…</translation>
+    </message>
+    <message>
+        <source>Delete Contour</source>
+        <translation>删除等高线</translation>
+    </message>
+    <message>
+        <source>Load Contours…</source>
+        <translation>载入等高线…</translation>
+    </message>
+    <message>
+        <source>Save Contours…</source>
+        <translation>存储等高线…</translation>
+    </message>
+    <message>
+        <source>New Contour</source>
+        <translation>新建等高线</translation>
+    </message>
+    <message>
+        <source>Contour %1</source>
+        <translation>等高线 %1</translation>
+    </message>
+    <message>
+        <source>Could not save the contour.</source>
+        <translation>无法存储等高线。</translation>
+    </message>
+    <message>
+        <source>Rename Contour</source>
+        <translation>重命名等高线</translation>
+    </message>
+    <message>
+        <source>Could not rename the contour.</source>
+        <translation>无法重命名等高线。</translation>
+    </message>
+    <message>
+        <source>Load Contours</source>
+        <translation>载入等高线</translation>
+    </message>
+    <message>
+        <source>Photoshop Contours (*.shc)</source>
+        <translation>Photoshop 等高线 (*.shc)</translation>
+    </message>
+    <message>
+        <source>Contours.shc</source>
+        <translation>等高线.shc</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21948,6 +22100,33 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is starting...</source>
         <translation>%1 正在启动...</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ContourLibrary</name>
+    <message>
+        <source>Contour %1</source>
+        <translation>等高线 %1</translation>
+    </message>
+    <message>
+        <source>Could not read the contour file.</source>
+        <translation>无法读取等高线文件。</translation>
+    </message>
+    <message>
+        <source>The contour file is too large.</source>
+        <translation>等高线文件过大。</translation>
+    </message>
+    <message>
+        <source>Could not save the contour &quot;%1&quot;.</source>
+        <translation>无法存储等高线“%1”。</translation>
+    </message>
+    <message>
+        <source>Choose at least one contour to save.</source>
+        <translation>请至少选择一个要存储的等高线。</translation>
+    </message>
+    <message>
+        <source>Could not write the contour file.</source>
+        <translation>无法写入等高线文件。</translation>
     </message>
 </context>
 <context>

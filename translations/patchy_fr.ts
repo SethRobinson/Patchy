@@ -15953,6 +15953,158 @@ Voulez-vous le remplacer ?</translation>
         <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
         <translation>Le moteur de texte conservé de ce document ne permet pas d’enregistrer de nouveau texte sur un tracé.</translation>
     </message>
+    <message>
+        <source>The contour file is too large</source>
+        <translation>Le fichier de contours est trop volumineux</translation>
+    </message>
+    <message>
+        <source>Not a Photoshop contour file</source>
+        <translation>Ce n&apos;est pas un fichier de contours Photoshop</translation>
+    </message>
+    <message>
+        <source>Unsupported contour file version</source>
+        <translation>Version de fichier de contours non prise en charge</translation>
+    </message>
+    <message>
+        <source>Skipped a contour with fewer than two points</source>
+        <translation>Un contour de moins de deux points a été ignoré</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded contour</source>
+        <translation>Le fichier est endommagé après le dernier contour lu</translation>
+    </message>
+    <message>
+        <source>The file holds no usable contours</source>
+        <translation>Le fichier ne contient aucun contour utilisable</translation>
+    </message>
+    <message>
+        <source>Contour graph</source>
+        <translation>Graphique du contour</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>Cliquez pour ajouter un point. Faites glisser un point pour le déplacer, ou hors du graphique pour le supprimer.</translation>
+    </message>
+    <message>
+        <source>Edit Contour</source>
+        <translation>Modifier le contour</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s input level, left to right on the graph</source>
+        <translation>Le niveau d&apos;entrée du point sélectionné, de gauche à droite sur le graphique</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s output level, bottom to top on the graph</source>
+        <translation>Le niveau de sortie du point sélectionné, de bas en haut sur le graphique</translation>
+    </message>
+    <message>
+        <source>Corner</source>
+        <translation>Angle</translation>
+    </message>
+    <message>
+        <source>The curve turns sharply at this point instead of bending through it</source>
+        <translation>La courbe forme un angle net en ce point au lieu de le traverser en douceur</translation>
+    </message>
+    <message>
+        <source>Delete Point</source>
+        <translation>Supprimer le point</translation>
+    </message>
+    <message>
+        <source>Put the curve back the way it was when this dialog opened</source>
+        <translation>Rétablit la courbe telle qu&apos;elle était à l&apos;ouverture de cette boîte de dialogue</translation>
+    </message>
+    <message>
+        <source>Click the graph to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>Cliquez sur le graphique pour ajouter un point. Faites glisser un point pour le déplacer, ou hors du graphique pour le supprimer.</translation>
+    </message>
+    <message>
+        <source>Save Contours</source>
+        <translation>Enregistrer les contours</translation>
+    </message>
+    <message>
+        <source>Contours to save in the file:</source>
+        <translation>Contours à enregistrer dans le fichier :</translation>
+    </message>
+    <message>
+        <source>The current style on a sample</source>
+        <translation>Le style actuel sur un exemple</translation>
+    </message>
+    <message>
+        <source>Style preview</source>
+        <translation>Aperçu du style</translation>
+    </message>
+    <message>
+        <source>Click the curve to edit this contour</source>
+        <translation>Cliquez sur la courbe pour modifier ce contour</translation>
+    </message>
+    <message>
+        <source>Edit…</source>
+        <translation>Modifier…</translation>
+    </message>
+    <message>
+        <source>Edit this contour&apos;s curve</source>
+        <translation>Modifier la courbe de ce contour</translation>
+    </message>
+    <message>
+        <source>Library</source>
+        <translation>Bibliothèque</translation>
+    </message>
+    <message>
+        <source>Save this contour under a name, or load and save contour files</source>
+        <translation>Enregistrer ce contour sous un nom, ou charger et enregistrer des fichiers de contours</translation>
+    </message>
+    <message>
+        <source>New Contour…</source>
+        <translation>Nouveau contour…</translation>
+    </message>
+    <message>
+        <source>Rename Contour…</source>
+        <translation>Renommer le contour…</translation>
+    </message>
+    <message>
+        <source>Delete Contour</source>
+        <translation>Supprimer le contour</translation>
+    </message>
+    <message>
+        <source>Load Contours…</source>
+        <translation>Charger des contours…</translation>
+    </message>
+    <message>
+        <source>Save Contours…</source>
+        <translation>Enregistrer les contours…</translation>
+    </message>
+    <message>
+        <source>New Contour</source>
+        <translation>Nouveau contour</translation>
+    </message>
+    <message>
+        <source>Contour %1</source>
+        <translation>Contour %1</translation>
+    </message>
+    <message>
+        <source>Could not save the contour.</source>
+        <translation>Impossible d&apos;enregistrer le contour.</translation>
+    </message>
+    <message>
+        <source>Rename Contour</source>
+        <translation>Renommer le contour</translation>
+    </message>
+    <message>
+        <source>Could not rename the contour.</source>
+        <translation>Impossible de renommer le contour.</translation>
+    </message>
+    <message>
+        <source>Load Contours</source>
+        <translation>Charger des contours</translation>
+    </message>
+    <message>
+        <source>Photoshop Contours (*.shc)</source>
+        <translation>Contours Photoshop (*.shc)</translation>
+    </message>
+    <message>
+        <source>Contours.shc</source>
+        <translation>Contours.shc</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22010,6 +22162,33 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>%1 is starting...</source>
         <translation>%1 est en cours de démarrage...</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ContourLibrary</name>
+    <message>
+        <source>Contour %1</source>
+        <translation>Contour %1</translation>
+    </message>
+    <message>
+        <source>Could not read the contour file.</source>
+        <translation>Impossible de lire le fichier de contours.</translation>
+    </message>
+    <message>
+        <source>The contour file is too large.</source>
+        <translation>Le fichier de contours est trop volumineux.</translation>
+    </message>
+    <message>
+        <source>Could not save the contour &quot;%1&quot;.</source>
+        <translation>Impossible d&apos;enregistrer le contour « %1 ».</translation>
+    </message>
+    <message>
+        <source>Choose at least one contour to save.</source>
+        <translation>Choisissez au moins un contour à enregistrer.</translation>
+    </message>
+    <message>
+        <source>Could not write the contour file.</source>
+        <translation>Impossible d&apos;écrire le fichier de contours.</translation>
     </message>
 </context>
 <context>
