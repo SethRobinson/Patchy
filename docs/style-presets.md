@@ -18,6 +18,7 @@ matching, mixed values, preview transactions, native-data safeguards, and histor
 - **Style Manager** (`request_style_manager`, src/ui/style_manager_dialog.cpp): the Pattern Manager's style twin. Tree + large rendered preview + name/folder edits + Import .asl / Export / Duplicate / Delete / Restore Default Styles / Use Style. Library edits apply immediately (no undo, matching patterns). Opened from Edit > Presets it runs with `offer_use` false (no Use Style: there is no layer to style).
 - **Edit > Presets** (`editPresetsMenu`, GitHub issues 485 and 486): Styles Manager, Brush Tips, Saved Brushes, Gradient Manager, Pattern Manager, Shapes Manager (`edit.presets_custom_shapes`), Stroke Presets (`edit.presets_stroke_presets`, grouped with Shapes), in three separated groups; hotkey ids `edit.presets_*`, no default keys, `QAction::NoRole`, no document needed. Menu and page both read `MainWindow::preset_manager_entries()` (labels, order, groups, hotkey ids, open function). Preferences > Presets, the last page of the list, shows one button per entry, in one grid so they share a width, with a line of description; each calls the same open function with Preferences as the parent, so the manager opens over it. Edit > Define New Preset (`editDefineMenu`, right above Presets) holds Define Brush Tip from Selection and Define Custom Shape from Path / from SVG File under their full names, because the shape context menu and the Hotkeys page show the same QActions. Use from the menu goes to the matching tool (Gradient tool, Pattern Stamp, the Custom Shape picker). The Shapes Manager imports Photoshop `.csh` and SVG files ([vector-tools-custom-shapes.md](vector-tools-custom-shapes.md#photoshop-csh-files)). The options bar and Layer Style buttons still open the same dialogs. Pinned by `ui_edit_presets_menu_lists_the_managers_in_order`.
 - **Style preview swatch** (`layerStyleSwatch`, GitHub issue 726): a 72 px sample under the effect list shows the dialog's current settings (effects, opacity, Fill, blend mode, Blend If) through `render_style_preview`, the style presets' thumbnail renderer, so it looks like the thumbnail New Style would save. `emit_preview` hands every change to `schedule_style_swatch`; a 40 ms single-shot timer (`layerStyleSwatchTimer`) renders the newest settings, so a slider drag renders at most once per tick and nothing depends on the document's size. Patterns come from the document's store, then the pattern library, then the bundled ones. Pinned by `ui_layer_style_swatch_follows_settings`.
+- **The bottom of the dialog** (issue 726 follow-up): the effect list's column and the options column both run to the dialog's bottom edge. Left: the list, then a row with the swatch, the Preview box to its right at the bottom, and Remove Selected Instance at the top right, under the list it acts on. Right: the options pane, then the OK/Cancel row (`footer`: Apply All Settings for a multi-layer edit, OK, Cancel, the size grip). The Preview box is as tall as that row, so the swatch, Preview, OK and Cancel share one bottom line. `ui_layer_style_issue_606_layout` pins the positions.
 - **StyleBrowserWidget** (src/ui/style_browser.cpp) is the shared folder tree (48 px icons on the Styles page, 40 px in the manager). Its context menu's "Export to .asl…" exports the selection; a folder row exports its children and supplies the default filename. `export_selection_to(path)` is the prompt-free half tests drive.
 
 The dialog controller remains in `ui/layer_style_dialog.cpp`: it owns category order,
@@ -65,26 +66,34 @@ where the slider was and keep the field at the right; Bevel's Shading uses the
 angle-and-altitude dial (`add_angle_altitude_rows`) with Altitude's field under
 Angle's (GitHub issue 618).
 
-## Make Default and Reset to Default
+## Effect defaults: Save as Default, Load Default, Restore Built-in Default
 
-Every effect page except Style Presets, Blending Options, Contour and Texture has
-Make Default and Reset to Default. All pairs (object names
-`layerStyle<Effect>MakeDefaultButton` / `ResetToDefaultButton`) live in one
-left-aligned row, `layerStyleDefaultsRow`, under the scroll area (606 follow-up 3);
-only the current page's pair shows, and the row hides (keeping its height) on the
-pages without one. Make Default stores that page's values for
-the effect under `layerStyle/effectDefaults/<token>` (bevelEmboss, stroke,
-innerShadow, innerGlow, satin, colorOverlay, gradientOverlay, patternOverlay,
-outerGlow, dropShadow; persisted identifiers) as a one-style .asl blob; the drop
-shadow's Patchy-only long-shadow fields, which .asl cannot carry, sit beside it in
-`dropShadowContinuous` and `dropShadowFade`. Bevel & Emboss stores its own page
-only: Contour and Texture stay built-in. The dialog loads the stored values when it
-opens; `default_<effect>()` returns them (enabled) or the built-in values, so a newly
-ticked or added effect starts from them. Reset to Default puts them (or the built-in
-values) back on the current instance and keeps whether it is on. Nothing is stored
-until the user presses Make Default, so PSD output and settings are unchanged
-otherwise. `clear_stored_layer_style_effect_defaults` forgets them all. Pinned by
-`ui_layer_style_make_default_and_reset_to_default`.
+Every effect page except Style Presets, Blending Options, Contour and Texture ends
+with three buttons in one row (`<prefix>DefaultsRow`), after the page's last control
+and inside the scroll area, so they scroll with the page (issue 726 follow-up; issue
+606 follow-up 3 had one shared row under the pane). The Stroke page's row sits in its
+inner scroll page. The object names keep the first wording, because tests find the
+buttons by them: `layerStyle<Effect>MakeDefaultButton` (Save as Default),
+`ResetToDefaultButton` (Load Default) and `RestoreBuiltInDefaultButton`.
+
+- **Save as Default** stores that page's values for the effect under
+  `layerStyle/effectDefaults/<token>` (bevelEmboss, stroke, innerShadow, innerGlow,
+  satin, colorOverlay, gradientOverlay, patternOverlay, outerGlow, dropShadow;
+  persisted identifiers) as a one-style .asl blob; the drop shadow's Patchy-only
+  long-shadow fields, which .asl cannot carry, sit beside it in `dropShadowContinuous`
+  and `dropShadowFade`. Bevel & Emboss stores its own page only: Contour and Texture
+  stay built-in.
+- **Load Default** puts the stored values (the built-in ones when none are stored)
+  back on the current instance and keeps whether it is on.
+- **Restore Built-in Default** removes the effect's stored keys (the drop shadow's two
+  extra keys with it) and puts the built-in values on the current instance. It is
+  disabled while nothing is stored for that effect.
+
+The dialog loads the stored values when it opens; `default_<effect>()` returns them
+(enabled) or the built-in values, so a newly ticked or added effect starts from them.
+Nothing is stored until the user presses Save as Default, so PSD output and settings
+are unchanged otherwise. `clear_stored_layer_style_effect_defaults` forgets them all.
+Pinned by `ui_layer_style_make_default_and_reset_to_default`.
 
 ## StyleLibrary (src/ui/style_library.*)
 

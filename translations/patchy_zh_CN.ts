@@ -14626,16 +14626,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>下一图层:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>设为默认值</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>每次添加此效果时都使用这些设置</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>将此效果的设置恢复为默认值</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16048,6 +16040,30 @@ Do you want to replace it?</source>
     <message>
         <source>Contours.shc</source>
         <translation>等高线.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>此对话框打开时在画布上显示更改</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>存储为默认值</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>载入默认值</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>恢复您为此效果存储的默认值；若未存储，则恢复 Patchy 自带的设置</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>恢复内置默认值</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>清除您为此效果存储的默认值，并恢复 Patchy 自带的设置</translation>
     </message>
 </context>
 <context>

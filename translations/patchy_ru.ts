@@ -14716,16 +14716,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Подлежащий слой:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Сделать по умолчанию</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Использовать эти настройки при каждом добавлении этого эффекта</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Вернуть настройки этого эффекта по умолчанию</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16160,6 +16152,30 @@ Do you want to replace it?</source>
     <message>
         <source>Contours.shc</source>
         <translation>Контуры.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Показывать изменения на холсте, пока открыт этот диалог</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Сохранить по умолчанию</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Загрузить умолчание</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Возвращает сохранённые вами настройки по умолчанию для этого эффекта или собственные настройки Patchy, если вы их не сохраняли</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Вернуть исходные настройки</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Удаляет сохранённые вами настройки по умолчанию для этого эффекта и возвращает собственные настройки Patchy</translation>
     </message>
 </context>
 <context>

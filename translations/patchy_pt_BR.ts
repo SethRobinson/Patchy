@@ -14671,16 +14671,8 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Camada Subjacente:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Definir como padrão</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Usar estas configurações sempre que este efeito for adicionado</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Restaurar as configurações padrão deste efeito</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16104,6 +16096,30 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Contours.shc</source>
         <translation>Contornos.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Mostrar as alterações na tela enquanto esta caixa de diálogo está aberta</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Salvar como padrão</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Carregar padrão</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Recupera o padrão que você salvou para este efeito, ou as configurações próprias do Patchy se você não salvou nenhum</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Restaurar padrão original</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Esquece o padrão que você salvou para este efeito e recupera as configurações próprias do Patchy</translation>
     </message>
 </context>
 <context>

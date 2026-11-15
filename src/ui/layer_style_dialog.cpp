@@ -527,7 +527,7 @@ LayerPatternOverlay builtin_default_pattern_overlay() {
   return overlay;
 }
 
-// The values Make Default stored for each effect (GitHub issue 606): one
+// The values Save as Default stored for each effect (GitHub issue 606): one
 // instance per effect list, loaded when the dialog opens. An empty list means
 // the built-in default above.
 LayerStyle& stored_effect_defaults() {
@@ -871,7 +871,7 @@ std::string effect_property_prefix(LayerStyleEffectKind kind, int index) {
   return std::string(name) + "." + std::to_string(std::max(0, index));
 }
 
-// Make Default's settings keys, layerStyle/effectDefaults/<token> (persisted
+// Save as Default's settings keys, layerStyle/effectDefaults/<token> (persisted
 // identifiers: never rename). Each value is a one-style .asl blob holding the
 // one effect; the drop shadow's Patchy-only long-shadow fields, which .asl
 // cannot carry, sit in their own keys beside it.
@@ -1013,6 +1013,61 @@ void store_effect_default(LayerStyleEffectKind kind, const LayerStyle& source, s
   adopt_effect_defaults(stored_effect_defaults(), single);
 }
 
+// Whether Save as Default has stored values for `kind` (GitHub issue 726
+// follow-up: Restore Built-in Default is offered only then).
+bool has_stored_effect_default(LayerStyleEffectKind kind) {
+  const auto& defaults = stored_effect_defaults();
+  switch (kind) {
+    case LayerStyleEffectKind::BevelEmboss: return !defaults.bevels.empty();
+    case LayerStyleEffectKind::Stroke: return !defaults.strokes.empty();
+    case LayerStyleEffectKind::InnerShadow: return !defaults.inner_shadows.empty();
+    case LayerStyleEffectKind::InnerGlow: return !defaults.inner_glows.empty();
+    case LayerStyleEffectKind::Satin: return !defaults.satins.empty();
+    case LayerStyleEffectKind::ColorOverlay: return !defaults.color_overlays.empty();
+    case LayerStyleEffectKind::GradientOverlay: return !defaults.gradient_fills.empty();
+    case LayerStyleEffectKind::PatternOverlay: return !defaults.pattern_overlays.empty();
+    case LayerStyleEffectKind::OuterGlow: return !defaults.outer_glows.empty();
+    case LayerStyleEffectKind::DropShadow: return !defaults.drop_shadows.empty();
+    case LayerStyleEffectKind::BevelContour:
+    case LayerStyleEffectKind::BevelTexture:
+    case LayerStyleEffectKind::None:
+      break;
+  }
+  return false;
+}
+
+// Forgets the values Save as Default stored for `kind`: its settings keys go,
+// and default_<effect>() returns the built-in values again.
+void clear_stored_effect_default(LayerStyleEffectKind kind) {
+  const auto* token = effect_defaults_token(kind);
+  if (token == nullptr) {
+    return;
+  }
+  auto settings = app_settings();
+  settings.remove(effect_defaults_key(token));
+  auto& defaults = stored_effect_defaults();
+  switch (kind) {
+    case LayerStyleEffectKind::BevelEmboss: defaults.bevels.clear(); break;
+    case LayerStyleEffectKind::Stroke: defaults.strokes.clear(); break;
+    case LayerStyleEffectKind::InnerShadow: defaults.inner_shadows.clear(); break;
+    case LayerStyleEffectKind::InnerGlow: defaults.inner_glows.clear(); break;
+    case LayerStyleEffectKind::Satin: defaults.satins.clear(); break;
+    case LayerStyleEffectKind::ColorOverlay: defaults.color_overlays.clear(); break;
+    case LayerStyleEffectKind::GradientOverlay: defaults.gradient_fills.clear(); break;
+    case LayerStyleEffectKind::PatternOverlay: defaults.pattern_overlays.clear(); break;
+    case LayerStyleEffectKind::OuterGlow: defaults.outer_glows.clear(); break;
+    case LayerStyleEffectKind::DropShadow:
+      defaults.drop_shadows.clear();
+      settings.remove(effect_defaults_key("dropShadowContinuous"));
+      settings.remove(effect_defaults_key("dropShadowFade"));
+      break;
+    case LayerStyleEffectKind::BevelContour:
+    case LayerStyleEffectKind::BevelTexture:
+    case LayerStyleEffectKind::None:
+      break;
+  }
+}
+
 template <typename Effect>
 void reset_effect(std::vector<Effect>& effects, std::size_t index, Effect (*make_default)()) {
   if (index < effects.size()) {
@@ -1023,7 +1078,7 @@ void reset_effect(std::vector<Effect>& effects, std::size_t index, Effect (*make
 }
 
 // Puts the stored (or built-in) default in place of the `kind` effect at
-// `index`, keeping whether it is on (Reset to Default).
+// `index`, keeping whether it is on (Load Default, Restore Built-in Default).
 void reset_effect_to_default(LayerStyle& style, LayerStyleEffectKind kind, std::size_t index) {
   switch (kind) {
     case LayerStyleEffectKind::BevelEmboss:
@@ -1570,9 +1625,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   category_layout->setContentsMargins(0, 0, 0, 0);
   category_layout->setSpacing(6);
   category_layout->addWidget(categories, 1);
+  // The row under the effect list (GitHub issue 726 follow-up): the style
+  // swatch at the left; beside it the Remove Selected Instance button at the
+  // top right, right under the list it acts on, and the Preview box at the
+  // bottom (preview_slot; the box is made further down), on the OK/Cancel line.
+  // The effect list's column and the options column both run to the dialog's
+  // bottom edge, so the swatch, Preview, OK and Cancel share one bottom line.
   auto* category_actions = new QHBoxLayout();
   category_actions->setContentsMargins(0, 0, 0, 0);
-  category_actions->setSpacing(4);
+  category_actions->setSpacing(8);
   // Style preview swatch (GitHub issue 726): the current settings on the style
   // presets' sample, under the effect list. Changes coalesce on a short timer,
   // so a slider drag renders at most once per tick, and the render is always a
@@ -1626,13 +1687,24 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       style_swatch_timer->start();
     }
   };
-  category_actions->addStretch(1);
+  auto* category_side = new QVBoxLayout();
+  category_side->setContentsMargins(0, 0, 0, 0);
+  category_side->setSpacing(0);
+  auto* category_side_top = new QHBoxLayout();
+  category_side_top->setContentsMargins(0, 0, 0, 0);
+  category_side_top->addStretch(1);
   auto* remove_selected_instance = new QPushButton(category_pane);
   remove_selected_instance->setObjectName(QStringLiteral("layerStyleRemoveSelectedInstanceButton"));
   remove_selected_instance->setIcon(dialog.style()->standardIcon(QStyle::SP_TrashIcon));
   remove_selected_instance->setFixedSize(26, 24);
   remove_selected_instance->setToolTip(QObject::tr("Remove Selected Instance"));
-  category_actions->addWidget(remove_selected_instance, 0, Qt::AlignBottom);
+  category_side_top->addWidget(remove_selected_instance);
+  category_side->addLayout(category_side_top);
+  category_side->addStretch(1);
+  auto* preview_slot = new QHBoxLayout();
+  preview_slot->setContentsMargins(0, 0, 0, 0);
+  category_side->addLayout(preview_slot);
+  category_actions->addLayout(category_side, 1);
   category_layout->addLayout(category_actions);
   body->addWidget(category_pane);
 
@@ -1663,24 +1735,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   styles_layout->setContentsMargins(0, 0, 0, 0);
   styles_layout->setSpacing(10);
   options_pane->addWidget(styles_pane);
-  // Make Default / Reset to Default sit under the pane, outside the scroll
-  // area, at the left (GitHub issue 606 follow-up 3); see add_default_buttons.
+  // The pane, then the OK/Cancel row under it (the footer, added below). The
+  // per-effect default buttons live at the bottom of each effect page, inside
+  // the scroll area (GitHub issue 726 follow-up); see add_default_buttons.
   auto* options_column = new QWidget(&dialog);
   options_column->setObjectName(QStringLiteral("layerStyleOptionsColumn"));
   auto* options_column_layout = new QVBoxLayout(options_column);
   options_column_layout->setContentsMargins(0, 0, 0, 0);
   options_column_layout->setSpacing(6);
   options_column_layout->addWidget(options_pane, 1);
-  auto* defaults_row = new QWidget(options_column);
-  defaults_row->setObjectName(QStringLiteral("layerStyleDefaultsRow"));
-  auto* defaults_row_layout = new QHBoxLayout(defaults_row);
-  defaults_row_layout->setContentsMargins(0, 0, 0, 0);
-  // The row keeps its height on pages without the buttons, so changing pages
-  // never moves the pane or resizes the dialog.
-  auto defaults_row_policy = defaults_row->sizePolicy();
-  defaults_row_policy.setRetainSizeWhenHidden(true);
-  defaults_row->setSizePolicy(defaults_row_policy);
-  options_column_layout->addWidget(defaults_row);
   body->addWidget(options_column, 1);
   auto make_page = [controls](const QString& object_name) {
     auto* page = new LayerStyleSettingsPage(controls);
@@ -2273,6 +2336,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* preview_check = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview_check->setObjectName(QStringLiteral("layerStylePreviewCheck"));
   preview_check->setChecked(true);
+  preview_check->setToolTip(QObject::tr("Show the changes on the canvas while this dialog is open"));
+  preview_slot->addWidget(preview_check);
+  preview_slot->addStretch(1);
   blending_layout->addStretch(1);
 
   // Builders return handles; these aggregates and gradient_context remain
@@ -2460,50 +2526,75 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& shadow_green = shadow_page.shadow_green;
   auto& shadow_blue = shadow_page.shadow_blue;
 
-  // Make Default / Reset to Default for each effect page (GitHub issue 606).
-  // Every pair lives in the one row under the scroll area (issue 606
-  // follow-up 3), left-aligned, and only the current page's pair shows; Style
-  // Presets, Blending Options, Contour and Texture have none, so the row hides.
+  // Save as Default, Load Default and Restore Built-in Default for each effect
+  // page (GitHub issue 606; wording, the third button and the place from issue
+  // 726's follow-up). Each page carries its own row at the bottom of its
+  // content, inside the scroll area, so the buttons scroll with the page; Style
+  // Presets, Blending Options, Contour and Texture have none. The object names
+  // keep their first wording (tests and scripts find the buttons by them).
   struct DefaultButtons {
     LayerStyleEffectKind kind;
     QPushButton* make;
     QPushButton* reset;
+    QPushButton* restore;
   };
   std::vector<DefaultButtons> default_buttons;
-  const auto add_default_buttons = [&](LayerStyleEffectKind kind, const QString& object_prefix) {
-    auto* make = new QPushButton(QObject::tr("Make Default"), defaults_row);
+  const auto add_default_buttons = [&](LayerStyleEffectKind kind, const QString& object_prefix,
+                                       QBoxLayout* page_layout) {
+    auto* row = new QWidget(page_layout->parentWidget());
+    row->setObjectName(object_prefix + QStringLiteral("DefaultsRow"));
+    auto* row_layout = new QHBoxLayout(row);
+    // The buttons start where the page's labels start: inside its group box.
+    int indent = 0;
+    if (auto* first = page_layout->count() > 0 ? page_layout->itemAt(0)->widget() : nullptr;
+        first != nullptr && first->layout() != nullptr) {
+      indent = first->layout()->contentsMargins().left();
+    }
+    row_layout->setContentsMargins(indent, 0, 0, 0);
+    row_layout->setSpacing(6);
+    auto* make = new QPushButton(QObject::tr("Save as Default"), row);
     make->setObjectName(object_prefix + QStringLiteral("MakeDefaultButton"));
     make->setToolTip(QObject::tr("Use these settings whenever this effect is added"));
-    auto* reset = new QPushButton(QObject::tr("Reset to Default"), defaults_row);
+    auto* reset = new QPushButton(QObject::tr("Load Default"), row);
     reset->setObjectName(object_prefix + QStringLiteral("ResetToDefaultButton"));
-    reset->setToolTip(QObject::tr("Put back the default settings of this effect"));
-    defaults_row_layout->addWidget(make);
-    defaults_row_layout->addWidget(reset);
-    default_buttons.push_back({kind, make, reset});
-  };
-  add_default_buttons(LayerStyleEffectKind::BevelEmboss, QStringLiteral("layerStyleBevel"));
-  add_default_buttons(LayerStyleEffectKind::Stroke, QStringLiteral("layerStyleStroke"));
-  add_default_buttons(LayerStyleEffectKind::InnerShadow, QStringLiteral("layerStyleInnerShadow"));
-  add_default_buttons(LayerStyleEffectKind::InnerGlow, QStringLiteral("layerStyleInnerGlow"));
-  add_default_buttons(LayerStyleEffectKind::Satin, QStringLiteral("layerStyleSatin"));
-  add_default_buttons(LayerStyleEffectKind::ColorOverlay, QStringLiteral("layerStyleColorOverlay"));
-  add_default_buttons(LayerStyleEffectKind::GradientOverlay, QStringLiteral("layerStyleGradient"));
-  add_default_buttons(LayerStyleEffectKind::PatternOverlay, QStringLiteral("layerStylePatternOverlay"));
-  add_default_buttons(LayerStyleEffectKind::OuterGlow, QStringLiteral("layerStyleOuterGlow"));
-  add_default_buttons(LayerStyleEffectKind::DropShadow, QStringLiteral("layerStyleDropShadow"));
-  defaults_row_layout->addStretch(1);
-  // Hidden buttons add no height, so the row holds one button's height itself.
-  defaults_row->setMinimumHeight(default_buttons.front().make->sizeHint().height());
-  const auto show_default_buttons_for = [&default_buttons, defaults_row](LayerStyleEffectKind kind) {
-    bool any = false;
-    for (const auto& pair : default_buttons) {
-      const bool shown = pair.kind == kind;
-      pair.make->setVisible(shown);
-      pair.reset->setVisible(shown);
-      any = any || shown;
+    reset->setToolTip(QObject::tr(
+        "Put back your saved default for this effect, or Patchy's own settings when you have not saved one"));
+    auto* restore = new QPushButton(QObject::tr("Restore Built-in Default"), row);
+    restore->setObjectName(object_prefix + QStringLiteral("RestoreBuiltInDefaultButton"));
+    restore->setToolTip(
+        QObject::tr("Forget your saved default for this effect and put back Patchy's own settings"));
+    restore->setEnabled(has_stored_effect_default(kind));
+    row_layout->addWidget(make);
+    row_layout->addWidget(reset);
+    row_layout->addWidget(restore);
+    row_layout->addStretch(1);
+    // After the page's last control, before its trailing stretch.
+    auto at = page_layout->count();
+    if (at > 0 && page_layout->itemAt(at - 1)->spacerItem() != nullptr) {
+      --at;
     }
-    defaults_row->setVisible(any);
+    page_layout->insertWidget(at, row);
+    default_buttons.push_back({kind, make, reset, restore});
   };
+  // The Stroke page scrolls on its own (layerStyleStrokeScroll): its row goes
+  // inside that inner page, after the stroke group.
+  auto* stroke_scroll_page = dialog.findChild<QWidget*>(QStringLiteral("layerStyleStrokeScrollPage"));
+  auto* stroke_content_layout =
+      stroke_scroll_page != nullptr ? qobject_cast<QBoxLayout*>(stroke_scroll_page->layout()) : nullptr;
+  add_default_buttons(LayerStyleEffectKind::BevelEmboss, QStringLiteral("layerStyleBevel"), bevel_layout);
+  add_default_buttons(LayerStyleEffectKind::Stroke, QStringLiteral("layerStyleStroke"),
+                      stroke_content_layout != nullptr ? stroke_content_layout : stroke_layout);
+  add_default_buttons(LayerStyleEffectKind::InnerShadow, QStringLiteral("layerStyleInnerShadow"),
+                      inner_shadow_layout);
+  add_default_buttons(LayerStyleEffectKind::InnerGlow, QStringLiteral("layerStyleInnerGlow"), inner_glow_layout);
+  add_default_buttons(LayerStyleEffectKind::Satin, QStringLiteral("layerStyleSatin"), satin_layout);
+  add_default_buttons(LayerStyleEffectKind::ColorOverlay, QStringLiteral("layerStyleColorOverlay"),
+                      color_overlay_layout);
+  add_default_buttons(LayerStyleEffectKind::GradientOverlay, QStringLiteral("layerStyleGradient"), gradient_layout);
+  add_default_buttons(LayerStyleEffectKind::PatternOverlay, QStringLiteral("layerStylePatternOverlay"),
+                      pattern_overlay_layout);
+  add_default_buttons(LayerStyleEffectKind::OuterGlow, QStringLiteral("layerStyleOuterGlow"), outer_glow_layout);
+  add_default_buttons(LayerStyleEffectKind::DropShadow, QStringLiteral("layerStyleDropShadow"), shadow_layout);
 
   auto item_page = [](const QListWidgetItem* item) {
     return item == nullptr ? LayerStyleCategoryPage::Blending
@@ -2881,7 +2972,6 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                        ? styles_pane
                                        : static_cast<QWidget*>(options_scroll));
     const auto kind = item_kind(category);
-    show_default_buttons_for(kind);
     const auto index = std::max(0, item_effect_index(category));
     const auto* stack_ops = effect_vector_ops_for_kind(kind);
     remove_selected_instance->setEnabled(stack_ops != nullptr && stack_ops->count(style) > 0U);
@@ -4237,9 +4327,33 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   });
   QObject::connect(remove_inner_glow, &QPushButton::clicked, &dialog, remove_selected_stackable_instance);
   QObject::connect(remove_selected_instance, &QPushButton::clicked, &dialog, remove_selected_stackable_instance);
+  // Load Default and Restore Built-in Default: the stored (or built-in) values
+  // go onto the current instance, which keeps whether it is on.
+  const auto load_default_into_page = [&](LayerStyleEffectKind kind) {
+    auto* current = categories->currentItem();
+    if (item_kind(current) != kind) {
+      return;
+    }
+    const auto index = std::max(0, item_effect_index(current));
+    style = build_current_settings().style;
+    reset_effect_to_default(style, kind, static_cast<std::size_t>(index));
+    load_controls_from_style(current);
+    if (batch) {
+      // Every field of the effect counts as edited on each selected layer.
+      const auto prefix = effect_property_prefix(kind, index) + ".";
+      explicit_fields.clear();
+      for (const auto& property : layer_style_properties(build_current_settings())) {
+        if (property.key.starts_with(prefix) && !property.key.ends_with(".enabled")) {
+          explicit_fields.push_back(property.key);
+        }
+      }
+    }
+    emit_preview(true);
+  };
   for (const auto& buttons_for_page : default_buttons) {
     const auto kind = buttons_for_page.kind;
-    QObject::connect(buttons_for_page.make, &QPushButton::clicked, &dialog, [&, kind] {
+    auto* restore_button = buttons_for_page.restore;
+    QObject::connect(buttons_for_page.make, &QPushButton::clicked, &dialog, [&, kind, restore_button] {
       const auto* current = categories->currentItem();
       if (item_kind(current) != kind) {
         return;
@@ -4271,35 +4385,26 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       }
       save_controls_to_style(snapshot, current);
       store_effect_default(kind, snapshot, static_cast<std::size_t>(index));
+      restore_button->setEnabled(true);
     });
-    QObject::connect(buttons_for_page.reset, &QPushButton::clicked, &dialog, [&, kind] {
-      auto* current = categories->currentItem();
-      if (item_kind(current) != kind) {
+    QObject::connect(buttons_for_page.reset, &QPushButton::clicked, &dialog,
+                     [&load_default_into_page, kind] { load_default_into_page(kind); });
+    QObject::connect(buttons_for_page.restore, &QPushButton::clicked, &dialog, [&, kind, restore_button] {
+      if (item_kind(categories->currentItem()) != kind) {
         return;
       }
-      const auto index = std::max(0, item_effect_index(current));
-      style = build_current_settings().style;
-      reset_effect_to_default(style, kind, static_cast<std::size_t>(index));
-      load_controls_from_style(current);
-      if (batch) {
-        // Every field of the effect counts as edited on each selected layer.
-        const auto prefix = effect_property_prefix(kind, index) + ".";
-        explicit_fields.clear();
-        for (const auto& property : layer_style_properties(build_current_settings())) {
-          if (property.key.starts_with(prefix) && !property.key.ends_with(".enabled")) {
-            explicit_fields.push_back(property.key);
-          }
-        }
-      }
-      emit_preview(true);
+      clear_stored_effect_default(kind);
+      restore_button->setEnabled(false);
+      load_default_into_page(kind);
     });
   }
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   // OK as wide as Cancel (GitHub issue 606), whatever the language makes either.
   const auto equalize_buttons = [buttons] { equalize_dialog_button_widths(buttons); };
   equalize_buttons();
+  // OK/Cancel sit under the options pane, in its column; Preview is beside the
+  // style swatch in the effect list's column, on the same line.
   auto* footer = new QHBoxLayout();
-  footer->addWidget(preview_check);
   if (batch && batch->selected_count > 1) {
     auto* apply_all = new QPushButton(QObject::tr("Apply All Settings to Selected Layers"), &dialog);
     apply_all->setObjectName(QStringLiteral("layerStyleApplyAllButton"));
@@ -4322,7 +4427,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* size_grip = new VisibleSizeGrip(&dialog);
   size_grip->setObjectName(QStringLiteral("layerStyleSizeGrip"));
   footer->addWidget(size_grip, 0, Qt::AlignBottom);
-  root->addLayout(footer);
+  options_column_layout->addLayout(footer);
+  // As tall as the OK/Cancel row, so the Preview box centers on that row's line.
+  preview_check->setFixedHeight(std::max(footer->sizeHint().height(), preview_check->sizeHint().height()));
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 

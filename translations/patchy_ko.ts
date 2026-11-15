@@ -14626,16 +14626,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>아래 레이어:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>기본값으로 설정</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>이 효과를 추가할 때마다 이 설정을 사용합니다</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>이 효과의 설정을 기본값으로 되돌립니다</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16048,6 +16040,30 @@ Do you want to replace it?</source>
     <message>
         <source>Contours.shc</source>
         <translation>윤곽선.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>이 대화 상자가 열려 있는 동안 변경 내용을 캔버스에 표시합니다</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>기본값으로 저장</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>기본값 불러오기</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>이 효과에 저장한 기본값으로 되돌립니다. 저장한 기본값이 없으면 Patchy 고유의 설정으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>기본 제공 값으로 복원</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>이 효과에 저장한 기본값을 지우고 Patchy 고유의 설정으로 되돌립니다</translation>
     </message>
 </context>
 <context>

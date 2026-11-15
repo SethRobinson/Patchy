@@ -14716,16 +14716,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Warstwa spodnia:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Ustaw jako domyślne</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Używaj tych ustawień przy każdym dodaniu tego efektu</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Przywróć domyślne ustawienia tego efektu</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16160,6 +16152,30 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Contours.shc</source>
         <translation>Kontury.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Pokazuj zmiany na obszarze roboczym, gdy to okno dialogowe jest otwarte</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Zapisz jako domyślne</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Wczytaj domyślne</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Przywraca zapisane przez Ciebie ustawienia domyślne tego efektu albo własne ustawienia Patchy, jeśli żadnych nie zapisano</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Przywróć ustawienia fabryczne</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Usuwa zapisane przez Ciebie ustawienia domyślne tego efektu i przywraca własne ustawienia Patchy</translation>
     </message>
 </context>
 <context>

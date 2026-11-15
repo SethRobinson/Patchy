@@ -3152,9 +3152,11 @@ void ui_layer_style_page_titles_show_ampersands() {
 }
 
 void ui_layer_style_make_default_and_reset_to_default() {
-  // GitHub issue 606: Make Default stores a page's values as that effect's
-  // defaults; Reset to Default loads them back (the built-in ones when none
-  // are stored); an effect added later starts from them.
+  // GitHub issue 606: Save as Default (first called Make Default) stores a
+  // page's values as that effect's defaults; Load Default (Reset to Default)
+  // loads them back (the built-in ones when none are stored); an effect added
+  // later starts from them. Restore Built-in Default (issue 726 follow-up)
+  // forgets the stored values. The buttons keep their first object names.
   patchy::ui::clear_stored_layer_style_effect_defaults();
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Defaults",
@@ -3188,8 +3190,27 @@ void ui_layer_style_make_default_and_reset_to_default() {
     CHECK(dialog->findChildren<QPushButton*>(QRegularExpression(QStringLiteral("MakeDefaultButton$"))).size() == 10);
     CHECK(dialog->findChildren<QPushButton*>(QRegularExpression(QStringLiteral("ResetToDefaultButton$"))).size() ==
           10);
+    const auto restore_buttons =
+        dialog->findChildren<QPushButton*>(QRegularExpression(QStringLiteral("RestoreBuiltInDefaultButton$")));
+    CHECK(restore_buttons.size() == 10);
+    // Nothing is stored yet, so there is nothing to restore on any page.
+    for (const auto* button : restore_buttons) {
+      CHECK(!button->isEnabled());
+      CHECK(!button->toolTip().isEmpty());
+    }
+    auto* save = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleDropShadowMakeDefaultButton"));
+    auto* load = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleDropShadowResetToDefaultButton"));
+    auto* restore = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleDropShadowRestoreBuiltInDefaultButton"));
+    CHECK(save != nullptr && load != nullptr && restore != nullptr);
+    if (save == nullptr || load == nullptr || restore == nullptr) {
+      return;
+    }
+    CHECK(save->text() == QStringLiteral("Save as Default"));
+    CHECK(load->text() == QStringLiteral("Load Default"));
+    CHECK(restore->text() == QStringLiteral("Restore Built-in Default"));
+    CHECK(!save->toolTip().isEmpty() && !load->toolTip().isEmpty());
 
-    // Nothing stored: Reset to Default gives the built-in values.
+    // Nothing stored: Load Default gives the built-in values.
     select_layer_style_category(*dialog, QStringLiteral("Drop Shadow"));
     auto* size = spin(*dialog, "layerStyleDropShadowSizeSpin");
     auto* distance = spin(*dialog, "layerStyleDropShadowDistanceSpin");
@@ -3210,6 +3231,12 @@ void ui_layer_style_make_default_and_reset_to_default() {
     red->setValue(200);
     continuous->setChecked(true);
     click(*dialog, "layerStyleDropShadowMakeDefaultButton");
+    // A saved default can be restored; the other effects still have none.
+    CHECK(restore->isEnabled());
+    CHECK(patchy::ui::app_settings().contains(QStringLiteral("layerStyle/effectDefaults/dropShadow")));
+    auto* stroke_restore =
+        dialog->findChild<QPushButton*>(QStringLiteral("layerStyleStrokeRestoreBuiltInDefaultButton"));
+    CHECK(stroke_restore != nullptr && !stroke_restore->isEnabled());
     size->setValue(30);
     red->setValue(10);
     continuous->setChecked(false);
@@ -3259,6 +3286,69 @@ void ui_layer_style_make_default_and_reset_to_default() {
     // Effects without stored values keep the built-in defaults.
     CHECK(settings->style.strokes.empty());
   }
+
+  // Restore Built-in Default forgets the saved values: the settings keys go,
+  // the page shows Patchy's own values, and Load Default gives those from now on.
+  inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_category(*dialog, QStringLiteral("Drop Shadow"));
+    auto* size = spin(*dialog, "layerStyleDropShadowSizeSpin");
+    auto* distance = spin(*dialog, "layerStyleDropShadowDistanceSpin");
+    auto* red = spin(*dialog, "layerStyleDropShadowRedSpin");
+    auto* continuous = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowContinuousCheck"));
+    auto* restore = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleDropShadowRestoreBuiltInDefaultButton"));
+    CHECK(size != nullptr && distance != nullptr && red != nullptr && continuous != nullptr && restore != nullptr);
+    if (size == nullptr || distance == nullptr || red == nullptr || continuous == nullptr || restore == nullptr) {
+      return;
+    }
+    CHECK(size->value() == 17 && continuous->isChecked());
+    CHECK(restore->isEnabled());  // the saved default survived the reopen
+    size->setValue(33);
+    click(*dialog, "layerStyleDropShadowRestoreBuiltInDefaultButton");
+    CHECK(size->value() == 5);
+    CHECK(distance->value() == 5);
+    CHECK(red->value() == 0);
+    CHECK(!continuous->isChecked());
+    CHECK(!restore->isEnabled());
+    auto settings = patchy::ui::app_settings();
+    CHECK(!settings.contains(QStringLiteral("layerStyle/effectDefaults/dropShadow")));
+    CHECK(!settings.contains(QStringLiteral("layerStyle/effectDefaults/dropShadowContinuous")));
+    CHECK(!settings.contains(QStringLiteral("layerStyle/effectDefaults/dropShadowFade")));
+    size->setValue(40);
+    click(*dialog, "layerStyleDropShadowResetToDefaultButton");
+    CHECK(size->value() == 5);
+    // Saving again brings the button back.
+    size->setValue(8);
+    click(*dialog, "layerStyleDropShadowMakeDefaultButton");
+    CHECK(restore->isEnabled());
+    click(*dialog, "layerStyleDropShadowRestoreBuiltInDefaultButton");
+    CHECK(size->value() == 5 && !restore->isEnabled());
+    inspected = true;
+    dialog->reject();
+  }));
+  (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+  // Reopened, the page shows the built-in values again.
+  inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_category(*dialog, QStringLiteral("Drop Shadow"));
+    auto* size = spin(*dialog, "layerStyleDropShadowSizeSpin");
+    CHECK(size != nullptr && size->value() == 5);
+    inspected = true;
+    dialog->reject();
+  }));
+  (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
 
   // Bevel & Emboss: the page's values only; Reset keeps the effect's state.
   patchy::LayerBevelEmboss bevel;
@@ -3597,12 +3687,18 @@ void ui_layer_style_issue_606_layout() {
       CHECK(mask->x() > interior->x());
       CHECK(mask->y() == interior->y());
       CHECK(show->y() > mask->y());
-      dialog.resize(dialog.minimumWidth(), dialog.height());
+      // At its smallest the dialog scrolls this page, and the scroll bar's width leaves the
+      // section too narrow for two columns. (At the opening height the page fits since the
+      // default buttons moved into the pages, issue 726 follow-up, and two columns still fit.)
+      const auto height_before_narrow = dialog.height();
+      dialog.resize(dialog.minimumWidth(), dialog.minimumHeight());
       QApplication::processEvents();
       save_image_artifact("ui_layer_style_606_blending_options_narrow", dialog.grab().toImage());
       CHECK(mask->x() == interior->x());
       CHECK(mask->y() > clipped->y());
       CHECK(!mask->visibleRegion().isEmpty() || mask->isVisible());
+      dialog.resize(dialog.minimumWidth(), height_before_narrow);
+      QApplication::processEvents();
     }
     // Blend If (GitHub issue 606 follow-ups 1 and 2): only "Blend If:" and its
     // channel combo use the label and field columns; the This Layer and
@@ -3682,45 +3778,98 @@ void ui_layer_style_issue_606_layout() {
       QApplication::processEvents();
     }
 
-    // Make Default and Reset to Default: one row under the scroll area, at its
-    // left, holding the current effect page's pair; pages without defaults
-    // hide it (issue 606 follow-up 3).
-    auto* defaults_row = dialog.findChild<QWidget*>(QStringLiteral("layerStyleDefaultsRow"));
-    CHECK(defaults_row != nullptr && options_scroll != nullptr);
-    if (defaults_row != nullptr && options_scroll != nullptr) {
+    // Save as Default, Load Default and Restore Built-in Default sit at the
+    // bottom of each effect page, inside the scroll area (issue 726 follow-up;
+    // issue 606 follow-up 3 had them in a row under the pane).
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("layerStyleDefaultsRow")) == nullptr);
+    if (options_scroll != nullptr) {
       for (const auto& [page, prefix] :
            {std::pair{QStringLiteral("Drop Shadow"), QStringLiteral("layerStyleDropShadow")},
             std::pair{QStringLiteral("Bevel & Emboss"), QStringLiteral("layerStyleBevel")},
+            std::pair{QStringLiteral("Stroke"), QStringLiteral("layerStyleStroke")},
             std::pair{QStringLiteral("Color Overlay"), QStringLiteral("layerStyleColorOverlay")}}) {
         select_layer_style_category(dialog, page);
-        CHECK(defaults_row->isVisible());
         auto* make = dialog.findChild<QPushButton*>(prefix + QStringLiteral("MakeDefaultButton"));
         auto* reset = dialog.findChild<QPushButton*>(prefix + QStringLiteral("ResetToDefaultButton"));
-        CHECK(make != nullptr && reset != nullptr);
-        if (make == nullptr || reset == nullptr) {
+        auto* restore = dialog.findChild<QPushButton*>(prefix + QStringLiteral("RestoreBuiltInDefaultButton"));
+        auto* row = dialog.findChild<QWidget*>(prefix + QStringLiteral("DefaultsRow"));
+        CHECK(make != nullptr && reset != nullptr && restore != nullptr && row != nullptr);
+        if (make == nullptr || reset == nullptr || restore == nullptr || row == nullptr) {
           continue;
         }
-        CHECK(make->isVisible() && reset->isVisible());
-        CHECK(!options_scroll->isAncestorOf(make) && !options_scroll->isAncestorOf(reset));
-        CHECK(left(make) == left(options_scroll));
-        CHECK(left(reset) > left(make));
-        CHECK(top(make) >= top(options_scroll) + options_scroll->height());
-        CHECK(top(make) + make->height() <= dialog.height());
+        CHECK(make->isVisible() && reset->isVisible() && restore->isVisible());
+        CHECK(options_scroll->isAncestorOf(make) && options_scroll->isAncestorOf(reset) &&
+              options_scroll->isAncestorOf(restore));
+        // One line, in reading order, starting inside the pane.
+        CHECK(left(make) >= left(options_scroll));
+        CHECK(left(reset) > left(make) && left(restore) > left(reset));
+        CHECK(top(reset) == top(make) && top(restore) == top(make));
+        // Below every other control of the page.
+        for (auto* field : row->parentWidget()->findChildren<QWidget*>()) {
+          if (field == row || row->isAncestorOf(field) || !field->isVisible() || field->layout() != nullptr ||
+              qobject_cast<QGroupBox*>(field) != nullptr) {
+            continue;
+          }
+          if (top(field) + field->height() > top(make)) {
+            std::printf("%s: %s (%s) ends at %d, below the default buttons at %d\n", qPrintable(page),
+                        qPrintable(field->objectName()), field->metaObject()->className(),
+                        top(field) + field->height(), top(make));
+          }
+          CHECK(top(field) + field->height() <= top(make));
+        }
+        // Only this page's buttons show.
         int shown = 0;
-        for (auto* button : defaults_row->findChildren<QPushButton*>()) {
+        for (auto* button : dialog.findChildren<QPushButton*>(QRegularExpression(QStringLiteral("DefaultButton$")))) {
           shown += button->isVisible() ? 1 : 0;
         }
-        CHECK(shown == 2);
+        CHECK(shown == 3);
+      }
+      // A short page shows them without scrolling.
+      select_layer_style_category(dialog, QStringLiteral("Color Overlay"));
+      if (auto* make = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleColorOverlayMakeDefaultButton"));
+          make != nullptr) {
+        CHECK(top(make) + make->height() <= top(options_scroll) + options_scroll->height());
+        CHECK(!make->visibleRegion().isEmpty());
       }
       for (const auto& page : {QStringLiteral("Style Presets"), QStringLiteral("Blending Options"),
                                QStringLiteral("Contour"), QStringLiteral("Texture")}) {
         select_layer_style_category(dialog, page);
-        if (defaults_row->isVisible()) {
-          std::printf("defaults row shows on %s\n", qPrintable(page));
+        for (auto* button : dialog.findChildren<QPushButton*>(QRegularExpression(QStringLiteral("DefaultButton$")))) {
+          if (button->isVisible()) {
+            std::printf("%s shows on %s\n", qPrintable(button->objectName()), qPrintable(page));
+          }
+          CHECK(!button->isVisible());
         }
-        CHECK(!defaults_row->isVisible());
       }
       select_layer_style_category(dialog, QStringLiteral("Blending Options"));
+    }
+
+    // The bottom of the dialog (issue 726 follow-up): the Preview box sits to
+    // the right of the style swatch, on the OK/Cancel line; the swatch, OK and
+    // Cancel end on one line; Remove Selected Instance sits right under the
+    // effect list, at its right edge.
+    auto* swatch = dialog.findChild<QLabel*>(QStringLiteral("layerStyleSwatch"));
+    auto* preview = dialog.findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
+    auto* trash = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleRemoveSelectedInstanceButton"));
+    auto* effect_list = dialog.findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* ok_button = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
+    CHECK(swatch != nullptr && preview != nullptr && trash != nullptr && effect_list != nullptr && ok_button != nullptr);
+    if (swatch != nullptr && preview != nullptr && trash != nullptr && effect_list != nullptr && ok_button != nullptr) {
+      const auto bottom = [&top](const QWidget* widget) { return top(widget) + widget->height(); };
+      const auto middle = [&top](const QWidget* widget) { return top(widget) + widget->height() / 2; };
+      std::printf("layer style bottom: swatch %d..%d, preview %d..%d (x %d), ok %d..%d, trash %d..%d, list ends %d, "
+                  "pane ends %d\n",
+                  top(swatch), bottom(swatch), top(preview), bottom(preview), left(preview), top(ok_button),
+                  bottom(ok_button), top(trash), bottom(trash), bottom(effect_list),
+                  options_scroll != nullptr ? bottom(options_scroll) : -1);
+      CHECK(left(preview) >= left(swatch) + swatch->width());
+      CHECK(top(preview) >= top(swatch) && bottom(preview) <= bottom(swatch));
+      CHECK(std::abs(middle(preview) - middle(ok_button)) <= 1);
+      CHECK(std::abs(bottom(swatch) - bottom(ok_button)) <= 1);
+      CHECK(top(trash) >= bottom(effect_list));
+      CHECK(std::abs(top(trash) - top(swatch)) <= 1);
+      CHECK(std::abs(left(trash) + trash->width() - (left(effect_list) + effect_list->width())) <= 1);
+      CHECK(left(swatch) == left(effect_list));
     }
 
     // Style Presets: no hint text, the grid shown, an info icon with the export tip.
