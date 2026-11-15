@@ -16,6 +16,7 @@ namespace patchy::ui {
 class PatternLibrary;
 class StyleLibrary;
 class GradientLibrary;
+class ContourLibrary;
 
 struct LayerStyleSettings {
   int opacity{100};
@@ -70,7 +71,10 @@ void clear_stored_layer_style_effect_defaults();
 // add_document_session). start_effect opens the dialog on that effect's
 // start_effect_index instance and, with enable_start_effect, turns it on exactly as
 // ticking its category checkbox would (the Layers panel's effect rows open a hidden
-// effect without showing it).
+// effect without showing it). contour_library lists the user's saved contours in the
+// contour pickers and enables their Library menu (New, Rename, Delete, Load and Save
+// of Photoshop .shc files); null leaves the pickers with the built-in shapes, Custom
+// and the contour editor.
 [[nodiscard]] std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {},
@@ -84,6 +88,6 @@ void clear_stored_layer_style_effect_defaults();
     const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr,
     BitDepth document_depth = BitDepth::UInt8,
     std::optional<LayerStyleEffect> start_effect = std::nullopt, std::size_t start_effect_index = 0,
-    bool enable_start_effect = true);
+    bool enable_start_effect = true, ContourLibrary* contour_library = nullptr);
 
 }  // namespace patchy::ui

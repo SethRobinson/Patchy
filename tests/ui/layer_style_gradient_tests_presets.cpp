@@ -15,6 +15,8 @@
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/perspective_planes_dialog.hpp"
 #include "ui/camera_raw_filter_dialog.hpp"
+#include "ui/contour_editor_dialog.hpp"
+#include "ui/contour_library.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/custom_shape_manager_dialog.hpp"
 #include "ui/pattern_library.hpp"
@@ -1527,6 +1529,10 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
   CHECK(styles.find_entry(style_storage_id) != nullptr);
   patchy::ui::CustomShapeLibrary shapes(directory.filePath(QStringLiteral("shapes")));
   CHECK(shapes.restore_default_shapes() > 0);
+  patchy::ui::ContourLibrary contours(directory.filePath(QStringLiteral("contours")));
+  const auto* sweep_ring = patchy::find_builtin_contour_preset("contour.ring");
+  CHECK(sweep_ring != nullptr);
+  CHECK(!contours.add_contour(QStringLiteral("Sweep Ring"), sweep_ring->contour).isEmpty());
   SettingsValueRestorer stroke_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
   patchy::ui::save_stroke_style_presets(
       {patchy::ui::StrokeStylePreset{QStringLiteral("Sweep dots"), patchy::VectorStrokeAlignment::Center,
@@ -1567,6 +1573,10 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::request_custom_shape_manager(nullptr, shapes, QStringLiteral("shape.builtin.heart"));
     grab_dialog(QStringLiteral("strokePresetManagerDialog"), "stroke_preset_manager");
     (void)patchy::ui::request_stroke_preset_manager(nullptr);
+    grab_dialog(QStringLiteral("contourEditorDialog"), "contour_editor");
+    (void)patchy::ui::request_contour_edit(nullptr, sweep_ring->contour);
+    grab_dialog(QStringLiteral("saveContoursDialog"), "save_contours");
+    (void)patchy::ui::request_contours_to_save(nullptr, contours);
     grab_dialog(QStringLiteral("cameraRawFilterDialog"), "camera_raw_filter");
     patchy::ui::CameraRawFilterRequest camera_raw_request;
     camera_raw_request.source = std::make_shared<const patchy::PixelBuffer>(
@@ -1662,7 +1672,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 44);
+  CHECK(captured == 48);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

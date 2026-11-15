@@ -3461,7 +3461,8 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       &gradient_library(),
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
-      &context, std::as_const(doc).color_state().bit_depth, start_effect, start_index, enable_start_effect);
+      &context, std::as_const(doc).color_state().bit_depth, start_effect, start_index, enable_start_effect,
+      &contour_library());
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;

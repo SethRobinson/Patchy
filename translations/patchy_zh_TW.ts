@@ -15897,6 +15897,158 @@ Do you want to replace it?</source>
         <source>This document&apos;s preserved text engine cannot store new text on a path.</source>
         <translation>此文件保留的文字引擎無法儲存新的路徑文字。</translation>
     </message>
+    <message>
+        <source>The contour file is too large</source>
+        <translation>輪廓檔案過大</translation>
+    </message>
+    <message>
+        <source>Not a Photoshop contour file</source>
+        <translation>不是 Photoshop 輪廓檔案</translation>
+    </message>
+    <message>
+        <source>Unsupported contour file version</source>
+        <translation>不支援的輪廓檔案版本</translation>
+    </message>
+    <message>
+        <source>Skipped a contour with fewer than two points</source>
+        <translation>已略過一個少於兩個控制點的輪廓</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded contour</source>
+        <translation>檔案在最後一個讀取的輪廓之後已損毀</translation>
+    </message>
+    <message>
+        <source>The file holds no usable contours</source>
+        <translation>檔案中沒有可用的輪廓</translation>
+    </message>
+    <message>
+        <source>Contour graph</source>
+        <translation>輪廓圖表</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>按一下即可新增控制點。拖曳控制點可移動它，拖出圖表可將其移除。</translation>
+    </message>
+    <message>
+        <source>Edit Contour</source>
+        <translation>編輯輪廓</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s input level, left to right on the graph</source>
+        <translation>所選控制點的輸入色階，在圖表上由左至右</translation>
+    </message>
+    <message>
+        <source>The selected point&apos;s output level, bottom to top on the graph</source>
+        <translation>所選控制點的輸出色階，在圖表上由下至上</translation>
+    </message>
+    <message>
+        <source>Corner</source>
+        <translation>轉角</translation>
+    </message>
+    <message>
+        <source>The curve turns sharply at this point instead of bending through it</source>
+        <translation>曲線在此控制點急轉，而不是平滑地通過它</translation>
+    </message>
+    <message>
+        <source>Delete Point</source>
+        <translation>刪除控制點</translation>
+    </message>
+    <message>
+        <source>Put the curve back the way it was when this dialog opened</source>
+        <translation>將曲線還原為開啟此對話框時的樣子</translation>
+    </message>
+    <message>
+        <source>Click the graph to add a point. Drag a point to move it, or off the graph to remove it.</source>
+        <translation>按一下圖表即可新增控制點。拖曳控制點可移動它，拖出圖表可將其移除。</translation>
+    </message>
+    <message>
+        <source>Save Contours</source>
+        <translation>儲存輪廓</translation>
+    </message>
+    <message>
+        <source>Contours to save in the file:</source>
+        <translation>要儲存到檔案中的輪廓:</translation>
+    </message>
+    <message>
+        <source>The current style on a sample</source>
+        <translation>套用於範例的目前樣式</translation>
+    </message>
+    <message>
+        <source>Style preview</source>
+        <translation>樣式預覽</translation>
+    </message>
+    <message>
+        <source>Click the curve to edit this contour</source>
+        <translation>按一下曲線即可編輯此輪廓</translation>
+    </message>
+    <message>
+        <source>Edit…</source>
+        <translation>編輯…</translation>
+    </message>
+    <message>
+        <source>Edit this contour&apos;s curve</source>
+        <translation>編輯此輪廓的曲線</translation>
+    </message>
+    <message>
+        <source>Library</source>
+        <translation>資料庫</translation>
+    </message>
+    <message>
+        <source>Save this contour under a name, or load and save contour files</source>
+        <translation>以名稱儲存此輪廓，或載入和儲存輪廓檔案</translation>
+    </message>
+    <message>
+        <source>New Contour…</source>
+        <translation>新增輪廓…</translation>
+    </message>
+    <message>
+        <source>Rename Contour…</source>
+        <translation>重新命名輪廓…</translation>
+    </message>
+    <message>
+        <source>Delete Contour</source>
+        <translation>刪除輪廓</translation>
+    </message>
+    <message>
+        <source>Load Contours…</source>
+        <translation>載入輪廓…</translation>
+    </message>
+    <message>
+        <source>Save Contours…</source>
+        <translation>儲存輪廓…</translation>
+    </message>
+    <message>
+        <source>New Contour</source>
+        <translation>新增輪廓</translation>
+    </message>
+    <message>
+        <source>Contour %1</source>
+        <translation>輪廓 %1</translation>
+    </message>
+    <message>
+        <source>Could not save the contour.</source>
+        <translation>無法儲存輪廓。</translation>
+    </message>
+    <message>
+        <source>Rename Contour</source>
+        <translation>重新命名輪廓</translation>
+    </message>
+    <message>
+        <source>Could not rename the contour.</source>
+        <translation>無法重新命名輪廓。</translation>
+    </message>
+    <message>
+        <source>Load Contours</source>
+        <translation>載入輪廓</translation>
+    </message>
+    <message>
+        <source>Photoshop Contours (*.shc)</source>
+        <translation>Photoshop 輪廓 (*.shc)</translation>
+    </message>
+    <message>
+        <source>Contours.shc</source>
+        <translation>輪廓.shc</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21948,6 +22100,33 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is starting...</source>
         <translation>%1 正在啟動...</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ContourLibrary</name>
+    <message>
+        <source>Contour %1</source>
+        <translation>輪廓 %1</translation>
+    </message>
+    <message>
+        <source>Could not read the contour file.</source>
+        <translation>無法讀取輪廓檔案。</translation>
+    </message>
+    <message>
+        <source>The contour file is too large.</source>
+        <translation>輪廓檔案過大。</translation>
+    </message>
+    <message>
+        <source>Could not save the contour &quot;%1&quot;.</source>
+        <translation>無法儲存輪廓「%1」。</translation>
+    </message>
+    <message>
+        <source>Choose at least one contour to save.</source>
+        <translation>請至少選取一個要儲存的輪廓。</translation>
+    </message>
+    <message>
+        <source>Could not write the contour file.</source>
+        <translation>無法寫入輪廓檔案。</translation>
     </message>
 </context>
 <context>
