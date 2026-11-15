@@ -41,6 +41,13 @@ namespace patchy::ui {
 // the same arrow with a plus in place of the anchor badge. Built once and cached.
 [[nodiscard]] QCursor direct_select_add_cursor();
 
+// The Type tool over a line a click sets or edits text along (docs/path-text.md): an I-beam
+// standing on a wavy stroke, hot spot where the I-beam meets the stroke. And inside a shape a
+// click fills or whose text it edits (docs/area-text.md): an I-beam in a ring. Patchy's own
+// art, 25 px, a white halo under a black line. Built once and cached.
+[[nodiscard]] QCursor text_path_cursor();
+[[nodiscard]] QCursor text_area_cursor();
+
 // Free Transform gesture hints (GitHub issue 225): shown over a box handle or side while
 // the held modifiers (or the Edit > Transform mode) turn a drag into that gesture, before
 // it starts. The same arrow as move_pointer_cursor with a badge drawing the gesture's

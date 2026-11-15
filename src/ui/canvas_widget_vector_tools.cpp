@@ -1354,6 +1354,7 @@ void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
   if (path_edit_target_path() != previous_target) {
     clear_path_edit_selection();
   }
+  refresh_type_tool_cursor();
   update();
 }
 
@@ -1366,6 +1367,7 @@ void CanvasWidget::set_panel_path_targeted(bool targeted) {
     return;
   }
   panel_path_targeted_ = targeted;
+  refresh_type_tool_cursor();
   update();
 }
 
@@ -1397,6 +1399,7 @@ void CanvasWidget::set_target_path_visible(bool visible) {
     return;
   }
   target_path_visible_ = visible;
+  refresh_type_tool_cursor();
   update();
 }
 

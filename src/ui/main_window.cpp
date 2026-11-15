@@ -261,8 +261,6 @@ std::optional<VectorPath> text_editor_area(const QTextEdit& editor) {
 
 // Text along a path (docs/path-text.md): the session's contour in text-local coordinates and
 // the range its line is set in. Excludes the area contour.
-// How far from its contour (document pixels) a click still re-edits the active path text.
-constexpr double kTextPathClickReach = 6.0;
 constexpr auto kTextEditorPathProperty = "patchy.documentTextPath";
 constexpr auto kTextEditorPathRangeProperty = "patchy.documentTextPathRange";
 
@@ -7757,13 +7755,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   if (const auto active = document().active_layer_id(); active.has_value()) {
     if (auto* layer = document().find_layer(*active);
         !type_mask && !creating_area && layer != nullptr && layer_is_text(*layer) &&
-        (target_text_layer == active || layer->bounds().contains(document_point.x(), document_point.y()) ||
-         (text_area_in_document(std::as_const(*layer)) &&
-          TextAreaGeometry(*text_area_in_document(std::as_const(*layer))).contains(document_point)) ||
-         (text_path_in_document(std::as_const(*layer)) &&
-          TextPathCurve(*text_path_in_document(std::as_const(*layer)))
-                  .nearest(document_point.x(), document_point.y())
-                  .gap <= kTextPathClickReach))) {
+        (target_text_layer == active ||
+         canvas_->type_tool_hits_text_layer(std::as_const(*layer), document_point))) {
       if (text_geometry_is_protected(*layer)) {
         show_status_error(tr("This text boundary is preserved but cannot be edited."));
         return;

@@ -296,6 +296,10 @@ public:
   // in it (GitHub issue 301, docs/view-navigation.md "View area").
   [[nodiscard]] QRectF view_content_rect() const;
   void refresh_tool_cursor();
+  // The Type cursor names what lies under the pointer (type_tool_target_at), and that changes
+  // without a pointer move when the view scrolls or zooms, the document changes or another path
+  // is targeted: those call this, which re-applies the cursor while the Type tool hovers.
+  void refresh_type_tool_cursor();
   // View > Fit on Screen: the whole document in the viewport, zooming in when it is small.
   void fit_to_view();
   // The logical zoom fit_to_view picks for the widget's current size (0 with no document
@@ -1287,6 +1291,22 @@ public:
   // document coordinates, with the range from the point to the end of an open contour or once
   // around a closed one. Existing text wins, as for text_area_at.
   [[nodiscard]] std::optional<patchy::TextPathFrame> text_path_at(QPointF document_point) const;
+  // What a Type tool press at a document point works on (docs/path-text.md, "The Type tool"). The
+  // press, the cursor and MainWindow::add_text_at all ask this one function, so the cursor
+  // always names what a click there does. `layer` is the text layer an Edit kind opens.
+  enum class TypeToolTargetKind { NewText, NewPathText, NewAreaText, EditText, EditPathText, EditAreaText };
+  struct TypeToolTarget {
+    TypeToolTargetKind kind{TypeToolTargetKind::NewText};
+    Layer* layer{nullptr};
+  };
+  [[nodiscard]] TypeToolTarget type_tool_target_at(QPoint document_point) const;
+  // Whether a Type tool press at the point lands on this text layer: inside an area text's
+  // shape, inside other text's bounds, and for text on a path within type_tool_path_reach of
+  // its line or on its band of glyphs (never the empty rest of its bounding box).
+  [[nodiscard]] bool type_tool_hits_text_layer(const Layer& layer, QPoint document_point) const;
+  // How far from a line the Type tool takes it, for paths and for existing path text alike: six
+  // screen pixels, never under a pixel and a half of the document.
+  [[nodiscard]] double type_tool_path_reach() const;
   [[nodiscard]] const patchy::VectorPath* text_area_edit_target_path() const;
   // Replaces the targeted path (same target rules) and re-rasterizes WITHOUT
   // arming an undo entry: preview dialogs apply through this and own the

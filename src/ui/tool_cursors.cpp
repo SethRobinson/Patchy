@@ -8,6 +8,7 @@
 
 #include <QColor>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
 #include <QPointF>
@@ -416,6 +417,49 @@ QCursor direct_select_cursor() {
 
 QCursor direct_select_add_cursor() {
   static const QCursor cursor = build_direct_select_add_cursor();
+  return cursor;
+}
+
+namespace {
+
+// A 25 px Type tool cursor: the shape stroked twice, a white halo under a black line.
+template <typename Draw>
+QCursor outlined_type_cursor(QPoint hot_spot, const Draw& draw) {
+  QPixmap pixmap(25, 25);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    draw(painter);
+  }
+  painter.end();
+  return QCursor(pixmap, hot_spot.x(), hot_spot.y());
+}
+
+}  // namespace
+
+QCursor text_path_cursor() {
+  static const QCursor cursor = outlined_type_cursor(QPoint(12, 18), [](QPainter& painter) {
+    QPainterPath wave;
+    wave.moveTo(2.0, 21.0);
+    wave.cubicTo(8.0, 13.0, 16.0, 25.0, 23.0, 16.0);
+    painter.drawPath(wave);
+    painter.drawLine(12, 3, 12, 15);
+    painter.drawLine(9, 3, 15, 3);
+    painter.drawLine(9, 15, 15, 15);
+  });
+  return cursor;
+}
+
+QCursor text_area_cursor() {
+  static const QCursor cursor = outlined_type_cursor(QPoint(12, 12), [](QPainter& painter) {
+    painter.drawEllipse(QRectF(2, 2, 20, 20));
+    painter.drawLine(12, 6, 12, 18);
+    painter.drawLine(9, 6, 15, 6);
+    painter.drawLine(9, 18, 15, 18);
+  });
   return cursor;
 }
 

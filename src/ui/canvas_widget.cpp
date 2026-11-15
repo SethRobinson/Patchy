@@ -50,6 +50,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -165,28 +166,58 @@ const Layer* topmost_move_layer_at_recursive(const std::vector<Layer>& layers, Q
   return nullptr;
 }
 
-const Layer* topmost_text_layer_at_recursive(const std::vector<Layer>& layers, QPoint document_point) {
+// Whether a Type tool press at the point lands on this text layer (CanvasWidget::
+// type_tool_hits_text_layer; `path_reach` is its type_tool_path_reach).
+bool text_layer_contains_type_point(const Layer& layer, QPoint document_point, double path_reach) {
+  if (!layer_is_text(layer)) {
+    return false;
+  }
+  if (const auto area = text_area_in_document(layer)) {
+    return TextAreaGeometry(*area).contains(document_point);
+  }
+  const bool in_bounds = layer.bounds().contains(document_point.x(), document_point.y());
+  const auto path = text_path_in_document(layer);
+  if (!path) {
+    return in_bounds;
+  }
+  // Text on a path: its line, bare parts included, so a click there opens the layer; and the
+  // band its glyphs stand in. The rest of its bounding box (the inside of a ring of text, the
+  // corners around a slanted line) belongs to whatever else is there.
+  const auto transform = text_area_transform(layer);
+  const double scale = std::sqrt(std::abs(transform[0] * transform[3] - transform[1] * transform[2]));
+  int size = 0;
+  if (const auto found = layer.metadata().find(kLayerMetadataTextSize); found != layer.metadata().end()) {
+    size = std::atoi(found->second.c_str());
+  }
+  // As far as glyphs reach either side of the line (the session's own measure, main_window.cpp
+  // path_text_reach), in document pixels.
+  const double glyph_reach = std::max(12.0, 1.6 * static_cast<double>(std::max(1, size))) * std::max(scale, 0.0001);
+  const double reach = in_bounds ? std::max(path_reach, glyph_reach) : path_reach;
+  if (const auto contour_bounds = path->bounds();
+      !contour_bounds || document_point.x() < contour_bounds->left - reach ||
+      document_point.x() > contour_bounds->right + reach || document_point.y() < contour_bounds->top - reach ||
+      document_point.y() > contour_bounds->bottom + reach) {
+    return false;
+  }
+  return TextPathCurve(*path).nearest(document_point.x(), document_point.y()).gap <= reach;
+}
+
+const Layer* topmost_text_layer_at_recursive(const std::vector<Layer>& layers, QPoint document_point,
+                                             double path_reach) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     const auto& layer = *it;
     if (!layer.visible()) {
       continue;
     }
     if (layer.kind() == LayerKind::Group) {
-      if (const auto* found = topmost_text_layer_at_recursive(layer.children(), document_point); found != nullptr) {
+      if (const auto* found = topmost_text_layer_at_recursive(layer.children(), document_point, path_reach);
+          found != nullptr) {
         return found;
       }
       continue;
     }
-    if (layer_is_text(layer)) {
-      if (const auto area = text_area_in_document(layer)) {
-        if (TextAreaGeometry(*area).contains(document_point)) return &layer;
-      } else if (layer.bounds().contains(document_point.x(), document_point.y())) {
-        return &layer;
-      } else if (const auto path = text_path_in_document(layer);
-                 path && TextPathCurve(*path).nearest(document_point.x(), document_point.y()).gap <= 4.0) {
-        // Path text: its contour too, so a click on the bare part of the path opens the layer.
-        return &layer;
-      }
+    if (text_layer_contains_type_point(layer, document_point, path_reach)) {
+      return &layer;
     }
   }
   return nullptr;
@@ -2191,7 +2222,38 @@ Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept
     return nullptr;
   }
 
-  return const_cast<Layer*>(topmost_text_layer_at_recursive(std::as_const(*document_).layers(), document_point));
+  return const_cast<Layer*>(
+      topmost_text_layer_at_recursive(std::as_const(*document_).layers(), document_point, type_tool_path_reach()));
+}
+
+double CanvasWidget::type_tool_path_reach() const {
+  return std::max(1.5, 6.0 / std::max(0.0001, zoom()));
+}
+
+bool CanvasWidget::type_tool_hits_text_layer(const Layer& layer, QPoint document_point) const {
+  return text_layer_contains_type_point(layer, document_point, type_tool_path_reach());
+}
+
+CanvasWidget::TypeToolTarget CanvasWidget::type_tool_target_at(QPoint document_point) const {
+  if (document_ == nullptr) {
+    return {};
+  }
+  if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
+    const auto& text = std::as_const(*layer);
+    if (text_path_for_layer(text).has_value()) {
+      return {TypeToolTargetKind::EditPathText, layer};
+    }
+    return {text_area_for_layer(text).has_value() ? TypeToolTargetKind::EditAreaText : TypeToolTargetKind::EditText,
+            layer};
+  }
+  // A line wins over the inside of a closed shape: the edge of a shape starts path text.
+  if (text_path_at(QPointF(document_point)).has_value()) {
+    return {TypeToolTargetKind::NewPathText, nullptr};
+  }
+  if (text_area_at(document_point).has_value()) {
+    return {TypeToolTargetKind::NewAreaText, nullptr};
+  }
+  return {};
 }
 
 bool CanvasWidget::text_layer_move_target_at(QPoint widget_point) const {
@@ -2235,8 +2297,9 @@ void CanvasWidget::finish_text_layer_move() {
 std::optional<TextPathFrame> CanvasWidget::text_path_at(QPointF document_point) const {
   if (!document_ || topmost_text_layer_at(document_point.toPoint())) return std::nullopt;
   // Six screen pixels either side of the line, never under a pixel and a half of the document
-  // (the Type tool reports whole document pixels).
-  const double reach = std::max(1.5, 6.0 / std::max(0.0001, zoom()));
+  // (the Type tool reports whole document pixels). Existing path text takes its own line with
+  // the same reach, so no strip beside it falls through to the path underneath.
+  const double reach = type_tool_path_reach();
   std::optional<TextPathFrame> best;
   double best_gap = reach;
   const auto consider = [&](const VectorPath& source) {

@@ -10,6 +10,8 @@
 #include "ui/text_document.hpp"
 #include "ui/text_path_layout.hpp"
 #include "ui/text_render.hpp"
+#include "ui/theme_script_host.hpp"
+#include "ui/tool_cursors.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/text_area.hpp"
@@ -675,6 +677,69 @@ void click_canvas(CanvasWidget& canvas, QPoint document_point) {
   QApplication::processEvents();
 }
 
+// A pixel of the layer's own ink, the one nearest the middle of its bounds, in the document.
+QPoint ink_point(const Layer& layer) {
+  const auto image = qimage_from_pixel_buffer(layer.pixels());
+  const QPoint middle(image.width() / 2, image.height() / 2);
+  QPoint best = middle;
+  int best_distance = -1;
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      if (qAlpha(image.pixel(x, y)) < 200) continue;
+      const int distance = (QPoint(x, y) - middle).manhattanLength();
+      if (best_distance < 0 || distance < best_distance) {
+        best_distance = distance;
+        best = QPoint(x, y);
+      }
+    }
+  }
+  return QPoint(layer.bounds().x, layer.bounds().y) + best;
+}
+
+// Which of the Type tool's cursors the canvas shows: the I-beam on a wavy stroke (text along a
+// line), the I-beam in a ring (text inside a shape) or the plain one (a theme's Type cursor,
+// else the system I-beam).
+enum class TypeCursor { Plain, Path, Area, Other };
+
+TypeCursor shown_type_cursor(const CanvasWidget& canvas) {
+  const auto cursor = canvas.cursor();
+  if (cursor.shape() == Qt::BitmapCursor) {
+    const auto image = cursor.pixmap().toImage();
+    if (image == text_path_cursor().pixmap().toImage()) return TypeCursor::Path;
+    if (image == text_area_cursor().pixmap().toImage()) return TypeCursor::Area;
+  }
+  const auto plain = theme_tool_cursor(CanvasTool::Text).value_or(QCursor(Qt::IBeamCursor));
+  if (cursor.shape() != plain.shape()) return TypeCursor::Other;
+  if (cursor.shape() == Qt::BitmapCursor && cursor.pixmap().toImage() != plain.pixmap().toImage()) {
+    return TypeCursor::Other;
+  }
+  return TypeCursor::Plain;
+}
+
+// The cursor that names a press's target (docs/path-text.md, "The Type tool").
+TypeCursor cursor_for(CanvasWidget::TypeToolTargetKind kind) {
+  using Kind = CanvasWidget::TypeToolTargetKind;
+  switch (kind) {
+    case Kind::NewPathText:
+    case Kind::EditPathText:
+      return TypeCursor::Path;
+    case Kind::NewAreaText:
+    case Kind::EditAreaText:
+      return TypeCursor::Area;
+    case Kind::NewText:
+    case Kind::EditText:
+      return TypeCursor::Plain;
+  }
+  return TypeCursor::Other;
+}
+
+// A hover move (no button) to a document point; the cursor the canvas then shows.
+TypeCursor hover(CanvasWidget& canvas, QPoint document_point) {
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(document_point), Qt::NoButton,
+             Qt::NoButton);
+  return shown_type_cursor(canvas);
+}
+
 // The same file through the app: a Type tool click on each text opens it on its path, typing
 // keeps the contour and the range, and the saved file opens as editable path text again.
 void ui_text_path_older_photoshop_cc_file_edits_with_the_type_tool_if_available() {
@@ -699,24 +764,6 @@ void ui_text_path_older_photoshop_cc_file_edits_with_the_type_tool_if_available(
   canvas->set_zoom(1.0);
   const auto& doc = std::as_const(MainWindowTestAccess::document(window));
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
-  // A pixel of the layer's own ink, the one nearest the middle of its bounds.
-  const auto ink_point = [](const Layer& layer) {
-    const auto image = qimage_from_pixel_buffer(layer.pixels());
-    const QPoint middle(image.width() / 2, image.height() / 2);
-    QPoint best = middle;
-    int best_distance = -1;
-    for (int y = 0; y < image.height(); ++y) {
-      for (int x = 0; x < image.width(); ++x) {
-        if (qAlpha(image.pixel(x, y)) < 200) continue;
-        const int distance = (QPoint(x, y) - middle).manhattanLength();
-        if (best_distance < 0 || distance < best_distance) {
-          best_distance = distance;
-          best = QPoint(x, y);
-        }
-      }
-    }
-    return QPoint(layer.bounds().x, layer.bounds().y) + best;
-  };
   int edited = 0;
   for (const auto& value : ids) {
     const auto id = value.toString().toULongLong();
@@ -934,12 +981,9 @@ void ui_text_path_type_tool_types_along_an_open_work_path() {
   CHECK(std::abs(target->range.start - 0.25) < 0.01);
   CHECK(target->range.end == 1.0);
   CHECK(!canvas->text_path_at(QPointF(on_path + QPoint(0, 30))).has_value());
-  // Over the line the cursor is the I-beam standing on a wavy stroke (hot spot 12, 18).
-  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(on_path), Qt::NoButton, Qt::NoButton);
-  CHECK(canvas->cursor().hotSpot() == QPoint(12, 18));
-  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(on_path + QPoint(0, 60)), Qt::NoButton,
-             Qt::NoButton);
-  CHECK(canvas->cursor().hotSpot() != QPoint(12, 18));
+  // Over the line the cursor is the I-beam standing on a wavy stroke.
+  CHECK(hover(*canvas, on_path) == TypeCursor::Path);
+  CHECK(hover(*canvas, on_path + QPoint(0, 60)) == TypeCursor::Plain);
   // The last pixels of the path leave no room for text: the whole path is taken.
   const auto at_end = canvas->text_path_at(QPointF(579, 359));
   CHECK(at_end.has_value() && at_end->range.start == 0.0 && at_end->range.end == 1.0);
@@ -978,6 +1022,379 @@ void ui_text_path_type_tool_types_along_an_open_work_path() {
   CHECK(layer->bounds().x + layer->bounds().width > on_path.x() + 100);
   run(window, "patchy.setResult(JSON.stringify(app.activeDocument.workPath.getPath()));");
   CHECK(window.script_engine_host().last_result().toString() == work_before);
+}
+
+// The Type tool's cursor names what a press there works on (GitHub issue 717 follow-up): the
+// wavy cursor over text on a path and along its whole line, the ring inside a shape or over
+// text that fills one, the plain I-beam over other text and on empty canvas. The press asks
+// the same function, so a click does what the cursor said.
+void ui_text_path_type_tool_cursor_names_the_click_target() {
+  if (arial_missing()) return;
+  using Kind = CanvasWidget::TypeToolTargetKind;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    d.addShape('Shape',{type:'ellipse',x:420,y:330,width:200,height:150});
+    var line={subpaths:[{closed:false,anchors:[{x:60,y:470},{x:380,y:310}]}]};
+    var onPath=d.addTextLayer('Along',{font:'Arial',size:24,path:line});
+    var box={subpaths:[{closed:true,anchors:[{x:420,y:40},{x:620,y:40},{x:620,y:200},{x:420,y:200}]}]};
+    var inArea=d.addTextLayer('Area',{font:'Arial',size:24,area:box});
+    var point=d.addTextLayer('Point text',{font:'Arial',size:24,x:60,y:60});
+    d.setWorkPath({subpaths:[{closed:false,anchors:[{x:60,y:200},{x:360,y:200}]}]});
+    patchy.setResult([onPath.id,inArea.id,point.id]);
+  )JS");
+  const auto ids = window.script_engine_host().last_result().toArray();
+  CHECK(ids.size() == 3);
+  if (ids.size() != 3) return;
+  const auto path_id = ids[0].toString().toULongLong();
+  const auto area_id = ids[1].toString().toULongLong();
+  const auto point_id = ids[2].toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto* path_layer = doc.find_layer(path_id);
+  const auto* point_layer = doc.find_layer(point_id);
+  CHECK(path_layer != nullptr && point_layer != nullptr && doc.find_layer(area_id) != nullptr);
+  if (path_layer == nullptr || point_layer == nullptr) return;
+
+  // What a press would work on, and the cursor a hover there shows.
+  const auto expect = [&](QPoint at, Kind kind, LayerId layer_id, const char* what) {
+    const auto target = canvas->type_tool_target_at(at);
+    const bool target_ok = target.kind == kind && (target.layer == nullptr ? 0 : target.layer->id()) == layer_id;
+    const bool cursor_ok = hover(*canvas, at) == cursor_for(kind);
+    if (!target_ok || !cursor_ok) {
+      std::printf("  %s at (%d, %d): target kind %d (want %d), cursor %d (want %d)\n", what, at.x(), at.y(),
+                  static_cast<int>(target.kind), static_cast<int>(kind), static_cast<int>(shown_type_cursor(*canvas)),
+                  static_cast<int>(cursor_for(kind)));
+    }
+    CHECK(target_ok);
+    CHECK(cursor_ok);
+  };
+
+  // The line of the path text: 85 percent along it is bare (the word stands near its start).
+  const auto contour_in_document = text_path_in_document(*path_layer);
+  CHECK(contour_in_document.has_value());
+  if (!contour_in_document) return;
+  const TextPathCurve curve(*contour_in_document);
+  const auto bare = curve.sample(curve.distance_at_parameter(0.85));
+  const auto beside = [&](double offset) {
+    return QPoint(static_cast<int>(std::lround(bare.x - bare.tangent_y * offset)),
+                  static_cast<int>(std::lround(bare.y + bare.tangent_x * offset)));
+  };
+  const QPoint on_bare_line = beside(0.0);
+  CHECK(!path_layer->bounds().contains(on_bare_line.x(), on_bare_line.y()));
+
+  const auto check_scene = [&] {
+    expect(ink_point(*path_layer), Kind::EditPathText, path_id, "path text ink");
+    expect(on_bare_line, Kind::EditPathText, path_id, "bare line of the path text");
+    // Five pixels either side is still the text's line: no strip there starts new text.
+    expect(beside(5.0), Kind::EditPathText, path_id, "beside the line");
+    expect(beside(-5.0), Kind::EditPathText, path_id, "beside the line, other side");
+    expect(beside(12.0), Kind::NewText, 0, "past the line's reach");
+    expect(beside(-12.0), Kind::NewText, 0, "past the line's reach, other side");
+    const auto point_bounds = point_layer->bounds();
+    expect(QPoint(point_bounds.x + point_bounds.width / 2, point_bounds.y + point_bounds.height / 2), Kind::EditText,
+           point_id, "point text");
+    // Anywhere inside the shape area text fills, glyphs or not.
+    expect(QPoint(600, 190), Kind::EditAreaText, area_id, "area text");
+    expect(QPoint(520, 405), Kind::NewAreaText, 0, "inside a closed shape");
+    expect(QPoint(520, 330), Kind::NewPathText, 0, "edge of a shape");
+    expect(QPoint(300, 120), Kind::NewText, 0, "empty canvas");
+  };
+  check_scene();
+  // The open work path, while it is the targeted path.
+  if (canvas->text_path_at(QPointF(200, 200)).has_value()) {
+    expect(QPoint(200, 200), Kind::NewPathText, 0, "open work path");
+    expect(QPoint(200, 205), Kind::NewPathText, 0, "beside the work path");
+    expect(QPoint(200, 212), Kind::NewText, 0, "past the work path's reach");
+    // Hiding the path display changes the answer with no pointer move.
+    CHECK(hover(*canvas, QPoint(200, 200)) == TypeCursor::Path);
+    canvas->set_target_path_visible(false);
+    CHECK(shown_type_cursor(*canvas) == TypeCursor::Plain);
+    canvas->set_target_path_visible(true);
+    CHECK(shown_type_cursor(*canvas) == TypeCursor::Path);
+  } else {
+    CHECK(false);  // the work path set above is the target until a layer with its own path is active
+  }
+
+  // A press beside the bare line opens that text (it used to start a second text on a copy of
+  // the line). The layer is then active and its line is the targeted path: the answers hold.
+  click_canvas(*canvas, beside(5.0));
+  auto* editor = session_editor(*canvas);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) return;
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == path_id);
+  CHECK(editor->toPlainText() == QStringLiteral("Along"));
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(session_editor(*canvas) == nullptr);
+  CHECK(doc.active_layer_id() == std::optional<LayerId>(path_id));
+  path_layer = doc.find_layer(path_id);
+  point_layer = doc.find_layer(point_id);
+  if (path_layer == nullptr || point_layer == nullptr) return;
+  check_scene();
+}
+
+// Text that runs around a ring covers the ring's inside with its bounding box. Only the band
+// of glyphs and the line are the text's: the middle starts new text (free text, or text that
+// fills the ring while the ring's text is the active layer and its line the targeted path).
+void ui_text_path_type_tool_leaves_the_inside_of_a_ring_of_text_free() {
+  if (arial_missing()) return;
+  using Kind = CanvasWidget::TypeToolTargetKind;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var ring={subpaths:[{closed:true,anchors:[
+      {x:330,y:80,inX:230.6,inY:80,outX:429.4,outY:80},
+      {x:510,y:260,inX:510,inY:160.6,outX:510,outY:359.4},
+      {x:330,y:440,inX:429.4,inY:440,outX:230.6,outY:440},
+      {x:150,y:260,inX:150,inY:359.4,outX:150,outY:160.6}]}]};
+    var t=d.addTextLayer('Round and round the ring the letters go. '.repeat(4),{font:'Arial',size:24,path:ring});
+    d.addTextLayer('Corner',{font:'Arial',size:12,x:10,y:10});
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  const QPoint middle(330, 260);
+  // The text goes most of the way round, so its box holds the middle of the ring.
+  CHECK(layer->bounds().contains(middle.x(), middle.y()));
+  CHECK(doc.active_layer_id() != std::optional<LayerId>(id));
+  CHECK(canvas->type_tool_target_at(middle).kind == Kind::NewText);
+  CHECK(hover(*canvas, middle) == TypeCursor::Plain);
+  const auto ink = ink_point(*layer);
+  CHECK(canvas->type_tool_target_at(ink).kind == Kind::EditPathText);
+  CHECK(hover(*canvas, ink) == TypeCursor::Path);
+  CHECK(canvas->type_tool_target_at(QPoint(330, 80)).layer == layer);
+  CHECK(hover(*canvas, QPoint(330, 80)) == TypeCursor::Path);
+
+  // The click agrees: new text in the middle, the ring untouched.
+  const auto committed = *layer;
+  const auto layers_before = doc.layers().size();
+  click_canvas(*canvas, middle);
+  auto* editor = session_editor(*canvas);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) return;
+  CHECK(!editor->property("patchy.editingLayerId").isValid());
+  CHECK(editor->property("patchy.documentTextPath").toString().isEmpty());
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(session_editor(*canvas) == nullptr);
+  CHECK(doc.layers().size() == layers_before);
+  CHECK(doc.find_layer(id) != nullptr && doc.find_layer(id)->metadata() == committed.metadata());
+  // And a click on the letters opens the ring's text.
+  click_canvas(*canvas, ink_point(*doc.find_layer(id)));
+  editor = session_editor(*canvas);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) return;
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == id);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(session_editor(*canvas) == nullptr);
+  // The ring's text is the active layer now and its closed line the targeted path: the middle
+  // is the inside of that path, where a press fills it, and still not the ring's own text.
+  CHECK(doc.active_layer_id() == std::optional<LayerId>(id));
+  const auto in_middle = canvas->type_tool_target_at(middle);
+  CHECK(in_middle.layer == nullptr && in_middle.kind == Kind::NewAreaText);
+  CHECK(hover(*canvas, middle) == TypeCursor::Area);
+  CHECK(hover(*canvas, QPoint(330, 80)) == TypeCursor::Path);
+}
+
+// Every hover move sets the cursor from that move's own position: across the line of a path
+// text and along it the wavy cursor shows for exactly the points within the Type tool's reach
+// (six screen pixels), at any zoom, with no stale answers between moves.
+void ui_text_path_type_tool_cursor_follows_each_hover_move() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:260},{x:580,y:260}]}]};
+    var t=d.addTextLayer('Along',{font:'Arial',size:24,path:p});
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto* layer = doc.find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) return;
+  // The word ends well before x = 400: that part of the line is bare.
+  CHECK(layer->bounds().x + layer->bounds().width < 300);
+
+  // Across the bare line, a pixel a move, there and back.
+  int wrong = 0;
+  for (const int direction : {1, -1}) {
+    for (int step = -14; step <= 14; ++step) {
+      const int dy = direction * step;
+      const auto want = std::abs(dy) <= 6 ? TypeCursor::Path : TypeCursor::Plain;
+      if (hover(*canvas, QPoint(400, 260 + dy)) != want) {
+        std::printf("  across the line at dy %d: cursor %d\n", dy, static_cast<int>(shown_type_cursor(*canvas)));
+        ++wrong;
+      }
+    }
+  }
+  CHECK(wrong == 0);
+  // Along the line, three pixels below it (the side the letters do not stand on), from before
+  // its start to past its end: the whole line answers, and only the line.
+  for (int x = 40; x <= 620; x += 7) {
+    const double gap = x < 80 ? std::hypot(80.0 - x, 3.0) : x > 580 ? std::hypot(x - 580.0, 3.0) : 3.0;
+    const auto want = gap <= 6.0 ? TypeCursor::Path : TypeCursor::Plain;
+    if (hover(*canvas, QPoint(x, 263)) != want) {
+      std::printf("  along the line at x %d: cursor %d\n", x, static_cast<int>(shown_type_cursor(*canvas)));
+      ++wrong;
+    }
+  }
+  CHECK(wrong == 0);
+  // The reach is six screen pixels: three document pixels at 200 percent, twelve at 50 percent.
+  canvas->set_zoom(2.0);
+  CHECK(hover(*canvas, QPoint(400, 263)) == TypeCursor::Path);
+  CHECK(hover(*canvas, QPoint(400, 264)) == TypeCursor::Plain);
+  CHECK(hover(*canvas, QPoint(400, 257)) == TypeCursor::Path);
+  canvas->set_zoom(0.5);
+  CHECK(hover(*canvas, QPoint(400, 272)) == TypeCursor::Path);
+  CHECK(hover(*canvas, QPoint(400, 274)) == TypeCursor::Plain);
+}
+
+// What lies under a resting pointer changes when the view scrolls or the document changes:
+// the cursor follows without waiting for a move.
+void ui_text_path_type_tool_cursor_refreshes_without_a_move() {
+  if (arial_missing()) return;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, R"JS(
+    var d=app.newDocument(660,520);
+    var p={subpaths:[{closed:false,anchors:[{x:80,y:260},{x:580,y:260}]}]};
+    var t=d.addTextLayer('Along',{font:'Arial',size:24,path:p});
+    patchy.setResult(t.id);
+  )JS");
+  const auto id = window.script_engine_host().last_result().toString().toULongLong();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  CHECK(doc.find_layer(id) != nullptr);
+  const QPoint on_line(400, 260);
+  CHECK(hover(*canvas, on_line) == TypeCursor::Path);
+
+  // The text layer goes (undo of its creation) and comes back (redo).
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(doc.find_layer(id) == nullptr);
+  CHECK(shown_type_cursor(*canvas) == TypeCursor::Plain);
+  MainWindowTestAccess::redo(window);
+  QApplication::processEvents();
+  CHECK(doc.find_layer(id) != nullptr);
+  CHECK(shown_type_cursor(*canvas) == TypeCursor::Path);
+
+  // The view scrolls under the pointer: at 400 percent a page down puts canvas far from the
+  // line there.
+  canvas->set_zoom(4.0);
+  CHECK(hover(*canvas, on_line) == TypeCursor::Path);
+  const auto resting = canvas->widget_position_for_document_point(on_line);
+  canvas->scroll_view(CanvasWidget::ViewScroll::PageDown);
+  QApplication::processEvents();
+  CHECK(canvas->widget_position_for_document_point(on_line) != resting);
+  CHECK(shown_type_cursor(*canvas) == TypeCursor::Plain);
+  canvas->scroll_view(CanvasWidget::ViewScroll::PageUp);
+  QApplication::processEvents();
+  if (canvas->widget_position_for_document_point(on_line) == resting) {
+    CHECK(shown_type_cursor(*canvas) == TypeCursor::Path);
+  }
+}
+
+// The reporter's file of the issue 717 follow-up: both texts stand on slanted and curved lines.
+// Over each text's letters and all along its line, a few pixels to either side included, the
+// cursor is the wavy one and the press would open that text, whichever layer is active.
+void ui_text_path_older_photoshop_cc_file_shows_the_path_cursor_along_each_line_if_available() {
+  const auto fixture = older_photoshop_cc_fixture();
+  patchy::test::skip_unless_exists(fixture);
+  if (older_photoshop_cc_fonts_missing()) return;
+  using Kind = CanvasWidget::TypeToolTargetKind;
+  MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  const auto quoted =
+      QString::fromUtf8(QJsonDocument(QJsonArray{to_qstring(fixture)}).toJson(QJsonDocument::Compact));
+  run(window, QStringLiteral(R"JS(
+    var d=app.open(%1[0]);
+    var texts=d.layers.filter(function(l){return l.isText;});
+    check(texts.length===2,'two type layers');
+    patchy.setResult(texts.map(function(t){return t.id;}));
+  )JS").arg(quoted));
+  const auto ids = window.script_engine_host().last_result().toArray();
+  CHECK(ids.size() == 2);
+  if (ids.size() != 2) return;
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto sweep = [&](const char* when) {
+    int wrong = 0;
+    int checked = 0;
+    for (const auto& value : ids) {
+      const auto* layer = doc.find_layer(value.toString().toULongLong());
+      CHECK(layer != nullptr);
+      if (layer == nullptr) continue;
+      const auto ink = ink_point(*layer);
+      const auto on_ink = canvas->type_tool_target_at(ink);
+      CHECK(on_ink.kind == Kind::EditPathText && on_ink.layer == layer);
+      CHECK(hover(*canvas, ink) == TypeCursor::Path);
+      const auto in_document = text_path_in_document(*layer);
+      CHECK(in_document.has_value());
+      if (!in_document) continue;
+      const TextPathCurve curve(*in_document);
+      for (int step = 1; step < 40; ++step) {
+        const auto sample = curve.sample(curve.length() * step / 40.0);
+        for (const double offset : {-5.0, 0.0, 5.0}) {
+          const QPoint at(static_cast<int>(std::lround(sample.x - sample.tangent_y * offset)),
+                          static_cast<int>(std::lround(sample.y + sample.tangent_x * offset)));
+          if (at.x() < 0 || at.y() < 0 || at.x() >= doc.width() || at.y() >= doc.height()) continue;
+          ++checked;
+          // Where the two texts come close the upper layer may answer: still text on a path.
+          if (canvas->type_tool_target_at(at).kind != Kind::EditPathText || hover(*canvas, at) != TypeCursor::Path) {
+            std::printf("  %s: (%d, %d) is not path text\n", when, at.x(), at.y());
+            ++wrong;
+          }
+        }
+      }
+    }
+    CHECK(checked > 100);
+    CHECK(wrong == 0);
+  };
+  sweep("as opened");
+  // With each text active its line is the targeted path (drawn on the canvas): the same answers.
+  for (const auto& value : ids) {
+    const auto layer_id = value.toString().toULongLong();
+    click_canvas(*canvas, ink_point(*doc.find_layer(layer_id)));
+    auto* editor = session_editor(*canvas);
+    CHECK(editor != nullptr);
+    if (editor == nullptr) return;
+    CHECK(editor->property("patchy.editingLayerId").toULongLong() == layer_id);
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+    CHECK(session_editor(*canvas) == nullptr);
+    sweep("with a text active");
+  }
 }
 
 QPoint overlay_point(const QWidget& overlay, const QVariant& canvas_point) {
@@ -1639,6 +2056,13 @@ std::vector<patchy::test::TestCase> text_path_tests() {
       {"ui_text_path_script_creation_range_flip_and_undo", ui_text_path_script_creation_range_flip_and_undo},
       {"ui_text_path_type_tool_targets_shape_edges_and_reopens", ui_text_path_type_tool_targets_shape_edges_and_reopens},
       {"ui_text_path_type_tool_types_along_an_open_work_path", ui_text_path_type_tool_types_along_an_open_work_path},
+      {"ui_text_path_type_tool_cursor_names_the_click_target", ui_text_path_type_tool_cursor_names_the_click_target},
+      {"ui_text_path_type_tool_leaves_the_inside_of_a_ring_of_text_free",
+       ui_text_path_type_tool_leaves_the_inside_of_a_ring_of_text_free},
+      {"ui_text_path_type_tool_cursor_follows_each_hover_move", ui_text_path_type_tool_cursor_follows_each_hover_move},
+      {"ui_text_path_type_tool_cursor_refreshes_without_a_move", ui_text_path_type_tool_cursor_refreshes_without_a_move},
+      {"ui_text_path_older_photoshop_cc_file_shows_the_path_cursor_along_each_line_if_available",
+       ui_text_path_older_photoshop_cc_file_shows_the_path_cursor_along_each_line_if_available},
       {"ui_text_path_handles_move_the_range_and_flip", ui_text_path_handles_move_the_range_and_flip},
       {"ui_text_path_flip_command_flips_a_committed_layer", ui_text_path_flip_command_flips_a_committed_layer},
       {"ui_paths_panel_delete_key_deletes_the_selected_path_not_the_layer",

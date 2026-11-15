@@ -408,6 +408,7 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
   note_document_changed_for_gradient_drag_hold();
   invalidate_vector_preview();
   mark_object_select_embedding_unverified();
+  refresh_type_tool_cursor();  // text, a shape or a path may have come or gone under the pointer
   if (document_changed_reason_callback_) {
     document_changed_reason_callback_(reason);
   } else if (document_changed_callback_) {
