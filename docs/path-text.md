@@ -42,7 +42,8 @@ Findings, each from a capture:
 - **Alignment works inside the range.** Centered text is centered between the start and end
   points; right-aligned text ends at the end point. Trailing spaces do not count.
 - **The line is justified and indented like a one-line box** (Photoshop 2027 over the Action
-  Manager, November 2026, GitHub issue 717: a straight 500 px path, Arial 48 px, `IIIII IIIII`).
+  Manager, November 2026, GitHub issue 717; `scripts/dev/probe-path-text-paragraph.ps1`: a
+  straight 500 px path, Arial 48 px, `IIIII IIIII`).
   A line that fits is its paragraph's last line: Justify (last line left) sets it at the start,
   (last line centered) centers it, (last line right) ends it at the end point, and Justify all
   spreads it over the range. A line that hides words is not the last line, so every justify
@@ -52,7 +53,9 @@ Findings, each from a capture:
   starts at the range's end point. Point text takes the indents too and ignores every justify
   mode. Photoshop's own panel offers no justify mode for a line on a path; a file gets one from
   the Paragraph panel's sticky settings (the issue 717 file: Justify, first line indent 20 pt,
-  end indent 40 pt, a right-to-left paragraph).
+  end indent 40 pt, a right-to-left paragraph; its layer descriptor states no `directionType`,
+  yet Photoshop sets the text from the range's end point and its re-layout lands on the saved
+  pixels).
 - **Text that does not fit is hidden by whole words**, as if the range were a one-line box as
   wide as its arc length: five groups of `IIIII` on a range that holds four and a half show
   four. A single word longer than the range is cut by glyph. A second paragraph is hidden. The
