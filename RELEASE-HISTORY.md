@@ -3,6 +3,14 @@
 Older Patchy release notes are collected here. The most recent release
 remains in [README.md](README.md#whats-new).
 
+## 1.36 - November 15, 2026
+
+- Panels: Window > Show Panel Titles hides the title rows of open panels to give them more room; tab groups keep their tabs, collapsed panels keep their row, and Reset Panels turns the titles back on ([issue 721](https://github.com/SethRobinson/Patchy/issues/721))
+- Files: opening several files at once (selecting them in the file manager and choosing Open with Patchy) starts one Patchy with all of them, instead of a separate copy for each ([issue 722](https://github.com/SethRobinson/Patchy/issues/722))
+- Text: path text from older Photoshop CC files opens editable ([issue 717](https://github.com/SethRobinson/Patchy/issues/717))
+- Gradient tool: in Fill Layer mode the drag preview stays up until the new or redrawn layer is drawn, so a large document no longer flashes the picture from before the drag ([issue 714](https://github.com/SethRobinson/Patchy/issues/714))
+- Also: Help > About Patchy lists each contributor with their count of accepted issues and pull requests, most first
+
 ## 1.35 - November 14, 2026
 
 - Text: text on a path. Click an open path or the edge of a shape with the Type tool to type along it; marks on the path move where the text starts and ends and flip it to the other side, and Type > Flip Text on Path flips a finished layer. Path text in Photoshop files opens editable and is saved as native Photoshop path text ([issue 717](https://github.com/SethRobinson/Patchy/issues/717)), ([issue 718](https://github.com/SethRobinson/Patchy/issues/718))

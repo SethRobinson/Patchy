@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.37" date="2026-11-16">
+      <description>
+        <ul>
+          <li>Background Eraser and Magic Eraser in a new Eraser flyout</li>
+          <li>Layer Style has a contour editor, saved contours with Photoshop .shc load and save, and a style preview swatch</li>
+          <li>Gradient Fill finishes drawing in the background, and a Gradient tool drag can start on the pasteboard</li>
+          <li>The Type tool edits path text from anywhere along its line and puts the caret where the opening click landed</li>
+          <li>A guide for theme authors, and a Problems found list for themes in Preferences</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.36" date="2026-11-15">
       <description>
         <ul>
