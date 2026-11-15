@@ -36135,6 +36135,18 @@ Locked: %1</source>
         <source>Has a Blend Mode</source>
         <translation>有混合模式</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>如何制作主题</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>在网页浏览器中打开主题制作指南。</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>无法在网页浏览器中打开主题指南。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

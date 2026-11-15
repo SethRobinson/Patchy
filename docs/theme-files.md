@@ -5,6 +5,7 @@ Read this before changing the `.patchytheme` format, theme packages (icons, back
 Related documents:
 - [theme-files-scripts.md](theme-files-scripts.md): a package's sounds and the looping sound channel, the theme events with their sounds and effects, and theme scripts (engine, API, limits, per-theme trust).
 - [theme-files-preferences.md](theme-files-preferences.md): Preferences > Colors and Themes (theme list, live preview, details panel, the theme file buttons, the sound and effect switches).
+- [making-themes.md](making-themes.md): the user guide for theme authors, with [making-themes-advanced.md](making-themes-advanced.md) and [making-themes-sounds-scripts.md](making-themes-sounds-scripts.md). See [User guide](#user-guide).
 
 ## Format
 
@@ -83,6 +84,13 @@ While a folder package is the active theme (applied or only previewed), `ThemeMa
 ## Bundled themes
 
 Themes compiled into every build (`bundled:` ids): the generated `.patchytheme` palettes and theme packages such as Dink Smallwood, their resources, script trust and the `PATCHY_THEME_SOURCE_DIR` editing override are in [bundled-themes.md](bundled-themes.md).
+
+## User guide
+
+`making-themes.md` ("Your first theme"), `making-themes-advanced.md` (the reference) and `making-themes-sounds-scripts.md` are written for theme authors, not developers: plain steps, no code names. Preferences' How to Make a Theme button opens the first page on GitHub (`kPatchyThemeGuideUrl`), so released builds keep opening that address: never move or rename `docs/making-themes.md` (`ui_preferences_theme_guide_button_names_the_guide` checks the page exists). When theme behavior changes (a key, a limit, an event, a button), update the guide in the same change; it states today's limits and the two gaps it works around (load warnings are shown nowhere, and Export Theme Package writes no `events`, `menuTitle`, `cursors`, `panelBackgrounds` or `splash`).
+
+- The guide's theme is `themes/example-package/`, and its download is `themes/example-package.zip`, written by `python scripts/dev/make-example-theme-zip.py` after any change to the folder (the example package test compares the two).
+- Its pictures are `docs/images/themes/*.png`, from the `ui_theme_guide_shot_*` scenes (`tests/ui/theme_guide_screenshot_tests.cpp`): each builds the guide's theme from the example package step by step, offscreen, and fails on any load warning. Regenerate with the filter `ui_theme_guide_shot`, then `python scripts/dev/copy-theme-guide-shots.py <build>/test-artifacts`. A scene shows no file path; keep it that way (the pictures are public).
 
 ## Known limitation
 

@@ -36244,6 +36244,18 @@ Fixiert: %1</translation>
         <source>Has a Blend Mode</source>
         <translation>Hat eine Füllmethode</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>So erstellen Sie ein Design</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>Die Anleitung zum Erstellen von Designs im Webbrowser öffnen.</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>Die Design-Anleitung konnte nicht im Webbrowser geöffnet werden.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

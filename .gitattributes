@@ -18,6 +18,7 @@ docs/scripting-api-changes.md merge=union
 *.yaml text
 
 *.8bf binary -eol
+*.zip binary -eol
 *.asl binary -eol
 *.pat binary -eol
 *.psd binary -eol

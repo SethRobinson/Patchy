@@ -36162,6 +36162,18 @@ Locked: %1</source>
         <source>Has a Blend Mode</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

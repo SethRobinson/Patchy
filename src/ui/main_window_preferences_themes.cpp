@@ -424,6 +424,10 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   auto* icons_button = button(
       MainWindow::tr("Export Icon Template..."), "preferencesExportIconTemplateButton",
       MainWindow::tr("Write every built-in icon as an SVG file into a folder, to start a theme's icons/ folder from."));
+  // The guide for theme authors, on GitHub (docs/making-themes.md).
+  auto* guide_button = button(MainWindow::tr("How to Make a Theme"), "preferencesThemeGuideButton",
+                              MainWindow::tr("Open the guide to making themes in your web browser."));
+  guide_button->setProperty(kHelpUrlProperty, QUrl(QString::fromLatin1(kPatchyThemeGuideUrl)));
   // The buttons flow onto as many rows as the page width needs: fixed rows outgrew the
   // page in the longer languages (the scroll area clips rather than scrolls sideways) and
   // set the dialog's minimum width (GitHub issue 451).
@@ -432,7 +436,7 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   auto* buttons_layout = new FlowLayout(buttons, 6, 6);
   buttons_layout->setContentsMargins(0, 0, 0, 0);
   for (auto* push : {import_button, export_button, reload_button, delete_button_, folder_button, package_button,
-                     icons_button}) {
+                     icons_button, guide_button}) {
     buttons_layout->addWidget(push);
   }
   group_layout->addWidget(buttons);
@@ -449,6 +453,13 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
       show_critical_message(&dialog_, MainWindow::tr("Open Themes Folder"),
                             MainWindow::tr("Could not open the themes folder."),
                             QStringLiteral("openThemesFolderFailedMessageBox"));
+    }
+  });
+  QObject::connect(guide_button, &QPushButton::clicked, &dialog_, [this, guide_button] {
+    if (!QDesktopServices::openUrl(guide_button->property(kHelpUrlProperty).toUrl())) {
+      show_critical_message(&dialog_, MainWindow::tr("How to Make a Theme"),
+                            MainWindow::tr("Could not open the theme guide in your web browser."),
+                            QStringLiteral("openThemeGuideFailedMessageBox"));
     }
   });
   QObject::connect(icons_button, &QPushButton::clicked, &dialog_, [this] {

@@ -36135,6 +36135,18 @@ Locked: %1</source>
         <source>Has a Blend Mode</source>
         <translation>描画モードあり</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>テーマの作り方</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>テーマ作成ガイドを Web ブラウザーで開きます。</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>テーマガイドを Web ブラウザーで開けませんでした。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -36244,6 +36244,18 @@ Bloqueada: %1</translation>
         <source>Has a Blend Mode</source>
         <translation>Tiene modo de fusión</translation>
     </message>
+    <message>
+        <source>How to Make a Theme</source>
+        <translation>Cómo crear un tema</translation>
+    </message>
+    <message>
+        <source>Open the guide to making themes in your web browser.</source>
+        <translation>Abrir la guía para crear temas en el navegador web.</translation>
+    </message>
+    <message>
+        <source>Could not open the theme guide in your web browser.</source>
+        <translation>No se pudo abrir la guía de temas en el navegador web.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
