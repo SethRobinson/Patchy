@@ -1130,8 +1130,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // brush strokes may also begin there, and Zoom uses the nearest frame point.
     // Shape, Line and Text drags start there too, as in Photoshop: a shape or
     // text box may hang partly off the canvas, and a pixel-mode shape clips to
-    // the document on commit (the release paths handle both already).
+    // the document on commit (the release paths handle both already). A Gradient
+    // drag starts there as well (GitHub #725): the ramp may begin off the canvas,
+    // as its end already could.
     const bool allows_off_canvas_press = (tool_ == CanvasTool::Move && event->button() == Qt::LeftButton) ||
+                                         (tool_ == CanvasTool::Gradient && event->button() == Qt::LeftButton) ||
                                          tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||

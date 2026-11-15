@@ -2248,6 +2248,120 @@ void ui_gradient_fill_redraw_bakes_in_the_background() {
   check_baked_exactly(window, *fill_id);
 }
 
+// GitHub #725: a Gradient drag could not start on the pasteboard, the grey area around the
+// canvas; the press there was ignored, though the end of a drag could already go there. The
+// press now starts the drag in Pixels mode and in Fill Layer mode, and the ramp runs from
+// that point: at the canvas edge it is already part of the way along.
+void ui_gradient_drag_starts_on_the_pasteboard() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  constexpr int kWidth = 400;
+  constexpr int kHeight = 300;
+  MainWindowTestAccess::create_document(window, kWidth, kHeight);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  canvas->set_zoom_centered(canvas->zoom() * 0.5);  // room for the pasteboard on every side
+  require_action(window, "toolGradientAction")->trigger();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(mode != nullptr && style != nullptr);
+  if (mode == nullptr || style == nullptr) {
+    return;
+  }
+  style->setCurrentIndex(style->findData(static_cast<int>(patchy::GradientMethod::Linear)));
+  QApplication::processEvents();
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(100);
+  const QColor start_color(200, 30, 30);
+  const QColor end_color(30, 40, 210);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{200, 30, 30, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{30, 40, 210, 255}}});
+  auto& document = MainWindowTestAccess::document(window);
+  const auto depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+
+  // A level drag from left of the canvas to four fifths of the way across it.
+  const auto press = widget_at(*canvas, QPointF(-kWidth * 0.2, kHeight * 0.5));
+  const auto release = widget_at(*canvas, QPointF(kWidth * 0.8, kHeight * 0.5));
+  CHECK(canvas_content_rect(*canvas).contains(press));
+  CHECK(canvas_content_rect(*canvas).contains(release));
+  // The press is on the pasteboard: left of the document's first column.
+  const double start_x = canvas->document_point_for_widget_position(press).x();
+  const double end_x = canvas->document_point_for_widget_position(release).x();
+  CHECK(start_x < -20.0 && end_x > start_x + 100.0 && end_x < kWidth);
+  // The ramp's color at a document column, for a drag between those two points.
+  const auto ramp = [&](double x) {
+    const auto t = std::clamp((x - start_x) / (end_x - start_x), 0.0, 1.0);
+    const auto mix = [t](int from, int to) { return static_cast<int>(std::lround(from + (to - from) * t)); };
+    return QColor(mix(start_color.red(), end_color.red()), mix(start_color.green(), end_color.green()),
+                  mix(start_color.blue(), end_color.blue()));
+  };
+  // The composite at a document point below the drag's line, away from handles.
+  const auto shown = [&](double x) {
+    QApplication::processEvents();
+    return render_widget_image(*canvas).pixelColor(widget_at(*canvas, QPointF(x, kHeight * 0.85)));
+  };
+  const auto check_ramp = [&] {
+    // The left edge is a sixth of the way along, not the start color: the ramp began outside.
+    CHECK(color_near(shown(2.0), ramp(2.0), 10));
+    CHECK(!color_close(shown(2.0), start_color, 12));
+    CHECK(color_near(shown(kWidth * 0.4), ramp(kWidth * 0.4), 10));
+    CHECK(color_near(shown(kWidth - 3.0), end_color, 10));
+  };
+
+  // Pixels mode: the drag paints the layer, one undo step.
+  mode->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::Pixels);
+  const auto pixels_depth = depth();
+  const auto layer_count = std::as_const(document).layers().size();
+  press_and_move(*canvas, press, release);
+  CHECK(canvas->pointer_gesture_active());
+  release_at(*canvas, release);
+  CHECK(depth() == pixels_depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Gradient"));
+  CHECK(std::as_const(document).layers().size() == layer_count);
+  check_ramp();
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(depth() == pixels_depth);
+  CHECK(!color_near(shown(kWidth * 0.4), ramp(kWidth * 0.4), 10));
+
+  // Fill Layer mode: a new Gradient Fill layer whose line starts where the press was.
+  mode->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::FillLayer);
+  press_and_move(*canvas, press, release);
+  CHECK(canvas->pointer_gesture_active());
+  save_image_artifact("ui_gradient_drag_starts_on_the_pasteboard_drag", render_widget_image(*canvas));
+  release_at(*canvas, release);
+  CHECK(depth() == pixels_depth + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("New Gradient Fill"));
+  CHECK(std::as_const(document).layers().size() == layer_count + 1);
+  const auto handles = canvas->gradient_fill_handles();
+  CHECK(handles.has_value());
+  if (handles.has_value()) {
+    CHECK(near(QPointF(handles->line.start_x, handles->line.start_y), QPointF(start_x, kHeight * 0.5), 1.5));
+    CHECK(near(QPointF(handles->line.end_x, handles->line.end_y), QPointF(end_x, kHeight * 0.5), 1.5));
+    // The start handle sits on the pasteboard, where the press was.
+    CHECK(near(part_position(*canvas, Kind::Start), QPointF(press), 2.0));
+  }
+  check_ramp();
+  save_image_artifact("ui_gradient_drag_starts_on_the_pasteboard_fill_layer", render_widget_image(*canvas));
+
+  // A click on the pasteboard without a drag still makes nothing.
+  const auto away = widget_at(*canvas, QPointF(-kWidth * 0.2, kHeight * 0.2));
+  CHECK(canvas_content_rect(*canvas).contains(away));
+  CHECK(canvas->document_point_for_widget_position(away).x() < 0);
+  CHECK(canvas->gradient_fill_handle_part_at(QPointF(away)).kind == Kind::None);
+  send_mouse(*canvas, QEvent::MouseButtonPress, away, Qt::LeftButton, Qt::LeftButton);
+  release_at(*canvas, away);
+  CHECK(depth() == pixels_depth + 1);
+  CHECK(std::as_const(document).layers().size() == layer_count + 1);
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
       {"ui_gradient_fill_drag_release_holds_the_preview_until_the_layer_shows",
@@ -2267,6 +2381,7 @@ std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
       {"ui_gradient_release_timing", ui_gradient_release_timing},
       {"ui_gradient_fill_release_bakes_in_the_background", ui_gradient_fill_release_bakes_in_the_background},
       {"ui_gradient_fill_redraw_bakes_in_the_background", ui_gradient_fill_redraw_bakes_in_the_background},
+      {"ui_gradient_drag_starts_on_the_pasteboard", ui_gradient_drag_starts_on_the_pasteboard},
       {"ui_gradient_fill_handle_drag_previews_at_view_resolution",
        ui_gradient_fill_handle_drag_previews_at_view_resolution},
       {"ui_gradient_fill_handle_view_preview_follows_zoom_and_rotation",
