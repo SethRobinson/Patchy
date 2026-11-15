@@ -151,7 +151,7 @@ enum class TextJustifyLastLine { Left = 0, Center = 1, Right = 2, All = 3 };
 [[nodiscard]] TextJustifyLastLine text_justify_last_line(const QTextBlockFormat& format);
 
 // Photoshop's justify modes in a text box or area (PS 2026 renders of issue 672's file and
-// single-line probes, docs/text-tool.md "Justify modes"): Qt lays out the last line of a
+// single-line probes, docs/text-tool-alignment.md "Justify modes"): Qt lays out the last line of a
 // justified paragraph flush left; Justify Last Centered and Right move it by half or all of
 // its line's slack, which is what this returns for that line (0 for every other line; mirrored
 // in a right-to-left paragraph, whose last line Qt sets flush right). Point text sets every

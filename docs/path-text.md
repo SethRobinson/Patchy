@@ -41,6 +41,18 @@ Findings, each from a capture:
   share the baseline.
 - **Alignment works inside the range.** Centered text is centered between the start and end
   points; right-aligned text ends at the end point. Trailing spaces do not count.
+- **The line is justified and indented like a one-line box** (Photoshop 2027 over the Action
+  Manager, November 2026, GitHub issue 717: a straight 500 px path, Arial 48 px, `IIIII IIIII`).
+  A line that fits is its paragraph's last line: Justify (last line left) sets it at the start,
+  (last line centered) centers it, (last line right) ends it at the end point, and Justify all
+  spreads it over the range. A line that hides words is not the last line, so every justify
+  mode spreads it to both ends. The first line indent and the start indent push left-aligned
+  text along the path (and a centered line by half), the end indent pulls right-aligned text
+  back, and each shortens the room, so one more word can be hidden. A right-to-left paragraph
+  starts at the range's end point. Point text takes the indents too and ignores every justify
+  mode. Photoshop's own panel offers no justify mode for a line on a path; a file gets one from
+  the Paragraph panel's sticky settings (the issue 717 file: Justify, first line indent 20 pt,
+  end indent 40 pt, a right-to-left paragraph).
 - **Text that does not fit is hidden by whole words**, as if the range were a one-line box as
   wide as its arc length: five groups of `IIIII` on a range that holds four and a half show
   four. A single word longer than the range is cut by glyph. A second paragraph is hidden. The
@@ -221,10 +233,21 @@ Tolerance against the captures (`ui_text_path_glyphs_match_photoshop_placement_i
 centroid within 1 px of Photoshop's, and for the text fixtures at least 90 percent of each
 render's ink within a pixel of the other's, ink bounds within 2 px.
 
+**Justify modes and indents** follow the captures above. The document is laid out as a box
+as wide as the range, so Qt applies the indents and spreads a line that hides words;
+`text_path_line_plan` adds `justified_last_line_shift` for a line that fits (last line
+centered or right), and `build_text_render_document` forces Justify all on path documents as on
+boxes. The controls do not offer justify here: the options bar, Type > Alignment and the
+Paragraph panel show a stored mode as its plain alignment (`shown_paragraph_alignment_name`
+with `TextAlignmentFlow::Path`: last line left and Justify all show Left, centered Center, right
+Right, then the side for the paragraph's direction), the Justify button and the panel's justify
+entries are off, and a justify entry picked from the menu stores its plain alignment
+([text-tool-alignment.md](text-tool-alignment.md#justify-modes)). The stored mode stays through edits that leave
+the alignment alone, so a save gives Photoshop back what it wrote.
+
 Not modelled: vertical type on a path (switching path text to vertical makes it ordinary
-vertical text in the contour's bounds and drops the path), Warp Text on path text, Photoshop's justification of a
-path line beyond what Qt's own justification does, and a paragraph's indents (they shift the
-line inside the range as in a box).
+vertical text in the contour's bounds and drops the path), Warp Text on path text, and
+word-space justification of a right-to-left or cursive line on a path (Qt's own applies).
 
 ## The Type tool
 
@@ -289,5 +312,7 @@ caret and clicks). The issue 717 file is local
 (`local-test-fixtures/psd/issue-717/photoshop-cc-text-on-a-path.psd`, a reporter's file, not
 committed): `text_engine_path_frames_read_older_photoshop_cc_file_if_available` and the two
 `ui_text_path_older_photoshop_cc_file_*_if_available` tests (redraw against the saved raster,
-a Type tool edit of each layer) skip without it; the committed
+a Type tool edit of each layer, the alignment the controls show) skip without it; the committed
 `text_engine_path_frames_read_older_photoshop_cc_options` covers the key rules everywhere.
+`ui_text_path_justify_modes_draw_like_photoshop_and_show_plain_alignment` pins the justify
+modes against Photoshop's ink columns and the controls for path, point and box text.

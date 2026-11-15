@@ -81,6 +81,29 @@ QString canonical_paragraph_alignment_name(const QString& name);
 Qt::Alignment paragraph_alignment_from_name(const QString& name);
 // Sets the alignment and the justified last line of `format` (an unknown name is left).
 void set_paragraph_alignment(QTextBlockFormat& format, const QString& name);
+
+// What holds a paragraph's lines, for the alignment the controls offer: a text box (area text
+// too) takes every mode; point text and text on a path are one line with no justify choice.
+enum class TextAlignmentFlow { Box, Point, Path };
+
+// Stored names are logical, as Qt and Photoshop keep them: "left" is the paragraph's start edge,
+// which is the right in a right-to-left paragraph, and justifyRight sets the last line at the
+// end edge. The controls show and take sides. This swaps left with right and justify with
+// justifyRight for a right-to-left paragraph and is its own inverse, so it turns a stored name
+// into the shown one and a picked one into the stored one.
+QString paragraph_alignment_name_for_direction(const QString& name, Qt::LayoutDirection direction);
+// The plain alignment a justify mode comes to where there is no justify choice (GitHub issue
+// 717): point text sets every mode at its start edge; a line on a path follows the mode's last
+// line (Photoshop draws it so), with Justify all read as Left. Other names pass through.
+QString plain_paragraph_alignment_name(const QString& name, TextAlignmentFlow flow);
+// The name the alignment controls show for a stored one: the plain alignment outside a box,
+// then the side for the paragraph's direction.
+QString shown_paragraph_alignment_name(const QString& stored, Qt::LayoutDirection direction,
+                                       TextAlignmentFlow flow);
+// The name to store for one a control picked: the inverse of shown_paragraph_alignment_name.
+// A justify mode picked for point or path text is stored as its plain alignment.
+QString stored_paragraph_alignment_name(const QString& shown, Qt::LayoutDirection direction,
+                                        TextAlignmentFlow flow);
 void set_text_display_family(QTextCharFormat& format, const QString& family);
 QString text_display_family_from_format(const QTextCharFormat& format, const QString& fallback);
 QTextCharFormat text_format_with_smoothing(QTextCharFormat format, int anti_alias);

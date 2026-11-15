@@ -778,21 +778,42 @@ void ui_type_menu_applies_to_selected_text_layer() {
 
   trigger("typeAlignCenterAction");
   CHECK(first_paragraph_field(window, id, 2) == QStringLiteral("center"));
+  // Point text is one line with no justify choice (GitHub issue 717): a justify entry comes to
+  // its plain alignment, and the menu checks that.
   trigger("typeAlignJustifyAction");
-  CHECK(first_paragraph_field(window, id, 2) == QStringLiteral("justify"));
+  CHECK(first_paragraph_field(window, id, 2) == QStringLiteral("left"));
+  open_type_menu(window);
+  CHECK(action_checked(window, "typeAlignLeftAction"));
+  CHECK(!action_checked(window, "typeAlignJustifyAction"));
+  // A text box takes the justify modes.
+  run_script(window, QStringLiteral(R"JS(
+    var b = app.activeDocument.addTextLayer('One two three four five six seven',
+        {font: 'Arial', size: 24, x: 30, y: 130, box: {width: 240, height: 80}, color: '#203040'});
+    b.name = 'Box';
+  )JS"));
+  const auto* box_layer = find_named(MainWindowTestAccess::document(window).layers(), "Box");
+  CHECK(box_layer != nullptr);
+  if (box_layer == nullptr) {
+    return;
+  }
+  const auto box = box_layer->id();
+  select_only(window, box);
+  trigger("typeAlignJustifyAction");
+  CHECK(first_paragraph_field(window, box, 2) == QStringLiteral("justify"));
   open_type_menu(window);
   CHECK(action_checked(window, "typeAlignJustifyAction"));
-  CHECK(!action_checked(window, "typeAlignCenterAction"));
+  CHECK(!action_checked(window, "typeAlignLeftAction"));
   // Photoshop's other justify modes (#672): each its own name, checked on its own.
   for (const auto& [action, name] : {std::pair{"typeAlignJustifyCenterAction", "justifyCenter"},
                                      std::pair{"typeAlignJustifyRightAction", "justifyRight"},
                                      std::pair{"typeAlignJustifyAllAction", "justifyAll"}}) {
     trigger(action);
-    CHECK(first_paragraph_field(window, id, 2) == QLatin1String(name));
+    CHECK(first_paragraph_field(window, box, 2) == QLatin1String(name));
     open_type_menu(window);
     CHECK(action_checked(window, action));
     CHECK(!action_checked(window, "typeAlignJustifyAction"));
   }
+  select_only(window, id);
 
   trigger("typeDirectionRightToLeftAction");
   CHECK(first_paragraph_field(window, id, 9) == QStringLiteral("rtl"));

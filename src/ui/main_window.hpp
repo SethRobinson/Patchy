@@ -3275,7 +3275,14 @@ private:
   // changes the last line; the Justify toggle switches between plain and justified.
   void apply_text_alignment_base_from_options_bar(const QString& base);
   void apply_text_justify_from_options_bar(bool on);
+  // The alignment the controls show for the session's caret paragraph or the target layer's
+  // first one: the side the lines stand on, plain for point text and text on a path.
   [[nodiscard]] QString current_text_alignment_name() const;
+  // False for point text and text on a path: one line, so no justify choice.
+  [[nodiscard]] bool current_text_justify_available() const;
+  // Applies an alignment a control shows (a side) to the paragraphs the selection touches,
+  // each stored by its own direction; apply_text_alignment_to_editor takes the stored name.
+  void apply_shown_text_alignment_to_editor(QTextEdit& editor, const QString& alignment);
   // `alignment` is a paragraph alignment name (text_document.hpp: left ... justifyAll).
   void apply_text_alignment_to_active_editor(const QString& alignment);
   void apply_text_alignment_to_editor(QTextEdit& editor, const QString& alignment);

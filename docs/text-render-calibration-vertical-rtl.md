@@ -85,7 +85,7 @@ to left, so its right alignment landed on the left and its runs reordered. So:
 - **Justified right-to-left lines fill the frame to both edges** (Photoshop 2026 render of the
   reporter's Hebrew file: lines span columns 16 to 383 of a box at 16 to 384; Qt's stopped at
   378 to 380). Patchy spreads them over their word spaces itself, Arabic included
-  ([text-tool.md](text-tool.md#justify-modes)). Kashida insertion, digit sets, Justification
+  ([text-tool-alignment.md](text-tool-alignment.md#justify-modes)). Kashida insertion, digit sets, Justification
   Alternates and diacritic positions are kept in the PSD and not drawn
   ([txt2-kept-settings.md](txt2-kept-settings.md)).
 - **Indents are on the paragraph's sides** (GitHub issue 683, the reporter's "Indent left 40pt,
