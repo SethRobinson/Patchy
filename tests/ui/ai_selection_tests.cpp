@@ -331,6 +331,11 @@ void ui_object_selection_model_offer_not_now_keeps_standard() {
     QString error;
     CHECK(window.download_high_quality_object_selection_model(true, {}, &error));
     CHECK(error.isEmpty());
+    // The Model box follows a model that arrived after it was last set. A script's
+    // app.downloadObjectSelectionModel() ends here, and the box once kept saying Standard
+    // while High Quality ran.
+    CHECK(patchy::ai::active_sam_model() == patchy::ai::SamModel::HighQuality);
+    CHECK(combo != nullptr && combo->currentIndex() == 1);
   }
   pin_downloaded_models_to_nothing();
 }

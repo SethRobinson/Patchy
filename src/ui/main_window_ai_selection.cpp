@@ -205,6 +205,8 @@ bool MainWindow::download_high_quality_object_selection_model(bool show_dialog, 
 #else
   configure_automatic_selection_models();
   if (patchy::ai::high_quality_model_available()) {
+    // The Model box shows the model that runs: the files may have arrived since it was set.
+    refresh_object_select_model_combo();
     return true;
   }
   const auto total_mb = megabytes(high_quality_model_download_bytes());
@@ -259,8 +261,13 @@ bool MainWindow::download_high_quality_object_selection_model(bool show_dialog, 
   }
   // A cached Standard embedding no longer matches the model that will run (the canvas key
   // includes the model, so the next press re-encodes).
-  return patchy::ai::high_quality_model_available() ||
-         fail(tr("the downloaded files are not where Patchy looks for them"));
+  if (!patchy::ai::high_quality_model_available()) {
+    return fail(tr("the downloaded files are not where Patchy looks for them"));
+  }
+  // Every caller, a script's app.downloadObjectSelectionModel() included, leaves the Model
+  // box on the model that now runs.
+  refresh_object_select_model_combo();
+  return true;
 #endif
 }
 
