@@ -14671,16 +14671,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Calque du dessous :</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Définir par défaut</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Utiliser ces réglages chaque fois que cet effet est ajouté</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Rétablir les réglages par défaut de cet effet</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16104,6 +16096,30 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Contours.shc</source>
         <translation>Contours.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Afficher les modifications sur le canevas tant que cette boîte de dialogue est ouverte</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Enregistrer par défaut</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Charger le réglage par défaut</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Rétablit le réglage par défaut que vous avez enregistré pour cet effet, ou les réglages de Patchy si vous n&apos;en avez enregistré aucun</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Rétablir le réglage d&apos;origine</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Oublie le réglage par défaut que vous avez enregistré pour cet effet et rétablit les réglages de Patchy</translation>
     </message>
 </context>
 <context>

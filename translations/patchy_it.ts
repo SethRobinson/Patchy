@@ -14671,16 +14671,8 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Livello sottostante:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Imposta come predefinito</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Usa queste impostazioni ogni volta che viene aggiunto questo effetto</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Ripristina le impostazioni predefinite di questo effetto</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16104,6 +16096,30 @@ Sostituirlo?</translation>
     <message>
         <source>Contours.shc</source>
         <translation>Contorni.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Mostra le modifiche sulla tela mentre questa finestra di dialogo è aperta</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Salva come predefinito</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Carica predefinito</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Ripristina il valore predefinito salvato per questo effetto, oppure le impostazioni di Patchy se non ne hai salvato uno</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Ripristina predefinito originale</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Dimentica il valore predefinito salvato per questo effetto e ripristina le impostazioni di Patchy</translation>
     </message>
 </context>
 <context>

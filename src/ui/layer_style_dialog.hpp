@@ -54,7 +54,7 @@ enum class LayerStyleEffect {
   DropShadow
 };
 
-// Forgets every effect's Make Default values (the layerStyle/effectDefaults
+// Forgets every effect's Save as Default values (the layerStyle/effectDefaults
 // settings group), so new effects start from the built-in defaults again.
 void clear_stored_layer_style_effect_defaults();
 

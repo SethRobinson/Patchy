@@ -14671,16 +14671,8 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Darunter liegende Ebene:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Als Standard festlegen</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Diese Einstellungen jedes Mal verwenden, wenn dieser Effekt hinzugefügt wird</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Die Standardeinstellungen dieses Effekts wiederherstellen</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16104,6 +16096,30 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Contours.shc</source>
         <translation>Konturen.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Die Änderungen auf der Arbeitsfläche anzeigen, solange dieser Dialog geöffnet ist</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Als Standard speichern</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Standard laden</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Stellt Ihren gespeicherten Standard für diesen Effekt wieder her, oder Patchys eigene Einstellungen, wenn Sie keinen gespeichert haben</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Werkseinstellung wiederherstellen</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Verwirft Ihren gespeicherten Standard für diesen Effekt und stellt Patchys eigene Einstellungen wieder her</translation>
     </message>
 </context>
 <context>

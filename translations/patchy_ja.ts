@@ -14626,16 +14626,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>下のレイヤー:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>デフォルトに設定</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>この効果を追加するたびにこの設定を使用します</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>この効果の設定をデフォルトに戻します</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16048,6 +16040,30 @@ Do you want to replace it?</source>
     <message>
         <source>Contours.shc</source>
         <translation>輪郭.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>このダイアログを開いている間、変更をカンバスに表示します</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>初期設定として保存</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>初期設定を読み込む</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>この効果用に保存した初期設定に戻します。保存していない場合は Patchy 本来の設定に戻します</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>組み込みの初期設定に戻す</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>この効果用に保存した初期設定を破棄し、Patchy 本来の設定に戻します</translation>
     </message>
 </context>
 <context>

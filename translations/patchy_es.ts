@@ -14671,16 +14671,8 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Capa subyacente:</translation>
     </message>
     <message>
-        <source>Make Default</source>
-        <translation>Establecer como predeterminado</translation>
-    </message>
-    <message>
         <source>Use these settings whenever this effect is added</source>
         <translation>Usar estos ajustes cada vez que se añada este efecto</translation>
-    </message>
-    <message>
-        <source>Put back the default settings of this effect</source>
-        <translation>Restaurar los ajustes predeterminados de este efecto</translation>
     </message>
     <message>
         <source>R:</source>
@@ -16104,6 +16096,30 @@ Do you want to replace it?</source>
     <message>
         <source>Contours.shc</source>
         <translation>Contornos.shc</translation>
+    </message>
+    <message>
+        <source>Show the changes on the canvas while this dialog is open</source>
+        <translation>Mostrar los cambios en el lienzo mientras este cuadro de diálogo está abierto</translation>
+    </message>
+    <message>
+        <source>Save as Default</source>
+        <translation>Guardar como predeterminado</translation>
+    </message>
+    <message>
+        <source>Load Default</source>
+        <translation>Cargar predeterminado</translation>
+    </message>
+    <message>
+        <source>Put back your saved default for this effect, or Patchy&apos;s own settings when you have not saved one</source>
+        <translation>Recupera el valor predeterminado que guardó para este efecto, o los ajustes propios de Patchy si no guardó ninguno</translation>
+    </message>
+    <message>
+        <source>Restore Built-in Default</source>
+        <translation>Restaurar valor de fábrica</translation>
+    </message>
+    <message>
+        <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
+        <translation>Olvida el valor predeterminado que guardó para este efecto y recupera los ajustes propios de Patchy</translation>
     </message>
 </context>
 <context>
