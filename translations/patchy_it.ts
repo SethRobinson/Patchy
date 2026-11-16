@@ -38294,6 +38294,11 @@ Bloccato: %1</translation>
         <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
         <translation>Seleziona tutto in questa pagina</translation>
     </message>
+    <message>
+        <source>Recognize Text on This Page...</source>
+        <extracomment>PDF viewer, right-click on a page that is an image without text.</extracomment>
+        <translation>Riconosci il testo di questa pagina...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>
@@ -38510,6 +38515,61 @@ Bloccato: %1</translation>
         <source>Page %1</source>
         <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
         <translation>Pagina %1</translation>
+    </message>
+    <message>
+        <source>Recognize Text...</source>
+        <translation>Riconosci testo...</translation>
+    </message>
+    <message>
+        <source>Read the text on scanned pages so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>Legge il testo delle pagine scansionate in modo che Trova e la selezione del testo funzionino su di esse. Nulla viene salvato nel PDF.</translation>
+    </message>
+    <message>
+        <source>Text recognition stopped: %1</source>
+        <translation>Riconoscimento del testo interrotto: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Find and text selection work on them now.</source>
+        <translation>
+            <numerusform>È stato riconosciuto del testo in %n pagina. Trova e la selezione del testo ora funzionano su di essa.</numerusform>
+            <numerusform>È stato riconosciuto del testo in %n pagine. Trova e la selezione del testo ora funzionano su di esse.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped.</source>
+        <translation>Riconoscimento del testo interrotto.</translation>
+    </message>
+    <message>
+        <source>No page needed text recognition, or no text was found.</source>
+        <translation>Nessuna pagina richiedeva il riconoscimento del testo, oppure non è stato trovato alcun testo.</translation>
+    </message>
+    <message>
+        <source>Read the text on the pages so it can be found. Nothing is saved to the PDF.</source>
+        <translation>Legge il testo delle pagine in modo che possa essere trovato. Nulla viene salvato nel PDF.</translation>
+    </message>
+    <message>
+        <source>Recognizing page %1 of %2...</source>
+        <translation>Riconoscimento della pagina %1 di %2...</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Riconosci testo</translation>
+    </message>
+    <message>
+        <source>Reads the text on this page so Find and text selection work on it. Nothing is saved to the PDF.</source>
+        <translation>Legge il testo di questa pagina in modo che Trova e la selezione del testo funzionino su di essa. Nulla viene salvato nel PDF.</translation>
+    </message>
+    <message>
+        <source>Reads the text on the pages that have none of their own (scanned pages), so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>Legge il testo delle pagine che non ne hanno di proprio (pagine scansionate), in modo che Trova e la selezione del testo funzionino su di esse. Nulla viene salvato nel PDF.</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Riconosci</translation>
+    </message>
+    <message>
+        <source>Stop Recognizing</source>
+        <translation>Interrompi il riconoscimento</translation>
     </message>
 </context>
 <context>

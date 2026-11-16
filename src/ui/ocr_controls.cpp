@@ -1,12 +1,15 @@
 #include "ui/ocr_controls.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/localization.hpp"
 #include "ui/ocr_model_download.hpp"
 
 #include <QApplication>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -63,6 +66,36 @@ QString ocr_choice_summary(const OcrChoice& choice) {
     }
   }
   return QObject::tr("%1, %2").arg(ocr_engine_display_name(*choice.engine), language);
+}
+
+OcrChoice request_ocr_choice(QWidget* parent, const OcrChoiceRequest& request) {
+  QDialog dialog(parent);
+  dialog.setObjectName(request.name + QStringLiteral("Dialog"));
+  dialog.setWindowTitle(request.title);
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* note = new QLabel(request.note, &dialog);
+  note->setObjectName(request.name + QStringLiteral("Note"));
+  note->setWordWrap(true);
+  layout->addWidget(note);
+  auto* picker = new OcrEnginePicker(request.picker_prefix, &dialog);
+  layout->addWidget(picker);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  auto* ok = buttons->button(QDialogButtonBox::Ok);
+  if (!request.accept_text.isEmpty()) {
+    ok->setText(request.accept_text);
+  }
+  ok->setObjectName(request.name + QStringLiteral("OkButton"));
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  ok->setEnabled(picker->usable());
+  picker->on_changed([ok, picker] { ok->setEnabled(picker->usable()); });
+  dialog.setMinimumWidth(420);
+  if (exec_dialog(dialog) != QDialog::Accepted || !picker->usable()) {
+    return {};
+  }
+  picker->store();
+  return resolve_ocr_choice(picker->engine_id(), picker->language_tag(), nullptr);
 }
 
 void set_ocr_language_settings_opener_for_testing(std::function<void()> opener) {

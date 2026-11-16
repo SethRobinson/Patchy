@@ -38294,6 +38294,11 @@ Fixiert: %1</translation>
         <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
         <translation>Alles auf dieser Seite auswählen</translation>
     </message>
+    <message>
+        <source>Recognize Text on This Page...</source>
+        <extracomment>PDF viewer, right-click on a page that is an image without text.</extracomment>
+        <translation>Text auf dieser Seite erkennen...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>
@@ -38510,6 +38515,61 @@ Fixiert: %1</translation>
         <source>Page %1</source>
         <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
         <translation>Seite %1</translation>
+    </message>
+    <message>
+        <source>Recognize Text...</source>
+        <translation>Text erkennen...</translation>
+    </message>
+    <message>
+        <source>Read the text on scanned pages so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>Liest den Text auf gescannten Seiten, damit Suchen und Textauswahl dort funktionieren. Im PDF wird nichts gespeichert.</translation>
+    </message>
+    <message>
+        <source>Text recognition stopped: %1</source>
+        <translation>Texterkennung angehalten: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Find and text selection work on them now.</source>
+        <translation>
+            <numerusform>Auf %n Seite wurde Text erkannt. Suchen und Textauswahl funktionieren dort jetzt.</numerusform>
+            <numerusform>Auf %n Seiten wurde Text erkannt. Suchen und Textauswahl funktionieren dort jetzt.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped.</source>
+        <translation>Texterkennung angehalten.</translation>
+    </message>
+    <message>
+        <source>No page needed text recognition, or no text was found.</source>
+        <translation>Keine Seite benötigte Texterkennung, oder es wurde kein Text gefunden.</translation>
+    </message>
+    <message>
+        <source>Read the text on the pages so it can be found. Nothing is saved to the PDF.</source>
+        <translation>Liest den Text auf den Seiten, damit er gefunden werden kann. Im PDF wird nichts gespeichert.</translation>
+    </message>
+    <message>
+        <source>Recognizing page %1 of %2...</source>
+        <translation>Seite %1 von %2 wird erkannt...</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Text erkennen</translation>
+    </message>
+    <message>
+        <source>Reads the text on this page so Find and text selection work on it. Nothing is saved to the PDF.</source>
+        <translation>Liest den Text auf dieser Seite, damit Suchen und Textauswahl dort funktionieren. Im PDF wird nichts gespeichert.</translation>
+    </message>
+    <message>
+        <source>Reads the text on the pages that have none of their own (scanned pages), so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>Liest den Text auf den Seiten, die keinen eigenen Text enthalten (gescannte Seiten), damit Suchen und Textauswahl dort funktionieren. Im PDF wird nichts gespeichert.</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Erkennen</translation>
+    </message>
+    <message>
+        <source>Stop Recognizing</source>
+        <translation>Erkennung anhalten</translation>
     </message>
 </context>
 <context>

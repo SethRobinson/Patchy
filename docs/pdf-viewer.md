@@ -6,6 +6,7 @@ Related documents:
 
 - [pdf-book-print.md](pdf-book-print.md): the sidebar's Print as Book: imposition styles, the dialog, output, assembly steps.
 - [pdf-viewer-selection.md](pdf-viewer-selection.md): selecting text with the mouse and copying it: the drag, words and lines, Copy and Select All, how a pointer position becomes a character.
+- [pdf-viewer-ocr.md](pdf-viewer-ocr.md): text recognition on scanned pages, on request, so Find and selection work on them.
 
 ## Files
 

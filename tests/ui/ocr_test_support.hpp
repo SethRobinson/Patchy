@@ -23,6 +23,7 @@ std::vector<patchy::test::TestCase> pdf_import_ocr_ui_tests();
 std::vector<patchy::test::TestCase> ocr_model_engine_ui_tests();
 std::vector<patchy::test::TestCase> ocr_download_ui_tests();
 std::vector<patchy::test::TestCase> pdf_searchable_text_ui_tests();
+std::vector<patchy::test::TestCase> pdf_viewer_ocr_ui_tests();
 
 namespace patchy::test::ui {
 

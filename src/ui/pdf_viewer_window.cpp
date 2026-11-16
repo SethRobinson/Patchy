@@ -6,8 +6,12 @@
 #include "ui/pdf_book_print_dialog.hpp"
 #include "ui/pdf_import.hpp"
 #include "ui/pdf_links.hpp"
+#include "ui/ocr_controls.hpp"
+#include "ui/ocr_recognition.hpp"
+#include "ui/pdf_page_ocr.hpp"
 #include "ui/pdf_page_view.hpp"
 #include "ui/pdf_text_search.hpp"
+#include "ui/pdf_text_selection.hpp"
 #include "ui/ui_text_size.hpp"
 
 #include <QAbstractItemView>
@@ -261,6 +265,8 @@ PdfViewerWindow::PdfViewerWindow(QWidget* owner, QString path, std::unique_ptr<Q
   fill_outline(read_pdf_outline(*document_));
   view_->set_document(document_.get());
   search_->set_document(document_.get());
+  // Text recognition starts off for every PDF: nothing is read until the user asks.
+  ocr_->set_document(document_.get());
   reset_thumbnails();
   const int page = std::clamp(remembered_page(path_), 0, std::max(0, view_->page_count() - 1));
   if (page > 0) {
@@ -273,6 +279,9 @@ PdfViewerWindow::PdfViewerWindow(QWidget* owner, QString path, std::unique_ptr<Q
 PdfViewerWindow::~PdfViewerWindow() {
   // The view's render worker and the search's worker read the document: stop them before
   // the document goes.
+  if (ocr_ != nullptr) {
+    ocr_->set_document(nullptr);
+  }
   if (view_ != nullptr) {
     view_->set_document(nullptr);
   }
@@ -294,6 +303,7 @@ void PdfViewerWindow::build_ui() {
   view_ = new PdfPageView(this);
   search_ = new PdfTextSearch(this);
   view_->set_text_search(search_);
+  ocr_ = new PdfPageOcr(this);
   build_find_bar();
   root->addWidget(find_bar_);
 
@@ -506,6 +516,41 @@ void PdfViewerWindow::build_ui() {
   print_button_->setToolTip(tr("Print the pages so they fold, cut or stack into a book, with assembly steps"));
   connect(print_button_, &QPushButton::clicked, this, &PdfViewerWindow::print_as_book);
   side->addWidget(print_button_);
+  recognize_button_ = new QPushButton(tr("Recognize Text..."), sidebar_);
+  recognize_button_->setObjectName(QStringLiteral("pdfViewerRecognizeButton"));
+  recognize_button_->setToolTip(tr("Read the text on scanned pages so Find and text selection work on them. "
+                                   "Nothing is saved to the PDF."));
+  connect(recognize_button_, &QPushButton::clicked, this, [this] { recognize_text(); });
+  side->addWidget(recognize_button_);
+  recognize_status_label_ = new QLabel(sidebar_);
+  recognize_status_label_->setObjectName(QStringLiteral("pdfViewerRecognizeStatusLabel"));
+  recognize_status_label_->setWordWrap(true);
+  recognize_status_label_->hide();
+  side->addWidget(recognize_status_label_);
+  // A page that was read hands its text to Find and to text selection.
+  connect(ocr_, &PdfPageOcr::page_done, this, [this](int page) {
+    if (const auto text = ocr_->page_text(page); text != nullptr) {
+      search_->set_recognized_text(page, text);
+      view_->text_selection()->set_recognized_text(page, text);
+      view_->viewport()->update();
+    }
+  });
+  connect(ocr_, &PdfPageOcr::progress_changed, this, &PdfViewerWindow::update_recognize_status);
+  connect(ocr_, &PdfPageOcr::finished, this, [this](bool stopped) {
+    const int recognized = ocr_->recognized_pages();
+    if (!ocr_->last_error().isEmpty()) {
+      recognize_result_ = tr("Text recognition stopped: %1").arg(ocr_->last_error());
+    } else if (recognized > 0) {
+      recognize_result_ = tr("Text was recognized on %n page(s). Find and text selection work on them now.", nullptr,
+                             recognized);
+    } else if (stopped) {
+      recognize_result_ = tr("Text recognition stopped.");
+    } else {
+      recognize_result_ = tr("No page needed text recognition, or no text was found.");
+    }
+    update_recognize_status();
+  });
+  connect(view_, &PdfPageView::recognize_page_requested, this, [this](int page) { recognize_text({page}); });
   // Pages and Outline: the tabs show only for a PDF that has an outline.
   sidebar_tabs_ = new QTabBar(sidebar_);
   sidebar_tabs_->setObjectName(QStringLiteral("pdfViewerSidebarTabs"));
@@ -663,6 +708,14 @@ void PdfViewerWindow::build_find_bar() {
   find_status_label_->setObjectName(QStringLiteral("pdfViewerFindStatusLabel"));
   find_status_label_->setContentsMargins(4, 0, 8, 0);
   row->addWidget(find_status_label_);
+  // Shown beside "This PDF has no searchable text": the way to get some.
+  find_recognize_button_ = new QPushButton(tr("Recognize Text..."), find_bar_);
+  find_recognize_button_->setObjectName(QStringLiteral("pdfViewerFindRecognizeButton"));
+  find_recognize_button_->setToolTip(tr("Read the text on the pages so it can be found. Nothing is saved to the PDF."));
+  find_recognize_button_->setFocusPolicy(Qt::TabFocus);
+  find_recognize_button_->hide();
+  connect(find_recognize_button_, &QPushButton::clicked, this, [this] { recognize_text(); });
+  row->addWidget(find_recognize_button_);
   find_match_case_check_ = new QCheckBox(tr("Match case"), find_bar_);
   find_match_case_check_->setObjectName(QStringLiteral("pdfViewerFindMatchCaseCheck"));
   find_match_case_check_->setToolTip(tr("Only find text with the same capital and small letters"));
@@ -774,9 +827,71 @@ void PdfViewerWindow::update_find_status() {
   } else {
     text = tr("No matches");
   }
+  // No text anywhere: offer to read it, unless that is what is going on already.
+  const bool no_text = search_->active() && !search_->searching() &&
+                       search_->text_layer() == PdfTextSearch::TextLayer::Absent;
+  if (no_text && ocr_->running()) {
+    text = tr("Recognizing page %1 of %2...")
+               .arg(QLocale().toString(std::min(ocr_->pages_done() + 1, std::max(1, ocr_->pages_total()))),
+                    QLocale().toString(std::max(1, ocr_->pages_total())));
+  }
+  find_recognize_button_->setVisible(no_text && !ocr_->running());
   find_status_label_->setText(text);
   find_previous_button_->setEnabled(count > 0);
   find_next_button_->setEnabled(count > 0);
+}
+
+// --- Text recognition on pages without text (docs/pdf-viewer-ocr.md) ---
+
+OcrChoiceRequest pdf_viewer_ocr_choice_request(bool one_page) {
+  OcrChoiceRequest request;
+  request.name = QStringLiteral("pdfViewerRecognize");
+  request.title = PdfViewerWindow::tr("Recognize Text");
+  request.note = one_page ? PdfViewerWindow::tr("Reads the text on this page so Find and text selection work on it. "
+                                                "Nothing is saved to the PDF.")
+                          : PdfViewerWindow::tr("Reads the text on the pages that have none of their own (scanned "
+                                                "pages), so Find and text selection work on them. Nothing is saved "
+                                                "to the PDF.");
+  request.picker_prefix = QStringLiteral("pdfViewerOcr");
+  request.accept_text = PdfViewerWindow::tr("Recognize");
+  return request;
+}
+
+void PdfViewerWindow::recognize_text(const std::vector<int>& pages) {
+  if (ocr_->running()) {
+    ocr_->stop();
+    return;
+  }
+  // The engine and the language are asked for every time: a PDF's language is not the last
+  // one's, and nothing here looks at the pages to guess it.
+  const OcrChoice choice = request_ocr_choice(this, pdf_viewer_ocr_choice_request(pages.size() == 1));
+  if (choice.engine == nullptr) {
+    return;
+  }
+  std::vector<int> wanted = pages;
+  if (wanted.empty()) {
+    // Every page, from the one being read and around the end: what is on screen comes first.
+    const int count = view_->page_count();
+    const int first = std::clamp(view_->current_page(), 0, std::max(0, count - 1));
+    for (int step = 0; step < count; ++step) {
+      wanted.push_back((first + step) % count);
+    }
+  }
+  recognize_result_.clear();
+  ocr_->start(choice.engine, choice.language, wanted, view_->quarter_turns());
+  update_recognize_status();
+}
+
+void PdfViewerWindow::update_recognize_status() {
+  const bool running = ocr_->running();
+  recognize_button_->setText(running ? tr("Stop Recognizing") : tr("Recognize Text..."));
+  const QString text = running ? tr("Recognizing page %1 of %2...")
+                                     .arg(QLocale().toString(std::min(ocr_->pages_done() + 1, std::max(1, ocr_->pages_total()))),
+                                          QLocale().toString(std::max(1, ocr_->pages_total())))
+                               : recognize_result_;
+  recognize_status_label_->setText(text);
+  recognize_status_label_->setVisible(!text.isEmpty());
+  update_find_status();
 }
 
 void PdfViewerWindow::show_find_note(const QString& text) {

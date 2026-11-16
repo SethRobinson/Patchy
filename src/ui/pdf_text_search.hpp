@@ -15,6 +15,7 @@ class QPdfDocument;
 namespace patchy::ui {
 
 struct PdfPageText;
+struct PdfOcrPageText;
 
 // Find in the PDF viewer (docs/pdf-viewer.md, "Find").
 
@@ -124,6 +125,11 @@ public:
   // for painting (nullptr when it has none).
   void set_visible_pages(const std::vector<int>& pages);
   [[nodiscard]] const PageMatches* page_matches(int page) const;
+
+  // A page that has no text of its own takes the text recognition read from it
+  // (docs/pdf-viewer-ocr.md): Find searches it like any page's text and places its matches
+  // from the recognized lines, without PDFium.
+  void set_recognized_text(int page, std::shared_ptr<const PdfOcrPageText> text);
 
   // Tests: true while a search or a placement is queued or running.
   [[nodiscard]] bool busy() const;

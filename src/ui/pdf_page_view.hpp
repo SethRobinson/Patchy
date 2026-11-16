@@ -153,6 +153,8 @@ signals:
   // Copy was chosen with text selected: the text as the clipboard should get it.
   void text_copy_requested(const QString& text);
   void text_selection_changed();
+  // "Recognize Text on This Page..." was chosen on a page without text of its own.
+  void recognize_page_requested(int page);
 
 protected:
   bool viewportEvent(QEvent* event) override;

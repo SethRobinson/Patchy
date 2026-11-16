@@ -1,6 +1,7 @@
 #include "ui/pdf_text_search.hpp"
 
 #include "ui/background_workers.hpp"
+#include "ui/pdf_ocr_text.hpp"
 
 #include <QChar>
 #include <QElapsedTimer>
@@ -285,6 +286,8 @@ struct PdfPageText {
   int char_count{0};
   PdfSearchText search;
   bool has_text{false};
+  // Set when the text is what text recognition read: its places come from here.
+  std::shared_ptr<const PdfOcrPageText> recognized;
 };
 
 namespace {
@@ -390,6 +393,44 @@ void PdfTextSearch::set_visible_pages(const std::vector<int>& pages) {
 
 bool PdfTextSearch::busy() const {
   return busy_ || (document_ != nullptr && active() && (unmatched_pages_ > 0 || geometry_page() >= 0));
+}
+
+void PdfTextSearch::set_recognized_text(int page, std::shared_ptr<const PdfOcrPageText> recognized) {
+  if (page < 0 || page >= page_count() || recognized == nullptr) {
+    return;
+  }
+  // What the worker is doing may be about this page's old, empty text: its answer is
+  // dropped (the generation moves on) and whatever it covered is asked for again.
+  stop_worker();
+  ++query_generation_;
+  auto text = std::make_shared<PdfPageText>();
+  text->text = recognized->text;
+  text->char_count = static_cast<int>(text->text.size());
+  text->search = prepare_pdf_search_text(text->text);
+  text->has_text = !text->search.text.trimmed().isEmpty();
+  text->recognized = std::move(recognized);
+  const auto slot = static_cast<std::size_t>(page);
+  if (texts_[slot] == nullptr) {
+    ++texts_read_;
+  }
+  if (text->has_text) {
+    text_layer_ = TextLayer::Present;
+  }
+  texts_[slot] = std::move(text);
+  if (active()) {
+    auto& state = pages_[slot];
+    if (state.matched) {
+      match_count_ -= static_cast<int>(state.found.matches.size());
+      ++unmatched_pages_;
+    }
+    if (current_.valid() && current_.page == page) {
+      current_ = {};
+    }
+    state = PageState{};
+  }
+  emit results_changed();
+  emit highlights_changed();
+  pump();
 }
 
 QString PdfTextSearch::page_text_for_testing(int page) const {
@@ -632,6 +673,9 @@ void PdfTextSearch::start_geometry_task(int page) {
 namespace {
 
 QList<QRectF> locate_match(QPdfDocument* document, int page, const PdfPageText& text, const PdfTextMatch& match) {
+  if (text.recognized != nullptr) {
+    return text.recognized->range_rects(match.start, match.length);
+  }
   const QStringView source(text.text);
   const QStringView wanted = source.mid(match.start, match.length);
   int first = match.start;

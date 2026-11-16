@@ -38175,6 +38175,11 @@ Locked: %1</source>
         <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
         <translation>このページのすべてを選択</translation>
     </message>
+    <message>
+        <source>Recognize Text on This Page...</source>
+        <extracomment>PDF viewer, right-click on a page that is an image without text.</extracomment>
+        <translation>このページのテキストを認識...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>
@@ -38391,6 +38396,60 @@ Locked: %1</source>
         <source>Page %1</source>
         <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
         <translation>ページ %1</translation>
+    </message>
+    <message>
+        <source>Recognize Text...</source>
+        <translation>テキストを認識...</translation>
+    </message>
+    <message>
+        <source>Read the text on scanned pages so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>スキャンされたページのテキストを読み取り、検索とテキスト選択を使えるようにします。PDF には何も保存されません。</translation>
+    </message>
+    <message>
+        <source>Text recognition stopped: %1</source>
+        <translation>テキスト認識が停止しました: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Find and text selection work on them now.</source>
+        <translation>
+            <numerusform>%n ページでテキストを認識しました。これらのページで検索とテキスト選択が使えます。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped.</source>
+        <translation>テキスト認識を停止しました。</translation>
+    </message>
+    <message>
+        <source>No page needed text recognition, or no text was found.</source>
+        <translation>テキスト認識が必要なページがなかったか、テキストが見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>Read the text on the pages so it can be found. Nothing is saved to the PDF.</source>
+        <translation>ページのテキストを読み取り、検索できるようにします。PDF には何も保存されません。</translation>
+    </message>
+    <message>
+        <source>Recognizing page %1 of %2...</source>
+        <translation>ページ %1 / %2 を認識しています...</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>テキストを認識</translation>
+    </message>
+    <message>
+        <source>Reads the text on this page so Find and text selection work on it. Nothing is saved to the PDF.</source>
+        <translation>このページのテキストを読み取り、検索とテキスト選択を使えるようにします。PDF には何も保存されません。</translation>
+    </message>
+    <message>
+        <source>Reads the text on the pages that have none of their own (scanned pages), so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>独自のテキストを持たないページ (スキャンされたページ) のテキストを読み取り、検索とテキスト選択を使えるようにします。PDF には何も保存されません。</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>認識</translation>
+    </message>
+    <message>
+        <source>Stop Recognizing</source>
+        <translation>認識を停止</translation>
     </message>
 </context>
 <context>

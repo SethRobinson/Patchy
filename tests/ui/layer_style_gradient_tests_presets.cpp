@@ -22,6 +22,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
+#include "ui/ocr_controls.hpp"
 #include "ui/recognize_text_dialog.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/preset_grid_widget.hpp"
@@ -1656,6 +1657,18 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
       import_options.purpose = patchy::ui::RecognizeTextPurpose::PdfImport;
       (void)patchy::ui::request_recognize_text(nullptr, import_options);
     }
+    // The PDF viewer's question before it reads scanned pages: engine and language only.
+    grab_dialog(QStringLiteral("pdfViewerRecognizeDialog"), "pdf_viewer_recognize");
+    {
+      patchy::ui::OcrChoiceRequest viewer_ocr;
+      viewer_ocr.name = QStringLiteral("pdfViewerRecognize");
+      viewer_ocr.title = QStringLiteral("Recognize Text");
+      viewer_ocr.note = QStringLiteral("Reads the text on the pages that have none of their own (scanned pages), so "
+                                       "Find and text selection work on them. Nothing is saved to the PDF.");
+      viewer_ocr.picker_prefix = QStringLiteral("pdfViewerOcr");
+      viewer_ocr.accept_text = QStringLiteral("Recognize");
+      (void)patchy::ui::request_ocr_choice(nullptr, viewer_ocr);
+    }
     // The color picker is a top-level widget, not a dialog.
     patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));
     picker.show();
@@ -1683,7 +1696,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 52);
+  CHECK(captured == 54);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

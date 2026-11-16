@@ -1,5 +1,7 @@
 #include "ui/pdf_text_selection.hpp"
 
+#include "ui/pdf_ocr_text.hpp"
+
 #include "ui/background_workers.hpp"
 
 #include <QChar>
@@ -160,6 +162,9 @@ int caret_at(QPdfDocument* document, int page, const PdfPageTextAreas& areas, QP
   if (!areas.has_text()) {
     return -1;
   }
+  if (areas.recognized != nullptr) {
+    return areas.recognized->caret_at(point);
+  }
   const int piece = nearest_piece(areas, point);
   if (piece < 0) {
     return -1;
@@ -217,6 +222,15 @@ PiecePtr make_piece(Reader& reader, int page, int start, int count, const std::v
     piece->count = count;
     piece->text = areas.text;
     piece->rects = areas.pieces;
+    return piece;
+  }
+  if (areas.recognized != nullptr) {
+    auto piece = std::make_shared<Piece>();
+    piece->page = page;
+    piece->start = start;
+    piece->count = count;
+    piece->text = areas.text.mid(start, count);
+    piece->rects = areas.recognized->range_rects(start, count);
     return piece;
   }
   const QPdfSelection selection = reader.document->getSelectionAtIndex(page, start, count);
@@ -380,6 +394,20 @@ void answer_word(Reader& reader, const Request& request, Answer& answer) {
   if (caret < 0) {
     return;
   }
+  if (areas.recognized != nullptr) {
+    // Recognized text is its own string: the word is read straight from it.
+    const auto [first, last] = word_range(caret, areas.char_count, [&](int index) {
+      const QChar unit = areas.text[index];
+      return unit == QLatin1Char('\n') ? QString() : QString(unit);
+    });
+    answer.applies = true;
+    if (auto piece = last > first ? make_piece(reader, page, first, last - first, {}) : nullptr; piece != nullptr) {
+      answer.anchor = PdfTextCaret{page, piece->start};
+      answer.anchor_far = PdfTextCaret{page, piece->start + piece->count};
+      answer.pieces.push_back(std::move(piece));
+    }
+    return;
+  }
   // The characters around the caret in one call. Its text counts in UTF-16 units and Qt
   // PDF's indices in PDFium characters; the two agree unless a character near by lies
   // outside the BMP or PDFium's text leaves one out. The selection made from the answer
@@ -433,6 +461,17 @@ void answer_line(Reader& reader, const Request& request, Answer& answer) {
     return;
   }
   const PdfPageTextAreas& areas = reader.areas(page);
+  if (areas.has_text() && areas.recognized != nullptr) {
+    // A recognized line is one run of the page's text.
+    const auto [start, count] = areas.recognized->line_range_at(request.focus.point);
+    answer.applies = true;
+    if (auto piece = make_piece(reader, page, start, count, {}); piece != nullptr) {
+      answer.anchor = PdfTextCaret{page, piece->start};
+      answer.anchor_far = PdfTextCaret{page, piece->start + piece->count};
+      answer.pieces.push_back(std::move(piece));
+    }
+    return;
+  }
   const int hit = nearest_piece(areas, request.focus.point);
   if (!areas.has_text() || hit < 0) {
     return;
@@ -559,6 +598,27 @@ void PdfTextSelection::request_pages(const std::vector<int>& pages) {
     }
   }
   pump();
+}
+
+void PdfTextSelection::set_recognized_text(int page, std::shared_ptr<const PdfOcrPageText> recognized) {
+  if (page < 0 || page >= static_cast<int>(areas_.size()) || recognized == nullptr) {
+    return;
+  }
+  auto areas = std::make_shared<PdfPageTextAreas>();
+  areas->text = recognized->text;
+  areas->char_count = static_cast<int>(areas->text.size());
+  areas->pieces = recognized->line_boxes();
+  if (!areas->pieces.isEmpty()) {
+    areas->base_index = 0;
+    areas->base_hit = 0;
+    areas->base_box = areas->pieces.constFirst();
+  }
+  areas->recognized = std::move(recognized);
+  // A worker's answer about the page as it was (no text) only ever fills an empty slot, so
+  // it cannot take this away again.
+  areas_[static_cast<std::size_t>(page)] = std::move(areas);
+  std::erase(wanted_, page);
+  emit page_areas_ready(page);
 }
 
 const PdfPageTextAreas* PdfTextSelection::page_areas(int page) const {

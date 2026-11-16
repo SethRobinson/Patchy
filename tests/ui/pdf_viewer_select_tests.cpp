@@ -977,9 +977,10 @@ void ui_pdf_viewer_select_text_without_a_text_layer() {
   CHECK(!view->has_text_selection() && view->selected_text().isEmpty());
   view->copy_selection();
   CHECK(log.copied.isEmpty());
-  // The menu says so: both entries are off.
+  // The menu says so: both entries are off, and the page's text can be read on request.
   const auto menu = right_click(*view, middle);
-  CHECK(menu.shown && menu.actions == QStringList({kCopyAction, kSelectPageAction}));
+  CHECK(menu.shown && menu.actions == QStringList({kCopyAction, kSelectPageAction,
+                                                    QStringLiteral("pdfViewerRecognizePageAction")}));
   CHECK(!menu.action_enabled(kCopyAction) && !menu.action_enabled(kSelectPageAction));
   // A double-click is still full screen.
   double_click(*view, middle);

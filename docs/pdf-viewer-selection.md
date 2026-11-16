@@ -47,6 +47,10 @@ One task at a time (`launch_async`, the answer posted back), like the search and
 
 Copy and Select All are window keys like the rest (pdf-viewer.md, Keys): always enabled, so with nothing selected the key does nothing instead of running the main window's Copy, which would put a layer on the clipboard. In a text field (the find field, the page field, the zoom box: `types_its_own_enter`) they are the field's own. Esc with the bar closed is taken in the window's event filter, with its `ShortcutOverride`, while there is a selection or the window is full screen, wherever the keyboard is in the viewer.
 
+## Scanned pages
+
+A page without text of its own selects nothing until its text is recognized on request ([pdf-viewer-ocr.md](pdf-viewer-ocr.md#selection)); then `caret_at`, `make_piece`, `answer_word` and `answer_line` answer from the recognized lines instead of PDFium, and everything else here applies unchanged. The page menu on such a page has "Recognize Text on This Page...".
+
 ## Not built
 
 Selecting with the keyboard, a Select All for the whole document, dragging a selection out as text, lines of text set down the page (a triple-click there takes the piece's row), and reading order other than PDFium's character order (in a page of columns a drag from one column to the next takes the characters between in that order).

@@ -1,6 +1,6 @@
 # Text recognition (OCR)
 
-Reading text out of pixels. This doc owns the engine library (`src/ocr`, target `patchy_ocr`) and the rules every entry point follows. Status: the library, the Windows engine, recognized text layers, the script calls, the Type menu commands, the Import PDF option, the downloadable PP-OCR engine, searchable PDF export ([pdf-searchable-text.md](pdf-searchable-text.md#from-a-document)) and Scan a Book's searchable PDF ([book-scan.md](book-scan.md#searchable-pdf)) are in; the PDF viewer is being added on top.
+Reading text out of pixels. This doc owns the engine library (`src/ocr`, target `patchy_ocr`) and the rules every entry point follows. Status: the library, the Windows engine, recognized text layers, the script calls, the Type menu commands, the Import PDF option, the downloadable PP-OCR engine, searchable PDF export ([pdf-searchable-text.md](pdf-searchable-text.md#from-a-document)) Scan a Book's searchable PDF ([book-scan.md](book-scan.md#searchable-pdf)) and Find and selection on scanned pages in the PDF viewer ([pdf-viewer-ocr.md](pdf-viewer-ocr.md)) are in.
 
 ## Related documents
 

@@ -1702,6 +1702,13 @@ void PdfPageView::contextMenuEvent(QContextMenuEvent* event) {
     const PdfPageTextAreas* areas = selection_->page_areas(spot.page);
     all->setEnabled(areas == nullptr || areas->has_text());
     connect(all, &QAction::triggered, this, [this, page = spot.page] { select_all_on_page(page); });
+    if (areas != nullptr && !areas->has_text()) {
+      // A scan: its text can be read on request (docs/pdf-viewer-ocr.md).
+      //: PDF viewer, right-click on a page that is an image without text.
+      auto* recognize = menu.addAction(tr("Recognize Text on This Page..."));
+      recognize->setObjectName(QStringLiteral("pdfViewerRecognizePageAction"));
+      connect(recognize, &QAction::triggered, this, [this, page = spot.page] { emit recognize_page_requested(page); });
+    }
   }
   menu.exec(event->globalPos());
   event->accept();

@@ -65,6 +65,21 @@ private:
 // the line a dialog shows beside an option that will use it. Empty without an engine.
 [[nodiscard]] QString ocr_choice_summary(const OcrChoice& choice);
 
+// A dialog that asks only for the engine and the language of a recognition that makes no
+// layers (the PDF viewer's): `note` says what will be read, the shared picker under it,
+// then `accept_text` and Cancel. Object names: `<name>Dialog`, `<name>Note`,
+// `<name>OkButton`, and the picker's from `picker_prefix`. Returns the resolved choice with
+// the picks stored; the engine is null when the dialog was cancelled. With no engine that
+// can run it still opens and says why, and cannot be accepted.
+struct OcrChoiceRequest {
+  QString name;
+  QString title;
+  QString note;
+  QString picker_prefix;
+  QString accept_text;
+};
+[[nodiscard]] OcrChoice request_ocr_choice(QWidget* parent, const OcrChoiceRequest& request);
+
 // Tests replace what "Open Language Settings" does (it opens a Windows Settings page).
 void set_ocr_language_settings_opener_for_testing(std::function<void()> opener);
 

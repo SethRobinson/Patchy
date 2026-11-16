@@ -18,6 +18,8 @@ class QPdfDocument;
 
 namespace patchy::ui {
 
+struct PdfOcrPageText;
+
 // Selecting and copying text in the PDF viewer (docs/pdf-viewer-selection.md).
 
 // Where the text of one page is, read once: its line pieces in points from the top left of
@@ -33,6 +35,9 @@ struct PdfPageTextAreas {
   int base_index{-1};
   int base_hit{-1};
   QRectF base_box;
+  // Set when the page's text is what text recognition read (docs/pdf-viewer-ocr.md): carets
+  // and ranges are worked out from it, and Qt PDF is not asked about this page.
+  std::shared_ptr<const PdfOcrPageText> recognized;
   [[nodiscard]] bool has_text() const { return base_index >= 0 && !pieces.isEmpty(); }
 };
 
@@ -68,6 +73,9 @@ public:
   void request_pages(const std::vector<int>& pages);
   // A page's text areas; nullptr until they are read.
   [[nodiscard]] const PdfPageTextAreas* page_areas(int page) const;
+  // A page that has no text of its own takes the text recognition read from it: its lines
+  // become the page's text areas, and it selects and copies like any page.
+  void set_recognized_text(int page, std::shared_ptr<const PdfOcrPageText> text);
   // True when `point` is on text of `page`, give or take `slack` points, or in the gap
   // between two lines of a paragraph (a line counts a share of its height above and below
   // it). False while the page's areas are still being read.

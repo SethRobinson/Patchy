@@ -38175,6 +38175,11 @@ Locked: %1</source>
         <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
         <translation>이 페이지에서 모두 선택</translation>
     </message>
+    <message>
+        <source>Recognize Text on This Page...</source>
+        <extracomment>PDF viewer, right-click on a page that is an image without text.</extracomment>
+        <translation>이 페이지의 텍스트 인식...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>
@@ -38391,6 +38396,60 @@ Locked: %1</source>
         <source>Page %1</source>
         <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
         <translation>페이지 %1</translation>
+    </message>
+    <message>
+        <source>Recognize Text...</source>
+        <translation>텍스트 인식...</translation>
+    </message>
+    <message>
+        <source>Read the text on scanned pages so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>스캔한 페이지의 텍스트를 읽어 찾기와 텍스트 선택이 작동하도록 합니다. PDF에는 아무것도 저장되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Text recognition stopped: %1</source>
+        <translation>텍스트 인식이 중지되었습니다: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Find and text selection work on them now.</source>
+        <translation>
+            <numerusform>%n개 페이지에서 텍스트를 인식했습니다. 이제 해당 페이지에서 찾기와 텍스트 선택이 작동합니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped.</source>
+        <translation>텍스트 인식이 중지되었습니다.</translation>
+    </message>
+    <message>
+        <source>No page needed text recognition, or no text was found.</source>
+        <translation>텍스트 인식이 필요한 페이지가 없거나 텍스트를 찾지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Read the text on the pages so it can be found. Nothing is saved to the PDF.</source>
+        <translation>페이지의 텍스트를 읽어 찾을 수 있게 합니다. PDF에는 아무것도 저장되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Recognizing page %1 of %2...</source>
+        <translation>%2페이지 중 %1페이지 인식 중...</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>텍스트 인식</translation>
+    </message>
+    <message>
+        <source>Reads the text on this page so Find and text selection work on it. Nothing is saved to the PDF.</source>
+        <translation>이 페이지의 텍스트를 읽어 찾기와 텍스트 선택이 작동하도록 합니다. PDF에는 아무것도 저장되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Reads the text on the pages that have none of their own (scanned pages), so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>자체 텍스트가 없는 페이지(스캔한 페이지)의 텍스트를 읽어 찾기와 텍스트 선택이 작동하도록 합니다. PDF에는 아무것도 저장되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>인식</translation>
+    </message>
+    <message>
+        <source>Stop Recognizing</source>
+        <translation>인식 중지</translation>
     </message>
 </context>
 <context>

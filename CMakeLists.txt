@@ -1904,6 +1904,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         src/ui/pdf_text_search.cpp
         src/ui/pdf_text_selection.hpp
         src/ui/pdf_text_selection.cpp
+        src/ui/pdf_ocr_text.hpp
+        src/ui/pdf_ocr_text.cpp
+        src/ui/pdf_page_ocr.hpp
+        src/ui/pdf_page_ocr.cpp
         src/ui/pdf_viewer_window.hpp
         src/ui/pdf_viewer_window.cpp
         src/ui/pdf_book_print_dialog.hpp
@@ -2824,6 +2828,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp
+      tests/ui/pdf_viewer_ocr_tests.cpp
       tests/ui/folder_open_export_tests.cpp
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp

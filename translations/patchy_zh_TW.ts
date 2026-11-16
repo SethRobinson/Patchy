@@ -38175,6 +38175,11 @@ Locked: %1</source>
         <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
         <translation>全選此頁</translation>
     </message>
+    <message>
+        <source>Recognize Text on This Page...</source>
+        <extracomment>PDF viewer, right-click on a page that is an image without text.</extracomment>
+        <translation>辨識此頁上的文字...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>
@@ -38391,6 +38396,60 @@ Locked: %1</source>
         <source>Page %1</source>
         <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
         <translation>第 %1 頁</translation>
+    </message>
+    <message>
+        <source>Recognize Text...</source>
+        <translation>辨識文字...</translation>
+    </message>
+    <message>
+        <source>Read the text on scanned pages so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>讀取掃描頁面上的文字，以便在這些頁面上使用尋找和文字選取。不會在 PDF 中儲存任何內容。</translation>
+    </message>
+    <message>
+        <source>Text recognition stopped: %1</source>
+        <translation>文字辨識已停止：%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Find and text selection work on them now.</source>
+        <translation>
+            <numerusform>已在 %n 頁上辨識出文字。現在可以在這些頁面上尋找和選取文字。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped.</source>
+        <translation>文字辨識已停止。</translation>
+    </message>
+    <message>
+        <source>No page needed text recognition, or no text was found.</source>
+        <translation>沒有頁面需要文字辨識，或者沒有找到文字。</translation>
+    </message>
+    <message>
+        <source>Read the text on the pages so it can be found. Nothing is saved to the PDF.</source>
+        <translation>讀取頁面上的文字，以便能夠尋找。不會在 PDF 中儲存任何內容。</translation>
+    </message>
+    <message>
+        <source>Recognizing page %1 of %2...</source>
+        <translation>正在辨識第 %1 頁，共 %2 頁...</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>辨識文字</translation>
+    </message>
+    <message>
+        <source>Reads the text on this page so Find and text selection work on it. Nothing is saved to the PDF.</source>
+        <translation>讀取此頁上的文字，以便在此頁上使用尋找和文字選取。不會在 PDF 中儲存任何內容。</translation>
+    </message>
+    <message>
+        <source>Reads the text on the pages that have none of their own (scanned pages), so Find and text selection work on them. Nothing is saved to the PDF.</source>
+        <translation>讀取沒有自帶文字的頁面（掃描頁面）上的文字，以便在這些頁面上使用尋找和文字選取。不會在 PDF 中儲存任何內容。</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>辨識</translation>
+    </message>
+    <message>
+        <source>Stop Recognizing</source>
+        <translation>停止辨識</translation>
     </message>
 </context>
 <context>

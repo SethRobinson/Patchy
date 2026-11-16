@@ -36,7 +36,13 @@ class QTreeWidgetItem;
 
 namespace patchy::ui {
 
+class PdfPageOcr;
 class PdfTextSearch;
+struct OcrChoiceRequest;
+
+// What the viewer's "which engine and language" question says (request_ocr_choice), for
+// one page or for every page without text.
+[[nodiscard]] OcrChoiceRequest pdf_viewer_ocr_choice_request(bool one_page);
 
 // The PDF viewer (docs/pdf-viewer.md): what opening a PDF shows by default. A MainWindow-
 // parented top-level window (like a floated document) with a toolbar for pages, zoom and
@@ -79,6 +85,14 @@ public:
   void find_next();
   void find_previous();
   [[nodiscard]] PdfTextSearch* text_search() const { return search_; }
+
+  // Text recognition for pages without text of their own (docs/pdf-viewer-ocr.md), so Find
+  // and text selection work on a scan. Asks for the engine and language first, then reads
+  // `pages` (empty: every page, from the one being read) in the background; while a run is
+  // going it stops it instead. Nothing is recognized until this is called, and what is read
+  // lives only in this window.
+  void recognize_text(const std::vector<int>& pages = {});
+  [[nodiscard]] PdfPageOcr* page_ocr() const { return ocr_; }
 
   // Jumps to a place in the document (a link, an outline entry) and remembers where the
   // view was, for Back.
@@ -131,6 +145,7 @@ private:
   void build_find_bar();
   void start_find();
   void update_find_status();
+  void update_recognize_status();
   void show_find_note(const QString& text);
   void jump(const std::function<void()>& go);
   void update_history_actions();
@@ -155,6 +170,12 @@ private:
   FileDropHandler drop_files_;
   PdfPageView* view_{nullptr};
   PdfTextSearch* search_{nullptr};
+  PdfPageOcr* ocr_{nullptr};
+  QPushButton* recognize_button_{nullptr};
+  QLabel* recognize_status_label_{nullptr};
+  QPushButton* find_recognize_button_{nullptr};
+  // What the last finished run has to say, shown until the next one starts.
+  QString recognize_result_;
   QToolBar* toolbar_{nullptr};
   QWidget* find_bar_{nullptr};
   QLineEdit* find_edit_{nullptr};
