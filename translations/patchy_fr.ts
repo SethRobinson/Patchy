@@ -37956,14 +37956,6 @@ Verrouillé : %1</translation>
         <translation>Rechercher dans ce PDF</translation>
     </message>
     <message>
-        <source>Previous match (Shift+Enter)</source>
-        <translation>Occurrence précédente (Maj+Enter)</translation>
-    </message>
-    <message>
-        <source>Next match (Enter)</source>
-        <translation>Occurrence suivante (Enter)</translation>
-    </message>
-    <message>
         <source>Match case</source>
         <translation>Respecter la casse</translation>
     </message>
@@ -37977,7 +37969,7 @@ Verrouillé : %1</translation>
     </message>
     <message>
         <source>Only find the text where it is not part of a longer word</source>
-        <translation>Ne trouver le texte que s'il ne fait pas partie d'un mot plus long</translation>
+        <translation>Ne trouver le texte que s&apos;il ne fait pas partie d&apos;un mot plus long</translation>
     </message>
     <message>
         <source>Close the find bar (Esc)</source>
@@ -38007,6 +37999,16 @@ Verrouillé : %1</translation>
     <message>
         <source>No matches</source>
         <translation>Aucun résultat</translation>
+    </message>
+    <message>
+        <source>Previous match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Previous match (Shift+Enter, Shift+F3)&quot;.</extracomment>
+        <translation>Occurrence précédente (%1, %2)</translation>
+    </message>
+    <message>
+        <source>Next match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
+        <translation>Occurrence suivante (%1, %2)</translation>
     </message>
 </context>
 <context>

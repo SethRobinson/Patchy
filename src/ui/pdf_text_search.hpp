@@ -114,7 +114,9 @@ public:
   [[nodiscard]] TextLayer text_layer() const { return text_layer_; }
 
   // Steps to the next or previous match, around the ends of the document (`wrapped` says
-  // so). False when there is nothing to step to.
+  // so). A step asked for before the search has a current match (Enter typed right behind
+  // the text) is kept and taken from the first match once it is known, so the key lands
+  // where it would have a moment later. False when there is nothing to step to.
   bool find_next();
   bool find_previous();
 
@@ -172,6 +174,8 @@ private:
   std::future<void> in_flight_;
   bool busy_{false};
   bool last_task_placed_{false};
+  // Steps asked for while no current match was known yet: forward positive, back negative.
+  int pending_steps_{0};
   std::uint64_t document_generation_{0};
   std::uint64_t query_generation_{0};
 };

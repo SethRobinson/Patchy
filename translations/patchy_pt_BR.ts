@@ -37956,14 +37956,6 @@ Bloqueado: %1</translation>
         <translation>Localizar neste PDF</translation>
     </message>
     <message>
-        <source>Previous match (Shift+Enter)</source>
-        <translation>Ocorrência anterior (Shift+Enter)</translation>
-    </message>
-    <message>
-        <source>Next match (Enter)</source>
-        <translation>Próxima ocorrência (Enter)</translation>
-    </message>
-    <message>
         <source>Match case</source>
         <translation>Diferenciar maiúsculas de minúsculas</translation>
     </message>
@@ -38007,6 +37999,16 @@ Bloqueado: %1</translation>
     <message>
         <source>No matches</source>
         <translation>Nenhuma ocorrência</translation>
+    </message>
+    <message>
+        <source>Previous match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Previous match (Shift+Enter, Shift+F3)&quot;.</extracomment>
+        <translation>Ocorrência anterior (%1, %2)</translation>
+    </message>
+    <message>
+        <source>Next match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
+        <translation>Próxima ocorrência (%1, %2)</translation>
     </message>
 </context>
 <context>

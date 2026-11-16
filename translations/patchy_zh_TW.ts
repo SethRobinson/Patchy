@@ -37842,14 +37842,6 @@ Locked: %1</source>
         <translation>在此 PDF 中尋找</translation>
     </message>
     <message>
-        <source>Previous match (Shift+Enter)</source>
-        <translation>上一個相符項目 (Shift+Enter)</translation>
-    </message>
-    <message>
-        <source>Next match (Enter)</source>
-        <translation>下一個相符項目 (Enter)</translation>
-    </message>
-    <message>
         <source>Match case</source>
         <translation>區分大小寫</translation>
     </message>
@@ -37893,6 +37885,16 @@ Locked: %1</source>
     <message>
         <source>No matches</source>
         <translation>沒有相符項目</translation>
+    </message>
+    <message>
+        <source>Previous match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Previous match (Shift+Enter, Shift+F3)&quot;.</extracomment>
+        <translation>上一個相符項目 (%1、%2)</translation>
+    </message>
+    <message>
+        <source>Next match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
+        <translation>下一個相符項目 (%1、%2)</translation>
     </message>
 </context>
 <context>

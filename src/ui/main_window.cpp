@@ -6038,6 +6038,11 @@ bool MainWindow::spacebar_canvas_pan_target_in_window(QWidget* widget) const noe
       widget->window()->objectName() == QLatin1String("scriptCanvasWindowDialog")) {
     return false;
   }
+  // The PDF viewer is a reader of its own, not a dialog over the canvas: Space there turns
+  // the page, presses its buttons and ticks its options (docs/pdf-viewer.md).
+  if (widget->window() != nullptr && widget->window()->objectName() == QLatin1String("pdfViewerWindow")) {
+    return false;
+  }
   if (widget == this || isAncestorOf(widget) || widget->window() == this) {
     return true;
   }

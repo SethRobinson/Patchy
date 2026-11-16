@@ -37956,14 +37956,6 @@ Bloccato: %1</translation>
         <translation>Trova in questo PDF</translation>
     </message>
     <message>
-        <source>Previous match (Shift+Enter)</source>
-        <translation>Risultato precedente (Maiusc+Enter)</translation>
-    </message>
-    <message>
-        <source>Next match (Enter)</source>
-        <translation>Risultato successivo (Enter)</translation>
-    </message>
-    <message>
         <source>Match case</source>
         <translation>Maiuscole/minuscole</translation>
     </message>
@@ -37985,7 +37977,7 @@ Bloccato: %1</translation>
     </message>
     <message>
         <source>Reached the end, continued from the start</source>
-        <translation>Fine raggiunta, ricerca ripresa dall'inizio</translation>
+        <translation>Fine raggiunta, ricerca ripresa dall&apos;inizio</translation>
     </message>
     <message>
         <source>Reached the start, continued from the end</source>
@@ -38007,6 +37999,16 @@ Bloccato: %1</translation>
     <message>
         <source>No matches</source>
         <translation>Nessun risultato</translation>
+    </message>
+    <message>
+        <source>Previous match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Previous match (Shift+Enter, Shift+F3)&quot;.</extracomment>
+        <translation>Risultato precedente (%1, %2)</translation>
+    </message>
+    <message>
+        <source>Next match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
+        <translation>Risultato successivo (%1, %2)</translation>
     </message>
 </context>
 <context>

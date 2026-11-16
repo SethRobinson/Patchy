@@ -130,6 +130,27 @@ bool any_shortcut_matches(const QList<QKeySequence>& shortcuts, const QList<QKey
   return false;
 }
 
+// A control that Enter and Esc belong to while the keyboard is in it, because they finish or
+// drop what was typed there: the page field, the zoom box, any other text field.
+bool types_its_own_enter(const QWidget* widget) {
+  if (qobject_cast<const QAbstractSpinBox*>(widget) != nullptr || qobject_cast<const QLineEdit*>(widget) != nullptr) {
+    return true;
+  }
+  const auto* combo = qobject_cast<const QComboBox*>(widget);
+  return combo != nullptr && combo->isEditable();
+}
+
+// The key a tooltip names, the way this platform writes it.
+QString key_name(const QKeySequence& key) {
+  return key.toString(QKeySequence::NativeText);
+}
+
+// The platform's first key for a standard command, or `fallback` where it has none.
+QKeySequence first_standard_key(QKeySequence::StandardKey standard, const QKeySequence& fallback) {
+  const QKeySequence key(standard);
+  return key.isEmpty() ? fallback : key;
+}
+
 // A zoom token: a percentage written with a dot (settings, combo data). 0 when it is not one.
 double zoom_percent_from_token(const QString& token) {
   bool ok = false;
@@ -500,10 +521,25 @@ void PdfViewerWindow::build_find_bar() {
     row->addWidget(button);
     return button;
   };
-  find_previous_button_ = step_button("pdfViewerFindPreviousButton", QStringLiteral("chevron-up"),
-                                      tr("Previous match (Shift+Enter)"));
-  find_next_button_ =
-      step_button("pdfViewerFindNextButton", QStringLiteral("chevron-down"), tr("Next match (Enter)"));
+  // The tips name the keys as this platform writes them: Enter and the platform's own Find
+  // Next key (F3 on Windows, Command+G on macOS). Windows keyboards say Enter, not Return.
+#if defined(Q_OS_MACOS)
+  constexpr Qt::Key enter_key = Qt::Key_Return;
+#else
+  constexpr Qt::Key enter_key = Qt::Key_Enter;
+#endif
+  find_previous_button_ = step_button(
+      "pdfViewerFindPreviousButton", QStringLiteral("chevron-up"),
+      //: Find in the PDF viewer. %1 and %2 are keys, as in "Previous match (Shift+Enter, Shift+F3)".
+      tr("Previous match (%1, %2)")
+          .arg(key_name(QKeySequence(Qt::SHIFT | enter_key)),
+               key_name(first_standard_key(QKeySequence::FindPrevious, QKeySequence(Qt::SHIFT | Qt::Key_F3)))));
+  find_next_button_ = step_button(
+      "pdfViewerFindNextButton", QStringLiteral("chevron-down"),
+      //: Find in the PDF viewer. %1 and %2 are keys, as in "Next match (Enter, F3)".
+      tr("Next match (%1, %2)")
+          .arg(key_name(QKeySequence(enter_key)),
+               key_name(first_standard_key(QKeySequence::FindNext, QKeySequence(Qt::Key_F3)))));
   connect(find_previous_button_, &QToolButton::clicked, this, &PdfViewerWindow::find_previous);
   connect(find_next_button_, &QToolButton::clicked, this, &PdfViewerWindow::find_next);
   find_status_label_ = new QLabel(find_bar_);
@@ -788,13 +824,16 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
     if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this) {
       const auto& key = *static_cast<QKeyEvent*>(event);
-      // The find bar's own keys, before any hotkey of the main window can take them: Enter
-      // and Shift+Enter in the field step through the matches, Esc anywhere in the bar
-      // closes it.
-      if (find_open_ && (widget == find_bar_ || find_bar_->isAncestorOf(widget))) {
+      // While the find bar is open, Enter and Shift+Enter step through the matches and Esc
+      // closes the bar wherever the keyboard is in this window (the field, a page, an
+      // option, the sidebar), before any hotkey of the main window can take them. Only the
+      // control that holds the keyboard counts (a key it passed on is not typed again for
+      // its parents), and a control that types its own Enter keeps it.
+      if (find_open_ && widget == (focusWidget() != nullptr ? focusWidget() : this) &&
+          (widget == find_edit_ || !types_its_own_enter(widget))) {
         const bool enter = key.key() == Qt::Key_Return || key.key() == Qt::Key_Enter;
         const bool plain = (key.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
-        if (plain && ((enter && widget == find_edit_) || key.key() == Qt::Key_Escape)) {
+        if (plain && (enter || key.key() == Qt::Key_Escape)) {
           event->accept();
           if (event->type() == QEvent::KeyPress) {
             if (!enter) {

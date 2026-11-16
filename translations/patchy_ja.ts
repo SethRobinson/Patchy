@@ -37842,14 +37842,6 @@ Locked: %1</source>
         <translation>このPDF内を検索</translation>
     </message>
     <message>
-        <source>Previous match (Shift+Enter)</source>
-        <translation>前の一致 (Shift+Enter)</translation>
-    </message>
-    <message>
-        <source>Next match (Enter)</source>
-        <translation>次の一致 (Enter)</translation>
-    </message>
-    <message>
         <source>Match case</source>
         <translation>大文字と小文字を区別</translation>
     </message>
@@ -37893,6 +37885,16 @@ Locked: %1</source>
     <message>
         <source>No matches</source>
         <translation>一致なし</translation>
+    </message>
+    <message>
+        <source>Previous match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Previous match (Shift+Enter, Shift+F3)&quot;.</extracomment>
+        <translation>前の一致 (%1、%2)</translation>
+    </message>
+    <message>
+        <source>Next match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
+        <translation>次の一致 (%1、%2)</translation>
     </message>
 </context>
 <context>

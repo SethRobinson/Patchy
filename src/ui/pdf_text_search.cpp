@@ -10,6 +10,7 @@
 #include <QStringView>
 
 #include <algorithm>
+#include <cstdlib>
 #include <limits>
 #include <utility>
 
@@ -25,6 +26,8 @@ constexpr std::size_t kMatchesPerTask = 512;
 // How far past its text offset a match's first character is looked for when PDFium counts
 // characters its text leaves out (see locate_match).
 constexpr int kIndexProbes = 12;
+// A held Enter during a long search queues no more steps than this.
+constexpr int kMaxPendingSteps = 32;
 
 char32_t code_point_at(QStringView text, qsizetype index, int* length) {
   const char16_t unit = text[index].unicode();
@@ -315,6 +318,7 @@ void PdfTextSearch::set_document(QPdfDocument* document) {
   unmatched_pages_ = needle_.isEmpty() ? 0 : count;
   match_count_ = 0;
   current_ = {};
+  pending_steps_ = 0;
   anchor_page_ = 0;
   anchor_offset_ = 0;
   visible_pages_.clear();
@@ -347,6 +351,7 @@ void PdfTextSearch::set_query(const QString& query, PdfFindOptions options, int 
   unmatched_pages_ = needle_.isEmpty() ? 0 : page_count();
   match_count_ = 0;
   current_ = {};
+  pending_steps_ = 0;
   emit results_changed();
   emit highlights_changed();
   pump();
@@ -530,6 +535,9 @@ void PdfTextSearch::start_match_task() {
           }
           if (query_generation == query_generation_) {
             choose_current();
+            if (unmatched_pages_ == 0 && !current_.valid()) {
+              pending_steps_ = 0;  // nothing was found: the steps that waited go nowhere
+            }
             emit results_changed();
             if (found) {
               emit highlights_changed();
@@ -668,18 +676,23 @@ void PdfTextSearch::choose_current() {
   // the anchor's own page a second time for what lies before the anchor. A page not yet
   // searched may hold an earlier one: wait for it.
   const int count = page_count();
-  for (int step = 0; step <= count && count > 0; ++step) {
-    const int page = (anchor_page_ + step) % count;
+  for (int turn = 0; turn <= count && count > 0; ++turn) {
+    const int page = (anchor_page_ + turn) % count;
     const auto& state = pages_[static_cast<std::size_t>(page)];
     if (!state.matched) {
       return;
     }
     for (int index = 0; index < static_cast<int>(state.found.matches.size()); ++index) {
       const bool after = state.found.matches[static_cast<std::size_t>(index)].start >= anchor_offset_;
-      if ((step == 0 && !after) || (step == count && after)) {
+      if ((turn == 0 && !after) || (turn == count && after)) {
         continue;
       }
       set_current({page, index});
+      // The steps typed before this was known, taken from it.
+      const int steps = std::exchange(pending_steps_, 0);
+      for (int taken = 0; taken < std::abs(steps); ++taken) {
+        step(steps > 0 ? 1 : -1);
+      }
       return;
     }
   }
@@ -696,24 +709,31 @@ void PdfTextSearch::set_current(MatchRef match) {
 }
 
 bool PdfTextSearch::step(int direction) {
-  if (!active() || match_count_ == 0) {
+  if (!active()) {
     return false;
+  }
+  if (!current_.valid()) {
+    // Still looking for the first match: the step waits for it (choose_current). A search
+    // that has ended without one has nothing to step to.
+    if (!searching()) {
+      return false;
+    }
+    pending_steps_ = std::clamp(pending_steps_ + direction, -kMaxPendingSteps, kMaxPendingSteps);
+    return true;
   }
   const int count = page_count();
   const auto matches_on = [this](int page) {
     return static_cast<int>(pages_[static_cast<std::size_t>(page)].found.matches.size());
   };
-  // No current match yet (pages before the first result are still being searched): the
-  // nearest one found so far, from the anchor's page.
-  int page = current_.valid() ? current_.page : anchor_page_;
-  int index = current_.valid() ? current_.index + direction : (direction > 0 ? 0 : matches_on(page) - 1);
+  int page = current_.page;
+  int index = current_.index + direction;
   bool around = false;
   if (index < 0 || index >= matches_on(page)) {
     const int origin = page;
     for (int walked = 1; walked <= count; ++walked) {
       page = ((origin + direction * walked) % count + count) % count;
       if (matches_on(page) > 0) {
-        around = current_.valid() && (walked == count || (direction > 0 ? page < origin : page > origin));
+        around = walked == count || (direction > 0 ? page < origin : page > origin);
         break;
       }
     }

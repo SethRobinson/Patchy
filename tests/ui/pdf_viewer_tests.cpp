@@ -49,6 +49,7 @@
 #include <QTextBrowser>
 #include <QToolBar>
 #include <QWheelEvent>
+#include <QWindow>
 
 #include <cmath>
 #include <functional>
@@ -1496,6 +1497,7 @@ void ui_pdf_viewer_find_text_steps_through_matches() {
   }
 
   // Esc closes the bar, clears the search and hands the keyboard back to the pages.
+  bar.edit->setFocus();
   QTest::keyClick(bar.edit, Qt::Key_Escape);
   CHECK(!viewer->find_bar_open() && !bar.bar->isVisible() && !search->active());
   if (viewer->isActiveWindow()) {
@@ -1728,6 +1730,198 @@ void ui_pdf_viewer_find_text_highlights_follow_the_page() {
   close_find_viewer(viewer);
 }
 
+// The find keys as the window system delivers them: to the viewer's window, through Qt's
+// shortcut map and every application event filter, to whatever holds the keyboard.
+// QTest::keyClick on a widget hands the key to that widget whatever has the focus, so the
+// tests above cannot see a key that goes to the wrong place.
+void ui_pdf_viewer_find_text_keys_work_as_typed() {
+  FindSettingsGuard settings_guard;
+  SettingsValueRestorer viewer_setting(QStringLiteral("imports/pdfOpenInViewer"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/pdfOpenInViewer"), true);
+  const QString path =
+      write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find_keys.pdf"), find_fixture_pdf_bytes());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // The main window in use first, so its hotkeys and event filters are live: a document
+  // open and a tool key typed.
+  MainWindowTestAccess::create_document(window, 64, 64);
+  CHECK(process_events_until([&window] { return window.isActiveWindow(); }));
+  QTest::keyClick(window.windowHandle(), Qt::Key_B);
+  const auto sessions = MainWindowTestAccess::session_count(window);
+  MainWindowTestAccess::open_document_path_as_user(window, path);
+  auto* viewer = window.findChild<PdfViewerWindow*>();
+  CHECK(viewer != nullptr);
+  if (viewer == nullptr) {
+    return;
+  }
+  CHECK(process_events_until([viewer] { return viewer->isActiveWindow(); }));
+  auto* view = viewer->page_view();
+  auto* search = viewer->text_search();
+  const FindBar bar = find_bar_of(*viewer);
+  QWindow* handle = viewer->windowHandle();
+  CHECK(handle != nullptr);
+  if (!bar.complete() || handle == nullptr) {
+    return;
+  }
+  view->set_continuous(false);
+  view->set_fit_mode(patchy::PageFitMode::WholePage);
+  view->set_spread_mode(patchy::PageSpreadMode::Single);
+  view->first_page();
+  view->setFocus();
+  const auto type = [handle](Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    QTest::keyClick(handle, key, modifiers);
+  };
+  const auto type_text = [handle](const char* text) {
+    for (const char* letter = text; *letter != '\0'; ++letter) {
+      QTest::keyClick(handle, *letter);
+    }
+  };
+  // Says what went wrong and goes on, so one run lists every key that fails.
+  const auto expect = [&](const char* what, int number, int page) {
+    settle_find(*viewer);
+    const QString wanted = QStringLiteral("%1 of 7").arg(number);
+    if (bar.status->text() != wanted || search->current_match().page != page || view->current_page() != page) {
+      std::cout << "  " << what << ": status \"" << bar.status->text().toStdString() << "\" (wanted \""
+                << wanted.toStdString() << "\"), match on page " << search->current_match().page + 1
+                << ", page shown " << view->current_page() + 1 << " (wanted " << page + 1 << ")\n";
+      CHECK(false);
+    }
+  };
+  // Every key that steps, forward then back, from where the keyboard is now.
+  const auto step_keys = [&](const std::string& where, bool with_enter) {
+    const auto there_and_back = [&](const char* name, Qt::Key key, Qt::KeyboardModifiers forward,
+                                    Qt::KeyboardModifiers back) {
+      type(key, forward);
+      expect((std::string(name) + " " + where).c_str(), 2, 1);
+      type(key, back);
+      expect((std::string("back with ") + name + " " + where).c_str(), 1, 0);
+    };
+    if (with_enter) {
+      there_and_back("Enter", Qt::Key_Return, Qt::NoModifier, Qt::ShiftModifier);
+      there_and_back("keypad Enter", Qt::Key_Enter, Qt::KeypadModifier, Qt::KeypadModifier | Qt::ShiftModifier);
+    }
+    there_and_back("F3", Qt::Key_F3, Qt::NoModifier, Qt::ShiftModifier);
+    there_and_back("Ctrl+G", Qt::Key_G, Qt::ControlModifier, Qt::ControlModifier | Qt::ShiftModifier);
+  };
+
+  // The step buttons' tips name the keys that work, as this platform writes them.
+  for (const auto& [name, standard] : {std::pair{"pdfViewerFindNextButton", QKeySequence::FindNext},
+                                       std::pair{"pdfViewerFindPreviousButton", QKeySequence::FindPrevious}}) {
+    auto* button = viewer->findChild<QWidget*>(QLatin1String(name));
+    CHECK(button != nullptr);
+    if (button != nullptr) {
+      const QString tip = button->toolTip();
+      CHECK(tip.contains(QKeySequence(standard).toString(QKeySequence::NativeText)));
+      CHECK(tip.contains(QStringLiteral(", ")) && !tip.contains(QLatin1Char('%')));
+#if !defined(Q_OS_MACOS)
+      CHECK(tip.contains(QStringLiteral("Enter")));
+#endif
+    }
+  }
+  // Ctrl+F on the pages opens the bar; the letters typed next land in its field.
+  type(Qt::Key_F, Qt::ControlModifier);
+  CHECK(viewer->find_bar_open());
+  CHECK(viewer->focusWidget() == bar.edit);
+  type_text("fox");
+  CHECK(bar.edit->text() == QStringLiteral("fox"));
+  expect("typed", 1, 0);
+  step_keys("in the field", true);
+  // On the pages (a click on a page puts the keyboard there).
+  view->setFocus(Qt::MouseFocusReason);
+  CHECK(viewer->focusWidget() == view);
+  step_keys("on the pages", true);
+  // On an option's check box (a click on it leaves the keyboard there). Space is still its.
+  bar.whole_words->setFocus(Qt::MouseFocusReason);
+  step_keys("on Whole words", true);
+  type(Qt::Key_Space);
+  CHECK(bar.whole_words->isChecked());
+  type(Qt::Key_Space);
+  CHECK(!bar.whole_words->isChecked());
+  expect("after Space on Whole words", 1, 0);
+  // On the sidebar's page list and its buttons.
+  if (auto* thumbnails = viewer->findChild<QListWidget*>(QStringLiteral("pdfViewerThumbnails")); thumbnails != nullptr) {
+    thumbnails->setFocus(Qt::MouseFocusReason);
+    step_keys("on the page list", true);
+  }
+  // In the page field Enter belongs to the field: it goes to the page typed, and the
+  // match stays. F3 still steps from there.
+  auto* page_spin = viewer->findChild<QSpinBox*>(QStringLiteral("pdfViewerPageSpin"));
+  CHECK(page_spin != nullptr);
+  if (page_spin != nullptr) {
+    page_spin->setFocus(Qt::MouseFocusReason);
+    page_spin->selectAll();
+    type(Qt::Key_5);
+    type(Qt::Key_Return);
+    settle_find(*viewer);
+    CHECK(view->current_page() == 4);
+    CHECK(search->current_index() == 0 && bar.status->text() == QStringLiteral("1 of 7"));
+    page_spin->setFocus(Qt::MouseFocusReason);
+    step_keys("in the page field", false);
+  }
+
+  // Enter typed right behind the text, before the search has answered (the text is set
+  // here in one go, so no answer can come in between), is not lost: it steps on from the
+  // first match once that is known, as it would have a moment later.
+  const auto search_afresh = [&] {
+    bar.edit->setFocus(Qt::MouseFocusReason);
+    bar.edit->clear();
+    settle_find(*viewer);
+    view->first_page();
+    bar.edit->setText(QStringLiteral("fox"));
+    CHECK(search->searching() && !search->current_match().valid());
+  };
+  search_afresh();
+  type(Qt::Key_Return);
+  expect("Enter right behind the text", 2, 1);
+  type(Qt::Key_Return);
+  expect("the next Enter", 3, 1);
+  search_afresh();
+  type(Qt::Key_Return, Qt::ShiftModifier);
+  expect("Shift+Enter right behind the text", 7, 4);
+  CHECK(bar.note->text() == QStringLiteral("Reached the start, continued from the end"));
+  search_afresh();
+  type(Qt::Key_F3);
+  type(Qt::Key_F3);
+  expect("F3 twice right behind the text", 3, 1);
+  // A step waiting for a search that finds nothing goes nowhere.
+  bar.edit->clear();
+  bar.edit->setText(QStringLiteral("zebra"));
+  type(Qt::Key_Return);
+  settle_find(*viewer);
+  CHECK(bar.status->text() == QStringLiteral("No matches"));
+  bar.edit->clear();
+  view->first_page();
+  bar.edit->setText(QStringLiteral("fox"));
+  expect("after a search with no match", 1, 0);
+  type(Qt::Key_Return);
+  expect("then Enter", 2, 1);
+
+  // Esc on the pages closes the bar; F3 opens it again and finds from the page shown.
+  view->setFocus(Qt::MouseFocusReason);
+  type(Qt::Key_Escape);
+  CHECK(!viewer->find_bar_open() && !search->active());
+  type(Qt::Key_F3, Qt::ShiftModifier);
+  CHECK(viewer->find_bar_open());
+  expect("Shift+F3 with the bar closed", 2, 1);
+  // Esc in the field closes it too.
+  type(Qt::Key_Escape);
+  CHECK(!viewer->find_bar_open());
+  // With the bar closed Enter on the pages is nobody's key: nothing opens, nothing moves.
+  type(Qt::Key_Return);
+  CHECK(!viewer->find_bar_open());
+  // Space on the pages turns the page; the main window's hold-Space-to-pan, which reaches
+  // into the windows it owns, leaves the viewer's Space alone.
+  view->setFocus(Qt::MouseFocusReason);
+  view->first_page();
+  type(Qt::Key_Space);
+  CHECK(view->current_page() == 1);
+  type(Qt::Key_Space, Qt::ShiftModifier);
+  CHECK(view->current_page() == 0);
+  // None of this reached the main window: no document opened, closed or changed tool.
+  CHECK(MainWindowTestAccess::session_count(window) == sessions);
+  close_find_viewer(viewer);
+}
+
 // A scan has pages and no text: the bar says so instead of "No matches".
 void ui_pdf_viewer_find_text_reports_no_text_layer() {
   FindSettingsGuard settings_guard;
@@ -1849,6 +2043,7 @@ std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
       {"ui_pdf_viewer_find_text_counts_and_options", ui_pdf_viewer_find_text_counts_and_options},
       {"ui_pdf_viewer_find_text_steps_through_matches", ui_pdf_viewer_find_text_steps_through_matches},
       {"ui_pdf_viewer_find_text_highlights_follow_the_page", ui_pdf_viewer_find_text_highlights_follow_the_page},
+      {"ui_pdf_viewer_find_text_keys_work_as_typed", ui_pdf_viewer_find_text_keys_work_as_typed},
       {"ui_pdf_viewer_find_text_reports_no_text_layer", ui_pdf_viewer_find_text_reports_no_text_layer},
       {"ui_pdf_viewer_find_text_sample_document", ui_pdf_viewer_find_text_sample_document},
       {"ui_pdf_book_print_imposes_sheets", ui_pdf_book_print_imposes_sheets},

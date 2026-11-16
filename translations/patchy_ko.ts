@@ -37842,14 +37842,6 @@ Locked: %1</source>
         <translation>이 PDF에서 찾기</translation>
     </message>
     <message>
-        <source>Previous match (Shift+Enter)</source>
-        <translation>이전 일치 항목(Shift+Enter)</translation>
-    </message>
-    <message>
-        <source>Next match (Enter)</source>
-        <translation>다음 일치 항목(Enter)</translation>
-    </message>
-    <message>
         <source>Match case</source>
         <translation>대/소문자 구분</translation>
     </message>
@@ -37893,6 +37885,16 @@ Locked: %1</source>
     <message>
         <source>No matches</source>
         <translation>일치 항목 없음</translation>
+    </message>
+    <message>
+        <source>Previous match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Previous match (Shift+Enter, Shift+F3)&quot;.</extracomment>
+        <translation>이전 일치 항목(%1, %2)</translation>
+    </message>
+    <message>
+        <source>Next match (%1, %2)</source>
+        <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
+        <translation>다음 일치 항목(%1, %2)</translation>
     </message>
 </context>
 <context>
