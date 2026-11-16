@@ -8,9 +8,17 @@ namespace patchy::ocr {
 
 namespace {
 
-constexpr double kMaxThicknessRatio = 0.7;  // thinner / thicker must be at least this
-constexpr double kMaxGap = 0.9;             // of the thinner line's thickness
-constexpr double kMaxOverlapAcross = 0.3;   // of the thinner line's thickness
+// Two lines are the same size when their lengths per character are within 30% of each
+// other. Thickness cannot say it alone: a line box hugs the ink, so a line with no
+// descenders is a fifth thinner than its neighbour and one of x-height letters only
+// ("we saw a car") nearly half, at the very same size. Thickness is still a bound (a
+// heading over body text differs by more), and it decides for lines too short to average.
+constexpr double kMinAdvanceRatio = 0.7;
+constexpr double kMinThicknessRatioWithAdvance = 0.45;
+constexpr double kMinThicknessRatioAlone = 0.7;
+constexpr std::size_t kMinCharactersForAdvance = 4;
+constexpr double kMaxPitch = 2.2;           // centre to centre, of the thicker line's thickness
+constexpr double kMinPitch = 0.5;           // of the thinner line's thickness: not the same row twice
 constexpr double kMinOverlapAlong = 0.5;    // of the shorter line's length
 constexpr double kMaxUprightAngle = 2.0;    // degrees
 
@@ -36,6 +44,21 @@ bool upright(const Line& line) noexcept {
   return std::abs(line.angle_degrees) <= kMaxUprightAngle;
 }
 
+// Characters of UTF-8 text, spaces included (they take room on the line too).
+std::size_t character_count(const std::string& text) noexcept {
+  std::size_t count = 0;
+  for (const char byte : text) {
+    count += (static_cast<unsigned char>(byte) & 0xC0U) != 0x80U ? 1U : 0U;
+  }
+  return count;
+}
+
+// The line's length per character, or 0 when it has too few characters to say.
+double advance_of(const Line& line, const Extent& extent) noexcept {
+  const std::size_t characters = character_count(line.text);
+  return characters >= kMinCharactersForAdvance ? extent.length() / static_cast<double>(characters) : 0.0;
+}
+
 bool lines_join(const Line& first, const Line& second) noexcept {
   if (first.vertical != second.vertical || !upright(first) || !upright(second)) {
     return false;
@@ -44,12 +67,24 @@ bool lines_join(const Line& first, const Line& second) noexcept {
   const Extent b = extent_of(second);
   const double thinner = std::min(a.thickness(), b.thickness());
   const double thicker = std::max(a.thickness(), b.thickness());
-  if (!(thinner > 0.0) || thinner < kMaxThicknessRatio * thicker) {
+  if (!(thinner > 0.0)) {
     return false;
   }
-  // Positive: empty space between the lines. Negative: they overlap across.
-  const double gap = std::max(a.across_start, b.across_start) - std::min(a.across_end, b.across_end);
-  if (gap > kMaxGap * thinner || gap < -kMaxOverlapAcross * thinner) {
+  const double advance_a = advance_of(first, a);
+  const double advance_b = advance_of(second, b);
+  if (advance_a > 0.0 && advance_b > 0.0) {
+    if (std::min(advance_a, advance_b) < kMinAdvanceRatio * std::max(advance_a, advance_b) ||
+        thinner < kMinThicknessRatioWithAdvance * thicker) {
+      return false;
+    }
+  } else if (thinner < kMinThicknessRatioAlone * thicker) {
+    return false;
+  }
+  // The pitch, not the gap: an engine's line box hugs the ink, so the empty space between
+  // two lines swings with which letters they hold (a line with no descenders leaves half
+  // again as much), while the distance between their centres barely moves.
+  const double pitch = std::abs((a.across_start + a.across_end) - (b.across_start + b.across_end)) / 2.0;
+  if (pitch > kMaxPitch * thicker || pitch < kMinPitch * thinner) {
     return false;
   }
   const double overlap = std::min(a.along_end, b.along_end) - std::max(a.along_start, b.along_start);

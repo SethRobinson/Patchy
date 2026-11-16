@@ -46,6 +46,7 @@
 #include "ui/brush_tip_picker.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/ocr_recognition.hpp"
 #include "ui/localization.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
@@ -11587,6 +11588,55 @@ void MainWindow::render_pending_pdf_text_layers(Document& target) {
     }
   };
   process(process, target.layers());
+}
+
+// Recognized text as layers (docs/ocr.md, "Text layers"). ocr_text_layers.cpp lays each block
+// out, sizes it, colours it and draws it; this wraps the results in layers with the same text
+// metadata an editor commit stores, so the Type tool edits them like any typed layer.
+std::optional<Layer> MainWindow::make_recognized_text_group(Document& document, const ocr::Result& result,
+                                                            const OcrSourceImage& source,
+                                                            const OcrLayerOptions& options,
+                                                            std::string_view engine_id, std::string_view language) {
+  auto built =
+      build_recognized_text_layers(result, source.image, source.origin, options.grouping, options.style);
+  if (built.empty()) {
+    return std::nullopt;
+  }
+  const auto depth = document.color_state().bit_depth;
+  Layer group(document.allocate_layer_id(), tr("Recognized Text").toStdString(), LayerKind::Group);
+  group.set_blend_mode(BlendMode::PassThrough);
+  group.metadata()[kLayerMetadataOcrGroup] = std::string(engine_id) + ' ' + std::string(language);
+  if (options.mode == OcrLayerMode::Replace) {
+    // "Show text and hide original": the text reads on white paper where the source was,
+    // and the source is only hidden (never erased or filled; the caller hides it).
+    PixelBuffer paper(source.image.width(), source.image.height(), PixelFormat::rgb8());
+    paper.clear(255);
+    Layer paper_layer(document.allocate_layer_id(), tr("Paper").toStdString(), LayerKind::Pixel);
+    paper_layer.set_pixels(convert_pixel_buffer_depth(paper, depth, SampleKind::Color));
+    paper_layer.set_bounds(Rect{source.origin.x(), source.origin.y(), source.image.width(), source.image.height()});
+    group.add_child(std::move(paper_layer));
+  }
+  // add_child appends on top, and the first block in reading order belongs on top of the
+  // stack: build from the last to the first.
+  for (auto text = built.rbegin(); text != built.rend(); ++text) {
+    Layer layer(document.allocate_layer_id(), text->name.toStdString(), LayerKind::Pixel);
+    store_patchy_text_metadata(layer, text->settings, text->color, text->rich_text_runs, text->paragraph_runs,
+                               std::max(1, text->pixels.width()), std::max(1, text->pixels.height()));
+    if (text->settings.photoshop_layout) {
+      layer.metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
+    }
+    layer.set_pixels(convert_pixel_buffer_depth(text->pixels, depth, SampleKind::Color));
+    layer.set_bounds(text->bounds);
+    store_text_layout_metrics(layer, text->metrics);
+    if (text->transform.has_value()) {
+      layer.metadata()[kLayerMetadataTextTransform] =
+          serialize_layer_affine_transform(affine_from_qtransform(*text->transform));
+    }
+    layer.metadata()[kLayerMetadataOcrLine] = "1";
+    group.add_child(std::move(layer));
+  }
+  group.set_visible(options.mode != OcrLayerMode::Hidden);
+  return group;
 }
 
 // Writer-made PSDs (ag-psd's test files, GitHub issue 272) can carry a type layer whose raster is

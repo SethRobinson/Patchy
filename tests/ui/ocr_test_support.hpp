@@ -8,9 +8,16 @@
 #include "ocr/ocr_engine.hpp"
 #include "ocr/ocr_fake_engine.hpp"
 
+#include "test_harness.hpp"
+
 #include <memory>
 #include <utility>
 #include <vector>
+
+// The text recognition test groups. ocr_ui_tests() (ocr_ui_tests.cpp, the one name the
+// suite's group list knows) gathers them, so a new OCR test file is declared here and does
+// not touch the suite-wide header every UI test file includes.
+std::vector<patchy::test::TestCase> ocr_layers_ui_tests();
 
 namespace patchy::test::ui {
 

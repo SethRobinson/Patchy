@@ -703,6 +703,26 @@ if (patchy.gegl.filters().some(f => f.id === "gegl.cartoon"))
   app.activeDocument.activeLayer.applyFilter("gegl.cartoon", {"mask-radius": 10});
 ```
 
+### Text recognition (patchy.ocr)
+
+Reads the text in an image (OCR) with an engine built into the operating system: `"windows"` is the one in Windows 10 and 11, with the languages Windows has installed. A recognition runs only when a script calls for it, with the engine and language the call names or the ones chosen in Patchy; nothing is picked from the image.
+
+| Member | Meaning |
+| --- | --- |
+| `patchy.ocr.available` | True when at least one engine can run now. |
+| `patchy.ocr.engines()` | Every engine listed: `{id, name, available, unavailableReason, defaultLanguage, languages: [{tag, name}]}`. |
+| `layer.recognizeText(options?)` | Reads the layer rendered on its own. Returns `{engine, language, text, angle, lines, group}`: each line is `{text, x, y, width, height, angle, vertical, words: [{text, x, y, width, height}]}` in document pixels. |
+| `doc.recognizeText(options?)` | The same over the whole image as composited. |
+
+Options: `engine` and `language` (default: the choices stored in Patchy, else the first available engine and its `defaultLanguage`); `rect` (`{x, y, width, height}`, read only that part); `layers`: `"none"` (default, nothing is added), `"visible"` (editable text layers over the image, in a group named Recognized Text), `"hidden"` (the same group hidden, so the image looks unchanged) or `"replace"` (the text shown on a white Paper layer and the original hidden, never erased); `grouping`: `"blocks"` (default, lines that sit close together share one multi-line text layer) or `"lines"`; `font` (default: the Type tool's font; it is never guessed from the image); `matchStyle` (default true: size fitted to each line's width, color sampled, an italic face when the line leans; false uses the Type tool's size and color); `color` (`"sample"` or a fixed `"#rrggbb"`). An unknown option throws before anything is read. Layers arrive as one undo step.
+
+```js
+if (patchy.ocr.available) {
+  const read = app.activeDocument.activeLayer.recognizeText({layers: "hidden"});
+  console.log(read.lines.length + " lines:\n" + read.text);
+}
+```
+
 ### G'MIC filters (patchy.gmic)
 
 Builds that include the G'MIC engine offer its filter library to scripts. Check

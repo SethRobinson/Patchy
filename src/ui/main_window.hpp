@@ -121,7 +121,18 @@ class ArtboardPresetPicker;
 struct StrokeStylePreset;
 struct ShapePixelOptions;
 enum class LayerCtrlClickTarget;
+// Text recognition (ocr_recognition.hpp, ocr_text_layers.hpp).
+struct OcrLayerOptions;
+struct OcrLayerStyle;
+struct OcrRecognitionOutcome;
+struct OcrRecognitionRequest;
+struct OcrSourceImage;
+enum class OcrLayerMode;
 }  // namespace patchy::ui
+namespace patchy::ocr {
+class Cancel;   // ocr/ocr_engine.hpp
+struct Result;
+}  // namespace patchy::ocr
 class QShowEvent;
 class QSlider;
 class QSplitter;
@@ -1270,6 +1281,38 @@ private:
   // each document that is one original image gets its pass-through fingerprint afterwards
   // (on a worker); a merge stamps its pages itself, from the merged document.
   void render_pending_pdf_image_layers(std::span<Document* const> targets, bool stamp_sources);
+
+  // Text recognition (docs/ocr.md, "Text layers"). The lines of `result` (in the pixels of
+  // `source`) as a Pass Through group "Recognized Text" of editable text layers, drawn and
+  // placed in `document`'s coordinates and bit depth; hidden for OcrLayerMode::Hidden, with a
+  // white "Paper" layer at its bottom for Replace. Not inserted, and no undo step: the caller
+  // owns both. Unset when nothing could be drawn. Lives in main_window.cpp with the text
+  // metadata writers it needs.
+  [[nodiscard]] std::optional<Layer> make_recognized_text_group(Document& document, const ocr::Result& result,
+                                                                const OcrSourceImage& source,
+                                                                const OcrLayerOptions& options,
+                                                                std::string_view engine_id,
+                                                                std::string_view language);
+  // The style recognized text layers take when the caller names none: the Type tool's font,
+  // size, colour and anti-aliasing (main_window_ocr.cpp).
+  [[nodiscard]] OcrLayerStyle default_ocr_layer_style() const;
+  // Puts `group` into the session's document above `source_layer` (the top of the stack
+  // without one), hiding the source for Replace: `source_layer` itself, or every other
+  // top-level layer when the whole image was read. The caller has pushed the undo step.
+  // Returns the group's id.
+  LayerId insert_recognized_text_group(DocumentSession& target, Layer group, std::optional<LayerId> source_layer,
+                                       OcrLayerMode mode);
+  // One recognition over `target`'s document, start to finish: the source pixels, the engine
+  // on a worker while this thread waits, and (when the request asks for layers and text was
+  // found) the group in the document. `pump` runs about every 15 ms during the wait: it
+  // turns the caller's event loop and may request the cancel. `begin_change` runs once,
+  // right before the document changes: the caller records its undo step there and returns
+  // an error text to stop instead. Returns an error text, empty on success; a cancelled run
+  // is a success with `outcome.cancelled` set and nothing changed.
+  [[nodiscard]] QString run_text_recognition(DocumentSession& target, const OcrRecognitionRequest& request,
+                                             OcrRecognitionOutcome& outcome,
+                                             const std::function<void(ocr::Cancel&)>& pump,
+                                             const std::function<QString()>& begin_change);
 
   // One progress dialog carried through the slow steps of an open (docs/pdf-import.md,
   // "Progress"): the page-image pass, the merge into folders or artboards, the pass-through

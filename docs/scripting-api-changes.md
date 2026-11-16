@@ -23,6 +23,24 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-17 (addition): text recognition (OCR, [ocr.md](ocr.md#scripting)). `patchy.ocr.available`
+is true when an engine can run, and `patchy.ocr.engines()` lists them:
+`{id, name, available, unavailableReason, defaultLanguage, languages: [{tag, name}]}` (`"windows"`
+is the engine built into Windows 10 and 11). `layer.recognizeText(options?)` reads one layer
+rendered on its own and `doc.recognizeText(options?)` the whole image as composited; both return
+`{engine, language, text, angle, lines, group}`, each line
+`{text, x, y, width, height, angle, vertical, words: [{text, x, y, width, height}]}` in document
+pixels. Options: `engine`, `language` (default: the stored choices, else the first available
+engine and its default language), `rect` (`{x, y, width, height}`), `layers` (`"none"` the default,
+`"visible"`, `"hidden"`, `"replace"`), `grouping` (`"blocks"` the default, `"lines"`), `font`
+(default: the Type tool's), `matchStyle` (default true) and `color` (`"sample"` or `"#rrggbb"`).
+With `layers` other than `"none"` the recognized text becomes editable text layers in a group named
+Recognized Text, one undo step: over the image, hidden, or shown on a white Paper layer with the
+original hidden (`"replace"`; the original is never erased). The calls throw on an unknown option,
+engine or language, when no engine is available, and when the layer or rectangle holds nothing to
+read; a call never downloads anything and never picks an engine or language from the image. The
+option values and the engine ids are permanent.
+
 2026-11-16 (addition): `layer.eraseBackground(options)` and `layer.magicErase(options)` are the
 Background Eraser and the Magic Eraser (GitHub issue 727,
 [eraser-tools.md](eraser-tools.md#scripting)). `eraseBackground` erases one stroke with a round tip

@@ -141,6 +141,7 @@ constexpr const char* kBootstrapSource = R"JS(
     plugins: g.__patchy_plugins,
     gegl: g.__patchy_gegl,
     gmic: g.__patchy_gmic,
+    ocr: g.__patchy_ocr,
     perspective: g.__patchy_perspective,
     scripts: g.__patchy_scripts,
     apiVersion: g.app.apiVersion,
@@ -422,6 +423,9 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto* gmic_object = new ScriptGmicObject(*this);
   gmic_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_gmic"), engine.newQObject(gmic_object));
+  auto* ocr_object = new ScriptOcrObject(*this);
+  ocr_object->setParent(&engine);
+  global.setProperty(QStringLiteral("__patchy_ocr"), engine.newQObject(ocr_object));
   auto* perspective_object = new ScriptPerspectiveObject(*this);
   perspective_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_perspective"), engine.newQObject(perspective_object));

@@ -202,8 +202,10 @@ Point rotated_about(Point point, Point center, double degrees) noexcept {
                center.y + dx * std::sin(radians) + dy * std::cos(radians)};
 }
 
-// One tile through the engine. `tile` is opaque BGRA.
-Result recognize_tile(const media::OcrEngine& engine, const Tile& tile, const Cancel* cancel) {
+// One tile through the engine. `tile` is opaque BGRA. `join_words`: the language writes no
+// spaces between words (Japanese, Chinese), where the engine's "words" are single
+// characters and its line text puts a space between every two of them.
+Result recognize_tile(const media::OcrEngine& engine, const Tile& tile, const Cancel* cancel, bool join_words) {
   const std::int32_t width = std::max(tile.image.width, kMinimumTileSide);
   const std::int32_t height = std::max(tile.image.height, kMinimumTileSide);
   const auto bytes = static_cast<std::uint32_t>(width) * static_cast<std::uint32_t>(height) * 4U;
@@ -290,6 +292,12 @@ Result recognize_tile(const media::OcrEngine& engine, const Tile& tile, const Ca
     if (line.words.empty()) {
       continue;
     }
+    if (join_words) {
+      line.text.clear();
+      for (const auto& word : line.words) {
+        line.text += word.text;
+      }
+    }
     line.quad = quad_from_box(Box{left, top, right - left, bottom - top});
     for (auto& corner : line.quad) {
       corner = rotated_about(corner, center, angle);
@@ -312,6 +320,8 @@ Result recognize_tile(const media::OcrEngine& engine, const Tile& tile, const Ca
 class WindowsRecognizer final : public Recognizer {
 public:
   explicit WindowsRecognizer(std::string language_tag) {
+    const std::string_view primary = std::string_view(language_tag).substr(0, std::min<std::size_t>(language_tag.find('-'), language_tag.size()));
+    join_words_ = primary == "ja" || primary == "zh";
     thread_.call([&] {
       const winrt::Windows::Globalization::Language language(winrt::to_hstring(language_tag));
       engine_ = media::OcrEngine::TryCreateFromLanguage(language);
@@ -335,7 +345,8 @@ public:
     Result result;
     thread_.call([&] {
       result = recognize_in_bands(
-          image, max_dimension_, [&](const Tile& tile) { return recognize_tile(engine_, tile, cancel); }, cancel);
+          image, max_dimension_,
+          [&](const Tile& tile) { return recognize_tile(engine_, tile, cancel, join_words_); }, cancel);
     });
     return result;
   }
@@ -343,6 +354,7 @@ public:
 private:
   media::OcrEngine engine_{nullptr};
   std::int32_t max_dimension_{0};
+  bool join_words_{false};
   ApartmentThread thread_;  // last: destroyed first, after the destructor's release job
 };
 

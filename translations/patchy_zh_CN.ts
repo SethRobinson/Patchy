@@ -16077,6 +16077,34 @@ Do you want to replace it?</source>
         <source>Windows has no text recognition language installed</source>
         <translation>Windows 未安装任何文字识别语言</translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation>该图层没有可供读取文字的可见内容。</translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation>该区域内没有可供读取文字的内容。</translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation>没有名为“%1”的文字识别引擎。</translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation>此系统上没有可用的文字识别引擎。</translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation>文字识别不可用：%1。</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation>文字识别引擎没有语言“%1”。</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation>文字识别引擎没有可用于读取的语言。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36452,6 +36480,22 @@ Locked: %1</source>
         <source>Cycle Eraser Tools</source>
         <translation>循环切换橡皮擦工具</translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation>已识别的文字</translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation>纸张</translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation>文字识别失败：%1</translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation>在识别文字期间，文档已发生更改。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39871,6 +39915,10 @@ Locked: %1</source>
     <message>
         <source>%1 needs an editable pixel layer.</source>
         <translation>%1 需要可编辑的像素图层。</translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
+        <translation>无效的 recognizeText 选项：%1。</translation>
     </message>
 </context>
 <context>

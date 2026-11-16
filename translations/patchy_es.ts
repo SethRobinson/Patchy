@@ -16133,6 +16133,34 @@ Do you want to replace it?</source>
         <source>Windows has no text recognition language installed</source>
         <translation>Windows no tiene instalado ningún idioma de reconocimiento de texto</translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation>La capa no tiene nada visible de lo que leer texto.</translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation>No hay nada en esa área de lo que leer texto.</translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation>No hay ningún motor de reconocimiento de texto llamado &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation>No hay ningún motor de reconocimiento de texto disponible en este sistema.</translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation>El reconocimiento de texto no está disponible: %1.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation>El motor de reconocimiento de texto no tiene el idioma &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation>El motor de reconocimiento de texto no tiene ningún idioma con el que leer.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36562,6 +36590,22 @@ Bloqueada: %1</translation>
         <source>Cycle Eraser Tools</source>
         <translation>Alternar herramientas de borrador</translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation>Texto reconocido</translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation>Papel</translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation>Error en el reconocimiento de texto: %1</translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation>El documento cambió mientras se reconocía su texto.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39985,6 +40029,10 @@ Bloqueada: %1</translation>
     <message>
         <source>%1 needs an editable pixel layer.</source>
         <translation>%1 necesita una capa de píxeles editable.</translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
+        <translation>Opción de recognizeText no válida: %1.</translation>
     </message>
 </context>
 <context>

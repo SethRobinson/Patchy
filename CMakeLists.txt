@@ -1525,6 +1525,11 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/selection_modify_dialogs.hpp
       src/ui/selection_modify_dialogs.cpp
       src/ui/main_window_ai_selection.cpp
+      src/ui/main_window_ocr.cpp
+      src/ui/ocr_recognition.hpp
+      src/ui/ocr_recognition.cpp
+      src/ui/ocr_text_layers.hpp
+      src/ui/ocr_text_layers.cpp
       src/ui/main_window_watermarks.cpp
       src/ui/main_window_save_metadata.cpp
       src/ui/main_window_appimage_menu_entry.cpp
@@ -1688,6 +1693,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/script_vector_masks.cpp
       src/ui/script_vector_host.cpp
       src/ui/script_ai_selection.cpp
+      src/ui/script_ocr.cpp
       src/ui/script_color_range.cpp
       src/ui/script_pixel_io.cpp
       src/ui/vector_operations.hpp
@@ -2796,6 +2802,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/divide_photos_tests.cpp
       tests/ui/book_scan_tests.cpp
       tests/ui/ocr_ui_tests.cpp
+      tests/ui/ocr_layers_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

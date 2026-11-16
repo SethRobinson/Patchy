@@ -5,12 +5,15 @@
 
 #include "ocr/ocr_engine.hpp"
 #include "ocr_test_support.hpp"
+#include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 
 #include <QColor>
 #include <QFont>
+#include <QFontDatabase>
+#include <QFontMetrics>
 #include <QImage>
 #include <QPainter>
 #include <QString>
@@ -204,9 +207,10 @@ void ui_ocr_windows_engine_reads_a_tall_page_in_bands_if_available() {
   const ScopedRealOcrEngines real;
   const auto opened = windows_engine_with_english();
 
-  // Taller than the engine's limit (2600 on current Windows), so it is read in bands;
-  // some lines sit inside the overlaps. Each numbered line must come back once, in order.
-  constexpr int kLines = 20;
+  // Taller than the engine's limit (10000 on Windows 11 builds of 2026, 2600 on older
+  // ones), so it is read in bands; some lines sit inside the overlaps. Each numbered line
+  // must come back once, in order.
+  constexpr int kLines = 40;
   constexpr int kPitch = 300;
   QImage image(1800, kLines * kPitch + 100, QImage::Format_RGBA8888);
   image.fill(Qt::white);
@@ -229,14 +233,138 @@ void ui_ocr_windows_engine_reads_a_tall_page_in_bands_if_available() {
   }
 }
 
+// Japanese through the Windows engine, when its recognizer and a Japanese font are here:
+// what the engine reports for horizontal lines and for vertical columns, printed so the
+// docs can state it, with the parts Patchy relies on checked.
+void ui_ocr_windows_engine_reads_japanese_if_available() {
+  const ScopedRealOcrEngines real;
+  const auto engine = patchy::ocr::find_engine("windows");
+  if (engine == nullptr || engine->unavailable() != patchy::ocr::Unavailable::None) {
+    patchy::test::skip(patchy::test::SkipKind::feature, "the Windows text recognition engine is unavailable");
+  }
+  bool has_japanese = false;
+  for (const auto& language : engine->languages()) {
+    has_japanese = has_japanese || language.tag == "ja";
+  }
+  if (!has_japanese) {
+    patchy::test::skip(patchy::test::SkipKind::feature, "Windows has no Japanese text recognition language installed");
+  }
+  // Offscreen runs see no system fonts until a test registers them.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::JapaneseGothic);
+  const QString horizontal_text = QString::fromUtf8("\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E\xE3\x81\xAE\xE6\x96\x87\xE5\xAD\x97"
+                                                    "\xE3\x82\x92\xE8\xAA\x8D\xE8\xAD\x98\xE3\x81\x99\xE3\x82\x8B");
+  QFont font;
+  bool found_font = false;
+  for (const auto& family : QFontDatabase::families(QFontDatabase::Japanese)) {
+    QFont candidate(family);
+    candidate.setPixelSize(48);
+    candidate.setStyleStrategy(QFont::PreferAntialias);
+    if (QFontMetrics(candidate).inFont(horizontal_text.at(0))) {
+      font = candidate;
+      found_font = true;
+      break;
+    }
+  }
+  if (!found_font) {
+    patchy::test::skip(patchy::test::SkipKind::feature, "no Japanese font to draw the test text with");
+  }
+  const auto recognizer = engine->open("ja");
+
+  // Horizontal: three lines of a paragraph (the Japanese recognizer decides between
+  // horizontal and vertical reading from the page, and a lone short line gives it too
+  // little to go on: it read one as columns of character fragments). Each line's text
+  // comes back without the spaces the engine puts between characters.
+  const QStringList horizontal_lines = {
+      horizontal_text,
+      QString::fromUtf8("\xE6\xA8\xAA\xE6\x9B\xB8\xE3\x81\x8D\xE3\x81\xAE\xE6\x96\x87\xE7\xAB\xA0\xE3\x82\x92\xE8\xAA\xAD\xE3\x81\xBF"
+                        "\xE5\x8F\x96\xE3\x82\x8A\xE3\x81\xBE\xE3\x81\x99"),
+      QString::fromUtf8("\xE7\x94\xBB\xE5\x83\x8F\xE3\x81\xAE\xE4\xB8\xAD\xE3\x81\xAE\xE8\xA8\x80\xE8\x91\x89\xE3\x82\x92\xE6\x8E\xA2"
+                        "\xE3\x81\x97\xE3\x81\xBE\xE3\x81\x99"),
+  };
+  QImage image(1000, 420, QImage::Format_RGBA8888);
+  image.fill(Qt::white);
+  {
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    painter.setPen(Qt::black);
+    painter.setFont(font);
+    for (qsizetype index = 0; index < horizontal_lines.size(); ++index) {
+      painter.drawText(QRect(60, 60 + static_cast<int>(index) * 100, 900, 80), Qt::AlignLeft | Qt::AlignVCenter,
+                       horizontal_lines[index]);
+    }
+  }
+  CHECK(image.save(QStringLiteral("test-artifacts/ui_ocr_windows_engine_japanese_horizontal.png")));
+  const auto horizontal = recognizer->recognize(view_of(image));
+  std::cout << "[INFO] drawn with " << font.family().toStdString() << '\n';
+  std::cout << "[INFO] Windows OCR read (Japanese, horizontal): " << horizontal.lines.size() << " line(s):";
+  for (const auto& line : horizontal.lines) {
+    std::cout << " [" << line.text << " vertical=" << line.vertical << "]";
+  }
+  std::cout << '\n';
+  CHECK(horizontal.lines.size() == 3);
+  if (horizontal.lines.size() == 3) {
+    for (std::size_t index = 0; index < 3; ++index) {
+      const auto& line = horizontal.lines[index];
+      CHECK(line.text.find(' ') == std::string::npos);
+      CHECK(!line.vertical);
+      CHECK(line.words.size() >= 6);
+    }
+    CHECK(QString::fromStdString(horizontal.lines[0].text) == horizontal_lines[0]);
+  }
+
+  // Vertical: two columns of characters, the right one first as a reader takes them.
+  const QString first_column = QString::fromUtf8("\xE7\xB8\xA6\xE6\x9B\xB8\xE3\x81\x8D\xE3\x81\xAE\xE6\x96\x87\xE7\xAB\xA0");
+  const QString second_column = QString::fromUtf8("\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E\xE3\x82\x92\xE8\xAA\xAD\xE3\x82\x80");
+  QImage columns(500, 620, QImage::Format_RGBA8888);
+  columns.fill(Qt::white);
+  {
+    QPainter painter(&columns);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    painter.setPen(Qt::black);
+    painter.setFont(font);
+    const auto draw_column = [&painter](const QString& text, int x) {
+      for (qsizetype index = 0; index < text.size(); ++index) {
+        painter.drawText(QRect(x, 60 + static_cast<int>(index) * 76, 76, 76), Qt::AlignCenter, text.mid(index, 1));
+      }
+    };
+    draw_column(first_column, 300);
+    draw_column(second_column, 140);
+  }
+  CHECK(columns.save(QStringLiteral("test-artifacts/ui_ocr_windows_engine_japanese_vertical.png")));
+  const auto vertical = recognizer->recognize(view_of(columns));
+  std::cout << "[INFO] Windows OCR read (Japanese, vertical): " << vertical.lines.size() << " line(s):";
+  for (const auto& line : vertical.lines) {
+    std::cout << " [" << line.text << " vertical=" << line.vertical << " box " << line.box.x << "," << line.box.y
+              << " " << line.box.width << "x" << line.box.height << "]";
+  }
+  std::cout << '\n';
+  // The engine reads columns as columns: each comes back as one line, marked vertical
+  // (from its character boxes running down the page), the right column first.
+  CHECK(vertical.lines.size() == 2);
+  if (vertical.lines.size() == 2) {
+    CHECK(vertical.lines[0].vertical && vertical.lines[1].vertical);
+    CHECK(QString::fromStdString(vertical.lines[0].text) == first_column);
+    CHECK(QString::fromStdString(vertical.lines[1].text) == second_column);
+    CHECK(vertical.lines[0].box.x > vertical.lines[1].box.x);
+    CHECK(vertical.lines[0].box.height > 3.0 * vertical.lines[0].box.width);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> ocr_ui_tests() {
-  return {
+  std::vector<patchy::test::TestCase> tests = {
+      {"ui_ocr_windows_engine_reads_japanese_if_available", ui_ocr_windows_engine_reads_japanese_if_available},
       {"ui_ocr_windows_engine_reads_rendered_text_if_available", ui_ocr_windows_engine_reads_rendered_text_if_available},
       {"ui_ocr_windows_engine_reports_rotated_text_if_available",
        ui_ocr_windows_engine_reports_rotated_text_if_available},
       {"ui_ocr_windows_engine_reads_a_tall_page_in_bands_if_available",
        ui_ocr_windows_engine_reads_a_tall_page_in_bands_if_available},
   };
+  // The other text recognition groups (ocr_test_support.hpp).
+  for (auto* group : {ocr_layers_ui_tests}) {
+    auto more = group();
+    tests.insert(tests.end(), std::make_move_iterator(more.begin()), std::make_move_iterator(more.end()));
+  }
+  return tests;
 }

@@ -319,6 +319,10 @@ bool layer_is_text(const Layer& layer) {
   return layer.metadata().contains(kLayerMetadataText);
 }
 
+bool layer_is_recognized_text_group(const Layer& layer) {
+  return layer.kind() == LayerKind::Group && layer.metadata().contains(kLayerMetadataOcrGroup);
+}
+
 std::optional<LayerAffineTransform> parse_layer_affine_transform(std::string_view text) {
   std::istringstream stream{std::string(text)};
   LayerAffineTransform transform{};
@@ -495,6 +499,8 @@ void clear_layer_text_metadata(Layer& layer) {
     layer.metadata().erase(key);
   }
   layer.metadata().erase(kLayerMetadataTextSourceBlock);
+  // Rasterized, it is no longer recognized TEXT a searchable PDF can write.
+  layer.metadata().erase(kLayerMetadataOcrLine);
   auto& blocks = layer.unknown_psd_blocks();
   std::erase_if(blocks, [](const UnknownPsdBlock& block) {
     return block.key == "TySh" || block.key == "tySh";

@@ -184,6 +184,14 @@ inline constexpr const char* kLayerMetadataPdfPendingImage = "patchy.pdf.pending
 // written to PSD.
 inline constexpr const char* kLayerMetadataPdfPageRect = "patchy.pdf.page_rect";
 
+// Text recognition (docs/ocr.md). A group of recognized text carries kLayerMetadataOcrGroup,
+// "<engine id> <language tag>" of the recognition that made it, so a PDF export finds the
+// text even after the user renames the group; each text layer made from a recognized line or
+// block carries kLayerMetadataOcrLine ("1") until it is rasterized. Session keys like the page
+// rect above: never written to PSD as layer data.
+inline constexpr const char* kLayerMetadataOcrGroup = "patchy.ocr.group";
+inline constexpr const char* kLayerMetadataOcrLine = "patchy.ocr.line";
+
 using LayerAffineTransform = std::array<double, 6>;
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);
@@ -253,6 +261,8 @@ void set_layer_group_expanded(Layer& layer, bool expanded);
 [[nodiscard]] std::optional<bool> layer_fx_expanded(const Layer& layer);
 
 [[nodiscard]] bool layer_is_text(const Layer& layer);
+// A group made by text recognition (kLayerMetadataOcrGroup), whatever its name is now.
+[[nodiscard]] bool layer_is_recognized_text_group(const Layer& layer);
 // Drops every text key and the TySh block: the layer keeps its raster as plain pixels
 // (Layer > Rasterize, and Perspective Crop under a non-affine map).
 void clear_layer_text_metadata(Layer& layer);

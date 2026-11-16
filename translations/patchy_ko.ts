@@ -16077,6 +16077,34 @@ Do you want to replace it?</source>
         <source>Windows has no text recognition language installed</source>
         <translation>Windows에 텍스트 인식 언어가 설치되어 있지 않습니다</translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation>레이어에 텍스트를 읽을 수 있는 보이는 내용이 없습니다.</translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation>해당 영역에는 텍스트를 읽을 내용이 없습니다.</translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot;이라는 텍스트 인식 엔진이 없습니다.</translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation>이 시스템에서 사용할 수 있는 텍스트 인식 엔진이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation>텍스트 인식을 사용할 수 없습니다: %1.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation>텍스트 인식 엔진에 &quot;%1&quot; 언어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation>텍스트 인식 엔진에 읽기에 사용할 언어가 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36452,6 +36480,22 @@ Locked: %1</source>
         <source>Cycle Eraser Tools</source>
         <translation>지우개 도구 전환</translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation>인식된 텍스트</translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation>용지</translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation>텍스트 인식 실패: %1</translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation>텍스트를 인식하는 동안 문서가 변경되었습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39871,6 +39915,10 @@ Locked: %1</source>
     <message>
         <source>%1 needs an editable pixel layer.</source>
         <translation>%1에는 편집 가능한 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
+        <translation>잘못된 recognizeText 옵션: %1.</translation>
     </message>
 </context>
 <context>

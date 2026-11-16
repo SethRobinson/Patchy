@@ -16115,6 +16115,34 @@ Do you want to replace it?</source>
         <source>Windows has no text recognition language installed</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36480,6 +36508,22 @@ Locked: %1</source>
         <source>Cycle Eraser Tools</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39902,6 +39946,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>%1 needs an editable pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

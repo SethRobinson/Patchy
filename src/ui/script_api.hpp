@@ -220,6 +220,8 @@ public:
   Q_INVOKABLE QJSValue magicErase(const QJSValue& options = QJSValue());
   // Layer > Layer Mask > Remove Background (script_ai_selection.cpp).
   Q_INVOKABLE void removeBackground(const QJSValue& options = QJSValue());
+  // Text recognition over this layer on its own (script_ocr.cpp, docs/ocr.md).
+  Q_INVOKABLE QJSValue recognizeText(const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue getPixels();
   Q_INVOKABLE void setPixels(const QJSValue& imageData);
   // Raster layer masks (script_pixel_io.cpp).
@@ -371,6 +373,8 @@ public:
   Q_INVOKABLE QJSValue setWorkPath(const QJSValue& data);
   // `text` is a string or an array of runs ({text, font?, size?, bold?, italic?, color?}).
   Q_INVOKABLE QJSValue addTextLayer(const QJSValue& text, const QJSValue& options = QJSValue());
+  // Text recognition over the whole image as composited (script_ocr.cpp, docs/ocr.md).
+  Q_INVOKABLE QJSValue recognizeText(const QJSValue& options = QJSValue());
   // Files as Layers: each path (a string or an array of strings) becomes a
   // layer above the active layer, bottom to top in argument order; a
   // multi-layer file becomes a folder named after it. Throws, adding nothing,
@@ -588,6 +592,24 @@ public:
   // Every GEGL filter Patchy offers: {id, name, category, description, parameters};
   // layer.applyFilter runs one by id. Scans GEGL on first use.
   Q_INVOKABLE QJSValue filters();
+
+private:
+  ScriptEngineHost& host_;
+};
+
+// patchy.ocr: the text recognition engines (docs/ocr.md).
+class ScriptOcrObject : public QObject {
+  Q_OBJECT
+  // True when at least one engine can run now.
+  Q_PROPERTY(bool available READ available)
+
+public:
+  explicit ScriptOcrObject(ScriptEngineHost& host);
+
+  [[nodiscard]] bool available() const;
+  // Every engine this build and machine lists: {id, name, available, unavailableReason,
+  // defaultLanguage, languages: [{tag, name}]}.
+  Q_INVOKABLE QJSValue engines();
 
 private:
   ScriptEngineHost& host_;

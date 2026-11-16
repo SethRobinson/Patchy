@@ -16189,6 +16189,34 @@ Do you want to replace it?</source>
         <source>Windows has no text recognition language installed</source>
         <translation>В Windows не установлен ни один язык распознавания текста</translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation>В слое нет ничего видимого, откуда можно прочитать текст.</translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation>В этой области нет ничего, откуда можно прочитать текст.</translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation>Нет движка распознавания текста с именем &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation>В этой системе нет доступного движка распознавания текста.</translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation>Распознавание текста недоступно: %1.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation>В движке распознавания текста нет языка &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation>В движке распознавания текста нет языка для чтения.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36672,6 +36700,22 @@ Locked: %1</source>
         <source>Cycle Eraser Tools</source>
         <translation>Сменить инструмент ластика</translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation>Распознанный текст</translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation>Бумага</translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation>Не удалось распознать текст: %1</translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation>Документ изменился во время распознавания его текста.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -40099,6 +40143,10 @@ Locked: %1</source>
     <message>
         <source>%1 needs an editable pixel layer.</source>
         <translation>%1 требует редактируемый пиксельный слой.</translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
+        <translation>Недопустимый параметр recognizeText: %1.</translation>
     </message>
 </context>
 <context>

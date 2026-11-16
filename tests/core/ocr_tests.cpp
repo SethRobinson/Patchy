@@ -414,6 +414,42 @@ void ocr_blocks_report_alignment_and_vertical_order() {
   }
 }
 
+void ocr_blocks_judge_size_by_length_per_character() {
+  const auto text_line = [](const char* text, double x, double y, double width, double height) {
+    auto line = line_at(x, y, width, height);
+    line.text = text;
+    return line;
+  };
+  patchy::ocr::Result result;
+  // The same size throughout, 17 px a character and 46 px apart, but the ink boxes differ:
+  // the first line has ascenders and descenders (34 tall), the second only x-height letters
+  // (18 tall, barely half), the third ascenders alone (27 tall). One paragraph.
+  result.lines.push_back(text_line("Typography with every kind of glyph", 100, 100, 595, 34));  // 0
+  result.lines.push_back(text_line("we saw a car on our run", 100, 154, 391, 18));              // 1
+  result.lines.push_back(text_line("and the third line ends it", 100, 195, 442, 27));           // 2
+  // A heading just above, about as thick as the first line's ink but set far wider (30 px
+  // a character): another size, so another block, however close it sits.
+  result.lines.push_back(text_line("A Bigger Heading", 100, 52, 480, 30));  // 3
+  // A page number under the paragraph: too few characters to judge by length, so its
+  // thickness decides (14 against 27: no).
+  result.lines.push_back(text_line("7", 100, 238, 9, 14));  // 4
+  const auto blocks = patchy::ocr::group_lines_into_blocks(result);
+  CHECK(blocks.size() == 3);
+  if (blocks.size() == 3) {
+    CHECK(blocks[0].lines == std::vector<std::size_t>{3});
+    CHECK((blocks[1].lines == std::vector<std::size_t>{0, 1, 2}));
+    CHECK(blocks[2].lines == std::vector<std::size_t>{4});
+  }
+  // Characters are counted, not bytes: a Japanese line of nine characters is 27 bytes, and
+  // it is the same size as the one under it.
+  patchy::ocr::Result japanese;
+  japanese.lines.push_back(
+      text_line("\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E\xE3\x81\xAE\xE6\x96\x87\xE5\xAD\x97\xE3\x82\x92\xE8\xAA\xAD\xE3\x82\x80",
+                50, 50, 432, 44));
+  japanese.lines.push_back(text_line("\xE7\xB8\xA6\xE6\x9B\xB8\xE3\x81\x8D\xE3\x81\xA8\xE6\xA8\xAA\xE6\x9B\xB8\xE3\x81\x8D", 50, 120, 336, 44));
+  CHECK(patchy::ocr::group_lines_into_blocks(japanese).size() == 1);
+}
+
 // The operating system's engine as this machine has it (the core suite installs no test
 // list): listed on Windows with its installed languages, absent everywhere else.
 void ocr_windows_engine_lists_languages_if_available() {
@@ -462,5 +498,6 @@ std::vector<patchy::test::TestCase> ocr_tests() {
       {"ocr_env_fake_engine_parses_spec", ocr_env_fake_engine_parses_spec},
       {"ocr_blocks_group_lines_by_spacing", ocr_blocks_group_lines_by_spacing},
       {"ocr_blocks_report_alignment_and_vertical_order", ocr_blocks_report_alignment_and_vertical_order},
+      {"ocr_blocks_judge_size_by_length_per_character", ocr_blocks_judge_size_by_length_per_character},
   };
 }

@@ -65,6 +65,8 @@ class PatternLibrary;
 class GradientLibrary;
 class CustomShapeLibrary;
 class McpActivity;
+struct OcrRecognitionOutcome;  // ocr_recognition.hpp
+struct OcrRecognitionRequest;
 
 // Interrupts a STUCK script from a helper thread: the UI thread arms an
 // inactivity window around every evaluate()/callback invocation, and every
@@ -339,6 +341,11 @@ public:
   QString automatic_select(std::int64_t session_id, const AutomaticSelectionRequest& request);
   // layer.removeBackground(): the subject matte as `layer_id`'s mask. Error text, empty on success.
   QString remove_background(std::int64_t session_id, LayerId layer_id, bool sample_all_layers);
+  // layer.recognizeText / doc.recognizeText (script_ocr.cpp, docs/ocr.md): one recognition,
+  // the engine on a worker while the call waits and keeps the watchdog fed. Error text,
+  // empty on success.
+  QString recognize_text(std::int64_t session_id, const OcrRecognitionRequest& request,
+                         OcrRecognitionOutcome& outcome);
 
   // Palette-mode write constraint for script pixel writes (setPixels/fill are
   // tool-like writes and snap; filters deliberately stay advisory, matching the

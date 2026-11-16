@@ -6,7 +6,9 @@
 #include <algorithm>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
+#include <numbers>
 #include <thread>
 #include <utility>
 
@@ -137,10 +139,29 @@ public:
         }
         Line line;
         line.text = scripted.text;
-        line.box = in_tile;
         line.quad = quad_from_box(in_tile);
         line.vertical = scripted.vertical;
         line.words = words_of(scripted.text, in_tile, scripted.vertical);
+        if (scripted.angle_degrees != 0.0) {
+          const double radians = scripted.angle_degrees * std::numbers::pi / 180.0;
+          const auto turned = [&](Point point) {
+            const double dx = point.x - center_x;
+            const double dy = point.y - center_y;
+            return Point{center_x + dx * std::cos(radians) - dy * std::sin(radians),
+                         center_y + dx * std::sin(radians) + dy * std::cos(radians)};
+          };
+          line.angle_degrees = scripted.angle_degrees;
+          for (auto& corner : line.quad) {
+            corner = turned(corner);
+          }
+          for (auto& word : line.words) {
+            for (auto& corner : word.quad) {
+              corner = turned(corner);
+            }
+            word.box = box_from_quad(word.quad);
+          }
+        }
+        line.box = box_from_quad(line.quad);
         found.lines.push_back(std::move(line));
       }
       return found;

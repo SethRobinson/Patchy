@@ -16077,6 +16077,34 @@ Do you want to replace it?</source>
         <source>Windows has no text recognition language installed</source>
         <translation>Windows に文字認識用の言語がインストールされていません</translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation>このレイヤーには、文字を読み取れる表示内容がありません。</translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation>その範囲には、文字を読み取れるものがありません。</translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation>「%1」という名前の文字認識エンジンはありません。</translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation>このシステムで利用できる文字認識エンジンはありません。</translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation>文字認識を利用できません: %1。</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation>文字認識エンジンに言語「%1」はありません。</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation>文字認識エンジンに、読み取りに使える言語がありません。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36452,6 +36480,22 @@ Locked: %1</source>
         <source>Cycle Eraser Tools</source>
         <translation>消しゴムツールを切り替え</translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation>認識されたテキスト</translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation>用紙</translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation>文字認識に失敗しました: %1</translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation>文字の認識中にドキュメントが変更されました。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39871,6 +39915,10 @@ Locked: %1</source>
     <message>
         <source>%1 needs an editable pixel layer.</source>
         <translation>%1 には編集可能なピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
+        <translation>recognizeText のオプションが無効です: %1。</translation>
     </message>
 </context>
 <context>

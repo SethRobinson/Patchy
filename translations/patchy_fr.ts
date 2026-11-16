@@ -16133,6 +16133,34 @@ Voulez-vous le remplacer ?</translation>
         <source>Windows has no text recognition language installed</source>
         <translation>Aucune langue de reconnaissance de texte n&apos;est installée dans Windows</translation>
     </message>
+    <message>
+        <source>The layer has nothing visible to read text from.</source>
+        <translation>Le calque ne contient rien de visible où lire du texte.</translation>
+    </message>
+    <message>
+        <source>There is nothing in that area to read text from.</source>
+        <translation>Il n&apos;y a rien dans cette zone où lire du texte.</translation>
+    </message>
+    <message>
+        <source>There is no text recognition engine named &quot;%1&quot;.</source>
+        <translation>Il n&apos;existe aucun moteur de reconnaissance de texte nommé &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>No text recognition engine is available on this system.</source>
+        <translation>Aucun moteur de reconnaissance de texte n&apos;est disponible sur ce système.</translation>
+    </message>
+    <message>
+        <source>Text recognition is not available: %1.</source>
+        <translation>La reconnaissance de texte n&apos;est pas disponible : %1.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language &quot;%1&quot;.</source>
+        <translation>Le moteur de reconnaissance de texte n&apos;a pas la langue &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text recognition engine has no language to read with.</source>
+        <translation>Le moteur de reconnaissance de texte n&apos;a aucune langue pour lire.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36562,6 +36590,22 @@ Verrouillé : %1</translation>
         <source>Cycle Eraser Tools</source>
         <translation>Alterner les outils de gomme</translation>
     </message>
+    <message>
+        <source>Recognized Text</source>
+        <translation>Texte reconnu</translation>
+    </message>
+    <message>
+        <source>Paper</source>
+        <translation>Papier</translation>
+    </message>
+    <message>
+        <source>Text recognition failed: %1</source>
+        <translation>Échec de la reconnaissance de texte : %1</translation>
+    </message>
+    <message>
+        <source>The document changed while its text was being recognized.</source>
+        <translation>Le document a changé pendant la reconnaissance de son texte.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -39985,6 +40029,10 @@ Verrouillé : %1</translation>
     <message>
         <source>%1 needs an editable pixel layer.</source>
         <translation>%1 nécessite un calque de pixels modifiable.</translation>
+    </message>
+    <message>
+        <source>Invalid recognizeText option: %1.</source>
+        <translation>Option recognizeText non valide : %1.</translation>
     </message>
 </context>
 <context>

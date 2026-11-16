@@ -710,6 +710,14 @@ interface PatchyLayer {
    * when doc.selection.subjectSelectionAvailable is false.
    */
   removeBackground(options?: {sampleAllLayers?: boolean}): void;
+  /**
+   * Text recognition (OCR) over this layer rendered on its own, whatever its kind. Returns
+   * the recognized lines and words with their boxes in document pixels. Nothing is added
+   * unless `layers` asks for it. Throws when no engine is available (check
+   * patchy.ocr.available), on an unknown option, engine or language, and when the layer is
+   * hidden or empty. See PatchyOcrOptions.
+   */
+  recognizeText(options?: PatchyOcrOptions): PatchyOcrResult;
   removeObject(options?: {
     method?: "contentAware" | "nearestEdge";
     attempt?: number;
@@ -1358,6 +1366,11 @@ interface PatchyDocument {
     align?: 'left' | 'center' | 'right' | 'justify' | 'justifyCenter' | 'justifyRight' | 'justifyAll';
     paragraph?: { firstLineIndent?: number; startIndent?: number; endIndent?: number; spaceBefore?: number; spaceAfter?: number };
   }): PatchyLayer;
+  /**
+   * Text recognition (OCR) over the whole image as composited (layer.recognizeText reads one
+   * layer on its own). Same options, result and errors.
+   */
+  recognizeText(options?: PatchyOcrOptions): PatchyOcrResult;
   /**
    * Files as Layers: adds each image file as a new layer directly above the
    * active layer, bottom to top in argument order (the last file ends on top
@@ -2171,6 +2184,83 @@ interface PatchyPlugins {
   rescan(): ReturnType<PatchyPlugins["list"]>;
 }
 
+/** One recognized word, or the box of a line: document pixels, y down. */
+interface PatchyOcrWord {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface PatchyOcrLine extends PatchyOcrWord {
+  /** Clockwise turn of the line in degrees; 0 for upright text. The box bounds the turned line. */
+  angle: number;
+  /** True for a column whose characters run top to bottom (vertical Japanese or Chinese). */
+  vertical: boolean;
+  words: PatchyOcrWord[];
+}
+
+interface PatchyOcrResult {
+  /** The engine id and language tag that ran. */
+  engine: string;
+  language: string;
+  /** Every line joined with "\n", in the order of `lines`. */
+  text: string;
+  /** The page-wide text angle the engine reported, 0 when it reported none. */
+  angle: number;
+  lines: PatchyOcrLine[];
+  /** The "Recognized Text" group that was added, or null (layers "none", or no text found). */
+  group: PatchyLayer | null;
+}
+
+interface PatchyOcrOptions {
+  /** An id from patchy.ocr.engines(). Default: the user's stored choice, else the first available engine. */
+  engine?: string;
+  /** A language tag of that engine. Default: the user's stored choice, else the engine's defaultLanguage. */
+  language?: string;
+  /** Read only this part, in document pixels. */
+  rect?: { x: number; y: number; width: number; height: number };
+  /**
+   * What to add to the document: "none" (default) adds nothing; "visible" adds editable
+   * text layers over the image, in a group named "Recognized Text"; "hidden" adds the same
+   * group hidden, so the image looks unchanged; "replace" shows the text on a white Paper
+   * layer and hides the original (the layer read, or every other top-level layer for
+   * doc.recognizeText). The original is only hidden, never erased.
+   */
+  layers?: "none" | "visible" | "hidden" | "replace";
+  /** "blocks" (default): lines that sit close together share one multi-line text layer. "lines": one layer per line. */
+  grouping?: "blocks" | "lines";
+  /** The font family for the text layers. Default: the Type tool's font. Never guessed from the image. */
+  font?: string;
+  /**
+   * True (default): size from fitting each line's width against the font, color sampled
+   * from the image, an italic face when the line leans. False: the Type tool's size and
+   * color, upright.
+   */
+  matchStyle?: boolean;
+  /** "sample" (default, with matchStyle) or a fixed "#rrggbb". */
+  color?: string;
+}
+
+interface PatchyOcr {
+  /** True when at least one engine can run now. */
+  readonly available: boolean;
+  /**
+   * The text recognition engines this build and machine list: "windows" is the one built
+   * into Windows 10 and 11, with the languages Windows has installed. An engine that cannot
+   * run is listed with available false and the reason.
+   */
+  engines(): {
+    id: string;
+    name: string;
+    available: boolean;
+    unavailableReason: string;
+    defaultLanguage: string;
+    languages: { tag: string; name: string }[];
+  }[];
+}
+
 interface PatchyGegl {
   /**
    * The GEGL filters Patchy offers (Filter > GEGL Filters), labels in Patchy's language.
@@ -2320,6 +2410,7 @@ interface PatchyNamespace {
   readonly plugins: PatchyPlugins;
   readonly gegl: PatchyGegl;
   readonly gmic: PatchyGmic;
+  readonly ocr: PatchyOcr;
   readonly perspective: PatchyPerspective;
   readonly scripts: PatchyScripts;
   readonly brushes: PatchyBrushes;

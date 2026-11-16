@@ -33,6 +33,9 @@ struct FakeLine {
   Box box;  // in the pixels of the image given to recognize()
   std::string text;
   bool vertical{false};
+  // A turned line: `box` is the line upright, and it is reported turned this many degrees
+  // clockwise about the box's centre (quad and angle), as the Windows engine reports one.
+  double angle_degrees{0.0};
 };
 
 struct FakeEngineConfig {
