@@ -268,8 +268,16 @@ add_library(patchy_ocr
   src/ocr/ocr_image.cpp
   src/ocr/ocr_layout.cpp
   src/ocr/ocr_registry.cpp
-  src/ocr/ocr_engine_stub.cpp
 )
+if(WIN32)
+  # Windows.Media.Ocr through C++/WinRT: its headers come with the Windows SDK (the
+  # cppwinrt folder vs-env puts on INCLUDE), and winrt/base.h binds the Ro* activation
+  # calls by /alternatename, which runtimeobject.lib resolves.
+  target_sources(patchy_ocr PRIVATE src/ocr/ocr_engine_win.cpp)
+  target_link_libraries(patchy_ocr PUBLIC runtimeobject)
+else()
+  target_sources(patchy_ocr PRIVATE src/ocr/ocr_engine_stub.cpp)
+endif()
 target_link_libraries(patchy_ocr PUBLIC patchy_core)
 patchy_configure_target(patchy_ocr)
 
@@ -2787,6 +2795,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/import_print_resolution_tests_geometry_rendering.cpp
       tests/ui/divide_photos_tests.cpp
       tests/ui/book_scan_tests.cpp
+      tests/ui/ocr_ui_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

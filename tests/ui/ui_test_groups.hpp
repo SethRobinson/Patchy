@@ -78,6 +78,7 @@ std::vector<patchy::test::TestCase> warp_tests();
 std::vector<patchy::test::TestCase> import_print_resolution_tests();
 std::vector<patchy::test::TestCase> divide_photos_tests();
 std::vector<patchy::test::TestCase> book_scan_ui_tests();
+std::vector<patchy::test::TestCase> ocr_ui_tests();
 std::vector<patchy::test::TestCase> pdf_viewer_ui_tests();
 std::vector<patchy::test::TestCase> pdf_viewer_links_ui_tests();
 std::vector<patchy::test::TestCase> pdf_viewer_select_ui_tests();

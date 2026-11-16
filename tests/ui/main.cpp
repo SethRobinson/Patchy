@@ -20,6 +20,7 @@
 // functions in the exact original registration-vector order.
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
+#include "ocr_test_support.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "core/pixel_depth.hpp"
@@ -270,6 +271,9 @@ int main(int argc, char* argv[]) {
   // The app installs this at startup, so the suite must too: imported-PSD text tests
   // resolve PostScript font names against whatever fonts each test has registered.
   patchy::ui::install_font_database_psd_font_resolver();
+  // No text recognition engine unless a test installs one: the suite must not depend on
+  // which OCR languages this machine's Windows has (docs/ocr.md, "Testing").
+  patchy::test::ui::install_no_ocr_engines();
   ensure_artifact_dir();
   const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
   CHECK(QDir().mkpath(test_settings_path));
@@ -463,6 +467,7 @@ int main(int argc, char* argv[]) {
            import_print_resolution_tests,
            divide_photos_tests,
            book_scan_ui_tests,
+           ocr_ui_tests,
            pdf_viewer_ui_tests,
            pdf_viewer_links_ui_tests,
            pdf_viewer_select_ui_tests,

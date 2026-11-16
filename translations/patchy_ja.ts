@@ -16069,6 +16069,14 @@ Do you want to replace it?</source>
         <source>Pick...</source>
         <translation>選択...</translation>
     </message>
+    <message>
+        <source>Windows has no text recognition for that language</source>
+        <translation>Windows にはその言語の文字認識がありません</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed</source>
+        <translation>Windows に文字認識用の言語がインストールされていません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

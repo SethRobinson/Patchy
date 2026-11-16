@@ -414,10 +414,44 @@ void ocr_blocks_report_alignment_and_vertical_order() {
   }
 }
 
+// The operating system's engine as this machine has it (the core suite installs no test
+// list): listed on Windows with its installed languages, absent everywhere else.
+void ocr_windows_engine_lists_languages_if_available() {
+  const auto engine = patchy::ocr::find_engine("windows");
+#if defined(_WIN32)
+  CHECK(engine != nullptr);
+  if (engine == nullptr) {
+    return;
+  }
+  CHECK(engine->display_name() == "Windows");
+  if (engine->unavailable() != patchy::ocr::Unavailable::None) {
+    CHECK(!engine->unavailable_reason().empty());
+    patchy::test::skip(patchy::test::SkipKind::feature,
+                       "the Windows text recognition engine is unavailable: " + engine->unavailable_reason());
+  }
+  CHECK(engine->unavailable_reason().empty());
+  const auto languages = engine->languages();
+  CHECK(!languages.empty());
+  bool default_listed = false;
+  const auto preferred = engine->default_language();
+  for (const auto& language : languages) {
+    CHECK(!language.tag.empty() && !language.display_name.empty());
+    default_listed = default_listed || language.tag == preferred;
+  }
+  CHECK(default_listed);
+  // Opening and dropping a recognizer starts and ends its own thread cleanly.
+  CHECK(engine->open(preferred) != nullptr);
+#else
+  CHECK(engine == nullptr);
+  CHECK(patchy::ocr::engines().empty());
+#endif
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> ocr_tests() {
   return {
+      {"ocr_windows_engine_lists_languages_if_available", ocr_windows_engine_lists_languages_if_available},
       {"ocr_registry_uses_installed_test_engines", ocr_registry_uses_installed_test_engines},
       {"ocr_band_plan_is_pinned", ocr_band_plan_is_pinned},
       {"ocr_bands_report_overlap_lines_once", ocr_bands_report_overlap_lines_once},

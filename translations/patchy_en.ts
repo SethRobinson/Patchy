@@ -16107,6 +16107,14 @@ Do you want to replace it?</source>
         <source>Pick...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Windows has no text recognition for that language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

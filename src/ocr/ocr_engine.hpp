@@ -94,7 +94,7 @@ struct Result {
 // script group token for a model engine. `tag` is persisted in settings (ocr/language).
 struct Language {
   std::string tag;
-  std::string display_name;  // English; the UI translates known tags
+  std::string display_name;  // the engine's own name for it (Windows gives its localized one)
 };
 
 enum class Unavailable {
