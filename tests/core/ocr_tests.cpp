@@ -11,6 +11,7 @@
 #include "test_harness.hpp"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <thread>
@@ -485,8 +486,13 @@ void ocr_windows_engine_lists_languages_if_available() {
 
 }  // namespace
 
+// The model engine's steps (ocr_model_tests.cpp), gathered here so the suite's group list
+// needs no new entry.
+std::vector<patchy::test::TestCase> ocr_model_tests();
+
 std::vector<patchy::test::TestCase> ocr_tests() {
-  return {
+  auto model_tests = ocr_model_tests();
+  std::vector<patchy::test::TestCase> tests{
       {"ocr_windows_engine_lists_languages_if_available", ocr_windows_engine_lists_languages_if_available},
       {"ocr_registry_uses_installed_test_engines", ocr_registry_uses_installed_test_engines},
       {"ocr_band_plan_is_pinned", ocr_band_plan_is_pinned},
@@ -500,4 +506,6 @@ std::vector<patchy::test::TestCase> ocr_tests() {
       {"ocr_blocks_report_alignment_and_vertical_order", ocr_blocks_report_alignment_and_vertical_order},
       {"ocr_blocks_judge_size_by_length_per_character", ocr_blocks_judge_size_by_length_per_character},
   };
+  tests.insert(tests.end(), std::make_move_iterator(model_tests.begin()), std::make_move_iterator(model_tests.end()));
+  return tests;
 }

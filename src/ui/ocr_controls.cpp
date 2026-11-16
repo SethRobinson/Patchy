@@ -51,7 +51,7 @@ QString ocr_choice_summary(const OcrChoice& choice) {
   auto language = QString::fromStdString(choice.language);
   for (const auto& listed : choice.engine->languages()) {
     if (listed.tag == choice.language) {
-      language = QString::fromStdString(listed.display_name);
+      language = translate_data_text(listed.display_name);
       break;
     }
   }
@@ -148,7 +148,9 @@ void OcrEnginePicker::fill_languages() {
   const auto engine = engine_with_id(engine_id());
   if (engine != nullptr) {
     for (const auto& language : engine->languages()) {
-      language_->addItem(QString::fromStdString(language.display_name), QString::fromStdString(language.tag));
+      // An operating system's names arrive localized (no catalog entry, shown as they are); a
+      // model engine's are English picks the catalogs translate.
+      language_->addItem(translate_data_text(language.display_name), QString::fromStdString(language.tag));
     }
     int chosen = language_->findData(previous);
     if (chosen < 0) {

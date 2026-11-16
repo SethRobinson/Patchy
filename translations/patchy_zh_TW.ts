@@ -16217,6 +16217,70 @@ Do you want to replace it?</source>
         <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
         <translation>讀取每個沒有可編輯文字的頁面（掃描頁面，以及選擇「每頁一張平面化影像」時的所有頁面）上的文字，並將其新增為文字圖層。</translation>
     </message>
+    <message>
+        <source>English</source>
+        <translation>英文</translation>
+    </message>
+    <message>
+        <source>Japanese</source>
+        <translation>日文</translation>
+    </message>
+    <message>
+        <source>Chinese (Simplified)</source>
+        <translation>中文（簡體）</translation>
+    </message>
+    <message>
+        <source>Chinese (Traditional)</source>
+        <translation>中文（繁體）</translation>
+    </message>
+    <message>
+        <source>Other Latin-script languages (French, German, Spanish...)</source>
+        <translation>其他拉丁字母語言（法文、德文、西班牙文等）</translation>
+    </message>
+    <message>
+        <source>Korean</source>
+        <translation>韓文</translation>
+    </message>
+    <message>
+        <source>Russian</source>
+        <translation>俄文</translation>
+    </message>
+    <message>
+        <source>Ukrainian</source>
+        <translation>烏克蘭文</translation>
+    </message>
+    <message>
+        <source>Belarusian</source>
+        <translation>白俄羅斯文</translation>
+    </message>
+    <message>
+        <source>Other Cyrillic-script languages</source>
+        <translation>其他西里爾字母語言</translation>
+    </message>
+    <message>
+        <source>Greek</source>
+        <translation>希臘文</translation>
+    </message>
+    <message>
+        <source>Thai</source>
+        <translation>泰文</translation>
+    </message>
+    <message>
+        <source>Hindi, Marathi, Nepali (Devanagari)</source>
+        <translation>印地文、馬拉地文、尼泊爾文（天城文）</translation>
+    </message>
+    <message>
+        <source>Tamil</source>
+        <translation>坦米爾文</translation>
+    </message>
+    <message>
+        <source>Telugu</source>
+        <translation>泰盧固文</translation>
+    </message>
+    <message>
+        <source>the text recognition models are not downloaded</source>
+        <translation>尚未下載文字辨識模型</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -51,6 +51,30 @@ set(PATCHY_AI_WATERMARK_MODEL_FILES
   trustmark_decoder_C.onnx
   trustmark_encoder_Q.onnx
 )
+# The PP-OCR text recognition models (100 MB, docs/ocr-engines.md) are a download too, staged
+# the same way on their own (all or none). Keep in sync with ocr_model_files() in
+# src/ai/ocr_model_engine.cpp and with scripts/setup-ai-deps.*, which pin the same files.
+set(PATCHY_AI_OCR_MODEL_FILES
+  ppocr_v6_small_det.onnx
+  ppocr_v6_small_rec.onnx
+  ppocr_v6_small_rec.yml
+  ppocr_korean_rec.onnx
+  ppocr_korean_rec.yml
+  ppocr_cyrillic_rec.onnx
+  ppocr_cyrillic_rec.yml
+  ppocr_eslav_rec.onnx
+  ppocr_eslav_rec.yml
+  ppocr_el_rec.onnx
+  ppocr_el_rec.yml
+  ppocr_th_rec.onnx
+  ppocr_th_rec.yml
+  ppocr_devanagari_rec.onnx
+  ppocr_devanagari_rec.yml
+  ppocr_ta_rec.onnx
+  ppocr_ta_rec.yml
+  ppocr_te_rec.onnx
+  ppocr_te_rec.yml
+)
 
 set(PATCHY_AI_DEPS_CANDIDATES "${PROJECT_SOURCE_DIR}/.deps")
 find_package(Git QUIET)
@@ -176,10 +200,13 @@ endif()
 
 add_library(patchy_ai
   src/ai/ai_selection_math.cpp
+  src/ai/ocr_model_engine.cpp
   src/ai/segmentation_engine_common.cpp
   src/ai/trustmark_watermark.cpp
 )
-target_link_libraries(patchy_ai PUBLIC patchy_core)
+# patchy_ocr: the model engine implements its Engine interface and uses its detection and
+# decoding steps.
+target_link_libraries(patchy_ai PUBLIC patchy_core patchy_ocr)
 patchy_configure_target(patchy_ai)
 
 if(PATCHY_AI_MISSING STREQUAL "" AND EMSCRIPTEN)
@@ -263,6 +290,20 @@ if(PATCHY_AI_SELECTION_BUILT)
     list(APPEND PATCHY_AI_DOWNLOAD_MODEL_SOURCES ${PATCHY_AI_WATERMARK_MODEL_SOURCES})
     list(APPEND PATCHY_AI_DOWNLOAD_STAGE_COMMAND
          COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PATCHY_AI_WATERMARK_MODEL_SOURCES}
+                 "${CMAKE_BINARY_DIR}/ai-models-download/")
+  endif()
+  set(PATCHY_AI_OCR_MODEL_SOURCES "")
+  foreach(model IN LISTS PATCHY_AI_OCR_MODEL_FILES)
+    if(EXISTS "${PATCHY_AI_MODELS_DIR}/${model}")
+      list(APPEND PATCHY_AI_OCR_MODEL_SOURCES "${PATCHY_AI_MODELS_DIR}/${model}")
+    endif()
+  endforeach()
+  list(LENGTH PATCHY_AI_OCR_MODEL_SOURCES ocr_model_count)
+  list(LENGTH PATCHY_AI_OCR_MODEL_FILES ocr_model_expected)
+  if(ocr_model_count EQUAL ocr_model_expected)
+    list(APPEND PATCHY_AI_DOWNLOAD_MODEL_SOURCES ${PATCHY_AI_OCR_MODEL_SOURCES})
+    list(APPEND PATCHY_AI_DOWNLOAD_STAGE_COMMAND
+         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PATCHY_AI_OCR_MODEL_SOURCES}
                  "${CMAKE_BINARY_DIR}/ai-models-download/")
   endif()
   set(PATCHY_AI_LICENSE_FILE "${PROJECT_SOURCE_DIR}/third_party/ai-models/MODEL-LICENSES.txt")

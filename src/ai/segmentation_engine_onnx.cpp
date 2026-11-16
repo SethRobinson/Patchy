@@ -6,6 +6,7 @@
 // load (macOS older than the dylib's minimum, a damaged install) still starts Patchy and
 // simply reports automatic selection unavailable.
 
+#include "ai/ocr_models.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ai/segmentation_engine_internal.hpp"
 #include "ai/watermark_engine.hpp"
@@ -32,6 +33,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <new>
 #include <optional>
 #include <string_view>
@@ -125,6 +128,8 @@ struct OrtState {
   std::shared_ptr<Ort::Session> subject;
   // TrustMark (watermark_engine.hpp), in trustmark_model_files() order.
   std::array<std::shared_ptr<Ort::Session>, 4> trustmark;
+  // Text recognition (ocr_models.hpp), by file name: the detector and each recognizer used.
+  std::map<std::string, std::shared_ptr<Ort::Session>, std::less<>> ocr;
 };
 
 // Never destroyed: at process exit ONNX Runtime's own globals can be torn down before ours
@@ -200,9 +205,10 @@ std::shared_ptr<Ort::Session> shared_session(OrtState& state, std::shared_ptr<Or
 }
 
 // Runs a session with cancellation wired to `cancel`; translates ONNX Runtime failures.
+// `feature` names what failed in the diagnostic.
 std::vector<Ort::Value> run(Ort::Session& session, const char* const* input_names, const Ort::Value* inputs,
                             std::size_t input_count, const char* const* output_names, std::size_t output_count,
-                            InferenceCancel* cancel) {
+                            InferenceCancel* cancel, const char* feature = "automatic selection") {
   Ort::RunOptions run_options;
   if (cancel != nullptr) {
     if (cancel->requested()) {
@@ -226,7 +232,7 @@ std::vector<Ort::Value> run(Ort::Session& session, const char* const* input_name
     if (is_out_of_memory_message(error.what())) {
       throw InferenceOutOfMemory();
     }
-    throw std::runtime_error(std::string("automatic selection failed: ") + error.what());
+    throw std::runtime_error(std::string(feature) + " failed: " + error.what());
   } catch (const std::bad_alloc&) {
     if (cancel != nullptr) {
       cancel->detach();
@@ -545,9 +551,79 @@ void release_trustmark_models() {
   }
 }
 
+bool ocr_models_supported() noexcept {
+  return true;
+}
+
+std::string ocr_runtime_unavailable_reason() {
+  return runtime().loaded ? std::string() : runtime().error;
+}
+
+std::filesystem::path ocr_model_path(std::string_view file) {
+  // Only ever the user's own download, like the watermark models: a package never ships these.
+  const auto downloaded = downloaded_model_directory();
+  return downloaded.empty() ? std::filesystem::path() : downloaded / std::filesystem::path(file);
+}
+
+OcrOutput run_ocr_model(std::string_view file, const std::vector<float>& input,
+                        const std::array<std::int64_t, 4>& shape) {
+  if (shape[0] <= 0 || shape[1] <= 0 || shape[2] <= 0 || shape[3] <= 0 ||
+      input.size() != static_cast<std::size_t>(shape[0] * shape[1] * shape[2] * shape[3])) {
+    throw std::invalid_argument("text recognition: malformed model input");
+  }
+  std::shared_ptr<Ort::Session> session;
+  {
+    auto& state = ort_state();
+    const std::lock_guard lock(state.mutex);
+    auto& slot = state.ocr[std::string(file)];
+    if (!slot) {
+      const auto path = ocr_model_path(file);
+      // A page is one detector run and one short run per line, so a few threads serve it as
+      // well as all of them: four to eight measured the same or faster than the default
+      // pool (docs/ocr-benchmark.md), and the rest of the machine stays free.
+      auto options = session_options();
+      options.SetIntraOpNumThreads(std::clamp(hardware_worker_threads(), 1, 8));
+      try {
+        slot = std::make_shared<Ort::Session>(environment(state), path.c_str(), options);
+      } catch (const Ort::Exception& error) {
+        if (is_out_of_memory_message(error.what())) {
+          throw InferenceOutOfMemory();
+        }
+        throw std::runtime_error("text recognition could not load " + std::string(file) + ": " + error.what());
+      } catch (const std::bad_alloc&) {
+        throw InferenceOutOfMemory();
+      }
+    }
+    session = slot;
+  }
+  Ort::AllocatorWithDefaultOptions allocator;
+  const auto input_name = session->GetInputNameAllocated(0, allocator);
+  const auto output_name = session->GetOutputNameAllocated(0, allocator);
+  const std::array<const char*, 1> input_names{input_name.get()};
+  const std::array<const char*, 1> output_names{output_name.get()};
+  auto memory = cpu_memory();
+  // ONNX Runtime reads an input and never writes it; the API only takes a mutable pointer.
+  auto tensor = Ort::Value::CreateTensor<float>(memory, const_cast<float*>(input.data()), input.size(), shape.data(),
+                                                shape.size());
+  auto outputs = run(*session, input_names.data(), &tensor, 1, output_names.data(), 1, nullptr, "text recognition");
+  OcrOutput output;
+  const auto info = outputs[0].GetTensorTypeAndShapeInfo();
+  output.shape = info.GetShape();
+  const float* values = outputs[0].GetTensorData<float>();
+  output.values.assign(values, values + info.GetElementCount());
+  return output;
+}
+
+void release_ocr_models() {
+  auto& state = ort_state();
+  const std::lock_guard lock(state.mutex);
+  state.ocr.clear();
+}
+
 void release_models() {
   auto& state = ort_state();
   const std::lock_guard lock(state.mutex);
+  state.ocr.clear();
   state.standard_encoder.reset();
   state.standard_decoder.reset();
   state.high_quality_encoder.reset();

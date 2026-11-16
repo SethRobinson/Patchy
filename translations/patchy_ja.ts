@@ -16217,6 +16217,70 @@ Do you want to replace it?</source>
         <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
         <translation>編集可能なテキストを持たない各ページ (スキャンされたページ、および「ページごとに統合された画像」を選んだ場合の全ページ) の文字を読み取り、テキストレイヤーとして追加します。</translation>
     </message>
+    <message>
+        <source>English</source>
+        <translation>英語</translation>
+    </message>
+    <message>
+        <source>Japanese</source>
+        <translation>日本語</translation>
+    </message>
+    <message>
+        <source>Chinese (Simplified)</source>
+        <translation>中国語 (簡体字)</translation>
+    </message>
+    <message>
+        <source>Chinese (Traditional)</source>
+        <translation>中国語 (繁体字)</translation>
+    </message>
+    <message>
+        <source>Other Latin-script languages (French, German, Spanish...)</source>
+        <translation>その他のラテン文字の言語 (フランス語、ドイツ語、スペイン語など)</translation>
+    </message>
+    <message>
+        <source>Korean</source>
+        <translation>韓国語</translation>
+    </message>
+    <message>
+        <source>Russian</source>
+        <translation>ロシア語</translation>
+    </message>
+    <message>
+        <source>Ukrainian</source>
+        <translation>ウクライナ語</translation>
+    </message>
+    <message>
+        <source>Belarusian</source>
+        <translation>ベラルーシ語</translation>
+    </message>
+    <message>
+        <source>Other Cyrillic-script languages</source>
+        <translation>その他のキリル文字の言語</translation>
+    </message>
+    <message>
+        <source>Greek</source>
+        <translation>ギリシャ語</translation>
+    </message>
+    <message>
+        <source>Thai</source>
+        <translation>タイ語</translation>
+    </message>
+    <message>
+        <source>Hindi, Marathi, Nepali (Devanagari)</source>
+        <translation>ヒンディー語、マラーティー語、ネパール語 (デーヴァナーガリー)</translation>
+    </message>
+    <message>
+        <source>Tamil</source>
+        <translation>タミル語</translation>
+    </message>
+    <message>
+        <source>Telugu</source>
+        <translation>テルグ語</translation>
+    </message>
+    <message>
+        <source>the text recognition models are not downloaded</source>
+        <translation>文字認識モデルがダウンロードされていません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

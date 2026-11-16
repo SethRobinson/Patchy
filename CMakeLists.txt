@@ -268,6 +268,8 @@ add_library(patchy_ocr
   src/ocr/ocr_image.cpp
   src/ocr/ocr_layout.cpp
   src/ocr/ocr_registry.cpp
+  src/ocr/ocr_text_decode.cpp
+  src/ocr/ocr_text_detect.cpp
 )
 if(WIN32)
   # Windows.Media.Ocr through C++/WinRT: its headers come with the Windows SDK (the
@@ -2645,6 +2647,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/floating_selection_tests.cpp
     tests/core/ai_selection_tests.cpp
     tests/core/ocr_tests.cpp
+    tests/core/ocr_model_tests.cpp
     tests/core/gmic_tests.cpp
     tests/core/tiff_layers_tests.cpp
     tests/core/tiff_flat_tests.cpp
@@ -2809,6 +2812,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/ocr_layers_tests.cpp
       tests/ui/ocr_command_tests.cpp
       tests/ui/pdf_import_ocr_tests.cpp
+      tests/ui/ocr_model_engine_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

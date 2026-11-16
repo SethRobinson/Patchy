@@ -16329,6 +16329,70 @@ Czy chcesz go zastąpić?</translation>
         <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
         <translation>Odczytuje tekst na każdej stronie, która nie ma własnego edytowalnego tekstu (zeskanowane strony oraz wszystkie strony przy opcji „Spłaszczony obraz na stronę”), i dodaje go jako warstwy tekstowe.</translation>
     </message>
+    <message>
+        <source>English</source>
+        <translation>Angielski</translation>
+    </message>
+    <message>
+        <source>Japanese</source>
+        <translation>Japoński</translation>
+    </message>
+    <message>
+        <source>Chinese (Simplified)</source>
+        <translation>Chiński (uproszczony)</translation>
+    </message>
+    <message>
+        <source>Chinese (Traditional)</source>
+        <translation>Chiński (tradycyjny)</translation>
+    </message>
+    <message>
+        <source>Other Latin-script languages (French, German, Spanish...)</source>
+        <translation>Inne języki z alfabetem łacińskim (francuski, niemiecki, hiszpański...)</translation>
+    </message>
+    <message>
+        <source>Korean</source>
+        <translation>Koreański</translation>
+    </message>
+    <message>
+        <source>Russian</source>
+        <translation>Rosyjski</translation>
+    </message>
+    <message>
+        <source>Ukrainian</source>
+        <translation>Ukraiński</translation>
+    </message>
+    <message>
+        <source>Belarusian</source>
+        <translation>Białoruski</translation>
+    </message>
+    <message>
+        <source>Other Cyrillic-script languages</source>
+        <translation>Inne języki z cyrylicą</translation>
+    </message>
+    <message>
+        <source>Greek</source>
+        <translation>Grecki</translation>
+    </message>
+    <message>
+        <source>Thai</source>
+        <translation>Tajski</translation>
+    </message>
+    <message>
+        <source>Hindi, Marathi, Nepali (Devanagari)</source>
+        <translation>Hindi, marathi, nepalski (dewanagari)</translation>
+    </message>
+    <message>
+        <source>Tamil</source>
+        <translation>Tamilski</translation>
+    </message>
+    <message>
+        <source>Telugu</source>
+        <translation>Telugu</translation>
+    </message>
+    <message>
+        <source>the text recognition models are not downloaded</source>
+        <translation>modele rozpoznawania tekstu nie zostały pobrane</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

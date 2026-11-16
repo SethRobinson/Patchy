@@ -16217,6 +16217,70 @@ Do you want to replace it?</source>
         <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
         <translation>편집 가능한 텍스트가 없는 모든 페이지(스캔한 페이지 및 &quot;페이지당 병합된 이미지&quot;를 선택한 경우 모든 페이지)의 텍스트를 읽어 텍스트 레이어로 추가합니다.</translation>
     </message>
+    <message>
+        <source>English</source>
+        <translation>영어</translation>
+    </message>
+    <message>
+        <source>Japanese</source>
+        <translation>일본어</translation>
+    </message>
+    <message>
+        <source>Chinese (Simplified)</source>
+        <translation>중국어(간체)</translation>
+    </message>
+    <message>
+        <source>Chinese (Traditional)</source>
+        <translation>중국어(번체)</translation>
+    </message>
+    <message>
+        <source>Other Latin-script languages (French, German, Spanish...)</source>
+        <translation>기타 라틴 문자 언어(프랑스어, 독일어, 스페인어 등)</translation>
+    </message>
+    <message>
+        <source>Korean</source>
+        <translation>한국어</translation>
+    </message>
+    <message>
+        <source>Russian</source>
+        <translation>러시아어</translation>
+    </message>
+    <message>
+        <source>Ukrainian</source>
+        <translation>우크라이나어</translation>
+    </message>
+    <message>
+        <source>Belarusian</source>
+        <translation>벨라루스어</translation>
+    </message>
+    <message>
+        <source>Other Cyrillic-script languages</source>
+        <translation>기타 키릴 문자 언어</translation>
+    </message>
+    <message>
+        <source>Greek</source>
+        <translation>그리스어</translation>
+    </message>
+    <message>
+        <source>Thai</source>
+        <translation>태국어</translation>
+    </message>
+    <message>
+        <source>Hindi, Marathi, Nepali (Devanagari)</source>
+        <translation>힌디어, 마라티어, 네팔어(데바나가리)</translation>
+    </message>
+    <message>
+        <source>Tamil</source>
+        <translation>타밀어</translation>
+    </message>
+    <message>
+        <source>Telugu</source>
+        <translation>텔루구어</translation>
+    </message>
+    <message>
+        <source>the text recognition models are not downloaded</source>
+        <translation>텍스트 인식 모델이 다운로드되지 않았습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

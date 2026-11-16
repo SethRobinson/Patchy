@@ -4,7 +4,7 @@ Reading text out of pixels. This doc owns the engine library (`src/ocr`, target 
 
 ## Related documents
 
-- [ocr-engines.md](ocr-engines.md): the Windows engine (threads, the apartment, size limit, cancel, boxes, Japanese and vertical text).
+- [ocr-engines.md](ocr-engines.md): the Windows engine (threads, the apartment, size limit, cancel, boxes, Japanese and vertical text) and the PP-OCR model engine (files, languages, detection, reading a line, its limits).
 - [ocr-benchmark.md](ocr-benchmark.md): PP-OCR small, the Windows engine and the NDL recognizer on the same generated pages (November 2026), the settings those numbers fix for the downloadable engine, and the case for a second model for vertical Japanese.
 
 ## Rules that bind every entry point

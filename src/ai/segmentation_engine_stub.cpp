@@ -1,6 +1,7 @@
 // Automatic selection in a build without an engine (PATCHY_ENABLE_AI_SELECTION off,
 // wasm-core, the single-threaded wasm app): everything reports unavailable.
 
+#include "ai/ocr_models.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ai/segmentation_engine_internal.hpp"
 #include "ai/watermark_engine.hpp"
@@ -71,5 +72,23 @@ std::vector<float> trustmark_encode_q(const std::vector<float>&, const std::arra
 }
 
 void release_trustmark_models() {}
+
+bool ocr_models_supported() noexcept {
+  return false;
+}
+
+std::string ocr_runtime_unavailable_reason() {
+  return "this build of Patchy cannot run the text recognition models";
+}
+
+std::filesystem::path ocr_model_path(std::string_view) {
+  return {};
+}
+
+OcrOutput run_ocr_model(std::string_view, const std::vector<float>&, const std::array<std::int64_t, 4>&) {
+  throw std::runtime_error(ocr_runtime_unavailable_reason());
+}
+
+void release_ocr_models() {}
 
 }  // namespace patchy::ai

@@ -14,8 +14,10 @@
 #include <QPushButton>
 #include <QStatusBar>
 
+#include "ai/ocr_model_engine.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "core/layer_render_utils.hpp"
+#include "ui/localization.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/rect_utils.hpp"
 #include "ui/background_workers.hpp"
@@ -110,6 +112,10 @@ void apply_subject_matte_to_layer_mask(const Document& document, Layer& layer, c
 
 void configure_automatic_selection_models() {
   configure_downloaded_object_selection_model();
+  // The downloadable text recognition engine reads its models from the same downloaded
+  // folder (docs/ocr-engines.md). Its starting language follows the app's language.
+  patchy::ai::set_ocr_model_default_language(LocalizationManager::instance().current_language().toStdString());
+  patchy::ai::register_ocr_model_engine();
   if (!patchy::ai::model_directory().empty()) {
     return;
   }
