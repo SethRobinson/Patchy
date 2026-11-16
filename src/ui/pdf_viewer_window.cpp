@@ -555,7 +555,12 @@ void PdfViewerWindow::build_ui() {
     }
     outline_chosen_ = item;
     jump_to({page, item->data(0, kOutlineLocationRole).toPointF()});
-    update_outline_current();
+    {
+      // The entry followed is the one marked, whichever page the jump leaves at the middle
+      // of the window, until the reader moves on.
+      const QSignalBlocker blocker(outline_);
+      outline_->setCurrentItem(item);
+    }
     if (to_pages) {
       view_->setFocus();
     }
@@ -903,27 +908,28 @@ void PdfViewerWindow::update_outline_current() {
   if (outline_items_.empty()) {
     return;
   }
-  // The entry being read: the last one that starts on or before the last page showing.
   const auto pages = view_->current_pages();
   const int page = pages.empty() ? 0 : pages.back();
-  int best_page = -1;
-  for (const auto* item : outline_items_) {
-    const int start = item->data(0, kOutlinePageRole).toInt();
-    if (start >= 0 && start <= page && start > best_page) {
-      best_page = start;
-    }
-  }
   QTreeWidgetItem* reading = nullptr;
-  if (best_page >= 0) {
-    if (outline_chosen_ != nullptr && outline_chosen_->data(0, kOutlinePageRole).toInt() == best_page) {
-      // Several entries start on this page: the one the user clicked stays marked.
-      reading = outline_chosen_;
-    } else {
-      for (auto* item : outline_items_) {
-        if (item->data(0, kOutlinePageRole).toInt() == best_page) {
-          reading = item;
-          break;
-        }
+  if (outline_chosen_ != nullptr &&
+      std::find(pages.begin(), pages.end(), outline_chosen_->data(0, kOutlinePageRole).toInt()) != pages.end()) {
+    // The entry the user followed stays marked while its page shows, though others start
+    // there too.
+    reading = outline_chosen_;
+  } else {
+    // The entry being read: the first of those with the last start page on or before the
+    // last page showing.
+    int best_page = -1;
+    for (const auto* item : outline_items_) {
+      const int start = item->data(0, kOutlinePageRole).toInt();
+      if (start >= 0 && start <= page && start > best_page) {
+        best_page = start;
+      }
+    }
+    for (auto* item : outline_items_) {
+      if (best_page >= 0 && item->data(0, kOutlinePageRole).toInt() == best_page) {
+        reading = item;
+        break;
       }
     }
   }

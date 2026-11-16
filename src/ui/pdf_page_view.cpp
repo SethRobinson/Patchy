@@ -47,7 +47,7 @@ constexpr double kTextMatchOpacity = 0.42;
 constexpr double kCurrentTextMatchOpacity = 0.55;
 constexpr double kTextMatchEdge = 12.0;
 // Links: the longest address a tooltip shows whole.
-constexpr qsizetype kLinkTipAddressLength = 160;
+constexpr qsizetype kLinkTipAddressLength = 100;
 
 int normalized_turns(int turns) {
   return ((turns % 4) + 4) % 4;
