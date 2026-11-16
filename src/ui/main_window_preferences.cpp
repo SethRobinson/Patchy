@@ -38,7 +38,9 @@
 #include "ui/hotkey_editor.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/object_selection_model_download.hpp"
+#include "ai/ocr_models.hpp"
 #include "ui/ocr_controls.hpp"
+#include "ui/ocr_model_download.hpp"
 #include "ui/watermark_model_download.hpp"
 #include "ui/save_metadata_settings.hpp"
 #include "ai/watermark_engine.hpp"
@@ -1381,6 +1383,57 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     ocr_layout->addWidget(ocr_heading);
     ocr_picker = new OcrEnginePicker(QStringLiteral("preferencesOcr"), ocr_group);
     ocr_layout->addWidget(ocr_picker);
+    // The PP-OCR models: status, Download and Delete (exactly their files).
+    if (patchy::ai::ocr_models_supported()) {
+      auto* ocr_models_row = new QHBoxLayout();
+      auto* ocr_models_status = new QLabel(ocr_group);
+      ocr_models_status->setObjectName(QStringLiteral("preferencesOcrModelsStatus"));
+      ocr_models_status->setWordWrap(true);
+      auto* download_ocr_button = new QPushButton(tr("Download"), ocr_group);
+      download_ocr_button->setObjectName(QStringLiteral("preferencesDownloadOcrModelsButton"));
+      download_ocr_button->setToolTip(
+          tr("Downloads the PP-OCR text recognition models (PaddlePaddle's, Apache License 2.0; %1). Text "
+             "recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.")
+              .arg(ocr_model_download_summary()));
+      auto* delete_ocr_button = new QPushButton(tr("Delete"), ocr_group);
+      delete_ocr_button->setObjectName(QStringLiteral("preferencesDeleteOcrModelsButton"));
+      delete_ocr_button->setToolTip(tr("Deletes the downloaded text recognition models."));
+      ocr_models_row->addWidget(ocr_models_status, 1);
+      ocr_models_row->addWidget(download_ocr_button);
+      ocr_models_row->addWidget(delete_ocr_button);
+      ocr_layout->addLayout(ocr_models_row);
+      const auto refresh_ocr_models = [ocr_models_status, download_ocr_button, delete_ocr_button, ocr_picker] {
+        const bool present = downloaded_ocr_models_present(downloaded_models_folder());
+        ocr_models_status->setText(present ? tr("PP-OCR text recognition models: downloaded (%1 MB)")
+                                                 .arg(ocr_model_download_megabytes())
+                                           : tr("PP-OCR text recognition models: not downloaded (%1)")
+                                                 .arg(ocr_model_download_summary()));
+        download_ocr_button->setEnabled(!present);
+        delete_ocr_button->setEnabled(present);
+        ocr_picker->refresh();
+      };
+      refresh_ocr_models();
+      connect(download_ocr_button, &QPushButton::clicked, &dialog, [this, &dialog, refresh_ocr_models] {
+        QString error;
+        if (download_ocr_models(&error, &dialog)) {
+          statusBar()->showMessage(tr("Downloaded the text recognition models"));
+        } else if (!error.isEmpty()) {
+          show_status_error(tr("The text recognition models could not be downloaded: %1").arg(error));
+        } else {
+          statusBar()->showMessage(tr("Download cancelled"));
+        }
+        refresh_ocr_models();
+      });
+      connect(delete_ocr_button, &QPushButton::clicked, &dialog, [this, refresh_ocr_models] {
+        QString error;
+        if (delete_ocr_models(&error)) {
+          statusBar()->showMessage(tr("Deleted the text recognition models"));
+        } else {
+          show_status_error(tr("The text recognition models could not be deleted: %1").arg(error));
+        }
+        refresh_ocr_models();
+      });
+    }
     tools_layout->addWidget(ocr_group);
   }
 #endif

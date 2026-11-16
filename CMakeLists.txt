@@ -1530,6 +1530,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_ocr.cpp
       src/ui/ocr_controls.hpp
       src/ui/ocr_controls.cpp
+      src/ui/ocr_model_download.hpp
+      src/ui/ocr_model_download.cpp
       src/ui/recognize_text_dialog.hpp
       src/ui/recognize_text_dialog.cpp
       src/ui/ocr_recognition.hpp
@@ -2813,6 +2815,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/ocr_command_tests.cpp
       tests/ui/pdf_import_ocr_tests.cpp
       tests/ui/ocr_model_engine_tests.cpp
+      tests/ui/ocr_download_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

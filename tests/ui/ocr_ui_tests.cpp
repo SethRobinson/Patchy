@@ -363,7 +363,8 @@ std::vector<patchy::test::TestCase> ocr_ui_tests() {
   };
   // The other text recognition groups (ocr_test_support.hpp).
   for (auto* group :
-       {ocr_layers_ui_tests, ocr_command_ui_tests, pdf_import_ocr_ui_tests, ocr_model_engine_ui_tests}) {
+       {ocr_layers_ui_tests, ocr_command_ui_tests, pdf_import_ocr_ui_tests, ocr_model_engine_ui_tests,
+        ocr_download_ui_tests}) {
     auto more = group();
     tests.insert(tests.end(), std::make_move_iterator(more.begin()), std::make_move_iterator(more.end()));
   }

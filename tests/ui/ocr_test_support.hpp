@@ -21,6 +21,7 @@ std::vector<patchy::test::TestCase> ocr_layers_ui_tests();
 std::vector<patchy::test::TestCase> ocr_command_ui_tests();
 std::vector<patchy::test::TestCase> pdf_import_ocr_ui_tests();
 std::vector<patchy::test::TestCase> ocr_model_engine_ui_tests();
+std::vector<patchy::test::TestCase> ocr_download_ui_tests();
 
 namespace patchy::test::ui {
 

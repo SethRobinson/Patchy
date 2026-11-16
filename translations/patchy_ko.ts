@@ -16281,6 +16281,34 @@ Do you want to replace it?</source>
         <source>the text recognition models are not downloaded</source>
         <translation>텍스트 인식 모델이 다운로드되지 않았습니다</translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation>PP-OCR(%1MB 다운로드)</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>다운로드</translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation>또는 위에서 PP-OCR을 선택하십시오. 자체 언어를 제공합니다.</translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation>PP-OCR은 모든 시스템에서 일본어, 중국어, 한국어, 영어 및 기타 여러 언어를 읽습니다. 먼저 모델이 필요합니다(한 번만 다운로드: %1). PaddlePaddle의 PP-OCR 모델이며 Apache License 2.0이 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation>%2에서 %1MB</translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation>%1 해결 방법은 옵션에 표시됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36761,6 +36789,54 @@ Locked: %1</source>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
         <translation>자체 텍스트가 없는 페이지에서 인식된 텍스트가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation>텍스트 인식 모델을 다운로드했습니다</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation>텍스트 인식 모델을 다운로드할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation>웹 버전에서는 텍스트 인식 모델을 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation>이 버전의 Patchy는 텍스트 인식 모델을 실행할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation>텍스트 인식 모델 다운로드 중... %1/%2MB</translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation>텍스트 인식 모델</translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation>PP-OCR 텍스트 인식 모델(PaddlePaddle 제공, Apache License 2.0, %1)을 다운로드합니다. 그러면 모든 시스템에서 일본어, 중국어, 한국어, 영어 및 기타 여러 언어를 읽을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation>다운로드한 텍스트 인식 모델을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation>PP-OCR 텍스트 인식 모델: 다운로드됨(%1MB)</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation>PP-OCR 텍스트 인식 모델: 다운로드되지 않음(%1)</translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation>텍스트 인식 모델을 삭제했습니다</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
+        <translation>텍스트 인식 모델을 삭제할 수 없습니다: %1</translation>
     </message>
 </context>
 <context>

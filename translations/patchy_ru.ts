@@ -16393,6 +16393,34 @@ Do you want to replace it?</source>
         <source>the text recognition models are not downloaded</source>
         <translation>модели распознавания текста не загружены</translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation>PP-OCR (загрузка %1 МБ)</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Загрузить</translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation>Или выберите выше PP-OCR: у него свои языки.</translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation>PP-OCR читает японский, китайский, корейский, английский и многие другие языки в любой системе. Сначала нужны его модели, разовая загрузка: %1. Это модели PP-OCR от PaddlePaddle под лицензией Apache License 2.0.</translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation>%1 МБ с %2</translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation>%1 Что делать, показано в параметрах.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36991,6 +37019,54 @@ Locked: %1</source>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
         <translation>На страницах без собственного текста текст не распознан.</translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation>Модели распознавания текста загружены</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation>Не удалось загрузить модели распознавания текста: %1</translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation>Модели распознавания текста недоступны в веб-версии</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation>эта версия Patchy не может запускать модели распознавания текста</translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation>Загрузка моделей распознавания текста... %1 из %2 МБ</translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation>Модели распознавания текста</translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation>Загружает модели распознавания текста PP-OCR (от PaddlePaddle, Apache License 2.0; %1). После этого распознавание текста читает японский, китайский, корейский, английский и многие другие языки в любой системе.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation>Удаляет загруженные модели распознавания текста.</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation>Модели распознавания текста PP-OCR: загружены (%1 МБ)</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation>Модели распознавания текста PP-OCR: не загружены (%1)</translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation>Модели распознавания текста удалены</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
+        <translation>Не удалось удалить модели распознавания текста: %1</translation>
     </message>
 </context>
 <context>

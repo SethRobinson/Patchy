@@ -16281,6 +16281,34 @@ Do you want to replace it?</source>
         <source>the text recognition models are not downloaded</source>
         <translation>文字認識モデルがダウンロードされていません</translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation>PP-OCR (%1 MB のダウンロード)</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>ダウンロード</translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation>または、上で PP-OCR を選んでください。独自の言語を備えています。</translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation>PP-OCR は、どのシステムでも日本語、中国語、韓国語、英語、その他多くの言語を読み取ります。最初にモデルが必要です (1 回限りのダウンロード: %1)。PaddlePaddle の PP-OCR モデルで、Apache License 2.0 で提供されています。</translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation>%2 から %1 MB</translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation>%1 対処方法は [オプション] に表示されます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36761,6 +36789,54 @@ Locked: %1</source>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
         <translation>テキストを持たないページで文字は認識されませんでした。</translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation>文字認識モデルをダウンロードしました</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation>文字認識モデルをダウンロードできませんでした: %1</translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation>文字認識モデルは Web 版では利用できません</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation>このバージョンの Patchy では文字認識モデルを実行できません</translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation>文字認識モデルをダウンロードしています... %1 / %2 MB</translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation>文字認識モデル</translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation>PP-OCR 文字認識モデル (PaddlePaddle 提供、Apache License 2.0、%1) をダウンロードします。ダウンロード後は、どのシステムでも日本語、中国語、韓国語、英語、その他多くの言語を読み取れます。</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation>ダウンロードした文字認識モデルを削除します。</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation>PP-OCR 文字認識モデル: ダウンロード済み (%1 MB)</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation>PP-OCR 文字認識モデル: 未ダウンロード (%1)</translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation>文字認識モデルを削除しました</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
+        <translation>文字認識モデルを削除できませんでした: %1</translation>
     </message>
 </context>
 <context>

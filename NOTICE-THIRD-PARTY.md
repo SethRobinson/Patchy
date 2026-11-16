@@ -327,6 +327,22 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## PP-OCR text recognition models (desktop download)
+
+Not shipped: on the user's request Patchy downloads PaddlePaddle's ONNX exports of the PP-OCR
+text recognition models, unchanged, from Patchy's `ai-models-4` GitHub release (or PaddlePaddle's
+own repositories on Hugging Face) into the user's data folder, with the Apache License 2.0 text
+beside them (`ppocr_*.onnx`, each recognizer's character list `ppocr_*.yml`, and
+`ppocr_LICENSE.txt`; pinned commits and checksums in `docs/legal-licensing.md` and
+`scripts/setup-ai-deps.ps1`). The files are renamed, not modified.
+
+PaddleOCR (https://github.com/PaddlePaddle/PaddleOCR), Copyright (c) 2016 PaddlePaddle Authors,
+Apache License 2.0. The models, each from its own repository under
+https://huggingface.co/PaddlePaddle, each declared Apache License 2.0 there:
+`PP-OCRv6_small_det_onnx`, `PP-OCRv6_small_rec_onnx`, and the PP-OCRv5 mobile recognizers
+`korean`, `cyrillic`, `eslav`, `el`, `th`, `devanagari`, `ta` and `te`
+(`<name>_PP-OCRv5_mobile_rec_onnx`).
+
 ## Bundled photo-texture pattern presets (Poly Haven, CC0)
 
 The 20 photo-based pattern presets under the "Textures" folder (embedded as

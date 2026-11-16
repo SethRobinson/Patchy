@@ -293,15 +293,8 @@ void register_ocr_model_engine() {
     if (ocr_model_engine() == nullptr) {
       return;
     }
-    // Listed once its files are there. Until the app can fetch them itself (the download
-    // offer), an engine nobody can get would only be a dead row in every Engine list.
-    ocr::add_engine_provider([] {
-      std::vector<std::shared_ptr<ocr::Engine>> listed;
-      if (const auto engine = ocr_model_engine(); engine->unavailable() != ocr::Unavailable::NotDownloaded) {
-        listed.push_back(engine);
-      }
-      return listed;
-    });
+    // Listed whether or not its files are there: the dialogs offer the download.
+    ocr::add_engine_provider([] { return std::vector<std::shared_ptr<ocr::Engine>>{ocr_model_engine()}; });
   });
 }
 

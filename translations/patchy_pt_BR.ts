@@ -16337,6 +16337,34 @@ Deseja substituí-lo?</translation>
         <source>the text recognition models are not downloaded</source>
         <translation>os modelos de reconhecimento de texto não foram baixados</translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation>PP-OCR (download de %1 MB)</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Baixar</translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation>Ou escolha PP-OCR acima: ele traz seus próprios idiomas.</translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation>O PP-OCR lê japonês, chinês, coreano, inglês e muitos outros idiomas em qualquer sistema. Primeiro ele precisa de seus modelos, um download único: %1. São os modelos PP-OCR da PaddlePaddle, sob a Apache License 2.0.</translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation>%1 MB de %2</translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation>%1 As Opções mostram o que fazer.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36876,6 +36904,54 @@ Bloqueado: %1</translation>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
         <translation>Nenhum texto foi reconhecido nas páginas sem texto próprio.</translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation>Modelos de reconhecimento de texto baixados</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation>Não foi possível baixar os modelos de reconhecimento de texto: %1</translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation>Os modelos de reconhecimento de texto não estão disponíveis na versão web</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation>esta versão do Patchy não consegue executar os modelos de reconhecimento de texto</translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation>Baixando os modelos de reconhecimento de texto... %1 de %2 MB</translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation>Modelos de reconhecimento de texto</translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation>Baixa os modelos de reconhecimento de texto PP-OCR (da PaddlePaddle, Apache License 2.0; %1). O reconhecimento de texto passa então a ler japonês, chinês, coreano, inglês e muitos outros idiomas em qualquer sistema.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation>Exclui os modelos de reconhecimento de texto baixados.</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation>Modelos de reconhecimento de texto PP-OCR: baixados (%1 MB)</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation>Modelos de reconhecimento de texto PP-OCR: não baixados (%1)</translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation>Modelos de reconhecimento de texto excluídos</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
+        <translation>Não foi possível excluir os modelos de reconhecimento de texto: %1</translation>
     </message>
 </context>
 <context>

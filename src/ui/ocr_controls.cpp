@@ -2,6 +2,7 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/localization.hpp"
+#include "ui/ocr_model_download.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -40,6 +41,12 @@ std::shared_ptr<ocr::Engine> engine_with_id(const QString& id) {
 QString ocr_engine_display_name(const ocr::Engine& engine) {
   if (engine.id() == "windows") {
     return QObject::tr("Windows (built in)");
+  }
+  if (engine.id() == "ppocr") {
+    // Its size while it is still a download, so the row says what picking it means.
+    return engine.unavailable() == ocr::Unavailable::NotDownloaded
+               ? QObject::tr("PP-OCR (%1 MB download)").arg(ocr_model_download_megabytes())
+               : QObject::tr("PP-OCR");
   }
   return QString::fromStdString(engine.display_name());
 }
@@ -87,6 +94,18 @@ OcrEnginePicker::OcrEnginePicker(const QString& object_name_prefix, QWidget* par
       language_settings_opener()();
     } else {
       QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:regionlanguage")));
+    }
+  });
+  // The downloadable engine's models: fetched only by this button, never by picking the row.
+  download_ = new QPushButton(QObject::tr("Download"), this);
+  download_->setObjectName(object_name_prefix + QStringLiteral("DownloadButton"));
+  layout->addWidget(download_, 0, Qt::AlignLeft);
+  QObject::connect(download_, &QPushButton::clicked, this, [this] {
+    if (const auto& downloader = ocr_model_downloader(); downloader && downloader(window())) {
+      // The engine changed while the download ran, before refresh() could see the old
+      // state: tell the dialog outright.
+      fill_engines();
+      notify();
     }
   });
 
@@ -167,6 +186,9 @@ void OcrEnginePicker::update_note() {
   const auto engine = engine_with_id(engine_id());
   QString text;
   bool offer_settings = false;
+  bool offer_download = false;
+  // Whether the downloadable engine is in the list, to point at from the other notes.
+  const bool model_engine_listed = engine_->findData(QStringLiteral("ppocr")) >= 0;
   if (engine == nullptr) {
     text = QObject::tr("This version of Patchy has no text recognition engine for this operating system. Text "
                        "recognition uses the engine built into Windows 10 and 11.");
@@ -174,12 +196,22 @@ void OcrEnginePicker::update_note() {
     text = QObject::tr("Windows has no text recognition language installed. Open Settings > Time & language > "
                        "Language & region, add a language that offers text recognition, then come back here.");
     offer_settings = engine->id() == "windows";
+    if (model_engine_listed) {
+      text += QLatin1Char(' ') + QObject::tr("Or pick PP-OCR above: it brings its own languages.");
+    }
+  } else if (engine->unavailable() == ocr::Unavailable::NotDownloaded) {
+    text = QObject::tr("PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. "
+                       "It needs its models first, a one-time download: %1. They are PaddlePaddle's PP-OCR "
+                       "models, under the Apache License 2.0.")
+               .arg(ocr_model_download_summary());
+    offer_download = static_cast<bool>(ocr_model_downloader());
   } else if (engine->unavailable() != ocr::Unavailable::None) {
     text = QObject::tr("Text recognition is not available: %1.").arg(translate_data_text(engine->unavailable_reason()));
   }
   note_->setText(text);
   note_->setVisible(!text.isEmpty());
   language_settings_->setVisible(offer_settings);
+  download_->setVisible(offer_download);
 }
 
 bool OcrEnginePicker::usable() const {

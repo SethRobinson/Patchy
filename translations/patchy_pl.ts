@@ -16393,6 +16393,34 @@ Czy chcesz go zastąpić?</translation>
         <source>the text recognition models are not downloaded</source>
         <translation>modele rozpoznawania tekstu nie zostały pobrane</translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation>PP-OCR (pobranie %1 MB)</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Pobierz</translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation>Albo wybierz powyżej PP-OCR: ma własne języki.</translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation>PP-OCR odczytuje japoński, chiński, koreański, angielski i wiele innych języków w każdym systemie. Najpierw potrzebuje swoich modeli, jednorazowego pobrania: %1. To modele PP-OCR firmy PaddlePaddle na licencji Apache License 2.0.</translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation>%1 MB z %2</translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation>%1 Opcje pokazują, co zrobić.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36991,6 +37019,54 @@ Zablokowano: %1</translation>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
         <translation>Na stronach bez własnego tekstu nie rozpoznano tekstu.</translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation>Pobrano modele rozpoznawania tekstu</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation>Nie udało się pobrać modeli rozpoznawania tekstu: %1</translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation>Modele rozpoznawania tekstu nie są dostępne w wersji internetowej</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation>ta wersja Patchy nie może uruchomić modeli rozpoznawania tekstu</translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation>Pobieranie modeli rozpoznawania tekstu... %1 z %2 MB</translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation>Modele rozpoznawania tekstu</translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation>Pobiera modele rozpoznawania tekstu PP-OCR (firmy PaddlePaddle, Apache License 2.0; %1). Rozpoznawanie tekstu odczytuje wtedy japoński, chiński, koreański, angielski i wiele innych języków w każdym systemie.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation>Usuwa pobrane modele rozpoznawania tekstu.</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation>Modele rozpoznawania tekstu PP-OCR: pobrane (%1 MB)</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation>Modele rozpoznawania tekstu PP-OCR: niepobrane (%1)</translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation>Usunięto modele rozpoznawania tekstu</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
+        <translation>Nie udało się usunąć modeli rozpoznawania tekstu: %1</translation>
     </message>
 </context>
 <context>

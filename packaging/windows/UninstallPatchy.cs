@@ -17,15 +17,17 @@ internal static class UninstallPatchy
     private const string OpenWithProgId = "Patchy.Image";
     private const string ShortcutRelativePath = @"Microsoft\Windows\Start Menu\Programs\Patchy.lnk";
     private const string DesktopShortcutName = "Patchy.lnk";
-    // Object Selection's downloaded High Quality model (docs/ai-selection-models.md) and the
-    // watermark models (docs/watermarks.md): Qt's AppLocalDataLocation for organization
+    // Object Selection's downloaded High Quality model (docs/ai-selection-models.md), the
+    // watermark models (docs/watermarks.md) and the text recognition models
+    // (docs/ocr-engines.md): Qt's AppLocalDataLocation for organization
     // RTsoft, application Patchy, plus "ai-models" (%LOCALAPPDATA%\RTsoft\Patchy\ai-models;
     // src/ui/app_data_migration.hpp). RemoveDownloadedModels cleans that folder and the
     // roaming AppDataLocation (%APPDATA%) one that downloads used through 1.19, for older
     // installs. Only these exact files are deleted, never a
     // wildcard; keep the names in sync with high_quality_model_files() in
-    // src/ui/object_selection_model_download.cpp and watermark_model_files() in
-    // src/ui/watermark_model_download.cpp.
+    // src/ui/object_selection_model_download.cpp, watermark_model_files() in
+    // src/ui/watermark_model_download.cpp and ocr_model_download_files() in
+    // src/ui/ocr_model_download.cpp.
     private const string DownloadedModelsRelativePath = @"RTsoft\Patchy\ai-models";
     private static readonly string[] DownloadedModelFileNames = {
         "efficientvit_sam_xl0_encoder_fp16.onnx",
@@ -34,7 +36,27 @@ internal static class UninstallPatchy
         "trustmark_decoder_P.onnx",
         "trustmark_decoder_C.onnx",
         "trustmark_encoder_Q.onnx",
-        "trustmark_LICENSE.txt"
+        "trustmark_LICENSE.txt",
+        "ppocr_v6_small_det.onnx",
+        "ppocr_v6_small_rec.onnx",
+        "ppocr_v6_small_rec.yml",
+        "ppocr_korean_rec.onnx",
+        "ppocr_korean_rec.yml",
+        "ppocr_cyrillic_rec.onnx",
+        "ppocr_cyrillic_rec.yml",
+        "ppocr_eslav_rec.onnx",
+        "ppocr_eslav_rec.yml",
+        "ppocr_el_rec.onnx",
+        "ppocr_el_rec.yml",
+        "ppocr_th_rec.onnx",
+        "ppocr_th_rec.yml",
+        "ppocr_devanagari_rec.onnx",
+        "ppocr_devanagari_rec.yml",
+        "ppocr_ta_rec.onnx",
+        "ppocr_ta_rec.yml",
+        "ppocr_te_rec.onnx",
+        "ppocr_te_rec.yml",
+        "ppocr_LICENSE.txt"
     };
 
     private static readonly string[] LegacyInstalledRelativePaths = {

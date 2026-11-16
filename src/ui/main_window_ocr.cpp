@@ -15,6 +15,11 @@
 #include "ui/document_session.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ai/ocr_models.hpp"
+#include "ui/dialog_utils.hpp"
+#include "ui/model_download_dialog.hpp"
+#include "ui/object_selection_model_download.hpp"
+#include "ui/ocr_model_download.hpp"
 #include "ui/ocr_recognition.hpp"
 #include "ui/pdf_import.hpp"
 #include "ui/recognize_text_dialog.hpp"
@@ -41,7 +46,82 @@ namespace {
 // How long a recognition runs before its progress dialog appears.
 constexpr int kOcrProgressDelayMs = 400;
 
+int megabytes(qint64 bytes) {
+  return static_cast<int>((bytes + 500000) / 1000000);
+}
+
 }  // namespace
+
+bool MainWindow::download_ocr_models(QString* error, QWidget* dialog_parent) {
+  const auto fail = [error](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    return false;
+  };
+#if defined(Q_OS_WASM)
+  (void)dialog_parent;
+  return fail(tr("The text recognition models are not available in the web version"));
+#else
+  configure_automatic_selection_models();
+  if (!patchy::ai::ocr_models_supported() || !patchy::ai::ocr_runtime_unavailable_reason().empty()) {
+    return fail(tr("this version of Patchy cannot run the text recognition models"));
+  }
+  if (downloaded_ocr_models_present(downloaded_models_folder())) {
+    return true;
+  }
+  const auto total_mb = megabytes(ocr_model_download_bytes());
+  const auto progress_text = [total_mb](qint64 received) {
+    return tr("Downloading the text recognition models... %1 of %2 MB").arg(megabytes(received)).arg(total_mb);
+  };
+  ModelDownloadDialog dialog(dialog_parent != nullptr ? dialog_parent : this);
+  dialog.setObjectName(QStringLiteral("ocrModelDownloadDialog"));
+  dialog.setWindowTitle(tr("Text Recognition Models"));
+  dialog.set_heading(progress_text(0));
+  remember_dialog_position(dialog);
+  dialog.show();
+  ModelDownloadResult result;
+  bool done = false;
+  QEventLoop wait_loop;
+  auto job = start_model_download(
+      this, downloaded_models_folder(), ocr_model_download_files(),
+      [&](const ModelDownloadProgress& progress) {
+        dialog.set_heading(progress_text(progress.received));
+        dialog.set_progress(progress);
+      },
+      [&](ModelDownloadResult finished) {
+        result = std::move(finished);
+        done = true;
+        wait_loop.quit();
+      });
+  connect(&dialog, &QDialog::rejected, this, [&job] { job->cancel(); });
+  if (!done) {
+    wait_loop.exec();
+  }
+  if (!result.ok) {
+    return fail(result.cancelled ? QString() : result.error);
+  }
+  return downloaded_ocr_models_present(downloaded_models_folder()) ||
+         fail(tr("the downloaded files are not where Patchy looks for them"));
+#endif
+}
+
+bool MainWindow::delete_ocr_models(QString* error) {
+#if defined(Q_OS_WASM)
+  (void)error;
+  return true;
+#else
+  configure_automatic_selection_models();
+  // A run in flight keeps its own session reference; the files are read only at load.
+  patchy::ai::release_ocr_models();
+  QString detail;
+  const bool ok = delete_downloaded_ocr_models(downloaded_models_folder(), &detail);
+  if (!ok && error != nullptr) {
+    *error = detail;
+  }
+  return ok;
+#endif
+}
 
 OcrLayerStyle MainWindow::default_ocr_layer_style() const {
   OcrLayerStyle style;

@@ -20,6 +20,7 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/start_panel.hpp"
 #include "ui/main_window_actions_internal.hpp"
+#include "ui/ocr_model_download.hpp"
 
 #include "ai/segmentation_engine.hpp"
 
@@ -828,6 +829,20 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // wasm, a dev tree without scripts/setup-ai-deps, and every build while
   // PATCHY_ENABLE_SELECT_SUBJECT is off (held back pending patent review).
   configure_automatic_selection_models();
+  // What a text recognition dialog's Download button runs (ocr_model_download.hpp).
+  set_ocr_model_downloader([window = QPointer<MainWindow>(this)](QWidget* parent) {
+    if (window == nullptr) {
+      return false;
+    }
+    QString error;
+    const bool ok = window->download_ocr_models(&error, parent);
+    if (ok) {
+      window->statusBar()->showMessage(MainWindow::tr("Downloaded the text recognition models"));
+    } else if (!error.isEmpty()) {
+      window->show_status_error(MainWindow::tr("The text recognition models could not be downloaded: %1").arg(error));
+    }
+    return ok;
+  });
   const bool automatic_selection = patchy::ai::subject_selection_available();
   select_subject_action_ = new QAction(tr("Select S&ubject"), this);
   select_subject_action_->setObjectName(QStringLiteral("selectSubjectAction"));

@@ -843,7 +843,8 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
     ocr_check->setEnabled(available);
     QString text;
     if (!available) {
-      text = unavailable;
+      // Options is where a missing language or a missing download is put right.
+      text = QObject::tr("%1 Options shows what to do.").arg(unavailable);
     } else if (ocr_check->isChecked()) {
       text = QObject::tr("%1: %2").arg(ocr_choice_summary(choice),
                                        pdf_import_ocr_result_label(stored_pdf_import_ocr_choice().mode));

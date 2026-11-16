@@ -16319,6 +16319,34 @@ Do you want to replace it?</source>
         <source>the text recognition models are not downloaded</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36793,6 +36821,54 @@ Locked: %1</source>
     </message>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

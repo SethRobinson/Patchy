@@ -429,6 +429,13 @@ public:
                                  QWidget* dialog_parent = nullptr);
   // Preferences > Tools > Delete: frees the sessions and deletes exactly the model files.
   bool delete_watermark_models(QString* error);
+  // The text recognition models (docs/ocr-engines.md, "PP-OCR"): one optional download, only
+  // when the user presses a Download button, with a progress dialog modal to `dialog_parent`
+  // (this window when null). True once the models are present; `error` stays empty after a
+  // cancel. Never called by a script or any unattended path.
+  bool download_ocr_models(QString* error, QWidget* dialog_parent = nullptr);
+  // Preferences > Tools > Delete: frees the sessions and deletes exactly the model files.
+  bool delete_ocr_models(QString* error);
   // Image > Add Invisible Watermark: embeds a TrustMark payload (Q variant) into the active
   // 8-bit pixel layer as one undo step. False with a translated `error` when it cannot.
   bool apply_invisible_watermark(trustmark::Schema schema, const std::vector<std::uint8_t>& data_bits,

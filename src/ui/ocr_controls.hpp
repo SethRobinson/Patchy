@@ -24,8 +24,9 @@ namespace patchy::ui {
 
 class OcrEnginePicker final : public QWidget {
 public:
-  // Object names are `<prefix>EngineCombo`, `<prefix>LanguageCombo`, `<prefix>UnavailableNote`
-  // and `<prefix>LanguageSettingsButton`. Starts on the stored picks while they still exist.
+  // Object names are `<prefix>EngineCombo`, `<prefix>LanguageCombo`, `<prefix>UnavailableNote`,
+  // `<prefix>LanguageSettingsButton` and `<prefix>DownloadButton`. Starts on the stored picks
+  // while they still exist.
   OcrEnginePicker(const QString& object_name_prefix, QWidget* parent);
 
   // True when the chosen engine can run and has the chosen language.
@@ -52,6 +53,7 @@ private:
   QComboBox* language_{nullptr};
   QLabel* note_{nullptr};
   QPushButton* language_settings_{nullptr};
+  QPushButton* download_{nullptr};
   std::function<void()> changed_;
 };
 

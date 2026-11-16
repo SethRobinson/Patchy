@@ -16281,6 +16281,34 @@ Do you want to replace it?</source>
         <source>the text recognition models are not downloaded</source>
         <translation>尚未下載文字辨識模型</translation>
     </message>
+    <message>
+        <source>PP-OCR (%1 MB download)</source>
+        <translation>PP-OCR（下載 %1 MB）</translation>
+    </message>
+    <message>
+        <source>PP-OCR</source>
+        <translation>PP-OCR</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>下載</translation>
+    </message>
+    <message>
+        <source>Or pick PP-OCR above: it brings its own languages.</source>
+        <translation>或者在上方選擇 PP-OCR：它自帶語言。</translation>
+    </message>
+    <message>
+        <source>PP-OCR reads Japanese, Chinese, Korean, English and many other languages on any system. It needs its models first, a one-time download: %1. They are PaddlePaddle&apos;s PP-OCR models, under the Apache License 2.0.</source>
+        <translation>PP-OCR 可在任何系統上讀取日文、中文、韓文、英文和許多其他語言。它需要先下載模型（一次性下載：%1）。這些是 PaddlePaddle 的 PP-OCR 模型，採用 Apache License 2.0。</translation>
+    </message>
+    <message>
+        <source>%1 MB from %2</source>
+        <translation>從 %2 下載 %1 MB</translation>
+    </message>
+    <message>
+        <source>%1 Options shows what to do.</source>
+        <translation>%1 「選項」中說明了解決方法。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36761,6 +36789,54 @@ Locked: %1</source>
     <message>
         <source>No text was recognized on the pages without text of their own.</source>
         <translation>未在沒有自身文字的頁面上辨識到文字。</translation>
+    </message>
+    <message>
+        <source>Downloaded the text recognition models</source>
+        <translation>已下載文字辨識模型</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be downloaded: %1</source>
+        <translation>無法下載文字辨識模型：%1</translation>
+    </message>
+    <message>
+        <source>The text recognition models are not available in the web version</source>
+        <translation>網頁版不提供文字辨識模型</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the text recognition models</source>
+        <translation>此版本的 Patchy 無法執行文字辨識模型</translation>
+    </message>
+    <message>
+        <source>Downloading the text recognition models... %1 of %2 MB</source>
+        <translation>正在下載文字辨識模型... %1 / %2 MB</translation>
+    </message>
+    <message>
+        <source>Text Recognition Models</source>
+        <translation>文字辨識模型</translation>
+    </message>
+    <message>
+        <source>Downloads the PP-OCR text recognition models (PaddlePaddle&apos;s, Apache License 2.0; %1). Text recognition then reads Japanese, Chinese, Korean, English and many other languages on any system.</source>
+        <translation>下載 PP-OCR 文字辨識模型（PaddlePaddle 提供，Apache License 2.0；%1）。之後文字辨識可在任何系統上讀取日文、中文、韓文、英文和許多其他語言。</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded text recognition models.</source>
+        <translation>刪除已下載的文字辨識模型。</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: downloaded (%1 MB)</source>
+        <translation>PP-OCR 文字辨識模型：已下載（%1 MB）</translation>
+    </message>
+    <message>
+        <source>PP-OCR text recognition models: not downloaded (%1)</source>
+        <translation>PP-OCR 文字辨識模型：未下載（%1）</translation>
+    </message>
+    <message>
+        <source>Deleted the text recognition models</source>
+        <translation>已刪除文字辨識模型</translation>
+    </message>
+    <message>
+        <source>The text recognition models could not be deleted: %1</source>
+        <translation>無法刪除文字辨識模型：%1</translation>
     </message>
 </context>
 <context>
