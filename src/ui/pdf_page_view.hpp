@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/page_view_layout.hpp"
+#include "ui/pdf_links.hpp"
 
 #include <QAbstractScrollArea>
 #include <QElapsedTimer>
@@ -11,6 +12,7 @@
 #include <QRectF>
 #include <QSize>
 #include <QTimer>
+#include <QUrl>
 
 #include <cstdint>
 #include <future>
@@ -18,12 +20,24 @@
 #include <unordered_map>
 #include <vector>
 
+class QContextMenuEvent;
 class QPainter;
 class QPdfDocument;
 
 namespace patchy::ui {
 
 class PdfTextSearch;
+
+// Where the view is, for Back and Forward (docs/pdf-viewer.md, "Back and Forward"): the page
+// being read and the point of a page that sits at the window's top left corner, as a share
+// of that page, so it means the same place at another zoom, layout or rotation.
+struct PdfViewPosition {
+  int page{0};
+  int anchor_page{-1};
+  double fx{0.0};
+  double fy{0.0};
+  [[nodiscard]] bool operator==(const PdfViewPosition&) const = default;
+};
 
 // The PDF viewer's page area (docs/pdf-viewer.md): pages laid out by core/page_view_layout,
 // rendered by PDFium one page at a time on a worker thread, cached, and drawn scaled while a
@@ -46,6 +60,12 @@ public:
   // The pages of the current row in reading order (one or two).
   [[nodiscard]] std::vector<int> current_pages() const;
   void go_to_page(int page);
+  // Shows a place a link or an outline entry names: its page, with the point at the top of
+  // the window (and brought into view across, when the page is wider than the window).
+  void go_to_target(const PdfJumpTarget& target);
+  // Back and Forward: where the view is now, and going back there.
+  [[nodiscard]] PdfViewPosition view_position() const;
+  void restore_view_position(const PdfViewPosition& position);
   void next_row();
   void previous_row();
   void first_page();
@@ -84,6 +104,15 @@ public:
   // Tests: the current match in viewport coordinates; empty until it is placed.
   [[nodiscard]] QRectF current_text_match_rect_for_testing() const;
 
+  // Links (docs/pdf-viewer.md, "Links"). The link under a point of the page area, or
+  // nullptr (also while its page's links are still being read).
+  [[nodiscard]] const PdfPageLink* link_at(QPointF viewport_point) const;
+  // What the tooltip over `link` says: "Page 12", or the address and how to open it.
+  [[nodiscard]] QString link_tip(const PdfPageLink& link) const;
+  [[nodiscard]] PdfLinkIndex* links() const { return links_; }
+  // Tests: where the links of `page` are, in viewport coordinates, in page_links order.
+  [[nodiscard]] std::vector<QRectF> link_rects_for_testing(int page) const;
+
   // Tests: true while a render is queued or running.
   [[nodiscard]] bool render_pending() const;
   // Tests: the device-pixel width of the sharpest image held for `page` (0 = none).
@@ -96,8 +125,16 @@ signals:
   void thumbnail_ready(int page, const QImage& image);
   void full_screen_toggle_requested();
   void escape_pressed();
+  // A link into the document was clicked (or chosen from its menu): the window jumps there
+  // and remembers where it came from.
+  void jump_requested(const patchy::ui::PdfJumpTarget& target);
+  // An address was Ctrl+clicked or Open Link chosen; only ever one pdf_link_url_opens takes.
+  void url_open_requested(const QUrl& url);
+  void url_copy_requested(const QUrl& url);
 
 protected:
+  bool viewportEvent(QEvent* event) override;
+  void contextMenuEvent(QContextMenuEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
@@ -158,9 +195,19 @@ private:
   [[nodiscard]] QRectF page_area_to_content(const PageViewSlot& slot, const QRectF& area) const;
   [[nodiscard]] QRectF current_text_match_area() const;
   void paint_text_matches(QPainter& painter, const PageViewSlot& slot, QPointF origin, const QRectF& target);
+  // The link under a point of the page area and where it is, both in viewport coordinates.
+  struct LinkHit {
+    const PdfPageLink* link{nullptr};
+    QRectF rect;
+  };
+  [[nodiscard]] LinkHit hit_link(QPointF viewport_point) const;
+  void update_hover();
+  void activate_link(const PdfPageLink& link, Qt::KeyboardModifiers modifiers, QPoint global_position);
+  void show_link_note(QPoint global_position, const QString& text, const QRectF& link_rect);
 
   QPdfDocument* document_{nullptr};
   QPointer<PdfTextSearch> search_;
+  PdfLinkIndex* links_{nullptr};
   std::vector<PageSizePoints> page_sizes_;
   std::vector<PageSpread> spreads_;
   PageViewLayoutOptions options_;
@@ -185,8 +232,21 @@ private:
   QTimer schedule_timer_;
   std::uint64_t document_generation_{0};
 
-  bool panning_{false};
+  // What a press on the pages has become. A press pans as soon as the pointer moves, except
+  // on a link, where it stays a click until the pointer has gone a drag's distance. (Text
+  // selection, when it is built, is one more kind of drag here.)
+  enum class MouseDrag { None, Pan };
+  MouseDrag drag_{MouseDrag::None};
+  QPoint press_position_;
   QPoint pan_last_;
+  bool press_moved_{false};
+  std::optional<PdfPageLink> press_link_;
+  // Where the pointer was last seen over the pages, for the cursor after a scroll.
+  std::optional<QPoint> hover_position_;
+  bool hover_on_link_{false};
+  // Since the last click that followed a link: a second click right behind it is not a
+  // double-click for full screen.
+  QElapsedTimer link_click_timer_;
   double wheel_flip_accumulator_{0.0};
   QElapsedTimer last_flip_;
 };

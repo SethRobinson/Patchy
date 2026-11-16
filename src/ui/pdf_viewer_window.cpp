@@ -5,6 +5,7 @@
 #include "ui/icon_theme.hpp"
 #include "ui/pdf_book_print_dialog.hpp"
 #include "ui/pdf_import.hpp"
+#include "ui/pdf_links.hpp"
 #include "ui/pdf_page_view.hpp"
 #include "ui/pdf_text_search.hpp"
 #include "ui/ui_text_size.hpp"
@@ -13,13 +14,16 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDropEvent>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeyEvent>
@@ -28,6 +32,7 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPdfDocument>
 #include <QPixmap>
 #include <QPushButton>
@@ -35,14 +40,18 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStringList>
+#include <QTabBar>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 namespace patchy::ui {
 
@@ -53,6 +62,12 @@ constexpr int kThumbnailPendingRole = Qt::UserRole + 1;
 constexpr int kRememberedPositions = 50;
 // How long the note that a search went around the end of the document stays up.
 constexpr int kFindNoteMs = 3000;
+// Back remembers this many places.
+constexpr std::size_t kHistoryLimit = 100;
+// The outline is given at least this much width when it is shown.
+constexpr int kOutlineWidth = 250;
+constexpr int kOutlinePageRole = Qt::UserRole + 1;
+constexpr int kOutlineLocationRole = Qt::UserRole + 2;
 
 // Permanent settings keys and tokens (docs/pdf-viewer.md).
 QString settings_key(const char* leaf) {
@@ -128,6 +143,27 @@ bool any_shortcut_matches(const QList<QKeySequence>& shortcuts, const QList<QKey
     }
   }
   return false;
+}
+
+// Back or Forward: Alt and an arrow on every platform, with the platform's own keys for it
+// that hold a modifier (Command+[ and Command+] on macOS). A bare key, the Backspace Windows
+// lists for Back, stays what it is in a text field and on the pages.
+QList<QKeySequence> history_keys(QKeySequence::StandardKey standard, Qt::Key arrow) {
+  QList<QKeySequence> keys{QKeySequence(Qt::ALT | arrow)};
+  for (const auto& key : QKeySequence::keyBindings(standard)) {
+    if (!key.isEmpty() && key[0].keyboardModifiers() != Qt::NoModifier && !keys.contains(key)) {
+      keys.append(key);
+    }
+  }
+  return keys;
+}
+
+// A key that moves the caret by a word (Option+Left and Option+Right on macOS, which are
+// also Back and Forward here).
+bool moves_caret_by_word(const QKeyEvent& event) {
+  return any_shortcut_matches(QKeySequence::keyBindings(QKeySequence::MoveToPreviousWord) +
+                                  QKeySequence::keyBindings(QKeySequence::MoveToNextWord),
+                              typed_key_candidates(event));
 }
 
 // A control that Enter and Esc belong to while the keyboard is in it, because they finish or
@@ -221,6 +257,8 @@ PdfViewerWindow::PdfViewerWindow(QWidget* owner, QString path, std::unique_ptr<Q
   build_ui();
   update_title();
   restore_settings();
+  // The outline first: reading it takes PDFium's lock, which the page renders hold later.
+  fill_outline(read_pdf_outline(*document_));
   view_->set_document(document_.get());
   search_->set_document(document_.get());
   reset_thumbnails();
@@ -265,6 +303,24 @@ void PdfViewerWindow::build_ui() {
   sidebar_action_->setToolTip(tr("Show or hide the sidebar"));
   toolbar_->addSeparator();
 
+  // Back and Forward between the places jumps left (links, the outline, the page field).
+  const auto back_keys = history_keys(QKeySequence::Back, Qt::Key_Left);
+  const auto forward_keys = history_keys(QKeySequence::Forward, Qt::Key_Right);
+  back_action_ = toolbar_->addAction(themed_svg_icon(QStringLiteral("arrow-left")), tr("Back"));
+  back_action_->setObjectName(QStringLiteral("pdfViewerBackAction"));
+  back_action_->setToolTip(
+      //: PDF viewer toolbar. %1 is a key, as in "Back to where you were before the last jump (Alt+Left)".
+      tr("Back to where you were before the last jump (%1)").arg(key_name(back_keys.constFirst())));
+  connect(back_action_, &QAction::triggered, this, &PdfViewerWindow::go_back);
+  forward_action_ = toolbar_->addAction(themed_svg_icon(QStringLiteral("arrow-right")), tr("Forward"));
+  forward_action_->setObjectName(QStringLiteral("pdfViewerForwardAction"));
+  forward_action_->setToolTip(
+      //: PDF viewer toolbar. %1 is a key, as in "Forward again (Alt+Right)".
+      tr("Forward again (%1)").arg(key_name(forward_keys.constFirst())));
+  connect(forward_action_, &QAction::triggered, this, &PdfViewerWindow::go_forward);
+  update_history_actions();
+  toolbar_->addSeparator();
+
   auto* previous = toolbar_->addAction(themed_svg_icon(QStringLiteral("chevron-left")), tr("Previous Page"));
   previous->setObjectName(QStringLiteral("pdfViewerPreviousAction"));
   connect(previous, &QAction::triggered, view_, &PdfPageView::previous_row);
@@ -284,7 +340,7 @@ void PdfViewerWindow::build_ui() {
   connect(next, &QAction::triggered, view_, &PdfPageView::next_row);
   connect(page_spin_, &QSpinBox::valueChanged, this, [this](int value) {
     if (!syncing_) {
-      view_->go_to_page(value - 1);
+      jump([this, value] { view_->go_to_page(value - 1); });
       view_->setFocus();
     }
   });
@@ -418,6 +474,10 @@ void PdfViewerWindow::build_ui() {
   add_key(standard_keys(QKeySequence::FindPrevious, {QKeySequence(Qt::SHIFT | Qt::Key_F3),
                                                      QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G)}),
           [this] { find_previous(); });
+  // Always on, unlike the toolbar buttons: a Back with nowhere to go does nothing, and the
+  // key still never reaches the pages (where the arrow would turn one) or the main window.
+  add_key(back_keys, [this] { go_back(); });
+  add_key(forward_keys, [this] { go_forward(); });
   // These keys win over the main window's hotkeys while this window has focus (eventFilter).
   qApp->installEventFilter(this);
 
@@ -439,7 +499,18 @@ void PdfViewerWindow::build_ui() {
   print_button_->setToolTip(tr("Print the pages so they fold, cut or stack into a book, with assembly steps"));
   connect(print_button_, &QPushButton::clicked, this, &PdfViewerWindow::print_as_book);
   side->addWidget(print_button_);
-  thumbnails_ = new QListWidget(sidebar_);
+  // Pages and Outline: the tabs show only for a PDF that has an outline.
+  sidebar_tabs_ = new QTabBar(sidebar_);
+  sidebar_tabs_->setObjectName(QStringLiteral("pdfViewerSidebarTabs"));
+  sidebar_tabs_->setDrawBase(false);
+  sidebar_tabs_->setExpanding(true);
+  sidebar_tabs_->addTab(tr("Pages"));
+  sidebar_tabs_->addTab(tr("Outline"));
+  sidebar_tabs_->hide();
+  side->addWidget(sidebar_tabs_);
+  sidebar_stack_ = new QStackedWidget(sidebar_);
+  sidebar_stack_->setObjectName(QStringLiteral("pdfViewerSidebarStack"));
+  thumbnails_ = new QListWidget(sidebar_stack_);
   thumbnails_->setObjectName(QStringLiteral("pdfViewerThumbnails"));
   thumbnails_->setViewMode(QListView::IconMode);
   thumbnails_->setFlow(QListView::TopToBottom);
@@ -452,11 +523,47 @@ void PdfViewerWindow::build_ui() {
   thumbnails_->setSelectionMode(QAbstractItemView::SingleSelection);
   thumbnails_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   thumbnails_->setMinimumWidth(kThumbnailBox + 40);
-  side->addWidget(thumbnails_, 1);
+  sidebar_stack_->addWidget(thumbnails_);
+  outline_ = new QTreeWidget(sidebar_stack_);
+  outline_->setObjectName(QStringLiteral("pdfViewerOutline"));
+  outline_->setColumnCount(1);
+  outline_->setHeaderHidden(true);
+  outline_->setUniformRowHeights(true);
+  outline_->setIndentation(14);
+  outline_->setTextElideMode(Qt::ElideRight);
+  outline_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  outline_->setSelectionMode(QAbstractItemView::SingleSelection);
+  sidebar_stack_->addWidget(outline_);
+  side->addWidget(sidebar_stack_, 1);
+  connect(sidebar_tabs_, &QTabBar::currentChanged, this, [this](int index) {
+    if (!syncing_) {
+      sidebar_view_ = index == 1 ? QStringLiteral("outline") : QStringLiteral("pages");
+    }
+    show_sidebar_view(index == 1);
+  });
   connect(thumbnails_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
-    view_->go_to_page(thumbnails_->row(item));
+    const int page = thumbnails_->row(item);
+    jump([this, page] { view_->go_to_page(page); });
     view_->setFocus();
   });
+  // A click follows an entry and hands the keyboard back to the pages; Enter on an entry
+  // follows it and stays in the outline.
+  const auto follow = [this](QTreeWidgetItem* item, bool to_pages) {
+    const int page = item->data(0, kOutlinePageRole).toInt();
+    if (page < 0) {
+      return;
+    }
+    outline_chosen_ = item;
+    jump_to({page, item->data(0, kOutlineLocationRole).toPointF()});
+    update_outline_current();
+    if (to_pages) {
+      view_->setFocus();
+    }
+  };
+  connect(outline_, &QTreeWidget::itemClicked, this, [follow](QTreeWidgetItem* item) { follow(item, true); });
+  connect(outline_, &QTreeWidget::itemActivated, this, [follow](QTreeWidgetItem* item) { follow(item, false); });
+  connect(outline_, &QTreeWidget::itemExpanded, this, [this] { update_outline_current(); });
+  connect(outline_, &QTreeWidget::itemCollapsed, this, [this] { update_outline_current(); });
   connect(thumbnails_->verticalScrollBar(), &QScrollBar::valueChanged, this,
           [this] { request_visible_thumbnails(); });
   // Cells as wide as the list, so each page sits centred in it.
@@ -481,7 +588,11 @@ void PdfViewerWindow::build_ui() {
     if (thumbnails_->count() > 0) {
       reset_thumbnails();
     }
+    update_outline_current();
   });
+  connect(view_, &PdfPageView::jump_requested, this, &PdfViewerWindow::jump_to);
+  connect(view_, &PdfPageView::url_open_requested, this, &PdfViewerWindow::open_link);
+  connect(view_, &PdfPageView::url_copy_requested, this, &PdfViewerWindow::copy_link);
   connect(view_, &PdfPageView::thumbnail_ready, this, [this](int page, const QImage& image) {
     if (auto* item = thumbnails_->item(page); item != nullptr) {
       item->setIcon(QIcon(QPixmap::fromImage(image)));
@@ -654,6 +765,183 @@ void PdfViewerWindow::show_find_note(const QString& text) {
   find_note_timer_->start();
 }
 
+// --- Back and Forward, links (docs/pdf-viewer.md) ---
+
+void PdfViewerWindow::jump(const std::function<void()>& go) {
+  const PdfViewPosition before = view_->view_position();
+  go();
+  // A jump that went nowhere leaves nothing to go back to.
+  if (view_->view_position() != before) {
+    back_.push_back(before);
+    if (back_.size() > kHistoryLimit) {
+      back_.erase(back_.begin());
+    }
+    forward_.clear();
+  }
+  update_history_actions();
+}
+
+void PdfViewerWindow::jump_to(const PdfJumpTarget& target) {
+  if (!target.valid()) {
+    return;
+  }
+  jump([this, target] { view_->go_to_target(target); });
+}
+
+void PdfViewerWindow::go_back() {
+  if (back_.empty()) {
+    return;
+  }
+  const PdfViewPosition there = back_.back();
+  back_.pop_back();
+  forward_.push_back(view_->view_position());
+  view_->restore_view_position(there);
+  update_history_actions();
+}
+
+void PdfViewerWindow::go_forward() {
+  if (forward_.empty()) {
+    return;
+  }
+  const PdfViewPosition there = forward_.back();
+  forward_.pop_back();
+  back_.push_back(view_->view_position());
+  view_->restore_view_position(there);
+  update_history_actions();
+}
+
+void PdfViewerWindow::update_history_actions() {
+  back_action_->setEnabled(!back_.empty());
+  forward_action_->setEnabled(!forward_.empty());
+}
+
+void PdfViewerWindow::set_link_handlers(UrlOpener open, TextCopier copy) {
+  open_url_ = std::move(open);
+  copy_text_ = std::move(copy);
+}
+
+void PdfViewerWindow::open_link(const QUrl& url) {
+  // Checked here as well as where the click is read: nothing but a web or mail address
+  // ever reaches the system.
+  if (!pdf_link_url_opens(url)) {
+    return;
+  }
+  if (open_url_) {
+    open_url_(url);
+  } else {
+    QDesktopServices::openUrl(url);
+  }
+}
+
+void PdfViewerWindow::copy_link(const QUrl& url) {
+  const QString address = pdf_link_address(url);
+  if (copy_text_) {
+    copy_text_(address);
+  } else {
+    QGuiApplication::clipboard()->setText(address);
+  }
+}
+
+// --- Outline (docs/pdf-viewer.md) ---
+
+void PdfViewerWindow::fill_outline(const std::vector<PdfOutlineEntry>& entries) {
+  outline_->clear();
+  outline_items_.clear();
+  outline_chosen_ = nullptr;
+  // Rows with a little air: the default packs titles line on line.
+  const QSize row(0, outline_->fontMetrics().height() + 8);
+  const std::function<void(QTreeWidgetItem*, const std::vector<PdfOutlineEntry>&)> add =
+      [this, &add, row](QTreeWidgetItem* parent, const std::vector<PdfOutlineEntry>& children) {
+        for (const auto& entry : children) {
+          auto* item = parent != nullptr ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(outline_);
+          item->setSizeHint(0, row);
+          const QString page_text =
+              //: The outline of the PDF viewer: the page an entry goes to, as its tooltip.
+              entry.target.valid() ? tr("Page %1").arg(entry.target.page + 1) : QString();
+          item->setText(0, !entry.title.isEmpty() ? entry.title
+                                                  : !page_text.isEmpty() ? page_text : QStringLiteral("..."));
+          item->setToolTip(0, page_text);
+          item->setData(0, kOutlinePageRole, entry.target.valid() ? entry.target.page : -1);
+          item->setData(0, kOutlineLocationRole, entry.target.location);
+          outline_items_.push_back(item);
+          add(item, entry.children);
+        }
+      };
+  add(nullptr, entries);
+  // A single entry at the top is the document itself: open it. The rest start closed.
+  if (outline_->topLevelItemCount() == 1) {
+    outline_->topLevelItem(0)->setExpanded(true);
+  }
+  const bool has_outline = !outline_items_.empty();
+  sidebar_tabs_->setVisible(has_outline);
+  const bool outline = has_outline && sidebar_view_ == QStringLiteral("outline");
+  syncing_ = true;
+  sidebar_tabs_->setCurrentIndex(outline ? 1 : 0);
+  syncing_ = false;
+  show_sidebar_view(outline);
+}
+
+void PdfViewerWindow::show_sidebar_view(bool outline) {
+  sidebar_stack_->setCurrentWidget(outline ? static_cast<QWidget*>(outline_) : thumbnails_);
+  if (!outline) {
+    QTimer::singleShot(0, this, [this] { request_visible_thumbnails(); });
+    return;
+  }
+  // Titles need more room than thumbnails: widen a narrow sidebar once it shows them.
+  const QList<int> sizes = splitter_->sizes();
+  if (sizes.size() == 2 && sizes[0] + sizes[1] <= 0) {
+    // Not laid out yet (the window is opening on its outline): the share to start with.
+    splitter_->setSizes({kOutlineWidth, 1000});
+  } else if (sizes.size() == 2 && sizes[0] > 0 && sizes[0] < kOutlineWidth &&
+             sizes[0] + sizes[1] > 2 * kOutlineWidth) {
+    splitter_->setSizes({kOutlineWidth, sizes[0] + sizes[1] - kOutlineWidth});
+  }
+  update_outline_current();
+}
+
+void PdfViewerWindow::update_outline_current() {
+  if (outline_items_.empty()) {
+    return;
+  }
+  // The entry being read: the last one that starts on or before the last page showing.
+  const auto pages = view_->current_pages();
+  const int page = pages.empty() ? 0 : pages.back();
+  int best_page = -1;
+  for (const auto* item : outline_items_) {
+    const int start = item->data(0, kOutlinePageRole).toInt();
+    if (start >= 0 && start <= page && start > best_page) {
+      best_page = start;
+    }
+  }
+  QTreeWidgetItem* reading = nullptr;
+  if (best_page >= 0) {
+    if (outline_chosen_ != nullptr && outline_chosen_->data(0, kOutlinePageRole).toInt() == best_page) {
+      // Several entries start on this page: the one the user clicked stays marked.
+      reading = outline_chosen_;
+    } else {
+      for (auto* item : outline_items_) {
+        if (item->data(0, kOutlinePageRole).toInt() == best_page) {
+          reading = item;
+          break;
+        }
+      }
+    }
+  }
+  // Marked on the row that shows it: the outermost closed entry above it. Nothing is opened
+  // for the reader.
+  QTreeWidgetItem* shown = reading;
+  for (auto* above = reading != nullptr ? reading->parent() : nullptr; above != nullptr; above = above->parent()) {
+    if (!above->isExpanded()) {
+      shown = above;
+    }
+  }
+  const QSignalBlocker blocker(outline_);
+  outline_->setCurrentItem(shown);
+  if (shown != nullptr) {
+    outline_->scrollToItem(shown);
+  }
+}
+
 void PdfViewerWindow::update_title() {
   setWindowTitle(tr("%1 - PDF Viewer").arg(QFileInfo(path_).fileName()));
 }
@@ -674,6 +962,9 @@ void PdfViewerWindow::restore_settings() {
   } else {
     view_->set_fit_mode(PageFitMode::WholePage);
   }
+  sidebar_view_ = settings.value(settings_key("sidebarView")).toString() == QStringLiteral("outline")
+                      ? QStringLiteral("outline")
+                      : QStringLiteral("pages");
   const bool sidebar = settings.value(settings_key("sidebar"), true).toBool();
   sidebar_action_->setChecked(sidebar);
   sidebar_->setVisible(sidebar);
@@ -710,6 +1001,7 @@ void PdfViewerWindow::save_settings() const {
       break;
   }
   settings.setValue(settings_key("sidebar"), sidebar_action_->isChecked());
+  settings.setValue(settings_key("sidebarView"), sidebar_view_);
   settings.setValue(settings_key("findMatchCase"), find_match_case_check_->isChecked());
   settings.setValue(settings_key("findWholeWords"), find_whole_words_check_->isChecked());
   if (!full_screen_) {
@@ -759,6 +1051,7 @@ void PdfViewerWindow::on_current_page_changed(int page) {
     thumbnails_->scrollToItem(item);
   }
   request_visible_thumbnails();
+  update_outline_current();
 }
 
 void PdfViewerWindow::on_zoom_changed(double percent) {
@@ -818,6 +1111,21 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
     size_thumbnail_cells();
     request_visible_thumbnails();
   }
+  // The mouse's Back and Forward buttons, anywhere in this window.
+  if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
+    if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this) {
+      const auto button = static_cast<QMouseEvent*>(event)->button();
+      if (button == Qt::BackButton || button == Qt::ForwardButton) {
+        if (button == Qt::BackButton) {
+          go_back();
+        } else {
+          go_forward();
+        }
+        event->accept();
+        return true;
+      }
+    }
+  }
   // The main window's hotkeys are application-wide, so a key both bind (Ctrl+W, Ctrl+0,
   // Ctrl+P, F11 ...) would be ambiguous to Qt and run neither. Keys typed in this window
   // run this window's command: claim the shortcut override, then trigger on the press.
@@ -846,6 +1154,11 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
           }
           return true;
         }
+      }
+      // A key that moves the caret by a word in a text field stays with the field, though
+      // it is Back or Forward everywhere else (Option+Left and Option+Right on macOS).
+      if (types_its_own_enter(widget) && moves_caret_by_word(key)) {
+        return QWidget::eventFilter(watched, event);
       }
       auto* action = window_key_action(key);
       // The key the user gave the main window's Close closes this window too, instead of the
@@ -909,7 +1222,7 @@ void PdfViewerWindow::reset_thumbnails() {
 }
 
 void PdfViewerWindow::request_visible_thumbnails() {
-  if (!sidebar_->isVisible()) {
+  if (!sidebar_->isVisible() || sidebar_stack_->currentWidget() != thumbnails_) {
     return;
   }
   const QRect viewport = thumbnails_->viewport()->rect();

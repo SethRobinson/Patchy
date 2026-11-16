@@ -1,11 +1,17 @@
 #include "ui/pdf_page_view.hpp"
 
 #include "ui/background_workers.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/pdf_text_search.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/ui_profile.hpp"
 
+#include <QAction>
+#include <QApplication>
+#include <QContextMenuEvent>
+#include <QHelpEvent>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -13,6 +19,8 @@
 #include <QPdfDocumentRenderOptions>
 #include <QPen>
 #include <QScrollBar>
+#include <QTextDocument>
+#include <QToolTip>
 #include <QTransform>
 #include <QWheelEvent>
 
@@ -38,6 +46,8 @@ constexpr double kMaxZoomFactor = 16.0;
 constexpr double kTextMatchOpacity = 0.42;
 constexpr double kCurrentTextMatchOpacity = 0.55;
 constexpr double kTextMatchEdge = 12.0;
+// Links: the longest address a tooltip shows whole.
+constexpr qsizetype kLinkTipAddressLength = 160;
 
 int normalized_turns(int turns) {
   return ((turns % 4) + 4) % 4;
@@ -128,6 +138,10 @@ PdfPageView::PdfPageView(QWidget* parent) : QAbstractScrollArea(parent) {
   setFrameShape(QFrame::NoFrame);
   setFocusPolicy(Qt::StrongFocus);
   viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
+  // The pointer over a link shows a hand without a button held.
+  viewport()->setMouseTracking(true);
+  links_ = new PdfLinkIndex(this);
+  connect(links_, &PdfLinkIndex::page_links_ready, this, [this] { update_hover(); });
   horizontalScrollBar()->setSingleStep(48);
   verticalScrollBar()->setSingleStep(48);
   schedule_timer_.setSingleShot(true);
@@ -150,6 +164,8 @@ void PdfPageView::set_document(QPdfDocument* document) {
   stop_worker();
   ++document_generation_;
   document_ = document;
+  links_->set_document(document);
+  press_link_.reset();
   base_images_.clear();
   detail_images_.clear();
   wanted_.clear();
@@ -323,6 +339,7 @@ void PdfPageView::relayout(const std::optional<Anchor>& anchor) {
     emit zoom_changed(zoom_percent());
   }
   schedule_renders();
+  update_hover();
 }
 
 void PdfPageView::scroll_to_row_top(int row) {
@@ -358,6 +375,76 @@ void PdfPageView::go_to_page(int page) {
     return;
   }
   set_current_row(spread_index_for_page(spreads_, std::clamp(page, 0, page_count() - 1)), false);
+}
+
+void PdfPageView::go_to_target(const PdfJumpTarget& target) {
+  if (spreads_.empty() || !target.valid()) {
+    return;
+  }
+  const int page = std::clamp(target.page, 0, page_count() - 1);
+  const int row = spread_index_for_page(spreads_, page);
+  if (!continuous_) {
+    set_current_row(row, false);
+  }
+  const PageViewSlot* slot = slot_for_page(page);
+  const PageSizePoints size = page_sizes_[static_cast<std::size_t>(page)];
+  if (slot == nullptr || !(size.width > 0.0) || !(size.height > 0.0)) {
+    if (continuous_) {
+      scroll_to_row_top(row);
+    }
+    notify_current_page();
+    return;
+  }
+  // The point named, kept on its page (Qt PDF measures a link's point on the page the link
+  // is on, which can be another size), then turned and scaled like everything on the page.
+  const QPointF point(std::clamp(target.location.x(), 0.0, size.width),
+                      std::clamp(target.location.y(), 0.0, size.height));
+  const QPointF spot = page_area_to_content(*slot, QRectF(point, QSizeF(0.0, 0.0))).topLeft();
+  auto* horizontal = horizontalScrollBar();
+  auto* vertical = verticalScrollBar();
+  vertical->setValue(static_cast<int>(std::lround(spot.y() - options_.margin)));
+  if (horizontal->maximum() > 0) {
+    const double left = horizontal->value();
+    if (spot.x() < left || spot.x() > left + viewport()->width() - options_.margin) {
+      horizontal->setValue(static_cast<int>(std::lround(spot.x() - options_.margin)));
+    }
+  }
+  viewport()->update();
+  notify_current_page();
+}
+
+PdfViewPosition PdfPageView::view_position() const {
+  PdfViewPosition position;
+  position.page = current_page();
+  const Anchor anchor = anchor_at(QPointF(0.0, 0.0));
+  position.anchor_page = anchor.page;
+  position.fx = anchor.fx;
+  position.fy = anchor.fy;
+  return position;
+}
+
+void PdfPageView::restore_view_position(const PdfViewPosition& position) {
+  if (spreads_.empty()) {
+    return;
+  }
+  const int page = std::clamp(position.page, 0, page_count() - 1);
+  if (!continuous_) {
+    const int row = spread_index_for_page(spreads_, page);
+    if (row != paged_row_) {
+      set_current_row(row, false);
+    }
+  }
+  if (position.anchor_page >= 0 && slot_for_page(position.anchor_page) != nullptr) {
+    Anchor anchor;
+    anchor.page = position.anchor_page;
+    anchor.fx = position.fx;
+    anchor.fy = position.fy;
+    restore_anchor(anchor);
+  } else if (continuous_) {
+    scroll_to_row_top(spread_index_for_page(spreads_, page));
+  }
+  viewport()->update();
+  notify_current_page();
 }
 
 void PdfPageView::next_row() {
@@ -549,13 +636,17 @@ void PdfPageView::update_wanted_renders() {
       wanted_.push_back(request);
     }
   };
-  if (search_ != nullptr) {
+  {
     std::vector<int> pages;
     pages.reserve(on_screen.size());
     for (const auto* slot : on_screen) {
       pages.push_back(slot->page);
     }
-    search_->set_visible_pages(pages);
+    if (search_ != nullptr) {
+      search_->set_visible_pages(pages);
+    }
+    // The links of the pages on screen, so the pointer finds them.
+    links_->request_pages(pages);
   }
   // 1. Every page on screen, whole, nearest the middle first.
   for (const auto* slot : on_screen) {
@@ -1055,9 +1146,21 @@ void PdfPageView::keyPressEvent(QKeyEvent* event) {
 
 void PdfPageView::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton || event->button() == Qt::MiddleButton) {
-    panning_ = true;
-    pan_last_ = event->position().toPoint();
-    viewport()->setCursor(Qt::ClosedHandCursor);
+    const QPoint position = event->position().toPoint();
+    drag_ = MouseDrag::Pan;
+    press_position_ = position;
+    pan_last_ = position;
+    press_moved_ = false;
+    press_link_.reset();
+    if (event->button() == Qt::LeftButton) {
+      if (const PdfPageLink* link = link_at(event->position()); link != nullptr) {
+        press_link_ = *link;
+      }
+    }
+    // A press on a link keeps the hand that points until it turns into a drag.
+    if (!press_link_.has_value()) {
+      viewport()->setCursor(Qt::ClosedHandCursor);
+    }
     event->accept();
     return;
   }
@@ -1065,8 +1168,21 @@ void PdfPageView::mousePressEvent(QMouseEvent* event) {
 }
 
 void PdfPageView::mouseMoveEvent(QMouseEvent* event) {
-  if (panning_) {
-    const QPoint position = event->position().toPoint();
+  const QPoint position = event->position().toPoint();
+  hover_position_ = position;
+  if (drag_ == MouseDrag::Pan) {
+    if (!press_moved_ && (position - press_position_).manhattanLength() >= QApplication::startDragDistance()) {
+      press_moved_ = true;
+      if (press_link_.has_value()) {
+        // The press on a link has become a drag: pan from here, with no jump.
+        pan_last_ = position;
+        viewport()->setCursor(Qt::ClosedHandCursor);
+      }
+    }
+    if (press_link_.has_value() && !press_moved_) {
+      event->accept();
+      return;
+    }
     const QPoint delta = position - pan_last_;
     pan_last_ = position;
     horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
@@ -1074,14 +1190,24 @@ void PdfPageView::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  update_hover();
   QAbstractScrollArea::mouseMoveEvent(event);
 }
 
 void PdfPageView::mouseReleaseEvent(QMouseEvent* event) {
-  if (panning_) {
-    panning_ = false;
+  if (drag_ == MouseDrag::Pan) {
+    drag_ = MouseDrag::None;
+    const std::optional<PdfPageLink> link = std::move(press_link_);
+    press_link_.reset();
+    const bool clicked = event->button() == Qt::LeftButton && link.has_value() && !press_moved_;
+    hover_position_ = event->position().toPoint();
+    hover_on_link_ = false;
     viewport()->unsetCursor();
+    update_hover();
     event->accept();
+    if (clicked) {
+      activate_link(*link, event->modifiers(), event->globalPosition().toPoint());
+    }
     return;
   }
   QAbstractScrollArea::mouseReleaseEvent(event);
@@ -1089,8 +1215,18 @@ void PdfPageView::mouseReleaseEvent(QMouseEvent* event) {
 
 void PdfPageView::mouseDoubleClickEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
-    panning_ = false;
+    // The second click on a link, or right behind a click that followed one (the page under
+    // the pointer has changed), is another click, never full screen.
+    const bool behind_link_click =
+        link_click_timer_.isValid() && link_click_timer_.elapsed() < QApplication::doubleClickInterval();
+    if (behind_link_click || link_at(event->position()) != nullptr) {
+      mousePressEvent(event);
+      return;
+    }
+    drag_ = MouseDrag::None;
+    press_link_.reset();
     viewport()->unsetCursor();
+    hover_on_link_ = false;
     emit full_screen_toggle_requested();
     event->accept();
     return;
@@ -1104,6 +1240,156 @@ void PdfPageView::scrollContentsBy(int dx, int dy) {
   viewport()->update();
   notify_current_page();
   schedule_renders();
+  update_hover();
+}
+
+// --- Links (docs/pdf-viewer.md, "Links") ---
+
+PdfPageView::LinkHit PdfPageView::hit_link(QPointF viewport_point) const {
+  const QPointF origin = content_origin();
+  const QPointF content = viewport_point - origin;
+  for (const auto& slot : layout_.pages) {
+    if (!QRectF(slot.rect.x, slot.rect.y, slot.rect.width, slot.rect.height).contains(content)) {
+      continue;
+    }
+    const auto* links = links_->page_links(slot.page);
+    if (links == nullptr) {
+      return {};
+    }
+    // Areas are mapped like the find highlights, on every question: nothing to keep in step
+    // with the zoom, the rotation or the layout.
+    for (const auto& link : *links) {
+      const QRectF area = page_area_to_content(slot, link.area);
+      if (area.contains(content)) {
+        return {&link, area.translated(origin)};
+      }
+    }
+    return {};
+  }
+  return {};
+}
+
+const PdfPageLink* PdfPageView::link_at(QPointF viewport_point) const {
+  return hit_link(viewport_point).link;
+}
+
+std::vector<QRectF> PdfPageView::link_rects_for_testing(int page) const {
+  std::vector<QRectF> rects;
+  const PageViewSlot* slot = slot_for_page(page);
+  const auto* links = links_->page_links(page);
+  if (slot == nullptr || links == nullptr) {
+    return rects;
+  }
+  for (const auto& link : *links) {
+    rects.push_back(page_area_to_content(*slot, link.area).translated(content_origin()));
+  }
+  return rects;
+}
+
+QString PdfPageView::link_tip(const PdfPageLink& link) const {
+  if (link.internal()) {
+    //: Tooltip over a link in the PDF viewer that goes to another page of the same PDF.
+    return tr("Page %1").arg(link.target.page + 1);
+  }
+  QString address = pdf_link_address(link.url);
+  if (address.size() > kLinkTipAddressLength) {
+    address = address.left(kLinkTipAddressLength) + QStringLiteral("...");
+  }
+  const QString how = pdf_link_url_opens(link.url)
+                          //: Tooltip over a web link in the PDF viewer. %CTRL% becomes Ctrl or Command; keep it.
+                          ? resolve_modifier_names(tr("%CTRL%-click to open the link"))
+                          : tr("Patchy does not open this kind of link. Right-click to copy its address.");
+  return address + QLatin1Char('\n') + how;
+}
+
+void PdfPageView::show_link_note(QPoint global_position, const QString& text, const QRectF& link_rect) {
+  // An address is the PDF's own text: never let the tooltip read it as rich text.
+  const QString shown = Qt::mightBeRichText(text) ? Qt::convertFromPlainText(text) : text;
+  // The note goes when the pointer leaves the link.
+  QToolTip::showText(global_position, shown, viewport(), link_rect.toAlignedRect());
+}
+
+void PdfPageView::update_hover() {
+  if (drag_ != MouseDrag::None) {
+    return;
+  }
+  const bool on_link = hover_position_.has_value() && link_at(QPointF(*hover_position_)) != nullptr;
+  if (on_link == hover_on_link_) {
+    return;
+  }
+  hover_on_link_ = on_link;
+  if (on_link) {
+    viewport()->setCursor(Qt::PointingHandCursor);
+  } else {
+    viewport()->unsetCursor();
+  }
+}
+
+void PdfPageView::activate_link(const PdfPageLink& link, Qt::KeyboardModifiers modifiers, QPoint global_position) {
+  link_click_timer_.restart();
+  if (link.internal()) {
+    emit jump_requested(link.target);
+    return;
+  }
+  // Qt reads the Command key as Control on macOS, so this is Command+click there.
+  if (modifiers.testFlag(Qt::ControlModifier) && pdf_link_url_opens(link.url)) {
+    emit url_open_requested(link.url);
+    return;
+  }
+  // A plain click opens nothing: say what does.
+  const QPointF local = viewport()->mapFromGlobal(QPointF(global_position));
+  const LinkHit hit = hit_link(local);
+  show_link_note(global_position, link_tip(link),
+                 hit.link != nullptr ? hit.rect : QRectF(local, QSizeF(1.0, 1.0)));
+}
+
+bool PdfPageView::viewportEvent(QEvent* event) {
+  switch (event->type()) {
+    case QEvent::ToolTip: {
+      const auto* help = static_cast<QHelpEvent*>(event);
+      if (const LinkHit hit = drag_ == MouseDrag::None ? hit_link(QPointF(help->pos())) : LinkHit{};
+          hit.link != nullptr) {
+        show_link_note(help->globalPos(), link_tip(*hit.link), hit.rect);
+      } else {
+        QToolTip::hideText();
+        event->ignore();
+      }
+      return true;
+    }
+    case QEvent::Leave:
+      hover_position_.reset();
+      update_hover();
+      break;
+    default:
+      break;
+  }
+  return QAbstractScrollArea::viewportEvent(event);
+}
+
+void PdfPageView::contextMenuEvent(QContextMenuEvent* event) {
+  const PdfPageLink* found = link_at(QPointF(event->pos()));
+  if (found == nullptr) {
+    QAbstractScrollArea::contextMenuEvent(event);
+    return;
+  }
+  const PdfPageLink link = *found;
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("pdfViewerLinkMenu"));
+  if (link.internal()) {
+    auto* go = menu.addAction(tr("Go to Page %1").arg(link.target.page + 1));
+    go->setObjectName(QStringLiteral("pdfViewerLinkGoAction"));
+    connect(go, &QAction::triggered, this, [this, link] { emit jump_requested(link.target); });
+  } else {
+    auto* open = menu.addAction(tr("Open Link"));
+    open->setObjectName(QStringLiteral("pdfViewerLinkOpenAction"));
+    open->setEnabled(pdf_link_url_opens(link.url));
+    connect(open, &QAction::triggered, this, [this, link] { emit url_open_requested(link.url); });
+    auto* copy = menu.addAction(tr("Copy Link Address"));
+    copy->setObjectName(QStringLiteral("pdfViewerLinkCopyAction"));
+    connect(copy, &QAction::triggered, this, [this, link] { emit url_copy_requested(link.url); });
+  }
+  menu.exec(event->globalPos());
+  event->accept();
 }
 
 }  // namespace patchy::ui

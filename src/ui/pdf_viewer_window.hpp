@@ -1,8 +1,11 @@
 #pragma once
 
+#include "ui/pdf_page_view.hpp"
+
 #include <QByteArray>
 #include <QPointer>
 #include <QString>
+#include <QUrl>
 #include <QWidget>
 
 #include <functional>
@@ -23,20 +26,24 @@ class QPdfDocument;
 class QPushButton;
 class QSpinBox;
 class QSplitter;
+class QStackedWidget;
+class QTabBar;
 class QTimer;
 class QToolBar;
 class QToolButton;
+class QTreeWidget;
+class QTreeWidgetItem;
 
 namespace patchy::ui {
 
-class PdfPageView;
 class PdfTextSearch;
 
 // The PDF viewer (docs/pdf-viewer.md): what opening a PDF shows by default. A MainWindow-
 // parented top-level window (like a floated document) with a toolbar for pages, zoom and
 // layout, a find bar, a sidebar with Edit... (the Import PDF dialog, for editing pages in
-// Patchy) and Print as Book..., and page thumbnails. Built only with Qt PDF
-// (PATCHY_HAVE_QT_PDF).
+// Patchy) and Print as Book..., page thumbnails and the PDF's outline. Links on the pages
+// are followed here, with Back and Forward between the places jumps left. Built only with
+// Qt PDF (PATCHY_HAVE_QT_PDF).
 class PdfViewerWindow final : public QWidget {
   Q_OBJECT
 
@@ -73,6 +80,23 @@ public:
   void find_previous();
   [[nodiscard]] PdfTextSearch* text_search() const { return search_; }
 
+  // Jumps to a place in the document (a link, an outline entry) and remembers where the
+  // view was, for Back.
+  void jump_to(const PdfJumpTarget& target);
+  // Back and Forward between the places jumps left: links, the outline, the page field
+  // and the page list. Page turns by keys or the wheel are not jumps.
+  void go_back();
+  void go_forward();
+  [[nodiscard]] bool can_go_back() const { return !back_.empty(); }
+  [[nodiscard]] bool can_go_forward() const { return !forward_.empty(); }
+
+  // What opens a link's address and what copies it. The opener is only ever handed an
+  // address pdf_link_url_opens takes (http, https, mailto). Tests replace both, so no
+  // browser starts and no clipboard changes.
+  using UrlOpener = std::function<bool(const QUrl& url)>;
+  using TextCopier = std::function<void(const QString& text)>;
+  void set_link_handlers(UrlOpener open, TextCopier copy);
+
   // Files dragged onto the viewer open like a drop on the main window: `accept` answers the
   // drag, `drop` opens the files. Each returns whether it took the event.
   using FileDropHandler = std::function<bool(QDropEvent* event)>;
@@ -108,6 +132,13 @@ private:
   void start_find();
   void update_find_status();
   void show_find_note(const QString& text);
+  void jump(const std::function<void()>& go);
+  void update_history_actions();
+  void open_link(const QUrl& url);
+  void copy_link(const QUrl& url);
+  void fill_outline(const std::vector<PdfOutlineEntry>& entries);
+  void show_sidebar_view(bool outline);
+  void update_outline_current();
   // This window's own command for a key typed in it, or nullptr.
   [[nodiscard]] QAction* window_key_action(const QKeyEvent& event) const;
   [[nodiscard]] bool is_close_source_key(const QKeyEvent& event) const;
@@ -133,7 +164,16 @@ private:
   bool find_open_{false};
   QSplitter* splitter_{nullptr};
   QWidget* sidebar_{nullptr};
+  QTabBar* sidebar_tabs_{nullptr};
+  QStackedWidget* sidebar_stack_{nullptr};
   QListWidget* thumbnails_{nullptr};
+  QTreeWidget* outline_{nullptr};
+  // Every outline entry in document order, and the one clicked last (the one to mark
+  // among several that start on the same page).
+  std::vector<QTreeWidgetItem*> outline_items_;
+  QTreeWidgetItem* outline_chosen_{nullptr};
+  // The sidebar view the user chose last ("pages" or "outline"): pdfViewer/sidebarView.
+  QString sidebar_view_;
   QPushButton* edit_button_{nullptr};
   QPushButton* print_button_{nullptr};
   QSpinBox* page_spin_{nullptr};
@@ -141,6 +181,12 @@ private:
   QComboBox* zoom_combo_{nullptr};
   QComboBox* layout_combo_{nullptr};
   QAction* sidebar_action_{nullptr};
+  QAction* back_action_{nullptr};
+  QAction* forward_action_{nullptr};
+  std::vector<PdfViewPosition> back_;
+  std::vector<PdfViewPosition> forward_;
+  UrlOpener open_url_;
+  TextCopier copy_text_;
   QAction* continuous_action_{nullptr};
   QAction* right_to_left_action_{nullptr};
   QAction* full_screen_action_{nullptr};

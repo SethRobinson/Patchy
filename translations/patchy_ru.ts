@@ -37936,6 +37936,35 @@ Locked: %1</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::PdfPageView</name>
+    <message>
+        <source>Page %1</source>
+        <extracomment>Tooltip over a link in the PDF viewer that goes to another page of the same PDF.</extracomment>
+        <translation>Страница %1</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to open the link</source>
+        <extracomment>Tooltip over a web link in the PDF viewer. %CTRL% becomes Ctrl or Command; keep it.</extracomment>
+        <translation>Щелчок с %CTRL% открывает ссылку</translation>
+    </message>
+    <message>
+        <source>Patchy does not open this kind of link. Right-click to copy its address.</source>
+        <translation>Patchy не открывает ссылки такого рода. Щёлкните правой кнопкой, чтобы скопировать адрес.</translation>
+    </message>
+    <message>
+        <source>Go to Page %1</source>
+        <translation>Перейти на страницу %1</translation>
+    </message>
+    <message>
+        <source>Open Link</source>
+        <translation>Открыть ссылку</translation>
+    </message>
+    <message>
+        <source>Copy Link Address</source>
+        <translation>Копировать адрес ссылки</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::PdfViewerWindow</name>
     <message>
         <source>Pages</source>
@@ -38123,6 +38152,33 @@ Locked: %1</source>
         <source>Next match (%1, %2)</source>
         <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
         <translation>Следующее совпадение (%1, %2)</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Назад</translation>
+    </message>
+    <message>
+        <source>Back to where you were before the last jump (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Back to where you were before the last jump (Alt+Left)&quot;.</extracomment>
+        <translation>Назад, к месту до последнего перехода (%1)</translation>
+    </message>
+    <message>
+        <source>Forward</source>
+        <translation>Вперёд</translation>
+    </message>
+    <message>
+        <source>Forward again (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Forward again (Alt+Right)&quot;.</extracomment>
+        <translation>Снова вперёд (%1)</translation>
+    </message>
+    <message>
+        <source>Outline</source>
+        <translation>Оглавление</translation>
+    </message>
+    <message>
+        <source>Page %1</source>
+        <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
+        <translation>Страница %1</translation>
     </message>
 </context>
 <context>

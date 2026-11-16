@@ -37822,6 +37822,35 @@ Fixiert: %1</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::PdfPageView</name>
+    <message>
+        <source>Page %1</source>
+        <extracomment>Tooltip over a link in the PDF viewer that goes to another page of the same PDF.</extracomment>
+        <translation>Seite %1</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to open the link</source>
+        <extracomment>Tooltip over a web link in the PDF viewer. %CTRL% becomes Ctrl or Command; keep it.</extracomment>
+        <translation>%CTRL%-Klick öffnet den Link</translation>
+    </message>
+    <message>
+        <source>Patchy does not open this kind of link. Right-click to copy its address.</source>
+        <translation>Patchy öffnet diese Art von Link nicht. Rechtsklick kopiert die Adresse.</translation>
+    </message>
+    <message>
+        <source>Go to Page %1</source>
+        <translation>Gehe zu Seite %1</translation>
+    </message>
+    <message>
+        <source>Open Link</source>
+        <translation>Link öffnen</translation>
+    </message>
+    <message>
+        <source>Copy Link Address</source>
+        <translation>Linkadresse kopieren</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::PdfViewerWindow</name>
     <message>
         <source>Pages</source>
@@ -38009,6 +38038,33 @@ Fixiert: %1</translation>
         <source>Next match (%1, %2)</source>
         <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
         <translation>Nächster Treffer (%1, %2)</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Zurück</translation>
+    </message>
+    <message>
+        <source>Back to where you were before the last jump (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Back to where you were before the last jump (Alt+Left)&quot;.</extracomment>
+        <translation>Zurück zur Stelle vor dem letzten Sprung (%1)</translation>
+    </message>
+    <message>
+        <source>Forward</source>
+        <translation>Vorwärts</translation>
+    </message>
+    <message>
+        <source>Forward again (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Forward again (Alt+Right)&quot;.</extracomment>
+        <translation>Wieder vorwärts (%1)</translation>
+    </message>
+    <message>
+        <source>Outline</source>
+        <translation>Gliederung</translation>
+    </message>
+    <message>
+        <source>Page %1</source>
+        <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
+        <translation>Seite %1</translation>
     </message>
 </context>
 <context>

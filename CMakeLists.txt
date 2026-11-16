@@ -1858,6 +1858,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       # Qt PDF kit has: neither exists on wasm). docs/pdf-viewer.md, docs/pdf-book-print.md.
       target_sources(patchy_ui PRIVATE
         src/ui/pdf_import.cpp
+        src/ui/pdf_links.hpp
+        src/ui/pdf_links.cpp
         src/ui/pdf_page_view.hpp
         src/ui/pdf_page_view.cpp
         src/ui/pdf_text_search.hpp
@@ -2768,6 +2770,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/divide_photos_tests.cpp
       tests/ui/book_scan_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
+      tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/folder_open_export_tests.cpp
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp

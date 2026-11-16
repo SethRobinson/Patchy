@@ -37708,6 +37708,35 @@ Locked: %1</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::PdfPageView</name>
+    <message>
+        <source>Page %1</source>
+        <extracomment>Tooltip over a link in the PDF viewer that goes to another page of the same PDF.</extracomment>
+        <translation>페이지 %1</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to open the link</source>
+        <extracomment>Tooltip over a web link in the PDF viewer. %CTRL% becomes Ctrl or Command; keep it.</extracomment>
+        <translation>%CTRL%-클릭: 링크 열기</translation>
+    </message>
+    <message>
+        <source>Patchy does not open this kind of link. Right-click to copy its address.</source>
+        <translation>Patchy는 이런 종류의 링크를 열지 않습니다. 마우스 오른쪽 버튼으로 클릭하면 주소를 복사할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Go to Page %1</source>
+        <translation>페이지 %1(으)로 이동</translation>
+    </message>
+    <message>
+        <source>Open Link</source>
+        <translation>링크 열기</translation>
+    </message>
+    <message>
+        <source>Copy Link Address</source>
+        <translation>링크 주소 복사</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::PdfViewerWindow</name>
     <message>
         <source>Pages</source>
@@ -37895,6 +37924,33 @@ Locked: %1</source>
         <source>Next match (%1, %2)</source>
         <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
         <translation>다음 일치 항목(%1, %2)</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>뒤로</translation>
+    </message>
+    <message>
+        <source>Back to where you were before the last jump (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Back to where you were before the last jump (Alt+Left)&quot;.</extracomment>
+        <translation>마지막으로 이동하기 전의 위치로 돌아가기 (%1)</translation>
+    </message>
+    <message>
+        <source>Forward</source>
+        <translation>앞으로</translation>
+    </message>
+    <message>
+        <source>Forward again (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Forward again (Alt+Right)&quot;.</extracomment>
+        <translation>다시 앞으로 (%1)</translation>
+    </message>
+    <message>
+        <source>Outline</source>
+        <translation>개요</translation>
+    </message>
+    <message>
+        <source>Page %1</source>
+        <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
+        <translation>페이지 %1</translation>
     </message>
 </context>
 <context>

@@ -37708,6 +37708,35 @@ Locked: %1</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::PdfPageView</name>
+    <message>
+        <source>Page %1</source>
+        <extracomment>Tooltip over a link in the PDF viewer that goes to another page of the same PDF.</extracomment>
+        <translation>第 %1 页</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to open the link</source>
+        <extracomment>Tooltip over a web link in the PDF viewer. %CTRL% becomes Ctrl or Command; keep it.</extracomment>
+        <translation>%CTRL%+单击打开链接</translation>
+    </message>
+    <message>
+        <source>Patchy does not open this kind of link. Right-click to copy its address.</source>
+        <translation>Patchy 不会打开这类链接。右键单击可复制其地址。</translation>
+    </message>
+    <message>
+        <source>Go to Page %1</source>
+        <translation>转到第 %1 页</translation>
+    </message>
+    <message>
+        <source>Open Link</source>
+        <translation>打开链接</translation>
+    </message>
+    <message>
+        <source>Copy Link Address</source>
+        <translation>复制链接地址</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::PdfViewerWindow</name>
     <message>
         <source>Pages</source>
@@ -37895,6 +37924,33 @@ Locked: %1</source>
         <source>Next match (%1, %2)</source>
         <extracomment>Find in the PDF viewer. %1 and %2 are keys, as in &quot;Next match (Enter, F3)&quot;.</extracomment>
         <translation>下一个匹配项 (%1、%2)</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>后退</translation>
+    </message>
+    <message>
+        <source>Back to where you were before the last jump (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Back to where you were before the last jump (Alt+Left)&quot;.</extracomment>
+        <translation>返回上次跳转前的位置 (%1)</translation>
+    </message>
+    <message>
+        <source>Forward</source>
+        <translation>前进</translation>
+    </message>
+    <message>
+        <source>Forward again (%1)</source>
+        <extracomment>PDF viewer toolbar. %1 is a key, as in &quot;Forward again (Alt+Right)&quot;.</extracomment>
+        <translation>再次前进 (%1)</translation>
+    </message>
+    <message>
+        <source>Outline</source>
+        <translation>大纲</translation>
+    </message>
+    <message>
+        <source>Page %1</source>
+        <extracomment>The outline of the PDF viewer: the page an entry goes to, as its tooltip.</extracomment>
+        <translation>第 %1 页</translation>
     </message>
 </context>
 <context>
