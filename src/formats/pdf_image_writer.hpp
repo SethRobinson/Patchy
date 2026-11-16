@@ -51,6 +51,24 @@ struct ImageStream {
   int height{0};
 };
 
+// One line of invisible text over a page (docs/pdf-searchable-text.md): what a reader finds
+// and selects where the image shows the words. Written as ONE run, stretched to the line's
+// length. Binding rule (the "Text recognition" entry of docs/legal-constraints-scanning.md):
+// a line is never split into separately placed pieces, so there is no word or character
+// positioning here and none may be added.
+struct TextLine {
+  std::string utf8;
+  // Where the line starts on its baseline, in page points before /Rotate (x right, y up).
+  double x{0.0};
+  double y{0.0};
+  // The line's length along its reading direction and its text size, in points.
+  double width{0.0};
+  double size{0.0};
+  // Counterclockwise turn of the reading direction: 0 reads left to right, -90 reads down
+  // the page (a column of vertical text).
+  double angle_degrees{0.0};
+};
+
 struct ImagePage {
   // Page size in points (1/72 inch), before `rotate`.
   double width_points{0.0};
@@ -65,6 +83,9 @@ struct ImagePage {
   // An 8-bit DeviceGray alpha channel the size of the image, for pages with
   // transparency. Its color_space and bits_per_component are forced.
   std::optional<ImageStream> soft_mask;
+  // Invisible text over the image. A page without any writes exactly the bytes it always
+  // did, and so does a file whose pages have none.
+  std::vector<TextLine> text;
 };
 
 class ImageWriter {
@@ -105,6 +126,11 @@ private:
   void write_image_object(const ImageStream& image, std::uint32_t soft_mask_object, bool is_soft_mask,
                           std::uint32_t icc_object);
   std::uint32_t icc_profile_object(const ImageStream& image);
+  // The page's text operators ("" when no line is usable), assigning each new character
+  // its code in the shared hidden-text font.
+  std::string hidden_text_content(const std::vector<TextLine>& lines);
+  // The font's five objects, written once by finish() when any page carried text.
+  void write_hidden_text_font();
   void write(std::string_view text);
   std::vector<std::pair<std::string, std::string>> document_info_;
   std::shared_ptr<const std::vector<std::uint8_t>> output_intent_profile_;
@@ -123,6 +149,11 @@ private:
   // object. A short list, not a map keyed on the bytes: GCC 13 reports a false
   // -Wstringop-overread through vector's operator<=>, and a file holds a handful at most.
   std::vector<std::pair<std::shared_ptr<const std::vector<std::uint8_t>>, std::uint32_t>> icc_objects_;
+  // The hidden-text font: its object number is reserved when the first page with text is
+  // written (0 until then), and its characters are numbered in order of first use, the
+  // code of characters_[i] being i + 1.
+  std::uint32_t hidden_font_object_{0};
+  std::vector<char32_t> hidden_characters_;
   bool finished_{false};
   bool open_{false};
 };

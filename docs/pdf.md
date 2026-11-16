@@ -8,6 +8,7 @@ Related documents:
 - [pdf-editable-export.md](pdf-editable-export.md): the "Keep layers as editable objects" writer (each layer as a PDF object through Qt's engine), the glyph-run merge post-pass, what flattens, and its tests.
 - [pdf-viewer.md](pdf-viewer.md): the PDF viewer a PDF opens in (layouts, zoom, rendering), whose Edit... reaches the import.
 - [pdf-book-print.md](pdf-book-print.md): the viewer's Print as Book: imposition styles, output, assembly steps.
+- [pdf-searchable-text.md](pdf-searchable-text.md): invisible text over image pages (one run per line, Patchy's own 276-byte font), so a scan's recognized text can be found and copied in a reader.
 - [pdf-performance.md](pdf-performance.md): stage timings (`PATCHY_UI_PROFILE=1`), the `pdfopen`/`pdfsave` perf tests, the reference-file baseline and the open performance ideas.
 
 ## Rules for both directions

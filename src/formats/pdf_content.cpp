@@ -602,7 +602,8 @@ private:
       return;
     }
     const auto& font = *pending.font;
-    if (state_.text.render_mode != 3 && state_.text.render_mode != 7 && pending.recovered_any) {
+    const bool invisible = state_.text.render_mode == 3 || state_.text.render_mode == 7;
+    if (pending.recovered_any) {
       TextRun run;
       run.utf8 = std::move(pending.utf8);
       run.transform = pending.render_matrix;
@@ -624,9 +625,15 @@ private:
       if (state_.has_clip) {
         run.clip = state_.clip;
       }
-      sink_.on_text(run);
-      ++primitives_;
-    } else if (!pending.recovered_any && state_.text.render_mode != 3) {
+      if (invisible) {
+        // Not a primitive: it paints nothing, so a page that is a scan plus its text layer
+        // still counts as the scan alone.
+        sink_.on_hidden_text(run);
+      } else {
+        sink_.on_text(run);
+        ++primitives_;
+      }
+    } else if (state_.text.render_mode != 3) {
       notice(PATCHY_TRANSLATE_NOOP("QObject", "Some PDF text used a font with no Unicode mapping and could not be recovered as text."));
     }
     pending = PendingRun{};

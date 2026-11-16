@@ -1,5 +1,6 @@
 #include "formats/pdf_image_writer.hpp"
 
+#include "formats/pdf_hidden_text_font.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -23,6 +24,45 @@ std::string padded_offset(std::uint64_t offset) {
   std::string digits = std::to_string(offset);
   return std::string(10 - digits.size(), '0') + digits;
 }
+
+constexpr char kHexDigits[] = "0123456789ABCDEF";
+
+void append_hex16(std::string& out, std::uint32_t value) {
+  for (int shift = 12; shift >= 0; shift -= 4) {
+    out.push_back(kHexDigits[(value >> shift) & 0xFU]);
+  }
+}
+
+// The code points of UTF-8 text; a malformed byte reads as U+FFFD.
+std::vector<char32_t> code_points(std::string_view utf8) {
+  std::vector<char32_t> out;
+  for (std::size_t i = 0; i < utf8.size();) {
+    const auto c = static_cast<unsigned char>(utf8[i]);
+    char32_t code = 0xFFFD;
+    std::size_t length = 1;
+    const auto tail = [&](std::size_t offset) {
+      return static_cast<char32_t>(static_cast<unsigned char>(utf8[i + offset]) & 0x3FU);
+    };
+    if (c < 0x80) {
+      code = c;
+    } else if ((c & 0xE0) == 0xC0 && i + 1 < utf8.size()) {
+      code = (static_cast<char32_t>(c & 0x1FU) << 6) | tail(1);
+      length = 2;
+    } else if ((c & 0xF0) == 0xE0 && i + 2 < utf8.size()) {
+      code = (static_cast<char32_t>(c & 0x0FU) << 12) | (tail(1) << 6) | tail(2);
+      length = 3;
+    } else if ((c & 0xF8) == 0xF0 && i + 3 < utf8.size()) {
+      code = (static_cast<char32_t>(c & 0x07U) << 18) | (tail(1) << 12) | (tail(2) << 6) | tail(3);
+      length = 4;
+    }
+    i += length;
+    out.push_back(code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF) ? char32_t{0xFFFD} : code);
+  }
+  return out;
+}
+
+// The hidden-text font's codes are two bytes: at most this many distinct characters.
+constexpr std::size_t kMaximumHiddenCharacters = 0xFFFEU;
 
 }  // namespace
 
@@ -196,14 +236,17 @@ void ImageWriter::add_page(const ImagePage& page) {
     content += format_pdf_number(width) + " 0 0 " + format_pdf_number(height) + " 0 0 ";
   }
   content += "cm /Im0 Do Q\n";
+  const auto text_content = hidden_text_content(page.text);
+  content += text_content;
   const auto content_object = begin_object();
   write("<< /Length " + std::to_string(content.size()) + " >>\nstream\n" + content + "endstream\nendobj\n");
 
   const auto page_object = begin_object();
   write("<< /Type /Page /Parent " + std::to_string(kPagesObject) + " 0 R /MediaBox [0 0 " + format_pdf_number(width) +
         " " + format_pdf_number(height) + "]" + (page.rotate != 0 ? " /Rotate " + std::to_string(page.rotate) : "") +
-        " /Resources << /XObject << /Im0 " + std::to_string(image_object) + " 0 R >> >> /Contents " +
-        std::to_string(content_object) + " 0 R >>\nendobj\n");
+        " /Resources << /XObject << /Im0 " + std::to_string(image_object) + " 0 R >>" +
+        (text_content.empty() ? std::string() : " /Font << /F0 " + std::to_string(hidden_font_object_) + " 0 R >>") +
+        " >> /Contents " + std::to_string(content_object) + " 0 R >>\nendobj\n");
   page_objects_.push_back(page_object);
 
   if (!file_) {
@@ -212,6 +255,113 @@ void ImageWriter::add_page(const ImagePage& page) {
   if (position_ > kMaximumOffset) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The PDF would be too large to write (over 9 GB)."));
   }
+}
+
+std::string ImageWriter::hidden_text_content(const std::vector<TextLine>& lines) {
+  std::string content;
+  for (const auto& line : lines) {
+    if (!(line.width > 0.0) || !(line.size > 0.0) || !std::isfinite(line.x) || !std::isfinite(line.y) ||
+        !std::isfinite(line.angle_degrees)) {
+      continue;
+    }
+    std::string codes;
+    std::size_t count = 0;
+    for (const auto character : code_points(line.utf8)) {
+      if (character < 0x20U || character == 0x7FU) {
+        continue;  // nothing a reader could find
+      }
+      auto found = std::find(hidden_characters_.begin(), hidden_characters_.end(), character);
+      if (found == hidden_characters_.end()) {
+        if (hidden_characters_.size() >= kMaximumHiddenCharacters) {
+          continue;
+        }
+        hidden_characters_.push_back(character);
+        found = hidden_characters_.end() - 1;
+      }
+      append_hex16(codes, static_cast<std::uint32_t>(found - hidden_characters_.begin()) + 1U);
+      ++count;
+    }
+    if (count == 0) {
+      continue;
+    }
+    if (hidden_font_object_ == 0U) {
+      // Reserved now so this page can name it; written by finish().
+      hidden_font_object_ = static_cast<std::uint32_t>(offsets_.size());
+      offsets_.push_back(0U);
+    }
+    // Every glyph of the font is one em wide, so the run is `count` sizes long before the
+    // horizontal scale stretches it to the line. One Tj for the whole line.
+    const double radians = line.angle_degrees * 3.14159265358979323846 / 180.0;
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    content += "/F0 " + format_pdf_number(line.size) + " Tf " +
+               format_pdf_number(100.0 * line.width / (static_cast<double>(count) * line.size)) + " Tz " +
+               format_pdf_number(cosine) + " " + format_pdf_number(sine) + " " + format_pdf_number(-sine) + " " +
+               format_pdf_number(cosine) + " " + format_pdf_number(line.x) + " " + format_pdf_number(line.y) +
+               " Tm <" + codes + "> Tj\n";
+  }
+  // Render mode 3: neither filled nor stroked.
+  return content.empty() ? content : "BT 3 Tr\n" + content + "ET\n";
+}
+
+void ImageWriter::write_hidden_text_font() {
+  const auto font_file = hidden_text_font();
+  const auto file_object = begin_object();
+  write("<< /Length " + std::to_string(font_file.size()) + " /Length1 " + std::to_string(font_file.size()) +
+        " >>\nstream\n");
+  write(font_file);
+  write("\nendstream\nendobj\n");
+
+  const auto descriptor_object = begin_object();
+  write("<< /Type /FontDescriptor /FontName /PatchyHiddenText /Flags 4 /FontBBox [0 0 1000 1000] /ItalicAngle 0 "
+        "/Ascent 1000 /Descent 0 /CapHeight 1000 /StemV 80 /FontFile2 " +
+        std::to_string(file_object) + " 0 R >>\nendobj\n");
+
+  // Every code draws the font's one glyph.
+  const std::vector<std::uint8_t> glyph_map((hidden_characters_.size() + 1U) * 2U, 0U);
+  const auto map_object = begin_object();
+  write("<< /Length " + std::to_string(glyph_map.size()) + " >>\nstream\n");
+  write(glyph_map);
+  write("\nendstream\nendobj\n");
+
+  const auto descendant_object = begin_object();
+  write("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /PatchyHiddenText /CIDSystemInfo << /Registry (Adobe) "
+        "/Ordering (Identity) /Supplement 0 >> /FontDescriptor " +
+        std::to_string(descriptor_object) + " 0 R /DW 1000 /W [1 " + std::to_string(hidden_characters_.size()) +
+        " 1000] /CIDToGIDMap " + std::to_string(map_object) + " 0 R >>\nendobj\n");
+
+  // What each code means, so a reader can search, select and copy the text.
+  std::string cmap = "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
+                     "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n"
+                     "/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n"
+                     "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n";
+  for (std::size_t start = 0; start < hidden_characters_.size(); start += 100U) {
+    const auto end = std::min(hidden_characters_.size(), start + 100U);
+    cmap += std::to_string(end - start) + " beginbfchar\n";
+    for (std::size_t index = start; index < end; ++index) {
+      cmap += "<";
+      append_hex16(cmap, static_cast<std::uint32_t>(index) + 1U);
+      cmap += "> <";
+      auto character = static_cast<std::uint32_t>(hidden_characters_[index]);
+      if (character >= 0x10000U) {
+        character -= 0x10000U;
+        append_hex16(cmap, 0xD800U + (character >> 10U));
+        append_hex16(cmap, 0xDC00U + (character & 0x3FFU));
+      } else {
+        append_hex16(cmap, character);
+      }
+      cmap += ">\n";
+    }
+    cmap += "endbfchar\n";
+  }
+  cmap += "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n";
+  const auto unicode_object = begin_object();
+  write("<< /Length " + std::to_string(cmap.size()) + " >>\nstream\n" + cmap + "endstream\nendobj\n");
+
+  begin_reserved_object(hidden_font_object_);
+  write("<< /Type /Font /Subtype /Type0 /BaseFont /PatchyHiddenText /Encoding /Identity-H /DescendantFonts [" +
+        std::to_string(descendant_object) + " 0 R] /ToUnicode " + std::to_string(unicode_object) +
+        " 0 R >>\nendobj\n");
 }
 
 namespace {
@@ -277,6 +427,9 @@ void ImageWriter::finish() {
   }
   if (page_objects_.empty()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "There are no pages to export."));
+  }
+  if (hidden_font_object_ != 0U) {
+    write_hidden_text_font();
   }
   begin_reserved_object(kPagesObject);
   std::string kids;

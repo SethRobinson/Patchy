@@ -2599,8 +2599,13 @@ void pdf_pixel_hash_tells_changed_bytes_apart() {
 
 }  // namespace
 
+// Invisible text in the image writer (pdf_hidden_text_tests.cpp), gathered here so the
+// suite's group list needs no new entry.
+std::vector<patchy::test::TestCase> pdf_hidden_text_tests();
+
 std::vector<patchy::test::TestCase> pdf_tests() {
-  return {
+  auto hidden_text = pdf_hidden_text_tests();
+  std::vector<patchy::test::TestCase> tests{
       {"pdf_lexer_reads_every_object_type", pdf_lexer_reads_every_object_type},
       {"pdf_lexer_survives_damaged_input", pdf_lexer_survives_damaged_input},
       {"pdf_filters_decode_every_supported_codec", pdf_filters_decode_every_supported_codec},
@@ -2657,4 +2662,6 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_image_writer_one_bit_pages", pdf_image_writer_one_bit_pages},
       {"pdf_pixel_hash_tells_changed_bytes_apart", pdf_pixel_hash_tells_changed_bytes_apart},
   };
+  tests.insert(tests.end(), std::make_move_iterator(hidden_text.begin()), std::make_move_iterator(hidden_text.end()));
+  return tests;
 }

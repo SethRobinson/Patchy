@@ -747,6 +747,7 @@ add_library(patchy_formats
   src/formats/pdf_crypt.cpp
   src/formats/pdf_document_io.cpp
   src/formats/pdf_file.cpp
+  src/formats/pdf_hidden_text_font.cpp
   src/formats/pdf_image_writer.cpp
   src/formats/pdf_png_writer.cpp
   src/formats/pdf_filters.cpp
@@ -2638,6 +2639,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
     tests/core/pdf_tests.cpp
+    tests/core/pdf_hidden_text_tests.cpp
     tests/core/artboard_tests.cpp
     tests/core/svg_tests.cpp
     tests/core/css_layer_export_tests.cpp

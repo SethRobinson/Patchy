@@ -144,6 +144,10 @@ public:
   virtual ~ContentSink() = default;
   virtual void on_path(const PaintedPath& path) = 0;
   virtual void on_text(const TextRun& run) = 0;
+  // A run in an invisible render mode (3 or 7): a scanned page's text layer. Nothing draws
+  // it, so sinks that build a picture ignore it; a sink that wants what a reader would find
+  // on the page overrides this.
+  virtual void on_hidden_text(const TextRun&) {}
   virtual void on_image(const PlacedImage& image) = 0;
   // A shading painted directly by `sh`, covering the current clip (empty = the whole
   // page). `shading` is null when the type could not be evaluated.
