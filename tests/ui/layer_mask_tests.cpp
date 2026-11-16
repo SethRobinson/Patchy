@@ -1,5 +1,8 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -24,6 +27,7 @@
 #include <QMenu>
 #include <QPainter>
 #include <QContextMenuEvent>
+#include <QScopeGuard>
 #include <algorithm>
 #include <atomic>
 #include <array>
@@ -1496,11 +1500,398 @@ void ui_layer_mask_delete_on_all_layers_of_apple_worm_if_available() {
   CHECK(masked_ids() == before);
 }
 
+// A Brush or Eraser stroke on a grayscale target painted with the mask brush's row spans,
+// covered-disk skip and band workers, and painted the way 1.37 did, every segment's whole
+// bounding box on one thread (GitHub issue 728): the same mask bytes and bounds, and the same
+// canvas, which also equals a fresh render of the result.
+void ui_layer_mask_brush_fast_walk_keeps_bytes() {
+  enum class Target { LayerMask, SmallLayerMask, QuickMask };
+  struct Case {
+    const char* name;
+    Target target;
+    patchy::ui::CanvasTool tool;
+    int size;
+    int softness;
+    int opacity;
+    int flow;
+    bool build_up;
+    int roundness;
+    double zoom;
+    bool feathered_selection;
+    bool deep;
+  };
+  const auto brush = patchy::ui::CanvasTool::Brush;
+  const std::vector<Case> cases{
+      {"hard", Target::LayerMask, brush, 301, 0, 100, 100, false, 100, 0.5, false, false},
+      {"hard_big", Target::LayerMask, brush, 501, 0, 100, 100, false, 100, 0.5, false, false},
+      {"soft_8_big", Target::LayerMask, brush, 481, 8, 100, 100, false, 100, 0.5, false, false},
+      {"soft_15", Target::LayerMask, brush, 281, 15, 100, 100, false, 100, 0.37, false, false},
+      {"soft_100", Target::LayerMask, brush, 241, 100, 100, 100, false, 100, 0.5, false, false},
+      {"opacity_60", Target::LayerMask, brush, 221, 40, 60, 100, false, 100, 1.0, false, false},
+      {"eraser", Target::LayerMask, patchy::ui::CanvasTool::Eraser, 201, 30, 80, 100, false, 100, 0.5, false, false},
+      {"flow_20", Target::LayerMask, brush, 181, 25, 100, 20, false, 100, 0.5, false, false},
+      {"build_up", Target::LayerMask, brush, 161, 50, 70, 100, true, 100, 0.5, false, false},
+      {"oval", Target::LayerMask, brush, 221, 35, 90, 100, false, 55, 0.5, false, false},
+      {"feathered", Target::LayerMask, brush, 201, 25, 100, 100, false, 100, 0.5, true, false},
+      {"small_mask", Target::SmallLayerMask, brush, 241, 20, 100, 100, false, 100, 0.5, false, false},
+      {"quick_mask", Target::QuickMask, brush, 261, 10, 100, 100, false, 100, 0.5, false, false},
+      {"deep_16", Target::LayerMask, brush, 201, 15, 100, 100, false, 100, 0.5, false, true},
+      {"size_9", Target::LayerMask, brush, 9, 0, 100, 100, false, 100, 1.0, false, false},
+      {"size_3", Target::LayerMask, brush, 3, 0, 100, 100, false, 100, 1.0, false, false},
+  };
+  patchy::set_deep_editing_override(true);
+  const auto restore_deep = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  for (const auto& test_case : cases) {
+    struct Result {
+      std::vector<std::uint8_t> bytes;
+      QRect bounds;
+      QImage frame;
+      std::int64_t visited{0};
+      int segments{0};
+      int band_redraws{0};
+    };
+    const auto paint = [&test_case](bool fast_walk, bool single_threaded) {
+      if (single_threaded) {
+        qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+      }
+      const auto restore_threads = qScopeGuard([single_threaded] {
+        if (single_threaded) {
+          qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+        }
+      });
+      constexpr int kWidth = 700;
+      constexpr int kHeight = 520;
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+      document.add_pixel_layer("Background",
+                               solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+      auto photo = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          auto* px = photo.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+        }
+      }
+      auto& layer = document.add_pixel_layer("Photo", std::move(photo));
+      const auto layer_id = layer.id();
+      if (test_case.target != Target::QuickMask) {
+        // A mask with every value in it, canvas-sized or a part the stroke grows past.
+        const auto mask_bounds = test_case.target == Target::SmallLayerMask ? patchy::Rect{260, 150, 200, 170}
+                                                                             : patchy::Rect{0, 0, kWidth, kHeight};
+        patchy::PixelBuffer mask_pixels(mask_bounds.width, mask_bounds.height, patchy::PixelFormat::gray8());
+        for (int y = 0; y < mask_bounds.height; ++y) {
+          for (int x = 0; x < mask_bounds.width; ++x) {
+            *mask_pixels.pixel(x, y) = static_cast<std::uint8_t>((x * 3 + y * 5) % 256);
+          }
+        }
+        layer.set_mask(patchy::LayerMask{mask_bounds, std::move(mask_pixels), 255, false});
+      }
+      if (test_case.deep) {
+        patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+      }
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(520, 420);
+      canvas.set_document(&document);
+      canvas.set_zoom(test_case.zoom);
+      canvas.set_mask_brush_fast_walk_enabled_for_testing(fast_walk);
+      canvas.show();
+      QApplication::processEvents();
+      const auto widget_point = [&canvas](QPoint document_point) {
+        return canvas.widget_position_for_document_point(document_point);
+      };
+      if (test_case.feathered_selection) {
+        canvas.set_tool(patchy::ui::CanvasTool::EllipticalMarquee);
+        canvas.set_selection_feather_radius(25);
+        drag(canvas, widget_point(QPoint(200, 90)), widget_point(QPoint(640, 470)));
+        QApplication::processEvents();
+        canvas.set_selection_dash_offset_for_testing(0);  // the two frames below show the same ants
+      }
+      if (test_case.target == Target::QuickMask) {
+        canvas.set_quick_mask_active(true);
+      } else {
+        canvas.set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+      }
+      CHECK(test_case.target == Target::QuickMask ||
+            canvas.layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+      canvas.set_tool(test_case.tool);
+      canvas.set_primary_color(QColor(40, 40, 40));
+      canvas.set_secondary_color(QColor(255, 255, 255));
+      canvas.set_brush_size(test_case.size);
+      canvas.set_brush_softness(test_case.softness);
+      canvas.set_brush_opacity(test_case.opacity);
+      canvas.set_brush_flow(test_case.flow);
+      canvas.set_brush_build_up(test_case.build_up);
+      canvas.set_brush_base_shape(30.0, test_case.roundness);
+      // Every fourth move folds three extra samples into it (GitHub issue 165), every seventh
+      // repeats the previous point, and the path turns back on itself and leaves the canvas.
+      std::vector<QPoint> path;
+      for (int index = 0; index <= 90; ++index) {
+        const auto t = static_cast<double>(index);
+        path.emplace_back(static_cast<int>(std::lround(400.0 + 330.0 * std::sin(t * 0.05))),
+                          static_cast<int>(std::lround(260.0 + 150.0 * std::sin(t * 0.11) + (index % 5) * 2)));
+        if (index % 7 == 3) {
+          path.push_back(path.back());
+        }
+      }
+      std::vector<QPointF> folded;
+      canvas.set_coalesced_mouse_positions_provider(
+          [&folded](const QMouseEvent&) -> std::vector<QPointF> { return folded; });
+      const auto target_pixels = [&]() -> const patchy::PixelBuffer& {
+        if (test_case.target == Target::QuickMask) {
+          return canvas.quick_mask_pixels();
+        }
+        return std::as_const(*document.find_layer(layer_id)).mask()->pixels;
+      };
+      const auto target_bytes = [&] {
+        const auto bytes = target_pixels().data();
+        return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+      };
+      const auto before = target_bytes();
+      const auto diagnostics_before = canvas.render_cache_diagnostics();
+      // Sent events only: no event-loop pass runs between press and release, so no Airbrush
+      // timer tick lands and every run paints the same segments.
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(path.front()), Qt::LeftButton, Qt::LeftButton);
+      for (std::size_t index = 1; index < path.size();) {
+        const auto extra = index % 4 == 0 ? std::min<std::size_t>(3, path.size() - 1 - index) : 0;
+        folded.clear();
+        for (std::size_t sample = 0; sample < extra; ++sample) {
+          folded.emplace_back(widget_point(path[index + sample]));
+        }
+        const auto event_point = widget_point(path[index + extra]);
+        QMouseEvent event(QEvent::MouseMove, event_point, canvas.mapToGlobal(event_point), Qt::NoButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(&canvas, &event);
+        index += extra + 1;
+      }
+      folded.clear();
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(path.back()), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      Result result;
+      result.bytes = target_bytes();
+      if (test_case.target != Target::QuickMask) {
+        const auto bounds = std::as_const(*document.find_layer(layer_id)).mask()->bounds;
+        result.bounds = QRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      const auto diagnostics = canvas.render_cache_diagnostics();
+      result.segments = diagnostics.mask_brush_segments - diagnostics_before.mask_brush_segments;
+      result.visited = diagnostics.mask_brush_segment_pixels - diagnostics_before.mask_brush_segment_pixels;
+      result.band_redraws = diagnostics.mask_brush_band_redraws - diagnostics_before.mask_brush_band_redraws;
+      CHECK(result.bytes != before);
+      result.frame = canvas.grab().toImage();
+      // The frame the stroke's dirty rects patched together is the frame of a whole render.
+      canvas.document_changed();
+      QApplication::processEvents();
+      CHECK(canvas.grab().toImage() == result.frame);
+      return result;
+    };
+    const auto reference = paint(false, true);
+    const auto single = paint(true, true);
+    const auto parallel = paint(true, false);
+    if (single.bytes != reference.bytes || parallel.bytes != reference.bytes) {
+      std::printf("[INFO] mask brush case %s: one thread %s, bands %s\n", test_case.name,
+                  single.bytes == reference.bytes ? "same" : "changed",
+                  parallel.bytes == reference.bytes ? "same" : "changed");
+    }
+    CHECK(reference.segments > 0);
+    CHECK(single.segments == reference.segments);
+    CHECK(parallel.segments == reference.segments);
+    CHECK(single.bytes == reference.bytes);
+    CHECK(parallel.bytes == reference.bytes);
+    CHECK(single.bounds == reference.bounds);
+    CHECK(parallel.bounds == reference.bounds);
+    CHECK(single.frame == reference.frame);
+    CHECK(parallel.frame == reference.frame);
+    // The spans alone leave out the corners of every bounding box (a 3 px one has none).
+    CHECK(test_case.size < 9 ? single.visited <= reference.visited : single.visited < reference.visited);
+    CHECK(parallel.visited == single.visited);
+    // The frames above also hold when moves redraw only the bands they changed, which a big hard
+    // brush's moves do.
+    CHECK(reference.band_redraws == 0);
+    CHECK(parallel.band_redraws == single.band_redraws);
+    if (std::string_view(test_case.name) == "hard_big") {
+      CHECK(single.band_redraws > 0);
+    }
+  }
+
+  // A dab outside a small mask grows it: every old value keeps its place, at 8 and 16 bits, and
+  // the new area takes the mask's default color.
+  for (const bool deep : {false, true}) {
+    patchy::Document document(300, 200, patchy::PixelFormat::rgb8());
+    auto& layer =
+        document.add_pixel_layer("Fill", solid_pixels(300, 200, patchy::PixelFormat::rgba8(), QColor(200, 40, 40)));
+    const auto layer_id = layer.id();
+    const patchy::Rect old_bounds{100, 60, 80, 50};
+    patchy::PixelBuffer mask_pixels(old_bounds.width, old_bounds.height, patchy::PixelFormat::gray8());
+    for (int y = 0; y < old_bounds.height; ++y) {
+      for (int x = 0; x < old_bounds.width; ++x) {
+        *mask_pixels.pixel(x, y) = static_cast<std::uint8_t>((x * 3 + y * 5) % 256);
+      }
+    }
+    layer.set_mask(patchy::LayerMask{old_bounds, std::move(mask_pixels), 255, false});
+    if (deep) {
+      patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+    }
+    const auto before = std::as_const(*document.find_layer(layer_id)).mask()->pixels;
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(340, 240);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+    canvas.set_tool(patchy::ui::CanvasTool::Brush);
+    canvas.set_primary_color(Qt::black);
+    canvas.set_brush_size(21);
+    canvas.set_brush_softness(0);
+    canvas.set_brush_opacity(100);
+    const auto dab = canvas.widget_position_for_document_point(QPoint(30, 30));
+    send_mouse(canvas, QEvent::MouseButtonPress, dab, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, dab, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto& mask = *std::as_const(*document.find_layer(layer_id)).mask();
+    const auto sample_bytes = patchy::bytes_per_pixel(mask.pixels.format());
+    CHECK(mask.pixels.format() == before.format());
+    CHECK(mask.bounds.x < 30 && mask.bounds.y < 30);
+    CHECK(mask.bounds.x + mask.bounds.width == old_bounds.x + old_bounds.width);
+    CHECK(mask.bounds.y + mask.bounds.height == old_bounds.y + old_bounds.height);
+    int moved = 0;
+    for (int y = 0; y < old_bounds.height; ++y) {
+      for (int x = 0; x < old_bounds.width; ++x) {
+        if (std::memcmp(before.pixel(x, y),
+                        mask.pixels.pixel(old_bounds.x + x - mask.bounds.x, old_bounds.y + y - mask.bounds.y),
+                        sample_bytes) != 0) {
+          ++moved;
+        }
+      }
+    }
+    CHECK(moved == 0);
+    const auto value_at = [&mask](int x, int y) {
+      return patchy::ui::mask_sample_at(mask.pixels.format(), mask.pixels.pixel(x - mask.bounds.x, y - mask.bounds.y));
+    };
+    CHECK(value_at(30, 30) == 0.0F);    // the dab
+    CHECK(value_at(60, 100) == 255.0F);  // new area the dab does not reach
+  }
+}
+
+// What a mask stroke costs is set by the brush and the path, never by the mask (GitHub issue
+// 728: painting on a layer mask lagged at every image size). The same stroke on a 1200 px and a
+// 2400 px canvas paints the same segments over the same number of pixels and redraws the same
+// area; a hard brush visits about what each move adds, a fraction of the segments' bounding
+// boxes, and redraws under half of what the moves' bounding boxes hold; and no move redraws
+// the whole canvas.
+void ui_layer_mask_brush_stroke_work_does_not_grow_with_the_mask() {
+  struct Result {
+    int segments{0};
+    std::int64_t visited{0};
+    std::int64_t redrawn{0};
+    int full_refreshes{0};
+    int display_mip_rebuilds{0};
+    int partial_patches{0};
+  };
+  constexpr int kBrushSize = 601;
+  constexpr int kMoves = 60;
+  const auto paint = [](int side, int softness, double zoom, bool fast_walk) {
+    patchy::Document document(side, side, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background",
+                             solid_pixels(side, side, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+    auto& layer =
+        document.add_pixel_layer("Fill", solid_pixels(side, side, patchy::PixelFormat::rgba8(), QColor(200, 40, 40)));
+    const auto layer_id = layer.id();
+    patchy::PixelBuffer mask_pixels(side, side, patchy::PixelFormat::gray8());
+    mask_pixels.clear(255);
+    layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, side, side}, std::move(mask_pixels), 255, false});
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(640, 480);
+    canvas.set_document(&document);
+    canvas.set_zoom(zoom);
+    canvas.set_mask_brush_fast_walk_enabled_for_testing(fast_walk);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+    canvas.set_tool(patchy::ui::CanvasTool::Brush);
+    canvas.set_primary_color(Qt::black);
+    canvas.set_brush_size(kBrushSize);
+    canvas.set_brush_softness(softness);
+    canvas.set_brush_opacity(100);
+    canvas.set_brush_flow(100);
+    canvas.set_brush_build_up(false);
+    // The same path about the middle of either canvas, in document pixels.
+    const auto point_at = [&canvas, side](int index) {
+      return canvas.widget_position_for_document_point(
+          QPoint(side / 2 - 150 + index * 5, side / 2 + static_cast<int>(std::lround(20.0 * std::sin(index * 0.1)))));
+    };
+    canvas.repaint();
+    send_mouse(canvas, QEvent::MouseButtonPress, point_at(0), Qt::LeftButton, Qt::LeftButton);
+    canvas.repaint();
+    const auto before = canvas.render_cache_diagnostics();
+    for (int index = 1; index <= kMoves; ++index) {
+      send_mouse(canvas, QEvent::MouseMove, point_at(index), Qt::NoButton, Qt::LeftButton);
+      canvas.repaint();
+    }
+    const auto after = canvas.render_cache_diagnostics();
+    send_mouse(canvas, QEvent::MouseButtonRelease, point_at(kMoves), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    // Black on the mask hides the fill where the stroke went.
+    CHECK(*std::as_const(*document.find_layer(layer_id)).mask()->pixels.pixel(side / 2, side / 2) == 0);
+    Result result;
+    result.segments = after.mask_brush_segments - before.mask_brush_segments;
+    result.visited = after.mask_brush_segment_pixels - before.mask_brush_segment_pixels;
+    result.redrawn = static_cast<std::int64_t>(after.dirty_region_pixels - before.dirty_region_pixels);
+    result.full_refreshes = after.full_refreshes - before.full_refreshes;
+    result.display_mip_rebuilds = after.display_mip_rebuilds - before.display_mip_rebuilds;
+    result.partial_patches = after.partial_patches - before.partial_patches;
+    return result;
+  };
+  // Every segment's bounding box, what each one walked before.
+  const auto box = static_cast<std::int64_t>(kBrushSize) * kBrushSize;
+  for (const int softness : {0, 15}) {
+    const auto small = paint(1200, softness, 1.0, true);
+    const auto large = paint(2400, softness, 1.0, true);
+    // The 1.37 walk: every segment's box, and the bounding boxes of what the moves changed.
+    const auto boxes = paint(1200, softness, 1.0, false);
+    std::printf("[INFO] mask stroke, Soft %d: %d segments over %lld pixels, %lld redrawn on 1200 px; %d over %lld, "
+                "%lld redrawn on 2400 px (boxes: %lld visited, %lld redrawn)\n",
+                softness, small.segments, static_cast<long long>(small.visited),
+                static_cast<long long>(small.redrawn), large.segments, static_cast<long long>(large.visited),
+                static_cast<long long>(large.redrawn), static_cast<long long>(boxes.visited),
+                static_cast<long long>(boxes.redrawn));
+    CHECK(small.segments >= kMoves);
+    CHECK(large.segments == small.segments);
+    CHECK(large.visited == small.visited);
+    // The redraw bands sit on fixed rows of the document, so the same stroke elsewhere redraws a
+    // slightly different area: within a twentieth.
+    CHECK(large.redrawn * 20 <= small.redrawn * 21);
+    CHECK(small.redrawn * 20 <= large.redrawn * 21);
+    CHECK(boxes.segments == small.segments);
+    CHECK(boxes.visited >= box * boxes.segments);
+    // Hard: the strip each move adds. Soft 15%: that and the soft rim around the segment's start.
+    CHECK(small.visited * (softness == 0 ? 5 : 2) < boxes.visited);
+    if (softness == 0) {
+      CHECK(small.redrawn * 2 <= boxes.redrawn);
+    } else {
+      CHECK(small.redrawn <= boxes.redrawn);
+    }
+    for (const auto& result : {small, large}) {
+      CHECK(result.full_refreshes == 0);
+      CHECK(result.partial_patches >= kMoves);
+    }
+  }
+  // Zoomed out, the display mips are patched under each move, never rebuilt.
+  const auto zoomed_out = paint(2400, 0, 0.25, true);
+  CHECK(zoomed_out.segments >= kMoves);
+  CHECK(zoomed_out.full_refreshes == 0);
+  CHECK(zoomed_out.display_mip_rebuilds == 0);
+}
+
 
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_mask_tests() {
   return {
+      {"ui_layer_mask_brush_fast_walk_keeps_bytes", ui_layer_mask_brush_fast_walk_keeps_bytes},
+      {"ui_layer_mask_brush_stroke_work_does_not_grow_with_the_mask",
+       ui_layer_mask_brush_stroke_work_does_not_grow_with_the_mask},
       {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",
        ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
       {"ui_layer_mask_edit_target_survives_undo", ui_layer_mask_edit_target_survives_undo},

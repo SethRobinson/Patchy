@@ -286,13 +286,15 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
     }
   }
   if (!mask.pixels.empty() && mask.pixels.format() == format) {
+    // Row by row: a stroke that leaves a small mask grows it at every segment (GitHub issue 728).
     const auto copy_rect = current.intersected(expanded);
     const auto sample_bytes = bytes_per_pixel(format);
-    for (int y = copy_rect.top(); y <= copy_rect.bottom(); ++y) {
-      for (int x = copy_rect.left(); x <= copy_rect.right(); ++x) {
-        const auto* from = std::as_const(mask.pixels).pixel(x - current.x(), y - current.y());
-        std::copy(from, from + sample_bytes, next.pixel(x - expanded.x(), y - expanded.y()));
-      }
+    const auto row_bytes = static_cast<std::size_t>(std::max(0, copy_rect.width())) * sample_bytes;
+    for (int y = copy_rect.top(); row_bytes > 0 && y <= copy_rect.bottom(); ++y) {
+      const auto from = std::as_const(mask.pixels).row(y - current.y());
+      const auto to = next.row(y - expanded.y());
+      std::memcpy(to.data() + static_cast<std::size_t>(copy_rect.left() - expanded.x()) * sample_bytes,
+                  from.data() + static_cast<std::size_t>(copy_rect.left() - current.x()) * sample_bytes, row_bytes);
     }
   }
 

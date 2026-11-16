@@ -1058,6 +1058,10 @@ public:
   // Turns off the Clone/Healing stamp's row spans and continued-segment skip (GitHub issue
   // 597) so a test can paint the same stroke both ways and compare the bytes.
   void set_clone_stamp_skip_enabled_for_testing(bool enabled) noexcept { clone_stamp_skip_enabled_ = enabled; }
+  // Turns off the mask brush's row spans, covered-disk skip and band workers (GitHub issue
+  // 728): every segment then walks its whole bounding box on one thread, as in 1.37, so a test
+  // can paint the same stroke both ways and compare the bytes.
+  void set_mask_brush_fast_walk_enabled_for_testing(bool enabled) noexcept { mask_brush_fast_walk_enabled_ = enabled; }
   // Turns off the retouch snapshot's reuse of the settled render cache (GitHub #597) so a
   // test can paint the same strokes from a fresh render and compare the bytes.
   void set_retouch_snapshot_cache_reuse_enabled_for_testing(bool enabled) noexcept {
@@ -5134,6 +5138,41 @@ private:
   };
   std::optional<CloneSegmentEnd> clone_stroke_segment_end_;
   bool clone_stamp_skip_enabled_{true};
+  // Where this stroke's last mask brush segment ended and the round brush it used. The next
+  // segment from that point skips the disk that end covered in full (draw_mask_brush_segment,
+  // GitHub issue 728).
+  struct MaskSegmentEnd {
+    QPointF point;
+    int radius{0};
+    int softness{0};
+    int opacity{0};
+  };
+  std::optional<MaskSegmentEnd> mask_stroke_segment_end_;
+  bool mask_brush_fast_walk_enabled_{true};
+  // What the mask brush segments of the mouse move being handled changed, kept tighter than
+  // their bounding boxes (GitHub issue 728): a big brush moving a little changes a thin crescent
+  // whose bounding box is half the brush, and a masked layer composites on the slow path. Per
+  // band of rows (the key is y >> mask_stroke_dirty_band_shift_, about a tenth of the brush):
+  // the rows changed and up to kMaskStrokeDirtyPieces column intervals (closed, apart,
+  // ascending).
+  struct MaskStrokeDirtyBand {
+    int top{0};
+    int bottom{0};
+    std::vector<std::pair<int, int>> columns;
+  };
+  static constexpr std::size_t kMaskStrokeDirtyPieces = 3;
+  std::map<int, MaskStrokeDirtyBand> mask_stroke_dirty_bands_;
+  // The union of the dirty rects those segments returned: the region stands in for them only
+  // while it has the same bounds.
+  QRect mask_stroke_dirty_bounds_{};
+  bool mask_stroke_dirty_collecting_{false};
+  int mask_stroke_dirty_band_shift_{6};
+  void begin_mask_stroke_dirty_collection();
+  void add_mask_stroke_dirty_span(int y, int left, int right);
+  // The collected bands as a region. Empty when they do not account for `bounds`, come to too
+  // many rects, or would not at least halve `sample_area`, the pixels the samples' own boxes
+  // redraw (small brushes: more rects cost more than they save).
+  [[nodiscard]] QRegion mask_stroke_dirty_region(const QRect& bounds, std::int64_t sample_area) const;
   bool retouch_snapshot_cache_reuse_enabled_{true};
   RetouchPressTimings last_retouch_press_timings_{};
   bool lazy_clone_source_enabled_{true};

@@ -612,6 +612,15 @@ struct CanvasRenderCacheDiagnostics {
   double brush_dab_ms{0.0};
   int airbrush_ticks{0};
   double airbrush_tick_ms{0.0};
+  // Brush and Eraser segments painted on a grayscale target (a layer mask, Quick Mask, a Smart
+  // Filter mask, a saved channel), the pixels they visited and the time they took
+  // (patchy_perf_tests maskstroke, GitHub #728).
+  int mask_brush_segments{0};
+  std::int64_t mask_brush_segment_pixels{0};
+  double mask_brush_segment_ms{0.0};
+  // Mouse moves of such a stroke that redrew the bands its segments changed instead of the
+  // samples' bounding boxes (CanvasWidget::mask_stroke_dirty_region).
+  int mask_brush_band_redraws{0};
 };
 
 // Where the latest Clone or Healing press spent its time, through its first dab and the

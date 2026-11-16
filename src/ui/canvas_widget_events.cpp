@@ -2557,7 +2557,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     // and no speed feeds deposition or Smoothing; adding either needs a new
     // review (docs/legal-constraints.md, "Brush behavior").
     std::vector<QRect> dirty;
+    // Mask brush segments also record what they changed band by band (GitHub issue 728).
+    begin_mask_stroke_dirty_collection();
     {
+      const auto stop_collecting = qScopeGuard([this] { mask_stroke_dirty_collecting_ = false; });
       // Spaced Brush and Eraser dabs of all these samples are painted together (GitHub
       // issue 677 follow-up; flush_brush_dab_batch).
       ++brush_dab_batch_depth_;
@@ -2570,7 +2573,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       const auto batched = flush_brush_dab_batch();
       dirty.insert(dirty.end(), batched.begin(), batched.end());
     }
-    if (const auto region = stroke_samples_dirty_region(dirty); !region.isEmpty()) {
+    if (auto region = stroke_samples_dirty_region(dirty); !region.isEmpty()) {
+      // A mask stroke's own bands when they account for all of it: the samples' bounding boxes
+      // are mostly pixels that did not change.
+      std::int64_t sample_area = 0;
+      for (const auto& rect : region) {
+        sample_area += static_cast<std::int64_t>(rect.width()) * rect.height();
+      }
+      if (auto bands = mask_stroke_dirty_region(region.boundingRect(), sample_area); !bands.isEmpty()) {
+        region = std::move(bands);
+        ++render_cache_diagnostics_.mask_brush_band_redraws;
+      }
       active_edit_target_changed_impl(region, DocumentChangeReason::BrushStrokePreview);
     }
     // A point the segment spacing held back is painted if the pointer pauses (GitHub #660).
