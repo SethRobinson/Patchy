@@ -11,6 +11,7 @@
 #include "ui/modifier_names.hpp"
 #include "ui/pdf_links.hpp"
 #include "ui/pdf_page_view.hpp"
+#include "ui/pdf_text_selection.hpp"
 #include "ui/pdf_viewer_window.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
@@ -329,10 +330,15 @@ void close_viewer(PdfViewerWindow* viewer) {
   CHECK(process_events_until([&guard] { return guard.isNull(); }));
 }
 
-// Waits until the pages are rendered and the links of the pages on screen are read.
+// Waits until the pages are rendered, the links and the text areas of the pages on screen
+// are read and the text selection has caught up.
 void settle(PdfViewerWindow& viewer) {
   CHECK(process_events_until(
-      [&viewer] { return !viewer.page_view()->render_pending() && !viewer.page_view()->links()->busy(); }, 15000));
+      [&viewer] {
+        auto* view = viewer.page_view();
+        return !view->render_pending() && !view->links()->busy() && !view->text_selection()->busy();
+      },
+      15000));
 }
 
 struct LinkSpot {
@@ -432,7 +438,7 @@ struct LinkMenu {
 };
 
 // Right-clicks the page area at `position` and picks `pick` (an action objectName; empty
-// closes the menu) from the link menu, if one opens.
+// closes the menu) from the page menu, if one opens. A separator is listed with no name.
 LinkMenu right_click(PdfPageView& view, QPoint position, const QString& pick = {}) {
   LinkMenu seen;
   QTimer poll;
@@ -445,7 +451,7 @@ LinkMenu right_click(PdfPageView& view, QPoint position, const QString& pick = {
     }
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
-      if (menu == nullptr || !menu->isVisible() || menu->objectName() != QStringLiteral("pdfViewerLinkMenu")) {
+      if (menu == nullptr || !menu->isVisible() || menu->objectName() != QStringLiteral("pdfViewerPageMenu")) {
         continue;
       }
       seen.shown = true;
@@ -654,12 +660,19 @@ void ui_pdf_viewer_links_hover_and_click() {
   CHECK(!viewer->full_screen_mode());
   CHECK(log.opened.size() == 2);
 
-  // A press on a link that turns into a drag pans and follows nothing.
+  // A press on a link that turns into a drag selects the link's text (to the line the
+  // pointer went down to) and follows nothing.
   send_mouse(*view->viewport(), QEvent::MouseButtonPress, chapter.center(), Qt::LeftButton, Qt::LeftButton);
   send_mouse(*view->viewport(), QEvent::MouseMove, chapter.center() + QPoint(0, 40), Qt::NoButton, Qt::LeftButton);
   send_mouse(*view->viewport(), QEvent::MouseButtonRelease, chapter.center() + QPoint(0, 40), Qt::LeftButton,
              Qt::NoButton);
   CHECK(view->current_page() == 0 && !viewer->can_go_back());
+  settle(*viewer);
+  CHECK(view->has_text_selection());
+  CHECK(view->selected_text().contains(QLatin1Char('\n')));
+  // A plain click beside the text drops the selection.
+  click(*view, blank);
+  CHECK(!view->has_text_selection());
 
   // A plain click on a link into the document goes there; Back returns.
   click(*view, chapter.center());
@@ -899,12 +912,18 @@ void ui_pdf_viewer_links_context_menu() {
   const auto program = spot_with_address(*view, 0, QStringLiteral("file:calc"));
   const QString open_name = QStringLiteral("pdfViewerLinkOpenAction");
   const QString copy_name = QStringLiteral("pdfViewerLinkCopyAction");
+  // Under the link's own entries, a separator and the entries every page has: Copy (off
+  // with no text selected) and Select All on This Page.
+  const QString copy_text_name = QStringLiteral("pdfViewerCopyAction");
+  const QString select_page_name = QStringLiteral("pdfViewerSelectPageAction");
 
   auto menu = right_click(*view, web.center());
   CHECK(menu.shown);
-  CHECK(menu.actions == QStringList({open_name, copy_name}));
-  CHECK(menu.texts == QStringList({QStringLiteral("Open Link"), QStringLiteral("Copy Link Address")}));
+  CHECK(menu.actions == QStringList({open_name, copy_name, QString(), copy_text_name, select_page_name}));
+  CHECK(menu.texts == QStringList({QStringLiteral("Open Link"), QStringLiteral("Copy Link Address"), QString(),
+                                   QStringLiteral("Copy"), QStringLiteral("Select All on This Page")}));
   CHECK(menu.action_enabled(open_name) && menu.action_enabled(copy_name));
+  CHECK(!menu.action_enabled(copy_text_name) && menu.action_enabled(select_page_name));
   CHECK(log.opened.isEmpty() && log.copied.isEmpty());
   right_click(*view, web.center(), copy_name);
   CHECK(log.copied == QStringList({kWebAddress}));
@@ -928,14 +947,18 @@ void ui_pdf_viewer_links_context_menu() {
 
   // A link into the document.
   menu = right_click(*view, spot_to_page(*view, 0, 4).center());
-  CHECK(menu.actions == QStringList({QStringLiteral("pdfViewerLinkGoAction")}));
-  CHECK(menu.texts == QStringList({QStringLiteral("Go to Page 5")}));
+  CHECK(menu.actions ==
+        QStringList({QStringLiteral("pdfViewerLinkGoAction"), QString(), copy_text_name, select_page_name}));
+  CHECK(menu.texts.value(0) == QStringLiteral("Go to Page 5"));
   CHECK(view->current_page() == 0);
   right_click(*view, spot_to_page(*view, 0, 4).center(), QStringLiteral("pdfViewerLinkGoAction"));
   CHECK(view->current_page() == 4 && viewer->can_go_back());
   viewer->go_back();
-  // Off a link there is no menu.
+  // Off a link the page has its own two entries, and beside the page there is no menu.
   menu = right_click(*view, QPoint(view->viewport()->width() / 2, view->viewport()->height() - 40));
+  CHECK(menu.shown && menu.actions == QStringList({copy_text_name, select_page_name}));
+  CHECK(!menu.action_enabled(copy_text_name));
+  menu = right_click(*view, QPoint(3, view->viewport()->height() / 2));
   CHECK(!menu.shown);
   close_viewer(viewer);
 }

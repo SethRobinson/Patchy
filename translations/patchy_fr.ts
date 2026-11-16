@@ -37849,6 +37849,16 @@ Verrouillé : %1</translation>
         <source>Copy Link Address</source>
         <translation>Copier l&apos;adresse du lien</translation>
     </message>
+    <message>
+        <source>Copy</source>
+        <extracomment>PDF viewer, right-click on a page: copies the selected text.</extracomment>
+        <translation>Copier</translation>
+    </message>
+    <message>
+        <source>Select All on This Page</source>
+        <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
+        <translation>Tout sélectionner sur cette page</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>

@@ -37849,6 +37849,16 @@ Bloqueado: %1</translation>
         <source>Copy Link Address</source>
         <translation>Copiar endereço do link</translation>
     </message>
+    <message>
+        <source>Copy</source>
+        <extracomment>PDF viewer, right-click on a page: copies the selected text.</extracomment>
+        <translation>Copiar</translation>
+    </message>
+    <message>
+        <source>Select All on This Page</source>
+        <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
+        <translation>Selecionar tudo nesta página</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>

@@ -478,6 +478,13 @@ void PdfViewerWindow::build_ui() {
   // key still never reaches the pages (where the arrow would turn one) or the main window.
   add_key(back_keys, [this] { go_back(); });
   add_key(forward_keys, [this] { go_forward(); });
+  // Copy and Select All work on the pages' text (docs/pdf-viewer-selection.md).
+  // Always on as well: with nothing selected Copy does nothing, and the key still never
+  // reaches the main window, whose Copy would replace the clipboard with a layer.
+  copy_key_action_ = add_key(standard_keys(QKeySequence::Copy, {QKeySequence(Qt::CTRL | Qt::Key_C)}),
+                             [this] { view_->copy_selection(); });
+  select_all_key_action_ = add_key(standard_keys(QKeySequence::SelectAll, {QKeySequence(Qt::CTRL | Qt::Key_A)}),
+                                   [this] { view_->select_all_on_current_pages(); });
   // These keys win over the main window's hotkeys while this window has focus (eventFilter).
   qApp->installEventFilter(this);
 
@@ -598,20 +605,14 @@ void PdfViewerWindow::build_ui() {
   connect(view_, &PdfPageView::jump_requested, this, &PdfViewerWindow::jump_to);
   connect(view_, &PdfPageView::url_open_requested, this, &PdfViewerWindow::open_link);
   connect(view_, &PdfPageView::url_copy_requested, this, &PdfViewerWindow::copy_link);
+  connect(view_, &PdfPageView::text_copy_requested, this, &PdfViewerWindow::copy_text);
   connect(view_, &PdfPageView::thumbnail_ready, this, [this](int page, const QImage& image) {
     if (auto* item = thumbnails_->item(page); item != nullptr) {
       item->setIcon(QIcon(QPixmap::fromImage(image)));
     }
   });
   connect(view_, &PdfPageView::full_screen_toggle_requested, this, [this] { set_full_screen(!full_screen_); });
-  // Esc closes the find bar first, then leaves full screen.
-  connect(view_, &PdfPageView::escape_pressed, this, [this] {
-    if (find_open_) {
-      close_find_bar();
-    } else if (full_screen_) {
-      set_full_screen(false);
-    }
-  });
+  connect(view_, &PdfPageView::escape_pressed, this, [this] { escape_pressed(); });
 }
 
 void PdfViewerWindow::build_find_bar() {
@@ -699,6 +700,19 @@ void PdfViewerWindow::build_find_bar() {
                            : tr("Reached the start, continued from the end"));
   });
   update_find_status();
+}
+
+bool PdfViewerWindow::escape_pressed() {
+  if (find_open_) {
+    close_find_bar();
+  } else if (view_->has_text_selection()) {
+    view_->clear_text_selection();
+  } else if (full_screen_) {
+    set_full_screen(false);
+  } else {
+    return false;
+  }
+  return true;
 }
 
 void PdfViewerWindow::open_find_bar() {
@@ -839,11 +853,14 @@ void PdfViewerWindow::open_link(const QUrl& url) {
 }
 
 void PdfViewerWindow::copy_link(const QUrl& url) {
-  const QString address = pdf_link_address(url);
+  copy_text(pdf_link_address(url));
+}
+
+void PdfViewerWindow::copy_text(const QString& text) {
   if (copy_text_) {
-    copy_text_(address);
+    copy_text_(text);
   } else {
-    QGuiApplication::clipboard()->setText(address);
+    QGuiApplication::clipboard()->setText(text);
   }
 }
 
@@ -1143,10 +1160,10 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
       // option, the sidebar), before any hotkey of the main window can take them. Only the
       // control that holds the keyboard counts (a key it passed on is not typed again for
       // its parents), and a control that types its own Enter keeps it.
-      if (find_open_ && widget == (focusWidget() != nullptr ? focusWidget() : this) &&
-          (widget == find_edit_ || !types_its_own_enter(widget))) {
+      const bool holds_keyboard = widget == (focusWidget() != nullptr ? focusWidget() : this);
+      const bool plain = (key.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
+      if (find_open_ && holds_keyboard && (widget == find_edit_ || !types_its_own_enter(widget))) {
         const bool enter = key.key() == Qt::Key_Return || key.key() == Qt::Key_Enter;
-        const bool plain = (key.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
         if (plain && (enter || key.key() == Qt::Key_Escape)) {
           event->accept();
           if (event->type() == QEvent::KeyPress) {
@@ -1161,12 +1178,28 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
           return true;
         }
       }
+      // With the bar closed Esc drops the text selection, then leaves full screen, the same
+      // way: wherever the keyboard is, and before a hotkey of the main window on Esc.
+      if (!find_open_ && holds_keyboard && plain && key.key() == Qt::Key_Escape && !types_its_own_enter(widget) &&
+          (view_->has_text_selection() || full_screen_)) {
+        event->accept();
+        if (event->type() == QEvent::KeyPress) {
+          escape_pressed();
+        }
+        return true;
+      }
       // A key that moves the caret by a word in a text field stays with the field, though
       // it is Back or Forward everywhere else (Option+Left and Option+Right on macOS).
       if (types_its_own_enter(widget) && moves_caret_by_word(key)) {
         return QWidget::eventFilter(watched, event);
       }
       auto* action = window_key_action(key);
+      // Copy and Select All typed in a text field are the field's: its own text is copied
+      // and selected, as anywhere else.
+      if ((action == copy_key_action_ || action == select_all_key_action_) && action != nullptr &&
+          types_its_own_enter(widget)) {
+        return QWidget::eventFilter(watched, event);
+      }
       // The key the user gave the main window's Close closes this window too, instead of the
       // document behind it. Only once the key reaches the window itself: a control under
       // the focus that uses the key (a letter typed in the page field) took it before that.

@@ -80,6 +80,7 @@ std::vector<patchy::test::TestCase> divide_photos_tests();
 std::vector<patchy::test::TestCase> book_scan_ui_tests();
 std::vector<patchy::test::TestCase> pdf_viewer_ui_tests();
 std::vector<patchy::test::TestCase> pdf_viewer_links_ui_tests();
+std::vector<patchy::test::TestCase> pdf_viewer_select_ui_tests();
 std::vector<patchy::test::TestCase> folder_open_export_tests();
 std::vector<patchy::test::TestCase> artboard_ui_tests();
 std::vector<patchy::test::TestCase> image_adjustments_curves_tests();

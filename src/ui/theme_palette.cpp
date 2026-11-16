@@ -320,6 +320,7 @@ const ThemePalette& dark_palette() {
       .canvas_type_mask_tint = rgb(0xff0000),
       .pdf_find_match = rgb(0xffd400),
       .pdf_find_current_match = rgb(0xff7a00),
+      .pdf_text_selection = rgb(0x1f6fe5),
 
       // Scroll bars.
       .canvas_scrollbar_track = rgb(0x262626),
@@ -612,6 +613,7 @@ const ThemePalette& light_palette() {
     light.canvas_type_mask_tint = rgb(0xff0000);
     light.pdf_find_match = rgb(0xffd400);
     light.pdf_find_current_match = rgb(0xff7a00);
+    light.pdf_text_selection = rgb(0x1f6fe5);
 
     // The chrome bar sits between the pasteboard and the window surface, and has
     // to read as distinct from both: darker than the dialog body it heads, and
@@ -1120,6 +1122,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(canvas_type_mask_tint),
       PATCHY_THEME_ROLE(pdf_find_match),
       PATCHY_THEME_ROLE(pdf_find_current_match),
+      PATCHY_THEME_ROLE(pdf_text_selection),
 
       PATCHY_THEME_ROLE(canvas_scrollbar_track),
       PATCHY_THEME_ROLE(panel_scrollbar_track),

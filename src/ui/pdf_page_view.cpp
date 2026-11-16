@@ -3,6 +3,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/pdf_text_search.hpp"
+#include "ui/pdf_text_selection.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/ui_profile.hpp"
 
@@ -46,6 +47,13 @@ constexpr double kMaxZoomFactor = 16.0;
 constexpr double kTextMatchOpacity = 0.42;
 constexpr double kCurrentTextMatchOpacity = 0.55;
 constexpr double kTextMatchEdge = 12.0;
+// Selecting text: how strongly the selection tints the page, how far (in pixels) from a
+// line a press still counts as on its text, how far the pointer moves before a press on
+// text selects, and how often a drag past the window's edge scrolls.
+constexpr double kTextSelectionOpacity = 0.35;
+constexpr double kTextHitSlackPixels = 2.0;
+constexpr int kSelectDragDistance = 3;
+constexpr int kSelectScrollMs = 30;
 // Links: the longest address a tooltip shows whole.
 constexpr qsizetype kLinkTipAddressLength = 100;
 
@@ -142,6 +150,14 @@ PdfPageView::PdfPageView(QWidget* parent) : QAbstractScrollArea(parent) {
   viewport()->setMouseTracking(true);
   links_ = new PdfLinkIndex(this);
   connect(links_, &PdfLinkIndex::page_links_ready, this, [this] { update_hover(); });
+  selection_ = new PdfTextSelection(this);
+  connect(selection_, &PdfTextSelection::page_areas_ready, this, [this] { update_hover(); });
+  connect(selection_, &PdfTextSelection::selection_changed, this, [this] {
+    viewport()->update();
+    emit text_selection_changed();
+  });
+  select_scroll_timer_.setInterval(kSelectScrollMs);
+  connect(&select_scroll_timer_, &QTimer::timeout, this, &PdfPageView::scroll_for_selection_drag);
   horizontalScrollBar()->setSingleStep(48);
   verticalScrollBar()->setSingleStep(48);
   schedule_timer_.setSingleShot(true);
@@ -165,7 +181,11 @@ void PdfPageView::set_document(QPdfDocument* document) {
   ++document_generation_;
   document_ = document;
   links_->set_document(document);
+  selection_->set_document(document);
   press_link_.reset();
+  drag_ = MouseDrag::None;
+  select_scroll_timer_.stop();
+  word_click_timer_.invalidate();
   base_images_.clear();
   detail_images_.clear();
   wanted_.clear();
@@ -645,8 +665,9 @@ void PdfPageView::update_wanted_renders() {
     if (search_ != nullptr) {
       search_->set_visible_pages(pages);
     }
-    // The links of the pages on screen, so the pointer finds them.
+    // The links and the text areas of the pages on screen, so the pointer finds them.
     links_->request_pages(pages);
+    selection_->request_pages(pages);
   }
   // 1. Every page on screen, whole, nearest the middle first.
   for (const auto* slot : on_screen) {
@@ -865,6 +886,11 @@ void PdfPageView::paintEvent(QPaintEvent* event) {
       const QRectF dest(target.x() + detail.clip.x() * scale, target.y() + detail.clip.y() * scale,
                         detail.clip.width() * scale, detail.clip.height() * scale);
       painter.drawImage(dest, detail.image);
+    }
+  }
+  if (!selection_->empty()) {
+    for (const auto& [slot, target] : drawn) {
+      paint_text_selection(painter, *slot, origin, target);
     }
   }
   if (search_ != nullptr && search_->active()) {
@@ -1147,21 +1173,50 @@ void PdfPageView::keyPressEvent(QKeyEvent* event) {
 void PdfPageView::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton || event->button() == Qt::MiddleButton) {
     const QPoint position = event->position().toPoint();
-    drag_ = MouseDrag::Pan;
     press_position_ = position;
     pan_last_ = position;
     press_moved_ = false;
     press_link_.reset();
+    press_on_text_ = false;
+    select_started_ = false;
+    select_scroll_timer_.stop();
+    event->accept();
     if (event->button() == Qt::LeftButton) {
+      press_page_point_ = page_point_at(event->position(), false);
+      press_on_text_ = text_under(event->position());
+      // A third click right behind the double-click that selected a word selects its line.
+      const bool third_click =
+          word_click_timer_.isValid() && word_click_timer_.elapsed() < QApplication::doubleClickInterval() &&
+          (position - word_click_position_).manhattanLength() < QApplication::startDragDistance();
+      word_click_timer_.invalidate();
+      if (third_click && press_on_text_) {
+        selection_->select_line(press_page_point_.page, press_page_point_.point);
+        drag_ = MouseDrag::None;
+        return;
+      }
+      if (event->modifiers().testFlag(Qt::ShiftModifier) && selection_->has_anchor()) {
+        // Shift+click reaches from where the selection started to here, and a drag goes on
+        // from there.
+        drag_ = MouseDrag::Select;
+        select_started_ = true;
+        viewport()->setCursor(Qt::IBeamCursor);
+        drag_text_selection_to(position);
+        return;
+      }
       if (const PdfPageLink* link = link_at(event->position()); link != nullptr) {
         press_link_ = *link;
       }
+      if (press_on_text_ && !press_link_.has_value()) {
+        drag_ = MouseDrag::Select;
+        viewport()->setCursor(Qt::IBeamCursor);
+        return;
+      }
     }
+    drag_ = MouseDrag::Pan;
     // A press on a link keeps the hand that points until it turns into a drag.
     if (!press_link_.has_value()) {
       viewport()->setCursor(Qt::ClosedHandCursor);
     }
-    event->accept();
     return;
   }
   QAbstractScrollArea::mousePressEvent(event);
@@ -1170,11 +1225,32 @@ void PdfPageView::mousePressEvent(QMouseEvent* event) {
 void PdfPageView::mouseMoveEvent(QMouseEvent* event) {
   const QPoint position = event->position().toPoint();
   hover_position_ = position;
+  if (drag_ == MouseDrag::Select) {
+    if (!select_started_) {
+      if ((position - press_position_).manhattanLength() < kSelectDragDistance) {
+        event->accept();
+        return;
+      }
+      begin_text_selection_drag();
+    }
+    drag_text_selection_to(position);
+    event->accept();
+    return;
+  }
   if (drag_ == MouseDrag::Pan) {
     if (!press_moved_ && (position - press_position_).manhattanLength() >= QApplication::startDragDistance()) {
       press_moved_ = true;
+      if (press_link_.has_value() && press_on_text_) {
+        // The press on a link has become a drag over its text: select from where it began.
+        drag_ = MouseDrag::Select;
+        viewport()->setCursor(Qt::IBeamCursor);
+        begin_text_selection_drag();
+        drag_text_selection_to(position);
+        event->accept();
+        return;
+      }
       if (press_link_.has_value()) {
-        // The press on a link has become a drag: pan from here, with no jump.
+        // The press on a link that is not text has become a drag: pan from here, no jump.
         pan_last_ = position;
         viewport()->setCursor(Qt::ClosedHandCursor);
       }
@@ -1195,17 +1271,27 @@ void PdfPageView::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void PdfPageView::mouseReleaseEvent(QMouseEvent* event) {
-  if (drag_ == MouseDrag::Pan) {
+  if (drag_ == MouseDrag::Select || drag_ == MouseDrag::Pan) {
+    const bool selecting = drag_ == MouseDrag::Select;
     drag_ = MouseDrag::None;
+    select_scroll_timer_.stop();
     const std::optional<PdfPageLink> link = std::move(press_link_);
     press_link_.reset();
-    const bool clicked = event->button() == Qt::LeftButton && link.has_value() && !press_moved_;
+    const bool left = event->button() == Qt::LeftButton;
+    const bool clicked_link = left && !selecting && link.has_value() && !press_moved_;
+    if (left && selecting && !select_started_) {
+      // A click on text: nothing is selected any more, and Shift+click reaches from here.
+      selection_->set_anchor(press_page_point_.page, press_page_point_.point);
+    } else if (left && !selecting && !link.has_value() && !press_moved_) {
+      // A click beside the text.
+      selection_->clear();
+    }
     hover_position_ = event->position().toPoint();
-    hover_on_link_ = false;
+    hover_ = Hover::None;
     viewport()->unsetCursor();
     update_hover();
     event->accept();
-    if (clicked) {
+    if (clicked_link) {
       activate_link(*link, event->modifiers(), event->globalPosition().toPoint());
     }
     return;
@@ -1225,8 +1311,18 @@ void PdfPageView::mouseDoubleClickEvent(QMouseEvent* event) {
     }
     drag_ = MouseDrag::None;
     press_link_.reset();
+    select_scroll_timer_.stop();
+    if (text_under(event->position())) {
+      // On text a double-click selects the word; full screen is a double-click beside it.
+      const PagePoint spot = page_point_at(event->position(), false);
+      selection_->select_word(spot.page, spot.point);
+      word_click_timer_.restart();
+      word_click_position_ = event->position().toPoint();
+      event->accept();
+      return;
+    }
     viewport()->unsetCursor();
-    hover_on_link_ = false;
+    hover_ = Hover::None;
     emit full_screen_toggle_requested();
     event->accept();
     return;
@@ -1241,6 +1337,192 @@ void PdfPageView::scrollContentsBy(int dx, int dy) {
   notify_current_page();
   schedule_renders();
   update_hover();
+  if (drag_ == MouseDrag::Select && select_started_) {
+    // The page moved under a pointer that is selecting: the selection reaches to what is
+    // under it now.
+    if (const PagePoint spot = page_point_at(QPointF(select_position_), true); spot.page >= 0) {
+      selection_->select_to(spot.page, spot.point);
+    }
+  }
+}
+
+// --- Selecting text (docs/pdf-viewer-selection.md) ---
+
+QPointF PdfPageView::content_to_page_point(const PageViewSlot& slot, QPointF content) const {
+  const PageSizePoints size = page_sizes_[static_cast<std::size_t>(slot.page)];
+  if (!(size.width > 0.0) || !(size.height > 0.0) || !(slot.rect.width > 0.0) || !(slot.rect.height > 0.0)) {
+    return {};
+  }
+  // The way back from page_area_to_content: off the page's place and scale, then out of
+  // the view's quarter turns.
+  const PageSizePoints turned = turned_page_size(size, options_.quarter_turns);
+  const double x = (content.x() - slot.rect.x) * turned.width / slot.rect.width;
+  const double y = (content.y() - slot.rect.y) * turned.height / slot.rect.height;
+  switch (normalized_turns(options_.quarter_turns)) {
+    case 1:
+      return {y, size.height - x};
+    case 2:
+      return {size.width - x, size.height - y};
+    case 3:
+      return {size.width - y, x};
+    default:
+      return {x, y};
+  }
+}
+
+PdfPageView::PagePoint PdfPageView::page_point_at(QPointF viewport_point, bool nearest) const {
+  const QPointF content = viewport_point - content_origin();
+  const PageViewSlot* chosen = nullptr;
+  double best = 0.0;
+  for (const auto& slot : layout_.pages) {
+    const double dx = std::max({slot.rect.x - content.x(), 0.0, content.x() - slot.rect.right()});
+    const double dy = std::max({slot.rect.y - content.y(), 0.0, content.y() - slot.rect.bottom()});
+    const double distance = dx * dx + dy * dy;
+    if (distance <= 0.0) {
+      chosen = &slot;
+      break;
+    }
+    if (nearest && (chosen == nullptr || distance < best)) {
+      best = distance;
+      chosen = &slot;
+    }
+  }
+  if (chosen == nullptr) {
+    return {};
+  }
+  return {chosen->page, content_to_page_point(*chosen, content)};
+}
+
+bool PdfPageView::text_under(QPointF viewport_point) const {
+  const PagePoint spot = page_point_at(viewport_point, false);
+  return spot.page >= 0 &&
+         selection_->text_at(spot.page, spot.point, kTextHitSlackPixels / std::max(0.01, pixels_per_point()));
+}
+
+void PdfPageView::begin_text_selection_drag() {
+  select_started_ = true;
+  selection_->set_anchor(press_page_point_.page, press_page_point_.point);
+}
+
+void PdfPageView::drag_text_selection_to(QPoint position) {
+  select_position_ = position;
+  // The move only hands over where the pointer is; the selection follows on a worker, the
+  // newest position first, so a queued run of moves costs nothing.
+  if (const PagePoint spot = page_point_at(QPointF(position), true); spot.page >= 0) {
+    selection_->select_to(spot.page, spot.point);
+  }
+  if (viewport()->rect().contains(position)) {
+    select_scroll_timer_.stop();
+  } else if (!select_scroll_timer_.isActive()) {
+    select_scroll_timer_.start();
+  }
+}
+
+void PdfPageView::scroll_for_selection_drag() {
+  if (drag_ != MouseDrag::Select) {
+    select_scroll_timer_.stop();
+    return;
+  }
+  // The further the pointer is past the edge, the faster the pages go by.
+  const auto step = [](int position, int extent) {
+    const int past = position < 0 ? position : position >= extent ? position - extent + 1 : 0;
+    if (past == 0) {
+      return 0;
+    }
+    const int speed = std::clamp(std::abs(past) / 2, 4, 80);
+    return past < 0 ? -speed : speed;
+  };
+  const int dx = step(select_position_.x(), viewport()->width());
+  const int dy = step(select_position_.y(), viewport()->height());
+  if (dx == 0 && dy == 0) {
+    select_scroll_timer_.stop();
+    return;
+  }
+  // scrollContentsBy carries the selection on to what is under the pointer.
+  horizontalScrollBar()->setValue(horizontalScrollBar()->value() + dx);
+  verticalScrollBar()->setValue(verticalScrollBar()->value() + dy);
+}
+
+void PdfPageView::paint_text_selection(QPainter& painter, const PageViewSlot& slot, QPointF origin,
+                                       const QRectF& target) {
+  const auto* rects = selection_->page_rects(slot.page);
+  if (rects == nullptr) {
+    return;
+  }
+  const QRectF window(QPointF(0.0, 0.0), QSizeF(viewport()->size()));
+  // One path filled by winding: line pieces that overlap are tinted once. Mapped from page
+  // points on every paint, like the find highlights, so nothing is kept in step with the
+  // zoom, the rotation or the layout.
+  QPainterPath path;
+  path.setFillRule(Qt::WindingFill);
+  for (const QRectF& rect : *rects) {
+    const QRectF mark = page_area_to_content(slot, rect).translated(origin);
+    if (mark.intersects(window)) {
+      path.addRect(mark);
+    }
+  }
+  if (path.isEmpty()) {
+    return;
+  }
+  QColor tint = theme().pdf_text_selection;
+  tint.setAlphaF(static_cast<float>(kTextSelectionOpacity));
+  painter.save();
+  painter.setClipRect(target);
+  painter.fillPath(path, tint);
+  painter.restore();
+}
+
+bool PdfPageView::has_text_selection() const {
+  return !selection_->empty();
+}
+
+QString PdfPageView::selected_text() const {
+  return selection_->text();
+}
+
+void PdfPageView::copy_selection() {
+  if (const QString text = selection_->text(); !text.isEmpty()) {
+    emit text_copy_requested(text);
+  }
+}
+
+void PdfPageView::select_all_on_page(int page) {
+  if (page >= 0 && page < page_count()) {
+    selection_->select_pages(page, page);
+  }
+}
+
+void PdfPageView::select_all_on_current_pages() {
+  if (const auto pages = current_pages(); !pages.empty()) {
+    selection_->select_pages(pages.front(), pages.back());
+  }
+}
+
+void PdfPageView::clear_text_selection() {
+  selection_->clear();
+}
+
+std::vector<QRectF> PdfPageView::selection_rects_for_testing(int page) const {
+  std::vector<QRectF> rects;
+  const PageViewSlot* slot = slot_for_page(page);
+  const auto* found = selection_->page_rects(page);
+  if (slot == nullptr || found == nullptr) {
+    return rects;
+  }
+  for (const QRectF& rect : *found) {
+    rects.push_back(page_area_to_content(*slot, rect).translated(content_origin()));
+  }
+  return rects;
+}
+
+QPointF PdfPageView::page_point_for_testing(int page, QPointF viewport_point) const {
+  const PageViewSlot* slot = slot_for_page(page);
+  return slot != nullptr ? content_to_page_point(*slot, viewport_point - content_origin()) : QPointF();
+}
+
+QRectF PdfPageView::page_area_rect_for_testing(int page, const QRectF& area) const {
+  const PageViewSlot* slot = slot_for_page(page);
+  return slot != nullptr ? page_area_to_content(*slot, area).translated(content_origin()) : QRectF();
 }
 
 // --- Links (docs/pdf-viewer.md, "Links") ---
@@ -1313,15 +1595,29 @@ void PdfPageView::update_hover() {
   if (drag_ != MouseDrag::None) {
     return;
   }
-  const bool on_link = hover_position_.has_value() && link_at(QPointF(*hover_position_)) != nullptr;
-  if (on_link == hover_on_link_) {
+  // A hand over a link, an I-beam over text, the arrow anywhere else.
+  Hover hover = Hover::None;
+  if (hover_position_.has_value()) {
+    if (link_at(QPointF(*hover_position_)) != nullptr) {
+      hover = Hover::Link;
+    } else if (text_under(QPointF(*hover_position_))) {
+      hover = Hover::Text;
+    }
+  }
+  if (hover == hover_) {
     return;
   }
-  hover_on_link_ = on_link;
-  if (on_link) {
-    viewport()->setCursor(Qt::PointingHandCursor);
-  } else {
-    viewport()->unsetCursor();
+  hover_ = hover;
+  switch (hover) {
+    case Hover::Link:
+      viewport()->setCursor(Qt::PointingHandCursor);
+      break;
+    case Hover::Text:
+      viewport()->setCursor(Qt::IBeamCursor);
+      break;
+    case Hover::None:
+      viewport()->unsetCursor();
+      break;
   }
 }
 
@@ -1368,25 +1664,44 @@ bool PdfPageView::viewportEvent(QEvent* event) {
 
 void PdfPageView::contextMenuEvent(QContextMenuEvent* event) {
   const PdfPageLink* found = link_at(QPointF(event->pos()));
-  if (found == nullptr) {
+  const PagePoint spot = page_point_at(QPointF(event->pos()), false);
+  const bool selected = !selection_->empty();
+  if (found == nullptr && spot.page < 0 && !selected) {
     QAbstractScrollArea::contextMenuEvent(event);
     return;
   }
-  const PdfPageLink link = *found;
   QMenu menu(this);
-  menu.setObjectName(QStringLiteral("pdfViewerLinkMenu"));
-  if (link.internal()) {
-    auto* go = menu.addAction(tr("Go to Page %1").arg(link.target.page + 1));
-    go->setObjectName(QStringLiteral("pdfViewerLinkGoAction"));
-    connect(go, &QAction::triggered, this, [this, link] { emit jump_requested(link.target); });
-  } else {
-    auto* open = menu.addAction(tr("Open Link"));
-    open->setObjectName(QStringLiteral("pdfViewerLinkOpenAction"));
-    open->setEnabled(pdf_link_url_opens(link.url));
-    connect(open, &QAction::triggered, this, [this, link] { emit url_open_requested(link.url); });
-    auto* copy = menu.addAction(tr("Copy Link Address"));
-    copy->setObjectName(QStringLiteral("pdfViewerLinkCopyAction"));
-    connect(copy, &QAction::triggered, this, [this, link] { emit url_copy_requested(link.url); });
+  menu.setObjectName(QStringLiteral("pdfViewerPageMenu"));
+  if (found != nullptr) {
+    const PdfPageLink link = *found;
+    if (link.internal()) {
+      auto* go = menu.addAction(tr("Go to Page %1").arg(link.target.page + 1));
+      go->setObjectName(QStringLiteral("pdfViewerLinkGoAction"));
+      connect(go, &QAction::triggered, this, [this, link] { emit jump_requested(link.target); });
+    } else {
+      auto* open = menu.addAction(tr("Open Link"));
+      open->setObjectName(QStringLiteral("pdfViewerLinkOpenAction"));
+      open->setEnabled(pdf_link_url_opens(link.url));
+      connect(open, &QAction::triggered, this, [this, link] { emit url_open_requested(link.url); });
+      auto* copy_link = menu.addAction(tr("Copy Link Address"));
+      copy_link->setObjectName(QStringLiteral("pdfViewerLinkCopyAction"));
+      connect(copy_link, &QAction::triggered, this, [this, link] { emit url_copy_requested(link.url); });
+    }
+    menu.addSeparator();
+  }
+  //: PDF viewer, right-click on a page: copies the selected text.
+  auto* copy = menu.addAction(tr("Copy"));
+  copy->setObjectName(QStringLiteral("pdfViewerCopyAction"));
+  copy->setEnabled(selected);
+  connect(copy, &QAction::triggered, this, &PdfPageView::copy_selection);
+  if (spot.page >= 0) {
+    //: PDF viewer, right-click on a page: selects all the text of that page.
+    auto* all = menu.addAction(tr("Select All on This Page"));
+    all->setObjectName(QStringLiteral("pdfViewerSelectPageAction"));
+    // A page read and found without text (a scan) has nothing to select.
+    const PdfPageTextAreas* areas = selection_->page_areas(spot.page);
+    all->setEnabled(areas == nullptr || areas->has_text());
+    connect(all, &QAction::triggered, this, [this, page = spot.page] { select_all_on_page(page); });
   }
   menu.exec(event->globalPos());
   event->accept();

@@ -27,6 +27,7 @@ class QPdfDocument;
 namespace patchy::ui {
 
 class PdfTextSearch;
+class PdfTextSelection;
 
 // Where the view is, for Back and Forward (docs/pdf-viewer.md, "Back and Forward"): the page
 // being read and the point of a page that sits at the window's top left corner, as a share
@@ -113,6 +114,24 @@ public:
   // Tests: where the links of `page` are, in viewport coordinates, in page_links order.
   [[nodiscard]] std::vector<QRectF> link_rects_for_testing(int page) const;
 
+  // Selecting text (docs/pdf-viewer-selection.md). The selection belongs to the
+  // view; what it holds is asked through these.
+  [[nodiscard]] PdfTextSelection* text_selection() const { return selection_; }
+  [[nodiscard]] bool has_text_selection() const;
+  [[nodiscard]] QString selected_text() const;
+  // Hands the selected text to text_copy_requested; nothing without a selection.
+  void copy_selection();
+  // All the text of one page, or of the page or spread being read.
+  void select_all_on_page(int page);
+  void select_all_on_current_pages();
+  void clear_text_selection();
+  // Tests: where the selection is on `page`, in viewport coordinates.
+  [[nodiscard]] std::vector<QRectF> selection_rects_for_testing(int page) const;
+  // Tests: a point of the page area as a point of `page`, in points from its top left, and
+  // an area of `page` in viewport coordinates.
+  [[nodiscard]] QPointF page_point_for_testing(int page, QPointF viewport_point) const;
+  [[nodiscard]] QRectF page_area_rect_for_testing(int page, const QRectF& area) const;
+
   // Tests: true while a render is queued or running.
   [[nodiscard]] bool render_pending() const;
   // Tests: the device-pixel width of the sharpest image held for `page` (0 = none).
@@ -131,6 +150,9 @@ signals:
   // An address was Ctrl+clicked or Open Link chosen; only ever one pdf_link_url_opens takes.
   void url_open_requested(const QUrl& url);
   void url_copy_requested(const QUrl& url);
+  // Copy was chosen with text selected: the text as the clipboard should get it.
+  void text_copy_requested(const QString& text);
+  void text_selection_changed();
 
 protected:
   bool viewportEvent(QEvent* event) override;
@@ -195,6 +217,19 @@ private:
   [[nodiscard]] QRectF page_area_to_content(const PageViewSlot& slot, const QRectF& area) const;
   [[nodiscard]] QRectF current_text_match_area() const;
   void paint_text_matches(QPainter& painter, const PageViewSlot& slot, QPointF origin, const QRectF& target);
+  void paint_text_selection(QPainter& painter, const PageViewSlot& slot, QPointF origin, const QRectF& target);
+  // A point of the page area as a point of a page, in points from the page's top left as
+  // stored: the page under it, or (`nearest`) the page nearest to it. page -1: none.
+  struct PagePoint {
+    int page{-1};
+    QPointF point;
+  };
+  [[nodiscard]] PagePoint page_point_at(QPointF viewport_point, bool nearest) const;
+  [[nodiscard]] QPointF content_to_page_point(const PageViewSlot& slot, QPointF content) const;
+  [[nodiscard]] bool text_under(QPointF viewport_point) const;
+  void begin_text_selection_drag();
+  void drag_text_selection_to(QPoint position);
+  void scroll_for_selection_drag();
   // The link under a point of the page area and where it is, both in viewport coordinates.
   struct LinkHit {
     const PdfPageLink* link{nullptr};
@@ -208,6 +243,7 @@ private:
   QPdfDocument* document_{nullptr};
   QPointer<PdfTextSearch> search_;
   PdfLinkIndex* links_{nullptr};
+  PdfTextSelection* selection_{nullptr};
   std::vector<PageSizePoints> page_sizes_;
   std::vector<PageSpread> spreads_;
   PageViewLayoutOptions options_;
@@ -232,18 +268,32 @@ private:
   QTimer schedule_timer_;
   std::uint64_t document_generation_{0};
 
-  // What a press on the pages has become. A press pans as soon as the pointer moves, except
-  // on a link, where it stays a click until the pointer has gone a drag's distance. (Text
-  // selection, when it is built, is one more kind of drag here.)
-  enum class MouseDrag { None, Pan };
+  // What a press on the pages has become. A press on text selects once the pointer has
+  // moved a little; anywhere else it pans as soon as the pointer moves. On a link it stays a
+  // click until the pointer has gone a drag's distance, then selects (on text) or pans.
+  enum class MouseDrag { None, Pan, Select };
   MouseDrag drag_{MouseDrag::None};
   QPoint press_position_;
   QPoint pan_last_;
   bool press_moved_{false};
   std::optional<PdfPageLink> press_link_;
+  // The press was on text, and where on its page.
+  bool press_on_text_{false};
+  PagePoint press_page_point_;
+  // A Select drag that has started selecting (the pointer moved, or Shift was held).
+  bool select_started_{false};
+  // Where the pointer is during a Select drag, and the timer that scrolls while it is
+  // outside the page area.
+  QPoint select_position_;
+  QTimer select_scroll_timer_;
+  // Since the last double-click that selected a word, and where: a third click right behind
+  // it selects the line.
+  QElapsedTimer word_click_timer_;
+  QPoint word_click_position_;
   // Where the pointer was last seen over the pages, for the cursor after a scroll.
   std::optional<QPoint> hover_position_;
-  bool hover_on_link_{false};
+  enum class Hover { None, Link, Text };
+  Hover hover_{Hover::None};
   // Since the last click that followed a link: a second click right behind it is not a
   // double-click for full screen.
   QElapsedTimer link_click_timer_;

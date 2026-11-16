@@ -37735,6 +37735,16 @@ Locked: %1</source>
         <source>Copy Link Address</source>
         <translation>링크 주소 복사</translation>
     </message>
+    <message>
+        <source>Copy</source>
+        <extracomment>PDF viewer, right-click on a page: copies the selected text.</extracomment>
+        <translation>복사</translation>
+    </message>
+    <message>
+        <source>Select All on This Page</source>
+        <extracomment>PDF viewer, right-click on a page: selects all the text of that page.</extracomment>
+        <translation>이 페이지에서 모두 선택</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PdfViewerWindow</name>

@@ -90,9 +90,9 @@ public:
   [[nodiscard]] bool can_go_back() const { return !back_.empty(); }
   [[nodiscard]] bool can_go_forward() const { return !forward_.empty(); }
 
-  // What opens a link's address and what copies it. The opener is only ever handed an
-  // address pdf_link_url_opens takes (http, https, mailto). Tests replace both, so no
-  // browser starts and no clipboard changes.
+  // What opens a link's address and what copies text (a link's address, the selected
+  // text). The opener is only ever handed an address pdf_link_url_opens takes (http, https,
+  // mailto). Tests replace both, so no browser starts and no clipboard changes.
   using UrlOpener = std::function<bool(const QUrl& url)>;
   using TextCopier = std::function<void(const QString& text)>;
   void set_link_handlers(UrlOpener open, TextCopier copy);
@@ -136,6 +136,10 @@ private:
   void update_history_actions();
   void open_link(const QUrl& url);
   void copy_link(const QUrl& url);
+  void copy_text(const QString& text);
+  // Esc: closes the find bar, else drops the text selection, else leaves full screen.
+  // False when there was none of them to do.
+  bool escape_pressed();
   void fill_outline(const std::vector<PdfOutlineEntry>& entries);
   void show_sidebar_view(bool outline);
   void update_outline_current();
@@ -191,6 +195,9 @@ private:
   QAction* right_to_left_action_{nullptr};
   QAction* full_screen_action_{nullptr};
   QAction* close_action_{nullptr};
+  // Copy and Select All as this window's keys. A text field keeps them for its own text.
+  QAction* copy_key_action_{nullptr};
+  QAction* select_all_key_action_{nullptr};
   QPointer<QAction> close_key_source_;
   bool full_screen_{false};
   bool was_maximized_{false};

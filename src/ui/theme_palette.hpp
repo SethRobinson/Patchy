@@ -394,6 +394,9 @@ struct ThemePalette {
   // which is paper in both schemes, so Light keeps them.
   QColor pdf_find_match;
   QColor pdf_find_current_match;
+  // Selected text in the PDF viewer: a translucent tint over the words, on paper in both
+  // schemes, so Light keeps it. Blue, apart from the yellow and orange of Find.
+  QColor pdf_text_selection;
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,

@@ -1864,6 +1864,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         src/ui/pdf_page_view.cpp
         src/ui/pdf_text_search.hpp
         src/ui/pdf_text_search.cpp
+        src/ui/pdf_text_selection.hpp
+        src/ui/pdf_text_selection.cpp
         src/ui/pdf_viewer_window.hpp
         src/ui/pdf_viewer_window.cpp
         src/ui/pdf_book_print_dialog.hpp
@@ -2771,6 +2773,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/book_scan_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
+      tests/ui/pdf_viewer_select_tests.cpp
       tests/ui/folder_open_export_tests.cpp
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp

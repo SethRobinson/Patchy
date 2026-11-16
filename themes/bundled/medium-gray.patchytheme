@@ -236,6 +236,7 @@
     "canvas_type_mask_tint": "#ff0000",
     "pdf_find_match": "#ffd400",
     "pdf_find_current_match": "#ff7a00",
+    "pdf_text_selection": "#1f6fe5",
     "canvas_scrollbar_track": "#525252",
     "panel_scrollbar_track": "#525252",
     "scrollbar_handle_bg": "#787878",

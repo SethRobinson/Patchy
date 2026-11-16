@@ -7,6 +7,7 @@
 
 #include "core/book_imposition.hpp"
 #include "import_print_resolution_test_support.hpp"
+#include "pdf_viewer_test_support.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
@@ -1054,16 +1055,16 @@ void ui_pdf_book_print_dialog_follows_choices() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfBookPrint/style")).toString() == QStringLiteral("zine"));
 }
 
+}  // namespace
+
 // --- Find (docs/pdf-viewer.md, "Find") ---
 
-constexpr double kTextPageWidth = 300.0;
-constexpr double kTextPageHeight = 400.0;
+namespace patchy::test::ui::pdf_viewer_support {
 
 // Pages of Helvetica text, one Tj per line (so PDFium sees the line breaks), WinAnsi encoded:
 // write a character past ASCII as its octal escape. A page without lines has no text at all.
-QByteArray text_pdf_bytes(const std::vector<std::vector<std::string>>& pages, double width = kTextPageWidth,
-                          double height = kTextPageHeight, double font_size = 14.0, double left = 30.0,
-                          double top_margin = 40.0) {
+QByteArray text_pdf_bytes(const std::vector<std::vector<std::string>>& pages, double width, double height,
+                          double font_size, double left, double top_margin) {
   std::vector<std::string> objects;
   objects.emplace_back("<</Type/Catalog/Pages 2 0 R>>");
   std::string kids;
@@ -1171,6 +1172,16 @@ QByteArray find_sample_pdf_bytes() {
   };
   return text_pdf_bytes(pages, 612.0, 792.0, 12.0, 72.0, 84.0);
 }
+
+}  // namespace patchy::test::ui::pdf_viewer_support
+
+namespace {
+
+using patchy::test::ui::pdf_viewer_support::find_fixture_pdf_bytes;
+using patchy::test::ui::pdf_viewer_support::find_sample_pdf_bytes;
+using patchy::test::ui::pdf_viewer_support::kTextPageHeight;
+using patchy::test::ui::pdf_viewer_support::kTextPageWidth;
+using patchy::test::ui::pdf_viewer_support::text_pdf_bytes;
 
 // Waits until the search has nothing left to do and the pages are rendered.
 void settle_find(PdfViewerWindow& viewer) {

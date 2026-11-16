@@ -465,6 +465,7 @@ int main(int argc, char* argv[]) {
            book_scan_ui_tests,
            pdf_viewer_ui_tests,
            pdf_viewer_links_ui_tests,
+           pdf_viewer_select_ui_tests,
            folder_open_export_tests,
            artboard_ui_tests,
            image_adjustments_curves_tests,
