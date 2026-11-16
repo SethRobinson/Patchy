@@ -4795,6 +4795,234 @@ void a5_brush_stroke_perf() {
   }
 }
 
+// The same stroke on a layer's pixels and on its layer mask (GitHub issue 728: painting on a
+// mask was slow at every image size; his video shows a 7360x4912 photo at fit, Size 1024,
+// Soft 15%). Canvases of 2000x2000 and 7360x4912, at fit and 100%, 50 to 1024 px, Soft 0, 15
+// and 100; "burst" folds 8 extra positions into every move, the samples a 1000 Hz mouse
+// leaves behind a slow frame. PATCHY_PERF_MASK_SIZES=2000x2000,7360x4912 picks the canvases,
+// PATCHY_PERF_MASK_BRUSHES=50,300,1024 the sizes, PATCHY_PERF_MASK_SOFT=0,15,100 the softness,
+// PATCHY_PERF_MASK_OVERLAY=1 paints with the mask overlay shown, PATCHY_PERF_SAMPLER=1 samples
+// each case's moves and paints (Windows). Targets: "pixels" (the layer before it has a mask),
+// "mask", and "masked_pixels" (the pixels of the layer once it has the mask, which composites
+// like the mask target does). segments, segment_px and segment_ms are the mask brush's own
+// work (RenderCacheDiagnostics::mask_brush_*), redrawn_px the canvas pixels the stroke's moves
+// composited again and band_redraws the moves that redrew only the bands they changed. At 100%
+// a move covers the same document pixels on every canvas, so the run fails when a mask move on
+// the largest canvas takes over three times (plus 3 ms) what it takes on the smallest: a cost
+// that grows with the mask.
+void mask_stroke_perf() {
+  isolate_perf_settings();
+  const auto int_list = [](const char* name, std::vector<int> fallback) {
+    if (const auto text = qEnvironmentVariable(name); !text.isEmpty()) {
+      fallback.clear();
+      for (const auto& part : text.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        fallback.push_back(part.toInt());
+      }
+    }
+    return fallback;
+  };
+  std::vector<QSize> canvas_sizes{QSize(2000, 2000), QSize(7360, 4912)};
+  if (const auto text = qEnvironmentVariable("PATCHY_PERF_MASK_SIZES"); !text.isEmpty()) {
+    canvas_sizes.clear();
+    for (const auto& part : text.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+      const auto sides = part.split(QLatin1Char('x'));
+      const auto width = std::clamp(sides.value(0).toInt(), 64, 20000);
+      canvas_sizes.emplace_back(width, sides.size() > 1 ? std::clamp(sides.value(1).toInt(), 64, 20000) : width);
+    }
+  }
+  const auto brush_sizes = int_list("PATCHY_PERF_MASK_BRUSHES", {50, 300, 1024});
+  const auto softness_values = int_list("PATCHY_PERF_MASK_SOFT", {0, 15, 100});
+  // Median mask move at 100% per (softness, brush size), by canvas in run order.
+  std::map<std::pair<int, int>, std::vector<double>> mask_move_medians;
+  for (const auto canvas_size : canvas_sizes) {
+    const auto canvas_width = canvas_size.width();
+    const auto canvas_height = canvas_size.height();
+    patchy::Document document(canvas_width, canvas_height, patchy::PixelFormat::rgb8());
+    {
+      patchy::PixelBuffer background(canvas_width, canvas_height, patchy::PixelFormat::rgb8());
+      auto bytes = background.data();
+      std::fill(bytes.begin(), bytes.end(), std::uint8_t{255});
+      document.add_pixel_layer("Background", std::move(background));
+      patchy::PixelBuffer photo(canvas_width, canvas_height, patchy::PixelFormat::rgba8());
+      for (int y = 0; y < canvas_height; ++y) {
+        auto row = photo.row(y);
+        for (int x = 0; x < canvas_width; ++x) {
+          row[static_cast<std::size_t>(x) * 4U] = static_cast<std::uint8_t>((x / 7) % 256);
+          row[static_cast<std::size_t>(x) * 4U + 1U] = static_cast<std::uint8_t>((y / 9) % 256);
+          row[static_cast<std::size_t>(x) * 4U + 2U] = static_cast<std::uint8_t>(((x + y) / 13) % 256);
+          row[static_cast<std::size_t>(x) * 4U + 3U] = 255;
+        }
+      }
+      document.add_pixel_layer("Photo", std::move(photo));
+    }
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+      window.showMaximized();
+    } else {
+      window.show();
+    }
+    QApplication::processEvents();
+    window.add_document_session(std::move(document), QStringLiteral("Mask stroke"));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    if (canvas == nullptr) {
+      return;
+    }
+    const auto settle = [canvas] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    canvas->set_tool(patchy::ui::CanvasTool::Brush);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_opacity(100);
+    const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons) {
+      QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+      QApplication::sendEvent(canvas, &event);
+    };
+    const auto summary = [](std::vector<double> values) {
+      std::sort(values.begin(), values.end());
+      double total = 0.0;
+      for (const auto value : values) {
+        total += value;
+      }
+      std::ostringstream text;
+      text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+           << " median=" << values[values.size() / 2] << " max=" << values.back();
+      return text.str();
+    };
+    struct Pass {
+      const char* label;
+      double zoom;
+      double step;
+      int burst;
+    };
+    for (const char* target : {"pixels", "mask", "masked_pixels"}) {
+      if (std::string_view(target) == "masked_pixels") {
+        canvas->set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Content);
+        canvas->set_mask_display_mode(patchy::ui::CanvasWidget::MaskDisplayMode::None);
+        settle();
+      }
+      if (std::string_view(target) == "mask") {
+        auto* add_mask = window.findChild<QAction*>(QStringLiteral("layerAddMaskAction"));
+        CHECK(add_mask != nullptr);
+        if (add_mask == nullptr) {
+          return;
+        }
+        add_mask->trigger();
+        QApplication::processEvents();
+        CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+        if (qEnvironmentVariableIsSet("PATCHY_PERF_MASK_OVERLAY")) {
+          canvas->set_mask_display_mode(patchy::ui::CanvasWidget::MaskDisplayMode::Overlay);
+        }
+        settle();
+      }
+      for (const auto& pass : {Pass{"fit", 0.0, 12.0, 0}, Pass{"100%", 1.0, 12.0, 0}, Pass{"100%_slow", 1.0, 3.0, 0},
+                               Pass{"fit_burst", 0.0, 12.0, 8}}) {
+        const std::string label = pass.label;
+        for (const int softness : softness_values) {
+          for (const int brush_size : brush_sizes) {
+            if (pass.zoom == 0.0) {
+              canvas->fit_to_view();
+            } else {
+              canvas->set_zoom_centered(pass.zoom);
+            }
+            canvas->set_brush_size(brush_size);
+            canvas->set_brush_softness(softness);
+            settle();
+            const auto start = QPointF(canvas->width() * 0.2, canvas->height() * 0.5);
+            const auto at = [&](double index) {
+              return start + QPointF(pass.step * index, pass.step * 3.0 * std::sin(index * 0.15));
+            };
+            int move_index = 0;
+            if (pass.burst > 0) {
+              canvas->set_coalesced_mouse_positions_provider([&](const QMouseEvent&) {
+                std::vector<QPointF> positions;
+                for (int folded = 1; folded <= pass.burst; ++folded) {
+                  positions.push_back(at(move_index - 1 + static_cast<double>(folded) / (pass.burst + 1)));
+                }
+                return positions;
+              });
+            }
+            send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton);
+            canvas->repaint();
+            std::vector<double> move_ms;
+            std::vector<double> paint_ms;
+#ifdef Q_OS_WIN
+            std::unique_ptr<MainThreadSampler> sampler;
+            if (qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER")) {
+              sampler = std::make_unique<MainThreadSampler>();
+            }
+#endif
+            const auto cpu_before = process_cpu_ms();
+            const auto diagnostics_before = canvas->render_cache_diagnostics();
+            const auto stroke_ms = elapsed_ms([&] {
+              for (move_index = 1; move_index <= 60; ++move_index) {
+                move_ms.push_back(
+                    elapsed_ms([&] { send(QEvent::MouseMove, at(move_index), Qt::NoButton, Qt::LeftButton); }));
+                paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+              }
+            });
+            const auto stroke_cpu = process_cpu_ms() - cpu_before;
+            const auto diagnostics = canvas->render_cache_diagnostics();
+#ifdef Q_OS_WIN
+            if (sampler) {
+              std::cout << "[SAMPLER_PHASE] maskstroke " << canvas_width << "x" << canvas_height << " " << target
+                        << " " << label
+                        << " size=" << brush_size << " softness=" << softness << '\n';
+              sampler.reset();
+            }
+#endif
+            const auto release_ms = elapsed_ms([&] {
+              send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+              QApplication::processEvents();
+              settle();
+            });
+            canvas->set_coalesced_mouse_positions_provider({});
+            std::cout << std::fixed << std::setprecision(2) << "[PERF] maskstroke " << canvas_width << "x"
+                      << canvas_height << " " << target << " " << label << " zoom=" << canvas->zoom()
+                      << " size=" << brush_size << " softness=" << softness << " stroke_ms=" << stroke_ms
+                      << " stroke_cpu_ms=" << stroke_cpu << " release_ms=" << release_ms << " move_ms "
+                      << summary(move_ms) << " paint_ms " << summary(paint_ms)
+                      << " segments=" << diagnostics.mask_brush_segments - diagnostics_before.mask_brush_segments
+                      << " segment_px="
+                      << diagnostics.mask_brush_segment_pixels - diagnostics_before.mask_brush_segment_pixels
+                      << " segment_ms="
+                      << diagnostics.mask_brush_segment_ms - diagnostics_before.mask_brush_segment_ms
+                      << " redrawn_px=" << diagnostics.dirty_region_pixels - diagnostics_before.dirty_region_pixels
+                      << " band_redraws="
+                      << diagnostics.mask_brush_band_redraws - diagnostics_before.mask_brush_band_redraws
+                      << '\n'
+                      << std::flush;
+            if (std::string_view(target) == "mask" && label == "100%") {
+              std::sort(move_ms.begin(), move_ms.end());
+              mask_move_medians[{softness, brush_size}].push_back(move_ms[move_ms.size() / 2]);
+            }
+            patchy::ui::MainWindowTestAccess::undo(window);
+            settle();
+          }
+        }
+      }
+    }
+  }
+  for (const auto& [brush, medians] : mask_move_medians) {
+    if (medians.size() < 2) {
+      continue;
+    }
+    const auto allowed = medians.front() * 3.0 + 3.0;
+    if (medians.back() > allowed) {
+      std::cout << "[PERF] maskstroke softness=" << brush.first << " size=" << brush.second
+                << " mask move grows with the canvas: " << medians.front() << " ms on the first canvas, "
+                << medians.back() << " ms on the last (allowed " << allowed << ")\n";
+    }
+    CHECK(medians.back() <= allowed);
+  }
+}
+
 // Clone Stamp strokes on the 3580x5370 photo GitHub issue 597 lagged on (204 and 529 px) and
 // the 858x619 image of its follow-up (93 px), hard and soft, at fit (2 widget px per move) and
 // 100% (12 px, "slow" 3 px). "burst" folds 8 extra positions into every move, the samples a
@@ -6757,6 +6985,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "clonepress") {
       run_scenario("clonepress", clone_press_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "maskstroke") {
+      run_scenario("maskstroke", mask_stroke_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "toningstroke") {

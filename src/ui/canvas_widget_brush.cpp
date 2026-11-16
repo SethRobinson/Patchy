@@ -363,6 +363,34 @@ float capped_alpha_coverage(CapAt&& cap_at, float coverage, float source_alpha) 
   return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
 }
 
+// accumulating_stroke_coverage on the accumulated alpha `alpha_at()` returns, called only once
+// the dab's alpha is known to be positive. Shared by the member and the mask brush's workers.
+template <typename AlphaAt>
+float accumulated_alpha_coverage(AlphaAt&& alpha_at, float coverage, float opacity, float flow) {
+  if (opacity <= 0.0F || flow <= 0.0F) {
+    return 0.0F;  // Opacity 0 or Flow 0 paints nothing (issue 253); the clamps below floor the math
+  }
+  opacity = std::clamp(opacity, 1.0F / 255.0F, 1.0F);
+  flow = std::clamp(flow, 1.0F / 100.0F, 1.0F);
+  const auto dab_alpha = std::clamp(opacity * flow * std::clamp(coverage, 0.0F, 1.0F),
+                                    0.0F, opacity);
+  if (dab_alpha <= 0.0F) {
+    return 0.0F;
+  }
+
+  float& accumulated_alpha = alpha_at();
+  const auto target_alpha =
+      std::min(opacity, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
+  if (target_alpha <= accumulated_alpha + 0.0005F) {
+    return 0.0F;
+  }
+
+  const auto incremental_alpha =
+      (target_alpha - accumulated_alpha) / std::max(0.0005F, 1.0F - accumulated_alpha);
+  accumulated_alpha = target_alpha;
+  return std::clamp(incremental_alpha / opacity, 0.0F, 1.0F);
+}
+
 // The radius inside which a round brush of this radius and softness has coverage 1
 // (brush_coverage): all of it when hard, the inner core when soft.
 double full_coverage_radius(int radius, int softness) noexcept {
@@ -452,6 +480,111 @@ const CanvasWidget::DodgeBurnStrokeTable& CanvasWidget::dodge_burn_stroke_table(
 
 namespace {
 
+// The columns a mask brush segment visits in each row (GitHub issue 728: every segment walked
+// its whole bounding box). CloneSegmentRows for endpoints between pixels: the capsule of
+// radius r around from..to is convex, so a row meets it in one run, padded a pixel; pixels
+// outside have coverage 0 (brush_coverage), and an ellipse of lower roundness lies inside it.
+// When the segment continues the previous one from its end with the same round brush, the disk
+// around `from` that end covered in full (`covered_radius`, the full-coverage radius; shrunk a
+// pixel here against rounding) cannot change: each of its pixels got coverage 1 from the
+// previous segment and gets 1 again, so the stroke's alpha cap already holds its target and
+// capped_alpha_coverage would return 0 without touching the cap. The half-plane behind `from`
+// that CloneSegmentRows also skips is left in: with endpoints between pixels the previous
+// segment's closest point there is `from` only up to rounding.
+class MaskSegmentRows {
+ public:
+  MaskSegmentRows(QPointF from, QPointF to, int radius, bool walk_spans, double covered_radius)
+      : from_(from), to_(to), radius_(static_cast<double>(radius)), walk_spans_(walk_spans),
+        covered_radius_(covered_radius - 1.0) {
+    const auto dx = to.x() - from.x();
+    const auto dy = to.y() - from.y();
+    const auto length = std::sqrt(dx * dx + dy * dy);
+    has_band_ = length > std::numeric_limits<double>::epsilon();
+    const auto normal_x = has_band_ ? -dy / length * radius_ : 0.0;
+    const auto normal_y = has_band_ ? dx / length * radius_ : 0.0;
+    band_ = {std::pair{from.x() + normal_x, from.y() + normal_y}, std::pair{to.x() + normal_x, to.y() + normal_y},
+             std::pair{to.x() - normal_x, to.y() - normal_y}, std::pair{from.x() - normal_x, from.y() - normal_y}};
+  }
+
+  // The runs of row y within columns [left, right]; returns how many were written (at most 2).
+  std::size_t runs(int y, int left, int right, std::array<CloneSegmentRows::Run, CloneSegmentRows::kMaxRuns>& out) const {
+    int first = left;
+    int end = right + 1;
+    const auto row_y = static_cast<double>(y);
+    if (walk_spans_) {
+      auto span_low = std::numeric_limits<double>::infinity();
+      auto span_high = -std::numeric_limits<double>::infinity();
+      const auto radius_squared = radius_ * radius_;
+      const auto add_disk = [&](QPointF center) {
+        const auto row_offset = row_y - center.y();
+        if (std::abs(row_offset) > radius_ + 1.0) {
+          return;
+        }
+        const auto half_width = std::sqrt(std::max(0.0, radius_squared - row_offset * row_offset));
+        span_low = std::min(span_low, center.x() - half_width);
+        span_high = std::max(span_high, center.x() + half_width);
+      };
+      add_disk(from_);
+      add_disk(to_);
+      if (has_band_) {
+        for (std::size_t edge = 0; edge < band_.size(); ++edge) {
+          const auto [from_x, from_y] = band_[edge];
+          const auto [to_x, to_y] = band_[(edge + 1) % band_.size()];
+          if ((from_y - row_y) * (to_y - row_y) > 0.0) {
+            continue;
+          }
+          if (from_y == to_y) {
+            span_low = std::min({span_low, from_x, to_x});
+            span_high = std::max({span_high, from_x, to_x});
+            continue;
+          }
+          const auto crossing = from_x + (row_y - from_y) * (to_x - from_x) / (to_y - from_y);
+          span_low = std::min(span_low, crossing);
+          span_high = std::max(span_high, crossing);
+        }
+      }
+      if (span_low > span_high) {
+        return 0;
+      }
+      first = std::max(left, static_cast<int>(std::floor(span_low)) - 1);
+      end = std::min(right + 1, static_cast<int>(std::ceil(span_high)) + 2);
+    }
+    if (first >= end) {
+      return 0;
+    }
+    if (covered_radius_ > 0.0) {
+      const auto row_offset = row_y - from_.y();
+      const auto remaining = covered_radius_ * covered_radius_ - row_offset * row_offset;
+      if (remaining >= 0.0) {
+        const auto half_width = std::sqrt(remaining);
+        const auto low = static_cast<std::int64_t>(std::ceil(from_.x() - half_width));
+        const auto high = static_cast<std::int64_t>(std::floor(from_.x() + half_width));
+        if (low <= high) {
+          std::size_t count = 0;
+          if (low > first) {
+            out[count++] = CloneSegmentRows::Run{first, static_cast<int>(std::min<std::int64_t>(low, end))};
+          }
+          if (high + 1 < end) {
+            out[count++] = CloneSegmentRows::Run{static_cast<int>(std::max<std::int64_t>(high + 1, first)), end};
+          }
+          return count;
+        }
+      }
+    }
+    out[0] = CloneSegmentRows::Run{first, end};
+    return 1;
+  }
+
+ private:
+  QPointF from_;
+  QPointF to_;
+  double radius_{0.0};
+  bool walk_spans_{true};
+  double covered_radius_{0.0};
+  bool has_band_{false};
+  std::array<std::pair<double, double>, 4> band_{};
+};
+
 // One row of a stroke segment and the runs of it a CloneSegmentRows walk visits.
 struct SegmentRowRuns {
   int y{0};
@@ -460,8 +593,8 @@ struct SegmentRowRuns {
 };
 
 // The rows of `stroke_rect` a segment reaches; `pixel_count` gets how many pixels they hold.
-std::vector<SegmentRowRuns> segment_row_runs(const CloneSegmentRows& rows, const QRect& stroke_rect,
-                                             std::int64_t& pixel_count) {
+template <typename Rows>
+std::vector<SegmentRowRuns> segment_row_runs(const Rows& rows, const QRect& stroke_rect, std::int64_t& pixel_count) {
   std::vector<SegmentRowRuns> result;
   result.reserve(static_cast<std::size_t>(stroke_rect.height()));
   pixel_count = 0;
@@ -489,11 +622,11 @@ std::vector<SegmentRowRuns> segment_row_runs(const CloneSegmentRows& rows, const
 // PATCHY_RENDER_SINGLE_THREADED keeps every row here. `tick` runs on this thread.
 template <typename PaintRow, typename Tick>
 QRect walk_segment_rows(const std::vector<SegmentRowRuns>& segment_rows, std::int64_t segment_pixels,
-                        StrokePixelMap<float>& caps, PaintRow&& paint_row, Tick&& tick) {
+                        StrokePixelMap<float>& caps, PaintRow&& paint_row, Tick&& tick, bool allow_workers = true) {
   constexpr std::int64_t kParallelPixels = 8192;
   const auto band_of = [](int y) { return y >> StrokePixelMap<float>::kTileRowsShift; };
   const auto bands = segment_rows.empty() ? 0 : band_of(segment_rows.back().y) - band_of(segment_rows.front().y) + 1;
-  const auto workers = segment_pixels >= kParallelPixels && bands >= 2
+  const auto workers = allow_workers && segment_pixels >= kParallelPixels && bands >= 2
                            ? patchy::max_blocking_fanout_workers(
                                  std::clamp(std::min(bands, patchy::hardware_worker_threads()), 1, 16))
                            : 1;
@@ -1525,6 +1658,9 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_hard_round_end_.reset();
   clone_stroke_segment_end_.reset();
+  mask_stroke_segment_end_.reset();  // with brush_stroke_alpha_caps_, which its skip relies on
+  mask_stroke_dirty_bands_.clear();
+  mask_stroke_dirty_bounds_ = QRect();
   brush_stroke_distance_since_last_stamp_ = 0.0;
   mixer_brush_state_ = {};
   mixer_composite_snapshot_ = QImage();
@@ -2614,28 +2750,8 @@ float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float
 float CanvasWidget::accumulating_stroke_coverage(std::int32_t x, std::int32_t y,
                                                  float coverage, float opacity,
                                                  float flow) {
-  if (opacity <= 0.0F || flow <= 0.0F) {
-    return 0.0F;  // Opacity 0 or Flow 0 paints nothing (issue 253); the clamps below floor the math
-  }
-  opacity = std::clamp(opacity, 1.0F / 255.0F, 1.0F);
-  flow = std::clamp(flow, 1.0F / 100.0F, 1.0F);
-  const auto dab_alpha = std::clamp(opacity * flow * std::clamp(coverage, 0.0F, 1.0F),
-                                    0.0F, opacity);
-  if (dab_alpha <= 0.0F) {
-    return 0.0F;
-  }
-
-  auto& accumulated_alpha = brush_stroke_accumulated_alpha_(x, y);
-  const auto target_alpha =
-      std::min(opacity, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
-  if (target_alpha <= accumulated_alpha + 0.0005F) {
-    return 0.0F;
-  }
-
-  const auto incremental_alpha =
-      (target_alpha - accumulated_alpha) / std::max(0.0005F, 1.0F - accumulated_alpha);
-  accumulated_alpha = target_alpha;
-  return std::clamp(incremental_alpha / opacity, 0.0F, 1.0F);
+  return accumulated_alpha_coverage([&]() -> float& { return brush_stroke_accumulated_alpha_(x, y); }, coverage,
+                                    opacity, flow);
 }
 
 void CanvasWidget::ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer) {
@@ -3534,7 +3650,12 @@ QRect CanvasWidget::finish_brush_tip_stroke(bool erase) {
   return finalize_pending_wet_edges(dirty);
 }
 
+// The Brush and Eraser on a grayscale target (a layer mask, Quick Mask, a Smart Filter mask or
+// a saved channel): the capsule from..to through the stroke's alpha cap, or its accumulated
+// alpha at reduced Flow.
 QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase) {
+  // Any return before the walk below ends the chain of continued segments.
+  const auto continued_from_end = std::exchange(mask_stroke_segment_end_, std::nullopt);
   if (document_ == nullptr) {
     return {};
   }
@@ -3584,7 +3705,13 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       auto* value = target->pixels->pixel(document_point.x() - bounds.x(), document_point.y() - bounds.y());
       blend_mask_at(target->pixels->format(), value, paint_value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+      if (mask_stroke_dirty_collecting_) {
+        add_mask_stroke_dirty_span(document_point.y(), document_point.x(), document_point.x());
+      }
     });
+    if (mask_stroke_dirty_collecting_) {
+      mask_stroke_dirty_bounds_ = united_dirty_rect(mask_stroke_dirty_bounds_, dirty);
+    }
     return dirty;
   }
 
@@ -3610,48 +3737,228 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
   const auto segment_length_squared = dx * dx + dy * dy;
   const auto paint_value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
   const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
+  const auto flow = static_cast<float>(brush_flow_) / 100.0F;
+  // Reduced Flow and Build-up add every segment's coverage; otherwise the stroke's alpha cap
+  // lets each pixel take only what a segment adds to the most it has had.
+  const auto accumulates = brush_flow_ < 100 || brush_build_up_;
+  // Without a selection (and in Quick Mask) selection_allows() is always true.
+  const auto selection_clips = selection_clips_grayscale_edits();
+  const auto round = std::clamp(brush.roundness, 1, 100) >= 99;
 
-  QRect dirty;
-  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
-    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
-      const QPoint document_point(x, y);
-      if (!selection_allows(document_point)) {
-        continue;
-      }
-      const auto along =
-          segment_length_squared <= std::numeric_limits<double>::epsilon()
-              ? 0.0
-              : std::clamp(((static_cast<double>(x) - from.x()) * dx + (static_cast<double>(y) - from.y()) * dy) /
-                                segment_length_squared,
-                           0.0, 1.0);
-      const auto closest_x = from.x() + dx * along;
-      const auto closest_y = from.y() + dy * along;
-      const auto distance_x = static_cast<double>(x) - closest_x;
-      const auto distance_y = static_cast<double>(y) - closest_y;
-      auto coverage = brush_shape_coverage(distance_x, distance_y, radius, brush.softness, brush.roundness,
-                                           brush.angle_degrees);
-      if (selection_clips_grayscale_edits()) {
-        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
-      }
-      if (coverage <= 0.0F) {
-        continue;
-      }
-      coverage = brush_flow_ < 100 || brush_build_up_
-                     ? accumulating_stroke_coverage(x, y, coverage, opacity,
-                                                    static_cast<float>(brush_flow_) / 100.0F)
-                     : capped_stroke_coverage(x, y, coverage, opacity);
-      if (coverage <= 0.0F) {
-        continue;
-      }
-      coverage *= opacity;
-
-      auto* value = target->pixels->pixel(x - bounds.x(), y - bounds.y());
-      blend_mask_at(target->pixels->format(), value, paint_value, coverage);
-      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
-    }
-    tick_processing_operation();
+  // Only the segment's capsule, and of a segment continuing the last one from its end with the
+  // same round brush only what can change (MaskSegmentRows), fanned out over bands like the
+  // Clone stamp (GitHub issue 728: a 1024 px brush tested 1.3 million pixels per segment on one
+  // thread). Each pixel depends only on its own byte, its own cap and the selection, so the
+  // bytes, the caps and the dirty rect equal the whole-rectangle walk on one thread.
+  const auto fast_walk = mask_brush_fast_walk_enabled_;
+  const auto continues = fast_walk && !accumulates && round && continued_from_end.has_value() &&
+                         continued_from_end->point.x() == from.x() && continued_from_end->point.y() == from.y() &&
+                         continued_from_end->radius == radius &&
+                         continued_from_end->softness == brush.softness &&
+                         continued_from_end->opacity == brush.opacity;
+  const auto started = std::chrono::steady_clock::now();
+  const MaskSegmentRows rows(from, to, radius, fast_walk,
+                             continues ? full_coverage_radius(radius, brush.softness) : 0.0);
+  std::int64_t segment_pixels = 0;
+  const auto segment_rows = segment_row_runs(rows, stroke_rect, segment_pixels);
+  ++render_cache_diagnostics_.mask_brush_segments;
+  render_cache_diagnostics_.mask_brush_segment_pixels += segment_pixels;
+  if (round) {
+    mask_stroke_segment_end_ = MaskSegmentEnd{to, radius, brush.softness, brush.opacity};
   }
+  if (segment_rows.empty() || brush.opacity <= 0) {
+    return {};  // nothing can change (Opacity 0 paints nothing, issue 253): the bytes stay shared
+  }
+
+  auto& pixels = *target->pixels;
+  const auto format = pixels.format();
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const auto stride = pixels.stride_bytes();
+  auto* mask_bytes = pixels.data().data();  // detaches shared storage on this thread
+  // The columns each run of each row changed (first, last), for the move's dirty region.
+  struct RunDirty {
+    int left{std::numeric_limits<int>::max()};
+    int right{std::numeric_limits<int>::min()};
+  };
+  std::vector<std::array<RunDirty, CloneSegmentRows::kMaxRuns>> run_dirty(
+      mask_stroke_dirty_collecting_ ? segment_rows.size() : std::size_t{0});
+  // One row's runs through `stroke_alpha` (the map, or a band worker's Cursor): the stroke's
+  // alpha caps, or its accumulated alpha when the brush accumulates.
+  const auto paint_row = [&](const SegmentRowRuns& row, auto& stroke_alpha) -> QRect {
+    auto row_dirty_left = std::numeric_limits<int>::max();
+    auto row_dirty_right = std::numeric_limits<int>::min();
+    const auto y = row.y;
+    auto* row_bytes = mask_bytes + static_cast<std::size_t>(y - bounds.y()) * stride;
+    // Each row is one worker's, so each writes only its own entry.
+    auto* row_run_dirty =
+        run_dirty.empty() ? nullptr : run_dirty[static_cast<std::size_t>(&row - segment_rows.data())].data();
+    for (std::size_t run = 0; run < row.count; ++run) {
+      auto run_left = std::numeric_limits<int>::max();
+      auto run_right = std::numeric_limits<int>::min();
+      for (int x = row.runs[run].first; x < row.runs[run].end; ++x) {
+        const QPoint document_point(x, y);
+        if (selection_clips && !selection_allows(document_point)) {
+          continue;
+        }
+        const auto along =
+            segment_length_squared <= std::numeric_limits<double>::epsilon()
+                ? 0.0
+                : std::clamp(((static_cast<double>(x) - from.x()) * dx + (static_cast<double>(y) - from.y()) * dy) /
+                                  segment_length_squared,
+                             0.0, 1.0);
+        const auto closest_x = from.x() + dx * along;
+        const auto closest_y = from.y() + dy * along;
+        const auto distance_x = static_cast<double>(x) - closest_x;
+        const auto distance_y = static_cast<double>(y) - closest_y;
+        auto coverage = brush_shape_coverage(distance_x, distance_y, radius, brush.softness, brush.roundness,
+                                             brush.angle_degrees);
+        if (selection_clips) {
+          coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+        }
+        if (coverage <= 0.0F) {
+          continue;
+        }
+        const auto alpha_at = [&]() -> float& { return stroke_alpha(x, y); };
+        coverage = accumulates ? accumulated_alpha_coverage(alpha_at, coverage, opacity, flow)
+                               : capped_alpha_coverage(alpha_at, coverage, opacity);
+        if (coverage <= 0.0F) {
+          continue;
+        }
+        coverage *= opacity;
+
+        blend_mask_at(format, row_bytes + static_cast<std::size_t>(x - bounds.x()) * pixel_bytes, paint_value,
+                      coverage);
+        run_left = std::min(run_left, x);
+        run_right = x;
+      }
+      if (run_left <= run_right) {
+        row_dirty_left = std::min(row_dirty_left, run_left);
+        row_dirty_right = std::max(row_dirty_right, run_right);
+        if (row_run_dirty != nullptr) {
+          row_run_dirty[run] = RunDirty{run_left, run_right};
+        }
+      }
+    }
+    return row_dirty_left <= row_dirty_right ? QRect(row_dirty_left, y, row_dirty_right - row_dirty_left + 1, 1)
+                                             : QRect();
+  };
+  // A selection's lookup rasterizes lazily, so it keeps the walk on this thread.
+  const auto dirty = walk_segment_rows(
+      segment_rows, segment_pixels, accumulates ? brush_stroke_accumulated_alpha_ : brush_stroke_alpha_caps_,
+      paint_row,
+      [&] {
+        tick_processing_operation();
+        mask_bytes = pixels.data().data();  // a tick can pump a render that shares the bytes again
+      },
+      fast_walk && !selection_clips);
+  for (std::size_t index = 0; index < run_dirty.size(); ++index) {
+    for (const auto& run : run_dirty[index]) {
+      if (run.left <= run.right) {
+        add_mask_stroke_dirty_span(segment_rows[index].y, run.left, run.right);
+      }
+    }
+  }
+  if (mask_stroke_dirty_collecting_) {
+    mask_stroke_dirty_bounds_ = united_dirty_rect(mask_stroke_dirty_bounds_, dirty);
+  }
+  render_cache_diagnostics_.mask_brush_segment_ms +=
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   return dirty;
+}
+
+void CanvasWidget::begin_mask_stroke_dirty_collection() {
+  mask_stroke_dirty_bands_.clear();
+  mask_stroke_dirty_bounds_ = QRect();
+  mask_stroke_dirty_collecting_ = mask_brush_fast_walk_enabled_;
+  // Bands of about a tenth of the brush: 8 rows up to 128 px, 64 rows at 1024 px.
+  const auto brush_size = effective_brush_input().size;
+  mask_stroke_dirty_band_shift_ = 3;
+  while (mask_stroke_dirty_band_shift_ < 9 && (16 << mask_stroke_dirty_band_shift_) < brush_size) {
+    ++mask_stroke_dirty_band_shift_;
+  }
+}
+
+void CanvasWidget::add_mask_stroke_dirty_span(int y, int left, int right) {
+  // Spans closer than this join: a rect per sliver would cost more to render than the gap.
+  constexpr int kJoinGap = 16;
+  const auto band_key = y >> mask_stroke_dirty_band_shift_;
+  auto [found, inserted] = mask_stroke_dirty_bands_.try_emplace(band_key);
+  auto& band = found->second;
+  if (inserted) {
+    band.top = y;
+    band.bottom = y;
+  } else {
+    band.top = std::min(band.top, y);
+    band.bottom = std::max(band.bottom, y);
+  }
+  // Take in every interval the span reaches, then put the joined one back in order.
+  auto& columns = band.columns;
+  auto first = columns.begin();
+  while (first != columns.end() && first->second + kJoinGap < left) {
+    ++first;
+  }
+  auto last = first;
+  while (last != columns.end() && last->first - kJoinGap <= right) {
+    left = std::min(left, last->first);
+    right = std::max(right, last->second);
+    ++last;
+  }
+  first = columns.erase(first, last);
+  columns.insert(first, std::pair{left, right});
+  while (columns.size() > kMaskStrokeDirtyPieces) {
+    // Too many pieces: join the two with the smallest gap between them.
+    std::size_t closest = 0;
+    for (std::size_t index = 1; index + 1 < columns.size(); ++index) {
+      if (columns[index + 1].first - columns[index].second < columns[closest + 1].first - columns[closest].second) {
+        closest = index;
+      }
+    }
+    columns[closest].second = columns[closest + 1].second;
+    columns.erase(columns.begin() + static_cast<std::ptrdiff_t>(closest) + 1);
+  }
+}
+
+QRegion CanvasWidget::mask_stroke_dirty_region(const QRect& bounds, std::int64_t sample_area) const {
+  // Under the canvas's limit on dirty rects (past it a change redraws the whole canvas), with
+  // room for the effect padding to split a few.
+  constexpr std::size_t kMaxRects = 48;
+  // Below this the samples' boxes are cheap to redraw as they are.
+  constexpr std::int64_t kMinSampleArea = 65536;
+  if (sample_area < kMinSampleArea || mask_stroke_dirty_bands_.empty() || mask_stroke_dirty_bounds_ != bounds) {
+    return {};
+  }
+  std::size_t pieces = 0;
+  for (const auto& [key, band] : mask_stroke_dirty_bands_) {
+    pieces += band.columns.size();
+  }
+  // One rect per band when the pieces are too many.
+  const auto whole_bands = pieces > kMaxRects;
+  if (whole_bands && mask_stroke_dirty_bands_.size() > kMaxRects) {
+    return {};
+  }
+  QRegion region;
+  std::int64_t area = 0;
+  const auto add = [&region, &area](const MaskStrokeDirtyBand& band, int left, int right) {
+    const QRect rect(left, band.top, right - left + 1, band.bottom - band.top + 1);
+    region += rect;  // bands and their pieces are apart, so the areas add up
+    area += static_cast<std::int64_t>(rect.width()) * rect.height();
+  };
+  for (const auto& [key, band] : mask_stroke_dirty_bands_) {
+    if (band.columns.empty()) {
+      continue;
+    }
+    if (whole_bands) {
+      add(band, band.columns.front().first, band.columns.back().second);
+      continue;
+    }
+    for (const auto& [left, right] : band.columns) {
+      add(band, left, right);
+    }
+  }
+  if (area * 2 > sample_area) {
+    return {};
+  }
+  return region;
 }
 
 QRect CanvasWidget::draw_mask_brush_segment(QPoint from, QPoint to, bool erase) {
