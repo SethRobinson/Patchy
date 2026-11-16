@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation>Das Buch hat keine Seiten zum Exportieren.</translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation>Der Text auf einer Seite konnte nicht erkannt werden: %1</translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation>Die Texterkennung konnte nicht gestartet werden: %1</translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -17991,6 +17999,26 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
         <translation>Vorderer Einband: Umriss ziehen oder auf „Einband erneut scannen“ klicken.</translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation>PDF durchsuchbar machen (Text erkennen)</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation>Liest beim Exportieren des PDFs den Text auf jeder Seite und schreibt ihn unsichtbar über das Seitenbild, sodass PDF-Programme ihn finden, auswählen und kopieren können. Die Seiten sehen gleich aus, und der Export dauert länger.</translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation>Das PDF kann nicht durchsuchbar gemacht werden: Mit der gewählten Engine und Sprache kann keine Texterkennung ausgeführt werden. Wählen Sie eine andere Engine oder Sprache, oder deaktivieren Sie „PDF durchsuchbar machen“.</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation>Text wird erkannt und Buch-PDF wird geschrieben...</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
+        <translation>Text wird erkannt und Seite %1 von %2 wird geschrieben...</translation>
     </message>
 </context>
 <context>
@@ -40388,6 +40416,10 @@ Fixiert: %1</translation>
     <message>
         <source>Invalid recognizeText option: %1.</source>
         <translation>Ungültige recognizeText-Option: %1.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
+        <translation>buildBookPdf kann das PDF nicht durchsuchbar machen: %1</translation>
     </message>
 </context>
 <context>

@@ -1809,8 +1809,12 @@ interface PatchyApp {
    * mode ("color", "gray" or "bw" for one bit per pixel), threshold (1 to 255, Black and
    * White), dpi (0 keeps the scan resolution), imageQuality, pageSize ("median",
    * "largest", "cover", or [width, height] in inches), title and author. A page given its
-   * own output in the review step keeps it; mode sets the rest. Returns the page count;
-   * throws on bad arguments, an unreadable project, or a write failure.
+   * own output in the review step keeps it; mode sets the rest. searchable (default: the
+   * project's saved choice) recognizes the text of every page and writes it invisibly over
+   * the page image so PDF readers can search it, with ocrEngine and ocrLanguage (default:
+   * the stored picks, see patchy.ocr.engines()). Returns the page count; throws on bad
+   * arguments, an unreadable project, a write failure, or when searchable is on and no
+   * text recognition engine can run.
    */
   buildBookPdf(
     folder: string,
@@ -1823,6 +1827,9 @@ interface PatchyApp {
       pageSize?: "median" | "largest" | "cover" | [number, number];
       title?: string;
       author?: string;
+      searchable?: boolean;
+      ocrEngine?: string;
+      ocrLanguage?: string;
     },
   ): number;
 }

@@ -70,6 +70,9 @@ public:
     std::string language;
     std::int32_t image_width{0};
     std::int32_t image_height{0};
+    PixelLayout layout{PixelLayout::Rgba8};
+    // Every sample was 0 or 255: the image had been thresholded before it was read.
+    bool only_black_and_white{true};
     // One entry per band the image was read in: the tile's pixel size.
     std::vector<std::pair<std::int32_t, std::int32_t>> tiles;
   };

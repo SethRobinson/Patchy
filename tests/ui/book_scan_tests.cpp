@@ -2,6 +2,10 @@
 // scanner (PATCHY_FAKE_BOOK_SCANNER), the project manifest, page order, the PDF it
 // writes, and app.buildBookPdf.
 #include "core/book_scan.hpp"
+#include "formats/pdf_content.hpp"
+#include "formats/pdf_file.hpp"
+#include "ocr/ocr_fake_engine.hpp"
+#include "ocr_test_support.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/book_pdf_export.hpp"
 #include "ui/book_scan_dialog.hpp"
@@ -45,8 +49,11 @@
 #include <QtGlobal>
 
 #include <cmath>
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 using patchy::test::ui::process_events_until;
@@ -1493,6 +1500,259 @@ void ui_book_scan_review_drag_reorders_pages() {
 
 }  // namespace
 
+// --- Searchable export (docs/book-scan.md, "Searchable PDF") --------------------------------
+
+// What a reader finds on each page: the invisible runs, and how many images.
+struct BookPageText final : patchy::pdf::ContentSink {
+  std::vector<patchy::pdf::TextRun> hidden;
+  int visible{0};
+  int images{0};
+
+  void on_path(const patchy::pdf::PaintedPath&) override {}
+  void on_text(const patchy::pdf::TextRun&) override { ++visible; }
+  void on_hidden_text(const patchy::pdf::TextRun& run) override { hidden.push_back(run); }
+  void on_image(const patchy::pdf::PlacedImage&) override { ++images; }
+  void on_shading(std::shared_ptr<const patchy::pdf::ResolvedShading>, const patchy::VectorPath&) override {}
+  void on_notice(const std::string&) override {}
+};
+
+struct BookPdfRead {
+  std::vector<BookPageText> pages;
+  // Each page's image stream, as stored.
+  std::vector<std::vector<std::uint8_t>> images;
+};
+
+BookPdfRead read_book_pdf(const QString& path) {
+  const QByteArray raw = read_file(path);
+  const std::vector<std::uint8_t> bytes(raw.begin(), raw.end());
+  BookPdfRead read;
+  auto file = patchy::pdf::File::open(bytes, nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value()) {
+    return read;
+  }
+  read.pages.resize(file->pages().size());
+  for (std::size_t index = 0; index < read.pages.size(); ++index) {
+    const auto& page = file->pages()[index];
+    patchy::pdf::execute_page(*file, page, 1.0, read.pages[index]);
+    read.images.push_back(file->stream_data(file->get(file->get(page.resources, "XObject"), "Im0")).data);
+  }
+  return read;
+}
+
+constexpr char kBookLine[] = "Recognized book line";
+
+std::shared_ptr<patchy::ocr::FakeEngine> book_fake_engine(int delay_ms = 0) {
+  patchy::ocr::FakeEngineConfig config;
+  config.lines = {patchy::ocr::FakeLine{patchy::ocr::Box{20, 30, 200, 24}, kBookLine, false}};
+  config.delay_ms = delay_ms;
+  return patchy::ocr::make_fake_engine(std::move(config));
+}
+
+void ui_book_scan_searchable_export_writes_text() {
+  const patchy::test::ui::SettingsGroupRestorer ocr_settings(QStringLiteral("ocr"));
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_searchable_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_searchable_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 2).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  scan_book(dialog, project, 2);
+  auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanSearchableCheck"));
+  auto* engine_combo = dialog.findChild<QComboBox*>(QStringLiteral("bookScanOcrEngineCombo"));
+  auto* note = dialog.findChild<QLabel*>(QStringLiteral("bookScanOcrUnavailableNote"));
+  CHECK(check != nullptr && engine_combo != nullptr && note != nullptr);
+  if (check == nullptr || engine_combo == nullptr || note == nullptr) {
+    return;
+  }
+  // Off until asked for, and the engine choice stays out of the way until then.
+  CHECK(!check->isChecked() && !dialog.project().output_searchable);
+  CHECK(!engine_combo->isVisibleTo(&dialog));
+  const QString book_json = QDir(project).filePath(QStringLiteral("book.json"));
+  CHECK(!read_file(book_json).contains("searchable"));
+  const QString plain_path = QDir(inputs).filePath(QStringLiteral("plain.pdf"));
+  CHECK(dialog.export_pdf(plain_path, false));
+
+  // No engine on this system (the suite's default): ticking shows why, and the export says
+  // so instead of writing a PDF that silently has no text.
+  check->setChecked(true);
+  CHECK(dialog.project().output_searchable);
+  CHECK(engine_combo->isVisibleTo(&dialog));
+  CHECK(note->isVisibleTo(&dialog) && !note->text().isEmpty());
+  CHECK(read_file(book_json).contains("\"searchable\": true"));
+  const QString refused_path = QDir(inputs).filePath(QStringLiteral("refused.pdf"));
+  CHECK(!dialog.export_pdf(refused_path, false));
+  CHECK(dialog.last_error().contains(QStringLiteral("searchable")));
+  CHECK(!QFile::exists(refused_path));
+  check->setChecked(false);
+  CHECK(!read_file(book_json).contains("searchable"));
+
+  // With an engine: every page is read once and its line goes out invisibly, on the page.
+  const auto fake = book_fake_engine();
+  const patchy::test::ui::ScopedOcrEngines engines({fake});
+  check->setChecked(true);
+  CHECK(engine_combo->currentData().toString() == QStringLiteral("fake"));
+  const QString text_path = QDir(inputs).filePath(QStringLiteral("searchable.pdf"));
+  CHECK(dialog.export_pdf(text_path, false));
+  CHECK(dialog.last_error().isEmpty());
+  const auto plain = read_book_pdf(plain_path);
+  const auto text = read_book_pdf(text_path);
+  CHECK(plain.pages.size() == 6 && text.pages.size() == 6);
+  const auto calls = fake->calls();
+  CHECK(calls.size() == 6);
+  CHECK(fake->open_count() == 1);  // one recognizer for the whole book
+  for (const auto& call : calls) {
+    CHECK(call.language == "en-US");
+    CHECK(!call.only_black_and_white);  // the page as cut, in the scan's own tones
+    CHECK(call.image_width == calls.front().image_width && call.image_height == calls.front().image_height);
+  }
+  const double scale = 72.0 / kDpi;
+  for (std::size_t index = 0; index < text.pages.size() && index < plain.pages.size(); ++index) {
+    CHECK(plain.pages[index].hidden.empty());
+    CHECK(text.pages[index].images == 1 && text.pages[index].visible == 0);
+    CHECK(text.pages[index].hidden.size() == 1);
+    if (text.pages[index].hidden.size() == 1) {
+      const auto& run = text.pages[index].hidden[0];
+      CHECK(run.utf8 == kBookLine);
+      CHECK(run.render_mode == 3);
+      CHECK(std::abs(run.transform.e - 20.0 * scale) < 0.05);
+      CHECK(std::abs(run.transform.f - 54.0 * scale) < 0.05);
+      CHECK(std::abs(run.intended_width - 200.0 * scale) < 0.05);
+    }
+    // The page itself is the one an export without recognition writes.
+    CHECK(text.images[index] == plain.images[index]);
+  }
+  CHECK(media_boxes(read_file(text_path)) == media_boxes(read_file(plain_path)));
+  CHECK(!read_file(text_path).contains(" TJ"));
+  // Only the choice is kept: nothing that was read is in the project.
+  CHECK(read_file(book_json).contains("\"searchable\": true"));
+  CHECK(!read_file(book_json).contains(kBookLine));
+  // The picks are remembered like every other recognition's.
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("ocr/engine")).toString() == QStringLiteral("fake"));
+
+  // Black and white output: the engine still reads the page before it is thresholded.
+  auto* output = dialog.findChild<QComboBox*>(QStringLiteral("bookScanOutputCombo"));
+  CHECK(output != nullptr);
+  if (output != nullptr) {
+    output->setCurrentIndex(2);
+    const QString bw_path = QDir(inputs).filePath(QStringLiteral("searchable-bw.pdf"));
+    CHECK(dialog.export_pdf(bw_path, false));
+    CHECK(read_file(bw_path).contains("/BitsPerComponent 1"));
+    const auto all_calls = fake->calls();
+    CHECK(all_calls.size() == 12);
+    for (std::size_t index = 6; index < all_calls.size(); ++index) {
+      CHECK(!all_calls[index].only_black_and_white);
+    }
+    const auto bw = read_book_pdf(bw_path);
+    CHECK(bw.pages.size() == 6);
+    for (const auto& page : bw.pages) {
+      CHECK(page.hidden.size() == 1 && page.hidden[0].utf8 == kBookLine);
+    }
+  }
+  // The reopened project still asks for a searchable PDF.
+  const auto reloaded = patchy::ui::load_book_project(project, nullptr);
+  CHECK(reloaded.has_value() && reloaded->output_searchable);
+}
+
+void ui_book_scan_searchable_cancel_failure_and_script() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_searchable2_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_searchable2_project")) + QStringLiteral("/book");
+  patchy::ui::BookProject book;
+  {
+    const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 2).join(QDir::listSeparator()).toUtf8());
+    const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+    patchy::ui::BookScanDialog dialog(nullptr);
+    scan_book(dialog, project, 2);
+    book = dialog.project();
+  }
+  // A file already at the destination survives a cancelled or failed export.
+  const QString path = QDir(inputs).filePath(QStringLiteral("kept.pdf"));
+  const auto write_sentinel = [&path] {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write("sentinel");
+  };
+  write_sentinel();
+
+  // Cancel while pages are being read: the read in flight stops, nothing is written.
+  {
+    const auto slow = book_fake_engine(400);
+    int asked = 0;
+    const auto result = patchy::ui::write_book_pdf(
+        book, path,
+        [&asked](int, int) {
+          ++asked;
+          return asked < 3;
+        },
+        patchy::ui::BookPdfRecognition{slow, "en-US"});
+    CHECK(result.cancelled && !result.ok);
+    CHECK(asked == 3);  // asked while the first page was still being read
+    CHECK(slow->calls().size() < 6);
+    CHECK(read_file(path) == QByteArray("sentinel"));
+  }
+  // The engine fails on a page: the export fails with the engine's words.
+  {
+    patchy::ocr::FakeEngineConfig config;
+    config.fail_with = "engine broke";
+    const auto result = patchy::ui::write_book_pdf(
+        book, path, {}, patchy::ui::BookPdfRecognition{patchy::ocr::make_fake_engine(std::move(config)), "en-US"});
+    CHECK(!result.ok && !result.cancelled);
+    CHECK(result.error.contains(QStringLiteral("engine broke")));
+    CHECK(read_file(path) == QByteArray("sentinel"));
+  }
+  // The engine cannot start at all.
+  {
+    patchy::ocr::FakeEngineConfig config;
+    config.unavailable = patchy::ocr::Unavailable::Failed;
+    config.unavailable_reason = "no runtime here";
+    const auto result = patchy::ui::write_book_pdf(
+        book, path, {}, patchy::ui::BookPdfRecognition{patchy::ocr::make_fake_engine(std::move(config)), "en-US"});
+    CHECK(!result.ok && !result.cancelled);
+    CHECK(result.error.contains(QStringLiteral("no runtime here")));
+    CHECK(read_file(path) == QByteArray("sentinel"));
+  }
+
+  // Scripts: `searchable` with the engine and language named.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto json_string = [](const QString& text) {
+    return QString::fromUtf8(QJsonDocument(QJsonArray{text}).toJson(QJsonDocument::Compact)).chopped(1).mid(1);
+  };
+  const QString on_path = QDir(inputs).filePath(QStringLiteral("script-on.pdf"));
+  const QString off_path = QDir(inputs).filePath(QStringLiteral("script-off.pdf"));
+  {
+    const patchy::test::ui::ScopedOcrEngines engines({book_fake_engine()});
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var on = app.buildBookPdf(%1, %2, { searchable: true, ocrEngine: 'fake', ocrLanguage: 'en-US' });
+      var off = app.buildBookPdf(%1, %3);
+      if (on !== 6 || off !== 6) throw new Error('pages ' + on + ' ' + off);
+      var threw = false;
+      try { app.buildBookPdf(%1, %2, { searchable: true, ocrEngine: 'nope' }); } catch (e) { threw = true; }
+      if (!threw) throw new Error('unknown engine accepted');
+      console.log('book-ocr-ok');
+    )JS")
+                                    .arg(json_string(project), json_string(on_path), json_string(off_path))));
+    CHECK(backlog_contains(window, QStringLiteral("book-ocr-ok")));
+  }
+  const auto on = read_book_pdf(on_path);
+  const auto off = read_book_pdf(off_path);
+  CHECK(on.pages.size() == 6 && off.pages.size() == 6);
+  for (const auto& page : on.pages) {
+    CHECK(page.hidden.size() == 1 && page.hidden[0].utf8 == kBookLine);
+  }
+  for (const auto& page : off.pages) {
+    CHECK(page.hidden.empty());
+  }
+  // No engine: asking for a searchable PDF is an error, not a PDF without text.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var threw = false;
+    try { app.buildBookPdf(%1, %2, { searchable: true }); } catch (e) { threw = true; }
+    if (!threw) throw new Error('searchable accepted without an engine');
+    console.log('book-ocr-none-ok');
+  )JS")
+                                  .arg(json_string(project), json_string(on_path))));
+  CHECK(backlog_contains(window, QStringLiteral("book-ocr-none-ok")));
+}
+
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
   return {
       {"ui_book_scan_menu_actions_registered", ui_book_scan_menu_actions_registered},
@@ -1514,5 +1774,7 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_per_scan_settings_and_page_output", ui_book_scan_per_scan_settings_and_page_output},
       {"ui_book_scan_review_drag_reorders_pages", ui_book_scan_review_drag_reorders_pages},
       {"ui_unicode_book_scan_project_folder", ui_unicode_book_scan_project_folder},
+      {"ui_book_scan_searchable_export_writes_text", ui_book_scan_searchable_export_writes_text},
+      {"ui_book_scan_searchable_cancel_failure_and_script", ui_book_scan_searchable_cancel_failure_and_script},
   };
 }

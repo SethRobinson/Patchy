@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation>這本書沒有可匯出的頁面。</translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation>無法辨識某一頁上的文字：%1</translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation>無法啟動文字辨識：%1</translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -17929,6 +17937,26 @@ Do you want to replace it?</source>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
         <translation>正在編輯封面：拖曳輪廓，或按「重新掃描封面」。</translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation>讓 PDF 可搜尋（辨識文字）</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation>匯出 PDF 時讀取每一頁上的文字，並以不可見的方式寫在頁面影像之上，這樣 PDF 閱讀器就能尋找、選取和複製它。頁面外觀不變，匯出需要更長時間。</translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation>無法讓 PDF 可搜尋：所選的引擎和語言無法執行文字辨識。請選擇其他引擎或語言，或關閉「讓 PDF 可搜尋」。</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation>正在辨識文字並寫入書籍 PDF...</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
+        <translation>正在辨識文字並寫入第 %1 頁，共 %2 頁...</translation>
     </message>
 </context>
 <context>
@@ -40269,6 +40297,10 @@ Locked: %1</source>
     <message>
         <source>Invalid recognizeText option: %1.</source>
         <translation>無效的 recognizeText 選項：%1。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
+        <translation>buildBookPdf 無法讓 PDF 可搜尋：%1</translation>
     </message>
 </context>
 <context>

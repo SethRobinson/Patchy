@@ -5,6 +5,8 @@
 #include "ui/book_pdf_export.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/ocr_controls.hpp"
+#include "ui/ocr_recognition.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
@@ -1683,6 +1685,16 @@ void BookScanDialog::build_review_page() {
   quality_combo_->setObjectName(QStringLiteral("bookScanQualityCombo"));
   populate_pdf_image_quality_combo(*quality_combo_, project_.quality_id);
   form->addRow(tr("Image quality:"), quality_combo_);
+  // Recognition runs only when the PDF is exported with this ticked, with the engine and
+  // language picked here; its text goes into the PDF and nowhere else (docs/book-scan.md).
+  searchable_check_ = new QCheckBox(tr("Make the PDF searchable (recognize text)"), page);
+  searchable_check_->setObjectName(QStringLiteral("bookScanSearchableCheck"));
+  searchable_check_->setToolTip(tr("Reads the text on every page when the PDF is exported and writes it invisibly "
+                                   "over the page image, so PDF readers can find, select and copy it. The pages "
+                                   "look the same, and exporting takes longer."));
+  form->addRow(searchable_check_);
+  ocr_picker_ = new OcrEnginePicker(QStringLiteral("bookScanOcr"), page);
+  form->addRow(ocr_picker_);
   side->addLayout(form);
   review_summary_ = new QLabel(page);
   review_summary_->setObjectName(QStringLiteral("bookScanReviewSummary"));
@@ -1798,6 +1810,16 @@ void BookScanDialog::build_review_page() {
   connect(quality_combo_, &QComboBox::currentIndexChanged, this, [this] {
     if (!refreshing_) {
       project_.quality_id = quality_combo_->currentData().toString();
+      save_project_quietly();
+    }
+  });
+  connect(searchable_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    ocr_picker_->setVisible(checked);
+    if (checked) {
+      ocr_picker_->refresh();
+    }
+    if (!refreshing_) {
+      project_.output_searchable = checked;
       save_project_quietly();
     }
   });
@@ -3556,6 +3578,8 @@ void BookScanDialog::refresh_review_page() {
   output_dpi_combo_->setCurrentIndex(std::max(0, output_dpi_combo_->findData(project_.output_dpi)));
   quality_combo_->setCurrentIndex(std::max(0, quality_combo_->findData(project_.quality_id)));
   quality_combo_->setEnabled(any_encoded);
+  searchable_check_->setChecked(project_.output_searchable);
+  ocr_picker_->setVisible(project_.output_searchable);
   review_summary_->setText(tr("%n page(s), each %1.", nullptr, static_cast<int>(pages.size())).arg(size_text(size)));
   refreshing_ = false;
   update_page_output_combo();
@@ -3766,17 +3790,46 @@ bool BookScanDialog::export_pdf(const QString& path, bool ask_keep_folder) {
     return false;
   }
   save_project_quietly();
+  BookPdfRecognition recognition;
+  if (project_.output_searchable) {
+    // The engine and language are the picks beside the option; with none that can run the
+    // export stops and says so, never a PDF that silently has no text.
+    QString error;
+    const OcrChoice choice = ocr_picker_->usable()
+                                 ? resolve_ocr_choice(ocr_picker_->engine_id(), ocr_picker_->language_tag(), &error)
+                                 : OcrChoice{};
+    if (choice.engine == nullptr) {
+      show_scan_error(tr("The PDF cannot be made searchable: no text recognition engine can run with the engine and "
+                         "language chosen. Pick another engine or language, or turn off \"Make the PDF searchable\"."));
+      return false;
+    }
+    ocr_picker_->store();
+    recognition.engine = choice.engine;
+    recognition.language = choice.language;
+  }
+  const bool reading = recognition.engine != nullptr;
   const int count = static_cast<int>(book_page_order(project_).size());
-  QProgressDialog progress(tr("Writing the book PDF..."), tr("Cancel"), 0, count, this);
+  QProgressDialog progress(reading ? tr("Recognizing text and writing the book PDF...") : tr("Writing the book PDF..."),
+                           tr("Cancel"), 0, count, this);
   progress.setObjectName(QStringLiteral("bookScanExportProgress"));
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(400);
-  const BookPdfResult result = write_book_pdf(project_, path, [&progress](int done, int total) {
-    progress.setLabelText(tr("Writing page %1 of %2...").arg(done).arg(total));
-    progress.setValue(done);
-    QCoreApplication::processEvents();
-    return !progress.wasCanceled();
-  });
+  const BookPdfResult result = write_book_pdf(
+      project_, path,
+      [&progress, reading](int done, int total) {
+        // While a page is being read this is called again and again with the same numbers.
+        const QString label = reading ? tr("Recognizing text and writing page %1 of %2...").arg(std::min(done + 1, total)).arg(total)
+                                      : tr("Writing page %1 of %2...").arg(done).arg(total);
+        if (progress.labelText() != label) {
+          progress.setLabelText(label);
+        }
+        if (progress.value() != done) {
+          progress.setValue(done);
+        }
+        QCoreApplication::processEvents();
+        return !progress.wasCanceled();
+      },
+      recognition);
   progress.reset();
   if (result.cancelled) {
     review_summary_->setText(tr("Export cancelled."));

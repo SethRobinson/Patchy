@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation>Il libro non ha pagine da esportare.</translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation>Impossibile riconoscere il testo di una pagina: %1</translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation>Impossibile avviare il riconoscimento del testo: %1</translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -17991,6 +17999,26 @@ Sostituirlo?</translation>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
         <translation>Modifica della copertina anteriore: trascina il contorno o premi Ripeti scansione copertina.</translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation>Rendi il PDF ricercabile (riconosci il testo)</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation>Legge il testo di ogni pagina quando il PDF viene esportato e lo scrive in modo invisibile sull&apos;immagine della pagina, così i lettori PDF possono trovarlo, selezionarlo e copiarlo. Le pagine hanno lo stesso aspetto e l&apos;esportazione richiede più tempo.</translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation>Impossibile rendere il PDF ricercabile: nessun motore di riconoscimento del testo può funzionare con il motore e la lingua scelti. Scegli un altro motore o un&apos;altra lingua, oppure disattiva «Rendi il PDF ricercabile».</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation>Riconoscimento del testo e scrittura del PDF del libro...</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
+        <translation>Riconoscimento del testo e scrittura della pagina %1 di %2...</translation>
     </message>
 </context>
 <context>
@@ -40388,6 +40416,10 @@ Bloccato: %1</translation>
     <message>
         <source>Invalid recognizeText option: %1.</source>
         <translation>Opzione recognizeText non valida: %1.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
+        <translation>buildBookPdf non può rendere il PDF ricercabile: %1</translation>
     </message>
 </context>
 <context>

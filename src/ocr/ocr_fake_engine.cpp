@@ -114,6 +114,17 @@ public:
     call.language = language_;
     call.image_width = image.width;
     call.image_height = image.height;
+    call.layout = image.layout;
+    const auto row_samples = static_cast<std::size_t>(image.width) * static_cast<std::size_t>(channel_count(image.layout));
+    for (std::int32_t y = 0; y < image.height && call.only_black_and_white; ++y) {
+      const auto* row = image.data + static_cast<std::ptrdiff_t>(y) * image.stride;
+      for (std::size_t sample = 0; sample < row_samples; ++sample) {
+        if (row[sample] != 0U && row[sample] != 255U) {
+          call.only_black_and_white = false;
+          break;
+        }
+      }
+    }
     const auto recognize_tile = [&](const Tile& tile) {
       call.tiles.emplace_back(tile.image.width, tile.image.height);
       // The wait is sliced so a cancel request answers within a few milliseconds.

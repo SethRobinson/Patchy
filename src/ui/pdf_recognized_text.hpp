@@ -12,6 +12,7 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "formats/pdf_image_writer.hpp"
+#include "ocr/ocr_engine.hpp"
 
 #include <QPointF>
 #include <QSize>
@@ -78,5 +79,11 @@ struct RecognizedTextLine {
 // text size the box's thickness, the length the box's length.
 [[nodiscard]] std::vector<pdf::TextLine> pdf_text_lines(const std::vector<RecognizedTextLine>& lines,
                                                         const QTransform& to_page);
+
+// A recognition of an image that fills an upright page (`result` in that image's pixels),
+// as the image writer takes it: one TextLine per recognized line, in the engine's order.
+// What Scan a Book writes for a page it has just read.
+[[nodiscard]] std::vector<pdf::TextLine> pdf_text_lines(const ocr::Result& result, QSize image_pixels,
+                                                        QSizeF page_points);
 
 }  // namespace patchy::ui

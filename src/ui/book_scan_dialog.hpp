@@ -29,6 +29,7 @@ class QStackedWidget;
 namespace patchy::ui {
 
 class BookScanPreview;
+class OcrEnginePicker;
 class BookScanStepBar;
 class BookPlacementPicture;
 
@@ -321,6 +322,8 @@ private:
   QSlider* threshold_slider_{nullptr};
   QComboBox* output_dpi_combo_{nullptr};
   QComboBox* quality_combo_{nullptr};
+  QCheckBox* searchable_check_{nullptr};
+  OcrEnginePicker* ocr_picker_{nullptr};
   QLabel* review_summary_{nullptr};
   bool refreshing_{false};
 };

@@ -89,6 +89,10 @@ struct BookProject {
   BookOutputOptions output{};
   int output_dpi{0};  // 0 = as scanned
   QString quality_id{QStringLiteral("high")};
+  // "Make the PDF searchable": the text on every page is recognized when the PDF is
+  // exported and written invisibly over the page (docs/book-scan.md). Only the choice is
+  // kept in book.json, as output.searchable; no recognized text is ever stored in the project.
+  bool output_searchable{false};
 };
 
 inline constexpr const char* kBookProjectFileName = "book.json";

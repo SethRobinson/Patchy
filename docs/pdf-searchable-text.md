@@ -32,6 +32,10 @@ The binding entry is "Text recognition" in [legal-constraints-scanning.md](legal
 - **A Recognized Text group at the document root is never a page**: `document_has_page_groups`, `documents_for_top_level_groups` and the dialog's group count skip it, and with "Draw ungrouped layers on every page" it rides along like a layer in no group when it is shown.
 - **Limits.** Right-to-left scripts are written in the order the layer holds them and have not been checked in readers. Acrobat, Firefox and Preview have not been checked by hand; Qt PDF (PDFium) and Patchy's reader are what the tests read with.
 
+## From a recognition
+
+`pdf_text_lines(ocr::Result, image pixels, page points)` is the same step for an image that fills an upright page and was just read: Scan a Book to PDF writes each page's lines this way ([book-scan.md](book-scan.md#searchable-pdf)). Lines keep the engine's order; empty ones are dropped.
+
 ## Reading it back
 
 `ContentSink::on_hidden_text` (default: ignore) receives runs in render mode 3 or 7. Sinks that build a picture ignore them, and such a run is not counted as a primitive: a scan plus its text layer still probes as one image, so `PageProbe::source_page` is set and the page's original image data still passes through an export. The tests read the writer's output through this hook (`execute_page`), which shares no code with the writer.

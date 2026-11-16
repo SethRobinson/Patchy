@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -17972,6 +17980,26 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -40305,6 +40333,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Invalid recognizeText option: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

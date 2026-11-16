@@ -23,6 +23,13 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-17 (addition): `app.buildBookPdf` options `searchable` (boolean; default: the choice
+saved in the book project), `ocrEngine` and `ocrLanguage` (strings; default: the stored picks,
+then the first available engine and its default language). A searchable book PDF recognizes
+the text of every page at export and writes it invisibly over the page image
+([book-scan.md](book-scan.md#searchable-pdf)). The call throws when `searchable` is on and no
+engine can run, or the named engine or language does not exist.
+
 2026-11-17 (addition): `searchableText` (boolean, default true) on `app.exportPdf` and on
 `doc.saveAs`/`doc.exportAs` for `.pdf`. Text in the document's Recognized Text groups (made by
 `recognizeText` with `layers` other than `"none"`, the Type menu command or Import PDF), shown or

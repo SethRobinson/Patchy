@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation>책에 내보낼 페이지가 없습니다.</translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation>페이지의 텍스트를 인식할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation>텍스트 인식을 시작할 수 없습니다: %1</translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -17929,6 +17937,26 @@ Do you want to replace it?</source>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
         <translation>앞표지 편집 중: 윤곽을 끌거나 표지 다시 스캔을 누릅니다.</translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation>PDF를 검색 가능하게 만들기(텍스트 인식)</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation>PDF를 내보낼 때 각 페이지의 텍스트를 읽어 페이지 이미지 위에 보이지 않게 기록하므로 PDF 리더에서 찾고 선택하고 복사할 수 있습니다. 페이지 모양은 그대로이며 내보내기에 시간이 더 걸립니다.</translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation>PDF를 검색 가능하게 만들 수 없습니다. 선택한 엔진과 언어로는 텍스트 인식 엔진을 실행할 수 없습니다. 다른 엔진이나 언어를 선택하거나 &apos;PDF를 검색 가능하게 만들기&apos;를 끄십시오.</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation>텍스트를 인식하고 책 PDF를 쓰는 중...</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
+        <translation>텍스트를 인식하고 %2페이지 중 %1페이지를 쓰는 중...</translation>
     </message>
 </context>
 <context>
@@ -40269,6 +40297,10 @@ Locked: %1</source>
     <message>
         <source>Invalid recognizeText option: %1.</source>
         <translation>잘못된 recognizeText 옵션: %1.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
+        <translation>buildBookPdf가 PDF를 검색 가능하게 만들 수 없습니다: %1</translation>
     </message>
 </context>
 <context>

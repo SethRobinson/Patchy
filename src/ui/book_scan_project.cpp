@@ -245,6 +245,10 @@ QByteArray book_project_json(const BookProject& project) {
   output[QStringLiteral("threshold")] = project.output.threshold;
   output[QStringLiteral("dpi")] = project.output_dpi;
   output[QStringLiteral("quality")] = project.quality_id;
+  if (project.output_searchable) {
+    // Written only when on, so a project that never asked keeps the bytes it always had.
+    output[QStringLiteral("searchable")] = true;
+  }
   root[QStringLiteral("output")] = output;
   return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
@@ -370,6 +374,7 @@ std::optional<BookProject> book_project_from_json(const QByteArray& bytes, QStri
   project.output.threshold = std::clamp(output.value(QStringLiteral("threshold")).toInt(160), 1, 255);
   project.output_dpi = std::clamp(output.value(QStringLiteral("dpi")).toInt(0), 0, 2400);
   project.quality_id = output.value(QStringLiteral("quality")).toString(QStringLiteral("high"));
+  project.output_searchable = output.value(QStringLiteral("searchable")).toBool(false);
   return project;
 }
 

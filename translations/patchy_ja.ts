@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation>本に書き出すページがありません。</translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation>ページのテキストを認識できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation>テキスト認識を開始できませんでした: %1</translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -17929,6 +17937,26 @@ Do you want to replace it?</source>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
         <translation>表表紙を編集中: 輪郭をドラッグするか、「表紙を再スキャン」を押します。</translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation>PDF を検索可能にする (テキストを認識)</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation>PDF の書き出し時に各ページのテキストを読み取り、ページ画像の上に見えない形で書き込むため、PDF リーダーで検索、選択、コピーができます。ページの見た目は変わらず、書き出しには時間がかかります。</translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation>PDF を検索可能にできません。選択したエンジンと言語では、テキスト認識エンジンを実行できません。別のエンジンまたは言語を選ぶか、「PDF を検索可能にする」をオフにしてください。</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation>テキストを認識してブックの PDF を書き込んでいます...</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
+        <translation>テキストを認識してページ %1 / %2 を書き込んでいます...</translation>
     </message>
 </context>
 <context>
@@ -40269,6 +40297,10 @@ Locked: %1</source>
     <message>
         <source>Invalid recognizeText option: %1.</source>
         <translation>recognizeText のオプションが無効です: %1。</translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
+        <translation>buildBookPdf は PDF を検索可能にできません: %1</translation>
     </message>
 </context>
 <context>

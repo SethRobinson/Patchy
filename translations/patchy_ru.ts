@@ -73,6 +73,14 @@
         <source>The book has no pages to export.</source>
         <translation>В книге нет страниц для экспорта.</translation>
     </message>
+    <message>
+        <source>The text on a page could not be recognized: %1</source>
+        <translation>Не удалось распознать текст на странице: %1</translation>
+    </message>
+    <message>
+        <source>Text recognition could not start: %1</source>
+        <translation>Не удалось запустить распознавание текста: %1</translation>
+    </message>
 </context>
 <context>
     <name>BookScanProject</name>
@@ -18053,6 +18061,26 @@ Do you want to replace it?</source>
     <message>
         <source>Editing the front cover: drag its outline, or press Rescan Cover.</source>
         <translation>Правка передней обложки: перетащите контур или нажмите «Пересканировать обложку».</translation>
+    </message>
+    <message>
+        <source>Make the PDF searchable (recognize text)</source>
+        <translation>Сделать PDF доступным для поиска (распознать текст)</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page when the PDF is exported and writes it invisibly over the page image, so PDF readers can find, select and copy it. The pages look the same, and exporting takes longer.</source>
+        <translation>При экспорте PDF читает текст на каждой странице и записывает его невидимо поверх изображения страницы, чтобы программы просмотра PDF могли находить, выделять и копировать его. Страницы выглядят так же, а экспорт занимает больше времени.</translation>
+    </message>
+    <message>
+        <source>The PDF cannot be made searchable: no text recognition engine can run with the engine and language chosen. Pick another engine or language, or turn off &quot;Make the PDF searchable&quot;.</source>
+        <translation>Не удаётся сделать PDF доступным для поиска: с выбранными модулем и языком распознавание текста работать не может. Выберите другой модуль или язык либо отключите «Сделать PDF доступным для поиска».</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing the book PDF...</source>
+        <translation>Распознавание текста и запись PDF книги...</translation>
+    </message>
+    <message>
+        <source>Recognizing text and writing page %1 of %2...</source>
+        <translation>Распознавание текста и запись страницы %1 из %2...</translation>
     </message>
 </context>
 <context>
@@ -40507,6 +40535,10 @@ Locked: %1</source>
     <message>
         <source>Invalid recognizeText option: %1.</source>
         <translation>Недопустимый параметр recognizeText: %1.</translation>
+    </message>
+    <message>
+        <source>buildBookPdf cannot make the PDF searchable: %1</source>
+        <translation>buildBookPdf не может сделать PDF доступным для поиска: %1</translation>
     </message>
 </context>
 <context>

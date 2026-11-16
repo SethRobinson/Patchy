@@ -7,6 +7,7 @@
 
 #include "ui/script_api.hpp"
 #include "ui/book_pdf_export.hpp"
+#include "ui/ocr_recognition.hpp"
 #include "ui/font_face_name_index.hpp"
 
 #include "filters/gmic/gmic_engine.hpp"
@@ -4666,8 +4667,28 @@ int ScriptAppObject::buildBookPdf(const QString& folder, const QString& path, co
     if (const auto value = options.property(QStringLiteral("author")); value.isString()) {
       project->author = value.toString();
     }
+    if (const auto value = options.property(QStringLiteral("searchable")); value.isBool()) {
+      project->output_searchable = value.toBool();
+    }
   }
-  const BookPdfResult result = write_book_pdf(*project, path);
+  // A searchable PDF: the engine and language the script names, else the stored picks. With
+  // none that can run the call fails, never a PDF that silently has no text.
+  BookPdfRecognition recognition;
+  if (project->output_searchable) {
+    const auto text_option = [&options](const char* key) {
+      const auto value = options.isObject() ? options.property(QLatin1String(key)) : QJSValue();
+      return value.isString() ? value.toString() : QString();
+    };
+    QString ocr_error;
+    const OcrChoice choice = resolve_ocr_choice(text_option("ocrEngine"), text_option("ocrLanguage"), &ocr_error);
+    if (choice.engine == nullptr) {
+      host_.throw_js_error(ScriptEngineHost::tr("buildBookPdf cannot make the PDF searchable: %1").arg(ocr_error));
+      return 0;
+    }
+    recognition.engine = choice.engine;
+    recognition.language = choice.language;
+  }
+  const BookPdfResult result = write_book_pdf(*project, path, {}, recognition);
   if (!result.ok) {
     host_.throw_js_error(ScriptEngineHost::tr("Could not export %1: %2").arg(QDir::toNativeSeparators(path), result.error));
     return 0;

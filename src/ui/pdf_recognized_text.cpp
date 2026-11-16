@@ -277,4 +277,22 @@ std::vector<pdf::TextLine> pdf_text_lines(const std::vector<RecognizedTextLine>&
   return out;
 }
 
+std::vector<pdf::TextLine> pdf_text_lines(const ocr::Result& result, QSize image_pixels, QSizeF page_points) {
+  std::vector<RecognizedTextLine> lines;
+  lines.reserve(result.lines.size());
+  for (const auto& found : result.lines) {
+    RecognizedTextLine line;
+    line.text = QString::fromUtf8(found.text.data(), static_cast<qsizetype>(found.text.size())).simplified();
+    if (line.text.isEmpty()) {
+      continue;
+    }
+    for (std::size_t corner = 0; corner < line.place.quad.size(); ++corner) {
+      line.place.quad[corner] = QPointF(found.quad[corner].x, found.quad[corner].y);
+    }
+    line.place.vertical = found.vertical;
+    lines.push_back(std::move(line));
+  }
+  return pdf_text_lines(lines, document_to_pdf_page(image_pixels, page_points, 0));
+}
+
 }  // namespace patchy::ui
