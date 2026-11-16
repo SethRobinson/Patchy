@@ -37829,6 +37829,71 @@ Locked: %1</source>
         <source>of %1</source>
         <translation>/ %1</translation>
     </message>
+    <message>
+        <source>Find</source>
+        <translation>検索</translation>
+    </message>
+    <message>
+        <source>Find text in this PDF (%1)</source>
+        <translation>このPDF内のテキストを検索 (%1)</translation>
+    </message>
+    <message>
+        <source>Find in this PDF</source>
+        <translation>このPDF内を検索</translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation>前の一致 (Shift+Enter)</translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation>次の一致 (Enter)</translation>
+    </message>
+    <message>
+        <source>Match case</source>
+        <translation>大文字と小文字を区別</translation>
+    </message>
+    <message>
+        <source>Only find text with the same capital and small letters</source>
+        <translation>大文字と小文字が同じテキストだけを検索します</translation>
+    </message>
+    <message>
+        <source>Whole words</source>
+        <translation>単語単位</translation>
+    </message>
+    <message>
+        <source>Only find the text where it is not part of a longer word</source>
+        <translation>長い単語の一部になっていないテキストだけを検索します</translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation>検索バーを閉じる (Esc)</translation>
+    </message>
+    <message>
+        <source>Reached the end, continued from the start</source>
+        <translation>最後まで検索したので、先頭から続けました</translation>
+    </message>
+    <message>
+        <source>Reached the start, continued from the end</source>
+        <translation>先頭まで検索したので、最後から続けました</translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <extracomment>Find in the PDF viewer: which match is shown and how many there are, as in &quot;3 of 17&quot;.</extracomment>
+        <translation>%1 / %2</translation>
+    </message>
+    <message>
+        <source>Searching...</source>
+        <translation>検索中...</translation>
+    </message>
+    <message>
+        <source>This PDF has no searchable text</source>
+        <translation>このPDFには検索できるテキストがありません</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>一致なし</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

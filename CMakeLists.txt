@@ -1860,6 +1860,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         src/ui/pdf_import.cpp
         src/ui/pdf_page_view.hpp
         src/ui/pdf_page_view.cpp
+        src/ui/pdf_text_search.hpp
+        src/ui/pdf_text_search.cpp
         src/ui/pdf_viewer_window.hpp
         src/ui/pdf_viewer_window.cpp
         src/ui/pdf_book_print_dialog.hpp

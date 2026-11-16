@@ -1,14 +1,17 @@
 #include "ui/pdf_page_view.hpp"
 
 #include "ui/background_workers.hpp"
+#include "ui/pdf_text_search.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/ui_profile.hpp"
 
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPdfDocument>
 #include <QPdfDocumentRenderOptions>
+#include <QPen>
 #include <QScrollBar>
 #include <QTransform>
 #include <QWheelEvent>
@@ -30,6 +33,11 @@ constexpr std::size_t kCacheBudgetBytes = std::size_t{512} * 1024U * 1024U;
 constexpr qint64 kFlipCooldownMs = 350;
 constexpr double kMinZoomFactor = 0.05;
 constexpr double kMaxZoomFactor = 16.0;
+// Find: how strongly a match tints the page under it, and how near the window's edge the
+// current match may sit before the view moves to it.
+constexpr double kTextMatchOpacity = 0.42;
+constexpr double kCurrentTextMatchOpacity = 0.55;
+constexpr double kTextMatchEdge = 12.0;
 
 int normalized_turns(int turns) {
   return ((turns % 4) + 4) % 4;
@@ -541,6 +549,14 @@ void PdfPageView::update_wanted_renders() {
       wanted_.push_back(request);
     }
   };
+  if (search_ != nullptr) {
+    std::vector<int> pages;
+    pages.reserve(on_screen.size());
+    for (const auto* slot : on_screen) {
+      pages.push_back(slot->page);
+    }
+    search_->set_visible_pages(pages);
+  }
   // 1. Every page on screen, whole, nearest the middle first.
   for (const auto* slot : on_screen) {
     RenderRequest request;
@@ -760,6 +776,165 @@ void PdfPageView::paintEvent(QPaintEvent* event) {
       painter.drawImage(dest, detail.image);
     }
   }
+  if (search_ != nullptr && search_->active()) {
+    for (const auto& [slot, target] : drawn) {
+      paint_text_matches(painter, *slot, origin, target);
+    }
+  }
+}
+
+void PdfPageView::set_text_search(PdfTextSearch* search) {
+  if (search_ == search) {
+    return;
+  }
+  if (search_ != nullptr) {
+    disconnect(search_, nullptr, this, nullptr);
+  }
+  search_ = search;
+  if (search_ != nullptr) {
+    connect(search_, &PdfTextSearch::highlights_changed, this, [this] { viewport()->update(); });
+    connect(search_, &PdfTextSearch::current_match_changed, this, &PdfPageView::show_current_text_match);
+    connect(search_, &PdfTextSearch::current_match_located, this, &PdfPageView::show_current_text_match);
+  }
+  viewport()->update();
+}
+
+const PageViewSlot* PdfPageView::slot_for_page(int page) const {
+  for (const auto& slot : layout_.pages) {
+    if (slot.page == page) {
+      return &slot;
+    }
+  }
+  return nullptr;
+}
+
+QRectF PdfPageView::page_area_to_content(const PageViewSlot& slot, const QRectF& area) const {
+  const PageSizePoints size = page_sizes_[static_cast<std::size_t>(slot.page)];
+  if (!(size.width > 0.0) || !(size.height > 0.0)) {
+    return {};
+  }
+  // The view's quarter turns, clockwise, then the page's place and scale on the content.
+  QRectF turned = area;
+  switch (normalized_turns(options_.quarter_turns)) {
+    case 1:
+      turned = QRectF(size.height - area.bottom(), area.left(), area.height(), area.width());
+      break;
+    case 2:
+      turned = QRectF(size.width - area.right(), size.height - area.bottom(), area.width(), area.height());
+      break;
+    case 3:
+      turned = QRectF(area.top(), size.width - area.right(), area.height(), area.width());
+      break;
+    default:
+      break;
+  }
+  const PageSizePoints page = turned_page_size(size, options_.quarter_turns);
+  const double scale_x = slot.rect.width / page.width;
+  const double scale_y = slot.rect.height / page.height;
+  return {slot.rect.x + turned.x() * scale_x, slot.rect.y + turned.y() * scale_y, turned.width() * scale_x,
+          turned.height() * scale_y};
+}
+
+QRectF PdfPageView::current_text_match_area() const {
+  if (search_ == nullptr) {
+    return {};
+  }
+  const auto current = search_->current_match();
+  if (!current.valid()) {
+    return {};
+  }
+  const PageViewSlot* slot = slot_for_page(current.page);
+  const auto* found = search_->page_matches(current.page);
+  if (slot == nullptr || found == nullptr || static_cast<std::size_t>(current.index) >= found->rects.size()) {
+    return {};
+  }
+  QRectF area;
+  for (const QRectF& rect : found->rects[static_cast<std::size_t>(current.index)]) {
+    area = area.united(page_area_to_content(*slot, rect));
+  }
+  return area;
+}
+
+QRectF PdfPageView::current_text_match_rect_for_testing() const {
+  const QRectF area = current_text_match_area();
+  return area.isEmpty() ? QRectF() : area.translated(content_origin());
+}
+
+void PdfPageView::show_current_text_match() {
+  if (search_ == nullptr || spreads_.empty()) {
+    return;
+  }
+  const auto current = search_->current_match();
+  if (!current.valid() || current.page >= page_count()) {
+    return;
+  }
+  const int row = spread_index_for_page(spreads_, current.page);
+  if (!continuous_ && row != paged_row_) {
+    set_current_row(row, false);
+  }
+  auto* horizontal = horizontalScrollBar();
+  auto* vertical = verticalScrollBar();
+  const QRectF visible(horizontal->value(), vertical->value(), viewport()->width(), viewport()->height());
+  const QRectF area = current_text_match_area();
+  if (area.isEmpty()) {
+    // Not placed on its page yet: show the page when none of it is on screen.
+    const PageViewSlot* slot = slot_for_page(current.page);
+    if (continuous_ && slot != nullptr &&
+        !QRectF(slot->rect.x, slot->rect.y, slot->rect.width, slot->rect.height).intersects(visible)) {
+      scroll_to_row_top(row);
+    }
+    notify_current_page();
+    return;
+  }
+  if (area.left() < visible.left() + kTextMatchEdge || area.right() > visible.right() - kTextMatchEdge) {
+    horizontal->setValue(static_cast<int>(std::lround(area.center().x() - visible.width() / 2.0)));
+  }
+  if (area.top() < visible.top() + kTextMatchEdge || area.bottom() > visible.bottom() - kTextMatchEdge) {
+    vertical->setValue(static_cast<int>(std::lround(area.center().y() - visible.height() / 2.0)));
+  }
+  notify_current_page();
+}
+
+void PdfPageView::paint_text_matches(QPainter& painter, const PageViewSlot& slot, QPointF origin,
+                                     const QRectF& target) {
+  const auto* found = search_->page_matches(slot.page);
+  if (found == nullptr) {
+    return;
+  }
+  const auto current = search_->current_match();
+  const QRectF window(QPointF(0.0, 0.0), QSizeF(viewport()->size()));
+  // One path per color, filled by winding: line pieces that overlap are tinted once.
+  QPainterPath others;
+  others.setFillRule(Qt::WindingFill);
+  QPainterPath chosen;
+  chosen.setFillRule(Qt::WindingFill);
+  for (std::size_t index = 0; index < found->rects.size(); ++index) {
+    const bool is_current = current.page == slot.page && current.index == static_cast<int>(index);
+    for (const QRectF& rect : found->rects[index]) {
+      const QRectF mark = page_area_to_content(slot, rect).translated(origin).adjusted(-1.0, -1.0, 1.0, 1.0);
+      if (mark.intersects(window)) {
+        (is_current ? chosen : others).addRect(mark);
+      }
+    }
+  }
+  if (others.isEmpty() && chosen.isEmpty()) {
+    return;
+  }
+  const auto& palette = theme();
+  painter.save();
+  painter.setClipRect(target);
+  QColor tint = palette.pdf_find_match;
+  tint.setAlphaF(static_cast<float>(kTextMatchOpacity));
+  painter.fillPath(others, tint);
+  if (!chosen.isEmpty()) {
+    QColor strong = palette.pdf_find_current_match;
+    strong.setAlphaF(static_cast<float>(kCurrentTextMatchOpacity));
+    painter.fillPath(chosen, strong);
+    painter.setPen(QPen(palette.pdf_find_current_match, 2.0));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPath(chosen.simplified());
+  }
+  painter.restore();
 }
 
 void PdfPageView::resizeEvent(QResizeEvent* event) {

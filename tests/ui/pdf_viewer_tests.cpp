@@ -12,6 +12,7 @@
 #include "ui/main_window.hpp"
 #include "ui/pdf_book_print_dialog.hpp"
 #include "ui/pdf_page_view.hpp"
+#include "ui/pdf_text_search.hpp"
 #include "ui/pdf_viewer_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/recent_file_list.hpp"
@@ -19,6 +20,7 @@
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -62,6 +64,7 @@ using patchy::test::ui::when_dialog_visible;
 using patchy::test::ui::import_print_resolution_support::pdf_from_objects;
 using patchy::ui::MainWindowTestAccess;
 using patchy::ui::PdfPageView;
+using patchy::ui::PdfTextMatch;
 using patchy::ui::PdfViewerWindow;
 
 namespace {
@@ -1050,6 +1053,788 @@ void ui_pdf_book_print_dialog_follows_choices() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfBookPrint/style")).toString() == QStringLiteral("zine"));
 }
 
+// --- Find (docs/pdf-viewer.md, "Find") ---
+
+constexpr double kTextPageWidth = 300.0;
+constexpr double kTextPageHeight = 400.0;
+
+// Pages of Helvetica text, one Tj per line (so PDFium sees the line breaks), WinAnsi encoded:
+// write a character past ASCII as its octal escape. A page without lines has no text at all.
+QByteArray text_pdf_bytes(const std::vector<std::vector<std::string>>& pages, double width = kTextPageWidth,
+                          double height = kTextPageHeight, double font_size = 14.0, double left = 30.0,
+                          double top_margin = 40.0) {
+  std::vector<std::string> objects;
+  objects.emplace_back("<</Type/Catalog/Pages 2 0 R>>");
+  std::string kids;
+  for (std::size_t page = 0; page < pages.size(); ++page) {
+    kids += std::to_string(4 + 2 * page) + " 0 R ";
+  }
+  objects.push_back("<</Type/Pages/Kids[" + kids + "]/Count " + std::to_string(pages.size()) + ">>");
+  objects.emplace_back("<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>");
+  for (std::size_t page = 0; page < pages.size(); ++page) {
+    std::string content;
+    if (!pages[page].empty()) {
+      content = "BT /F1 " + number(font_size) + " Tf " + number(left) + " " + number(height - top_margin) + " Td " +
+                number(font_size * 1.5) + " TL";
+      for (std::size_t line = 0; line < pages[page].size(); ++line) {
+        content += (line == 0 ? " (" : " T* (") + pages[page][line] + ") Tj";
+      }
+      content += " ET";
+    } else {
+      content = "0.8 0.8 0.8 rg 40 40 80 80 re f";
+    }
+    objects.push_back("<</Type/Page/Parent 2 0 R/MediaBox[0 0 " + number(width) + " " + number(height) +
+                      "]/Resources<</Font<</F1 3 0 R>>>>/Contents " + std::to_string(5 + 2 * page) + " 0 R>>");
+    objects.push_back("<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream");
+  }
+  return pdf_from_objects(objects);
+}
+
+// Five pages. "fox" is on pages 1, 2 and 5 (seven times, three of them not lower case, one
+// inside "foxes"); page 3 breaks words and a phrase across lines; page 4 has no text.
+QByteArray find_fixture_pdf_bytes() {
+  return text_pdf_bytes({
+      {"The quick brown fox jumps", "over the lazy dog. Patchy", "opens PDF files."},
+      {"A fox is quick. FOX and Fox", "foxes are not one fox."},
+      {"This line ends with an exam-", "ple of a hyphenated word and", "a well-", "known phrase split",
+       "across lines."},
+      {},
+      {"\\304rger and \\344rger", "The last fox."},
+  });
+}
+
+// A six-page booklet of ordinary prose for the card's screenshot and for trying Find by hand
+// (the same file is the desk's test file).
+QByteArray find_sample_pdf_bytes() {
+  const std::vector<std::vector<std::string>> pages = {
+      {"A Short Guide to Layers", "",
+       "Every picture in an editor is a stack of layers. A layer is a sheet of",
+       "pixels, and the sheets are laid one over another like panes of glass.",
+       "What you see on the canvas is the whole stack looked at from above.",
+       "", "Layers let you change one part of a picture and leave the rest alone.",
+       "Paint on a new layer and the photo under it is untouched. Hide the layer",
+       "and the paint is gone; show it again and the paint is back. Nothing is",
+       "lost until you flatten the stack.", "",
+       "The Layers panel lists the stack from top to bottom. Click a row to make",
+       "that layer the active one. The active layer is the one your tools change.",
+       "Drag a row up or down to move its layer in the stack."},
+      {"Opacity and Blending", "",
+       "Each layer has an opacity. At 100 percent the layer hides what is under",
+       "it. At 50 percent the layer below shows through, half and half. Opacity",
+       "is the quickest way to soften an effect you have painted on its own layer.",
+       "", "A blend mode decides how a layer mixes with the layers below. Normal",
+       "simply covers them. Multiply darkens, like ink on paper. Screen lightens,",
+       "like two slides projected on one wall. Try a few; the picture is never",
+       "harmed, because the pixels of every layer stay as they were.", "",
+       "Blend modes and opacity work together. A Multiply layer at low opacity",
+       "is a gentle shadow. A Screen layer at low opacity is a soft glow."},
+      {"Masks", "",
+       "A mask hides part of a layer without erasing it. Paint black on the mask",
+       "and that part of the layer disappears. Paint white and it returns. Gray",
+       "hides it partly. The pixels are still there, behind the mask.", "",
+       "Masks are how a sky from one photo is joined to the hills of another.",
+       "Put the sky on a layer above the hills, add a mask, and paint black over",
+       "everything that is not sky. A soft brush gives the join a soft edge.", "",
+       "A masked layer can be changed at any time. Unmask a corner today, mask",
+       "it again tomorrow. This way of working is called non-",
+       "destructive editing, and it is the reason masks matter so much."},
+      {"Adjustment Layers", "",
+       "An adjustment layer holds no pixels of its own. It holds a change, such",
+       "as more contrast or a warmer color, and applies that change to every",
+       "layer below it. Delete the adjust-",
+       "ment layer and the picture is exactly as it was before.", "",
+       "Because an adjustment is a layer, it has opacity, a blend mode and a",
+       "mask like any other layer. Paint on its mask to keep the change away",
+       "from a face, or lower its opacity to make the change weaker.", "",
+       "Stack several adjustment layers to build a look in steps: one for",
+       "brightness, one for color, one for contrast. Each step can be switched",
+       "off to see what it adds."},
+      {"Groups", "",
+       "A long stack is hard to read, so layers can be put in groups. A group is",
+       "a folder in the Layers panel. Close the folder and its layers take one",
+       "row. Open it to work on them again.", "",
+       "A group can be moved, hidden, masked and faded as one thing. Give the",
+       "group a mask and every layer inside is hidden by it. Lower the opacity",
+       "of the group and the layers inside fade together.", "",
+       "Name your groups after what they hold: Sky, Hills, Text. A stack with",
+       "good names can be understood months later, by you or by someone else."},
+      {"Saving Your Work", "",
+       "Save the picture with its layers while you are still working on it. A",
+       "layered file keeps every layer, mask, group and adjustment, so nothing",
+       "has to be done twice.", "",
+       "When the picture is finished, export a copy for the people who will see",
+       "it. An exported JPEG or PNG is flat: one sheet, no layers. It is small",
+       "and opens anywhere, but it cannot be taken apart again.", "",
+       "Keep both files. The flat copy is the picture you share. The layered",
+       "file is the picture you can still change, layer by layer."},
+  };
+  return text_pdf_bytes(pages, 612.0, 792.0, 12.0, 72.0, 84.0);
+}
+
+// Waits until the search has nothing left to do and the pages are rendered.
+void settle_find(PdfViewerWindow& viewer) {
+  CHECK(process_events_until(
+      [&viewer] { return !viewer.text_search()->busy() && !viewer.page_view()->render_pending(); }, 15000));
+}
+
+std::vector<PdfTextMatch> matches_in(const QString& text, const QString& query, bool match_case = false,
+                                     bool whole_words = false) {
+  return patchy::ui::find_pdf_text_matches(text, query, {match_case, whole_words});
+}
+
+struct FindBar {
+  QLineEdit* edit{nullptr};
+  QLabel* status{nullptr};
+  QLabel* note{nullptr};
+  QCheckBox* match_case{nullptr};
+  QCheckBox* whole_words{nullptr};
+  QWidget* bar{nullptr};
+  [[nodiscard]] bool complete() const {
+    return edit != nullptr && status != nullptr && note != nullptr && match_case != nullptr &&
+           whole_words != nullptr && bar != nullptr;
+  }
+};
+
+FindBar find_bar_of(PdfViewerWindow& viewer) {
+  FindBar bar;
+  bar.edit = viewer.findChild<QLineEdit*>(QStringLiteral("pdfViewerFindEdit"));
+  bar.status = viewer.findChild<QLabel*>(QStringLiteral("pdfViewerFindStatusLabel"));
+  bar.note = viewer.findChild<QLabel*>(QStringLiteral("pdfViewerFindNoteLabel"));
+  bar.match_case = viewer.findChild<QCheckBox*>(QStringLiteral("pdfViewerFindMatchCaseCheck"));
+  bar.whole_words = viewer.findChild<QCheckBox*>(QStringLiteral("pdfViewerFindWholeWordsCheck"));
+  bar.bar = viewer.findChild<QWidget*>(QStringLiteral("pdfViewerFindBar"));
+  CHECK(bar.complete());
+  return bar;
+}
+
+// The settings a find test may change, put back when it ends.
+struct FindSettingsGuard {
+  SettingsValueRestorer pages{QStringLiteral("pdfViewer/pages")};
+  SettingsValueRestorer continuous{QStringLiteral("pdfViewer/continuous")};
+  SettingsValueRestorer direction{QStringLiteral("pdfViewer/direction")};
+  SettingsValueRestorer zoom{QStringLiteral("pdfViewer/zoom")};
+  SettingsValueRestorer sidebar{QStringLiteral("pdfViewer/sidebar")};
+  SettingsValueRestorer geometry{QStringLiteral("pdfViewer/geometry")};
+  SettingsValueRestorer positions{QStringLiteral("pdfViewer/positions")};
+  SettingsValueRestorer match_case{QStringLiteral("pdfViewer/findMatchCase")};
+  SettingsValueRestorer whole_words{QStringLiteral("pdfViewer/findWholeWords")};
+  FindSettingsGuard() {
+    auto settings = patchy::ui::app_settings();
+    for (const char* key : {"pdfViewer/pages", "pdfViewer/continuous", "pdfViewer/direction", "pdfViewer/zoom",
+                            "pdfViewer/sidebar", "pdfViewer/geometry", "pdfViewer/positions",
+                            "pdfViewer/findMatchCase", "pdfViewer/findWholeWords"}) {
+      settings.remove(QLatin1String(key));
+    }
+  }
+};
+
+PdfViewerWindow* open_find_viewer(patchy::ui::MainWindow& window, const QString& path, QSize size = QSize(900, 700)) {
+  auto* viewer = PdfViewerWindow::open(&window, path, {});
+  CHECK(viewer != nullptr);
+  if (viewer != nullptr) {
+    viewer->resize(size);
+    viewer->show();
+    QApplication::processEvents();
+  }
+  return viewer;
+}
+
+void close_find_viewer(PdfViewerWindow* viewer) {
+  const QPointer<PdfViewerWindow> guard(viewer);
+  viewer->close();
+  CHECK(process_events_until([&guard] { return guard.isNull(); }));
+}
+
+// The matcher alone: case, whole words, line breaks, hyphens at line ends, other scripts.
+void ui_pdf_viewer_find_text_matching_rules() {
+  using Matches = std::vector<PdfTextMatch>;
+  // Case: folded unless asked, in every script.
+  CHECK(matches_in(QStringLiteral("Hello World"), QStringLiteral("world")) == Matches({{6, 5}}));
+  CHECK(matches_in(QStringLiteral("Hello World"), QStringLiteral("world"), true).empty());
+  CHECK(matches_in(QStringLiteral("Hello World"), QStringLiteral("World"), true) == Matches({{6, 5}}));
+  // Greek capitals against small letters; the accented word is another word.
+  CHECK(matches_in(QStringLiteral("ΣΟΦΙΑ σοφία"),
+                   QStringLiteral("σοφια")) == Matches({{0, 5}}));
+  // Cyrillic.
+  CHECK(matches_in(QStringLiteral("Привет ПРИВЕТ"),
+                   QStringLiteral("привет"))
+            .size() == 2);
+  CHECK(matches_in(QStringLiteral("Привет ПРИВЕТ"),
+                   QStringLiteral("привет"), true)
+            .empty());
+  // Spaces and line breaks: any run is one space, in the text and in the query.
+  CHECK(matches_in(QStringLiteral("quick\r\nbrown   fox"), QStringLiteral("quick brown fox")) == Matches({{0, 18}}));
+  CHECK(matches_in(QStringLiteral("quick brown fox"), QStringLiteral("quick   brown\tfox")) == Matches({{0, 15}}));
+  CHECK(matches_in(QStringLiteral("quick brown fox"), QStringLiteral("   ")).empty());
+  CHECK(matches_in(QStringLiteral("quick brown fox"), QString()).empty());
+  // A word hyphenated at a line end: the typed hyphen, a soft hyphen, PDFium's two marks.
+  CHECK(matches_in(QStringLiteral("an exam-\r\nple here"), QStringLiteral("example")) == Matches({{3, 10}}));
+  CHECK(matches_in(QStringLiteral("an exam­\nple here"), QStringLiteral("example")) == Matches({{3, 9}}));
+  CHECK(matches_in(QStringLiteral("an exam\x02\r\nple here"), QStringLiteral("example")) == Matches({{3, 10}}));
+  CHECK(matches_in(QStringLiteral("an exam\x02ple here"), QStringLiteral("example")) == Matches({{3, 8}}));
+  CHECK(matches_in(QStringLiteral("an exam\ufffeple here"), QStringLiteral("example")) == Matches({{3, 8}}));
+  CHECK(matches_in(QStringLiteral("an exam￾\r\nple here"), QStringLiteral("example")) == Matches({{3, 10}}));
+  // The halves alone still match, and a hyphen inside a line is a hyphen.
+  CHECK(matches_in(QStringLiteral("an exam-\r\nple here"), QStringLiteral("exam")) == Matches({{3, 4}}));
+  CHECK(matches_in(QStringLiteral("an exam-\r\nple here"), QStringLiteral("ple")) == Matches({{10, 3}}));
+  CHECK(matches_in(QStringLiteral("a well-known fact"), QStringLiteral("wellknown")).empty());
+  // A compound broken at its own hyphen is found with the hyphen typed, and without.
+  CHECK(matches_in(QStringLiteral("a well-\r\nknown fact"), QStringLiteral("well-known")) == Matches({{2, 12}}));
+  CHECK(matches_in(QStringLiteral("a well-\r\nknown fact"), QStringLiteral("wellknown")) == Matches({{2, 12}}));
+  CHECK(matches_in(QStringLiteral("pages 3-\n5 and on"), QStringLiteral("3-5")) == Matches({{6, 4}}));
+  // A dash that ends a line after a space is punctuation, not a broken word.
+  CHECK(matches_in(QStringLiteral("stop -\ngo"), QStringLiteral("stopgo")).empty());
+  // Ligatures, full-width letters, curly quotes, dashes, soft hyphens inside a line.
+  CHECK(matches_in(QStringLiteral("ﬁnd the ofﬁce"), QStringLiteral("office")) == Matches({{8, 5}}));
+  CHECK(matches_in(QStringLiteral("ﬁnd the ofﬁce"), QStringLiteral("find")) == Matches({{0, 3}}));
+  CHECK(matches_in(QStringLiteral("ＡＢＣ"), QStringLiteral("abc")) == Matches({{0, 3}}));
+  CHECK(matches_in(QStringLiteral("it’s “quoted”"), QStringLiteral("it's \"quoted\"")) ==
+        Matches({{0, 13}}));
+  CHECK(matches_in(QStringLiteral("2019–2020"), QStringLiteral("2019-2020")) == Matches({{0, 9}}));
+  CHECK(matches_in(QStringLiteral("co­operate"), QStringLiteral("cooperate")) == Matches({{0, 10}}));
+  // Accents count, composed or not, and a match never stops before a letter's accent.
+  CHECK(matches_in(QStringLiteral("café café cafe"), QStringLiteral("café")) ==
+        Matches({{0, 4}, {5, 5}}));
+  CHECK(matches_in(QStringLiteral("café café cafe"), QStringLiteral("cafe")) == Matches({{11, 4}}));
+  // Whole words.
+  CHECK(matches_in(QStringLiteral("cat concatenate cat."), QStringLiteral("cat")).size() == 3);
+  CHECK(matches_in(QStringLiteral("cat concatenate cat."), QStringLiteral("cat"), false, true) ==
+        Matches({{0, 3}, {16, 3}}));
+  CHECK(matches_in(QStringLiteral("cafés café"), QStringLiteral("café"), false, true) ==
+        Matches({{6, 4}}));
+  CHECK(matches_in(QStringLiteral("a_cat cat_b (cat)"), QStringLiteral("cat"), false, true) == Matches({{13, 3}}));
+  // An end of the query that is not a letter needs no word edge there.
+  CHECK(matches_in(QStringLiteral("end. Then"), QStringLiteral("end."), false, true) == Matches({{0, 4}}));
+  // Matches never overlap.
+  CHECK(matches_in(QStringLiteral("aaaa"), QStringLiteral("aa")) == Matches({{0, 2}, {2, 2}}));
+}
+
+// The counts a document gives: every page searched, the options, phrases across lines, and
+// the options remembered.
+void ui_pdf_viewer_find_text_counts_and_options() {
+  FindSettingsGuard settings_guard;
+  const QString path = write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find.pdf"), find_fixture_pdf_bytes());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* viewer = open_find_viewer(window, path);
+  if (viewer == nullptr) {
+    return;
+  }
+  auto* view = viewer->page_view();
+  auto* search = viewer->text_search();
+  const FindBar bar = find_bar_of(*viewer);
+  if (!bar.complete()) {
+    return;
+  }
+  CHECK(!viewer->find_bar_open() && !bar.bar->isVisible());
+  // The toolbar button opens the bar.
+  auto* find_action = viewer->findChild<QAction*>(QStringLiteral("pdfViewerFindAction"));
+  CHECK(find_action != nullptr);
+  if (find_action != nullptr) {
+    find_action->trigger();
+  }
+  CHECK(viewer->find_bar_open() && bar.bar->isVisible());
+  CHECK(bar.status->text().isEmpty());
+  const auto count_of = [&](const QString& query) {
+    bar.edit->setText(query);
+    settle_find(*viewer);
+    return search->match_count();
+  };
+  CHECK(!bar.match_case->isChecked() && !bar.whole_words->isChecked());
+  CHECK(count_of(QStringLiteral("fox")) == 7);
+  CHECK(bar.status->text() == QStringLiteral("1 of 7"));
+  CHECK(count_of(QStringLiteral("FOX")) == 7);
+  bar.match_case->setChecked(true);
+  settle_find(*viewer);
+  CHECK(search->match_count() == 1);
+  CHECK(count_of(QStringLiteral("fox")) == 5);
+  bar.whole_words->setChecked(true);
+  settle_find(*viewer);
+  CHECK(search->match_count() == 4);
+  bar.match_case->setChecked(false);
+  settle_find(*viewer);
+  CHECK(search->match_count() == 6);
+  bar.whole_words->setChecked(false);
+  settle_find(*viewer);
+  CHECK(search->match_count() == 7);
+  // Letters past ASCII fold too.
+  CHECK(count_of(QStringLiteral("ärger")) == 2);
+  bar.match_case->setChecked(true);
+  settle_find(*viewer);
+  CHECK(search->match_count() == 1);
+  bar.match_case->setChecked(false);
+  // A phrase across a line break, and across two.
+  CHECK(count_of(QStringLiteral("jumps over the lazy")) == 1);
+  CHECK(count_of(QStringLiteral("Patchy opens PDF")) == 1);
+  CHECK(count_of(QStringLiteral("phrase split across lines")) == 1);
+  // Words broken at a line end, whatever PDFium made of the hyphen and the break (Qt 6.8's
+  // hands "exam", U+FFFE, "ple" back, with no line break).
+  CHECK(search->page_text_for_testing(2).contains(QStringLiteral("exam")));
+  CHECK(count_of(QStringLiteral("example")) == 1);
+  CHECK(search->current_match().page == 2);
+  CHECK(count_of(QStringLiteral("well-known")) == 1);
+  CHECK(count_of(QStringLiteral("hyphenated word and a well")) == 1);
+  // Nothing found says so, and the step buttons go quiet.
+  CHECK(count_of(QStringLiteral("zebra")) == 0);
+  CHECK(bar.status->text() == QStringLiteral("No matches"));
+  auto* next_button = viewer->findChild<QWidget*>(QStringLiteral("pdfViewerFindNextButton"));
+  auto* previous_button = viewer->findChild<QWidget*>(QStringLiteral("pdfViewerFindPreviousButton"));
+  CHECK(next_button != nullptr && !next_button->isEnabled());
+  CHECK(previous_button != nullptr && !previous_button->isEnabled());
+  CHECK(count_of(QStringLiteral("fox")) == 7);
+  CHECK(next_button != nullptr && next_button->isEnabled());
+  // Clearing the field clears the search.
+  CHECK(count_of(QString()) == 0);
+  CHECK(!search->active() && bar.status->text().isEmpty());
+  Q_UNUSED(view);
+
+  // The options are remembered.
+  bar.whole_words->setChecked(true);
+  close_find_viewer(viewer);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("pdfViewer/findWholeWords")).toBool());
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("pdfViewer/findMatchCase")).toBool());
+  viewer = open_find_viewer(window, path);
+  if (viewer == nullptr) {
+    return;
+  }
+  const FindBar again = find_bar_of(*viewer);
+  if (again.complete()) {
+    CHECK(again.whole_words->isChecked() && !again.match_case->isChecked());
+    viewer->open_find_bar();
+    again.edit->setText(QStringLiteral("fox"));
+    settle_find(*viewer);
+    CHECK(viewer->text_search()->match_count() == 6);
+  }
+  close_find_viewer(viewer);
+}
+
+// Next and Previous: the order across pages, around both ends, every key, and the page each
+// match turns to in the spread layouts.
+void ui_pdf_viewer_find_text_steps_through_matches() {
+  FindSettingsGuard settings_guard;
+  const QString path =
+      write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find_steps.pdf"), find_fixture_pdf_bytes());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* viewer = open_find_viewer(window, path);
+  if (viewer == nullptr) {
+    return;
+  }
+  auto* view = viewer->page_view();
+  auto* search = viewer->text_search();
+  const FindBar bar = find_bar_of(*viewer);
+  if (!bar.complete()) {
+    return;
+  }
+  view->set_continuous(false);
+  view->set_fit_mode(patchy::PageFitMode::WholePage);
+  view->set_spread_mode(patchy::PageSpreadMode::Single);
+  view->first_page();
+  view->setFocus();
+  // Ctrl+F opens the bar with the keyboard in the field.
+  QTest::keyClick(view, Qt::Key_F, Qt::ControlModifier);
+  CHECK(viewer->find_bar_open() && bar.bar->isVisible());
+  if (viewer->isActiveWindow()) {
+    CHECK(QApplication::focusWidget() == bar.edit);
+  }
+  QTest::keyClicks(bar.edit, QStringLiteral("fox"));
+  settle_find(*viewer);
+  const auto expect = [&](const char* what, int number, int page) {
+    settle_find(*viewer);
+    const QString wanted = QStringLiteral("%1 of 7").arg(number);
+    if (bar.status->text() != wanted || search->current_match().page != page || view->current_page() != page) {
+      std::cout << "  " << what << ": status \"" << bar.status->text().toStdString() << "\" (wanted \""
+                << wanted.toStdString() << "\"), match on page " << search->current_match().page + 1
+                << ", page shown " << view->current_page() + 1 << " (wanted " << page + 1 << ")\n";
+      CHECK(false);
+    }
+  };
+  expect("typed", 1, 0);
+  CHECK(bar.note->text().isEmpty());
+  // Enter walks forward through page 2's five matches, then to page 5.
+  for (int number = 2; number <= 6; ++number) {
+    QTest::keyClick(bar.edit, Qt::Key_Return);
+    expect("Enter", number, 1);
+  }
+  QTest::keyClick(bar.edit, Qt::Key_Return);
+  expect("Enter to the last", 7, 4);
+  CHECK(bar.note->text().isEmpty());
+  // Past the last match: around to the first, with a note.
+  QTest::keyClick(bar.edit, Qt::Key_Return);
+  expect("Enter around the end", 1, 0);
+  CHECK(bar.note->text() == QStringLiteral("Reached the end, continued from the start"));
+  // Shift+Enter goes back, around the start.
+  QTest::keyClick(bar.edit, Qt::Key_Return, Qt::ShiftModifier);
+  expect("Shift+Enter around the start", 7, 4);
+  CHECK(bar.note->text() == QStringLiteral("Reached the start, continued from the end"));
+  QTest::keyClick(bar.edit, Qt::Key_Return, Qt::ShiftModifier);
+  expect("Shift+Enter", 6, 1);
+  // The keypad's Enter is Enter.
+  QTest::keyClick(bar.edit, Qt::Key_Enter, Qt::KeypadModifier);
+  expect("keypad Enter", 7, 4);
+  // F3 and Ctrl+G, with Shift for back, from the field and from the pages.
+  QTest::keyClick(bar.edit, Qt::Key_F3);
+  expect("F3 in the field", 1, 0);
+  view->setFocus();
+  QTest::keyClick(view, Qt::Key_F3);
+  expect("F3", 2, 1);
+  QTest::keyClick(view, Qt::Key_F3, Qt::ShiftModifier);
+  expect("Shift+F3", 1, 0);
+  QTest::keyClick(view, Qt::Key_G, Qt::ControlModifier);
+  expect("Ctrl+G", 2, 1);
+  QTest::keyClick(view, Qt::Key_G, Qt::ControlModifier | Qt::ShiftModifier);
+  expect("Ctrl+Shift+G", 1, 0);
+  // The buttons.
+  auto* next_button = viewer->findChild<QAbstractButton*>(QStringLiteral("pdfViewerFindNextButton"));
+  auto* previous_button = viewer->findChild<QAbstractButton*>(QStringLiteral("pdfViewerFindPreviousButton"));
+  CHECK(next_button != nullptr && previous_button != nullptr);
+  if (next_button != nullptr && previous_button != nullptr) {
+    next_button->click();
+    expect("Next button", 2, 1);
+    previous_button->click();
+    expect("Previous button", 1, 0);
+  }
+
+  // Esc closes the bar, clears the search and hands the keyboard back to the pages.
+  QTest::keyClick(bar.edit, Qt::Key_Escape);
+  CHECK(!viewer->find_bar_open() && !bar.bar->isVisible() && !search->active());
+  if (viewer->isActiveWindow()) {
+    CHECK(QApplication::focusWidget() == view);
+  }
+  // Opened again on another page, the same text is searched from that page on.
+  view->go_to_page(4);
+  QTest::keyClick(view, Qt::Key_F, Qt::ControlModifier);
+  CHECK(viewer->find_bar_open() && bar.edit->text() == QStringLiteral("fox"));
+  CHECK(bar.edit->selectedText() == QStringLiteral("fox"));
+  expect("reopened on page 5", 7, 4);
+  // Esc on the pages closes it too; F3 with the bar closed opens it and finds from here.
+  view->setFocus();
+  QTest::keyClick(view, Qt::Key_Escape);
+  CHECK(!viewer->find_bar_open());
+  view->go_to_page(1);
+  QTest::keyClick(view, Qt::Key_F3);
+  CHECK(viewer->find_bar_open());
+  expect("F3 with the bar closed", 2, 1);
+  // Typing on keeps the place while the match still fits.
+  QTest::keyClick(bar.edit, Qt::Key_Return);
+  expect("Enter", 3, 1);
+  bar.edit->setText(QStringLiteral("fo"));
+  settle_find(*viewer);
+  CHECK(search->match_count() == 7 && search->current_index() == 2);
+  bar.edit->setText(QStringLiteral("fox"));
+  expect("typed on", 3, 1);
+
+  // Two pages side by side: the row that holds the match is the one shown.
+  const auto step_to_page = [&](int page, bool forward) {
+    for (int tries = 0; tries < 8 && search->current_match().page != page; ++tries) {
+      forward ? viewer->find_next() : viewer->find_previous();
+    }
+    settle_find(*viewer);
+    CHECK(search->current_match().page == page);
+  };
+  const auto on_the_right = [&] {
+    const QRectF rect = view->current_text_match_rect_for_testing();
+    CHECK(!rect.isEmpty());
+    return rect.center().x() > view->viewport()->width() / 2.0;
+  };
+  view->set_spread_mode(patchy::PageSpreadMode::TwoPages);
+  step_to_page(4, true);
+  CHECK(view->current_pages() == std::vector<int>({4}));
+  step_to_page(1, false);
+  CHECK(view->current_pages() == std::vector<int>({0, 1}));
+  CHECK(on_the_right());
+  step_to_page(0, false);
+  CHECK(view->current_pages() == std::vector<int>({0, 1}));
+  CHECK(!on_the_right());
+  // The cover alone: page 2 is the left page of the second row.
+  view->set_spread_mode(patchy::PageSpreadMode::TwoPagesCoverAlone);
+  step_to_page(1, true);
+  CHECK(view->current_pages() == std::vector<int>({1, 2}));
+  CHECK(!on_the_right());
+  step_to_page(4, true);
+  CHECK(view->current_pages() == std::vector<int>({3, 4}));
+  CHECK(on_the_right());
+  // Right to left puts the earlier page of each row on the right.
+  view->set_reading_direction(patchy::PageReadingDirection::RightToLeft);
+  step_to_page(1, true);
+  CHECK(view->current_pages() == std::vector<int>({1, 2}));
+  CHECK(on_the_right());
+  step_to_page(4, true);
+  CHECK(view->current_pages() == std::vector<int>({3, 4}));
+  CHECK(!on_the_right());
+  step_to_page(0, true);
+  CHECK(view->current_pages() == std::vector<int>({0}));
+  close_find_viewer(viewer);
+}
+
+// Highlights sit on the text they mark through scrolling, zoom, rotation and detail renders,
+// the current one in its own color and in view.
+void ui_pdf_viewer_find_text_highlights_follow_the_page() {
+  FindSettingsGuard settings_guard;
+  const QString path =
+      write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find_marks.pdf"), find_fixture_pdf_bytes());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* viewer = open_find_viewer(window, path);
+  if (viewer == nullptr) {
+    return;
+  }
+  auto* view = viewer->page_view();
+  auto* search = viewer->text_search();
+  const FindBar bar = find_bar_of(*viewer);
+  if (!bar.complete()) {
+    return;
+  }
+  view->set_continuous(true);
+  view->set_spread_mode(patchy::PageSpreadMode::Single);
+  view->set_zoom_percent(150.0);
+  view->first_page();
+  viewer->open_find_bar();
+
+  // What the window shows inside the current match: paper tinted with the current-match
+  // color, and the letters under it.
+  struct Marked {
+    QRectF rect;
+    int tinted{0};
+    int ink{0};
+    bool in_view{false};
+  };
+  const auto current_mark = [&] {
+    settle_find(*viewer);
+    Marked marked;
+    marked.rect = view->current_text_match_rect_for_testing();
+    const QRect inside = marked.rect.toAlignedRect();
+    marked.in_view = !marked.rect.isEmpty() && view->viewport()->rect().contains(inside);
+    if (!marked.in_view) {
+      return marked;
+    }
+    const QImage image = view->viewport()->grab().toImage();
+    const double ratio = image.devicePixelRatio();
+    for (int y = inside.top(); y <= inside.bottom(); ++y) {
+      for (int x = inside.left(); x <= inside.right(); ++x) {
+        const QColor color = image.pixelColor(static_cast<int>(x * ratio), static_cast<int>(y * ratio));
+        // #ff7a00 at 55% over white paper is about (255, 182, 115).
+        if (color.red() > 240 && std::abs(color.green() - 182) < 18 && std::abs(color.blue() - 115) < 18) {
+          ++marked.tinted;
+        } else if (color.red() < 190 && color.blue() < 90) {
+          ++marked.ink;
+        }
+      }
+    }
+    return marked;
+  };
+  const auto report = [](const char* what, const Marked& marked) {
+    std::cout << "  " << what << ": match at " << marked.rect.x() << "," << marked.rect.y() << " "
+              << marked.rect.width() << "x" << marked.rect.height() << ", in view " << marked.in_view
+              << ", tinted " << marked.tinted << ", ink " << marked.ink << "\n";
+  };
+  const auto good = [](const Marked& marked) { return marked.in_view && marked.tinted > 40 && marked.ink > 20; };
+
+  // A match four pages down scrolls into view.
+  bar.edit->setText(QStringLiteral("last fox"));
+  const Marked far = current_mark();
+  CHECK(search->match_count() == 1 && search->current_match().page == 4);
+  if (!good(far)) {
+    report("scrolled to", far);
+    CHECK(false);
+  }
+  CHECK(view->current_page() == 4);
+  // "last fox" is the second line of its page, 30 pt from the left: the mark starts there
+  // (The and a space come first) and is one line high.
+  CHECK(far.rect.height() > 14.0 && far.rect.height() < 60.0);
+  CHECK(far.rect.width() > 60.0 && far.rect.width() < 200.0);
+
+  // Zoomed, the mark grows with the page and stays on its letters.
+  view->set_zoom_percent(300.0);
+  view->show_current_text_match();
+  const Marked zoomed = current_mark();
+  if (!good(zoomed) || std::abs(zoomed.rect.width() / far.rect.width() - 2.0) > 0.2) {
+    report("at 150%", far);
+    report("at 300%", zoomed);
+    CHECK(false);
+  }
+  // Past a whole-page image the page is drawn from a detail render; the mark still fits.
+  view->set_zoom_percent(800.0);
+  view->show_current_text_match();
+  const Marked detailed = current_mark();
+  CHECK(view->cached_width_for_testing(4) >= 3000);
+  if (!good(detailed)) {
+    report("at 800%", detailed);
+    CHECK(false);
+  }
+  // Every quarter turn: the mark turns with the page.
+  view->set_zoom_percent(150.0);
+  for (int turn = 1; turn <= 4; ++turn) {
+    view->rotate_clockwise();
+    view->show_current_text_match();
+    const Marked turned = current_mark();
+    const bool upright = turn % 2 == 0;
+    if (!good(turned) || (turned.rect.width() > turned.rect.height()) != upright) {
+      report("turned", turned);
+      CHECK(false);
+    }
+  }
+
+  // The other matches of a page are marked in the plain color: page 2 has five "fox", one
+  // of them current.
+  bar.edit->clear();
+  view->go_to_page(1);
+  bar.edit->setText(QStringLiteral("fox"));
+  settle_find(*viewer);
+  CHECK(search->match_count() == 7 && search->current_match().page == 1);
+  const auto* found = search->page_matches(1);
+  CHECK(found != nullptr && found->matches.size() == 5);
+  if (found != nullptr) {
+    for (const auto& rects : found->rects) {
+      CHECK(!rects.isEmpty());
+    }
+  }
+  {
+    const QImage image = view->viewport()->grab().toImage();
+    int plain = 0;
+    int strong = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const QColor color = image.pixelColor(x, y);
+        // #ffd400 at 42% over white paper is about (255, 237, 148).
+        if (color.red() > 240 && std::abs(color.green() - 237) < 12 && std::abs(color.blue() - 148) < 18) {
+          ++plain;
+        } else if (color.red() > 240 && std::abs(color.green() - 182) < 18 && std::abs(color.blue() - 115) < 18) {
+          ++strong;
+        }
+      }
+    }
+    if (plain < 4 * 40 || strong < 40 || plain < 2 * strong) {
+      std::cout << "  page 2: plain " << plain << ", current " << strong << "\n";
+      CHECK(false);
+    }
+  }
+  // Closing the bar takes the marks away.
+  viewer->close_find_bar();
+  settle_find(*viewer);
+  {
+    const QImage image = view->viewport()->grab().toImage();
+    int marked = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const QColor color = image.pixelColor(x, y);
+        if (color.red() > 240 && color.blue() < 170 && color.green() > 150) {
+          ++marked;
+        }
+      }
+    }
+    CHECK(marked == 0);
+  }
+  close_find_viewer(viewer);
+}
+
+// A scan has pages and no text: the bar says so instead of "No matches".
+void ui_pdf_viewer_find_text_reports_no_text_layer() {
+  FindSettingsGuard settings_guard;
+  const QString path = write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find_scan.pdf"), numbered_pdf_bytes(3));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* viewer = open_find_viewer(window, path);
+  if (viewer == nullptr) {
+    return;
+  }
+  const FindBar bar = find_bar_of(*viewer);
+  if (!bar.complete()) {
+    return;
+  }
+  viewer->open_find_bar();
+  bar.edit->setText(QStringLiteral("fox"));
+  settle_find(*viewer);
+  CHECK(viewer->text_search()->match_count() == 0);
+  CHECK(viewer->text_search()->text_layer() == patchy::ui::PdfTextSearch::TextLayer::Absent);
+  CHECK(bar.status->text() == QStringLiteral("This PDF has no searchable text"));
+  // Steps do nothing and say nothing.
+  QTest::keyClick(bar.edit, Qt::Key_Return);
+  QTest::keyClick(bar.edit, Qt::Key_Return, Qt::ShiftModifier);
+  CHECK(bar.note->text().isEmpty());
+  close_find_viewer(viewer);
+
+  // A document with text on some pages only is searched like any other.
+  const QString mixed = write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find_mixed.pdf"), find_fixture_pdf_bytes());
+  viewer = open_find_viewer(window, mixed);
+  if (viewer == nullptr) {
+    return;
+  }
+  const FindBar mixed_bar = find_bar_of(*viewer);
+  if (mixed_bar.complete()) {
+    viewer->open_find_bar();
+    mixed_bar.edit->setText(QStringLiteral("zebra"));
+    settle_find(*viewer);
+    CHECK(viewer->text_search()->text_layer() == patchy::ui::PdfTextSearch::TextLayer::Present);
+    CHECK(mixed_bar.status->text() == QStringLiteral("No matches"));
+  }
+  close_find_viewer(viewer);
+}
+
+// The viewer with a search under way on a document of ordinary prose, in both schemes'
+// guard: the picture for the feature's card.
+void ui_pdf_viewer_find_text_sample_document() {
+  FindSettingsGuard settings_guard;
+  const QString path =
+      write_file(QStringLiteral("test-artifacts/ui_pdf_viewer_find_sample.pdf"), find_sample_pdf_bytes());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* viewer = open_find_viewer(window, path, QSize(1240, 820));
+  if (viewer == nullptr) {
+    return;
+  }
+  auto* view = viewer->page_view();
+  auto* search = viewer->text_search();
+  const FindBar bar = find_bar_of(*viewer);
+  if (!bar.complete()) {
+    return;
+  }
+  view->set_continuous(false);
+  view->set_spread_mode(patchy::PageSpreadMode::TwoPages);
+  view->set_fit_mode(patchy::PageFitMode::WholePage);
+  viewer->open_find_bar();
+  bar.edit->setText(QStringLiteral("layer"));
+  settle_find(*viewer);
+  // Counted by hand in find_sample_pdf_bytes: 42 in all; Whole words leaves "layers" and
+  // "layered" out (27); Match case leaves the five "Layers" out (37).
+  const int all = search->match_count();
+  bar.whole_words->setChecked(true);
+  settle_find(*viewer);
+  const int whole = search->match_count();
+  bar.whole_words->setChecked(false);
+  bar.match_case->setChecked(true);
+  settle_find(*viewer);
+  const int cased = search->match_count();
+  bar.match_case->setChecked(false);
+  if (all != 42 || whole != 27 || cased != 37) {
+    std::cout << "  \"layer\": " << all << " in all, " << whole << " as a whole word, " << cased
+              << " with its case\n";
+    CHECK(false);
+  }
+  // The two words broken at line ends.
+  bar.edit->setText(QStringLiteral("non-destructive editing"));
+  settle_find(*viewer);
+  CHECK(search->match_count() == 1 && search->current_match().page == 2);
+  bar.edit->setText(QStringLiteral("adjustment layer"));
+  settle_find(*viewer);
+  CHECK(search->match_count() == 4);
+  // From the first page again: a cleared field forgets the place.
+  bar.edit->clear();
+  view->first_page();
+  bar.edit->setText(QStringLiteral("layer"));
+  settle_find(*viewer);
+  CHECK(bar.status->text() == QStringLiteral("1 of %1").arg(all));
+  viewer->find_next();
+  viewer->find_next();
+  settle_find(*viewer);
+  CHECK(bar.status->text() == QStringLiteral("3 of %1").arg(all));
+  // The thumbnails too, so the picture is whole.
+  (void)process_events_until([] { return false; }, 300);
+  settle_find(*viewer);
+  patchy::test::ui::save_widget_artifact("ui_pdf_viewer_find_text", *viewer);
+  close_find_viewer(viewer);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
@@ -1060,6 +1845,12 @@ std::vector<patchy::test::TestCase> pdf_viewer_ui_tests() {
       {"ui_pdf_viewer_spreads_and_page_turns", ui_pdf_viewer_spreads_and_page_turns},
       {"ui_pdf_viewer_close_keys_close_only_the_viewer", ui_pdf_viewer_close_keys_close_only_the_viewer},
       {"ui_pdf_viewer_detail_renders_match_the_page", ui_pdf_viewer_detail_renders_match_the_page},
+      {"ui_pdf_viewer_find_text_matching_rules", ui_pdf_viewer_find_text_matching_rules},
+      {"ui_pdf_viewer_find_text_counts_and_options", ui_pdf_viewer_find_text_counts_and_options},
+      {"ui_pdf_viewer_find_text_steps_through_matches", ui_pdf_viewer_find_text_steps_through_matches},
+      {"ui_pdf_viewer_find_text_highlights_follow_the_page", ui_pdf_viewer_find_text_highlights_follow_the_page},
+      {"ui_pdf_viewer_find_text_reports_no_text_layer", ui_pdf_viewer_find_text_reports_no_text_layer},
+      {"ui_pdf_viewer_find_text_sample_document", ui_pdf_viewer_find_text_sample_document},
       {"ui_pdf_book_print_imposes_sheets", ui_pdf_book_print_imposes_sheets},
       {"ui_pdf_book_print_splits_spreads", ui_pdf_book_print_splits_spreads},
       {"ui_pdf_book_print_writes_sheets_pdf", ui_pdf_book_print_writes_sheets_pdf},

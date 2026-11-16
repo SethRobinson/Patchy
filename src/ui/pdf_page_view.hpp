@@ -6,7 +6,9 @@
 #include <QElapsedTimer>
 #include <QImage>
 #include <QPoint>
+#include <QPointer>
 #include <QRect>
+#include <QRectF>
 #include <QSize>
 #include <QTimer>
 
@@ -16,9 +18,12 @@
 #include <unordered_map>
 #include <vector>
 
+class QPainter;
 class QPdfDocument;
 
 namespace patchy::ui {
+
+class PdfTextSearch;
 
 // The PDF viewer's page area (docs/pdf-viewer.md): pages laid out by core/page_view_layout,
 // rendered by PDFium one page at a time on a worker thread, cached, and drawn scaled while a
@@ -68,6 +73,16 @@ public:
   // A small page image for the sidebar, rendered after everything on screen. Answered
   // through thumbnail_ready; a request for a page already queued just moves it up.
   void request_thumbnail(int page, QSize size);
+
+  // Find (docs/pdf-viewer.md): the search whose matches are drawn over the pages and whose
+  // current match is kept in view. Not owned.
+  void set_text_search(PdfTextSearch* search);
+  // Brings the search's current match into view: its page at once (turning to it when one
+  // row shows at a time), the match itself once its place on the page is known. A match
+  // already in view moves nothing; any other goes to the middle of the window.
+  void show_current_text_match();
+  // Tests: the current match in viewport coordinates; empty until it is placed.
+  [[nodiscard]] QRectF current_text_match_rect_for_testing() const;
 
   // Tests: true while a render is queued or running.
   [[nodiscard]] bool render_pending() const;
@@ -138,8 +153,14 @@ private:
   [[nodiscard]] bool covers(const RenderRequest& request) const;
   void evict_cache();
   void stop_worker();
+  [[nodiscard]] const PageViewSlot* slot_for_page(int page) const;
+  // An area of a page, in points from its top left as stored, in content coordinates.
+  [[nodiscard]] QRectF page_area_to_content(const PageViewSlot& slot, const QRectF& area) const;
+  [[nodiscard]] QRectF current_text_match_area() const;
+  void paint_text_matches(QPainter& painter, const PageViewSlot& slot, QPointF origin, const QRectF& target);
 
   QPdfDocument* document_{nullptr};
+  QPointer<PdfTextSearch> search_;
   std::vector<PageSizePoints> page_sizes_;
   std::vector<PageSpread> spreads_;
   PageViewLayoutOptions options_;

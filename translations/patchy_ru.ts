@@ -38057,6 +38057,71 @@ Locked: %1</source>
         <source>of %1</source>
         <translation>из %1</translation>
     </message>
+    <message>
+        <source>Find</source>
+        <translation>Найти</translation>
+    </message>
+    <message>
+        <source>Find text in this PDF (%1)</source>
+        <translation>Найти текст в этом PDF (%1)</translation>
+    </message>
+    <message>
+        <source>Find in this PDF</source>
+        <translation>Найти в этом PDF</translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation>Предыдущее совпадение (Shift+Ввод)</translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation>Следующее совпадение (Ввод)</translation>
+    </message>
+    <message>
+        <source>Match case</source>
+        <translation>С учётом регистра</translation>
+    </message>
+    <message>
+        <source>Only find text with the same capital and small letters</source>
+        <translation>Находить только текст с тем же регистром букв</translation>
+    </message>
+    <message>
+        <source>Whole words</source>
+        <translation>Слова целиком</translation>
+    </message>
+    <message>
+        <source>Only find the text where it is not part of a longer word</source>
+        <translation>Находить текст, только если он не является частью более длинного слова</translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation>Закрыть панель поиска (Esc)</translation>
+    </message>
+    <message>
+        <source>Reached the end, continued from the start</source>
+        <translation>Достигнут конец, поиск продолжен с начала</translation>
+    </message>
+    <message>
+        <source>Reached the start, continued from the end</source>
+        <translation>Достигнуто начало, поиск продолжен с конца</translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <extracomment>Find in the PDF viewer: which match is shown and how many there are, as in &quot;3 of 17&quot;.</extracomment>
+        <translation>%1 из %2</translation>
+    </message>
+    <message>
+        <source>Searching...</source>
+        <translation>Поиск...</translation>
+    </message>
+    <message>
+        <source>This PDF has no searchable text</source>
+        <translation>В этом PDF нет текста, по которому можно искать</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>Совпадений нет</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

@@ -37829,6 +37829,71 @@ Locked: %1</source>
         <source>of %1</source>
         <translation> / %1</translation>
     </message>
+    <message>
+        <source>Find</source>
+        <translation>尋找</translation>
+    </message>
+    <message>
+        <source>Find text in this PDF (%1)</source>
+        <translation>在此 PDF 中尋找文字 (%1)</translation>
+    </message>
+    <message>
+        <source>Find in this PDF</source>
+        <translation>在此 PDF 中尋找</translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation>上一個相符項目 (Shift+Enter)</translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation>下一個相符項目 (Enter)</translation>
+    </message>
+    <message>
+        <source>Match case</source>
+        <translation>區分大小寫</translation>
+    </message>
+    <message>
+        <source>Only find text with the same capital and small letters</source>
+        <translation>僅尋找大小寫相同的文字</translation>
+    </message>
+    <message>
+        <source>Whole words</source>
+        <translation>全字相符</translation>
+    </message>
+    <message>
+        <source>Only find the text where it is not part of a longer word</source>
+        <translation>僅在文字不是較長單字的一部分時才尋找</translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation>關閉尋找列 (Esc)</translation>
+    </message>
+    <message>
+        <source>Reached the end, continued from the start</source>
+        <translation>已到達結尾，從開頭繼續尋找</translation>
+    </message>
+    <message>
+        <source>Reached the start, continued from the end</source>
+        <translation>已到達開頭，從結尾繼續尋找</translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <extracomment>Find in the PDF viewer: which match is shown and how many there are, as in &quot;3 of 17&quot;.</extracomment>
+        <translation>%1 / %2</translation>
+    </message>
+    <message>
+        <source>Searching...</source>
+        <translation>正在尋找...</translation>
+    </message>
+    <message>
+        <source>This PDF has no searchable text</source>
+        <translation>此 PDF 沒有可搜尋的文字</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>沒有相符項目</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

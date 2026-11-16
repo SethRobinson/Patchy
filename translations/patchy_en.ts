@@ -37861,6 +37861,71 @@ Locked: %1</source>
         <source>of %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Find</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find text in this PDF (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find in this PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Match case</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only find text with the same capital and small letters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whole words</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only find the text where it is not part of a longer word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reached the end, continued from the start</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reached the start, continued from the end</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <extracomment>Find in the PDF viewer: which match is shown and how many there are, as in &quot;3 of 17&quot;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Searching...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This PDF has no searchable text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

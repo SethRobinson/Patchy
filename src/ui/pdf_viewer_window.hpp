@@ -10,28 +10,33 @@
 #include <vector>
 
 class QAction;
+class QCheckBox;
 class QComboBox;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
 class QKeyEvent;
 class QLabel;
+class QLineEdit;
 class QListWidget;
 class QPdfDocument;
 class QPushButton;
 class QSpinBox;
 class QSplitter;
+class QTimer;
 class QToolBar;
 class QToolButton;
 
 namespace patchy::ui {
 
 class PdfPageView;
+class PdfTextSearch;
 
 // The PDF viewer (docs/pdf-viewer.md): what opening a PDF shows by default. A MainWindow-
 // parented top-level window (like a floated document) with a toolbar for pages, zoom and
-// layout, a sidebar with Edit... (the Import PDF dialog, for editing pages in Patchy) and
-// Print as Book..., and page thumbnails. Built only with Qt PDF (PATCHY_HAVE_QT_PDF).
+// layout, a find bar, a sidebar with Edit... (the Import PDF dialog, for editing pages in
+// Patchy) and Print as Book..., and page thumbnails. Built only with Qt PDF
+// (PATCHY_HAVE_QT_PDF).
 class PdfViewerWindow final : public QWidget {
   Q_OBJECT
 
@@ -55,6 +60,18 @@ public:
   void edit_pages();
   void print_as_book();
   void set_full_screen(bool full_screen);
+
+  // Find: the bar under the toolbar. Opening it puts the keyboard in its field with the
+  // last text selected and searches for that text again; closing it clears the highlights
+  // and hands the keyboard back to the pages.
+  void open_find_bar();
+  void close_find_bar();
+  [[nodiscard]] bool find_bar_open() const { return find_open_; }
+  // The next or previous match, around the ends of the document. With the bar closed they
+  // open it, which finds the first match from the page being read.
+  void find_next();
+  void find_previous();
+  [[nodiscard]] PdfTextSearch* text_search() const { return search_; }
 
   // Files dragged onto the viewer open like a drop on the main window: `accept` answers the
   // drag, `drop` opens the files. Each returns whether it took the event.
@@ -87,6 +104,10 @@ private:
   void reset_thumbnails();
   void size_thumbnail_cells();
   void update_title();
+  void build_find_bar();
+  void start_find();
+  void update_find_status();
+  void show_find_note(const QString& text);
   // This window's own command for a key typed in it, or nullptr.
   [[nodiscard]] QAction* window_key_action(const QKeyEvent& event) const;
   [[nodiscard]] bool is_close_source_key(const QKeyEvent& event) const;
@@ -98,7 +119,18 @@ private:
   FileDropHandler accept_file_drag_;
   FileDropHandler drop_files_;
   PdfPageView* view_{nullptr};
+  PdfTextSearch* search_{nullptr};
   QToolBar* toolbar_{nullptr};
+  QWidget* find_bar_{nullptr};
+  QLineEdit* find_edit_{nullptr};
+  QToolButton* find_previous_button_{nullptr};
+  QToolButton* find_next_button_{nullptr};
+  QLabel* find_status_label_{nullptr};
+  QLabel* find_note_label_{nullptr};
+  QCheckBox* find_match_case_check_{nullptr};
+  QCheckBox* find_whole_words_check_{nullptr};
+  QTimer* find_note_timer_{nullptr};
+  bool find_open_{false};
   QSplitter* splitter_{nullptr};
   QWidget* sidebar_{nullptr};
   QListWidget* thumbnails_{nullptr};

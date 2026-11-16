@@ -37943,6 +37943,71 @@ Fixiert: %1</translation>
         <source>of %1</source>
         <translation>von %1</translation>
     </message>
+    <message>
+        <source>Find</source>
+        <translation>Suchen</translation>
+    </message>
+    <message>
+        <source>Find text in this PDF (%1)</source>
+        <translation>Text in dieser PDF suchen (%1)</translation>
+    </message>
+    <message>
+        <source>Find in this PDF</source>
+        <translation>In dieser PDF suchen</translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation>Vorheriger Treffer (Umschalt+Enter)</translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation>Nächster Treffer (Enter)</translation>
+    </message>
+    <message>
+        <source>Match case</source>
+        <translation>Groß-/Kleinschreibung beachten</translation>
+    </message>
+    <message>
+        <source>Only find text with the same capital and small letters</source>
+        <translation>Nur Text mit gleicher Groß- und Kleinschreibung finden</translation>
+    </message>
+    <message>
+        <source>Whole words</source>
+        <translation>Ganze Wörter</translation>
+    </message>
+    <message>
+        <source>Only find the text where it is not part of a longer word</source>
+        <translation>Den Text nur finden, wenn er nicht Teil eines längeren Wortes ist</translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation>Suchleiste schließen (Esc)</translation>
+    </message>
+    <message>
+        <source>Reached the end, continued from the start</source>
+        <translation>Ende erreicht, Suche am Anfang fortgesetzt</translation>
+    </message>
+    <message>
+        <source>Reached the start, continued from the end</source>
+        <translation>Anfang erreicht, Suche am Ende fortgesetzt</translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <extracomment>Find in the PDF viewer: which match is shown and how many there are, as in &quot;3 of 17&quot;.</extracomment>
+        <translation>%1 von %2</translation>
+    </message>
+    <message>
+        <source>Searching...</source>
+        <translation>Suche läuft...</translation>
+    </message>
+    <message>
+        <source>This PDF has no searchable text</source>
+        <translation>Diese PDF enthält keinen durchsuchbaren Text</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>Keine Treffer</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

@@ -389,6 +389,11 @@ struct ThemePalette {
   // with the typed letters left clear. Red like Quick Mask's masked areas: it sits on
   // artwork, so Light keeps it.
   QColor canvas_type_mask_tint;
+  // Find in the PDF viewer (docs/pdf-viewer.md): the tint over every match on a page and the
+  // stronger one, with an outline, over the current match. Drawn translucent over the page,
+  // which is paper in both schemes, so Light keeps them.
+  QColor pdf_find_match;
+  QColor pdf_find_current_match;
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,

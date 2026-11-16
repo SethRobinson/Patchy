@@ -1,14 +1,18 @@
 #include "ui/pdf_viewer_window.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/pdf_book_print_dialog.hpp"
 #include "ui/pdf_import.hpp"
 #include "ui/pdf_page_view.hpp"
+#include "ui/pdf_text_search.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDir>
@@ -34,6 +38,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -46,6 +51,8 @@ namespace {
 constexpr int kThumbnailBox = 96;
 constexpr int kThumbnailPendingRole = Qt::UserRole + 1;
 constexpr int kRememberedPositions = 50;
+// How long the note that a search went around the end of the document stays up.
+constexpr int kFindNoteMs = 3000;
 
 // Permanent settings keys and tokens (docs/pdf-viewer.md).
 QString settings_key(const char* leaf) {
@@ -194,6 +201,7 @@ PdfViewerWindow::PdfViewerWindow(QWidget* owner, QString path, std::unique_ptr<Q
   update_title();
   restore_settings();
   view_->set_document(document_.get());
+  search_->set_document(document_.get());
   reset_thumbnails();
   const int page = std::clamp(remembered_page(path_), 0, std::max(0, view_->page_count() - 1));
   if (page > 0) {
@@ -204,9 +212,13 @@ PdfViewerWindow::PdfViewerWindow(QWidget* owner, QString path, std::unique_ptr<Q
 }
 
 PdfViewerWindow::~PdfViewerWindow() {
-  // The view's render worker reads the document: stop it before the document goes.
+  // The view's render worker and the search's worker read the document: stop them before
+  // the document goes.
   if (view_ != nullptr) {
     view_->set_document(nullptr);
+  }
+  if (search_ != nullptr) {
+    search_->set_document(nullptr);
   }
 }
 
@@ -221,6 +233,10 @@ void PdfViewerWindow::build_ui() {
   root->addWidget(toolbar_);
 
   view_ = new PdfPageView(this);
+  search_ = new PdfTextSearch(this);
+  view_->set_text_search(search_);
+  build_find_bar();
+  root->addWidget(find_bar_);
 
   sidebar_action_ = toolbar_->addAction(tr("Pages"));
   sidebar_action_->setObjectName(QStringLiteral("pdfViewerSidebarAction"));
@@ -346,6 +362,14 @@ void PdfViewerWindow::build_ui() {
   full_screen_action_->setShortcutContext(Qt::WindowShortcut);
   full_screen_action_->setToolTip(tr("Full Screen (F11). Esc or a double-click returns."));
   connect(full_screen_action_, &QAction::triggered, this, [this](bool on) { set_full_screen(on); });
+  toolbar_->addSeparator();
+  auto* find = toolbar_->addAction(themed_svg_icon(QStringLiteral("search")), tr("Find"));
+  find->setObjectName(QStringLiteral("pdfViewerFindAction"));
+  find->setShortcuts(standard_keys(QKeySequence::Find, {QKeySequence(Qt::CTRL | Qt::Key_F)}));
+  find->setShortcutContext(Qt::WindowShortcut);
+  find->setToolTip(
+      tr("Find text in this PDF (%1)").arg(QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText)));
+  connect(find, &QAction::triggered, this, &PdfViewerWindow::open_find_bar);
 
   // Keys that belong to this window only (it is not the main window, so none of them is an
   // application hotkey): the zoom keys follow the canvas's Ctrl+0 / Ctrl+1 meanings.
@@ -367,6 +391,12 @@ void PdfViewerWindow::build_ui() {
   close_action_ =
       add_key(standard_keys(QKeySequence::Close, {QKeySequence(Qt::CTRL | Qt::Key_W)}), [this] { close(); });
   add_key(standard_keys(QKeySequence::Print), [this] { print_as_book(); });
+  // F3 and Ctrl+G step through the matches on every platform, beside the platform's own keys.
+  add_key(standard_keys(QKeySequence::FindNext, {QKeySequence(Qt::Key_F3), QKeySequence(Qt::CTRL | Qt::Key_G)}),
+          [this] { find_next(); });
+  add_key(standard_keys(QKeySequence::FindPrevious, {QKeySequence(Qt::SHIFT | Qt::Key_F3),
+                                                     QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G)}),
+          [this] { find_previous(); });
   // These keys win over the main window's hotkeys while this window has focus (eventFilter).
   qApp->installEventFilter(this);
 
@@ -437,11 +467,155 @@ void PdfViewerWindow::build_ui() {
     }
   });
   connect(view_, &PdfPageView::full_screen_toggle_requested, this, [this] { set_full_screen(!full_screen_); });
+  // Esc closes the find bar first, then leaves full screen.
   connect(view_, &PdfPageView::escape_pressed, this, [this] {
-    if (full_screen_) {
+    if (find_open_) {
+      close_find_bar();
+    } else if (full_screen_) {
       set_full_screen(false);
     }
   });
+}
+
+void PdfViewerWindow::build_find_bar() {
+  find_bar_ = new QWidget(this);
+  find_bar_->setObjectName(QStringLiteral("pdfViewerFindBar"));
+  auto* row = new QHBoxLayout(find_bar_);
+  row->setContentsMargins(8, 4, 8, 4);
+  row->setSpacing(6);
+  find_edit_ = new QLineEdit(find_bar_);
+  find_edit_->setObjectName(QStringLiteral("pdfViewerFindEdit"));
+  find_edit_->setPlaceholderText(tr("Find in this PDF"));
+  find_edit_->setClearButtonEnabled(true);
+  find_edit_->setMinimumWidth(ui_text_length(180));
+  find_edit_->setMaximumWidth(ui_text_length(340));
+  row->addWidget(find_edit_, 1);
+  const auto step_button = [this, row](const char* name, const QString& icon, const QString& tip) {
+    auto* button = new QToolButton(find_bar_);
+    button->setObjectName(QLatin1String(name));
+    button->setIcon(themed_svg_icon(icon));
+    button->setAutoRaise(true);
+    button->setToolTip(tip);
+    button->setFocusPolicy(Qt::TabFocus);
+    row->addWidget(button);
+    return button;
+  };
+  find_previous_button_ = step_button("pdfViewerFindPreviousButton", QStringLiteral("chevron-up"),
+                                      tr("Previous match (Shift+Enter)"));
+  find_next_button_ =
+      step_button("pdfViewerFindNextButton", QStringLiteral("chevron-down"), tr("Next match (Enter)"));
+  connect(find_previous_button_, &QToolButton::clicked, this, &PdfViewerWindow::find_previous);
+  connect(find_next_button_, &QToolButton::clicked, this, &PdfViewerWindow::find_next);
+  find_status_label_ = new QLabel(find_bar_);
+  find_status_label_->setObjectName(QStringLiteral("pdfViewerFindStatusLabel"));
+  find_status_label_->setContentsMargins(4, 0, 8, 0);
+  row->addWidget(find_status_label_);
+  find_match_case_check_ = new QCheckBox(tr("Match case"), find_bar_);
+  find_match_case_check_->setObjectName(QStringLiteral("pdfViewerFindMatchCaseCheck"));
+  find_match_case_check_->setToolTip(tr("Only find text with the same capital and small letters"));
+  row->addWidget(find_match_case_check_);
+  find_whole_words_check_ = new QCheckBox(tr("Whole words"), find_bar_);
+  find_whole_words_check_->setObjectName(QStringLiteral("pdfViewerFindWholeWordsCheck"));
+  find_whole_words_check_->setToolTip(tr("Only find the text where it is not part of a longer word"));
+  row->addWidget(find_whole_words_check_);
+  find_note_label_ = new QLabel(find_bar_);
+  find_note_label_->setObjectName(QStringLiteral("pdfViewerFindNoteLabel"));
+  find_note_label_->setContentsMargins(8, 0, 0, 0);
+  row->addWidget(find_note_label_);
+  row->addStretch(1);
+  auto* close = new QToolButton(find_bar_);
+  close->setObjectName(QStringLiteral("pdfViewerFindCloseButton"));
+  close->setIcon(layer_filter_clear_icon());
+  close->setAutoRaise(true);
+  close->setToolTip(tr("Close the find bar (Esc)"));
+  close->setFocusPolicy(Qt::TabFocus);
+  connect(close, &QToolButton::clicked, this, &PdfViewerWindow::close_find_bar);
+  row->addWidget(close);
+  find_bar_->hide();
+
+  find_note_timer_ = new QTimer(this);
+  find_note_timer_->setSingleShot(true);
+  find_note_timer_->setInterval(kFindNoteMs);
+  connect(find_note_timer_, &QTimer::timeout, find_note_label_, &QLabel::clear);
+
+  connect(find_edit_, &QLineEdit::textChanged, this, [this] { start_find(); });
+  connect(find_match_case_check_, &QCheckBox::toggled, this, [this] { start_find(); });
+  connect(find_whole_words_check_, &QCheckBox::toggled, this, [this] { start_find(); });
+  connect(search_, &PdfTextSearch::results_changed, this, &PdfViewerWindow::update_find_status);
+  connect(search_, &PdfTextSearch::wrapped, this, [this](bool forward) {
+    show_find_note(forward ? tr("Reached the end, continued from the start")
+                           : tr("Reached the start, continued from the end"));
+  });
+  update_find_status();
+}
+
+void PdfViewerWindow::open_find_bar() {
+  find_open_ = true;
+  find_bar_->show();
+  find_edit_->setFocus(Qt::ShortcutFocusReason);
+  find_edit_->selectAll();
+  start_find();
+}
+
+void PdfViewerWindow::close_find_bar() {
+  if (!find_open_) {
+    return;
+  }
+  find_open_ = false;
+  find_bar_->hide();
+  find_note_timer_->stop();
+  find_note_label_->clear();
+  search_->clear();
+  view_->setFocus();
+}
+
+void PdfViewerWindow::start_find() {
+  if (syncing_ || !find_open_) {
+    return;
+  }
+  const PdfFindOptions options{find_match_case_check_->isChecked(), find_whole_words_check_->isChecked()};
+  search_->set_query(find_edit_->text(), options, view_->current_page());
+}
+
+void PdfViewerWindow::find_next() {
+  if (!find_open_) {
+    open_find_bar();
+    return;
+  }
+  search_->find_next();
+}
+
+void PdfViewerWindow::find_previous() {
+  if (!find_open_) {
+    open_find_bar();
+    return;
+  }
+  search_->find_previous();
+}
+
+void PdfViewerWindow::update_find_status() {
+  QString text;
+  const int count = search_->match_count();
+  if (!search_->active()) {
+    // Nothing typed: nothing to say.
+  } else if (search_->current_match().valid()) {
+    //: Find in the PDF viewer: which match is shown and how many there are, as in "3 of 17".
+    text = tr("%1 of %2").arg(QLocale().toString(search_->current_index() + 1), QLocale().toString(count));
+  } else if (search_->searching()) {
+    text = tr("Searching...");
+  } else if (search_->text_layer() == PdfTextSearch::TextLayer::Absent) {
+    text = tr("This PDF has no searchable text");
+  } else {
+    text = tr("No matches");
+  }
+  find_status_label_->setText(text);
+  find_previous_button_->setEnabled(count > 0);
+  find_next_button_->setEnabled(count > 0);
+}
+
+void PdfViewerWindow::show_find_note(const QString& text) {
+  find_note_label_->setText(text);
+  find_note_timer_->start();
 }
 
 void PdfViewerWindow::update_title() {
@@ -467,6 +641,8 @@ void PdfViewerWindow::restore_settings() {
   const bool sidebar = settings.value(settings_key("sidebar"), true).toBool();
   sidebar_action_->setChecked(sidebar);
   sidebar_->setVisible(sidebar);
+  find_match_case_check_->setChecked(settings.value(settings_key("findMatchCase"), false).toBool());
+  find_whole_words_check_->setChecked(settings.value(settings_key("findWholeWords"), false).toBool());
   syncing_ = false;
   const QByteArray geometry = settings.value(settings_key("geometry")).toByteArray();
   if (geometry.isEmpty() || !restoreGeometry(geometry)) {
@@ -498,6 +674,8 @@ void PdfViewerWindow::save_settings() const {
       break;
   }
   settings.setValue(settings_key("sidebar"), sidebar_action_->isChecked());
+  settings.setValue(settings_key("findMatchCase"), find_match_case_check_->isChecked());
+  settings.setValue(settings_key("findWholeWords"), find_whole_words_check_->isChecked());
   if (!full_screen_) {
     settings.setValue(settings_key("geometry"), saveGeometry());
   }
@@ -581,11 +759,14 @@ void PdfViewerWindow::set_close_key_source(QAction* action) {
 }
 
 QAction* PdfViewerWindow::window_key_action(const QKeyEvent& event) const {
-  const auto candidates = typed_key_candidates(event);
-  for (auto* action : findChildren<QAction*>()) {
-    if (action->isEnabled() && action->shortcutContext() == Qt::WindowShortcut &&
-        any_shortcut_matches(action->shortcuts(), candidates)) {
-      return action;
+  // The key as typed first, then without its Shift: Shift+F3 is Find Previous, never F3.
+  const auto actions = findChildren<QAction*>();
+  for (const auto& candidate : typed_key_candidates(event)) {
+    for (auto* action : actions) {
+      if (action->isEnabled() && action->shortcutContext() == Qt::WindowShortcut &&
+          any_shortcut_matches(action->shortcuts(), {candidate})) {
+        return action;
+      }
     }
   }
   return nullptr;
@@ -607,6 +788,26 @@ bool PdfViewerWindow::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
     if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this) {
       const auto& key = *static_cast<QKeyEvent*>(event);
+      // The find bar's own keys, before any hotkey of the main window can take them: Enter
+      // and Shift+Enter in the field step through the matches, Esc anywhere in the bar
+      // closes it.
+      if (find_open_ && (widget == find_bar_ || find_bar_->isAncestorOf(widget))) {
+        const bool enter = key.key() == Qt::Key_Return || key.key() == Qt::Key_Enter;
+        const bool plain = (key.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
+        if (plain && ((enter && widget == find_edit_) || key.key() == Qt::Key_Escape)) {
+          event->accept();
+          if (event->type() == QEvent::KeyPress) {
+            if (!enter) {
+              close_find_bar();
+            } else if (key.modifiers().testFlag(Qt::ShiftModifier)) {
+              find_previous();
+            } else {
+              find_next();
+            }
+          }
+          return true;
+        }
+      }
       auto* action = window_key_action(key);
       // The key the user gave the main window's Close closes this window too, instead of the
       // document behind it. Only once the key reaches the window itself: a control under

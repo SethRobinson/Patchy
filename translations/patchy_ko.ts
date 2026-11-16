@@ -37829,6 +37829,71 @@ Locked: %1</source>
         <source>of %1</source>
         <translation> / %1</translation>
     </message>
+    <message>
+        <source>Find</source>
+        <translation>찾기</translation>
+    </message>
+    <message>
+        <source>Find text in this PDF (%1)</source>
+        <translation>이 PDF에서 텍스트 찾기(%1)</translation>
+    </message>
+    <message>
+        <source>Find in this PDF</source>
+        <translation>이 PDF에서 찾기</translation>
+    </message>
+    <message>
+        <source>Previous match (Shift+Enter)</source>
+        <translation>이전 일치 항목(Shift+Enter)</translation>
+    </message>
+    <message>
+        <source>Next match (Enter)</source>
+        <translation>다음 일치 항목(Enter)</translation>
+    </message>
+    <message>
+        <source>Match case</source>
+        <translation>대/소문자 구분</translation>
+    </message>
+    <message>
+        <source>Only find text with the same capital and small letters</source>
+        <translation>대문자와 소문자가 같은 텍스트만 찾습니다</translation>
+    </message>
+    <message>
+        <source>Whole words</source>
+        <translation>단어 단위</translation>
+    </message>
+    <message>
+        <source>Only find the text where it is not part of a longer word</source>
+        <translation>더 긴 단어의 일부가 아닌 텍스트만 찾습니다</translation>
+    </message>
+    <message>
+        <source>Close the find bar (Esc)</source>
+        <translation>찾기 막대 닫기(Esc)</translation>
+    </message>
+    <message>
+        <source>Reached the end, continued from the start</source>
+        <translation>끝에 도달하여 처음부터 계속했습니다</translation>
+    </message>
+    <message>
+        <source>Reached the start, continued from the end</source>
+        <translation>처음에 도달하여 끝에서부터 계속했습니다</translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <extracomment>Find in the PDF viewer: which match is shown and how many there are, as in &quot;3 of 17&quot;.</extracomment>
+        <translation>%1 / %2</translation>
+    </message>
+    <message>
+        <source>Searching...</source>
+        <translation>찾는 중...</translation>
+    </message>
+    <message>
+        <source>This PDF has no searchable text</source>
+        <translation>이 PDF에는 검색할 수 있는 텍스트가 없습니다</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>일치 항목 없음</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

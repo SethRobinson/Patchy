@@ -234,6 +234,8 @@
     "canvas_gradient_handle_fill": "#f5f8fc",
     "canvas_gradient_handle_active": "#5fafff",
     "canvas_type_mask_tint": "#ff0000",
+    "pdf_find_match": "#ffd400",
+    "pdf_find_current_match": "#ff7a00",
     "canvas_scrollbar_track": "#002b36",
     "panel_scrollbar_track": "#002b36",
     "scrollbar_handle_bg": "#144c59",
