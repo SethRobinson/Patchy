@@ -182,6 +182,7 @@
 #include "ui/paths_panel.hpp"
 #include "ui/memory_info.hpp"
 #include "ui/pdf_export.hpp"
+#include "ui/pdf_recognized_text.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
@@ -11632,7 +11633,19 @@ std::optional<Layer> MainWindow::make_recognized_text_group(Document& document, 
       layer.metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(affine_from_qtransform(*text->transform));
     }
-    layer.metadata()[kLayerMetadataOcrLine] = "1";
+    // Where each of the layer's lines was found, for a searchable PDF export.
+    std::vector<RecognizedLinePlace> places;
+    places.reserve(text->lines.size());
+    for (const std::size_t index : text->lines) {
+      const auto& line = result.lines[index];
+      RecognizedLinePlace place;
+      for (std::size_t corner = 0; corner < place.quad.size(); ++corner) {
+        place.quad[corner] = QPointF(line.quad[corner].x + source.origin.x(), line.quad[corner].y + source.origin.y());
+      }
+      place.vertical = line.vertical;
+      places.push_back(place);
+    }
+    layer.metadata()[kLayerMetadataOcrLine] = serialize_recognized_line_places(text->bounds, places);
     group.add_child(std::move(layer));
   }
   group.set_visible(options.mode != OcrLayerMode::Hidden);

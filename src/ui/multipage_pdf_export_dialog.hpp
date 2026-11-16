@@ -62,6 +62,8 @@ struct PdfOptionsDialogContext {
   // Some page still carries the image data it was imported from a PDF with: the only
   // time "keep original image data" shows.
   bool original_image_data_available{false};
+  // Some page holds recognized text: the only time "include recognized text" shows.
+  bool recognized_text_available{false};
   // The pages hold more than one flat image, so "Keep layers as editable objects" (and
   // the missing-fonts choice under it) applies.
   bool layered{true};

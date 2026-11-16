@@ -16309,6 +16309,14 @@ Do you want to replace it?</source>
         <source>%1 Options shows what to do.</source>
         <translation>%1 「選項」中說明了解決方法。</translation>
     </message>
+    <message>
+        <source>Include recognized text so the PDF can be searched</source>
+        <translation>包含已辨識的文字，以便在 PDF 中搜尋</translation>
+    </message>
+    <message>
+        <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
+        <translation>文件中「已辨識的文字」群組內的文字，無論顯示或隱藏，都會逐行以不可見的方式寫在每頁影像之上，這樣 PDF 閱讀器就能尋找、選取和複製它。長行中的相符項目只會大致標示。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

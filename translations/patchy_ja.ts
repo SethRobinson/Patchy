@@ -16309,6 +16309,14 @@ Do you want to replace it?</source>
         <source>%1 Options shows what to do.</source>
         <translation>%1 対処方法は [オプション] に表示されます。</translation>
     </message>
+    <message>
+        <source>Include recognized text so the PDF can be searched</source>
+        <translation>PDF を検索できるように、認識されたテキストを含める</translation>
+    </message>
+    <message>
+        <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
+        <translation>ドキュメントの「認識されたテキスト」グループのテキストは、表示・非表示にかかわらず、各ページ画像の上に 1 行ずつ見えない形で書き込まれるため、PDF リーダーで検索、選択、コピーができます。長い行の中の一致箇所は、おおよその位置で強調表示されます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

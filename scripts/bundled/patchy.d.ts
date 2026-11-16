@@ -1064,6 +1064,9 @@ interface PatchySaveOptions {
   imageQuality?: "lossless" | "high" | "medium" | "low";
   editableLayers?: boolean;
   keepOriginalImageData?: boolean;
+  /** .pdf: write the document's recognized text (its Recognized Text groups, shown or
+   *  hidden) invisibly over each page image so PDF readers can search it. Default true. */
+  searchableText?: boolean;
   missingFontsAsImages?: boolean;
   /** .pdf: what a page is. "artboards" (the default) writes one page per artboard when
    *  the document has artboards, "groups" one page per top-level group (hidden ones too;
@@ -1775,7 +1778,9 @@ interface PatchyApp {
    * ("lossless", "high", "medium", "low") and wins over lossless. Gray pages
    * are written as one channel. options.keepOriginalImageData (default true)
    * writes a page that was imported from a PDF and has not visibly changed
-   * with the image data it came with. options.editableLayers (default false) keeps
+   * with the image data it came with. options.searchableText (default true) writes
+   * recognized text (the document's Recognized Text groups, shown or hidden) invisibly
+   * over each page image so PDF readers can search it. options.editableLayers (default false) keeps
    * shapes and text as PDF objects the way Save As PDF's "Keep Layers
    * Editable" does; options.missingFontsAsImages embeds text in uninstalled
    * fonts as pixels. options.pages ("artboards", the default, "groups" or "canvas")
@@ -1790,6 +1795,7 @@ interface PatchyApp {
       lossless?: boolean;
       imageQuality?: "lossless" | "high" | "medium" | "low";
       keepOriginalImageData?: boolean;
+      searchableText?: boolean;
       editableLayers?: boolean;
       missingFontsAsImages?: boolean;
       pages?: "artboards" | "groups" | "canvas";

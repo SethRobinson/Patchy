@@ -41,6 +41,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/pdf_export.hpp"
+#include "ui/pdf_recognized_text.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/convert_profile_dialog.hpp"
 #include "color/rgb_profiles.hpp"
@@ -569,6 +570,7 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
     options.pdf_original_image_data_available =
         std::as_const(document()).metadata().pdf_source_page != nullptr ||
         !std::as_const(document()).metadata().pdf_page_source_pages.empty();
+    options.pdf_recognized_text_available = document_has_recognized_text(std::as_const(document()));
     options.pdf_artboards_available = document_has_artboards(std::as_const(document()));
     options.pdf_groups_available = document_has_page_groups(std::as_const(document()));
     options.pdf_pages = options.pdf_artboards_available ? QStringLiteral("artboards")

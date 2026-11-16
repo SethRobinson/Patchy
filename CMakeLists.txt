@@ -1638,6 +1638,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/ui_profile.hpp
       src/ui/pdf_export.hpp
       src/ui/pdf_export.cpp
+      src/ui/pdf_recognized_text.hpp
+      src/ui/pdf_recognized_text.cpp
       src/ui/pdf_export_editable.cpp
       src/ui/document_order_list.hpp
       src/ui/document_order_list.cpp
@@ -2818,6 +2820,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/pdf_import_ocr_tests.cpp
       tests/ui/ocr_model_engine_tests.cpp
       tests/ui/ocr_download_tests.cpp
+      tests/ui/pdf_searchable_text_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

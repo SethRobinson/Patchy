@@ -16365,6 +16365,14 @@ Voulez-vous le remplacer ?</translation>
         <source>%1 Options shows what to do.</source>
         <translation>%1 Les options indiquent quoi faire.</translation>
     </message>
+    <message>
+        <source>Include recognized text so the PDF can be searched</source>
+        <translation>Inclure le texte reconnu pour pouvoir rechercher dans le PDF</translation>
+    </message>
+    <message>
+        <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
+        <translation>Le texte des groupes « Texte reconnu » du document, affichés ou masqués, est écrit de façon invisible sur l&apos;image de chaque page, ligne par ligne, afin qu&apos;un lecteur PDF puisse le trouver, le sélectionner et le copier. Une occurrence dans une longue ligne est surlignée de façon approximative.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

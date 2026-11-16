@@ -14,6 +14,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/ocr_text_layers.hpp"
+#include "ui/pdf_recognized_text.hpp"
 #include "ui/script_engine.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -264,7 +265,11 @@ void ui_script_recognize_text_creates_layers_in_one_undo_step() {
     CHECK(patchy::layer_is_text(top) && patchy::layer_is_text(bottom));
     CHECK(metadata_value(top, patchy::kLayerMetadataText) == "First heading");
     CHECK(metadata_value(bottom, patchy::kLayerMetadataText) == "A separate note far below");
-    CHECK(metadata_value(top, patchy::kLayerMetadataOcrLine) == "1");
+    // Where its one line was found: the drawn line's box, for a searchable PDF export.
+    const auto places =
+        patchy::ui::parse_recognized_line_places(metadata_value(top, patchy::kLayerMetadataOcrLine));
+    CHECK(places.has_value() && places->places.size() == 1);
+    CHECK(places.has_value() && places->layer_bounds == top.bounds());
     CHECK(metadata_value(top, patchy::kLayerMetadataTextFont) == "Arial");
     CHECK(metadata_value(top, patchy::kLayerMetadataTextFlow) == "point");
     CHECK(top.name() == "First heading");

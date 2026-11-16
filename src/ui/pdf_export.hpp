@@ -79,6 +79,11 @@ struct PdfExportOptions {
   // and hidden groups as pages.
   bool include_ungrouped_layers{false};
   bool include_hidden_groups{true};
+  // Recognized text (the document's Recognized Text groups, shown or hidden) is written
+  // invisibly over each page that is an image, one run per line, so a reader finds, selects
+  // and copies it (docs/pdf-searchable-text.md). A page through Qt's engine holds the text
+  // it shows as real text instead. Persists as saveOptions/pdfSearchableText.
+  bool searchable_text{true};
 };
 
 // The "did this page change since import" fingerprint: the size and RGBA bytes of
@@ -150,13 +155,14 @@ bool write_multipage_pdf_file(std::span<const Document* const> pages, const QStr
                                                                    bool include_ungrouped_layers,
                                                                    bool include_hidden_groups = true);
 // The page one top-level group stands for: a copy holding that group (shown, even when it
-// is hidden) and, with `include_ungrouped_layers`, the visible layers in no group; cropped
+// is hidden) and, with `include_ungrouped_layers`, the visible layers in no group (a
+// Recognized Text group at the root counts as one: it is never a page of its own); cropped
 // to the group's kLayerMetadataPdfPageRect when it has one (a PDF import's page), else the
 // whole canvas. The group's imported page image (pdf_page_source_pages) rides along, and a
 // plain group of one layer is unwrapped so a scanned page stays one image.
 [[nodiscard]] Document document_for_page_group(const Document& document, LayerId group_id,
                                                bool include_ungrouped_layers = false);
-// True when some top-level group (not an artboard) can be a page.
+// True when some top-level group (not an artboard, not a Recognized Text group) can be a page.
 [[nodiscard]] bool document_has_page_groups(const Document& document) noexcept;
 // True when a top-level group carries a PDF import's page rect (the default page source).
 [[nodiscard]] bool document_has_imported_page_groups(const Document& document) noexcept;

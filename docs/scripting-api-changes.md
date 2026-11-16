@@ -23,6 +23,14 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-17 (addition): `searchableText` (boolean, default true) on `app.exportPdf` and on
+`doc.saveAs`/`doc.exportAs` for `.pdf`. Text in the document's Recognized Text groups (made by
+`recognizeText` with `layers` other than `"none"`, the Type menu command or Import PDF), shown or
+hidden, is written invisibly over each page that is an image, one run per line, so PDF readers
+find, select and copy it ([pdf-searchable-text.md](pdf-searchable-text.md#from-a-document)).
+False leaves it out. A document without recognized text writes the same bytes as before. With
+`editableLayers` a page of several layers holds only the text it shows.
+
 2026-11-17 (addition): text recognition (OCR, [ocr.md](ocr.md#scripting)). `patchy.ocr.available`
 is true when an engine can run, and `patchy.ocr.engines()` lists them:
 `{id, name, available, unavailableReason, defaultLanguage, languages: [{tag, name}]}` (`"windows"`

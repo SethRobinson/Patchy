@@ -187,8 +187,9 @@ inline constexpr const char* kLayerMetadataPdfPageRect = "patchy.pdf.page_rect";
 // Text recognition (docs/ocr.md). A group of recognized text carries kLayerMetadataOcrGroup,
 // "<engine id> <language tag>" of the recognition that made it, so a PDF export finds the
 // text even after the user renames the group; each text layer made from a recognized line or
-// block carries kLayerMetadataOcrLine ("1") until it is rasterized. Session keys like the page
-// rect above: never written to PSD as layer data.
+// block carries kLayerMetadataOcrLine until it is rasterized: where its lines were found
+// (ui/pdf_recognized_text.hpp owns the value). Session keys like the page rect above: never
+// written to PSD as layer data.
 inline constexpr const char* kLayerMetadataOcrGroup = "patchy.ocr.group";
 inline constexpr const char* kLayerMetadataOcrLine = "patchy.ocr.line";
 

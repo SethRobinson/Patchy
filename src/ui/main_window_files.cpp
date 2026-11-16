@@ -168,6 +168,7 @@
 #include "ui/network_link_trust.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
 #include "ui/pdf_export.hpp"
+#include "ui/pdf_recognized_text.hpp"
 #include "ui/pdf_import.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
@@ -6218,7 +6219,8 @@ std::optional<MultiPagePdfExportChoice> MainWindow::prompt_pdf_options(const QSt
   PdfOptionsDialogContext context;
   context.active_session_id = session().session_id;
   for (const auto& layer : doc.layers()) {
-    if (layer.kind() == LayerKind::Group && !layer_is_artboard(layer)) {
+    // A Recognized Text group over the whole canvas is never a page.
+    if (layer.kind() == LayerKind::Group && !layer_is_artboard(layer) && !layer_is_recognized_text_group(layer)) {
       ++context.top_level_group_count;
       context.hidden_group_count += layer.visible() ? 0 : 1;
     }
@@ -6228,6 +6230,7 @@ std::optional<MultiPagePdfExportChoice> MainWindow::prompt_pdf_options(const QSt
     return candidate.metadata().pdf_source_page != nullptr || !candidate.metadata().pdf_page_source_pages.empty();
   };
   context.original_image_data_available = carries_source(doc);
+  context.recognized_text_available = document_has_recognized_text(doc);
   if (export_pages) {
     context.documents.reserve(sessions_.size());
     for (const auto& candidate : sessions_) {
@@ -6238,6 +6241,8 @@ std::optional<MultiPagePdfExportChoice> MainWindow::prompt_pdf_options(const QSt
           {candidate->title.isEmpty() ? tr("Untitled") : candidate->title, candidate->session_id});
       context.original_image_data_available =
           context.original_image_data_available || carries_source(std::as_const(candidate->document));
+      context.recognized_text_available =
+          context.recognized_text_available || document_has_recognized_text(std::as_const(candidate->document));
     }
     context.title = tr("Export Multi-Page PDF");
     context.accept_text = tr("Export");

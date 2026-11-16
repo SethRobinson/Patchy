@@ -4580,6 +4580,9 @@ bool ScriptAppObject::exportPdf(const QJSValue& documents, const QString& path, 
     if (const auto value = options.property(QStringLiteral("keepOriginalImageData")); value.isBool()) {
       export_options.keep_original_image_data = value.toBool();
     }
+    if (const auto value = options.property(QStringLiteral("searchableText")); value.isBool()) {
+      export_options.searchable_text = value.toBool();
+    }
     // A preset id; it names both halves of the choice, so it wins over `lossless`.
     if (const auto value = options.property(QStringLiteral("imageQuality")); value.isString()) {
       if (!apply_pdf_image_quality(value.toString(), export_options)) {

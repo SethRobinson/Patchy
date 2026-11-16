@@ -16309,6 +16309,14 @@ Do you want to replace it?</source>
         <source>%1 Options shows what to do.</source>
         <translation>%1 해결 방법은 옵션에 표시됩니다.</translation>
     </message>
+    <message>
+        <source>Include recognized text so the PDF can be searched</source>
+        <translation>PDF를 검색할 수 있도록 인식된 텍스트 포함</translation>
+    </message>
+    <message>
+        <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
+        <translation>문서의 &apos;인식된 텍스트&apos; 그룹에 있는 텍스트는 표시 여부와 관계없이 각 페이지 이미지 위에 한 줄씩 보이지 않게 기록되므로 PDF 리더에서 찾고 선택하고 복사할 수 있습니다. 긴 줄 안의 일치 항목은 대략적인 위치로 강조 표시됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

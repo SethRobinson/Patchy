@@ -58,6 +58,12 @@ struct ImageSaveOptions {
   // Options dialog shows the checkbox only then.
   bool pdf_keep_original_images{true};
   bool pdf_original_image_data_available{false};
+  // PDF: recognized text goes into the file invisibly so it can be searched
+  // (PdfExportOptions::searchable_text). Persists as saveOptions/pdfSearchableText.
+  // pdf_recognized_text_available is per save and never persisted: the caller sets it when
+  // the document holds recognized text, and the PDF Options dialog shows the checkbox only then.
+  bool pdf_searchable_text{true};
+  bool pdf_recognized_text_available{false};
   // PDF: what a page is (PdfExportOptions::pages), as its token: "artboards", "groups"
   // or "canvas". Chosen per save, never persisted: the document decides the default
   // (artboards when it has them, groups for a PDF imported as page folders, else the

@@ -1,4 +1,6 @@
 #include "ui/pdf_export.hpp"
+
+#include "ui/pdf_recognized_text.hpp"
 #include "ui/save_progress.hpp"
 
 #include "formats/metadata/metadata_edit.hpp"
@@ -159,6 +161,34 @@ QSizeF document_page_points(const Document& document) {
   return pdf_detail::document_page_size(document).size(QPageSize::Point);
 }
 
+// A page's recognized text as the image writer's invisible lines, for a document that
+// fills the page as displayed (docs/pdf-searchable-text.md, "From a document").
+std::vector<pdf::TextLine> page_text_lines(const Document& document, const PdfExportOptions& options,
+                                           QSizeF page_points, int rotate) {
+  if (!options.searchable_text) {
+    return {};
+  }
+  const auto lines = recognized_text_lines(document);
+  if (lines.empty()) {
+    return {};
+  }
+  return pdf_text_lines(lines,
+                        document_to_pdf_page(QSize(document.width(), document.height()), page_points, rotate));
+}
+
+// Qt's engine writes the text a page shows as real text and has no invisible text: say so
+// once when recognized text that does not show stays behind.
+void note_hidden_recognized_text(std::span<const Document* const> pages, const PdfExportOptions& options,
+                                 std::vector<std::string>* notices) {
+  if (notices == nullptr || !options.searchable_text) {
+    return;
+  }
+  if (std::any_of(pages.begin(), pages.end(),
+                  [](const Document* page) { return document_has_hidden_recognized_text(*page); })) {
+    notices->push_back("Hidden recognized text was left out: a PDF with editable layers holds only the text it shows");
+  }
+}
+
 // Flat pages, or editable pages that could only ever be one image: composite on the
 // calling thread (the compositor fans out over strips already), encode on workers a few
 // pages deep, write in page order.
@@ -215,7 +245,11 @@ bool write_image_pages(std::span<const Document* const> pages, const QString& pa
       // back, in order behind whatever is still encoding.
       const UiProfileScope profile_scope("pdf_export.pass_through", profile_detail);
       std::promise<pdf::ImagePage> ready;
-      ready.set_value(pdf_detail::source_image_page(*document.metadata().pdf_source_page));
+      auto source_page = pdf_detail::source_image_page(*document.metadata().pdf_source_page);
+      source_page.text = page_text_lines(document, options,
+                                         QSizeF(source_page.width_points, source_page.height_points),
+                                         source_page.rotate);
+      ready.set_value(std::move(source_page));
       pending.push_back(ready.get_future());
       if (pending.size() >= window) {
         write_oldest();
@@ -223,14 +257,20 @@ bool write_image_pages(std::span<const Document* const> pages, const QString& pa
       continue;
     }
     const QSizeF points = document_page_points(document);
+    // The lines are read here, on the thread that owns the document; only the encode moves.
+    auto text = page_text_lines(document, options, points, 0);
     if (window < 2U) {
       const UiProfileScope profile_scope("pdf_export.encode", profile_detail);
-      writer.add_page(pdf_detail::encode_page_image(image, points.width(), points.height(), options));
+      auto page = pdf_detail::encode_page_image(image, points.width(), points.height(), options);
+      page.text = std::move(text);
+      writer.add_page(page);
       continue;
     }
-    pending.push_back(launch_async([image = std::move(image), points, options] {
+    pending.push_back(launch_async([image = std::move(image), points, options, text = std::move(text)]() mutable {
       const UiProfileScope profile_scope("pdf_export.encode");
-      return pdf_detail::encode_page_image(image, points.width(), points.height(), options);
+      auto page = pdf_detail::encode_page_image(image, points.width(), points.height(), options);
+      page.text = std::move(text);
+      return page;
     }));
     if (pending.size() >= window) {
       write_oldest();
@@ -523,6 +563,8 @@ void write_pdf_document_file(const Document& document, const QString& path, cons
     return;
   }
   if (options.editable_layers && !pdf_detail::document_is_single_raster_layer(document)) {
+    const Document* editable_page = &document;
+    note_hidden_recognized_text(std::span<const Document* const>(&editable_page, 1), options, notices);
     pdf_detail::write_editable_pdf_document_file(document, path, options, notices);
     return;
   }
@@ -592,6 +634,7 @@ bool write_multipage_pdf_file(std::span<const Document* const> requested_pages, 
   if (!needs_qt_engine) {
     return write_image_pages(pages, path, options, progress);
   }
+  note_hidden_recognized_text(pages, options, notices);
 
   pdf_detail::QtPdfOutput output(path);
   QPdfWriter writer(output.device());
@@ -790,7 +833,8 @@ std::optional<PdfPageSource> pdf_page_source_from_token(const QString& token) {
 
 bool document_has_page_groups(const Document& document) noexcept {
   return std::any_of(document.layers().begin(), document.layers().end(), [](const Layer& layer) {
-    return layer.kind() == LayerKind::Group && !layer.artboard().has_value();
+    return layer.kind() == LayerKind::Group && !layer.artboard().has_value() &&
+           !layer_is_recognized_text_group(layer);
   });
 }
 
@@ -810,7 +854,10 @@ Document document_for_page_group(const Document& document, LayerId group_id, boo
     if (layer.id() == group_id) {
       return false;
     }
-    return !(include_ungrouped_layers && layer.kind() != LayerKind::Group && layer.visible());
+    // Recognized text over the whole canvas is not a page: it rides along like a layer
+    // in no group.
+    return !(include_ungrouped_layers &&
+             (layer.kind() != LayerKind::Group || layer_is_recognized_text_group(layer)) && layer.visible());
   });
   for (auto& layer : layers) {
     if (layer.id() != group_id) {
@@ -865,7 +912,7 @@ std::vector<Document> documents_for_top_level_groups(const Document& document, b
   const auto& layers = document.layers();
   for (std::size_t index = layers.size(); index-- > 0;) {
     const Layer& group = layers[index];
-    if (group.kind() != LayerKind::Group || group.artboard().has_value() ||
+    if (group.kind() != LayerKind::Group || group.artboard().has_value() || layer_is_recognized_text_group(group) ||
         (!group.visible() && !include_hidden_groups)) {
       continue;
     }

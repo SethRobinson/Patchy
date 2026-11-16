@@ -2666,6 +2666,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     PdfExportOptions pdf_options{options.pdf_lossless, true, options.pdf_missing_fonts_as_images,
                                  options.pdf_jpeg_quality};
     pdf_options.keep_original_image_data = options.pdf_keep_original_images;
+    pdf_options.searchable_text = options.pdf_searchable_text;
     pdf_options.pages = pdf_page_source_from_token(options.pdf_pages).value_or(PdfPageSource::Artboards);
     pdf_options.include_ungrouped_layers = options.pdf_include_ungrouped_layers;
     pdf_options.include_hidden_groups = options.pdf_include_hidden_groups;
@@ -2830,6 +2831,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   if (lower == "pdf") {
     PdfExportOptions pdf_options{options.pdf_lossless, false, false, options.pdf_jpeg_quality};
     pdf_options.keep_original_image_data = options.pdf_keep_original_images;
+    pdf_options.searchable_text = options.pdf_searchable_text;
     pdf_options.pages = pdf_page_source_from_token(options.pdf_pages).value_or(PdfPageSource::Artboards);
     pdf_options.include_ungrouped_layers = options.pdf_include_ungrouped_layers;
     pdf_options.include_hidden_groups = options.pdf_include_hidden_groups;

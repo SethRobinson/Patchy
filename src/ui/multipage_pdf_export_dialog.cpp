@@ -27,6 +27,7 @@ constexpr auto kHiddenGroupsKey = "exportOptions/multiPagePdfHiddenGroups";
 constexpr auto kEditableKey = "exportOptions/multiPagePdfEditableLayers";
 constexpr auto kMissingFontsKey = "saveOptions/pdfMissingFontsAsImages";
 constexpr auto kKeepOriginalKey = "saveOptions/pdfKeepOriginalImages";
+constexpr auto kSearchableTextKey = "saveOptions/pdfSearchableText";
 
 }  // namespace
 
@@ -144,6 +145,12 @@ std::optional<MultiPagePdfExportChoice> run_pdf_options_dialog(QWidget* parent,
   keep_original->setToolTip(pdf_keep_original_images_tooltip());
   keep_original->setVisible(context.original_image_data_available);
   options_layout->addWidget(keep_original);
+  auto* searchable_text = new QCheckBox(pdf_searchable_text_label(), options_group);
+  searchable_text->setObjectName(QStringLiteral("multiPagePdfSearchableTextCheck"));
+  searchable_text->setChecked(settings.value(QLatin1String(kSearchableTextKey), true).toBool());
+  searchable_text->setToolTip(pdf_searchable_text_tooltip());
+  searchable_text->setVisible(context.recognized_text_available);
+  options_layout->addWidget(searchable_text);
   layout->addWidget(options_group);
 
   auto* summary = new QLabel(&dialog);
@@ -253,6 +260,11 @@ std::optional<MultiPagePdfExportChoice> run_pdf_options_dialog(QWidget* parent,
     choice.options.keep_original_image_data = keep_original->isChecked();
     settings.setValue(QLatin1String(kKeepOriginalKey), choice.options.keep_original_image_data);
   }
+  choice.options.searchable_text = settings.value(QLatin1String(kSearchableTextKey), true).toBool();
+  if (context.recognized_text_available) {
+    choice.options.searchable_text = searchable_text->isChecked();
+    settings.setValue(QLatin1String(kSearchableTextKey), choice.options.searchable_text);
+  }
   return choice;
 }
 
@@ -262,6 +274,7 @@ void apply_pdf_choice_to_save_options(const MultiPagePdfExportChoice& choice, Im
   options.pdf_editable_layers = choice.options.editable_layers;
   options.pdf_missing_fonts_as_images = choice.options.missing_fonts_as_images;
   options.pdf_keep_original_images = choice.options.keep_original_image_data;
+  options.pdf_searchable_text = choice.options.searchable_text;
   options.pdf_pages = pdf_page_source_token(choice.options.pages);
   options.pdf_include_ungrouped_layers = choice.include_ungrouped_layers;
   options.pdf_include_hidden_groups = choice.include_hidden_groups;

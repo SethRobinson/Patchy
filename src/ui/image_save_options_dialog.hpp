@@ -29,6 +29,9 @@ void populate_pdf_image_quality_combo(QComboBox& combo, const QString& current_i
 // The "keep original image data" checkbox text, shared by the same two dialogs.
 [[nodiscard]] QString pdf_keep_original_images_label();
 [[nodiscard]] QString pdf_keep_original_images_tooltip();
+// The "recognized text" check both PDF option dialogs show for a document that holds some.
+[[nodiscard]] QString pdf_searchable_text_label();
+[[nodiscard]] QString pdf_searchable_text_tooltip();
 
 // The animation timing controls every animated export shows (the WebP, JPEG XL, Animated
 // PNG and GIF options dialogs and File > Export for Web, docs/web-export.md): "Default frame
