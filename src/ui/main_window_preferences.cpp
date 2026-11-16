@@ -38,6 +38,7 @@
 #include "ui/hotkey_editor.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/object_selection_model_download.hpp"
+#include "ui/ocr_controls.hpp"
 #include "ui/watermark_model_download.hpp"
 #include "ui/save_metadata_settings.hpp"
 #include "ai/watermark_engine.hpp"
@@ -1363,6 +1364,26 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     tools_layout->addWidget(model_group);
   }
 #endif
+  // Text Recognition (docs/ocr.md, "Dialogs"): the engine and language every recognition
+  // starts on. The same picker the Recognize Text dialog shows, so the two always agree.
+  OcrEnginePicker* ocr_picker = nullptr;
+#if !defined(Q_OS_WASM)
+  {
+    auto* ocr_group = new QFrame(tools_page);
+    ocr_group->setObjectName(QStringLiteral("preferencesOcrGroup"));
+    configure_panel(ocr_group);
+    auto* ocr_layout = new QVBoxLayout(ocr_group);
+    auto* ocr_heading = new QLabel(tr("Text Recognition"), ocr_group);
+    ocr_heading->setObjectName(QStringLiteral("preferencesOcrHeading"));
+    auto heading_font = ocr_heading->font();
+    heading_font.setBold(true);
+    ocr_heading->setFont(heading_font);
+    ocr_layout->addWidget(ocr_heading);
+    ocr_picker = new OcrEnginePicker(QStringLiteral("preferencesOcr"), ocr_group);
+    ocr_layout->addWidget(ocr_picker);
+    tools_layout->addWidget(ocr_group);
+  }
+#endif
   tools_layout->addStretch(1);
   add_page(tools_page, tr("Tools"), QStringLiteral("tools"));
 
@@ -2517,6 +2538,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     show_transform_drag_values_ = transform_values_check->isChecked();
     snap_transforms_to_pixel_grid_ = transform_snap_check->isChecked();
     escape_commits_text_ = escape_commits_text_check->isChecked();
+    if (ocr_picker != nullptr) {
+      ocr_picker->store();
+    }
     // Also the layer thumbnail menu's bounds pair (#481), which this keeps in step.
     set_zoom_layer_thumbnails_to_content(zoom_thumbnails_check->isChecked());
     view_rulers_visible_ = default_rulers_check->isChecked();

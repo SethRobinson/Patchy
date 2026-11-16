@@ -673,7 +673,9 @@ void ui_type_menu_rows_and_enabled_states() {
                              QStringLiteral("typeUpdateAllTextLayersAction"),
                              QStringLiteral("typeReplaceAllMissingFontsAction"),
                              QStringLiteral("typeResolveMissingFontsAction"), QStringLiteral("-"),
-                             QStringLiteral("typePasteLoremIpsumAction")};
+                             QStringLiteral("typePasteLoremIpsumAction"), QStringLiteral("-"),
+                             QStringLiteral("typeRecognizeTextAction"),
+                             QStringLiteral("typeCopyTextFromImageAction")};
   const auto rows = menu_rows(*menu);
   if (rows != expected) {
     std::fprintf(stderr, "Type menu rows: %s\n", rows.join(QLatin1Char(',')).toUtf8().constData());

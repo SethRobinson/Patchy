@@ -16105,6 +16105,86 @@ Do you want to replace it?</source>
         <source>The text recognition engine has no language to read with.</source>
         <translation>文字识别引擎没有可用于读取的语言。</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows（内置）</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>引擎：</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>语言：</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>打开语言设置</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>此版本的 Patchy 没有适用于此操作系统的文字识别引擎。文字识别使用 Windows 10 和 11 内置的引擎。</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>Windows 未安装任何文字识别语言。请打开“设置”&gt;“时间和语言”&gt;“语言和区域”，添加一种提供文字识别的语言，然后返回此处。</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>识别文字</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>当前图层</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>整幅图像</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>读取：</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>图像上方的文字图层</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>显示文字并隐藏原图</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>隐藏的文字图层</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>将文字复制到剪贴板</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>每个文字块一个</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>每行一个</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>文字图层：</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>字体：</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>按图像匹配大小、颜色和倾斜</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>识别</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22101,6 +22181,14 @@ Do you want to replace it?</source>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>在橡皮擦、背景橡皮擦和魔术橡皮擦之间切换</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>读取图像中的文字 (OCR) 并据此创建文字图层</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>读取选区或图层中的文字并复制</translation>
     </message>
 </context>
 <context>
@@ -36495,6 +36583,46 @@ Locked: %1</source>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>在识别文字期间，文档已发生更改。</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>识别文字 (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>从图像复制文字</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>识别文字</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>正在识别文字...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>已取消文字识别</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>未识别到文字</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>已复制 %n 行识别出的文字</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>已识别 %n 行文字</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>文字识别</translation>
     </message>
 </context>
 <context>

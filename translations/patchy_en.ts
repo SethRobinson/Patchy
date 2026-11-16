@@ -16143,6 +16143,86 @@ Do you want to replace it?</source>
         <source>The text recognition engine has no language to read with.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22144,6 +22224,14 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -36522,6 +36610,48 @@ Locked: %1</source>
     </message>
     <message>
         <source>The document changed while its text was being recognized.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -18,6 +18,7 @@
 // suite's group list knows) gathers them, so a new OCR test file is declared here and does
 // not touch the suite-wide header every UI test file includes.
 std::vector<patchy::test::TestCase> ocr_layers_ui_tests();
+std::vector<patchy::test::TestCase> ocr_command_ui_tests();
 
 namespace patchy::test::ui {
 

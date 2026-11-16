@@ -16217,6 +16217,86 @@ Do you want to replace it?</source>
         <source>The text recognition engine has no language to read with.</source>
         <translation>В движке распознавания текста нет языка для чтения.</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows (встроенный)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>Движок:</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>Язык:</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>Открыть языковые параметры</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>В этой версии Patchy нет движка распознавания текста для этой операционной системы. Распознавание текста использует движок, встроенный в Windows 10 и 11.</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>В Windows не установлен ни один язык распознавания текста. Откройте Параметры &gt; Время и язык &gt; Язык и регион, добавьте язык, поддерживающий распознавание текста, и вернитесь сюда.</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Распознать текст</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Активный слой</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>Всё изображение</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>Читать:</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>Текстовые слои поверх изображения</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>Показать текст и скрыть оригинал</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>Скрытые текстовые слои</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>Скопировать текст в буфер обмена</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>По одному на блок текста</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>По одному на строку</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>Текстовые слои:</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>Шрифт:</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>Подобрать размер, цвет и наклон по изображению</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Распознать</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22225,6 +22305,14 @@ Do you want to replace it?</source>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>Переключаться между инструментами «Ластик», «Фоновый ластик» и «Волшебный ластик»</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>Прочитать текст на изображении (OCR) и создать из него текстовые слои</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>Прочитать текст в выделении или слое и скопировать его</translation>
     </message>
 </context>
 <context>
@@ -36715,6 +36803,50 @@ Locked: %1</source>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>Документ изменился во время распознавания его текста.</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>Распознать текст (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>Копировать текст с изображения</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Распознать текст</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>Распознавание текста...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>Распознавание текста отменено</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>Текст не распознан</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>Скопирована %n строка распознанного текста</numerusform>
+            <numerusform>Скопировано %n строки распознанного текста</numerusform>
+            <numerusform>Скопировано %n строк распознанного текста</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>Распознана %n строка текста</numerusform>
+            <numerusform>Распознано %n строки текста</numerusform>
+            <numerusform>Распознано %n строк текста</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>Распознавание текста</translation>
     </message>
 </context>
 <context>

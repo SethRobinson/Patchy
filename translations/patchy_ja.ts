@@ -16105,6 +16105,86 @@ Do you want to replace it?</source>
         <source>The text recognition engine has no language to read with.</source>
         <translation>文字認識エンジンに、読み取りに使える言語がありません。</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows (内蔵)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>エンジン:</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>言語:</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>言語の設定を開く</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>このバージョンの Patchy には、このオペレーティングシステム用の文字認識エンジンがありません。文字認識には Windows 10 および 11 に内蔵されたエンジンを使用します。</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>Windows に文字認識用の言語がインストールされていません。[設定] &gt; [時刻と言語] &gt; [言語と地域] を開き、文字認識に対応した言語を追加してから、ここに戻ってください。</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>文字を認識</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>アクティブレイヤー</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>画像全体</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>読み取り対象:</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>画像の上にテキストレイヤー</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>テキストを表示して元の画像を隠す</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>非表示のテキストレイヤー</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>テキストをクリップボードにコピー</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>テキストのブロックごとに 1 つ</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>行ごとに 1 つ</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>テキストレイヤー:</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>フォント:</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>サイズ、色、傾きを画像に合わせる</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>認識</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22101,6 +22181,14 @@ Do you want to replace it?</source>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>消しゴム、背景消しゴム、マジック消しゴムを順に選択</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>画像内の文字を読み取り (OCR)、テキストレイヤーを作成します</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>選択範囲またはレイヤー内の文字を読み取ってコピーします</translation>
     </message>
 </context>
 <context>
@@ -36495,6 +36583,46 @@ Locked: %1</source>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>文字の認識中にドキュメントが変更されました。</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>文字を認識 (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>画像から文字をコピー</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>文字を認識</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>文字を認識しています...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>文字認識をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>文字は認識されませんでした</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>認識された文字を %n 行コピーしました</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>%n 行の文字を認識しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>文字認識</translation>
     </message>
 </context>
 <context>

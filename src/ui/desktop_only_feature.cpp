@@ -42,6 +42,9 @@ constexpr std::array kWebDesktopOnlyCommands{
     DesktopOnlyCommand{"fileExportImageSequenceAction"},
     DesktopOnlyCommand{"filePageSetupAction"},
     DesktopOnlyCommand{"filePrintAction"},
+    // Type: text recognition uses an engine of the operating system (docs/ocr.md).
+    DesktopOnlyCommand{"typeRecognizeTextAction"},
+    DesktopOnlyCommand{"typeCopyTextFromImageAction"},
     // Filter: the G'MIC engine and the GEGL helper process are not in the web build.
     DesktopOnlyCommand{"filterGmicLibraryAction",
                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow",

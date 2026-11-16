@@ -7,6 +7,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "ocr/ocr_fake_engine.hpp"
+#include "ocr_page_fixture.hpp"
 #include "ocr_test_support.hpp"
 #include "test_harness.hpp"
 #include "ui/edit_conversions.hpp"
@@ -86,96 +87,21 @@ QJsonObject run_ok(MainWindow& window, const QString& code) {
 }
 
 QFont arial(int pixel_size, bool italic = false) {
-  QFont font(QStringLiteral("Arial"));
-  font.setPixelSize(pixel_size);
-  font.setItalic(italic);
-  font.setStyleStrategy(QFont::PreferAntialias);
-  return font;
+  return patchy::test::ui::ocr_test_font(pixel_size, italic);
 }
 
-// The bounding box of every pixel in `area` that differs from `background`.
-QRect ink_box(const QImage& image, QRect area, QColor background) {
-  area = area.intersected(image.rect());
-  int left = area.right() + 1;
-  int right = -1;
-  int top = area.bottom() + 1;
-  int bottom = -1;
-  for (int y = area.top(); y <= area.bottom(); ++y) {
-    for (int x = area.left(); x <= area.right(); ++x) {
-      const QColor pixel = image.pixelColor(x, y);
-      if (std::abs(pixel.red() - background.red()) + std::abs(pixel.green() - background.green()) +
-              std::abs(pixel.blue() - background.blue()) >
-          90) {
-        left = std::min(left, x);
-        right = std::max(right, x);
-        top = std::min(top, y);
-        bottom = std::max(bottom, y);
-      }
-    }
-  }
-  return right < left ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
-}
-
-// A page the tests draw text on, with the box of each drawn line recorded as the fake
-// engine will report it.
-struct Page {
-  QImage image;
-  QColor background{Qt::white};
-  std::vector<FakeLine> lines;
-
-  Page(int width, int height, QColor paper = Qt::white) : image(width, height, QImage::Format_RGBA8888), background(paper) {
-    image.fill(paper);
-  }
-
-  // Draws `text` with the top of its line box at (x, y). Returns the ink box.
-  QRect draw(const QString& text, int x, int y, const QFont& font, QColor color = Qt::black) {
-    const QFontMetrics metrics(font);
-    {
-      QPainter painter(&image);
-      painter.setRenderHint(QPainter::TextAntialiasing);
-      painter.setFont(font);
-      painter.setPen(color);
-      painter.drawText(x, y + metrics.ascent(), text);
-    }
-    // Only this line's own row: with lines set close together, a taller search would take
-    // in the descenders of the line above.
-    const QRect ink = ink_box(image, QRect(x - 20, y, metrics.horizontalAdvance(text) + 60, metrics.height()),
-                              background);
-    CHECK(!ink.isEmpty());
-    lines.push_back(FakeLine{Box{static_cast<double>(ink.x()), static_cast<double>(ink.y()),
-                                 static_cast<double>(ink.width()), static_cast<double>(ink.height())},
-                             text.toStdString(), false});
-    return ink;
-  }
-};
+using Page = patchy::test::ui::OcrTestPage;
 
 std::shared_ptr<patchy::ocr::FakeEngine> fake_for(const Page& page) {
-  FakeEngineConfig config;
-  config.languages = {{"en-US", "English (United States)"}, {"ja", "Japanese"}};
-  config.lines = page.lines;
-  return patchy::ocr::make_fake_engine(std::move(config));
+  return patchy::test::ui::ocr_fake_for(page);
 }
 
-// Puts `image` in the active document as a layer named "Scan" at `at`.
 patchy::LayerId add_scan_layer(MainWindow& window, const QImage& image, QPoint at) {
-  auto& document = MainWindowTestAccess::document(window);
-  patchy::Layer layer(document.allocate_layer_id(), "Scan", patchy::LayerKind::Pixel);
-  layer.set_pixels(patchy::ui::pixels_from_image_rgba(image));
-  layer.set_bounds(patchy::Rect{at.x(), at.y(), image.width(), image.height()});
-  const auto id = layer.id();
-  document.add_layer(std::move(layer));
-  document.set_active_layer(id);
-  MainWindowTestAccess::refresh_layer_ui(window);
-  return id;
+  return patchy::test::ui::add_ocr_scan_layer(window, image, at);
 }
 
 const patchy::Layer* recognized_group(const patchy::Document& document) {
-  for (const auto& layer : document.layers()) {
-    if (patchy::layer_is_recognized_text_group(layer)) {
-      return &layer;
-    }
-  }
-  return nullptr;
+  return patchy::test::ui::recognized_text_group(document);
 }
 
 std::string metadata_value(const patchy::Layer& layer, const char* key) {

@@ -127,6 +127,8 @@ struct OcrLayerStyle;
 struct OcrRecognitionOutcome;
 struct OcrRecognitionRequest;
 struct OcrSourceImage;
+struct RecognizeTextChoice;         // recognize_text_dialog.hpp
+struct RecognizeTextDialogContext;
 enum class OcrLayerMode;
 }  // namespace patchy::ui
 namespace patchy::ocr {
@@ -3418,6 +3420,14 @@ private:
   // open session, else appends it to every selected editable text layer, else makes a new
   // paragraph text layer at the view center from the Type tool options. One undo step.
   void paste_lorem_ipsum();
+  // Type > Recognize Text (OCR)... and Type > Copy Text from Image (main_window_ocr.cpp,
+  // docs/ocr.md "Type menu commands"). The first asks what to read and what to make of it;
+  // the second reads the selection (else the active layer, else the image) with the stored
+  // engine and language and copies the text, opening the dialog only when no engine can run.
+  void recognize_text();
+  void copy_text_from_image();
+  [[nodiscard]] RecognizeTextDialogContext recognize_text_context();
+  void run_recognize_text_choice(const RecognizeTextChoice& choice);
   // Sets a box session's frame height to its laid-out text, centered on document row
   // `center_y` (Paste Lorem Ipsum's new layer).
   void fit_text_editor_box_height_to_text(QTextEdit& editor, int center_y);

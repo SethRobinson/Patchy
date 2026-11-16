@@ -15,15 +15,30 @@
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/ocr_recognition.hpp"
+#include "ui/recognize_text_dialog.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/unit_spin_box.hpp"
 
+#include <QApplication>
+#include <QClipboard>
+#include <QElapsedTimer>
+#include <QEventLoop>
+#include <QGuiApplication>
+#include <QProgressDialog>
 #include <QSize>
+#include <QStatusBar>
 
 #include <exception>
 #include <utility>
 
 namespace patchy::ui {
+
+namespace {
+
+// How long a recognition runs before its progress dialog appears.
+constexpr int kOcrProgressDelayMs = 400;
+
+}  // namespace
 
 OcrLayerStyle MainWindow::default_ocr_layer_style() const {
   OcrLayerStyle style;
@@ -97,6 +112,134 @@ QString MainWindow::run_text_recognition(DocumentSession& target, const OcrRecog
     outcome.group = insert_recognized_text_group(*session, std::move(*group), request.layer, request.layers.mode);
   }
   return {};
+}
+
+RecognizeTextDialogContext MainWindow::recognize_text_context() {
+  RecognizeTextDialogContext context;
+  select_only_layer_if_none_active();
+  context.has_layer = document().active_layer_id().has_value();
+  context.has_selection = canvas_->has_selection() && canvas_->selected_document_rect().has_value();
+  context.type_tool_family = default_ocr_layer_style().family;
+  return context;
+}
+
+void MainWindow::recognize_text() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  finish_active_text_editor();
+  if (const auto choice = request_recognize_text(this, recognize_text_context()); choice.has_value()) {
+    run_recognize_text_choice(*choice);
+  }
+}
+
+void MainWindow::copy_text_from_image() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  finish_active_text_editor();
+  const auto context = recognize_text_context();
+  if (resolve_ocr_choice({}, {}, nullptr).engine == nullptr) {
+    // Nothing can run: the dialog says why and what to do about it.
+    if (const auto choice = request_recognize_text(this, context); choice.has_value()) {
+      run_recognize_text_choice(*choice);
+    }
+    return;
+  }
+  // No dialog: the selection, else the active layer, else the image; the stored engine and
+  // language (empty picks resolve to them); the text on the clipboard.
+  RecognizeTextChoice choice;
+  choice.source = context.has_selection ? OcrSource::Selection
+                                        : context.has_layer ? OcrSource::Layer : OcrSource::Image;
+  choice.mode = OcrLayerMode::None;
+  choice.copy_text = true;
+  run_recognize_text_choice(choice);
+}
+
+void MainWindow::run_recognize_text_choice(const RecognizeTextChoice& choice) {
+  auto* session = active_session();
+  if (session == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  if (canvas_->quick_mask_active()) {
+    show_status_error(tr("%1 is unavailable in Quick Mask mode").arg(tr("Recognize Text")));
+    return;
+  }
+  OcrRecognitionRequest request;
+  request.engine = choice.engine;
+  request.language = choice.language;
+  switch (choice.source) {
+    case OcrSource::Layer:
+      request.layer = std::as_const(session->document).active_layer_id();
+      break;
+    case OcrSource::Selection:
+      request.rect = canvas_->selected_document_rect();
+      break;
+    case OcrSource::Image:
+      break;
+  }
+  request.layers.mode = choice.mode;
+  request.layers.grouping = choice.grouping;
+  request.layers.style = default_ocr_layer_style();
+  if (!choice.font_family.isEmpty()) {
+    request.layers.style.family = choice.font_family;
+  }
+  request.layers.style.match_style = choice.match_style;
+
+  OcrRecognitionOutcome outcome;
+  QString error;
+  {
+    // A window-modal dialog, shown by the pump only once the wait is worth one (the built-in
+    // engine usually answers sooner). Input reaches nothing but that dialog: before it is
+    // up, and after Cancel hid it, input waits in the queue, so the document cannot change
+    // under the engine.
+    QProgressDialog progress(tr("Recognizing text..."), tr("Cancel"), 0, 0, this);
+    progress.setObjectName(QStringLiteral("recognizeTextProgressDialog"));
+    progress.setWindowTitle(tr("Recognize Text"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setAutoClose(false);
+    progress.setAutoReset(false);
+    // The pump shows it; the dialog's own timer, where it runs, agrees on when.
+    progress.setMinimumDuration(kOcrProgressDelayMs);
+    QElapsedTimer waited;
+    waited.start();
+    const auto pump = [&progress, &waited](ocr::Cancel& cancel) {
+      if (!progress.wasCanceled() && !progress.isVisible() && waited.elapsed() >= kOcrProgressDelayMs) {
+        progress.show();
+      }
+      QApplication::processEvents(progress.isVisible() ? QEventLoop::AllEvents
+                                                       : QEventLoop::ExcludeUserInputEvents);
+      if (progress.wasCanceled()) {
+        cancel.request();
+      }
+    };
+    const auto begin_change = [this]() -> QString {
+      push_undo_snapshot(tr("Recognize Text"));
+      return {};
+    };
+    error = run_text_recognition(*session, request, outcome, pump, begin_change);
+    progress.reset();
+  }
+  if (!error.isEmpty()) {
+    show_status_error(error);
+    return;
+  }
+  if (outcome.cancelled) {
+    statusBar()->showMessage(tr("Text recognition cancelled"));
+    return;
+  }
+  const int lines = static_cast<int>(outcome.result.lines.size());
+  if (lines == 0) {
+    show_status_error(tr("No text was recognized"));
+    return;
+  }
+  if (choice.copy_text) {
+    const auto text = outcome.result.text();
+    QGuiApplication::clipboard()->setText(QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size())));
+    statusBar()->showMessage(tr("Copied %n line(s) of recognized text", nullptr, lines));
+    return;
+  }
+  statusBar()->showMessage(tr("Recognized %n line(s) of text", nullptr, lines));
 }
 
 LayerId MainWindow::insert_recognized_text_group(DocumentSession& target, Layer group,

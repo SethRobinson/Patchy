@@ -48,6 +48,7 @@ Related documents:
 - Type > Convert to Shape and Create Work Path turn any text, warped too, into vector outlines
 - Type Mask tool: type over a tinted canvas and the letters become a selection (new, add, subtract or intersect), horizontal or vertical, with no layer made
 - The Type menu opens the Character and Paragraph panels and sets alignment, direction, orientation, anti-aliasing and OpenType features for the selected text, with Rasterize Type Layer and Warp Text; Update All Text Layers re-renders every text layer, Replace All Missing Fonts swaps each missing font for the font chosen for it before, or else its suggested stand-in, without a dialog, and Paste Lorem Ipsum adds placeholder text
+- Text recognition (OCR) on Windows 10 and 11, with the recognizer built into Windows and the languages installed there: Type > Recognize Text reads the active layer, the selection or the whole image and makes editable text layers that sit on the original text, sized, colored and slanted to match it, in a font you pick. The text can go over the image, replace it ("Show text and hide original", which hides the original and never erases it) or stay in a hidden group. Type > Copy Text from Image copies the text in the selection or layer in one step
 
 ## Pixel art and game assets
 

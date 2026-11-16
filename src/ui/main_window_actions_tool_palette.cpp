@@ -2246,6 +2246,15 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   auto* lorem_action =
       add_type_action(type_menu, QT_TR_NOOP("Paste Lorem Ipsum"), "typePasteLoremIpsumAction", "type.paste_lorem_ipsum");
   connect(lorem_action, &QAction::triggered, this, [this] { paste_lorem_ipsum(); });
+  type_menu->addSeparator();
+  // Text recognition (docs/ocr.md, "Type menu commands"): the options dialog, and the
+  // one-step copy of the text in the selection or the active layer.
+  auto* recognize_text_action = add_type_action(type_menu, QT_TR_NOOP("Recognize Text (OCR)..."),
+                                                "typeRecognizeTextAction", "type.recognize_text");
+  connect(recognize_text_action, &QAction::triggered, this, [this] { recognize_text(); });
+  auto* copy_text_action = add_type_action(type_menu, QT_TR_NOOP("Copy Text from Image"),
+                                           "typeCopyTextFromImageAction", "type.copy_text_from_image");
+  connect(copy_text_action, &QAction::triggered, this, [this] { copy_text_from_image(); });
 
   // The color well and Quick Mask live in a footer pinned to the bar's bottom,
   // outside the toolbar layout, so they never fold into the extension and stay

@@ -16217,6 +16217,86 @@ Czy chcesz go zastąpić?</translation>
         <source>The text recognition engine has no language to read with.</source>
         <translation>Silnik rozpoznawania tekstu nie ma żadnego języka do odczytu.</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows (wbudowany)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>Silnik:</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>Język:</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>Otwórz ustawienia języka</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>Ta wersja Patchy nie ma silnika rozpoznawania tekstu dla tego systemu operacyjnego. Rozpoznawanie tekstu korzysta z silnika wbudowanego w Windows 10 i 11.</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>W systemie Windows nie zainstalowano żadnego języka rozpoznawania tekstu. Otwórz Ustawienia &gt; Czas i język &gt; Język i region, dodaj język oferujący rozpoznawanie tekstu, a następnie wróć tutaj.</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Rozpoznaj tekst</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Aktywna warstwa</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>Cały obraz</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>Odczytaj:</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>Warstwy tekstowe nad obrazem</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>Pokaż tekst i ukryj oryginał</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>Ukryte warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>Skopiuj tekst do schowka</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>Jedna na blok tekstu</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>Jedna na wiersz</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>Warstwy tekstowe:</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>Czcionka:</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>Dopasuj rozmiar, kolor i pochylenie do obrazu</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Rozpoznaj</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22225,6 +22305,14 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>Przełączaj między narzędziami Gumka, Gumka tła i Magiczna gumka</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>Odczytaj tekst z obrazu (OCR) i utwórz z niego warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>Odczytaj tekst z zaznaczenia lub warstwy i skopiuj go</translation>
     </message>
 </context>
 <context>
@@ -36715,6 +36803,50 @@ Zablokowano: %1</translation>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>Dokument zmienił się podczas rozpoznawania jego tekstu.</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>Rozpoznaj tekst (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>Kopiuj tekst z obrazu</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Rozpoznaj tekst</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>Rozpoznawanie tekstu...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>Anulowano rozpoznawanie tekstu</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>Nie rozpoznano żadnego tekstu</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>Skopiowano %n wiersz rozpoznanego tekstu</numerusform>
+            <numerusform>Skopiowano %n wiersze rozpoznanego tekstu</numerusform>
+            <numerusform>Skopiowano %n wierszy rozpoznanego tekstu</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>Rozpoznano %n wiersz tekstu</numerusform>
+            <numerusform>Rozpoznano %n wiersze tekstu</numerusform>
+            <numerusform>Rozpoznano %n wierszy tekstu</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>Rozpoznawanie tekstu</translation>
     </message>
 </context>
 <context>

@@ -16161,6 +16161,86 @@ Sostituirlo?</translation>
         <source>The text recognition engine has no language to read with.</source>
         <translation>Il motore di riconoscimento del testo non ha alcuna lingua con cui leggere.</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows (integrato)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>Motore:</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>Lingua:</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>Apri le impostazioni della lingua</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>Questa versione di Patchy non ha un motore di riconoscimento del testo per questo sistema operativo. Il riconoscimento del testo usa il motore integrato in Windows 10 e 11.</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>In Windows non è installata alcuna lingua per il riconoscimento del testo. Apri Impostazioni &gt; Data/ora e lingua &gt; Lingua e area geografica, aggiungi una lingua che offra il riconoscimento del testo, quindi torna qui.</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Riconosci testo</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Livello attivo</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>Intera immagine</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>Leggi:</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>Livelli di testo sopra l&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>Mostra il testo e nascondi l&apos;originale</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>Livelli di testo nascosti</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>Copia il testo negli appunti</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>Uno per blocco di testo</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>Uno per riga</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>Livelli di testo:</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>Font:</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>Riprendi dimensione, colore e inclinazione dall&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Riconosci</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22163,6 +22243,14 @@ Sostituirlo?</translation>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>Alterna tra Gomma, Gomma per sfondo e Gomma magica</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>Leggi il testo in un&apos;immagine (OCR) e creane livelli di testo</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>Leggi il testo nella selezione o nel livello e copialo</translation>
     </message>
 </context>
 <context>
@@ -36605,6 +36693,48 @@ Bloccato: %1</translation>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>Il documento è cambiato durante il riconoscimento del testo.</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>Riconosci testo (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>Copia testo dall&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Riconosci testo</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>Riconoscimento del testo...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>Riconoscimento del testo annullato</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>Nessun testo riconosciuto</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>Copiata %n riga di testo riconosciuto</numerusform>
+            <numerusform>Copiate %n righe di testo riconosciuto</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>Riconosciuta %n riga di testo</numerusform>
+            <numerusform>Riconosciute %n righe di testo</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>Riconoscimento del testo</translation>
     </message>
 </context>
 <context>

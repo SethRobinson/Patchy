@@ -16161,6 +16161,86 @@ Voulez-vous le remplacer ?</translation>
         <source>The text recognition engine has no language to read with.</source>
         <translation>Le moteur de reconnaissance de texte n&apos;a aucune langue pour lire.</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows (intégré)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>Moteur :</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>Langue :</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>Ouvrir les paramètres de langue</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>Cette version de Patchy n&apos;a aucun moteur de reconnaissance de texte pour ce système d&apos;exploitation. La reconnaissance de texte utilise le moteur intégré à Windows 10 et 11.</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>Windows n&apos;a aucune langue de reconnaissance de texte installée. Ouvrez Paramètres &gt; Heure et langue &gt; Langue et région, ajoutez une langue qui propose la reconnaissance de texte, puis revenez ici.</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Reconnaître le texte</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Calque actif</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>Image entière</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>Lire :</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>Calques de texte sur l&apos;image</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>Afficher le texte et masquer l&apos;original</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>Calques de texte masqués</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>Copier le texte dans le presse-papiers</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>Un par bloc de texte</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>Un par ligne</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>Calques de texte :</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>Police :</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>Reprendre la taille, la couleur et l&apos;inclinaison de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Reconnaître</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22163,6 +22243,14 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>Basculer entre Gomme, Gomme d&apos;arrière-plan et Gomme magique</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>Lire le texte d&apos;une image (OCR) et en faire des calques de texte</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>Lire le texte de la sélection ou du calque et le copier</translation>
     </message>
 </context>
 <context>
@@ -36605,6 +36693,48 @@ Verrouillé : %1</translation>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>Le document a changé pendant la reconnaissance de son texte.</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>Reconnaître le texte (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>Copier le texte de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Reconnaître le texte</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>Reconnaissance du texte...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>Reconnaissance de texte annulée</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>Aucun texte n&apos;a été reconnu</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>%n ligne de texte reconnu copiée</numerusform>
+            <numerusform>%n lignes de texte reconnu copiées</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>%n ligne de texte reconnue</numerusform>
+            <numerusform>%n lignes de texte reconnues</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>Reconnaissance de texte</translation>
     </message>
 </context>
 <context>

@@ -16105,6 +16105,86 @@ Do you want to replace it?</source>
         <source>The text recognition engine has no language to read with.</source>
         <translation>텍스트 인식 엔진에 읽기에 사용할 언어가 없습니다.</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows(기본 제공)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>엔진:</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>언어:</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>언어 설정 열기</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>이 버전의 Patchy에는 이 운영 체제용 텍스트 인식 엔진이 없습니다. 텍스트 인식은 Windows 10 및 11에 기본 제공되는 엔진을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>Windows에 텍스트 인식 언어가 설치되어 있지 않습니다. 설정 &gt; 시간 및 언어 &gt; 언어 및 지역을 열고 텍스트 인식을 제공하는 언어를 추가한 다음 여기로 돌아오십시오.</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>텍스트 인식</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>활성 레이어</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>전체 이미지</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>읽을 대상:</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>이미지 위에 텍스트 레이어</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>텍스트를 표시하고 원본 숨기기</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>숨겨진 텍스트 레이어</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>텍스트를 클립보드에 복사</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>텍스트 블록당 하나</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>줄당 하나</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>텍스트 레이어:</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>글꼴:</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>이미지의 크기, 색상, 기울기에 맞추기</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>인식</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22101,6 +22181,14 @@ Do you want to replace it?</source>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>지우개, 배경 지우개, 자동 지우개 간 전환</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>이미지의 텍스트를 읽어(OCR) 텍스트 레이어를 만듭니다</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>선택 영역 또는 레이어의 텍스트를 읽어 복사합니다</translation>
     </message>
 </context>
 <context>
@@ -36495,6 +36583,46 @@ Locked: %1</source>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>텍스트를 인식하는 동안 문서가 변경되었습니다.</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>텍스트 인식(OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>이미지에서 텍스트 복사</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>텍스트 인식</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>텍스트 인식 중...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>텍스트 인식이 취소되었습니다</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>인식된 텍스트가 없습니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>인식된 텍스트 %n줄을 복사했습니다</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>텍스트 %n줄을 인식했습니다</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>텍스트 인식</translation>
     </message>
 </context>
 <context>

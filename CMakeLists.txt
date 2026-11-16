@@ -1526,6 +1526,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/selection_modify_dialogs.cpp
       src/ui/main_window_ai_selection.cpp
       src/ui/main_window_ocr.cpp
+      src/ui/ocr_controls.hpp
+      src/ui/ocr_controls.cpp
+      src/ui/recognize_text_dialog.hpp
+      src/ui/recognize_text_dialog.cpp
       src/ui/ocr_recognition.hpp
       src/ui/ocr_recognition.cpp
       src/ui/ocr_text_layers.hpp
@@ -2803,6 +2807,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/book_scan_tests.cpp
       tests/ui/ocr_ui_tests.cpp
       tests/ui/ocr_layers_tests.cpp
+      tests/ui/ocr_command_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

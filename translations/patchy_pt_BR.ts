@@ -16161,6 +16161,86 @@ Deseja substituí-lo?</translation>
         <source>The text recognition engine has no language to read with.</source>
         <translation>O mecanismo de reconhecimento de texto não tem nenhum idioma para ler.</translation>
     </message>
+    <message>
+        <source>Windows (built in)</source>
+        <translation>Windows (integrado)</translation>
+    </message>
+    <message>
+        <source>Engine:</source>
+        <translation>Mecanismo:</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>Idioma:</translation>
+    </message>
+    <message>
+        <source>Open Language Settings</source>
+        <translation>Abrir as configurações de idioma</translation>
+    </message>
+    <message>
+        <source>This version of Patchy has no text recognition engine for this operating system. Text recognition uses the engine built into Windows 10 and 11.</source>
+        <translation>Esta versão do Patchy não tem mecanismo de reconhecimento de texto para este sistema operacional. O reconhecimento de texto usa o mecanismo integrado ao Windows 10 e 11.</translation>
+    </message>
+    <message>
+        <source>Windows has no text recognition language installed. Open Settings &gt; Time &amp; language &gt; Language &amp; region, add a language that offers text recognition, then come back here.</source>
+        <translation>O Windows não tem nenhum idioma de reconhecimento de texto instalado. Abra Configurações &gt; Hora e idioma &gt; Idioma e região, adicione um idioma que ofereça reconhecimento de texto e volte aqui.</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Reconhecer texto</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Camada ativa</translation>
+    </message>
+    <message>
+        <source>Whole image</source>
+        <translation>Imagem inteira</translation>
+    </message>
+    <message>
+        <source>Read:</source>
+        <translation>Ler:</translation>
+    </message>
+    <message>
+        <source>Text layers over the image</source>
+        <translation>Camadas de texto sobre a imagem</translation>
+    </message>
+    <message>
+        <source>Show text and hide original</source>
+        <translation>Mostrar o texto e ocultar o original</translation>
+    </message>
+    <message>
+        <source>Hidden text layers</source>
+        <translation>Camadas de texto ocultas</translation>
+    </message>
+    <message>
+        <source>Copy the text to the clipboard</source>
+        <translation>Copiar o texto para a área de transferência</translation>
+    </message>
+    <message>
+        <source>One per block of text</source>
+        <translation>Uma por bloco de texto</translation>
+    </message>
+    <message>
+        <source>One per line</source>
+        <translation>Uma por linha</translation>
+    </message>
+    <message>
+        <source>Text layers:</source>
+        <translation>Camadas de texto:</translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation>Fonte:</translation>
+    </message>
+    <message>
+        <source>Match size, color and slant from the image</source>
+        <translation>Igualar tamanho, cor e inclinação da imagem</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>Reconhecer</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22163,6 +22243,14 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Switch between the Eraser, Background Eraser and Magic Eraser</source>
         <translation>Alternar entre Borracha, Borracha de plano de fundo e Borracha mágica</translation>
+    </message>
+    <message>
+        <source>Read the text in an image (OCR) and make text layers from it</source>
+        <translation>Ler o texto de uma imagem (OCR) e criar camadas de texto com ele</translation>
+    </message>
+    <message>
+        <source>Read the text in the selection or layer and copy it</source>
+        <translation>Ler o texto da seleção ou da camada e copiá-lo</translation>
     </message>
 </context>
 <context>
@@ -36605,6 +36693,48 @@ Bloqueado: %1</translation>
     <message>
         <source>The document changed while its text was being recognized.</source>
         <translation>O documento mudou enquanto seu texto era reconhecido.</translation>
+    </message>
+    <message>
+        <source>Recognize Text (OCR)...</source>
+        <translation>Reconhecer texto (OCR)...</translation>
+    </message>
+    <message>
+        <source>Copy Text from Image</source>
+        <translation>Copiar texto da imagem</translation>
+    </message>
+    <message>
+        <source>Recognize Text</source>
+        <translation>Reconhecer texto</translation>
+    </message>
+    <message>
+        <source>Recognizing text...</source>
+        <translation>Reconhecendo texto...</translation>
+    </message>
+    <message>
+        <source>Text recognition cancelled</source>
+        <translation>Reconhecimento de texto cancelado</translation>
+    </message>
+    <message>
+        <source>No text was recognized</source>
+        <translation>Nenhum texto foi reconhecido</translation>
+    </message>
+    <message numerus="yes">
+        <source>Copied %n line(s) of recognized text</source>
+        <translation>
+            <numerusform>%n linha de texto reconhecido copiada</numerusform>
+            <numerusform>%n linhas de texto reconhecido copiadas</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Recognized %n line(s) of text</source>
+        <translation>
+            <numerusform>%n linha de texto reconhecida</numerusform>
+            <numerusform>%n linhas de texto reconhecidas</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text Recognition</source>
+        <translation>Reconhecimento de texto</translation>
     </message>
 </context>
 <context>

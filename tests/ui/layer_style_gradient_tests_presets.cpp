@@ -22,6 +22,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
+#include "ui/recognize_text_dialog.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/preset_grid_widget.hpp"
 #include "ui/app_settings.hpp"
@@ -1645,6 +1646,9 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     qputenv("PATCHY_FAKE_BOOK_SCANNER", "sweep-no-scan.png");
     patchy::ui::run_book_scan_dialog(nullptr);
     qunsetenv("PATCHY_FAKE_BOOK_SCANNER");
+    // Recognize Text with no engine (the suite's default): its "nothing available" note.
+    grab_dialog(QStringLiteral("recognizeTextDialog"), "recognize_text");
+    (void)patchy::ui::request_recognize_text(nullptr, {});
     // The color picker is a top-level widget, not a dialog.
     patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));
     picker.show();
@@ -1672,7 +1676,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 48);
+  CHECK(captured == 50);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

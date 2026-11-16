@@ -278,7 +278,8 @@ section in a new tab (`desktop_download_url`); OK closes the box. Code:
   `open_document_path` releases); Place > Place Linked (a link needs a host file, the
   browser hands over a copy); Export > Documents to Folder and Layers as Image
   Sequence (one browser download per file, which browsers refuse as download spam);
-  Page Setup and Print (no QtPrintSupport); Filter > G'MIC Filter Library (no engine;
+  Page Setup and Print (no QtPrintSupport); Type > Recognize Text (OCR) and Copy Text
+  from Image (the engine is the operating system's); Filter > G'MIC Filter Library (no engine;
   its own message in `gmicDesktopOnlyMessageBox`) and GEGL Filters
   (`filterGeglFiltersAction`, a row only wasm has, where desktop builds have the
   submenu; GEGL runs in a helper process); Plugins > Companions > OpenAI Image Tools
