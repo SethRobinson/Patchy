@@ -1304,6 +1304,10 @@ private:
   // Returns the group's id.
   LayerId insert_recognized_text_group(DocumentSession& target, Layer group, std::optional<LayerId> source_layer,
                                        OcrLayerMode mode);
+  // The document half of insert_recognized_text_group, for a document that is not a session
+  // yet (a page of a PDF import): no panel or canvas is touched.
+  static LayerId place_recognized_text_group(Document& doc, Layer group, std::optional<LayerId> source_layer,
+                                             OcrLayerMode mode);
   // One recognition over `target`'s document, start to finish: the source pixels, the engine
   // on a worker while this thread waits, and (when the request asks for layers and text was
   // found) the group in the document. `pump` runs about every 15 ms during the wait: it
@@ -1339,6 +1343,14 @@ private:
     // pump(), at most once per 32 ms: for loops whose turns are short.
     void pump_throttled();
     [[nodiscard]] bool visible() const;
+    // A Cancel button for the step now running (text recognition; every other step runs
+    // to its end). While it is on and the dialog is up, pump() delivers input, which the
+    // window-modal dialog confines to itself. Turning it on forgets an earlier cancel.
+    void set_cancellable(bool cancellable);
+    [[nodiscard]] bool cancelled() const;
+    // Shows the dialog at the next step instead of after the delay: the step about to run
+    // is known to be slow.
+    void show_now();
 
    private:
     // Creates the dialog once it is due and brings its label and range up to date.
@@ -1355,6 +1367,8 @@ private:
     QElapsedTimer since_pump_;
     std::unique_ptr<QProgressDialog> dialog_;
     OpenProgress* outer_{nullptr};
+    bool cancellable_{false};
+    bool cancelled_{false};
   };
   OpenProgress* open_progress_{nullptr};
   // What the last open's progress did, whether or not a dialog showed (tests; the dialog
@@ -1379,6 +1393,13 @@ private:
   // pass over all the pages (render_pending_pdf_image_layers). With `merge` the pages'
   // fingerprints are left to merge_imported_pdf_pages.
   void render_imported_pdf_pages(Document& first, std::vector<PdfImportedDocument>& extras, PdfPagesMerge merge);
+  // Import PDF's "Recognize text on scanned pages (OCR)" (docs/ocr.md, "Import PDF"): reads
+  // every page that has no text layer of its own (a scan, a flattened page) and adds its
+  // Recognized Text group, after the pending passes and before a merge. Reports through the
+  // open's progress, whose Cancel keeps the pages already done. What happened lands in
+  // `notices`. Defined in main_window_ocr.cpp.
+  void recognize_imported_pdf_pages(Document& first, std::vector<PdfImportedDocument>& extras,
+                                    const RecognizeTextChoice& choice, QStringList& notices);
   // Reopened Patchy PSDs: layout metrics for the kept text rasters
   // (docs/text-render-calibration-patchy-authored.md).
   void record_text_layout_metrics_for_reopened_text(Document& target);

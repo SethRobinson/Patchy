@@ -5,6 +5,8 @@
 #include "ui/image_document_io.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/memory_info.hpp"
+#include "ui/ocr_controls.hpp"
+#include "ui/ocr_recognition.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/ui_profile.hpp"
@@ -44,6 +46,7 @@
 #include <QPushButton>
 #include <QRect>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSize>
 #include <QSizeF>
 #include <QSizePolicy>
@@ -804,6 +807,61 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   reverse_order->setChecked(stored_reverse_order);
   side->addWidget(reverse_order);
 
+  // Text recognition on the pages that bring no text of their own (docs/ocr.md, "Import
+  // PDF"). Off by default and never run unasked; the engine, language and what the text
+  // becomes are the user's picks in Options.
+  auto* ocr_check = new QCheckBox(QObject::tr("Recognize text on scanned pages (OCR)"), &dialog);
+  ocr_check->setObjectName(QStringLiteral("pdfImportOcrCheck"));
+  ocr_check->setToolTip(QObject::tr("Reads the text on every page that has no editable text of its own (scanned "
+                                    "pages, and every page with \"Flattened image per page\") and adds it as "
+                                    "text layers."));
+  auto* ocr_options = new QPushButton(QObject::tr("Options..."), &dialog);
+  ocr_options->setObjectName(QStringLiteral("pdfImportOcrOptionsButton"));
+  auto* ocr_row = new QHBoxLayout();
+  ocr_row->setContentsMargins(0, 0, 0, 0);
+  ocr_row->addWidget(ocr_check, 1);
+  ocr_row->addWidget(ocr_options);
+  side->addLayout(ocr_row);
+  auto* ocr_summary = new QLabel(&dialog);
+  ocr_summary->setObjectName(QStringLiteral("pdfImportOcrSummaryLabel"));
+  ocr_summary->setWordWrap(true);
+  auto ocr_summary_policy = ocr_summary->sizePolicy();
+  ocr_summary_policy.setHorizontalPolicy(QSizePolicy::Ignored);  // wraps in the column, as the size note does
+  ocr_summary->setSizePolicy(ocr_summary_policy);
+  side->addWidget(ocr_summary);
+  // The tick the user left last time comes back whenever an engine can run; while none
+  // can, the box is off and says why, and the stored tick is left alone.
+  ocr_check->setChecked(settings.value(settings_key("Ocr"), false).toBool());
+  const auto sync_ocr = [ocr_check, ocr_summary] {
+    QString unavailable;
+    const auto choice = resolve_ocr_choice({}, {}, &unavailable);
+    const bool available = choice.engine != nullptr;
+    if (!available && ocr_check->isChecked()) {
+      const QSignalBlocker blocker(ocr_check);
+      ocr_check->setChecked(false);
+    }
+    ocr_check->setEnabled(available);
+    QString text;
+    if (!available) {
+      text = unavailable;
+    } else if (ocr_check->isChecked()) {
+      text = QObject::tr("%1: %2").arg(ocr_choice_summary(choice),
+                                       pdf_import_ocr_result_label(stored_pdf_import_ocr_choice().mode));
+    }
+    ocr_summary->setText(text);
+    ocr_summary->setVisible(!text.isEmpty());
+  };
+  sync_ocr();
+  QObject::connect(ocr_check, &QCheckBox::toggled, &dialog, sync_ocr);
+  QObject::connect(ocr_options, &QPushButton::clicked, &dialog, [&dialog, &start, sync_ocr] {
+    RecognizeTextDialogContext context;
+    context.purpose = RecognizeTextPurpose::PdfImport;
+    context.type_tool_family = start.type_tool_family;
+    // Accepting stores the picks; the summary line reads them back.
+    (void)request_recognize_text(&dialog, context);
+    sync_ocr();
+  });
+
   auto* size_label = new QLabel(&dialog);
   size_label->setObjectName(QStringLiteral("pdfImportSizeLabel"));
   size_label->setWordWrap(true);
@@ -993,6 +1051,15 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   settings.setValue(settings_key("ReverseOrder"), reverse_order->isChecked());
   settings.setValue(settings_key("ColorMode"), color_mode->currentData().toString());
   settings.setValue(settings_key("BitDepth"), bit_depth->currentData().toInt());
+  // What the pages' text becomes, when the user asked for it: the stored options, with the
+  // engine and language resolved when the recognition runs.
+  std::optional<RecognizeTextChoice> ocr_choice;
+  if (ocr_check->isEnabled()) {
+    settings.setValue(settings_key("Ocr"), ocr_check->isChecked());
+    if (ocr_check->isChecked()) {
+      ocr_choice = stored_pdf_import_ocr_choice();
+    }
+  }
 
   // A multi-page import runs on the UI thread page by page (QPdfDocument renders here;
   // the vector reader runs on a worker while this pumps events), so the dialog is what
@@ -1194,6 +1261,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
                 .toStdString());
       }
       result.import_ms = import_clock.elapsed();
+      result.ocr = ocr_choice;
       return result;
     }
   }
@@ -1219,6 +1287,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
     result->notices.insert(result->notices.begin(), scanned_pages_notice(scanned_pages));
   }
   result->import_ms = import_clock.elapsed();
+  result->ocr = ocr_choice;
   return result;
 }
 

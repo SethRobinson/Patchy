@@ -16223,6 +16223,38 @@ Do you want to replace it?</source>
         <source>Recognize</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36652,6 +36684,51 @@ Locked: %1</source>
     </message>
     <message>
         <source>Text Recognition</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

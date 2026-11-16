@@ -59,6 +59,10 @@ private:
 // engine's name otherwise.
 [[nodiscard]] QString ocr_engine_display_name(const ocr::Engine& engine);
 
+// "Windows (built in), English (United States)" for a resolved choice (resolve_ocr_choice):
+// the line a dialog shows beside an option that will use it. Empty without an engine.
+[[nodiscard]] QString ocr_choice_summary(const OcrChoice& choice);
+
 // Tests replace what "Open Language Settings" does (it opens a Windows Settings page).
 void set_ocr_language_settings_opener_for_testing(std::function<void()> opener);
 

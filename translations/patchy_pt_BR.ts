@@ -16241,6 +16241,38 @@ Deseja substituí-lo?</translation>
         <source>Recognize</source>
         <translation>Reconhecer</translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation>Reconhecer texto em páginas digitalizadas (OCR)</translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation>Opções...</translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation>Camadas de texto sobre a digitalização</translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation>Camadas de texto, digitalização oculta</translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation>Camadas de texto ocultas, página inalterada</translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation>Opções de reconhecimento de texto</translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation>Texto reconhecido:</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation>Lê o texto de cada página que não tem texto editável próprio (páginas digitalizadas e todas as páginas com &quot;Imagem achatada por página&quot;) e o adiciona como camadas de texto.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36735,6 +36767,51 @@ Bloqueado: %1</translation>
     <message>
         <source>Text Recognition</source>
         <translation>Reconhecimento de texto</translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation>Nenhum texto foi reconhecido: %1</translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation>Reconhecendo texto na página %1 de %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation>
+            <numerusform>Foi reconhecido texto em %n página e adicionado como camadas de texto sobre a digitalização, em um grupo Texto reconhecido.</numerusform>
+            <numerusform>Foi reconhecido texto em %n páginas e adicionado como camadas de texto sobre cada digitalização, em um grupo Texto reconhecido.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation>
+            <numerusform>Foi reconhecido texto em %n página. A digitalização está oculta sob o grupo Texto reconhecido; mostre a camada da digitalização para vê-la novamente.</numerusform>
+            <numerusform>Foi reconhecido texto em %n páginas. Cada digitalização está oculta sob o seu grupo Texto reconhecido; mostre a camada da digitalização para vê-la novamente.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation>
+            <numerusform>Foi reconhecido texto em %n página. Ele está no grupo oculto Texto reconhecido da página.</numerusform>
+            <numerusform>Foi reconhecido texto em %n páginas. Ele está no grupo oculto Texto reconhecido de cada página.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation>O reconhecimento de texto parou após %1 de %2 páginas.</translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation>O reconhecimento de texto falhou na página %1 de %2: %3</translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation>Nenhum texto foi reconhecido: todas as páginas já têm texto editável.</translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
+        <translation>Nenhum texto foi reconhecido nas páginas sem texto próprio.</translation>
     </message>
 </context>
 <context>

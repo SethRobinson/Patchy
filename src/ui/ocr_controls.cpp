@@ -44,6 +44,20 @@ QString ocr_engine_display_name(const ocr::Engine& engine) {
   return QString::fromStdString(engine.display_name());
 }
 
+QString ocr_choice_summary(const OcrChoice& choice) {
+  if (choice.engine == nullptr) {
+    return {};
+  }
+  auto language = QString::fromStdString(choice.language);
+  for (const auto& listed : choice.engine->languages()) {
+    if (listed.tag == choice.language) {
+      language = QString::fromStdString(listed.display_name);
+      break;
+    }
+  }
+  return QObject::tr("%1, %2").arg(ocr_engine_display_name(*choice.engine), language);
+}
+
 void set_ocr_language_settings_opener_for_testing(std::function<void()> opener) {
   language_settings_opener() = std::move(opener);
 }

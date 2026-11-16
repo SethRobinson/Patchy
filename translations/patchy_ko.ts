@@ -16185,6 +16185,38 @@ Do you want to replace it?</source>
         <source>Recognize</source>
         <translation>인식</translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation>스캔한 페이지의 텍스트 인식(OCR)</translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation>옵션...</translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation>스캔 위에 텍스트 레이어</translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation>텍스트 레이어, 스캔 숨김</translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation>숨겨진 텍스트 레이어, 페이지 변경 없음</translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation>텍스트 인식 옵션</translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation>인식된 텍스트:</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation>편집 가능한 텍스트가 없는 모든 페이지(스캔한 페이지 및 &quot;페이지당 병합된 이미지&quot;를 선택한 경우 모든 페이지)의 텍스트를 읽어 텍스트 레이어로 추가합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36623,6 +36655,48 @@ Locked: %1</source>
     <message>
         <source>Text Recognition</source>
         <translation>텍스트 인식</translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation>인식된 텍스트가 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation>%2페이지 중 %1페이지의 텍스트 인식 중</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation>
+            <numerusform>%n개 페이지에서 텍스트를 인식하여 각 스캔 위의 텍스트 레이어로 인식된 텍스트 그룹에 추가했습니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation>
+            <numerusform>%n개 페이지에서 텍스트를 인식했습니다. 각 스캔은 인식된 텍스트 그룹 아래에 숨겨져 있습니다. 다시 보려면 스캔 레이어를 표시하십시오.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation>
+            <numerusform>%n개 페이지에서 텍스트를 인식했습니다. 각 페이지의 숨겨진 인식된 텍스트 그룹에 있습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation>텍스트 인식이 %2페이지 중 %1페이지 후에 중지되었습니다.</translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation>%2페이지 중 %1페이지에서 텍스트 인식 실패: %3</translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation>인식된 텍스트가 없습니다. 모든 페이지에 이미 편집 가능한 텍스트가 있습니다.</translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
+        <translation>자체 텍스트가 없는 페이지에서 인식된 텍스트가 없습니다.</translation>
     </message>
 </context>
 <context>

@@ -16185,6 +16185,38 @@ Do you want to replace it?</source>
         <source>Recognize</source>
         <translation>認識</translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation>スキャンされたページの文字を認識 (OCR)</translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation>オプション...</translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation>スキャンの上にテキストレイヤー</translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation>テキストレイヤー (スキャンは非表示)</translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation>非表示のテキストレイヤー (ページは変更なし)</translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation>文字認識オプション</translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation>認識されたテキスト:</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation>編集可能なテキストを持たない各ページ (スキャンされたページ、および「ページごとに統合された画像」を選んだ場合の全ページ) の文字を読み取り、テキストレイヤーとして追加します。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36623,6 +36655,48 @@ Locked: %1</source>
     <message>
         <source>Text Recognition</source>
         <translation>文字認識</translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation>文字は認識されませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation>%2 ページ中 %1 ページ目の文字を認識しています</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation>
+            <numerusform>%n ページで文字を認識し、各スキャンの上のテキストレイヤーとして「認識されたテキスト」グループに追加しました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation>
+            <numerusform>%n ページで文字を認識しました。各スキャンは「認識されたテキスト」グループの下で非表示になっています。もう一度見るにはスキャンのレイヤーを表示してください。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation>
+            <numerusform>%n ページで文字を認識しました。各ページの非表示の「認識されたテキスト」グループに入っています。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation>文字認識は %2 ページ中 %1 ページで停止しました。</translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation>%2 ページ中 %1 ページ目で文字認識に失敗しました: %3</translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation>文字は認識されませんでした: すべてのページにすでに編集可能なテキストがあります。</translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
+        <translation>テキストを持たないページで文字は認識されませんでした。</translation>
     </message>
 </context>
 <context>

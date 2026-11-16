@@ -1214,6 +1214,8 @@ struct OpenDocumentResult {
   bool pdf_white_background{true};
   // How long the Import PDF dialog's own progress dialog was up (PdfImportResult::import_ms).
   qint64 pdf_import_ms{0};
+  // Import PDF's text recognition (PdfImportResult::ocr).
+  std::optional<RecognizeTextChoice> pdf_ocr{};
   // Network servers a Krita file layer names that are not allowed yet (lower case): the
   // interactive open offers to allow them and reload (docs/kra.md, "File layers").
   QStringList blocked_link_servers{};
@@ -2477,6 +2479,7 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
     loaded.pdf_merge = outcome->merge;
     loaded.pdf_white_background = outcome->white_background;
     loaded.pdf_import_ms = outcome->import_ms;
+    loaded.pdf_ocr = outcome->ocr;
     // CMYK is the session's CMYK Proof, the same state a CMYK JPEG opens in.
     loaded.cmyk_source = outcome->color_mode == PdfImportColorMode::Cmyk;
     if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
@@ -3653,8 +3656,11 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
     const bool allow_raw_dialog = !script_engine_host_ || !script_engine_host_->run_active() ||
                                   script_engine_host_->manual_edit_pause();
     QWidget* dialog_parent = pdf_import_dialog_parent_ != nullptr ? pdf_import_dialog_parent_.data() : this;
+    // The Import PDF dialog's text recognition options start on the Type tool's font.
+    PdfImportDialogStart pdf_start = pdf_import_start_ != nullptr ? *pdf_import_start_ : PdfImportDialogStart{};
+    pdf_start.type_tool_family = default_ocr_layer_style().family;
     auto loaded = load_document_interactive(dialog_parent, path, !unattended_automation(), allow_raw_dialog,
-                                            pdf_import_start_);
+                                            &pdf_start);
     if (!loaded.has_value()) {
 #ifdef Q_OS_WASM
       wasm_files::publish_open_probe(QStringLiteral("cancelled"), path);
@@ -3675,6 +3681,10 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
                            loaded->pdf_import_ms >= open_progress_delay_ms() ? 0 : -1);
     }
     render_imported_pdf_pages(loaded->document, loaded->extra_documents, loaded->pdf_merge);
+    if (loaded->pdf_ocr.has_value()) {
+      recognize_imported_pdf_pages(loaded->document, loaded->extra_documents, *loaded->pdf_ocr,
+                                   loaded->import_notices);
+    }
     if (loaded->pdf_merge != PdfPagesMerge::None) {
       const UiProfileScope profile_scope("pdf_merge.total");
       merge_imported_pdf_pages(loaded->document, loaded->document_title, loaded->extra_documents, loaded->pdf_merge,
@@ -3998,11 +4008,22 @@ void MainWindow::OpenProgress::sync_dialog() {
     dialog_->setCancelButton(nullptr);
     dialog_->setAutoClose(false);
     dialog_->setAutoReset(false);
+    // Cancel only raises the flag: the dialog stays up for the steps that follow.
+    QObject::disconnect(dialog_.get(), &QProgressDialog::canceled, dialog_.get(), &QProgressDialog::cancel);
+    QObject::connect(dialog_.get(), &QProgressDialog::canceled, dialog_.get(), [this] { cancelled_ = cancellable_; });
     remember_dialog_position(*dialog_);
     dialog_->show();
     window_.open_progress_stats_.dialogs.push_back(object_name_);
   }
   if (dialog_ != nullptr) {
+    const bool has_cancel = dialog_->findChild<QPushButton*>() != nullptr;
+    if (cancellable_ != has_cancel) {
+      if (cancellable_) {
+        dialog_->setCancelButtonText(QCoreApplication::translate("QObject", "Cancel"));
+      } else {
+        dialog_->setCancelButton(nullptr);
+      }
+    }
     if (dialog_->labelText() != label_) {
       dialog_->setLabelText(label_);
     }
@@ -4023,8 +4044,27 @@ void MainWindow::OpenProgress::pump() {
   if (dialog_ != nullptr && maximum_ > 0 && dialog_->value() != std::min(value_, maximum_)) {
     dialog_->setValue(std::min(value_, maximum_));
   }
-  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 15);
+  // Input only while a visible dialog offers Cancel: it is window-modal, so the input goes
+  // to that button and nowhere else.
+  QApplication::processEvents(cancellable_ && visible() ? QEventLoop::AllEvents : QEventLoop::ExcludeUserInputEvents,
+                              15);
   since_pump_.restart();
+}
+
+void MainWindow::OpenProgress::set_cancellable(bool cancellable) {
+  cancellable_ = cancellable;
+  if (cancellable) {
+    cancelled_ = false;
+  }
+  sync_dialog();
+}
+
+bool MainWindow::OpenProgress::cancelled() const {
+  return cancelled_;
+}
+
+void MainWindow::OpenProgress::show_now() {
+  show_after_ms_ = 0;
 }
 
 void MainWindow::OpenProgress::pump_throttled() {
@@ -4330,7 +4370,9 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
   try {
     const bool allow_raw_dialog = !script_engine_host_ || !script_engine_host_->run_active() ||
                                   script_engine_host_->manual_edit_pause();
-    auto loaded = load_document_interactive(this, path, !unattended_automation(), allow_raw_dialog);
+    PdfImportDialogStart pdf_start;
+    pdf_start.type_tool_family = default_ocr_layer_style().family;
+    auto loaded = load_document_interactive(this, path, !unattended_automation(), allow_raw_dialog, &pdf_start);
     if (!loaded.has_value()) {
       return;
     }
@@ -4350,6 +4392,10 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
                            loaded->pdf_import_ms >= open_progress_delay_ms() ? 0 : -1);
     }
     render_imported_pdf_pages(loaded->document, loaded->extra_documents, loaded->pdf_merge);
+    if (loaded->pdf_ocr.has_value()) {
+      recognize_imported_pdf_pages(loaded->document, loaded->extra_documents, *loaded->pdf_ocr,
+                                   loaded->import_notices);
+    }
     if (loaded->pdf_merge != PdfPagesMerge::None) {
       merge_imported_pdf_pages(loaded->document, loaded->document_title, loaded->extra_documents, loaded->pdf_merge,
                                loaded->pdf_white_background);

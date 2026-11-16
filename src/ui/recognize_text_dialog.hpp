@@ -36,16 +36,33 @@ struct RecognizeTextChoice {
   bool match_style{true};
 };
 
+// Which options the dialog shows.
+//   Document   Type > Recognize Text: what to read in the open document and what to make.
+//   PdfImport  Import PDF's "Options...": no Read row (the pages are what is read), the
+//              Result rows are the three layer modes with hidden first, stored under
+//              imports/pdfOcrResult, and nothing is recognized by accepting it.
+enum class RecognizeTextPurpose { Document, PdfImport };
+
 struct RecognizeTextDialogContext {
   bool has_layer{true};      // an active layer exists to read on its own
   bool has_selection{false}; // a selection exists
   QString type_tool_family;  // the font the Font row starts on
+  RecognizeTextPurpose purpose{RecognizeTextPurpose::Document};
 };
 
 // The stored options (ocr/result, ocr/source, ocr/grouping, ocr/matchStyle, ocr/fontFamily;
 // engine and language resolve when the recognition runs) fitted to `context`: a stored
 // source that does not apply now falls back to the nearest that does.
 [[nodiscard]] RecognizeTextChoice stored_recognize_text_choice(const RecognizeTextDialogContext& context);
+
+// What Import PDF's text recognition makes when the user never opened its options: the
+// stored imports/pdfOcrResult (hidden by default: the page looks unchanged) with the layer
+// options every recognition shares (ocr/grouping, ocr/matchStyle, ocr/fontFamily). Engine
+// and language are left empty: they resolve from the stored picks when the import runs.
+[[nodiscard]] RecognizeTextChoice stored_pdf_import_ocr_choice();
+// The Result row's text for a layer mode in the PDF import options ("Hidden text layers,
+// page unchanged"), for the import dialog's summary line.
+[[nodiscard]] QString pdf_import_ocr_result_label(OcrLayerMode mode);
 
 // Shows the dialog. Unset when cancelled. When no engine can run the dialog still opens and
 // says why; its OK button stays off. Accepting stores every option.

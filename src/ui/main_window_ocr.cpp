@@ -10,11 +10,13 @@
 #include "ui/main_window.hpp"
 
 #include "core/layer.hpp"
+#include "core/layer_metadata.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/document_session.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/ocr_recognition.hpp"
+#include "ui/pdf_import.hpp"
 #include "ui/recognize_text_dialog.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/unit_spin_box.hpp"
@@ -28,6 +30,7 @@
 #include <QSize>
 #include <QStatusBar>
 
+#include <algorithm>
 #include <exception>
 #include <utility>
 
@@ -242,9 +245,154 @@ void MainWindow::run_recognize_text_choice(const RecognizeTextChoice& choice) {
   statusBar()->showMessage(tr("Recognized %n line(s) of text", nullptr, lines));
 }
 
-LayerId MainWindow::insert_recognized_text_group(DocumentSession& target, Layer group,
-                                                 std::optional<LayerId> source_layer, OcrLayerMode mode) {
-  auto& doc = target.document;
+void MainWindow::recognize_imported_pdf_pages(Document& first, std::vector<PdfImportedDocument>& extras,
+                                              const RecognizeTextChoice& choice, QStringList& notices) {
+  // What is read: a page that brought no text of its own. That is every flattened page, and
+  // in an editable import the scans (a page that is an image, whatever its codec). A page
+  // with real text is left alone: its text is editable already, and reading it again would
+  // put a second copy on top.
+  const auto has_text = [](const auto& self, const std::vector<Layer>& layers) -> bool {
+    return std::any_of(layers.begin(), layers.end(), [&](const Layer& layer) {
+      return layer_is_text(layer) || self(self, layer.children());
+    });
+  };
+  std::vector<Document*> pages;
+  if (!has_text(has_text, std::as_const(first).layers())) {
+    pages.push_back(&first);
+  }
+  for (auto& extra : extras) {
+    if (!has_text(has_text, std::as_const(extra.document).layers())) {
+      pages.push_back(&extra.document);
+    }
+  }
+  if (pages.empty()) {
+    // The option was ticked and did nothing: say why rather than leave the user looking.
+    notices.push_back(tr("No text was recognized: every page already has editable text."));
+    return;
+  }
+  QString unavailable;
+  const auto picked = resolve_ocr_choice(choice.engine, choice.language, &unavailable);
+  if (picked.engine == nullptr) {
+    notices.push_back(tr("No text was recognized: %1").arg(unavailable));
+    return;
+  }
+  OcrLayerOptions layers;
+  layers.mode = choice.mode == OcrLayerMode::None ? OcrLayerMode::Hidden : choice.mode;
+  layers.grouping = choice.grouping;
+  layers.style = default_ocr_layer_style();
+  if (!choice.font_family.isEmpty()) {
+    layers.style.family = choice.font_family;
+  }
+  layers.style.match_style = choice.match_style;
+
+  const int total = static_cast<int>(pages.size());
+  if (open_progress_ != nullptr) {
+    open_progress_->show_now();  // an engine takes its time on every page
+    open_progress_->set_cancellable(true);
+  }
+  int read = 0;
+  int with_text = 0;
+  bool cancelled = false;
+  QString failure;
+  for (int index = 0; index < total && !cancelled && failure.isEmpty(); ++index) {
+    auto& page = *pages[static_cast<std::size_t>(index)];
+    if (open_progress_ != nullptr) {
+      open_progress_->set_step(tr("Recognizing text on page %1 of %2").arg(index + 1).arg(total), index, total);
+      open_progress_->pump();
+      if (open_progress_->cancelled()) {
+        cancelled = true;
+        break;
+      }
+    }
+    QString source_error;
+    const auto source = ocr_source_image(std::as_const(page), std::nullopt, std::nullopt, &source_error);
+    if (!source.has_value()) {
+      ++read;  // an empty page: nothing to read
+      continue;
+    }
+    ocr::Cancel cancel;
+    ocr::Result found;
+    try {
+      found = recognize_on_worker(picked.engine, picked.language, source->image, cancel, [&] {
+        if (open_progress_ != nullptr) {
+          open_progress_->pump();
+          if (open_progress_->cancelled()) {
+            cancel.request();
+          }
+        }
+      });
+    } catch (const ocr::RecognitionCancelled&) {
+      cancelled = true;
+      break;
+    } catch (const std::exception& error) {
+      failure = translate_data_text(error.what());
+      break;
+    }
+    ++read;
+    if (found.lines.empty()) {
+      continue;
+    }
+    if (text_size_spin_ != nullptr) {
+      // With matching off the text takes the Type tool's point size at this page's resolution.
+      layers.style.size = text_points_to_pixels(text_size_spin_->value(), page);
+    }
+    auto group = make_recognized_text_group(page, found, *source, layers, picked.engine->id(), picked.language);
+    if (!group.has_value()) {
+      continue;
+    }
+    const auto active = std::as_const(page).active_layer_id();
+    place_recognized_text_group(page, std::move(*group), std::nullopt, layers.mode);
+    if (layers.mode == OcrLayerMode::Hidden) {
+      // The page looks and exports as it did: its original image data stays valid, and the
+      // layer the user sees stays the active one.
+      if (active.has_value()) {
+        page.set_active_layer(*active);
+      }
+    } else {
+      // The page is no longer its one original image: an export encodes it again.
+      page.metadata().pdf_source_page.reset();
+    }
+    ++with_text;
+  }
+  if (open_progress_ != nullptr) {
+    open_progress_->set_cancellable(false);
+  }
+
+  if (with_text > 0) {
+    switch (layers.mode) {
+      case OcrLayerMode::Visible:
+        notices.push_back(tr("Text was recognized on %n page(s) and added as text layers over each scan, in a "
+                             "Recognized Text group.",
+                             nullptr, with_text));
+        break;
+      case OcrLayerMode::Replace:
+        notices.push_back(tr("Text was recognized on %n page(s). Each scan is hidden under its Recognized Text "
+                             "group; show the scan layer to see it again.",
+                             nullptr, with_text));
+        break;
+      case OcrLayerMode::Hidden:
+      case OcrLayerMode::None:
+        notices.push_back(tr("Text was recognized on %n page(s). It is in each page's hidden Recognized Text "
+                             "group.",
+                             nullptr, with_text));
+        break;
+    }
+  } else if (failure.isEmpty() && !cancelled) {
+    notices.push_back(tr("No text was recognized on the pages without text of their own."));
+  }
+  if (cancelled) {
+    notices.push_back(tr("Text recognition stopped after %1 of %2 pages.").arg(read).arg(total));
+  }
+  if (!failure.isEmpty()) {
+    notices.push_back(tr("Text recognition failed on page %1 of %2: %3").arg(read + 1).arg(total).arg(failure));
+  }
+}
+
+namespace {
+
+// Hides what Replace hides and puts `group` in the stack: above the layer it was read from,
+// on top when the whole image was read. The group becomes the active layer.
+LayerId place_group_in_document(Document& doc, Layer group, std::optional<LayerId> source_layer, OcrLayerMode mode) {
   const auto group_id = group.id();
   if (mode == OcrLayerMode::Replace) {
     // Hidden, never erased: Show brings the original back as it was.
@@ -258,9 +406,21 @@ LayerId MainWindow::insert_recognized_text_group(DocumentSession& target, Layer 
       }
     }
   }
-  // Above the layer it was read from; on top of the stack when the whole image was read.
   insert_layer_after_anchor(doc, std::move(group), source_layer);
   doc.set_active_layer(group_id);
+  return group_id;
+}
+
+}  // namespace
+
+LayerId MainWindow::place_recognized_text_group(Document& doc, Layer group, std::optional<LayerId> source_layer,
+                                                OcrLayerMode mode) {
+  return place_group_in_document(doc, std::move(group), source_layer, mode);
+}
+
+LayerId MainWindow::insert_recognized_text_group(DocumentSession& target, Layer group,
+                                                 std::optional<LayerId> source_layer, OcrLayerMode mode) {
+  const auto group_id = place_recognized_text_group(target.document, std::move(group), source_layer, mode);
   if (&target == active_session()) {
     refresh_layer_list();
     reveal_layer_in_layer_list(group_id);

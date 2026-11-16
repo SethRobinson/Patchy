@@ -16297,6 +16297,38 @@ Czy chcesz go zastąpić?</translation>
         <source>Recognize</source>
         <translation>Rozpoznaj</translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation>Rozpoznaj tekst na zeskanowanych stronach (OCR)</translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation>Opcje...</translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation>Warstwy tekstowe nad skanem</translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation>Warstwy tekstowe, skan ukryty</translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation>Ukryte warstwy tekstowe, strona bez zmian</translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation>Opcje rozpoznawania tekstu</translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation>Rozpoznany tekst:</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation>Odczytuje tekst na każdej stronie, która nie ma własnego edytowalnego tekstu (zeskanowane strony oraz wszystkie strony przy opcji „Spłaszczony obraz na stronę”), i dodaje go jako warstwy tekstowe.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36847,6 +36879,54 @@ Zablokowano: %1</translation>
     <message>
         <source>Text Recognition</source>
         <translation>Rozpoznawanie tekstu</translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation>Nie rozpoznano tekstu: %1</translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation>Rozpoznawanie tekstu na stronie %1 z %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation>
+            <numerusform>Rozpoznano tekst na %n stronie i dodano go jako warstwy tekstowe nad skanem, w grupie Rozpoznany tekst.</numerusform>
+            <numerusform>Rozpoznano tekst na %n stronach i dodano go jako warstwy tekstowe nad każdym skanem, w grupie Rozpoznany tekst.</numerusform>
+            <numerusform>Rozpoznano tekst na %n stronach i dodano go jako warstwy tekstowe nad każdym skanem, w grupie Rozpoznany tekst.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation>
+            <numerusform>Rozpoznano tekst na %n stronie. Skan jest ukryty pod swoją grupą Rozpoznany tekst; pokaż warstwę skanu, aby zobaczyć go ponownie.</numerusform>
+            <numerusform>Rozpoznano tekst na %n stronach. Każdy skan jest ukryty pod swoją grupą Rozpoznany tekst; pokaż warstwę skanu, aby zobaczyć go ponownie.</numerusform>
+            <numerusform>Rozpoznano tekst na %n stronach. Każdy skan jest ukryty pod swoją grupą Rozpoznany tekst; pokaż warstwę skanu, aby zobaczyć go ponownie.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation>
+            <numerusform>Rozpoznano tekst na %n stronie. Znajduje się w ukrytej grupie Rozpoznany tekst tej strony.</numerusform>
+            <numerusform>Rozpoznano tekst na %n stronach. Znajduje się w ukrytej grupie Rozpoznany tekst każdej strony.</numerusform>
+            <numerusform>Rozpoznano tekst na %n stronach. Znajduje się w ukrytej grupie Rozpoznany tekst każdej strony.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation>Rozpoznawanie tekstu zatrzymano po %1 z %2 stron.</translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation>Rozpoznawanie tekstu nie powiodło się na stronie %1 z %2: %3</translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation>Nie rozpoznano tekstu: każda strona ma już edytowalny tekst.</translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
+        <translation>Na stronach bez własnego tekstu nie rozpoznano tekstu.</translation>
     </message>
 </context>
 <context>

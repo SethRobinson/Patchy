@@ -1649,6 +1649,13 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     // Recognize Text with no engine (the suite's default): its "nothing available" note.
     grab_dialog(QStringLiteral("recognizeTextDialog"), "recognize_text");
     (void)patchy::ui::request_recognize_text(nullptr, {});
+    // Its Import PDF form: no Read row, the three results.
+    grab_dialog(QStringLiteral("pdfImportOcrOptionsDialog"), "pdf_import_ocr_options");
+    {
+      patchy::ui::RecognizeTextDialogContext import_options;
+      import_options.purpose = patchy::ui::RecognizeTextPurpose::PdfImport;
+      (void)patchy::ui::request_recognize_text(nullptr, import_options);
+    }
     // The color picker is a top-level widget, not a dialog.
     patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));
     picker.show();
@@ -1676,7 +1683,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 50);
+  CHECK(captured == 52);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

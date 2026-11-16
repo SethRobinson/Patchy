@@ -362,7 +362,7 @@ std::vector<patchy::test::TestCase> ocr_ui_tests() {
        ui_ocr_windows_engine_reads_a_tall_page_in_bands_if_available},
   };
   // The other text recognition groups (ocr_test_support.hpp).
-  for (auto* group : {ocr_layers_ui_tests, ocr_command_ui_tests}) {
+  for (auto* group : {ocr_layers_ui_tests, ocr_command_ui_tests, pdf_import_ocr_ui_tests}) {
     auto more = group();
     tests.insert(tests.end(), std::make_move_iterator(more.begin()), std::make_move_iterator(more.end()));
   }

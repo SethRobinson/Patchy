@@ -3,6 +3,7 @@
 #include "core/document.hpp"
 
 #include "core/artboard.hpp"
+#include "ui/recognize_text_dialog.hpp"
 
 #include <QSize>
 #include <QString>
@@ -101,6 +102,11 @@ struct PdfImportResult {
   // progress dialog was up. The MainWindow's progress for the rest of the open follows
   // without a pause when that was long enough to notice.
   qint64 import_ms{0};
+  // Set when the dialog's "Recognize text on scanned pages (OCR)" was ticked: what the
+  // MainWindow makes of the text on the pages that have no text of their own
+  // (recognize_imported_pdf_pages).
+  // Never set by the non-interactive load: nothing recognizes without the user asking.
+  std::optional<RecognizeTextChoice> ocr;
 };
 
 // The artboard grid "Artboards in one document" lays `pages` pages out on (columns x rows):
@@ -158,6 +164,8 @@ inline constexpr std::string_view kPdfDesktopOnlyMarker = "[pdf-desktop-only]";
 struct PdfImportDialogStart {
   std::vector<int> pages;
   QString password;
+  // The Type tool's font, for the Font row of the text recognition options.
+  QString type_tool_family;
 };
 
 // The Import PDF dialog: page thumbnails with multi-select, target resolution, annotation

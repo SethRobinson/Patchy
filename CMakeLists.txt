@@ -2808,6 +2808,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/ocr_ui_tests.cpp
       tests/ui/ocr_layers_tests.cpp
       tests/ui/ocr_command_tests.cpp
+      tests/ui/pdf_import_ocr_tests.cpp
       tests/ui/pdf_viewer_tests.cpp
       tests/ui/pdf_viewer_links_tests.cpp
       tests/ui/pdf_viewer_select_tests.cpp

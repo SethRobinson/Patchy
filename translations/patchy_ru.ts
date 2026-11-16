@@ -16297,6 +16297,38 @@ Do you want to replace it?</source>
         <source>Recognize</source>
         <translation>Распознать</translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation>Распознавать текст на отсканированных страницах (OCR)</translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation>Параметры...</translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation>Текстовые слои поверх скана</translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation>Текстовые слои, скан скрыт</translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation>Скрытые текстовые слои, страница без изменений</translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation>Параметры распознавания текста</translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation>Распознанный текст:</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation>Читает текст на каждой странице, где нет собственного редактируемого текста (отсканированные страницы и все страницы при выборе «Сведенное изображение на странице»), и добавляет его в виде текстовых слоёв.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36847,6 +36879,54 @@ Locked: %1</source>
     <message>
         <source>Text Recognition</source>
         <translation>Распознавание текста</translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation>Текст не распознан: %1</translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation>Распознавание текста на странице %1 из %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation>
+            <numerusform>Текст распознан на %n странице и добавлен в виде текстовых слоёв поверх скана в группу «Распознанный текст».</numerusform>
+            <numerusform>Текст распознан на %n страницах и добавлен в виде текстовых слоёв поверх каждого скана в группу «Распознанный текст».</numerusform>
+            <numerusform>Текст распознан на %n страницах и добавлен в виде текстовых слоёв поверх каждого скана в группу «Распознанный текст».</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation>
+            <numerusform>Текст распознан на %n странице. Скан скрыт под группой «Распознанный текст»; покажите слой скана, чтобы снова его увидеть.</numerusform>
+            <numerusform>Текст распознан на %n страницах. Каждый скан скрыт под своей группой «Распознанный текст»; покажите слой скана, чтобы снова его увидеть.</numerusform>
+            <numerusform>Текст распознан на %n страницах. Каждый скан скрыт под своей группой «Распознанный текст»; покажите слой скана, чтобы снова его увидеть.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation>
+            <numerusform>Текст распознан на %n странице. Он находится в скрытой группе «Распознанный текст» этой страницы.</numerusform>
+            <numerusform>Текст распознан на %n страницах. Он находится в скрытой группе «Распознанный текст» каждой страницы.</numerusform>
+            <numerusform>Текст распознан на %n страницах. Он находится в скрытой группе «Распознанный текст» каждой страницы.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation>Распознавание текста остановлено после %1 из %2 страниц.</translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation>Не удалось распознать текст на странице %1 из %2: %3</translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation>Текст не распознан: на каждой странице уже есть редактируемый текст.</translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
+        <translation>На страницах без собственного текста текст не распознан.</translation>
     </message>
 </context>
 <context>

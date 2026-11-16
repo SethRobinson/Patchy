@@ -16185,6 +16185,38 @@ Do you want to replace it?</source>
         <source>Recognize</source>
         <translation>识别</translation>
     </message>
+    <message>
+        <source>Recognize text on scanned pages (OCR)</source>
+        <translation>识别扫描页面上的文字 (OCR)</translation>
+    </message>
+    <message>
+        <source>Options...</source>
+        <translation>选项...</translation>
+    </message>
+    <message>
+        <source>Text layers over the scan</source>
+        <translation>扫描件上方的文字图层</translation>
+    </message>
+    <message>
+        <source>Text layers, scan hidden</source>
+        <translation>文字图层，隐藏扫描件</translation>
+    </message>
+    <message>
+        <source>Hidden text layers, page unchanged</source>
+        <translation>隐藏的文字图层，页面不变</translation>
+    </message>
+    <message>
+        <source>Text Recognition Options</source>
+        <translation>文字识别选项</translation>
+    </message>
+    <message>
+        <source>Recognized text:</source>
+        <translation>已识别的文字：</translation>
+    </message>
+    <message>
+        <source>Reads the text on every page that has no editable text of its own (scanned pages, and every page with &quot;Flattened image per page&quot;) and adds it as text layers.</source>
+        <translation>读取每个没有可编辑文字的页面（扫描页面，以及选择“每页一个拼合图像”时的所有页面）上的文字，并将其添加为文字图层。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -36623,6 +36655,48 @@ Locked: %1</source>
     <message>
         <source>Text Recognition</source>
         <translation>文字识别</translation>
+    </message>
+    <message>
+        <source>No text was recognized: %1</source>
+        <translation>未识别到文字：%1</translation>
+    </message>
+    <message>
+        <source>Recognizing text on page %1 of %2</source>
+        <translation>正在识别第 %1 页（共 %2 页）的文字</translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s) and added as text layers over each scan, in a Recognized Text group.</source>
+        <translation>
+            <numerusform>已在 %n 页上识别出文字，并作为每个扫描件上方的文字图层添加到“已识别的文字”组中。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). Each scan is hidden under its Recognized Text group; show the scan layer to see it again.</source>
+        <translation>
+            <numerusform>已在 %n 页上识别出文字。每个扫描件都隐藏在其“已识别的文字”组下方；显示扫描件图层即可再次看到它。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Text was recognized on %n page(s). It is in each page&apos;s hidden Recognized Text group.</source>
+        <translation>
+            <numerusform>已在 %n 页上识别出文字。文字位于每页隐藏的“已识别的文字”组中。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Text recognition stopped after %1 of %2 pages.</source>
+        <translation>文字识别在 %2 页中的第 %1 页后停止。</translation>
+    </message>
+    <message>
+        <source>Text recognition failed on page %1 of %2: %3</source>
+        <translation>第 %1 页（共 %2 页）的文字识别失败：%3</translation>
+    </message>
+    <message>
+        <source>No text was recognized: every page already has editable text.</source>
+        <translation>未识别到文字：每个页面都已有可编辑的文字。</translation>
+    </message>
+    <message>
+        <source>No text was recognized on the pages without text of their own.</source>
+        <translation>未在没有自身文字的页面上识别到文字。</translation>
     </message>
 </context>
 <context>
