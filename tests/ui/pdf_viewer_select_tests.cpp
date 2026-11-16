@@ -374,6 +374,19 @@ void ui_pdf_viewer_select_text_by_dragging() {
   hover(*view, beside);
   CHECK(pointer_shape(*view) == Qt::ArrowCursor);
   CHECK(!view->has_text_selection());
+  // The gap between two lines of a paragraph is text too: a press there selects.
+  {
+    const QRectF quick = word_area(*viewer, 0, QStringLiteral("quick"));
+    const QRectF lazy = word_area(*viewer, 0, QStringLiteral("lazy"));
+    const QPointF gap(quick.center().x(), (quick.bottom() + lazy.top()) / 2.0);
+    CHECK(gap.y() > quick.bottom() + 1.0 && gap.y() < lazy.top() - 1.0);
+    hover(*view, at(*viewer, 0, gap));
+    CHECK(pointer_shape(*view) == Qt::IBeamCursor);
+    // Two line heights under the last line it is not.
+    const QRectF files = word_area(*viewer, 0, QStringLiteral("files."));
+    hover(*view, at(*viewer, 0, QPointF(files.center().x(), files.bottom() + 2.0 * files.height())));
+    CHECK(pointer_shape(*view) == Qt::ArrowCursor);
+  }
 
   // Inside a line: from the first letter of one word to the last letter of another.
   drag(*view, word_start(*viewer, 0, QStringLiteral("quick")), word_end(*viewer, 0, QStringLiteral("fox")));

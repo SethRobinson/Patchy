@@ -33,6 +33,10 @@ constexpr int kWordWindow = 48;
 constexpr int kWordReach = 96;
 // Qt PDF looks for a character within 8 points of a point (CharacterHitTolerance / 2).
 constexpr double kHitReach = 8.0;
+// A line piece is the height of its letters. The pointer counts as on the line this share
+// of that height above and below it too, so the gaps between the lines of a paragraph are
+// text (a press there selects) and the wider gap between paragraphs is not.
+constexpr double kLineGapShare = 0.35;
 
 bool is_word_character(char32_t c) {
   return QChar::isLetterOrNumber(c) || QChar::isMark(c) || c == U'_';
@@ -570,7 +574,12 @@ bool PdfTextSelection::text_at(int page, QPointF point, double slack) const {
     return false;
   }
   for (const QRectF& piece : areas->pieces) {
-    if (piece.adjusted(-slack, -slack, slack, slack).contains(point)) {
+    // The gap belongs to the line along its length; text set down the page has its lines
+    // side by side.
+    const bool down_the_page = piece.height() > 2.0 * piece.width();
+    const double across = slack + (down_the_page ? kLineGapShare * piece.width() : 0.0);
+    const double along = slack + (down_the_page ? 0.0 : kLineGapShare * piece.height());
+    if (piece.adjusted(-across, -along, across, along).contains(point)) {
       return true;
     }
   }

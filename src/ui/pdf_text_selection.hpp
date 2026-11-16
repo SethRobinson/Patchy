@@ -68,8 +68,9 @@ public:
   void request_pages(const std::vector<int>& pages);
   // A page's text areas; nullptr until they are read.
   [[nodiscard]] const PdfPageTextAreas* page_areas(int page) const;
-  // True when `point` is on text of `page`, give or take `slack` points. False while the
-  // page's areas are still being read.
+  // True when `point` is on text of `page`, give or take `slack` points, or in the gap
+  // between two lines of a paragraph (a line counts a share of its height above and below
+  // it). False while the page's areas are still being read.
   [[nodiscard]] bool text_at(int page, QPointF point, double slack) const;
 
   // A click: nothing is selected, and the place is where select_to starts from.
