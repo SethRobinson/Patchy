@@ -1836,6 +1836,58 @@ void ui_pdf_import_builds_one_layer_per_page() {
 #endif
 
 #if defined(PATCHY_HAVE_QT_PDF)
+// The page picker starts with every page selected and page 1 as the current row, so
+// Import with the list untouched opens the whole file.
+void ui_pdf_import_dialog_starts_with_all_pages_selected() {
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_import_all_pages.pdf");
+  QFile::remove(path);
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(two_page_pdf_bytes());
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+
+  auto clicked = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [clicked] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("pdfImportDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* pages = dialog->findChild<QListWidget*>(QStringLiteral("pdfImportPagesList"));
+    auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportResolutionCombo"));
+    auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportModeCombo"));
+    auto* pages_target = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportPagesTargetCombo"));
+    auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
+    if (pages == nullptr || resolution == nullptr || mode == nullptr || pages_target == nullptr ||
+        import_button == nullptr) {
+      return false;
+    }
+    CHECK(pages->count() == 2);
+    CHECK(pages->selectedItems().size() == 2);
+    CHECK(pages->currentRow() == 0);
+    pages_target->setCurrentIndex(std::max(0, pages_target->findData(QStringLiteral("documents"))));
+    mode->setCurrentIndex(std::max(0, mode->findData(QStringLiteral("flatten"))));
+    resolution->setCurrentText(QStringLiteral("72"));
+    // Changing the options keeps the selection.
+    CHECK(pages->selectedItems().size() == 2);
+    CHECK(import_button->isEnabled());
+    import_button->click();
+    *clicked = true;
+    return true;
+  };
+  drive_modal_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  CHECK(*clicked);
+  // Both pages opened, each as its own document.
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 2);
+}
+#endif
+
+#if defined(PATCHY_HAVE_QT_PDF)
 void ui_pdf_import_dialog_opens_selected_pages() {
   const auto path = QStringLiteral("test-artifacts/ui_pdf_import_dialog.pdf");
   QFile::remove(path);
@@ -2177,9 +2229,16 @@ void ui_pdf_local_brochure_editable_import_composites_if_available() {
     auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportResolutionCombo"));
     auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportModeCombo"));
     auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
-    if (resolution == nullptr || mode == nullptr || import_button == nullptr) {
+    auto* pages = dialog->findChild<QListWidget*>(QStringLiteral("pdfImportPagesList"));
+    auto* target = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportPagesTargetCombo"));
+    if (resolution == nullptr || mode == nullptr || import_button == nullptr || pages == nullptr ||
+        target == nullptr || pages->count() == 0) {
       return false;
     }
+    // The dialog starts with every page selected; this test reads page 1 as one document.
+    pages->clearSelection();
+    pages->item(0)->setSelected(true);
+    target->setCurrentIndex(std::max(0, target->findData(QStringLiteral("documents"))));
     mode->setCurrentIndex(std::max(0, mode->findData(QStringLiteral("editable"))));
     resolution->setCurrentText(QStringLiteral("96"));
     import_button->click();
@@ -2611,6 +2670,9 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part2() {
 #endif
 #if defined(PATCHY_HAVE_QT_PDF)
       {"ui_pdf_import_builds_one_layer_per_page", ui_pdf_import_builds_one_layer_per_page},
+#endif
+#if defined(PATCHY_HAVE_QT_PDF)
+      {"ui_pdf_import_dialog_starts_with_all_pages_selected", ui_pdf_import_dialog_starts_with_all_pages_selected},
 #endif
 #if defined(PATCHY_HAVE_QT_PDF)
       {"ui_pdf_import_dialog_opens_selected_pages", ui_pdf_import_dialog_opens_selected_pages},

@@ -677,23 +677,20 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   QObject::connect(&dialog, &QDialog::finished, thumbnail_timer, &QTimer::stop);
   thumbnail_timer->start();
   if (pages_list->count() > 0) {
-    // The viewer's Edit... starts on the page or spread it showed.
-    bool selected = false;
+    // Every page starts selected: importing a PDF usually means all of it, and one click
+    // narrows the choice. The viewer's Edit... puts the keyboard on the page it showed
+    // (the current row, in view) without narrowing the selection: a plain setCurrentRow
+    // would select that row alone.
+    pages_list->selectAll();
+    int current_row = 0;
     for (const int page : start.pages) {
-      if (auto* item = pages_list->item(page); item != nullptr) {
-        if (!selected) {
-          pages_list->setCurrentRow(page);
-        }
-        item->setSelected(true);
-        selected = true;
+      if (pages_list->item(page) != nullptr) {
+        current_row = page;
+        break;
       }
     }
-    if (!selected) {
-      pages_list->item(0)->setSelected(true);
-      pages_list->setCurrentRow(0);
-    } else {
-      pages_list->scrollToItem(pages_list->currentItem());
-    }
+    pages_list->setCurrentRow(current_row, QItemSelectionModel::NoUpdate);
+    pages_list->scrollToItem(pages_list->item(current_row));
   }
   // Never narrower than its rows (thumbnail and "Page N", measured with the list's own
   // font and style) plus the scroll bar. The list is the row's stretch item, and a box

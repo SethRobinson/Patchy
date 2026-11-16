@@ -26,7 +26,7 @@ Related documents:
 
 ## Edit...
 
-`pdfViewerEditButton` calls `import_pdf_pages_from_viewer`: it sets `pdf_import_start_` (pages = the current row's pages, the password) and `pdf_import_dialog_parent_` (the viewer, so the dialog opens over it), then `open_document_path(path, LoadCopy, PdfOpen::Import)`. `run_pdf_import_dialog` preselects those pages. Success is "the active session changed"; the viewer then closes and the main window is raised. Cancel keeps the viewer.
+`pdfViewerEditButton` calls `import_pdf_pages_from_viewer`: it sets `pdf_import_start_` (pages = the current row's pages, the password) and `pdf_import_dialog_parent_` (the viewer, so the dialog opens over it), then `open_document_path(path, LoadCopy, PdfOpen::Import)`. `run_pdf_import_dialog` selects every page and starts on the first of those. Success is "the active session changed"; the viewer then closes and the main window is raised. Cancel keeps the viewer.
 
 ## View
 

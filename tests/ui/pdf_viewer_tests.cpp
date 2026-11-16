@@ -211,8 +211,8 @@ void ui_pdf_viewer_opens_pdf_files() {
   MainWindowTestAccess::open_document_path_as_user(window, path);
   CHECK(window.findChildren<PdfViewerWindow*>().size() == 1);
 
-  // Edit...: the Import PDF dialog starts on the viewer's page and opens it for editing;
-  // the viewer then closes.
+  // Edit...: the Import PDF dialog starts with every page selected and the viewer's page
+  // as the current row, in view; the chosen page opens for editing and the viewer closes.
   viewer->page_view()->go_to_page(2);
   CHECK(viewer->page_view()->current_page() == 2);
   bool saw_dialog = false;
@@ -230,8 +230,16 @@ void ui_pdf_viewer_opens_pdf_files() {
       dialog.reject();
       return;
     }
-    const auto selected = pages->selectedItems();
-    CHECK(selected.size() == 1 && pages->row(selected.front()) == 2);
+    CHECK(pages->selectedItems().size() == 5);
+    CHECK(pages->currentRow() == 2);
+    if (auto* current = pages->item(2)) {
+      CHECK(pages->viewport()->rect().intersects(pages->visualItemRect(current)));
+    }
+    // This test opens the viewer's page alone.
+    pages->clearSelection();
+    if (auto* current = pages->item(2)) {
+      current->setSelected(true);
+    }
     mode->setCurrentIndex(std::max(0, mode->findData(QStringLiteral("flatten"))));
     target->setCurrentIndex(std::max(0, target->findData(QStringLiteral("documents"))));
     resolution->setCurrentText(QStringLiteral("72"));

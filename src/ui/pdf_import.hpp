@@ -151,9 +151,10 @@ inline constexpr std::string_view kPdfDesktopOnlyMarker = "[pdf-desktop-only]";
 [[nodiscard]] std::optional<PdfImportResult> load_pdf_document(const QString& path, const PdfImportOptions& options,
                                                                const QString& password, QString* error);
 
-// How the PDF viewer's Edit... starts the Import PDF dialog (docs/pdf-viewer.md): the pages
-// to select (the viewer's page or spread; empty selects page 1) and the password that opened
-// the file, so it is not asked for twice.
+// How the PDF viewer's Edit... starts the Import PDF dialog (docs/pdf-viewer.md): the page
+// the list starts on (the first of the viewer's page or spread becomes the current row,
+// scrolled into view; empty means page 1) and the password that opened the file, so it is
+// not asked for twice. Every page starts selected either way.
 struct PdfImportDialogStart {
   std::vector<int> pages;
   QString password;
