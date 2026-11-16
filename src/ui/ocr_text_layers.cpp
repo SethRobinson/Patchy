@@ -277,7 +277,7 @@ QString recognized_text_layer_name(const QString& text) {
 QColor sampled_text_color(const QImage& source, const QRectF& box) {
   const QRect rect = clamped_rect(source, box);
   if (source.format() != QImage::Format_RGBA8888 || rect.width() < 2 || rect.height() < 2) {
-    return QColor(Qt::black);
+    return QColor(Qt::black);  // color-literal-ok: text color of a document layer
   }
   const auto background = ring_median(source, rect);
   // At most about 20,000 samples on an even grid: enough for a colour, cheap on a headline.
@@ -294,7 +294,7 @@ QColor sampled_text_color(const QImage& source, const QRectF& box) {
     }
   }
   if (samples.empty()) {
-    return QColor(Qt::black);
+    return QColor(Qt::black);  // color-literal-ok: text color of a document layer
   }
   const auto fifth = samples.begin() + static_cast<std::ptrdiff_t>(samples.size() - std::max<std::size_t>(1, samples.size() / 5));
   std::nth_element(samples.begin(), fifth, samples.end(),
@@ -304,7 +304,7 @@ QColor sampled_text_color(const QImage& source, const QRectF& box) {
           ->distance;
   // Nothing stands out by 24 levels a channel: the box holds no text Patchy can see.
   if (farthest < 3 * 24 * 24) {
-    return QColor(Qt::black);
+    return QColor(Qt::black);  // color-literal-ok: text color of a document layer
   }
   std::array<long long, 3> sum{0, 0, 0};
   long long count = 0;

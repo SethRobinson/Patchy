@@ -42,7 +42,7 @@ struct OcrLayerStyle {
   // Size, colour and slant from the image. Off: `size` and `color` as given, upright.
   bool match_style{true};
   int size{36};
-  QColor color{Qt::black};
+  QColor color{Qt::black};  // color-literal-ok: text color of a document layer
   // A colour the caller fixed (a script's `color`), used even while matching the rest.
   std::optional<QColor> fixed_color;
 };
