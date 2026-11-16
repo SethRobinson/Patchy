@@ -3044,6 +3044,7 @@ void MainWindow::finish_color_panel_drag() {
   }
   if (gradient_controls_refresh_pending_) {
     refresh_gradient_controls_from_canvas();
+    sync_shape_appearance_panel();  // held back with it while the drag ran
   }
 }
 

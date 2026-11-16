@@ -2391,6 +2391,8 @@ void MainWindow::refresh_color_buttons() {
     gradient_controls_refresh_pending_ = true;
   } else {
     refresh_gradient_controls_from_canvas();
+    // The Shape Appearance window's Color rows show the two tool colors (GitHub #565).
+    sync_shape_appearance_panel();
   }
 }
 

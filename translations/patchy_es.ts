@@ -16121,6 +16121,10 @@ Do you want to replace it?</source>
         <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
         <translation>Olvida el valor predeterminado que guardó para este efecto y recupera los ajustes propios de Patchy</translation>
     </message>
+    <message>
+        <source>Pick...</source>
+        <translation>Elegir...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

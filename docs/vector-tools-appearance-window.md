@@ -31,7 +31,9 @@ Rules, each pinned in `tests/ui/shape_appearance_panel_tests.cpp`:
 - **Following the selection.** `sync()` runs from `refresh_layer_controls`,
   `refresh_options_bar` and when the edit lock is taken or released. The target is
   `editable_selected_shape_layer_ids()`. The page key is the session id, the ids, each layer's
-  render and content revision, the selected count and the field units; a changed key builds a
+  render and content revision, the selected count, the field units and the foreground and
+  background colors (the Color rows' first two swatches and the gradient presets show them;
+  `refresh_color_buttons` calls `sync()` too, after a Color panel drag ends); a changed key builds a
   new page from the layers (the rows depend on the target: gradient rows, a line's rows, the
   batch summary, the Fill Layer Settings title), keeps the scroll position, and grows the window
   only when the page needs it. Fields are never refilled in place.

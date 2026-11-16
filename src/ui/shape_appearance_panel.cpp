@@ -50,7 +50,9 @@ bool ShapeAppearanceTarget::same_layers_as(const ShapeAppearanceTarget& other) c
 }
 
 bool ShapeAppearanceTarget::same_page_as(const ShapeAppearanceTarget& other) const {
-  return same_layers_as(other) && revisions == other.revisions && same_units(options.units, other.options.units);
+  // The tool colors too: the Color rows' first two swatches and the gradient presets show them.
+  return same_layers_as(other) && revisions == other.revisions && same_units(options.units, other.options.units) &&
+         options.foreground == other.options.foreground && options.background == other.options.background;
 }
 
 ShapeAppearancePanel::ShapeAppearancePanel(QWidget* owner, ShapeAppearancePanelHost host)
@@ -263,6 +265,8 @@ void ShapeAppearancePanel::build_page(ShapeAppearanceTarget target) {
   auto options = std::move(target.options);
   target.options = {};
   target.options.units = options.units;  // the page key compares them
+  target.options.foreground = options.foreground;
+  target.options.background = options.background;
   options.mode = ShapeAppearanceBodyMode::Live;
   options.batch = &target.context;
   options.show_gradient_handles = gradient_handles_;

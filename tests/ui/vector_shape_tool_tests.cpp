@@ -3500,7 +3500,9 @@ void ui_shape_appearance_gradient_rows_indent() {
     };
     CHECK(left(fill_kind) == left(width->parentWidget()));
     CHECK(left(fill_kind) == left(stroke_paint));
-    CHECK(x_of("shapeFillColorButton") == left(fill_kind));
+    // The Color row starts with its swatches (GitHub #565); Pick... follows them.
+    CHECK(x_of("shapeFillColorRow") == left(fill_kind));
+    CHECK(x_of("shapeFillColorButton") > left(fill_kind));
     CHECK(x_of("shapeFillGradientCombo") == x_of("shapeStrokeGradientCombo"));
     CHECK(x_of("shapeGradientTypeCombo") == x_of("shapeStrokeGradientTypeCombo"));
     // GitHub issue 618: each angle field has its round dial in its row (before
@@ -3547,10 +3549,11 @@ void ui_shape_appearance_gradient_rows_indent() {
 }
 
 // GitHub #713: an angle row reads dial, field, - / +, the order Layer Style's
-// angle rows use. The dial starts the row, the steppers stay in the column the
-// Scale row keeps its steppers in, the label, dial, field and steppers share
-// one center line, and Tab reaches the dial before the field. Covers the
-// gradient and the pattern angle of both Fill and Stroke.
+// angle rows use, with a slider between the dial and the field since GitHub
+// #565. The dial starts the row, the steppers stay in the column the Scale row
+// keeps its steppers in, the label, dial, slider, field and steppers share one
+// center line, and Tab reaches the dial, then the slider, then the field.
+// Covers the gradient and the pattern angle of both Fill and Stroke.
 void ui_shape_appearance_angle_rows_put_the_dial_before_the_field() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -3582,23 +3585,26 @@ void ui_shape_appearance_angle_rows_put_the_dial_before_the_field() {
           row->findChild<patchy::ui::AngleDial*>(patchy::ui::angle_dial_object_name(angle->objectName()));
       auto* decrease = row->findChild<QWidget*>(angle->objectName() + QStringLiteral("DecreaseButton"));
       auto* increase = row->findChild<QWidget*>(angle->objectName() + QStringLiteral("IncreaseButton"));
+      auto* slider = row->findChild<QSlider*>();
       auto* scale_increase =
           scale->parentWidget()->findChild<QWidget*>(scale->objectName() + QStringLiteral("IncreaseButton"));
       auto* label = inner != nullptr ? qobject_cast<QLabel*>(inner->labelForField(row)) : nullptr;
       CHECK(inner != nullptr && dial != nullptr && decrease != nullptr && increase != nullptr &&
-            scale_increase != nullptr && label != nullptr);
+            slider != nullptr && scale_increase != nullptr && label != nullptr);
       if (inner == nullptr || dial == nullptr || decrease == nullptr || increase == nullptr ||
-          scale_increase == nullptr || label == nullptr) {
+          slider == nullptr || scale_increase == nullptr || label == nullptr) {
         return;
       }
       const QRect row_rect = rect_in_dialog(row);
       const QRect dial_rect = rect_in_dialog(dial);
+      const QRect slider_rect = rect_in_dialog(slider);
       const QRect field_rect = rect_in_dialog(angle);
       const QRect decrease_rect = rect_in_dialog(decrease);
       const QRect increase_rect = rect_in_dialog(increase);
-      // Left to right: dial, field, -, +.
+      // Left to right: dial, slider, field, -, +.
       CHECK(dial_rect.left() == row_rect.left());
-      CHECK(dial_rect.right() < field_rect.left());
+      CHECK(dial_rect.right() < slider_rect.left());
+      CHECK(slider_rect.right() < field_rect.left());
       CHECK(field_rect.right() < decrease_rect.left());
       CHECK(decrease_rect.right() < increase_rect.left());
       // The steppers keep the column the Scale row's steppers sit in.
@@ -3607,18 +3613,24 @@ void ui_shape_appearance_angle_rows_put_the_dial_before_the_field() {
       const int row_center = row_rect.center().y();
       const auto centered = [row_center](const QRect& rect) { return std::abs(rect.center().y() - row_center) <= 1; };
       CHECK(centered(dial_rect));
+      CHECK(centered(slider_rect));
       CHECK(centered(field_rect));
       CHECK(centered(decrease_rect));
       CHECK(centered(increase_rect));
       CHECK(label->isVisibleTo(dialog));
       CHECK(label->alignment().testFlag(Qt::AlignVCenter));
       CHECK(centered(rect_in_dialog(label)));
-      // Tab goes dial, then field, as the row reads.
-      QWidget* next = dial->nextInFocusChain();
-      while (next != nullptr && next != dial &&
-             (!(next->focusPolicy() & Qt::TabFocus) || !next->isVisibleTo(dialog) || !next->isEnabled())) {
-        next = next->nextInFocusChain();
-      }
+      // Tab goes dial, slider, then field, as the row reads.
+      const auto next_stop = [dialog](QWidget* from) {
+        QWidget* next = from->nextInFocusChain();
+        while (next != nullptr && next != from &&
+               (!(next->focusPolicy() & Qt::TabFocus) || !next->isVisibleTo(dialog) || !next->isEnabled())) {
+          next = next->nextInFocusChain();
+        }
+        return next;
+      };
+      CHECK(next_stop(dial) == slider);
+      QWidget* next = next_stop(slider);
       CHECK(next == angle || (next != nullptr && next->focusProxy() == angle));
       ++rows_checked;
     };

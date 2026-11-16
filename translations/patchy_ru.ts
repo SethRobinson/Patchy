@@ -16177,6 +16177,10 @@ Do you want to replace it?</source>
         <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
         <translation>Удаляет сохранённые вами настройки по умолчанию для этого эффекта и возвращает собственные настройки Patchy</translation>
     </message>
+    <message>
+        <source>Pick...</source>
+        <translation>Выбрать...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

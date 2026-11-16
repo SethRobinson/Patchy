@@ -16065,6 +16065,10 @@ Do you want to replace it?</source>
         <source>Forget your saved default for this effect and put back Patchy&apos;s own settings</source>
         <translation>清除您为此效果存储的默认值，并恢复 Patchy 自带的设置</translation>
     </message>
+    <message>
+        <source>Pick...</source>
+        <translation>选择...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

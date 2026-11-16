@@ -52,6 +52,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QHBoxLayout>
 #include <QGuiApplication>
@@ -79,6 +80,11 @@ namespace {
 
 // Shape Appearance pattern rows: the name a picked pattern saves under.
 constexpr int kPatternSavedNameRole = Qt::UserRole + 1;
+
+RgbColor rgb_of(const QColor& color) {
+  return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                  static_cast<std::uint8_t>(color.blue())};
+}
 
 QIcon color_swatch_icon(RgbColor color) {
   QPixmap pixmap(28, 14);
@@ -300,7 +306,231 @@ void save_stroke_style_presets(const std::vector<StrokeStylePreset>& presets) {
   settings.sync();
 }
 
+std::vector<RgbColor> load_shape_recent_colors() {
+  std::vector<RgbColor> colors;
+  const auto names = app_settings().value(QLatin1String(kShapeRecentColorsKey)).toStringList();
+  for (const auto& name : names) {
+    // Only the #rrggbb form this list is written in: QColor would also take color names.
+    const QColor parsed = name.size() == 7 && name.startsWith(QLatin1Char('#')) ? QColor::fromString(name) : QColor();
+    if (!parsed.isValid()) continue;
+    const auto color = rgb_of(parsed);
+    if (std::find(colors.begin(), colors.end(), color) == colors.end()) colors.push_back(color);
+    if (colors.size() >= static_cast<std::size_t>(kShapeRecentColorLimit)) break;
+  }
+  return colors;
+}
+
+std::vector<RgbColor> remember_shape_recent_color(RgbColor color) {
+  auto colors = load_shape_recent_colors();
+  std::erase(colors, color);
+  colors.insert(colors.begin(), color);
+  if (colors.size() > static_cast<std::size_t>(kShapeRecentColorLimit)) {
+    colors.resize(static_cast<std::size_t>(kShapeRecentColorLimit));
+  }
+  QStringList names;
+  for (const auto& entry : colors) names << QColor(entry.red, entry.green, entry.blue).name(QColor::HexRgb);
+  auto settings = app_settings();
+  settings.setValue(QLatin1String(kShapeRecentColorsKey), names);
+  settings.sync();
+  return colors;
+}
+
+std::vector<RgbColor> shape_recent_colors_beside(RgbColor foreground, RgbColor background,
+                                                 const std::vector<RgbColor>& recent) {
+  std::vector<RgbColor> shown;
+  for (const auto& color : recent) {
+    if (color != foreground && color != background) shown.push_back(color);
+  }
+  return shown;
+}
+
 namespace {
+
+// The swatches before a Color row's Pick... button (GitHub #565): the foreground and the
+// background color, a small gap, then the recent colors. One click applies a swatch's color.
+// A swatch is the color (content) in a theme-colored frame that brightens under the pointer;
+// its color rides the patchy.swatchColor property and its tooltip gives the hex value.
+class ColorStripSwatch final : public QAbstractButton {
+public:
+  static constexpr int kSize = 18;
+
+  explicit ColorStripSwatch(QWidget* parent) : QAbstractButton(parent) {
+    setFixedSize(kSize, kSize);
+    setFocusPolicy(Qt::NoFocus);  // the Pick... button is the row's keyboard stop
+    setAttribute(Qt::WA_Hover);
+  }
+
+  void set_color(RgbColor color) {
+    color_ = color;
+    setProperty("patchy.swatchColor", QColor(color.red, color.green, color.blue));
+    update();
+  }
+  [[nodiscard]] RgbColor color() const { return color_; }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    if (!isEnabled()) painter.setOpacity(0.35);
+    painter.setPen(QPen(isEnabled() && (underMouse() || isDown()) ? theme().dlg_focus_border : theme().swatch_border, 1));
+    painter.setBrush(QColor(color_.red, color_.green, color_.blue));
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+  }
+
+private:
+  RgbColor color_{};
+};
+
+class ColorSwatchStrip final : public QWidget {
+public:
+  static constexpr int kSpacing = 2;
+  static constexpr int kGroupGap = 4;  // between the tool colors and the recent ones
+
+  // `name` is the strip's object name; its swatches are <name>Foreground, <name>Background
+  // and <name>Recent0 onward.
+  ColorSwatchStrip(const QString& name, std::function<void(RgbColor)> picked, QWidget* parent)
+      : QWidget(parent), picked_(std::move(picked)) {
+    setObjectName(name);
+    auto* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(kSpacing);
+    foreground_ = add_swatch(name + QStringLiteral("Foreground"));
+    background_ = add_swatch(name + QStringLiteral("Background"));
+    layout->addSpacing(kGroupGap);
+    for (int index = 0; index < kShapeRecentColorLimit; ++index) {
+      recent_.push_back(add_swatch(name + QStringLiteral("Recent%1").arg(index)));
+      recent_.back()->setVisible(false);
+    }
+  }
+
+  // The swatches are made once and only recolored, shown and hidden: a click on one may
+  // change the list it is part of.
+  void set_colors(RgbColor foreground, RgbColor background, const std::vector<RgbColor>& recent) {
+    const auto hex = [](RgbColor color) {
+      return QColor(color.red, color.green, color.blue).name(QColor::HexRgb).toUpper();
+    };
+    const auto show = [&](ColorStripSwatch* swatch, RgbColor color, const QString& tip) {
+      swatch->set_color(color);
+      swatch->setToolTip(tip);
+      swatch->setAccessibleName(tip);
+    };
+    // The tool palette's own wording for the two colors.
+    show(foreground_, foreground,
+         QCoreApplication::translate("patchy::ui::MainWindow", "Foreground color %1").arg(hex(foreground)));
+    show(background_, background,
+         QCoreApplication::translate("patchy::ui::MainWindow", "Background color %1").arg(hex(background)));
+    const auto shown = shape_recent_colors_beside(foreground, background, recent);
+    for (std::size_t index = 0; index < recent_.size(); ++index) {
+      const bool used = index < shown.size();
+      if (used) show(recent_[index], shown[index], hex(shown[index]));
+      recent_[index]->setVisible(used);
+    }
+  }
+
+  // The width the recent swatches not shown now would add.
+  [[nodiscard]] int hidden_room() const {
+    const auto hidden = std::count_if(recent_.begin(), recent_.end(),
+                                      [](const ColorStripSwatch* swatch) { return swatch->isHidden(); });
+    return static_cast<int>(hidden) * (ColorStripSwatch::kSize + kSpacing);
+  }
+
+private:
+  ColorStripSwatch* add_swatch(const QString& name) {
+    auto* swatch = new ColorStripSwatch(this);
+    swatch->setObjectName(name);
+    layout()->addWidget(swatch);
+    QObject::connect(swatch, &QAbstractButton::clicked, this, [this, swatch] {
+      if (picked_) picked_(swatch->color());
+    });
+    return swatch;
+  }
+
+  std::function<void(RgbColor)> picked_;
+  ColorStripSwatch* foreground_{nullptr};
+  ColorStripSwatch* background_{nullptr};
+  std::vector<ColorStripSwatch*> recent_;
+};
+
+// A Color row: the strip, then the Pick... button taking the rest of the row. Its minimum
+// width counts every recent swatch, shown or not, so a color picked later never makes the
+// page wider than it was measured (the page's width is fixed once it is built).
+class ColorSwatchRow final : public QWidget {
+public:
+  ColorSwatchRow(const QString& name, ColorSwatchStrip* strip, QPushButton* button, QWidget* parent)
+      : QWidget(parent), strip_(strip) {
+    setObjectName(name);
+    auto* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+    strip->setParent(this);
+    button->setParent(this);
+    layout->addWidget(strip);
+    layout->addWidget(button, 1);
+  }
+
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    auto size = QWidget::minimumSizeHint();
+    size.rwidth() += strip_->hidden_room();
+    return size;
+  }
+  [[nodiscard]] QSize sizeHint() const override { return QWidget::sizeHint().expandedTo(minimumSizeHint()); }
+
+private:
+  ColorSwatchStrip* strip_;
+};
+
+// A slider before the field of a stepper row (GitHub #565), as the Layer section's Opacity
+// rows have: slider, field, - / +. It moves in whole units over the field's range and
+// follows the field both ways. A typed fraction (a pattern angle of 12.5) stays in the
+// field: the slider shows the nearest step and writes only when it is moved.
+constexpr char kRowSliderProperty[] = "patchy.shapeRowSlider";
+
+double spin_value(const QAbstractSpinBox& field) {
+  if (const auto* integer = qobject_cast<const QSpinBox*>(&field); integer != nullptr) return integer->value();
+  if (const auto* real = qobject_cast<const QDoubleSpinBox*>(&field); real != nullptr) return real->value();
+  return 0.0;
+}
+
+// Moves the field's slider to its value without a signal: after the field changed, and
+// after a load under a QSignalBlocker (as sync_angle_dial does for the dial).
+void sync_row_slider(QAbstractSpinBox& field) {
+  auto* slider = qobject_cast<QSlider*>(field.property(kRowSliderProperty).value<QObject*>());
+  if (slider == nullptr) return;
+  const QSignalBlocker blocker(slider);
+  slider->setValue(static_cast<int>(std::lround(spin_value(field))));
+}
+
+QString row_slider_object_name(QString spin_object_name) {
+  if (spin_object_name.endsWith(QStringLiteral("Spin"))) spin_object_name.chop(4);
+  return spin_object_name + QStringLiteral("Slider");
+}
+
+template <typename Spin, typename Value>
+QSlider* add_row_slider_impl(QWidget* row, Spin* spin) {
+  auto* layout = qobject_cast<QHBoxLayout*>(row->layout());
+  if (layout == nullptr) return nullptr;
+  auto* slider = new QSlider(Qt::Horizontal, row);
+  slider->setObjectName(row_slider_object_name(spin->objectName()));
+  slider->setRange(static_cast<int>(std::ceil(spin->minimum())), static_cast<int>(std::floor(spin->maximum())));
+  slider->setValue(static_cast<int>(std::lround(spin->value())));
+  const int at = layout->indexOf(spin);
+  layout->insertWidget(at, slider, 1);
+  layout->insertSpacing(at + 1, 8 - layout->spacing());
+  layout->setStretchFactor(spin, 0);  // the slider takes the row's spare width
+  spin->setProperty(kRowSliderProperty, QVariant::fromValue(static_cast<QObject*>(slider)));
+  QObject::connect(slider, &QSlider::valueChanged, spin, [spin](int position) {
+    if (static_cast<int>(std::lround(spin->value())) != position) spin->setValue(static_cast<Value>(position));
+  });
+  QObject::connect(spin, qOverload<Value>(&Spin::valueChanged), slider, [spin](Value) { sync_row_slider(*spin); });
+  return slider;
+}
+
+QSlider* add_row_slider(QWidget* row, QSpinBox* spin) {
+  return add_row_slider_impl<QSpinBox, int>(row, spin);
+}
+
+QSlider* add_row_slider(QWidget* row, QDoubleSpinBox* spin) {
+  return add_row_slider_impl<QDoubleSpinBox, double>(row, spin);
+}
 
 struct DialogState {
   ShapeAppearanceSettings settings;
@@ -581,9 +811,9 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     return row;
   };
   // Angle fields get the round AngleDial (GitHub issue 618), which follows the
-  // field both ways. The row reads dial, field, - / + (GitHub #713), the order
-  // Layer Style's angle rows use, so the steppers stay in the column the other
-  // rows keep theirs in; Tab follows that order.
+  // field both ways, and a slider (GitHub #565). The row reads dial, slider,
+  // field, - / + (the dial first since GitHub #713), so the steppers stay in the
+  // column the other rows keep theirs in; Tab follows that order.
   const auto add_angle_row = [&field_rows](QFormLayout* form, const QString& label, auto* spin) {
     auto* row = wrap_spin_with_step_buttons(spin, form->parentWidget(), label);
     field_rows[spin] = row;
@@ -601,7 +831,9 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     row_label->setMinimumHeight(dial->sizeHint().height());
     form->addRow(row_label, row);
     bind_angle_dial(*dial, *spin);
-    QWidget::setTabOrder(dial, spin);
+    auto* slider = add_row_slider(row, spin);
+    QWidget::setTabOrder(dial, slider);
+    QWidget::setTabOrder(slider, spin);
     QWidget* previous = spin;
     // `row` has a dependent type in this generic lambda: clang needs the `template` keyword.
     const auto steppers = row->template findChildren<QPushButton*>(Qt::FindDirectChildrenOnly);
@@ -709,6 +941,12 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       QStringLiteral("shapeLayerFillOpacitySlider"), QStringLiteral("shapeLayerFillOpacitySpin"), 0,
       100, static_cast<int>(std::lround(state->settings.fill_opacity * 100.0F)), QStringLiteral("%"), 72,
       /*row_spacing=*/8, /*step_buttons=*/true);
+  // Reset loads the fields under a QSignalBlocker; sync_row_slider then moves these sliders.
+  for (const auto& [spin, slider_name] : {std::pair{layer_opacity_spin, "shapeLayerOpacitySlider"},
+                                          std::pair{layer_fill_opacity_spin, "shapeLayerFillOpacitySlider"}}) {
+    spin->setProperty(kRowSliderProperty, QVariant::fromValue(static_cast<QObject*>(
+                                              layer_group->findChild<QSlider*>(QLatin1String(slider_name)))));
+  }
   QObject::connect(layer_opacity_spin, &QSpinBox::valueChanged, &dialog, [state, notify](int value) {
     state->settings.layer_opacity = static_cast<float>(value) / 100.0F;
     notify({"layer_opacity"});
@@ -1229,11 +1467,42 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   fill_kind_combo->addItem(QObject::tr("Pattern"), static_cast<int>(VectorFillKind::Pattern));
   fill_form->addRow(QObject::tr("Type:"), fill_kind_combo);
 
+  // The Color rows (GitHub #565): swatches of the foreground, the background and the recent
+  // colors, then Pick... for the color dialog. Fill and Stroke show one recent list; a color
+  // applied for good (a swatch clicked, OK in the color dialog) heads it.
+  struct ColorStrips {
+    ColorSwatchStrip* fill{nullptr};
+    ColorSwatchStrip* stroke{nullptr};
+  };
+  const auto color_strips = std::make_shared<ColorStrips>();
+  const auto remember_color = [color_strips, foreground, background](RgbColor color) {
+    const auto recent = remember_shape_recent_color(color);
+    for (auto* strip : {color_strips->fill, color_strips->stroke}) {
+      if (strip != nullptr) strip->set_colors(foreground, background, recent);
+    }
+  };
+
   auto* fill_color_button = new QPushButton(fill_group);
   fill_color_button->setObjectName(QStringLiteral("shapeFillColorButton"));
   fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
-  fill_color_button->setText(QObject::tr("Color..."));
-  auto* fill_color_row = fill_color_button;
+  fill_color_button->setText(QObject::tr("Pick..."));
+  // A solid fill color, from a swatch or the color dialog (its previews too).
+  const auto set_fill_color = [state, notify, fill_color_button](RgbColor color) {
+    state->settings.fill.kind = VectorFillKind::Solid;
+    state->settings.fill.color = color;
+    state->stroke_paint_touched = true;
+    fill_color_button->setIcon(color_swatch_icon(color));
+    notify({"fill.color"});
+  };
+  color_strips->fill = new ColorSwatchStrip(
+      QStringLiteral("shapeFillColorSwatches"),
+      [set_fill_color, remember_color](RgbColor color) {
+        set_fill_color(color);
+        remember_color(color);
+      },
+      fill_group);
+  auto* fill_color_row =
+      new ColorSwatchRow(QStringLiteral("shapeFillColorRow"), color_strips->fill, fill_color_button, fill_group);
   fill_form->addRow(QObject::tr("Color:"), fill_color_row);
 
   // Both the fill and the stroke paint offer the same preset lists, their
@@ -1476,8 +1745,8 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   density_spin->setValue(static_cast<int>(std::lround(state->settings.density * 100.0 / 255.0)));
   density_spin->setToolTip(QObject::tr("Below 100% the fill, or the stroke's color when the shape has a stroke, shows over the "
                                        "whole canvas, like Photoshop's vector mask density"));
-  configure_dialog_spinbox(density_spin, 80);
-  add_spin_row(edge_form, QObject::tr("Density:"), density_spin);
+  configure_dialog_spinbox(density_spin, 72);  // the Layer rows' field width: one slider column
+  add_row_slider(add_spin_row(edge_form, QObject::tr("Density:"), density_spin), density_spin);
   // Density below 100% shows the fill over the whole canvas, not only at the shape
   // (Photoshop's vector mask density on a shape layer, and what the file stores). The note
   // says so while that is the case (local-051 follow-up 2: it reads as a bug otherwise).
@@ -1564,8 +1833,8 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   stroke_opacity_spin->setRange(0, 100);
   stroke_opacity_spin->setSuffix(percent_suffix());
   stroke_opacity_spin->setValue(static_cast<int>(std::lround(state->settings.stroke.opacity * 100.0)));
-  configure_dialog_spinbox(stroke_opacity_spin, 80);
-  add_spin_row(stroke_form, QObject::tr("Opacity:"), stroke_opacity_spin);
+  configure_dialog_spinbox(stroke_opacity_spin, 72);
+  add_row_slider(add_spin_row(stroke_form, QObject::tr("Opacity:"), stroke_opacity_spin), stroke_opacity_spin);
   QObject::connect(stroke_opacity_spin, &QSpinBox::valueChanged, &dialog, [state, notify](int value) {
     state->settings.stroke.opacity = value / 100.0;
     notify({"stroke.opacity"});
@@ -1584,8 +1853,30 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   auto* stroke_color_button = new QPushButton(stroke_group);
   stroke_color_button->setObjectName(QStringLiteral("shapeStrokeColorButton"));
   stroke_color_button->setIcon(color_swatch_icon(state->settings.stroke.content.color));
-  stroke_color_button->setText(QObject::tr("Color..."));
-  stroke_form->addRow(QObject::tr("Color:"), stroke_color_button);
+  stroke_color_button->setText(QObject::tr("Pick..."));
+  const auto set_stroke_color = [state, notify, stroke_color_button](RgbColor color) {
+    state->settings.stroke.content.kind = VectorFillKind::Solid;
+    state->settings.stroke.content.color = color;
+    state->stroke_paint_touched = true;
+    stroke_color_button->setIcon(color_swatch_icon(color));
+    notify({"stroke.content.color"});
+  };
+  color_strips->stroke = new ColorSwatchStrip(
+      QStringLiteral("shapeStrokeColorSwatches"),
+      [set_stroke_color, remember_color](RgbColor color) {
+        set_stroke_color(color);
+        remember_color(color);
+      },
+      stroke_group);
+  auto* stroke_color_row = new ColorSwatchRow(QStringLiteral("shapeStrokeColorRow"), color_strips->stroke,
+                                              stroke_color_button, stroke_group);
+  stroke_form->addRow(QObject::tr("Color:"), stroke_color_row);
+  field_rows[stroke_color_button] = stroke_color_row;
+  {
+    const auto recent = load_shape_recent_colors();
+    color_strips->fill->set_colors(foreground, background, recent);
+    color_strips->stroke->set_colors(foreground, background, recent);
+  }
 
   auto* stroke_gradient_combo = add_gradient_row(stroke_form, stroke_group, true);
 
@@ -2014,6 +2305,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     gradient_type_combo->setCurrentIndex(std::max(0, type_index));
     gradient_angle_spin->setValue(static_cast<int>(std::lround(gradient.angle_degrees)));
     sync_angle_dial(*gradient_angle_spin);
+    sync_row_slider(*gradient_angle_spin);
     gradient_scale_spin->setValue(
         std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
     gradient_reverse_check->setChecked(gradient.reverse);
@@ -2040,6 +2332,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
           0, stroke_gradient_type_combo->findData(static_cast<int>(gradient.type))));
       stroke_gradient_angle_spin->setValue(static_cast<int>(std::lround(gradient.angle_degrees)));
       sync_angle_dial(*stroke_gradient_angle_spin);
+      sync_row_slider(*stroke_gradient_angle_spin);
       stroke_gradient_scale_spin->setValue(
           std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
       stroke_gradient_reverse_check->setChecked(gradient.reverse);
@@ -2058,6 +2351,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       QSignalBlocker angle_blocker(stroke_pattern_angle_spin);
       stroke_pattern_angle_spin->setValue(content.pattern_angle_degrees);
       sync_angle_dial(*stroke_pattern_angle_spin);
+      sync_row_slider(*stroke_pattern_angle_spin);
       QSignalBlocker offset_x_blocker(stroke_pattern_offset_x_spin);
       stroke_pattern_offset_x_spin->setValue(content.pattern_phase_x);
       QSignalBlocker offset_y_blocker(stroke_pattern_offset_y_spin);
@@ -2123,6 +2417,8 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
         static_cast<int>(std::lround(state->settings.fill.pattern_scale * 100.0)), 1, 1000));
     QSignalBlocker pattern_angle_blocker(pattern_angle_spin);
     pattern_angle_spin->setValue(state->settings.fill.pattern_angle_degrees);
+    sync_angle_dial(*pattern_angle_spin);
+    sync_row_slider(*pattern_angle_spin);
     QSignalBlocker pattern_offset_x_blocker(pattern_offset_x_spin);
     pattern_offset_x_spin->setValue(state->settings.fill.pattern_phase_x);
     QSignalBlocker pattern_offset_y_blocker(pattern_offset_y_spin);
@@ -2136,6 +2432,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
                      : spin == layer_fill_opacity_spin ? static_cast<int>(std::lround(state->settings.fill_opacity * 100.0F))
                      : spin == stroke_opacity_spin ? static_cast<int>(std::lround(state->settings.stroke.opacity * 100.0))
                      : static_cast<int>(std::lround(state->settings.density * 100.0 / 255.0)));
+      sync_row_slider(*spin);
     }
     {
       QSignalBlocker feather_blocker(feather_spin);
@@ -2150,9 +2447,9 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     sync_stroke_paint_controls();
   };
   sync_all_controls();
-  // The Opacity and Fill Opacity sliders keep a usable width: the box layout
-  // shrinks a column toward its minimum when the other one asks for more, and
-  // a bare QSlider's minimum is a few pixels (issue 552).
+  // Every slider keeps a usable width: the box layout shrinks a column toward
+  // its minimum when the other one asks for more, and a bare QSlider's minimum
+  // is a few pixels (issue 552).
   for (auto* slider : page->findChildren<QSlider*>()) {
     slider->setMinimumWidth(std::max(slider->minimumWidth(), 72));
   }
@@ -2363,15 +2660,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       const auto saved_edits = *edits;
       const auto& current = saved.fill.color;
       bool selected = false;
-      const auto apply_color = [=](QColor color) {
-        state->settings.fill.kind = VectorFillKind::Solid;
-        state->settings.fill.color = RgbColor{
-            static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-            static_cast<std::uint8_t>(color.blue())};
-        state->stroke_paint_touched = true;
-        fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
-        notify({"fill.color"});
-      };
+      const auto apply_color = [=](QColor color) { set_fill_color(rgb_of(color)); };
       const auto chosen = request_patchy_color(
           window_ptr, QColor(current.red, current.green, current.blue), QObject::tr("Shape Fill Color"),
           apply_color, &selected);
@@ -2386,6 +2675,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       if (selected || batch == nullptr) {
         apply_color(*chosen);
       }
+      remember_color(rgb_of(*chosen));
       return true;
     });
   });
@@ -2466,15 +2756,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       const auto saved_edits = *edits;
       const auto& current = saved.stroke.content.color;
       bool selected = false;
-      const auto apply_color = [=](QColor color) {
-        state->settings.stroke.content.kind = VectorFillKind::Solid;
-        state->settings.stroke.content.color = RgbColor{
-            static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-            static_cast<std::uint8_t>(color.blue())};
-        state->stroke_paint_touched = true;
-        stroke_color_button->setIcon(color_swatch_icon(state->settings.stroke.content.color));
-        notify({"stroke.content.color"});
-      };
+      const auto apply_color = [=](QColor color) { set_stroke_color(rgb_of(color)); };
       const auto chosen = request_patchy_color(
           window_ptr, QColor(current.red, current.green, current.blue), QObject::tr("Shape Stroke Color"),
           apply_color, &selected);
@@ -2489,6 +2771,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       if (selected || batch == nullptr) {
         apply_color(*chosen);
       }
+      remember_color(rgb_of(*chosen));
       return true;
     });
   });

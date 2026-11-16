@@ -36,12 +36,42 @@ back to a solid stroke. Saved stroke presets join the built-ins in one Dashes li
 rows are a nested form in their picker row's field column (#552). The right column lines up
 the same way (#679, `align_form_columns`): Fill's and Stroke's forms share one label width, and
 the four nested gradient and pattern forms share another; the fill-only dialog measures Fill alone.
-An angle row (`add_angle_row`, #713) reads dial, field, - / +, as Layer Style's do, so its steppers
-stay in the rows' stepper column; its label is as tall as the dial, which centers the text on the row
-(QFormLayout gives a shorter label 7/4 of its height, near the row's top), and Tab follows that order.
+An angle row (`add_angle_row`, #713) reads dial, slider, field, - / + (the dial first, as Layer
+Style's angle rows), so its steppers stay in the rows' stepper column; its label is as tall as the dial,
+which centers the text on the row (QFormLayout gives a shorter label 7/4 of its height, near the row's
+top), and Tab follows that order.
 `pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
+
+Sliders (#565): Density, the stroke's Opacity and the four angle rows have a slider before the
+field, as the Layer section's Opacity rows do (`add_row_slider`, named after the field:
+`shapeDensitySpin` has `shapeDensitySlider`). The slider covers the field's range in whole units and
+takes the row's spare width; the field keeps the Layer rows' 72 px, so the left column's sliders
+share one column. Field and slider follow each other without an echo: the slider writes the field
+only when it is moved, so a pattern angle typed as 12.5 stays 12.5 with the slider on 13. A field
+loaded under a `QSignalBlocker` (opening, Reset, a paint kind's first values) is followed by
+`sync_row_slider`, as `sync_angle_dial` does for the dial; the Layer rows' sliders are registered
+for it too (Reset used to leave them behind). Every slider on the page has a 72 px minimum width.
+Test: `ui_shape_appearance_rows_have_sliders_that_follow_their_fields`.
+
+Color rows (#565): Fill's and Stroke's Color row is a strip of swatches and then Pick...
+(`shapeFillColorRow`: `shapeFillColorSwatches`, `shapeFillColorButton`; the stroke's names say
+Stroke). The strip shows the foreground color, the background color (`...SwatchesForeground`,
+`...SwatchesBackground`, tooltips in the tool palette's wording with the hex value) and, after a
+small gap, the recent colors that are neither (`...SwatchesRecent0` onward, tooltip the hex value).
+A click applies the color as a pick in the color dialog does (`set_fill_color`,
+`set_stroke_color`: a preview in the modal dialog, one undo step in the window). The recent list
+is one list for both rows: a clicked swatch or a color accepted in the color dialog goes first,
+each color once, `kShapeRecentColorLimit` (8) at most, saved in the app setting
+`shapeAppearance/recentColors` (`kShapeRecentColorsKey`, permanent) as #rrggbb names; anything
+else in that list is skipped on load. The swatches are made once and recolored, shown or hidden,
+never rebuilt (a click changes the list its own swatch is in), and the row's minimum width counts
+the hidden ones (`ColorSwatchRow`), so a color picked later cannot widen a page whose width was
+measured when it was built. A swatch is its color in a `swatch_border` frame, `dlg_focus_border`
+under the pointer; it takes no keyboard focus (Pick... is the row's stop). Tests:
+`ui_shape_appearance_color_swatches_apply_and_remember`,
+`ui_shape_appearance_window_swatches_and_sliders_edit_the_shape`.
 
 Edge's Density below 100% shows the fill over the whole canvas, not only at the shape
 (Photoshop's vector mask density on a shape layer, and what the file stores), or, when

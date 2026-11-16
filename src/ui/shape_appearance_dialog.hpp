@@ -108,6 +108,20 @@ void apply_stroke_style_preset(VectorStroke& stroke, const StrokeStylePreset& pr
 [[nodiscard]] std::vector<StrokeStylePreset> load_stroke_style_presets();
 void save_stroke_style_presets(const std::vector<StrokeStylePreset>& presets);
 
+// The recent colors of the Fill and Stroke Color rows (GitHub #565): the solid colors last
+// applied there (a pick accepted in the color dialog, a swatch clicked), newest first, each
+// once, at most kShapeRecentColorLimit. Saved in the app settings under
+// kShapeRecentColorsKey (a persisted identifier) as a list of #rrggbb names.
+inline constexpr const char* kShapeRecentColorsKey = "shapeAppearance/recentColors";
+inline constexpr int kShapeRecentColorLimit = 8;
+[[nodiscard]] std::vector<RgbColor> load_shape_recent_colors();
+// Puts `color` first in the saved list and returns the list as saved.
+std::vector<RgbColor> remember_shape_recent_color(RgbColor color);
+// The recent colors a row's strip shows after its foreground and background swatches:
+// `recent` without the colors those two already show.
+[[nodiscard]] std::vector<RgbColor> shape_recent_colors_beside(RgbColor foreground, RgbColor background,
+                                                               const std::vector<RgbColor>& recent);
+
 // One stroke list (GitHub #557 follow-up): Shape Appearance's Dashes combo and the
 // options bar's dash combo list the built-in dash presets, then the saved presets with
 // item data kSavedStrokePresetRow + index, then Custom. The Stroke Presets manager lists

@@ -10,6 +10,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
+#include "ui/shape_appearance_dialog.hpp"
 #include "ui/theme_file.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
@@ -18,6 +19,8 @@
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 
+#include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -35,8 +38,11 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScopeGuard>
 #include <QScrollBar>
+#include <QSlider>
 #include <QSpinBox>
+#include <QStringList>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -1277,10 +1283,390 @@ void ui_shape_appearance_window_shows_handles_for_a_stroke_gradient() {
   CHECK(target() == std::optional(Target::Fill));
 }
 
+QColor swatch_color(const QWidget* swatch) {
+  return swatch != nullptr ? swatch->property("patchy.swatchColor").value<QColor>() : QColor();
+}
+
+patchy::RgbColor rgb(int red, int green, int blue) {
+  return {static_cast<std::uint8_t>(red), static_cast<std::uint8_t>(green), static_cast<std::uint8_t>(blue)};
+}
+
+// GitHub #565, point 4: Density, the stroke's Opacity and the four angle rows have a slider
+// before the field, as the Layer rows do. Slider and field follow each other, the slider
+// covers the field's range in whole units, a typed fraction stays in the field, and Reset
+// (which loads the fields without signals) moves every slider, the Layer rows' too.
+void ui_shape_appearance_rows_have_sliders_that_follow_their_fields() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::ShapeAppearanceSettings initial;
+  initial.fill.kind = VectorFillKind::Pattern;
+  initial.fill.pattern_angle_degrees = 12.5;
+  initial.fill.gradient.angle_degrees = 45.0F;
+  initial.stroke.enabled = true;
+  initial.stroke.width = 4.0;
+  initial.stroke.opacity = 0.4;
+  initial.stroke.content.kind = VectorFillKind::Pattern;
+  initial.stroke.content.pattern_angle_degrees = -30.0;
+  initial.stroke.content.gradient.angle_degrees = -60.0F;
+  initial.layer_opacity = 0.7F;
+  initial.density = 128;
+  patchy::ui::ShapeAppearanceSettings preview = initial;
+  bool checked = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    const auto slider = [&](const char* name) { return field<QSlider>(*dialog, name); };
+    const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+    struct Row {
+      const char* spin;
+      const char* slider;
+      int minimum;
+      int maximum;
+      int opens_at;
+    };
+    // Every slider opens on its field's value, loaded under a signal blocker.
+    for (const Row& row : {Row{"shapeDensitySpin", "shapeDensitySlider", 0, 100, 50},
+                           Row{"shapeStrokeOpacitySpin", "shapeStrokeOpacitySlider", 0, 100, 40},
+                           Row{"shapeGradientAngleSpin", "shapeGradientAngleSlider", -180, 180, 45},
+                           Row{"shapePatternAngleSpin", "shapePatternAngleSlider", -180, 180, 13},
+                           Row{"shapeStrokeGradientAngleSpin", "shapeStrokeGradientAngleSlider", -180, 180, -60},
+                           Row{"shapeStrokePatternAngleSpin", "shapeStrokePatternAngleSlider", -180, 180, -30}}) {
+      auto* spin = field<QAbstractSpinBox>(*dialog, row.spin);
+      auto* bar = slider(row.slider);
+      if (spin == nullptr || bar == nullptr) return;
+      CHECK(bar->parentWidget() == spin->parentWidget());
+      CHECK(bar->minimum() == row.minimum && bar->maximum() == row.maximum);
+      CHECK(bar->value() == row.opens_at);
+      CHECK(bar->minimumWidth() >= 72);
+    }
+    CHECK(slider("shapeLayerOpacitySlider")->value() == 70);
+
+    // Integer rows: the slider writes the field and the settings, the field moves the slider.
+    auto* density = field<QSpinBox>(*dialog, "shapeDensitySpin");
+    slider("shapeDensitySlider")->setValue(40);
+    CHECK(density->value() == 40);
+    CHECK(preview.density == 102);
+    density->setValue(75);
+    CHECK(slider("shapeDensitySlider")->value() == 75);
+    slider("shapeStrokeOpacitySlider")->setValue(25);
+    CHECK(field<QSpinBox>(*dialog, "shapeStrokeOpacitySpin")->value() == 25);
+    CHECK(std::abs(preview.stroke.opacity - 0.25) < 1e-9);
+    slider("shapeGradientAngleSlider")->setValue(-90);
+    CHECK(field<QSpinBox>(*dialog, "shapeGradientAngleSpin")->value() == -90);
+    CHECK(preview.fill.gradient.angle_degrees == -90.0F);
+    field<QSpinBox>(*dialog, "shapeGradientAngleSpin")->setValue(135);
+    CHECK(slider("shapeGradientAngleSlider")->value() == 135);
+    slider("shapeStrokeGradientAngleSlider")->setValue(15);
+    CHECK(preview.stroke.content.gradient.angle_degrees == 15.0F);
+
+    // The pattern angles keep one decimal: the fraction the dialog opened with is still in
+    // the field, a typed one moves the slider to the nearest degree without coming back
+    // rounded, and moving the slider gives whole degrees.
+    auto* fill_angle = field<QDoubleSpinBox>(*dialog, "shapePatternAngleSpin");
+    CHECK(std::abs(fill_angle->value() - 12.5) < 1e-9);
+    fill_angle->setValue(20.4);
+    CHECK(slider("shapePatternAngleSlider")->value() == 20);
+    CHECK(std::abs(fill_angle->value() - 20.4) < 1e-9);
+    CHECK(std::abs(preview.fill.pattern_angle_degrees - 20.4) < 1e-9);
+    slider("shapePatternAngleSlider")->setValue(21);
+    CHECK(std::abs(fill_angle->value() - 21.0) < 1e-9);
+    CHECK(std::abs(preview.fill.pattern_angle_degrees - 21.0) < 1e-9);
+    slider("shapeStrokePatternAngleSlider")->setValue(-45);
+    CHECK(std::abs(preview.stroke.content.pattern_angle_degrees + 45.0) < 1e-9);
+    CHECK(std::abs(field<QDoubleSpinBox>(*dialog, "shapeStrokePatternAngleSpin")->value() + 45.0) < 1e-9);
+
+    // The rows read slider, field, - / + (an angle row: dial first), and Density's slider
+    // and field sit in the columns the Layer rows use.
+    QApplication::processEvents();
+    for (const char* name : {"shapeDensity", "shapeStrokeOpacity", "shapePatternAngle", "shapeStrokePatternAngle"}) {
+      const QString base = QLatin1String(name);
+      auto* bar = dialog->findChild<QSlider*>(base + QStringLiteral("Slider"));
+      auto* spin = dialog->findChild<QAbstractSpinBox*>(base + QStringLiteral("Spin"));
+      auto* decrease = dialog->findChild<QWidget*>(base + QStringLiteral("SpinDecreaseButton"));
+      CHECK(bar != nullptr && spin != nullptr && decrease != nullptr);
+      if (bar == nullptr || spin == nullptr || decrease == nullptr) continue;
+      CHECK(bar->isVisibleTo(dialog) && bar->width() >= 72);
+      CHECK(left(bar) + bar->width() <= left(spin));
+      CHECK(left(spin) + spin->width() <= left(decrease));
+      if (auto* dial = dialog->findChild<QWidget*>(base + QStringLiteral("Dial")); dial != nullptr) {
+        CHECK(left(dial) + dial->width() <= left(bar));
+      }
+    }
+    CHECK(left(slider("shapeDensitySlider")) == left(slider("shapeLayerOpacitySlider")));
+    CHECK(left(density) == left(field<QSpinBox>(*dialog, "shapeLayerOpacitySpin")));
+    save_widget_artifact("ui_shape_appearance_row_sliders", *dialog);
+
+    // Reset: every field goes back to its default and its slider with it.
+    field<QPushButton>(*dialog, "shapeAppearanceResetButton")->click();
+    QApplication::processEvents();
+    for (const auto& [spin_name, slider_name] :
+         {std::pair{"shapeLayerOpacitySpin", "shapeLayerOpacitySlider"},
+          std::pair{"shapeLayerFillOpacitySpin", "shapeLayerFillOpacitySlider"},
+          std::pair{"shapeDensitySpin", "shapeDensitySlider"},
+          std::pair{"shapeStrokeOpacitySpin", "shapeStrokeOpacitySlider"},
+          std::pair{"shapeGradientAngleSpin", "shapeGradientAngleSlider"},
+          std::pair{"shapeStrokeGradientAngleSpin", "shapeStrokeGradientAngleSlider"}}) {
+      CHECK(slider(slider_name)->value() == field<QSpinBox>(*dialog, spin_name)->value());
+    }
+    CHECK(slider("shapeLayerOpacitySlider")->value() == 100);
+    CHECK(slider("shapeDensitySlider")->value() == 100);
+    CHECK(slider("shapePatternAngleSlider")->value() == 0);
+    CHECK(slider("shapeStrokePatternAngleSlider")->value() == 0);
+    checked = true;
+    dialog->reject();
+  }));
+  static_cast<void>(patchy::ui::request_shape_appearance_settings(
+      nullptr, [&](const patchy::ui::ShapeAppearanceSettings& value) { preview = value; }, initial, {}, nullptr,
+      nullptr, nullptr, {}, {}));
+  CHECK(checked);
+}
+
+// GitHub #565, point 5: before each Pick... button sits a strip of swatches, the foreground
+// and the background color and then the recent colors. A click applies the swatch's color
+// to the fill or the stroke as a pick in the color dialog does, and the color heads the
+// recent list both strips show; so does a color accepted in the color dialog, and a
+// cancelled one does not. The list is saved, newest first, each color once, eight at most.
+void ui_shape_appearance_color_swatches_apply_and_remember() {
+  VectorSettingsGuard settings_guard;
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QLatin1String(patchy::ui::kShapeRecentColorsKey),
+                      QStringList{QStringLiteral("#112233"), QStringLiteral("#445566")});
+    settings.sync();
+  }
+  const auto foreground = rgb(255, 0, 0);
+  const auto background = rgb(0, 0, 255);
+  patchy::ui::ShapeAppearanceSettings initial;
+  initial.fill.kind = VectorFillKind::Solid;
+  initial.fill.color = rgb(10, 20, 30);
+  initial.stroke.enabled = true;
+  initial.stroke.width = 4.0;
+  initial.stroke.content.kind = VectorFillKind::Solid;
+  initial.stroke.content.color = rgb(200, 200, 200);
+  patchy::ui::ShapeAppearanceSettings preview = initial;
+  bool checked = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    const auto swatch = [&](const QString& name) {
+      auto* widget = dialog->findChild<QAbstractButton*>(name);
+      CHECK(widget != nullptr);
+      return widget;
+    };
+    const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+    QApplication::processEvents();
+    for (const char* side : {"Fill", "Stroke"}) {
+      const QString strip = QStringLiteral("shape%1ColorSwatches").arg(QLatin1String(side));
+      auto* button = dialog->findChild<QPushButton*>(QStringLiteral("shape%1ColorButton").arg(QLatin1String(side)));
+      auto* row = dialog->findChild<QWidget*>(QStringLiteral("shape%1ColorRow").arg(QLatin1String(side)));
+      CHECK(button != nullptr && row != nullptr);
+      if (button == nullptr || row == nullptr) return;
+      CHECK(button->text() == QStringLiteral("Pick..."));
+      // The tool colors first, with their hex values as tooltips, then the saved recent ones.
+      auto* fg = swatch(strip + QStringLiteral("Foreground"));
+      auto* bg = swatch(strip + QStringLiteral("Background"));
+      auto* first = swatch(strip + QStringLiteral("Recent0"));
+      auto* second = swatch(strip + QStringLiteral("Recent1"));
+      auto* third = swatch(strip + QStringLiteral("Recent2"));
+      if (fg == nullptr || bg == nullptr || first == nullptr || second == nullptr || third == nullptr) return;
+      CHECK(swatch_color(fg) == QColor(255, 0, 0) && swatch_color(bg) == QColor(0, 0, 255));
+      CHECK(fg->toolTip().contains(QStringLiteral("#FF0000")) && bg->toolTip().contains(QStringLiteral("#0000FF")));
+      CHECK(swatch_color(first) == QColor(0x11, 0x22, 0x33) && first->toolTip() == QStringLiteral("#112233"));
+      CHECK(swatch_color(second) == QColor(0x44, 0x55, 0x66));
+      CHECK(first->isVisibleTo(dialog) && second->isVisibleTo(dialog) && !third->isVisibleTo(dialog));
+      // The strip starts the row, in the fields' column, and Pick... follows it.
+      CHECK(left(row) == left(field<QComboBox>(*dialog, "shapeFillKindCombo")));
+      CHECK(left(fg) == left(row) && left(fg) < left(bg) && left(bg) < left(first) && left(first) < left(second));
+      CHECK(left(second) + second->width() <= left(button));
+      CHECK(left(button) + button->width() == left(row) + row->width());
+    }
+    save_widget_artifact("ui_shape_appearance_color_rows", *dialog);
+
+    // A swatch click is the pick: the fill takes the foreground color, which heads the list.
+    // The strips do not repeat a tool color among the recent ones.
+    swatch(QStringLiteral("shapeFillColorSwatchesForeground"))->click();
+    CHECK(preview.fill.kind == VectorFillKind::Solid && preview.fill.color == foreground);
+    CHECK(preview.stroke.content.color == rgb(200, 200, 200));
+    CHECK((patchy::ui::load_shape_recent_colors() ==
+           std::vector<patchy::RgbColor>{foreground, rgb(0x11, 0x22, 0x33), rgb(0x44, 0x55, 0x66)}));
+    CHECK(swatch_color(swatch(QStringLiteral("shapeFillColorSwatchesRecent0"))) == QColor(0x11, 0x22, 0x33));
+
+    // The stroke takes a recent color, which moves to the front on both strips.
+    swatch(QStringLiteral("shapeStrokeColorSwatchesRecent1"))->click();
+    CHECK(preview.stroke.content.kind == VectorFillKind::Solid);
+    CHECK(preview.stroke.content.color == rgb(0x44, 0x55, 0x66));
+    CHECK(preview.fill.color == foreground);
+    CHECK((patchy::ui::load_shape_recent_colors() ==
+           std::vector<patchy::RgbColor>{rgb(0x44, 0x55, 0x66), foreground, rgb(0x11, 0x22, 0x33)}));
+    for (const char* strip : {"shapeFillColorSwatches", "shapeStrokeColorSwatches"}) {
+      CHECK(swatch_color(swatch(QLatin1String(strip) + QStringLiteral("Recent0"))) == QColor(0x44, 0x55, 0x66));
+      CHECK(swatch_color(swatch(QLatin1String(strip) + QStringLiteral("Recent1"))) == QColor(0x11, 0x22, 0x33));
+    }
+
+    // The color dialog: a cancelled pick is not remembered, an accepted one is.
+    const auto pick = [&](bool accept) {
+      QTimer::singleShot(0, guarded([&, accept] {
+        auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+        CHECK(picker_dialog != nullptr);
+        if (picker_dialog == nullptr) return;
+        auto* picker = picker_dialog->findChild<patchy::ui::PatchyColorPicker*>(
+            QStringLiteral("patchyAdvancedColorPicker"));
+        CHECK(picker != nullptr);
+        if (picker != nullptr) picker->setCurrentColor(QColor(30, 40, 230));
+        if (accept) {
+          picker_dialog->accept();
+        } else {
+          picker_dialog->reject();
+        }
+      }));
+      field<QPushButton>(*dialog, "shapeFillColorButton")->click();
+    };
+    pick(false);
+    CHECK(preview.fill.color == foreground);
+    CHECK(patchy::ui::load_shape_recent_colors().front() == rgb(0x44, 0x55, 0x66));
+    pick(true);
+    CHECK(preview.fill.color == rgb(30, 40, 230));
+    CHECK(patchy::ui::load_shape_recent_colors().front() == rgb(30, 40, 230));
+    CHECK(swatch_color(swatch(QStringLiteral("shapeStrokeColorSwatchesRecent0"))) == QColor(30, 40, 230));
+    // Saved as #rrggbb names, newest first.
+    CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kShapeRecentColorsKey)).toStringList().value(0) ==
+          QStringLiteral("#1e28e6"));
+    checked = true;
+    dialog->reject();
+  }));
+  static_cast<void>(patchy::ui::request_shape_appearance_settings(
+      nullptr, [&](const patchy::ui::ShapeAppearanceSettings& value) { preview = value; }, initial, {}, nullptr,
+      nullptr, nullptr, foreground, background));
+  CHECK(checked);
+
+  // Eight at most, each color once, and only #rrggbb entries are read back.
+  for (int index = 0; index < 12; ++index) {
+    static_cast<void>(patchy::ui::remember_shape_recent_color(rgb(index * 10, 5, 5)));
+  }
+  static_cast<void>(patchy::ui::remember_shape_recent_color(rgb(90, 5, 5)));
+  const auto capped = patchy::ui::load_shape_recent_colors();
+  CHECK(capped.size() == static_cast<std::size_t>(patchy::ui::kShapeRecentColorLimit));
+  CHECK(capped.front() == rgb(90, 5, 5) && capped[1] == rgb(110, 5, 5) && capped.back() == rgb(40, 5, 5));
+  CHECK(std::count(capped.begin(), capped.end(), rgb(90, 5, 5)) == 1);
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QLatin1String(patchy::ui::kShapeRecentColorsKey),
+                      QStringList{QStringLiteral("red"), QStringLiteral("#12"), QStringLiteral("#00ff00"),
+                                  QStringLiteral("#00FF00"), QStringLiteral("#0a0b0c")});
+    settings.sync();
+  }
+  CHECK((patchy::ui::load_shape_recent_colors() == std::vector<patchy::RgbColor>{rgb(0, 255, 0), rgb(10, 11, 12)}));
+  CHECK((patchy::ui::shape_recent_colors_beside(rgb(0, 255, 0), rgb(1, 1, 1), patchy::ui::load_shape_recent_colors()) ==
+         std::vector<patchy::RgbColor>{rgb(10, 11, 12)}));
+}
+
+// GitHub #565 in the stay-open window: a swatch click is one undo step, a slider's values
+// arriving together are one step, and the strips follow the tool colors.
+void ui_shape_appearance_window_swatches_and_sliders_edit_the_shape() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = Access::document(window);
+  const auto id = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  auto* panel = open_panel(window);
+  if (panel == nullptr) return;
+  const auto settle = [&] {
+    QTest::qWait(700);  // past the gesture's idle time
+    QApplication::processEvents();
+  };
+  const auto swatch = [&](const char* name) { return field<QAbstractButton>(*panel, name); };
+  const auto depth = Access::active_session_undo_depth(window);
+  const auto background = canvas->secondary_color();
+  const auto foreground = canvas->primary_color();
+  CHECK(background != foreground);
+  CHECK(swatch_color(swatch("shapeFillColorSwatchesForeground")) == foreground);
+  CHECK(swatch_color(swatch("shapeFillColorSwatchesBackground")) == background);
+
+  swatch("shapeFillColorSwatchesBackground")->click();
+  const auto fill = shape_of(document, id).fill.color;
+  CHECK(QColor(fill.red, fill.green, fill.blue) == background);
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(patchy::ui::load_shape_recent_colors().front() == fill);
+  settle();
+  CHECK(panel_usable(*panel));
+
+  // One drag of Density's slider: three values, one step.
+  for (const int value : {80, 60, 40}) {
+    field<QSlider>(*panel, "shapeDensitySlider")->setValue(value);
+  }
+  CHECK(shape_of(document, id).density == 102);
+  CHECK(Access::active_session_undo_depth(window) == depth + 2);
+  settle();
+  CHECK(field<QSpinBox>(*panel, "shapeDensitySpin")->value() == 40);
+  CHECK(field<QSlider>(*panel, "shapeDensitySlider")->value() == 40);
+
+  // Swapping the tool colors changes no layer; the window still shows the new pair.
+  require_action_by_text(window, QStringLiteral("Swap Colors"))->trigger();
+  CHECK(process_events_until([&] {
+    auto* shown = panel->findChild<QAbstractButton*>(QStringLiteral("shapeFillColorSwatchesForeground"));
+    return shown != nullptr && swatch_color(shown) == background;
+  }));
+  CHECK(swatch_color(swatch("shapeStrokeColorSwatchesBackground")) == foreground);
+  CHECK(Access::active_session_undo_depth(window) == depth + 2);
+  CHECK(panel_usable(*panel));
+}
+
+// GitHub #565: the window on a shape with a solid fill and stroke (the Color rows, Density
+// and the stroke's Opacity) and with a pattern fill and a gradient stroke (the angle rows),
+// for the issue reply. The checks are in the two tests below.
+void ui_shape_appearance_window_issue565_shots() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer size_setting{QStringLiteral("shapeAppearance/windowSize")};
+  SettingsValueRestorer sized_setting{QStringLiteral("shapeAppearance/windowUserSized")};
+  SettingsValueRestorer recent_setting{QStringLiteral("shapeAppearance/recentColors")};
+  SettingsValueRestorer pattern_version_restorer(QStringLiteral("patterns/defaultPatternsVersion"));
+  clear_pattern_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("shapeAppearance/windowSize"));
+    settings.remove(QStringLiteral("shapeAppearance/windowUserSized"));
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.setValue(QStringLiteral("shapeAppearance/recentColors"),
+                      QStringList{QStringLiteral("#d9482b"), QStringLiteral("#2b7fd9"), QStringLiteral("#3fae5a"),
+                                  QStringLiteral("#f2c230"), QStringLiteral("#7a3fd9")});
+    settings.sync();
+  }
+  const auto clear_seeded_patterns = qScopeGuard([] { clear_pattern_test_state(); });
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = Access::document(window);
+  const auto id = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  auto* panel = open_panel(window);
+  if (panel == nullptr) return;
+  const auto settle = [&] {
+    QTest::qWait(700);  // past the gesture's idle time: the page is rebased
+    QApplication::processEvents();
+  };
+  field<QDoubleSpinBox>(*panel, "shapeStrokeWidthSpin")->setValue(6.0);
+  settle();
+  CHECK(shape_of(document, id).stroke.enabled);
+  save_widget_artifact("issue565_shape_appearance_solid", *panel);
+
+  auto* fill_kind = field<QComboBox>(*panel, "shapeFillKindCombo");
+  fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(VectorFillKind::Pattern)));
+  settle();
+  auto* stroke_paint = field<QComboBox>(*panel, "shapeStrokePaintCombo");
+  stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(VectorFillKind::Gradient)));
+  settle();
+  CHECK(shape_of(document, id).fill.kind == VectorFillKind::Pattern);
+  CHECK(shape_of(document, id).stroke.content.kind == VectorFillKind::Gradient);
+  save_widget_artifact("issue565_shape_appearance_paints", *panel);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
   return {
+      {"ui_shape_appearance_window_issue565_shots", ui_shape_appearance_window_issue565_shots},
+      {"ui_shape_appearance_rows_have_sliders_that_follow_their_fields",
+       ui_shape_appearance_rows_have_sliders_that_follow_their_fields},
+      {"ui_shape_appearance_color_swatches_apply_and_remember", ui_shape_appearance_color_swatches_apply_and_remember},
+      {"ui_shape_appearance_window_swatches_and_sliders_edit_the_shape",
+       ui_shape_appearance_window_swatches_and_sliders_edit_the_shape},
       {"ui_shape_appearance_window_ends_with_its_button_row", ui_shape_appearance_window_ends_with_its_button_row},
       {"ui_shape_appearance_window_link_buttons_sit_on_their_brackets",
        ui_shape_appearance_window_link_buttons_sit_on_their_brackets},

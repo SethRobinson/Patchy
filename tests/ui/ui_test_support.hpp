@@ -220,7 +220,8 @@ public:
           "tools/penAutoAddDelete",
           "paths/fillPatternScale",
           "paths/fillPatternAngle",
-          "paths/fillPatternOffsetX", "paths/fillPatternOffsetY", "paths/fillPatternAlignLayer"}) {
+          "paths/fillPatternOffsetX", "paths/fillPatternOffsetY", "paths/fillPatternAlignLayer",
+          "shapeAppearance/recentColors"}) {
       settings.remove(QString::fromLatin1(key));
     }
     settings.sync();
@@ -256,6 +257,9 @@ private:
   SettingsValueRestorer fill_pattern_offset_x_{QStringLiteral("paths/fillPatternOffsetX")};
   SettingsValueRestorer fill_pattern_offset_y_{QStringLiteral("paths/fillPatternOffsetY")};
   SettingsValueRestorer fill_pattern_align_{QStringLiteral("paths/fillPatternAlignLayer")};
+  // Shape Appearance's recent colors (GitHub #565): a test that picks a color would
+  // otherwise leave a swatch in every later capture of the dialog.
+  SettingsValueRestorer recent_colors_{QStringLiteral("shapeAppearance/recentColors")};
 };
 
 class GallerySettingsRestorer {
