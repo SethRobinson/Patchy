@@ -260,6 +260,19 @@ patchy_configure_target(patchy_core)
 include(cmake/patchy_ai.cmake)
 include(cmake/patchy_gegl.cmake)
 
+# Text recognition engines (docs/ocr.md). Qt-free and outside every precompiled header, so
+# the operating system's engine can keep its own headers to one translation unit.
+add_library(patchy_ocr
+  src/ocr/ocr_bands.cpp
+  src/ocr/ocr_fake_engine.cpp
+  src/ocr/ocr_image.cpp
+  src/ocr/ocr_layout.cpp
+  src/ocr/ocr_registry.cpp
+  src/ocr/ocr_engine_stub.cpp
+)
+target_link_libraries(patchy_ocr PUBLIC patchy_core)
+patchy_configure_target(patchy_ocr)
+
 add_library(patchy_render
   src/render/compositor.cpp
   src/render/composite_targets.hpp
@@ -1882,6 +1895,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       Qt6::Qml
       patchy_core
       patchy_ai
+      patchy_ocr
       patchy_render
       patchy_psd
       patchy_plugins
@@ -2612,6 +2626,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/ui_color_literal_tests.cpp
     tests/core/floating_selection_tests.cpp
     tests/core/ai_selection_tests.cpp
+    tests/core/ocr_tests.cpp
     tests/core/gmic_tests.cpp
     tests/core/tiff_layers_tests.cpp
     tests/core/tiff_flat_tests.cpp
@@ -2630,6 +2645,7 @@ if(PATCHY_BUILD_TESTS)
   target_link_libraries(patchy_core_tests PRIVATE
     patchy_core
     patchy_ai
+    patchy_ocr
     patchy_render
     patchy_psd
     patchy_plugins

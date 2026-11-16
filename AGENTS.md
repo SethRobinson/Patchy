@@ -6,7 +6,7 @@ Read `agents_local.md` at the repository root too (checkout- and developer-speci
 
 ## Documentation
 
-- This file and every `docs/*.md` stay at or below 30,000 bytes. Run `python scripts/check-docs.py` after doc edits: it checks sizes, links, anchors, the labels code comments cite, and code that names a missing doc.
+- This file and every `docs/*.md` stay at or below 30,000 bytes. Run `python scripts/check-docs.py` after doc edits (sizes, links, anchors, cited labels, missing docs).
 - Past 27,000 bytes (check-docs warns there), split a doc by subtopic into `<stem>-<subtopic>.md` children that the parent lists under "Related documents", one line each; never squeeze prose to fit the cap. This file moves detail into the doc that owns it instead.
 - Implementation knowledge belongs in `docs/<topic>.md`: read the linked doc before working in its area, update it when behavior changes, never duplicate its details here.
 - Keep docs dense and current-state: cut narrative history, experiment logs and restated code constants; never cut normative rules, calibration facts recorded only in the doc, or headings and labels code comments cite.
@@ -112,7 +112,7 @@ Releases build the `release` preset into `build\release` (release gate, packagin
 - PSD *(legal)*: [contract, descriptors, write and corruption rules](docs/ps-compat.md), [layer blocks](docs/psd-layer-blocks.md), [layer styles](docs/psd-layer-styles.md); Photoshop 5.x `tySh` records (a fixed layout, no EngineData): [psd-legacy-text.md](docs/psd-legacy-text.md).
 - [File formats](docs/file-formats.md): PSD adjustment layers and clipping, the open-dialog filter-string contract; [PSB, color modes, flat-image alpha](docs/file-formats-psd.md); [HEIF](docs/heif.md) *(legal)*, [TIFF](docs/tiff.md), [raw](docs/camera-raw.md), [Affinity](docs/af-format.md), [Paint.NET](docs/pdn-format.md), [animation](docs/animation.md), [File Info](docs/file-info.md) ([watermark scan](docs/file-info-watermarks.md) *(legal)*), [TrustMark](docs/watermarks.md) *(legal)*, [PDF](docs/pdf.md) ([timings](docs/pdf-performance.md), [viewer](docs/pdf-viewer.md), [Print as Book](docs/pdf-book-print.md)), [SVG](docs/svg.md), [Export for Web](docs/web-export.md).
 - *(legal: codec rules)* [JPEG XR](docs/jxr.md), [JPEG XL](docs/jxl.md), [HDR, EXR, JPEG 2000](docs/hdr-formats.md), [AVIF](docs/avif.md). Clean-room: [.rttex](docs/rttex.md), [DDS](docs/dds.md), [OpenRaster](docs/ora.md); [GIMP .xcf](docs/xcf.md) *(legal)*: clean-room; GIMP-only blend modes are Patchy modes a PSD save bakes; [Krita .kra](docs/kra.md) *(legal)*: clean-room from files Krita writes; never read Krita or libkra source.
-- [Import](docs/import.md): scanner, photocopy, Divide Scanned Photos *(legal)*, [Scan a Book to PDF](docs/book-scan.md) *(legal)*, sprite sheets, image sequences, seamless tiling, Files as Layers; [clipboard](docs/clipboard.md) *(legal)*.
+- [Import](docs/import.md): scanner, photocopy, Divide Scanned Photos *(legal)*, [Scan a Book to PDF](docs/book-scan.md) *(legal)*, sprite sheets, image sequences, seamless tiling, Files as Layers; [clipboard](docs/clipboard.md) *(legal)*; [OCR](docs/ocr.md) *(legal)*.
 - [Artboards](docs/artboards.md) *(legal)* (PSD `artb`/`artd`): they stay top-level groups; nothing infers one from edit history. [Channels](docs/channels.md); [resolution units](docs/resolution-units.md); [resampling](docs/resampling.md); [Background layer](docs/background-layer.md) (padlock, Layer from Background, PSD records).
 
 **Color and filters**
