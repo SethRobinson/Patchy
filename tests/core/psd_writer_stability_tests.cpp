@@ -306,6 +306,116 @@ void psd_continuous_drop_shadow_uses_plugin_resource() {
   CHECK(!psd::find_image_resource_payload(image_resources_of(plain_bytes), 4212).has_value());
 }
 
+// A Recognized Text group (docs/ocr.md) keeps its marker through a PSD in plug-in image
+// resource 4214, keyed by the group's lyid. Nothing is written for a document without one.
+void psd_recognized_text_group_marker_uses_plugin_resource() {
+  using namespace patchy;
+  const auto image_resources_of = [](const std::vector<std::uint8_t>& bytes) {
+    psd::BigEndianReader reader(bytes);
+    (void)psd::read_header(reader);
+    reader.skip(reader.read_u32());
+    return reader.read_bytes(reader.read_u32());
+  };
+  const auto marker = [](const Layer& layer) {
+    const auto found = layer.metadata().find(kLayerMetadataOcrGroup);
+    return found == layer.metadata().end() ? std::string() : found->second;
+  };
+  Document document(48, 32, PixelFormat::rgb8());
+  document.add_pixel_layer("Scan", solid_rgb(48, 32, 255, 255, 255));
+  Layer group(document.allocate_layer_id(), "Recognized Text", LayerKind::Group);
+  group.metadata()[kLayerMetadataOcrGroup] = "windows en-US";
+  group.children().push_back(Layer(document.allocate_layer_id(), "Line", solid_rgba(48, 32, 0, 0, 0, 255)));
+  document.add_layer(std::move(group));
+  Layer plain_group(document.allocate_layer_id(), "Plain", LayerKind::Group);
+  plain_group.children().push_back(Layer(document.allocate_layer_id(), "Other", solid_rgba(48, 32, 9, 9, 9, 255)));
+  document.add_layer(std::move(plain_group));
+
+  const auto bytes = psd::DocumentIo::write_layered_rgb8(document);
+  // The artifact for the Photoshop open check (docs/ps-compat.md).
+  {
+    std::ofstream file(std::filesystem::path("test-artifacts") / "recognized_text_group.psd", std::ios::binary);
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  }
+  const auto resource = psd::find_image_resource_payload(image_resources_of(bytes), 4214);
+  CHECK(resource.has_value());
+  if (!resource.has_value()) {
+    return;
+  }
+  // Header, then one entry: lyid, length, "windows en-US".
+  CHECK(resource->size() == 12U + 4U + 2U + 13U);
+  const auto reread = psd::DocumentIo::read(bytes);
+  CHECK(reread.layers().size() == 3);
+  if (reread.layers().size() != 3) {
+    return;
+  }
+  CHECK(marker(reread.layers()[1]) == "windows en-US");
+  CHECK(layer_is_recognized_text_group(reread.layers()[1]));
+  CHECK(reread.layers()[1].name() == "Recognized Text");
+  CHECK(!layer_is_recognized_text_group(reread.layers()[2]));
+  CHECK(marker(reread.layers()[0]).empty());
+  // A resave keeps the resource and its bytes; a renamed group keeps its marker.
+  auto renamed = reread;
+  renamed.layers()[1].set_name("My text");
+  const auto resaved = psd::DocumentIo::write_layered_rgb8(renamed);
+  CHECK(psd::find_image_resource_payload(image_resources_of(resaved), 4214) == resource);
+  CHECK(layer_is_recognized_text_group(psd::DocumentIo::read(resaved).layers()[1]));
+
+  // Malformed records are ignored as a whole.
+  const auto clear = [](Document& target) { target.layers()[1].metadata().erase(kLayerMetadataOcrGroup); };
+  auto probe = psd::DocumentIo::read(bytes);
+  clear(probe);
+  psd::apply_recognized_text_resource(probe, *resource);
+  CHECK(layer_is_recognized_text_group(std::as_const(probe).layers()[1]));
+  for (const auto& [offset, value, why] :
+       {std::tuple{5, 2, "future version"}, std::tuple{11, 2, "count past the data"},
+        std::tuple{17, 200, "length past the data"}, std::tuple{17, 0, "empty value"},
+        std::tuple{18, 0x07, "control character"}}) {
+    clear(probe);
+    auto corrupt = *resource;
+    corrupt[static_cast<std::size_t>(offset)] = static_cast<std::uint8_t>(value);
+    psd::apply_recognized_text_resource(probe, corrupt);
+    CHECK(!layer_is_recognized_text_group(std::as_const(probe).layers()[1]));
+    (void)why;
+  }
+  // Trailing bytes after the last entry reject it too.
+  {
+    clear(probe);
+    auto longer = *resource;
+    longer.push_back(0);
+    psd::apply_recognized_text_resource(probe, longer);
+    CHECK(!layer_is_recognized_text_group(std::as_const(probe).layers()[1]));
+  }
+  // An id that names a layer that is not a group marks nothing.
+  {
+    auto wrong = psd::DocumentIo::read(bytes);
+    clear(wrong);
+    const auto scan_id = photoshop_layer_id(std::as_const(wrong).layers()[0]);
+    const auto group_id = photoshop_layer_id(std::as_const(wrong).layers()[1]);
+    CHECK(group_id.has_value());
+    if (scan_id.has_value()) {
+      auto retargeted = *resource;
+      retargeted[12] = static_cast<std::uint8_t>(*scan_id >> 24U);
+      retargeted[13] = static_cast<std::uint8_t>(*scan_id >> 16U);
+      retargeted[14] = static_cast<std::uint8_t>(*scan_id >> 8U);
+      retargeted[15] = static_cast<std::uint8_t>(*scan_id);
+      psd::apply_recognized_text_resource(wrong, retargeted);
+      CHECK(marker(std::as_const(wrong).layers()[0]).empty());
+      CHECK(!layer_is_recognized_text_group(std::as_const(wrong).layers()[1]));
+    }
+  }
+
+  // A value the resource cannot hold stays a session marker, and without any marked
+  // group no resource is written, so byte canaries stay untouched.
+  auto odd = document;
+  odd.layers()[1].metadata()[kLayerMetadataOcrGroup] = "tab\tseparated";
+  CHECK(!psd::find_image_resource_payload(image_resources_of(psd::DocumentIo::write_layered_rgb8(odd)), 4214)
+             .has_value());
+  auto unmarked = document;
+  unmarked.layers()[1].metadata().erase(kLayerMetadataOcrGroup);
+  CHECK(!psd::find_image_resource_payload(image_resources_of(psd::DocumentIo::write_layered_rgb8(unmarked)), 4214)
+             .has_value());
+}
+
 void psd_drop_shadow_resolves_photoshop_global_light() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
   // Global light angle resource (1037) holding -60 degrees.
@@ -1681,6 +1791,8 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
       {"psd_generated_drop_shadow_marks_angle_as_local",
        psd_generated_drop_shadow_marks_angle_as_local},
       {"psd_continuous_drop_shadow_uses_plugin_resource", psd_continuous_drop_shadow_uses_plugin_resource},
+      {"psd_recognized_text_group_marker_uses_plugin_resource",
+       psd_recognized_text_group_marker_uses_plugin_resource},
       {"psd_drop_shadow_resolves_photoshop_global_light",
        psd_drop_shadow_resolves_photoshop_global_light},
       {"psd_photoshop_global_light_shadow_fixture_resolves_angle",

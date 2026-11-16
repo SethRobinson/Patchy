@@ -850,11 +850,25 @@ bool layer_has_continuous_drop_shadow(const Layer& layer) {
                      [](const LayerDropShadow& shadow) { return shadow.continuous; });
 }
 
+// The value resource 4214 stores for a Recognized Text group, or nothing for any other
+// layer and for a value the resource cannot hold (it then stays a session marker).
+std::optional<std::string_view> recognized_text_group_value(const Layer& layer) {
+  if (!layer_is_recognized_text_group(layer)) { return std::nullopt; }
+  const auto found = layer.metadata().find(kLayerMetadataOcrGroup);
+  const std::string_view value = found->second;
+  if (value.empty() || value.size() > kPatchyRecognizedTextMaxValueBytes ||
+      !std::all_of(value.begin(), value.end(), [](char c) { return c >= 0x20 && c <= 0x7E; })) {
+    return std::nullopt;
+  }
+  return value;
+}
+
 }  // namespace
 
 // Besides compound vectors, this also assigns a native 'lyid' to every layer
-// whose long-shadow fields must travel in resource 4212 (the resource keys by
-// that id), so the prepared copy is the one the resource writer sees.
+// whose long-shadow fields must travel in resource 4212, and to every Recognized
+// Text group for resource 4214 (both resources key by that id), so the prepared
+// copy is the one the resource writer sees.
 std::optional<Document> prepare_compound_vector_psd(const Document& document) {
   std::optional<Document> prepared;
   if (document_has_compound_vectors(document)) { prepared = expand_compound_vectors(document, true); }
@@ -868,7 +882,7 @@ std::optional<Document> prepare_compound_vector_psd(const Document& document) {
     for (const auto& layer : layers) {
       if (const auto id = photoshop_layer_id(layer)) { ++native_ids[*id]; }
       if (compound_vector_group_kind(layer) != CompoundVectorGroupKind::None ||
-          layer_has_continuous_drop_shadow(layer)) {
+          layer_has_continuous_drop_shadow(layer) || recognized_text_group_value(layer).has_value()) {
         marked.push_back(layer.id());
       }
       self(self, layer.children());
@@ -941,6 +955,47 @@ void apply_long_shadow_resource(Document& document, std::span<const std::uint8_t
         shadows[entry.index].fade = entry.fade;
       }
     }
+  }
+}
+
+void apply_recognized_text_resource(Document& document, std::span<const std::uint8_t> payload) {
+  if (payload.size() < 12) { return; }
+  BigEndianReader reader(payload);
+  if (reader.read_u32() != kPatchyRecognizedTextMagic || reader.read_u16() != 1 || reader.read_u16() != 0) { return; }
+  const auto count = reader.read_u32();
+  if (count > 32767) { return; }
+  // The whole record is validated before any layer changes.
+  std::map<std::uint32_t, std::string> values;
+  for (std::uint32_t i = 0; i < count; ++i) {
+    if (reader.remaining() < 6) { return; }
+    const auto id = reader.read_u32();
+    const auto length = reader.read_u16();
+    if (id == 0 || length == 0 || length > kPatchyRecognizedTextMaxValueBytes || reader.remaining() < length) {
+      return;
+    }
+    const auto bytes = reader.read_bytes(length);
+    if (!std::all_of(bytes.begin(), bytes.end(), [](std::uint8_t c) { return c >= 0x20U && c <= 0x7EU; }) ||
+        !values.emplace(id, std::string(bytes.begin(), bytes.end())).second) {
+      return;
+    }
+  }
+  if (reader.remaining() != 0) { return; }
+  std::map<std::uint32_t, std::vector<LayerId>> layers_by_native_id;
+  const auto collect = [&](const auto& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (const auto id = photoshop_layer_id(layer); id && values.contains(*id)) {
+        layers_by_native_id[*id].push_back(layer.id());
+      }
+      self(self, layer.children());
+    }
+  };
+  collect(collect, std::as_const(document).layers());
+  for (const auto& [id, value] : values) {
+    const auto found = layers_by_native_id.find(id);
+    if (found == layers_by_native_id.end() || found->second.size() != 1) { continue; }
+    const auto* layer = std::as_const(document).find_layer(found->second.front());
+    if (layer == nullptr || layer->kind() != LayerKind::Group) { continue; }
+    document.find_layer(found->second.front())->metadata()[kLayerMetadataOcrGroup] = value;
   }
 }
 
@@ -1334,6 +1389,40 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
       if (resource.id != kImageResourcePatchyLongShadows || resource.payload.size() < 8) { return false; }
       BigEndianReader reader(resource.payload);
       return reader.read_u32() == kPatchyLongShadowsMagic && reader.read_u16() == 1;
+    });
+  }
+  // Recognized Text groups (resource 4214), keyed by the native layer id that
+  // prepare_compound_vector_psd guarantees for every such group.
+  BigEndianWriter recognized_entries;
+  std::uint32_t recognized_count = 0;
+  const auto collect_recognized = [&](const auto& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (const auto value = recognized_text_group_value(layer)) {
+        if (const auto id = photoshop_layer_id(layer)) {
+          recognized_entries.write_u32(*id);
+          recognized_entries.write_u16(static_cast<std::uint16_t>(value->size()));
+          recognized_entries.write_bytes(
+              std::span(reinterpret_cast<const std::uint8_t*>(value->data()), value->size()));
+          ++recognized_count;
+        }
+      }
+      self(self, layer.children());
+    }
+  };
+  if (layered) { collect_recognized(collect_recognized, document.layers()); }
+  if (recognized_count > 0) {
+    BigEndianWriter payload;
+    payload.write_u32(kPatchyRecognizedTextMagic);
+    payload.write_u16(1);
+    payload.write_u16(0);
+    payload.write_u32(recognized_count);
+    payload.write_bytes(recognized_entries.bytes());
+    upsert_image_resource(*parsed, kImageResourcePatchyRecognizedText, payload.bytes());
+  } else {
+    std::erase_if(*parsed, [](const auto& resource) {
+      if (resource.id != kImageResourcePatchyRecognizedText || resource.payload.size() < 8) { return false; }
+      BigEndianReader reader(resource.payload);
+      return reader.read_u32() == kPatchyRecognizedTextMagic && reader.read_u16() == 1;
     });
   }
   const auto had_link_resource = std::any_of(parsed->begin(), parsed->end(), [](const ImageResource& resource) {

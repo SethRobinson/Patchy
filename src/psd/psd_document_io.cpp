@@ -2151,6 +2151,9 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
   if (const auto long_shadows = find_image_resource_payload(image_resources, kImageResourcePatchyLongShadows)) {
     apply_long_shadow_resource(document, *long_shadows);
   }
+  if (const auto recognized = find_image_resource_payload(image_resources, kImageResourcePatchyRecognizedText)) {
+    apply_recognized_text_resource(document, *recognized);
+  }
   collapse_compound_vector_groups(document);
   parse_document_path_resources(document, image_resources);
   import_text_frame_geometry(document);

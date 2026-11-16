@@ -104,6 +104,15 @@ constexpr std::uint16_t kPatchyLongShadowFlagContinuous = 0x0001U;
 // may drop them when it re-saves.
 constexpr std::uint16_t kImageResourcePatchyFileInfoText = 4213;
 constexpr std::uint32_t kPatchyFileInfoTextMagic = 0x5074634DU;  // 'PtcM'
+// Plug-in image resource: 'PtcO', u16 version 1, u16 reserved 0, u32 count, then count
+// entries {u32 Photoshop lyid of a group, u16 byte length (1 to 255), that many printable
+// ASCII bytes}: the kLayerMetadataOcrGroup value ("<engine id> <language tag>") of each
+// Recognized Text group (docs/ocr.md), so a reopened document still knows which groups
+// hold recognized text. The text layers inside are ordinary type layers. Photoshop may
+// drop the resource when it re-saves.
+constexpr std::uint16_t kImageResourcePatchyRecognizedText = 4214;
+constexpr std::uint32_t kPatchyRecognizedTextMagic = 0x5074634FU;  // 'PtcO'
+constexpr std::size_t kPatchyRecognizedTextMaxValueBytes = 255;
 constexpr float kDefaultGlobalLightAngle = 120.0F;
 constexpr float kDefaultGlobalLightAltitude = 30.0F;
 constexpr std::int32_t kDefaultGridCycle32 = 576;
@@ -900,6 +909,10 @@ void apply_compound_vector_resource(Document& document, std::span<const std::uin
 // shadows already parsed from lfx2, matched by unique 'lyid' and index. Any
 // malformed field rejects the whole record.
 void apply_long_shadow_resource(Document& document, std::span<const std::uint8_t> payload);
+// Resource 4214: puts kLayerMetadataOcrGroup back on the groups it names, matched by
+// unique 'lyid'. Any malformed field rejects the whole record; an entry whose layer is
+// gone, is not a group, or shares its id with another layer is skipped.
+void apply_recognized_text_resource(Document& document, std::span<const std::uint8_t> payload);
 // File Info (docs/file-info.md): moves the metadata-only resources (XMP, EXIF, IPTC,
 // caption digest, copyright flag/URL, thumbnails, version/print/auto-save info,
 // Patchy's 4213 text) out of metadata().raw_psd_image_resources into file_info(), so
