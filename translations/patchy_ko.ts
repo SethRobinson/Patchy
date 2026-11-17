@@ -36874,6 +36874,14 @@ Locked: %1</source>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>텍스트 인식 모델을 삭제할 수 없습니다: %1</translation>
     </message>
+    <message>
+        <source>Protect Foreground Color</source>
+        <translation>전경색 보호</translation>
+    </message>
+    <message>
+        <source>Keep pixels that are closer to the foreground color than to the erased color. %ALT%+click picks the foreground color from the image</source>
+        <translation>지우는 색상보다 전경색에 더 가까운 픽셀을 유지합니다. %ALT%+클릭하면 이미지에서 전경색을 가져옵니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

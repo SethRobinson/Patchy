@@ -1891,6 +1891,12 @@ QJSValue ScriptLayerObject::eraseBackground(const QJSValue& options) {
         return QJSValue();
       }
       has_background = true;
+    } else if (key == QLatin1String("protectColor")) {
+      QColor keep;
+      if (!read.color(key, value, &keep)) {
+        return QJSValue();
+      }
+      stroke.protect_color = keep;
     } else if (key == QLatin1String("size")) {
       if (!read.number(key, value, 1, kMaxBrushSize, &stroke.size)) {
         return QJSValue();

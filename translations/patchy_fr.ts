@@ -36989,6 +36989,14 @@ Verrouillé : %1</translation>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Impossible de supprimer les modèles de reconnaissance de texte : %1</translation>
     </message>
+    <message>
+        <source>Protect Foreground Color</source>
+        <translation>Protéger la couleur de premier plan</translation>
+    </message>
+    <message>
+        <source>Keep pixels that are closer to the foreground color than to the erased color. %ALT%+click picks the foreground color from the image</source>
+        <translation>Conserve les pixels plus proches de la couleur de premier plan que de la couleur effacée. %ALT%+clic prélève la couleur de premier plan dans l&apos;image</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

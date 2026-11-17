@@ -132,6 +132,10 @@ QRect CanvasWidget::color_match_brush_segment(QPoint from, QPoint to, bool erase
                                         edit_color_of(secondary_color_), active_layer_locks_transparent_pixels(),
                                         gain);
       background_eraser_stroke_->set_palette_snap(palette_snap_for_edits());
+      if (background_eraser_options_.protect_foreground) {
+        // Protect Foreground Color: the swatch as it is when the stroke starts.
+        background_eraser_stroke_->set_protected_color(edit_color_of(primary_color_));
+      }
     }
   } else if (!color_replace_stroke_.has_value()) {
     const auto gain = start_pixels.format().bit_depth == BitDepth::Float32

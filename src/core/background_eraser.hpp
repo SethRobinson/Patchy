@@ -14,7 +14,9 @@
 // lands. Never a Lab point or area model, a Gaussian or other smoothing function around the
 // sample, histogram or range normalization, a stored spatial or range mask, an erase that can
 // be adjusted afterwards, or a color correction of the pixels that stay (no edge color
-// decontamination).
+// decontamination). Protect Foreground Color, part of that 1999 form (reviewed 2026-11-17), is
+// a second color the caller names (set_protected_color): the foreground swatch or a script's
+// argument, never a color sampled from the tip's region or a statistic of pixels.
 
 #include "core/color_match_stroke.hpp"
 #include "core/layer.hpp"
@@ -32,6 +34,9 @@ namespace patchy {
 struct BackgroundEraserOptions {
   ColorMatchLimits limits{ColorMatchLimits::Contiguous};
   int tolerance{kDefaultColorMatchTolerance};  // percent, 0 = exact matches only
+  // Protect Foreground Color: the tool's owner hands each stroke the foreground color
+  // (BackgroundEraserStroke::set_protected_color) while this is on.
+  bool protect_foreground{false};
 
   // The shared match's options: the fringe past the tolerance is always on, so the erased
   // area's edge is soft (Find Edges gives none, as in the shared rule).
@@ -86,6 +91,11 @@ class BackgroundEraserStroke {
 
   // The color the stroke compares against, once it has one (Continuous: the last dab's).
   [[nodiscard]] const std::optional<ColorMatchRgb>& sample() const noexcept { return match_.sample(); }
+
+  // Protect Foreground Color: a pixel at least as near to `color` (display RGB; its alpha is
+  // ignored) as to the sampled color is not erased (color_match_protection_scale). Set it
+  // before the first dab; empty protects nothing.
+  void set_protected_color(std::optional<EditColor> color) noexcept;
 
  private:
   ColorMatchStroke match_;

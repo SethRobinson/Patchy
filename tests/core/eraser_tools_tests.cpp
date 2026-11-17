@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -341,6 +342,116 @@ void background_eraser_16_and_32_bit_erase_the_same_pixels() {
   }
 }
 
+// Protect Foreground Color (GitHub issue 727 follow-up; docs/eraser-tools.md): a pixel at least
+// as near to the protected color as to the dab's sample is left alone, one clearly nearer to
+// the sample is erased as before, and a short straight ramp joins the two.
+void background_eraser_protected_color_is_left_alone() {
+  // The sample is kRed; kDarkRed (66 away) matches it fully at 30% and is the color to keep.
+  // kBetween is 44 from red and 22 from dark red (kept); kEdge is 30 from red and 36 from
+  // dark red: nearer to the sample by 6 of the 19 wide ramp, so about a third erased.
+  constexpr Rgba kBetween{170, 27, 27, 255};
+  constexpr Rgba kEdge{183, 31, 31, 255};
+  auto source = filled(24, 12, kRed);
+  fill_rect(source, 6, 0, 8, 11, kEdge);
+  fill_rect(source, 9, 0, 11, 11, kBetween);
+  fill_rect(source, 12, 0, 17, 11, kDarkRed);
+  fill_rect(source, 18, 0, 20, 11, kGreen);
+  const Rect rect{0, 0, 24, 12};
+  const std::vector<float> footprint(static_cast<std::size_t>(rect.width) * rect.height, 1.0F);
+  const EditColor keep{kDarkRed[0], kDarkRed[1], kDarkRed[2], 255};
+  const patchy::ColorMatchRgb keep_rgb{150.0F, 20.0F, 20.0F};
+  const auto sample = patchy::color_match_pixel_at(source, 2, 6).rgb;
+
+  // The rule itself: ties and nearer-to-protected are kept, the ramp is a quarter of the
+  // tolerance distance (30% is a distance of 76, so 19), hard without the fringe.
+  using patchy::color_match_protection_scale;
+  CHECK(color_match_protection_scale(sample, sample, keep_rgb, 30, true) == 1.0F);
+  CHECK(color_match_protection_scale(keep_rgb, sample, keep_rgb, 30, true) == 0.0F);
+  CHECK(color_match_protection_scale(sample, sample, sample, 30, true) == 0.0F);  // protecting the sample
+  const patchy::ColorMatchRgb midpoint{180.0F, 30.0F, 30.0F};
+  CHECK(color_match_protection_scale(midpoint, sample, keep_rgb, 30, true) == 0.0F);  // a tie is kept
+  const patchy::ColorMatchRgb edge_rgb{183.0F, 31.0F, 31.0F};
+  const auto edge_scale = color_match_protection_scale(edge_rgb, sample, keep_rgb, 30, true);
+  CHECK(edge_scale > 0.25F && edge_scale < 0.45F);
+  CHECK(color_match_protection_scale(edge_rgb, sample, keep_rgb, 30, false) == 1.0F);
+  CHECK(color_match_protection_scale(edge_rgb, sample, keep_rgb, 0, true) == 1.0F);
+
+  for (const auto limits :
+       {ColorMatchLimits::Discontiguous, ColorMatchLimits::Contiguous, ColorMatchLimits::FindEdges}) {
+    const auto options = eraser_options(limits);
+    const bool fringe = limits != ColorMatchLimits::FindEdges;
+    const auto weights = patchy::color_match_dab_weights(source, rect, 2, 6, sample, options.match(), footprint);
+
+    // Without the option the dark red goes with the red (it is within the tolerance).
+    auto plain = source;
+    BackgroundEraserStroke unprotected(source, options, ColorMatchSampling::Continuous, kWhite, false);
+    CHECK(!unprotected.dab(plain, 2, 6, rect, footprint).empty());
+    CHECK(get(plain, 2, 6)[3] == 0);
+    if (limits != ColorMatchLimits::FindEdges) {
+      CHECK(get(plain, 14, 6)[3] == 0);
+    }
+
+    auto erased = source;
+    BackgroundEraserStroke stroke(source, options, ColorMatchSampling::Continuous, kWhite, false);
+    stroke.set_protected_color(keep);
+    CHECK(!stroke.dab(erased, 2, 6, rect, footprint).empty());
+    for (int y = 0; y < rect.height; ++y) {
+      for (int x = 0; x < rect.width; ++x) {
+        const auto before = get(source, x, y);
+        const auto pixel = patchy::color_match_pixel_at(source, x, y).rgb;
+        const auto weight = weights[static_cast<std::size_t>(y) * rect.width + x] *
+                            color_match_protection_scale(pixel, sample, keep_rgb, options.tolerance, fringe);
+        CHECK(get(erased, x, y) == patchy::background_eraser_pixel_rgba8(before, weight, false, kWhite));
+      }
+    }
+    CHECK(get(erased, 2, 6)[3] == 0);       // the sampled red still goes
+    CHECK(get(erased, 14, 6) == kDarkRed);  // the protected color stays
+    CHECK(get(erased, 10, 6) == kBetween);  // nearer to it than to the sample: stays
+    CHECK(get(erased, 19, 6) == kGreen);    // never matched
+    if (limits == ColorMatchLimits::Discontiguous) {
+      // The ramp: partly erased, the color untouched.
+      const auto edge = get(erased, 7, 6);
+      CHECK(edge[3] > 140 && edge[3] < 200);
+      CHECK(edge[0] == kEdge[0] && edge[1] == kEdge[1] && edge[2] == kEdge[2]);
+    }
+    if (limits == ColorMatchLimits::FindEdges) {
+      CHECK(get(erased, 7, 6)[3] == 0 || get(erased, 7, 6)[3] == 255);  // no ramp without a fringe
+    }
+  }
+
+  // Protecting the sampled color itself: the dab erases nothing.
+  auto untouched = source;
+  BackgroundEraserStroke same(source, eraser_options(ColorMatchLimits::Discontiguous), ColorMatchSampling::Continuous,
+                              kWhite, false);
+  same.set_protected_color(EditColor{kRed[0], kRed[1], kRed[2], 255});
+  CHECK(same.dab(untouched, 2, 6, rect, footprint).empty());
+  CHECK(get(untouched, 2, 6) == kRed);
+
+  // Clearing it restores the plain erase, and a 16-bit buffer follows the same rule.
+  auto cleared = source;
+  BackgroundEraserStroke off(source, eraser_options(ColorMatchLimits::Discontiguous), ColorMatchSampling::Continuous,
+                             kWhite, false);
+  off.set_protected_color(keep);
+  off.set_protected_color(std::nullopt);
+  CHECK(!off.dab(cleared, 2, 6, rect, footprint).empty());
+  CHECK(get(cleared, 14, 6)[3] == 0);
+
+  Document document(24, 12, PixelFormat::rgba8());
+  const auto layer_id = document.add_pixel_layer("Photo", source).id();
+  patchy::convert_document_depth(document, BitDepth::UInt16);
+  const auto deep_source = std::as_const(document).find_layer(layer_id)->pixels();
+  auto deep = deep_source;
+  BackgroundEraserStroke deep_stroke(deep_source, eraser_options(ColorMatchLimits::Discontiguous),
+                                     ColorMatchSampling::Continuous, kWhite, false);
+  deep_stroke.set_protected_color(keep);
+  CHECK(!deep_stroke.dab(deep, 2, 6, rect, footprint).empty());
+  CHECK(patchy::load_pixel(deep.format(), deep.pixel(2, 6))[3] == 0.0F);
+  CHECK(patchy::load_pixel(deep.format(), deep.pixel(14, 6)) ==
+        patchy::load_pixel(deep_source.format(), deep_source.pixel(14, 6)));
+  CHECK(patchy::load_pixel(deep.format(), deep.pixel(10, 6)) ==
+        patchy::load_pixel(deep_source.format(), deep_source.pixel(10, 6)));
+}
+
 void background_eraser_tokens_are_the_shared_match_tokens() {
   using patchy::color_match_limits_from_token;
   using patchy::color_match_limits_token;
@@ -640,6 +751,7 @@ std::vector<patchy::test::TestCase> eraser_tools_tests() {
       {"background_eraser_overlapping_dabs_do_not_compound_and_selection_limits",
        background_eraser_overlapping_dabs_do_not_compound_and_selection_limits},
       {"background_eraser_16_and_32_bit_erase_the_same_pixels", background_eraser_16_and_32_bit_erase_the_same_pixels},
+      {"background_eraser_protected_color_is_left_alone", background_eraser_protected_color_is_left_alone},
       {"background_eraser_tokens_are_the_shared_match_tokens", background_eraser_tokens_are_the_shared_match_tokens},
       {"magic_eraser_erases_the_region_the_fill_tool_floods", magic_eraser_erases_the_region_the_fill_tool_floods},
       {"magic_eraser_contiguous_and_all_matching_pixels", magic_eraser_contiguous_and_all_matching_pixels},

@@ -37104,6 +37104,14 @@ Zablokowano: %1</translation>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Nie udało się usunąć modeli rozpoznawania tekstu: %1</translation>
     </message>
+    <message>
+        <source>Protect Foreground Color</source>
+        <translation>Chroń kolor narzędzia</translation>
+    </message>
+    <message>
+        <source>Keep pixels that are closer to the foreground color than to the erased color. %ALT%+click picks the foreground color from the image</source>
+        <translation>Zachowuje piksele bliższe kolorowi narzędzia niż wymazywanemu kolorowi. %ALT%+kliknięcie pobiera kolor narzędzia z obrazu</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -14,7 +14,9 @@
 // stays in the form published in 1999. One sampled point in display RGB with the Magic Wand's
 // tolerance metric, the pixels erased at once. Never a Lab point or area model, a Gaussian
 // around the sample, histogram normalization, a stored spatial or range mask, an erase that
-// can be adjusted afterwards, or a color correction of the pixels that stay.
+// can be adjusted afterwards, or a color correction of the pixels that stay. Protect
+// Foreground Color (reviewed 2026-11-17) tests a second color the user names, the foreground
+// swatch: never a color sampled from the tip's region or a statistic of pixels.
 
 #include "ui/canvas_widget.hpp"
 
@@ -101,6 +103,12 @@ CanvasWidget::EraserToolResult CanvasWidget::apply_background_eraser_stroke(cons
                         static_cast<std::uint8_t>(background.blue()), 255},
       locked);
   engine.set_palette_snap(palette_snap_for_edits());
+  if (stroke.protect_color.has_value()) {
+    const QColor& keep = *stroke.protect_color;
+    engine.set_protected_color(patchy::EditColor{static_cast<std::uint8_t>(keep.red()),
+                                                 static_cast<std::uint8_t>(keep.green()),
+                                                 static_cast<std::uint8_t>(keep.blue()), 255});
+  }
   auto& pixels = layer->pixels();
   const auto size = std::clamp(stroke.size, 1, kMaxBrushSize);
   const auto softness = std::clamp(stroke.softness, 0, 100);
