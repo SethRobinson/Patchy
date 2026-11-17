@@ -18,6 +18,7 @@
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/brush_context_preview.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
@@ -725,6 +726,213 @@ void ui_brush_context_menu_rows_follow_options_bar() {
   QApplication::processEvents();
   CHECK(canvas->brush_size() != before);
   CHECK(move_layer_menu(*canvas) == nullptr);
+}
+
+// The rectangle of an image's pixels with real coverage.
+QRect preview_painted_bounds(const QImage& image) {
+  QRect bounds;
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      if (qAlpha(image.pixel(x, y)) > 96) {
+        bounds = bounds.united(QRect(x, y, 1, 1));
+      }
+    }
+  }
+  return bounds;
+}
+
+bool near_px(int value, int expected, int slack = 2) {
+  return std::abs(value - expected) <= slack;
+}
+
+// The canvas menu's brush section leads with a live preview (GitHub issue 734 follow-up): the
+// footprint at its size, roundness and angle, a sample stroke whose pointer path the Smooth
+// value pulls straight, and a glyph per row. Every row and the options bar's own fields move
+// it; a tool without Smooth or tip shape shows only what it has.
+void ui_brush_context_menu_preview_follows_rows() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_rulers_visible(false);
+  require_action(window, "toolBrushAction")->trigger();
+  canvas->set_primary_color(QColor(38, 112, 214));
+  QApplication::processEvents();
+  auto* bar_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(bar_size != nullptr);
+  auto* menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu == nullptr || bar_size == nullptr) {
+    return;
+  }
+  auto* preview = menu->findChild<patchy::ui::BrushContextPreview*>(QStringLiteral("canvasBrushPreview"));
+  auto* size = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushSizeSpin"));
+  auto* soft = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushSoftnessSpin"));
+  auto* roundness = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushRoundnessSpin"));
+  auto* angle = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushAngleSpin"));
+  auto* smooth = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushSmoothingSpin"));
+  CHECK(preview != nullptr && size != nullptr && soft != nullptr && roundness != nullptr && angle != nullptr &&
+        smooth != nullptr);
+  if (preview == nullptr || size == nullptr || soft == nullptr || roundness == nullptr || angle == nullptr ||
+      smooth == nullptr) {
+    return;
+  }
+  // Every row has its glyph.
+  for (const auto* name : {"canvasBrushSizeSpinGlyph", "canvasBrushSoftnessSpinGlyph", "canvasBrushRoundnessSpinGlyph",
+                           "canvasBrushAngleSpinGlyph", "canvasBrushSmoothingSpinGlyph"}) {
+    CHECK(menu->findChild<patchy::ui::BrushSettingGlyph*>(QString::fromLatin1(name)) != nullptr);
+  }
+  CHECK(preview->smoothing_shown());
+  CHECK(preview->state().ink == QColor(38, 112, 214));
+
+  size->setValue(40);
+  soft->setValue(0);
+  roundness->setValue(100);
+  angle->setValue(0);
+  QApplication::processEvents();
+  CHECK(preview->state().size == 40);
+  preview->render_now(1.0);
+  const auto round = preview_painted_bounds(preview->footprint_image());
+  CHECK(near_px(round.width(), 40) && near_px(round.height(), 40));
+  // At 200% display scale the cached tile has twice the pixels for the same footprint.
+  preview->render_now(2.0);
+  const auto round_hidpi = preview_painted_bounds(preview->footprint_image());
+  CHECK(near_px(round_hidpi.width(), 80, 3) && near_px(round_hidpi.height(), 80, 3));
+
+  roundness->setValue(40);
+  QApplication::processEvents();
+  CHECK(std::abs(preview->footprint_extent().height() - 16.0) < 0.01);
+  preview->render_now(1.0);
+  const auto flat = preview_painted_bounds(preview->footprint_image());
+  CHECK(near_px(flat.width(), 40) && near_px(flat.height(), 16));
+  angle->setValue(90);
+  QApplication::processEvents();
+  preview->render_now(1.0);
+  const auto turned = preview_painted_bounds(preview->footprint_image());
+  CHECK(near_px(turned.width(), 16) && near_px(turned.height(), 40));
+  auto* angle_glyph = menu->findChild<patchy::ui::BrushSettingGlyph*>(QStringLiteral("canvasBrushAngleSpinGlyph"));
+  CHECK(angle_glyph != nullptr && angle_glyph->value() == 90);
+
+  // Softness widens the falloff: fewer pixels reach full cover.
+  const auto full_cover = [](const QImage& image) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        count += qAlpha(image.pixel(x, y)) >= 250 ? 1 : 0;
+      }
+    }
+    return count;
+  };
+  const auto hard_cover = full_cover(preview->footprint_image());
+  soft->setValue(80);
+  QApplication::processEvents();
+  preview->render_now(1.0);
+  CHECK(full_cover(preview->footprint_image()) < hard_cover / 2);
+
+  // A size past the tile scales down; the preview keeps the real size for its chip.
+  size->setValue(300);
+  QApplication::processEvents();
+  CHECK(preview->state().size == 300);
+  CHECK(preview->footprint_extent().width() < 72.0);
+
+  // Smooth pulls the stroke off the jittery pointer path.
+  smooth->setValue(0);
+  QApplication::processEvents();
+  preview->render_now(1.0);
+  const auto rough = preview->stroke_image().copy();
+  smooth->setValue(100);
+  QApplication::processEvents();
+  preview->render_now(1.0);
+  CHECK(preview->state().smoothing == 100);
+  CHECK(preview->stroke_image() != rough);
+
+  // The options bar's own change (the [ and ] keys) reaches the preview through its row.
+  bar_size->setValue(36);
+  QApplication::processEvents();
+  CHECK(preview->state().size == 36);
+
+  // The shots: a soft, flattened, turned tip with some smoothing, Dark then Light.
+  soft->setValue(45);
+  roundness->setValue(55);
+  angle->setValue(30);
+  smooth->setValue(35);
+  QApplication::processEvents();
+  save_widget_artifact("ui_brush_context_menu_preview_dark", *menu);
+  if (auto* panel = menu->findChild<QWidget*>(QStringLiteral("canvasBrushSettingsPanel")); panel != nullptr) {
+    for (const double scale : {1.5, 2.0}) {
+      QImage image((QSizeF(panel->size()) * scale).toSize(), QImage::Format_ARGB32_Premultiplied);
+      image.setDevicePixelRatio(scale);
+      image.fill(Qt::transparent);
+      panel->render(&image);
+      save_image_artifact(scale == 2.0 ? "ui_brush_context_menu_preview_200" : "ui_brush_context_menu_preview_150",
+                          image);
+    }
+  }
+  menu->close();
+  QApplication::processEvents();
+  {
+    ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
+    QApplication::processEvents();
+    auto* light_menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+    CHECK(light_menu != nullptr);
+    if (light_menu != nullptr) {
+      save_widget_artifact("ui_brush_context_menu_preview_light", *light_menu);
+      light_menu->close();
+      QApplication::processEvents();
+    }
+  }
+
+  // The Eraser inside a selection: every row, black paint, the selection commands below.
+  require_action(window, "toolMarqueeAction")->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(80, 80)));
+  QApplication::processEvents();
+  require_action(window, "toolEraserAction")->trigger();
+  QApplication::processEvents();
+  for (const auto scheme :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    QApplication::processEvents();
+    auto* eraser_menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+    CHECK(eraser_menu != nullptr);
+    if (eraser_menu == nullptr) {
+      continue;
+    }
+    auto* eraser_preview =
+        eraser_menu->findChild<patchy::ui::BrushContextPreview*>(QStringLiteral("canvasBrushPreview"));
+    CHECK(eraser_preview != nullptr && eraser_preview->smoothing_shown());
+    CHECK(eraser_preview != nullptr && eraser_preview->state().ink == QColor(0, 0, 0));
+    save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Light
+                             ? "ui_brush_context_menu_preview_eraser_selection_light"
+                             : "ui_brush_context_menu_preview_eraser_selection_dark",
+                         *eraser_menu);
+    eraser_menu->close();
+    QApplication::processEvents();
+  }
+  canvas->clear_selection();
+
+  // The Clone Stamp has no Smooth: no pointer path and no Smooth glyph.
+  require_action(window, "toolCloneAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    auto* clone_preview = menu->findChild<patchy::ui::BrushContextPreview*>(QStringLiteral("canvasBrushPreview"));
+    CHECK(clone_preview != nullptr && !clone_preview->smoothing_shown());
+    CHECK(menu->findChild<patchy::ui::BrushSettingGlyph*>(QStringLiteral("canvasBrushSmoothingSpinGlyph")) == nullptr);
+    menu->close();
+    QApplication::processEvents();
+  }
+  // Spot Healing takes no tip shape: a round footprint whatever the Brush's roundness.
+  require_action(window, "toolSpotHealingAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    auto* spot_preview = menu->findChild<patchy::ui::BrushContextPreview*>(QStringLiteral("canvasBrushPreview"));
+    CHECK(spot_preview != nullptr && !spot_preview->state().tip_shape);
+    CHECK(spot_preview != nullptr &&
+          spot_preview->footprint_extent().width() == spot_preview->footprint_extent().height());
+    menu->close();
+    QApplication::processEvents();
+  }
 }
 
 void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
@@ -5626,6 +5834,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks},
       {"ui_right_drag_does_not_pan_canvas", ui_right_drag_does_not_pan_canvas},
       {"ui_brush_context_menu_rows_follow_options_bar", ui_brush_context_menu_rows_follow_options_bar},
+      {"ui_brush_context_menu_preview_follows_rows", ui_brush_context_menu_preview_follows_rows},
       {"ui_selection_context_menu_offers_remove_object", ui_selection_context_menu_offers_remove_object},
       {"ui_stroke_selection_from_context_menu_survives_following_mouse_input",
        ui_stroke_selection_from_context_menu_survives_following_mouse_input},

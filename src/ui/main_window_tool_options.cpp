@@ -42,6 +42,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/brush_dynamics_popup.hpp"
+#include "ui/brush_context_preview.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/brush_tool_window.hpp"
@@ -1003,16 +1004,56 @@ void MainWindow::add_brush_context_rows(QMenu& menu, CanvasTool tool) {
   if (canvas_ == nullptr || !tool_uses_brush_footprint_cursor(tool)) {
     return;
   }
+  const bool tip_shape = tool_stroke_uses_tip_shape(tool);
+  const bool smoothing = tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::Eraser;
   auto* panel = new BrushContextRowsPanel(&menu);
   panel->setObjectName(QStringLiteral("canvasBrushSettingsPanel"));
   auto* grid = new QGridLayout(panel);
-  grid->setContentsMargins(10, 6, 10, 6);
+  grid->setContentsMargins(10, 8, 10, 8);
   grid->setHorizontalSpacing(8);
   grid->setVerticalSpacing(4);
-  int row = 0;
-  // One row: a scrub label, a slider and the field. The slider follows the field both ways.
-  const auto add_row = [&](const QString& text, const QString& object_name, int minimum, int maximum, int value,
-                           const QString& suffix, bool curved) {
+  // The live preview leads (GitHub issue 734 follow-up): the footprint and a sample stroke.
+  auto* preview = new BrushContextPreview(panel);
+  grid->addWidget(preview, 0, 0, 1, 4);
+  grid->setRowMinimumHeight(1, 2);
+  // A wider menu (long selection commands below) widens the sliders, not the gaps.
+  grid->setColumnStretch(2, 1);
+  int row = 2;
+  // The preview reads the canvas, which every row has already updated by the time this runs
+  // (connected after the rows' own handlers).
+  QPointer<CanvasWidget> canvas(canvas_);
+  const auto refresh_preview = [this, canvas, preview, tool, tip_shape, smoothing] {
+    if (canvas == nullptr) {
+      return;
+    }
+    BrushContextPreviewState state;
+    state.size = canvas->brush_size();
+    state.softness = canvas->brush_softness();
+    state.tip_shape = tip_shape;
+    state.roundness = tip_shape ? canvas->brush_base_roundness() : 100;
+    state.angle_degrees = tip_shape ? wrapped_brush_tip_angle(canvas->brush_base_angle_degrees()) : 0.0;
+    if (tool_paints_with_brush_tip(tool) && canvas->has_brush_tip()) {
+      state.tip = active_preset_tip_ != nullptr ? active_preset_tip_ : brush_tip_library().tip(active_brush_tip_id_);
+    }
+    state.square = state.tip == nullptr && tool_paints_with_brush_tip(tool) &&
+                   canvas->brush_shape() == patchy::BrushShape::Square;
+    // The tools that lay down the foreground color show it; the others (erasers, stamps,
+    // retouching) keep the preview's black paint.
+    if (tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::ColorReplace) {
+      state.ink = canvas->primary_color();
+      state.ink.setAlpha(255);
+    }
+    state.smoothing_shown = smoothing;
+    state.smoothing = smoothing ? canvas->brush_smoothing() : 0;
+    preview->set_state(state);
+  };
+  refresh_preview();
+  // One row: a live glyph, a scrub label, a slider and the field. The slider and the glyph
+  // follow the field.
+  const auto add_row = [&](BrushSettingGlyphKind kind, const QString& text, const QString& object_name, int minimum,
+                           int maximum, int value, const QString& suffix, bool curved) {
+    auto* glyph = new BrushSettingGlyph(kind, value, panel);
+    glyph->setObjectName(object_name + QStringLiteral("Glyph"));
     auto* label = new QLabel(text, panel);
     label->setIndent(0);
     auto* spin = new QSpinBox(panel);
@@ -1024,7 +1065,7 @@ void MainWindow::add_brush_context_rows(QMenu& menu, CanvasTool tool) {
     label->setBuddy(spin);
     auto* slider = new QSlider(Qt::Horizontal, panel);
     slider->setObjectName(object_name + QStringLiteral("Slider"));
-    slider->setFixedWidth(120);
+    slider->setMinimumWidth(120);
     if (curved) {
       bind_curved_slider(*slider, *spin);
     } else {
@@ -1033,9 +1074,11 @@ void MainWindow::add_brush_context_rows(QMenu& menu, CanvasTool tool) {
       connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
       connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
     }
-    grid->addWidget(label, row, 0);
-    grid->addWidget(slider, row, 1);
-    grid->addWidget(spin, row, 2);
+    connect(spin, &QSpinBox::valueChanged, glyph, &BrushSettingGlyph::set_value);
+    grid->addWidget(glyph, row, 0, Qt::AlignCenter);
+    grid->addWidget(label, row, 1);
+    grid->addWidget(slider, row, 2);
+    grid->addWidget(spin, row, 3);
     ++row;
     // Built after the window's install_scrub_labels_in passes, which never reach a menu.
     install_scrub_label(label, spin);
@@ -1043,25 +1086,32 @@ void MainWindow::add_brush_context_rows(QMenu& menu, CanvasTool tool) {
   };
   // A row that mirrors an options-bar field edits through it, so the canvas, its cursor, the
   // saved tool settings and the bar move together, and shows the field's own changes.
-  const auto mirror = [&](const QString& text, const QString& object_name, const QString& bar_name, bool curved) {
+  const auto mirror = [&](BrushSettingGlyphKind kind, const QString& text, const QString& object_name,
+                          const QString& bar_name, bool curved) {
     auto* bar = findChild<QSpinBox*>(bar_name);
     if (bar == nullptr) {
       return;
     }
-    auto* spin = add_row(text, object_name, bar->minimum(), bar->maximum(), bar->value(), bar->suffix(), curved);
+    auto* spin =
+        add_row(kind, text, object_name, bar->minimum(), bar->maximum(), bar->value(), bar->suffix(), curved);
     spin->setEnabled(bar->isEnabled());
     connect(spin, &QSpinBox::valueChanged, bar, [bar](int value) { bar->setValue(value); });
     connect(bar, &QSpinBox::valueChanged, spin, [spin](int value) { spin->setValue(value); });
+    connect(spin, &QSpinBox::valueChanged, preview, refresh_preview);
   };
-  mirror(tr("Size:"), QStringLiteral("canvasBrushSizeSpin"), QStringLiteral("brushSizeSpin"), true);
-  mirror(tr("Soft:"), QStringLiteral("canvasBrushSoftnessSpin"), QStringLiteral("brushSoftnessSpin"), false);
-  if (tool_stroke_uses_tip_shape(tool)) {
+  mirror(BrushSettingGlyphKind::Size, tr("Size:"), QStringLiteral("canvasBrushSizeSpin"),
+         QStringLiteral("brushSizeSpin"), true);
+  mirror(BrushSettingGlyphKind::Softness, tr("Soft:"), QStringLiteral("canvasBrushSoftnessSpin"),
+         QStringLiteral("brushSoftnessSpin"), false);
+  if (tip_shape) {
     // The Brush Dynamics popup's Tip Shape fields, in its words, on every tool whose strokes
     // take the tip's shape; the Left and Right keys turn the same angle.
-    auto* roundness = add_row(QCoreApplication::translate("patchy::ui::BrushDynamicsPanel", "Roundness:"),
+    auto* roundness = add_row(BrushSettingGlyphKind::Roundness,
+                              QCoreApplication::translate("patchy::ui::BrushDynamicsPanel", "Roundness:"),
                               QStringLiteral("canvasBrushRoundnessSpin"), 1, 100, canvas_->brush_base_roundness(),
                               percent_suffix(), false);
-    auto* angle = add_row(QCoreApplication::translate("patchy::ui::BrushDynamicsPanel", "Angle:"),
+    auto* angle = add_row(BrushSettingGlyphKind::Angle,
+                          QCoreApplication::translate("patchy::ui::BrushDynamicsPanel", "Angle:"),
                           QStringLiteral("canvasBrushAngleSpin"), -180, 180,
                           static_cast<int>(std::lround(wrapped_brush_tip_angle(canvas_->brush_base_angle_degrees()))),
                           degree_suffix(), false);
@@ -1069,9 +1119,12 @@ void MainWindow::add_brush_context_rows(QMenu& menu, CanvasTool tool) {
     const auto apply = [this, roundness, angle] { set_brush_tip_base_shape(angle->value(), roundness->value()); };
     connect(roundness, &QSpinBox::valueChanged, this, apply);
     connect(angle, &QSpinBox::valueChanged, this, apply);
+    connect(roundness, &QSpinBox::valueChanged, preview, refresh_preview);
+    connect(angle, &QSpinBox::valueChanged, preview, refresh_preview);
   }
-  if (tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::Eraser) {
-    mirror(tr("Smooth:"), QStringLiteral("canvasBrushSmoothingSpin"), QStringLiteral("brushSmoothingSpin"), false);
+  if (smoothing) {
+    mirror(BrushSettingGlyphKind::Smoothing, tr("Smooth:"), QStringLiteral("canvasBrushSmoothingSpin"),
+           QStringLiteral("brushSmoothingSpin"), false);
   }
   auto* action = new QWidgetAction(&menu);
   action->setObjectName(QStringLiteral("canvasBrushSettingsAction"));
