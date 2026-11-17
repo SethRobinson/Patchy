@@ -54,6 +54,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/contour_library.hpp"
+#include "ui/contour_manager_dialog.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/pattern_manager_dialog.hpp"
@@ -1044,6 +1045,10 @@ const std::vector<MainWindow::PresetManagerEntry>& MainWindow::preset_manager_en
       {QT_TR_NOOP("Styles Manager..."), QT_TR_NOOP("Rename, sort, import and export layer style presets."),
        "editPresetsStylesAction", "preferencesPresetsStylesButton", "edit.presets_styles",
        &MainWindow::open_style_manager, false},
+      {QT_TR_NOOP("Contour Manager..."),
+       QT_TR_NOOP("Rename, edit, load and save the contours that layer styles use."),
+       "editPresetsContoursAction", "preferencesPresetsContoursButton", "edit.presets_contours",
+       &MainWindow::open_contour_manager, false},
       {QT_TR_NOOP("Brush Tips..."), QT_TR_NOOP("Import .abr brushes, define tips and set their spacing."),
        "editPresetsBrushTipsAction", "preferencesPresetsBrushTipsButton", "edit.presets_brush_tips",
        &MainWindow::open_brush_tip_manager, true},
@@ -1069,6 +1074,10 @@ const std::vector<MainWindow::PresetManagerEntry>& MainWindow::preset_manager_en
 
 void MainWindow::open_style_manager(QWidget* parent) {
   (void)request_style_manager(parent != nullptr ? parent : this, style_library(), {}, /*offer_use=*/false);
+}
+
+void MainWindow::open_contour_manager(QWidget* parent) {
+  request_contour_manager(parent != nullptr ? parent : this, contour_library());
 }
 
 void MainWindow::open_stroke_preset_manager(QWidget* parent) {

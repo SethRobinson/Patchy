@@ -52,7 +52,6 @@
 #include <QIcon>
 #include <QIconEngine>
 #include <QImage>
-#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -4041,32 +4040,35 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       load_contour_picker(picker.combo, *picker.custom, value);
       preview_contour_change(picker, immediate);
     };
-    const auto edited =
-        request_contour_edit(&dialog, value_before, [&show](const StyleContour& value) { show(value, false); });
+    // The editor's Save as New Contour adds to the library while it is open, so
+    // the other pickers list what the library holds once it closes.
+    const auto relist_other_pickers = [&] {
+      for (auto& other : contour_pickers) {
+        if (&other != &picker) {
+          fill_contour_combo(other.combo, contour_combo_value(other.combo, *other.custom), *other.custom);
+        }
+      }
+    };
+    const auto edited = request_contour_edit(
+        &dialog, value_before, [&show](const StyleContour& value) { show(value, false); }, contour_library);
     if (edited.has_value()) {
+      relist_other_pickers();
       show(*edited, true);
       return;
     }
-    // Cancel: the picker, the host's custom curve and the batch edits go back.
+    // Cancel: the picker, the host's custom curve and the batch edits go back. A
+    // contour saved from the editor stays in the library and on the lists.
     *picker.custom = custom_before;
     fill_contour_combo(picker.combo, value_before, *picker.custom);
+    relist_other_pickers();
     if (batch && edits_before.has_value()) {
       *batch_edits = *edits_before;
       reset_batch_capture();
     }
     emit_preview(true);
   };
-  const auto request_contour_name = [&](const QString& title, const QString& initial) -> std::optional<QString> {
-    QInputDialog prompt(&dialog);
-    prompt.setObjectName(QStringLiteral("layerStyleContourNameDialog"));
-    prompt.setWindowTitle(title);
-    prompt.setLabelText(QObject::tr("Name:"));
-    prompt.setInputMode(QInputDialog::TextInput);
-    prompt.setTextValue(initial);
-    if (exec_dialog(prompt) != QDialog::Accepted || prompt.textValue().trimmed().isEmpty()) {
-      return std::nullopt;
-    }
-    return prompt.textValue().trimmed();
+  const auto request_contour_name = [&](const QString& title, const QString& initial) {
+    return patchy::ui::request_contour_name(&dialog, title, initial);
   };
   const auto selected_user_contour = [&](const ContourPickerTools& picker) -> const ContourLibraryEntry* {
     const auto id = picker.combo->currentData().toString();
@@ -4163,46 +4165,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       }
     });
     QObject::connect(load_action, &QAction::triggered, &dialog, [&] {
-      const auto path = get_open_file_name(&dialog, QObject::tr("Load Contours"), {},
-                                           QObject::tr("Photoshop Contours (*.shc)"), nullptr,
-                                           QStringLiteral("layerStyleLoadContoursFileDialog"));
-      if (path.isEmpty()) {
-        return;
-      }
+      // Read before the library changes, shown again after (see above).
       const auto values = contour_picker_values();
-      QString error;
-      QStringList warnings;
-      (void)contour_library->import_shc(path, error, warnings);
+      (void)load_contours_from_file(&dialog, *contour_library, QStringLiteral("layerStyleLoadContoursFileDialog"));
       show_contour_picker_values(values);
-      if (!error.isEmpty()) {
-        show_critical_message(&dialog, QObject::tr("Load Contours"), error,
-                              QStringLiteral("layerStyleContourErrorDialog"));
-      } else if (!warnings.isEmpty()) {
-        show_information_message(&dialog, QObject::tr("Load Contours"), warnings.join(QLatin1Char('\n')),
-                                 QStringLiteral("layerStyleContourWarningsDialog"));
-      }
     });
     QObject::connect(save_action, &QAction::triggered, &dialog, [&] {
-      const auto ids = request_contours_to_save(&dialog, *contour_library);
-      if (ids.isEmpty()) {
-        return;
-      }
-      auto path = get_save_file_name(&dialog, QObject::tr("Save Contours"), QObject::tr("Contours.shc"),
-                                     QObject::tr("Photoshop Contours (*.shc)"), nullptr,
-                                     QStringLiteral("layerStyleSaveContoursFileDialog"));
-      if (path.isEmpty()) {
-        return;
-      }
-      if (!path.endsWith(QStringLiteral(".shc"), Qt::CaseInsensitive)) {
-        path += QStringLiteral(".shc");
-      }
-      QString error;
-      if (!contour_library->export_shc(ids, path, error)) {
-        show_critical_message(&dialog, QObject::tr("Save Contours"), error,
-                              QStringLiteral("layerStyleContourErrorDialog"));
-        return;
-      }
-      offer_browser_download_for_saved_file(path);
+      (void)save_contours_to_file(&dialog, *contour_library, QStringLiteral("layerStyleSaveContoursFileDialog"));
     });
   }
   QObject::connect(shadow_anti_aliased, &QCheckBox::toggled, &dialog,

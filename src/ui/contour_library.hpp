@@ -45,6 +45,8 @@ public:
   // Returns the storage id, or empty on failure.
   QString add_contour(const QString& name, const StyleContour& contour);
   bool rename_contour(const QString& storage_id, const QString& name);
+  // Replaces an entry's curve (stored as whole levels) and keeps its name.
+  bool set_contour_curve(const QString& storage_id, const StyleContour& contour);
   bool remove_contour(const QString& storage_id);
 
   // Appends every contour of a Photoshop .shc file. A contour the library

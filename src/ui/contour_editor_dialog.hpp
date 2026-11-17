@@ -45,6 +45,11 @@ public:
   void delete_selected_point();
   [[nodiscard]] bool can_delete_selected_point() const noexcept;
 
+  // A read-only graph only shows the curve and its points (the Contour Manager's
+  // preview): it takes no clicks, keys or focus and marks no point as selected.
+  void set_read_only(bool read_only);
+  [[nodiscard]] bool read_only() const noexcept { return read_only_; }
+
   // Where a level pair sits in the widget (tests click and drag through it).
   [[nodiscard]] QPointF position_for_levels(double input, double output) const;
 
@@ -79,19 +84,49 @@ private:
   // the graph comes back when the pointer returns before the release.
   StyleContour drag_origin_;
   int drag_index_{-1};
+  bool read_only_{false};
 };
+
+// Asks for a contour's name (New Contour, Rename Contour, Save as New Contour):
+// one dialog, `layerStyleContourNameDialog`, with the field `contourNameEdit`.
+// It has one fixed size, wide enough for its whole title in the window
+// manager's title bar (GitHub issue 726 follow-up). Returns the trimmed name;
+// nullopt on Cancel or an empty name.
+[[nodiscard]] std::optional<QString> request_contour_name(QWidget* parent, const QString& title,
+                                                          const QString& initial);
 
 // The contour editor. `changed` hears every edit while the dialog is open (the
 // Layer Style dialog previews it on the canvas). Returns the edited contour on
 // OK: `initial` itself when the curve is unchanged, otherwise the new points
 // under the name "Custom". nullopt on Cancel; the caller puts back what it
 // showed before.
+//
+// With a `library` the dialog has a Save as New Contour button
+// (`contourEditorSaveAsNewButton`): it asks for a name (request_contour_name),
+// adds the graph's curve to the library and goes on from the saved contour
+// (whole levels), which `changed` hears. The library keeps a contour saved
+// that way whatever closes the dialog. While the curve is still the last one
+// saved, OK returns that saved contour (its name with it) and
+// `saved_storage_id`, when given, receives its storage id; it is cleared
+// otherwise.
 [[nodiscard]] std::optional<StyleContour> request_contour_edit(
-    QWidget* parent, const StyleContour& initial, const std::function<void(const StyleContour&)>& changed = {});
+    QWidget* parent, const StyleContour& initial, const std::function<void(const StyleContour&)>& changed = {},
+    ContourLibrary* library = nullptr, QString* saved_storage_id = nullptr);
 
 // "Save Contours": a checklist of the user's saved contours, all ticked to
 // start with. Returns the storage ids to write, in list order; empty on Cancel
 // or when nothing is ticked.
 [[nodiscard]] QStringList request_contours_to_save(QWidget* parent, const ContourLibrary& library);
+
+// "Load Contours": asks for a Photoshop .shc file (the file dialog gets
+// `file_dialog_object_name`) and appends its contours to `library`, reporting a
+// failure or the reader's warnings in a message box. Returns the storage ids of
+// the file's contours (added or already there); empty on Cancel or failure.
+QStringList load_contours_from_file(QWidget* parent, ContourLibrary& library, const QString& file_dialog_object_name);
+
+// "Save Contours": the request_contours_to_save checklist, then a save dialog
+// (`file_dialog_object_name`), then the .shc file. False on Cancel or failure
+// (a failure is reported in a message box).
+bool save_contours_to_file(QWidget* parent, const ContourLibrary& library, const QString& file_dialog_object_name);
 
 }  // namespace patchy::ui

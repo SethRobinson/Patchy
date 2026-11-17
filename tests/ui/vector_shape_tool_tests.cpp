@@ -2553,6 +2553,7 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
     CHECK(patchy::ui::command_works_without_document(*action, QString()));
   }
   const QStringList expected{QStringLiteral("editPresetsStylesAction"),
+                             QStringLiteral("editPresetsContoursAction"),
                              QStringLiteral("-"),
                              QStringLiteral("editPresetsBrushTipsAction"),
                              QStringLiteral("editPresetsSavedBrushesAction"),
@@ -2569,10 +2570,10 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
       texts << action->text();
     }
   }
-  CHECK(texts == (QStringList{QStringLiteral("Styles Manager..."), QStringLiteral("Brush Tips..."),
-                              QStringLiteral("Saved Brushes..."), QStringLiteral("Gradient Manager..."),
-                              QStringLiteral("Pattern Manager..."), QStringLiteral("Shapes Manager..."),
-                              QStringLiteral("Stroke Presets...")}));
+  CHECK(texts == (QStringList{QStringLiteral("Styles Manager..."), QStringLiteral("Contour Manager..."),
+                              QStringLiteral("Brush Tips..."), QStringLiteral("Saved Brushes..."),
+                              QStringLiteral("Gradient Manager..."), QStringLiteral("Pattern Manager..."),
+                              QStringLiteral("Shapes Manager..."), QStringLiteral("Stroke Presets...")}));
   // The menu is built from the list the Preferences Presets page reads.
   QStringList listed;
   for (const auto& entry : patchy::ui::MainWindow::preset_manager_entries()) {
@@ -2586,6 +2587,7 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
   // Each entry opens its manager; the Styles manager only manages from here.
   const std::vector<std::pair<const char*, QString>> dialogs{
       {"editPresetsStylesAction", QStringLiteral("styleManagerDialog")},
+      {"editPresetsContoursAction", QStringLiteral("contourManagerDialog")},
       {"editPresetsBrushTipsAction", QStringLiteral("brushTipManagerDialog")},
       {"editPresetsSavedBrushesAction", QStringLiteral("brushPresetManager")},
       {"editPresetsGradientsAction", QStringLiteral("gradientManagerDialog")},
