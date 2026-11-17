@@ -1552,6 +1552,44 @@ void ui_gmic_custom_formula_rejects_excluded_commands_without_editing_layers() {
   CHECK(layer_pixel(window, 50, 50) == pixel);
 }
 
+// A formula that calls run() on every pixel of an image large enough for a parallel fill.
+// Each thread used to run the command on a copy of the interpreter, and every copy registered
+// under the same image list, so a thread's run() could pick up another thread's copy and use
+// it after that thread had deleted it: the release build crashed four runs out of four this
+// way on macOS, and the full suite once in G'MIC's own formula fill. Such a formula is now
+// evaluated on one thread (docs/gmic.md, "Patchy's changes"); the result is the blend's.
+void ui_gmic_formula_run_on_every_pixel_of_a_large_image() {
+  if (!gmic::engine_available()) {
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Three passes with run() on every pixel, and the same three passes without it: the
+  // pixels must agree (run() adds nothing to the value; isnan() of its NaN is 1).
+  CHECK(run_script(window, QStringLiteral(
+      "function blended(formula) {"
+      "  var doc = app.newDocument(400, 400, {name: 'run in a fill'});"
+      "  doc.activeLayer.fillRect(0, 0, 400, 400, '#c03020');"
+      "  var top = doc.addLayer('Top');"
+      "  top.fillRect(0, 0, 400, 400, '#2040c0'); doc.activeLayer = top;"
+      "  for (var i = 0; i < 3; ++i) {"
+      "    doc.activeLayer.applyGmic('fx_blend', {'Mode': 'Custom formula', 'Custom Formula': formula},"
+      "                              {inputLayers: 'all'});"
+      "  }"
+      "  var block = doc.activeLayer.getPixels();"
+      "  return {pixels: new Uint8Array(block.data), width: block.width};"
+      "}"
+      "var plain = blended('(a+b)/2');"
+      "var ran = blended(\"(a+b)/2 + 0*isnan(run('v 0'))\");"
+      "if (plain.width !== 400 || ran.width !== 400 || plain.pixels.length !== ran.pixels.length)"
+      "  throw new Error('sizes ' + plain.width + ' ' + ran.width);"
+      "for (var k = 0; k < plain.pixels.length; ++k) {"
+      "  if (Math.abs(plain.pixels[k] - ran.pixels[k]) > 1)"
+      "    throw new Error('byte ' + k + ': ' + plain.pixels[k] + ' against ' + ran.pixels[k]);"
+      "}"
+      "if (plain.pixels[0] === 0xc0) throw new Error('the blend changed nothing');")));
+}
+
 void ui_gmic_script_api_lists_and_applies() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1741,6 +1779,7 @@ std::vector<patchy::test::TestCase> gmic_ui_tests() {
       {"ui_gmic_script_api_lists_and_applies", ui_gmic_script_api_lists_and_applies},
       {"ui_gmic_custom_formula_rejects_excluded_commands_without_editing_layers",
        ui_gmic_custom_formula_rejects_excluded_commands_without_editing_layers},
+      {"ui_gmic_formula_run_on_every_pixel_of_a_large_image", ui_gmic_formula_run_on_every_pixel_of_a_large_image},
       {"ui_gmic_library_dialog_releases_a_button_after_the_run_that_read_it",
        ui_gmic_library_dialog_releases_a_button_after_the_run_that_read_it},
       {"ui_gmic_library_dialog_drafts_then_refines", ui_gmic_library_dialog_drafts_then_refines},

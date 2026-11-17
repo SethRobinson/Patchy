@@ -28,6 +28,22 @@ Save 'gmic.cpp' $g
 # --- CImg.h (bottom-up) ---
 $c = Load 'CImg.h'
 if ($c -match 'PATCHY') { throw 'CImg.h is already patched' }
+# A formula's run() outside critical() is never evaluated by several threads: each thread's
+# interpreter copy registers under the same image list, so a run() could find another thread's
+# copy and use it after that thread deleted it (docs/gmic.md, "Patchy's changes"). In-place
+# edits, applied first, so the line numbers below stay the original file's. Each text is its
+# lines joined with LF (this script is stored with CRLF line ends).
+$lf = [string][char]10
+foreach ($pair in @(
+    @((('          cimg_openmp_if(*expression==''*'' || *expression=='':'' || (mp.is_parallelizable &&', '                                                                  (M2>=2 || M1>=4096) && M1*M2>=32))') -join $lf),
+      (('          cimg_openmp_if(!mp.is_noncritical_run && (*expression==''*'' || *expression=='':'' || (mp.is_parallelizable &&', '                                                                  (M2>=2 || M1>=4096) && M1*M2>=32))) // PATCHY: no parallel run()') -join $lf)),
+    @('      cimg_pragma_openmp(parallel if (num_threads>0 && res._height>=512) num_threads(num_threads)) {',
+      '      cimg_pragma_openmp(parallel if (num_threads>0 && res._height>=512 && !mp.is_noncritical_run) num_threads(num_threads)) { // PATCHY: no parallel run()'))) {
+  $joined = $c -join $lf
+  $at = $joined.IndexOf($pair[0])
+  if ($at -lt 0 -or $joined.IndexOf($pair[0], $at + 1) -ge 0) { throw "not exactly one match for: $($pair[0])" }
+  $c = $joined.Replace($pair[0], $pair[1]) -split $lf
+}
 # External programs: the four popen call sites go through a helper that never starts one.
 foreach ($n in 58534, 58480, 58352, 58207) {
   if ($c[$n - 1] -notmatch 'popen\(command,"r"\)') { throw "no popen at line $n" }

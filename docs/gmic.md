@@ -47,6 +47,15 @@ Every change carries a `PATCHY` marker; `git diff` against the tarball shows exa
   there bound to the CRT `_vsnprintf`, which leaves a cut string unterminated: every
   `cimg_snprintf` that truncated (an `input` title over 256 bytes) read past its buffer, a
   crash in `gmic_allowlisted_filters_run_with_defaults` on Windows ARM64.
+- `CImg.h`, a formula's `run()`: a fill (`_fill`) or a list evaluation (`_eval`) whose formula
+  calls `run()` outside `critical()` (`is_noncritical_run`) runs on one thread, as G'MIC
+  already does for its other functions with side effects. Upstream ran it on every thread,
+  each on a copy of the interpreter, and every copy registered its run under the same image
+  list; `gmic::mp_run` finds its interpreter by that list (`current_run`), so a thread could
+  pick another thread's copy and use it after that thread had deleted it. A null read at the
+  top of `gmic::_run` (macOS full suite, November 2026; `run('v 0')` on every pixel of a
+  300 px fill crashed the release build four times in four). Applies to every platform.
+  Test: `ui_gmic_formula_run_on_every_pixel_of_a_large_image`.
 - `CImg.h`, FFT: under `patchy_gmic_use_pocketfft` both `CImg<T>::FFT` entry points (per axis
   and N-dimensional) call the added `_patchy_pocketfft`, and the pocketfft header is included
   after the FFTW include block. See "FFT".

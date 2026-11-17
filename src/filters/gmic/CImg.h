@@ -31090,7 +31090,7 @@ namespace cimg_library {
 
 #if cimg_use_openmp!=0
       const int num_threads = (int)std::min(res.size(),(ulongT)omp_get_max_threads());
-      cimg_pragma_openmp(parallel if (num_threads>0 && res._height>=512) num_threads(num_threads)) {
+      cimg_pragma_openmp(parallel if (num_threads>0 && res._height>=512 && !mp.is_noncritical_run) num_threads(num_threads)) { // PATCHY: no parallel run()
         _cimg_math_parser
           *const _mp = omp_get_thread_num()?new _cimg_math_parser(mp):&mp,
           &lmp = *_mp;
@@ -33550,8 +33550,8 @@ namespace cimg_library {
           }
 
           bool is_parallelizable = false;
-          cimg_openmp_if(*expression=='*' || *expression==':' || (mp.is_parallelizable &&
-                                                                  (M2>=2 || M1>=4096) && M1*M2>=32))
+          cimg_openmp_if(!mp.is_noncritical_run && (*expression=='*' || *expression==':' || (mp.is_parallelizable &&
+                                                                  (M2>=2 || M1>=4096) && M1*M2>=32))) // PATCHY: no parallel run()
             is_parallelizable = true;
 
           if (mp.result_dim) { // Vector-valued expression
