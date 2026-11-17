@@ -2280,8 +2280,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (!panning_ && (event->buttons() & Qt::RightButton) != 0 && (event->buttons() & Qt::LeftButton) == 0) {
     // A held right button drives nothing but the context click: crossing the
     // drag threshold retires it, even if the pointer returns to its starting
-    // point before release.
-    if (context_press_pos_ &&
+    // point before release. The brush menu (GitHub issue 734 follow-up) keeps it: a
+    // right-click made while the hand is still moving opens the brush settings anyway.
+    const bool brush_menu_tool = brush_context_rows_callback_ && tool_uses_brush_footprint_cursor(tool_);
+    if (context_press_pos_ && !brush_menu_tool &&
         (event->pos() - *context_press_pos_).manhattanLength() >= QApplication::startDragDistance()) {
       context_press_pos_.reset();
     }
@@ -3191,11 +3193,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
   if (event->button() == Qt::RightButton && !panning_) {
     // The context click resolves here: a release within the drag distance of
-    // its press opens the canvas context menu; anything else was nothing.
+    // its press opens the canvas context menu; anything else was nothing. A tool with
+    // the brush menu opens it however far the pointer travelled (GitHub issue 734
+    // follow-up): the sections still answer for the press point, and the menu pops up
+    // at the release, under the pointer.
     const auto context_press = context_press_pos_;
     context_press_pos_.reset();
+    const bool brush_menu_tool = brush_context_rows_callback_ && tool_uses_brush_footprint_cursor(tool_);
     if (context_press.has_value() &&
-        (event->pos() - *context_press).manhattanLength() < QApplication::startDragDistance()) {
+        (brush_menu_tool ||
+         (event->pos() - *context_press).manhattanLength() < QApplication::startDragDistance())) {
       show_canvas_context_menu(*context_press, event->globalPosition().toPoint());
     }
     event->accept();
@@ -4454,6 +4461,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   flush_pending_drag_move();
   if (event->key() == Qt::Key_Escape) {
     clear_gradient_fill_drag_hold();  // only the held picture; the release's edit stays
+    // Escape with the right button held retires the context click: its release opens nothing.
+    context_press_pos_.reset();
   }
   if (event->key() != layer_nudge_hold_key_) {
     // Another key ends a held arrow's nudge run: the next nudge is a new undo step.

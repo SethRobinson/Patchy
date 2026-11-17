@@ -1086,6 +1086,98 @@ void ui_brush_context_menu_pointer_off_menu_shows_brush() {
   }
 }
 
+// A right-click made while the pointer is still moving opens the brush menu (GitHub issue 734
+// follow-up): with a footprint painting tool the right press and release open it however far
+// the pointer travelled between them, at the release, with the sections the press point
+// calls for. The other canvas menus keep the drag threshold, Alt+Right-drag only scrubs.
+void ui_brush_context_menu_opens_on_a_moving_right_click() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_rulers_visible(false);
+  canvas->set_zoom(1.0);
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  const auto moving_right_click = [&](QPoint document_start, QPoint travel,
+                                      Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    const auto start = canvas->widget_position_for_document_point(document_start);
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton, modifiers);
+    for (int step = 1; step <= 4; ++step) {
+      send_mouse(*canvas, QEvent::MouseMove, start + travel * step / 4, Qt::NoButton, Qt::RightButton, modifiers);
+    }
+    const auto end = start + travel;
+    send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::RightButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    return canvas->mapToGlobal(end);
+  };
+  const QPoint travel(48, 30);
+  CHECK(travel.manhattanLength() > 3 * QApplication::startDragDistance());
+
+  auto release = moving_right_click(QPoint(150, 150), travel);
+  auto* menu = move_layer_menu(*canvas);
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(!menu->actions().isEmpty() &&
+          menu->actions().front()->objectName() == QStringLiteral("canvasBrushSettingsAction"));
+    // It opens at the release, under the pointer.
+    CHECK((menu->geometry().topLeft() - release).manhattanLength() <= 2);
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // The sections answer for the press point: pressed inside a selection, released outside it,
+  // the selection commands follow the rows.
+  require_action(window, "toolMarqueeAction")->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(160, 160)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  require_action(window, "toolEraserAction")->trigger();
+  QApplication::processEvents();
+  moving_right_click(QPoint(130, 130), travel);
+  menu = move_layer_menu(*canvas);
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    bool deselect = false;
+    for (auto* action : menu->actions()) {
+      deselect = deselect || action->objectName() == QStringLiteral("editDeselectAction");
+    }
+    CHECK(deselect);
+    menu->close();
+    QApplication::processEvents();
+  }
+  canvas->clear_selection();
+
+  // Alt+Right-drag only scrubs the size: no menu.
+  require_action(window, "toolBrushAction")->trigger();
+  canvas->set_brush_size(40);
+  QApplication::processEvents();
+  moving_right_click(QPoint(150, 150), travel, Qt::AltModifier);
+  CHECK(move_layer_menu(*canvas) == nullptr);
+  CHECK(canvas->brush_size() != 40);
+
+  // Escape during the drag retires the click.
+  {
+    const auto start = canvas->widget_position_for_document_point(QPoint(150, 150));
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton);
+    send_mouse(*canvas, QEvent::MouseMove, start + travel, Qt::NoButton, Qt::RightButton);
+    send_key(*canvas, Qt::Key_Escape);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, start + travel, Qt::RightButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(move_layer_menu(*canvas) == nullptr);
+  }
+
+  // The Zoom tool's menu keeps the threshold: a moving right-click opens nothing, a still one does.
+  require_action(window, "toolZoomAction")->trigger();
+  QApplication::processEvents();
+  moving_right_click(QPoint(150, 150), travel);
+  CHECK(move_layer_menu(*canvas) == nullptr);
+  menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
 void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
   patchy::Document document(1000, 800, patchy::PixelFormat::rgba8());
   const auto bottom_id = document.add_pixel_layer("Bottom",
@@ -5987,6 +6079,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_brush_context_menu_rows_follow_options_bar", ui_brush_context_menu_rows_follow_options_bar},
       {"ui_brush_context_menu_preview_follows_rows", ui_brush_context_menu_preview_follows_rows},
       {"ui_brush_context_menu_pointer_off_menu_shows_brush", ui_brush_context_menu_pointer_off_menu_shows_brush},
+      {"ui_brush_context_menu_opens_on_a_moving_right_click", ui_brush_context_menu_opens_on_a_moving_right_click},
       {"ui_selection_context_menu_offers_remove_object", ui_selection_context_menu_offers_remove_object},
       {"ui_stroke_selection_from_context_menu_survives_following_mouse_input",
        ui_stroke_selection_from_context_menu_survives_following_mouse_input},
