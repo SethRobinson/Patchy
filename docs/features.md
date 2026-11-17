@@ -36,7 +36,7 @@ Related documents:
   - A shape dragged with Path Select, with Ctrl held in a shape tool, or (a polygon or star) by its center point snaps its edges and center to guides, the grid, the canvas and other layers and shows the alignment guide, as the Move tool does (View > Snap turns it off)
   - Shape Appearance Geometry (position and size) for every single shape, custom shapes and Pen outlines included, with a picker that swaps a custom shape in its box
   - The Shape Appearance window stays open while you work: it follows the selected shape or fill layer, applies each change at once as one undo step, and greys out when no shape is selected
-  - Shape Appearance has a slider beside its opacity, Density and angle fields, and swatches of the foreground, the background and the recently used colors before each Pick... button, so a fill or stroke color is one click
+  - Shape Appearance starts with Fill, has a slider beside its stroke opacity, Density and angle fields, and swatches of the foreground, the background and the recently used colors before each Pick... button, so a fill or stroke color is one click
   - Show handles in that window puts a gradient's handles on the canvas with any tool, for a gradient fill or a gradient stroke, so the gradient and its stops can be dragged without switching to the Gradient tool
   - A Paths panel (fill, stroke, selection) and switchable fill layers (badge or double-click opens settings), all saved in PSDs Photoshop opens
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects

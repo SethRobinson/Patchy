@@ -8718,10 +8718,6 @@ RVB : %2, %3, %4</translation>
         <translation>Contour progressif :</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Rétablir le fond, le contour, l&apos;opacité et le bord par défaut (la géométrie reste)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Exporter un PDF multipage</translation>
     </message>
@@ -16384,6 +16380,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Afficher les séparateurs entre les groupes d&apos;outils</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Rétablir le fond, le contour et le bord par défaut (la géométrie reste)</translation>
     </message>
 </context>
 <context>

@@ -8504,10 +8504,6 @@ RGB: %2, %3, %4</translation>
         <translation>Traços:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Restaure o preenchimento, o traçado, a opacidade e a borda padrão (a geometria permanece)</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>Cor de preenchimento da forma</translation>
     </message>
@@ -16384,6 +16380,10 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Mostrar separadores entre grupos de ferramentas</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Restaure o preenchimento, o traçado e a borda padrão (a geometria permanece)</translation>
     </message>
 </context>
 <context>

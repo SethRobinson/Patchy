@@ -8694,10 +8694,6 @@ RGB：%2, %3, %4</translation>
         <translation>羽化:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>恢復預設的填色、筆畫、不透明度和邊緣（幾何形狀保持不變）</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>匯出多頁 PDF</translation>
     </message>
@@ -16328,6 +16324,10 @@ Do you want to replace it?</source>
     <message>
         <source>Show separators between tool groups</source>
         <translation>顯示工具群組之間的分隔線</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>恢復預設的填色、筆畫和邊緣（幾何形狀保持不變）</translation>
     </message>
 </context>
 <context>

@@ -8710,10 +8710,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16365,6 +16361,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Show separators between tool groups</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

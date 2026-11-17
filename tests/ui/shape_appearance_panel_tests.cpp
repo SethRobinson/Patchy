@@ -324,8 +324,9 @@ void ui_shape_appearance_window_ends_with_its_button_row() {
 
 // The chain buttons of the Geometry and Radius sections (GitHub issue 723). In the stay-open
 // window each is a 24 px button with its own frame, whole inside its bracket, centered
-// between the rows it ties with the bracket's ends showing past it, in Dark, Light and a
-// bundled theme. Their style rule used to name the modal dialog, so in the window the
+// between the rows it ties with the bracket's ends showing past it, after the rows' fields
+// and steppers (the follow-up: they sat between the labels and the fields), in Dark, Light
+// and a bundled theme. Their style rule used to name the modal dialog, so in the window the
 // buttons fell back to the app's tool button look: no frame, a 34 px box the bracket cut
 // off on the right and that hung below its middle, and the accent block when checked.
 void ui_shape_appearance_window_link_buttons_sit_on_their_brackets() {
@@ -435,6 +436,24 @@ void ui_shape_appearance_window_link_buttons_sit_on_their_brackets() {
                "the button is centered between the rows the bracket ties");
         expect(first_middle < button_rect.top() && button_rect.bottom() < last_middle,
                "the bracket's ends show past the button");
+        expect(button_rect.left() > in_panel(*first_row->parentWidget()).right() &&
+                   button_rect.left() > in_panel(*last_row->parentWidget()).right(),
+               "the button sits after the fields and their steppers");
+        // The bracket opens toward the fields: its end at the first row's middle is drawn
+        // on the bracket's left half, and its right half is empty there.
+        {
+          const int tick_y = static_cast<int>(std::lround(first_middle));
+          const QColor want_line = linked ? palette.dlg_focus_border : palette.dlg_button_border;
+          const QColor section = image.pixelColor(bracket_rect.left() - 2, tick_y);
+          bool end_toward_fields = false;
+          bool end_away_from_fields = false;
+          for (int y = tick_y - 2; y <= tick_y + 2; ++y) {  // the end is one pixel tall
+            end_toward_fields |= near_color(image.pixelColor(bracket_rect.left() + 2, y), want_line);
+            end_away_from_fields |= image.pixelColor(bracket_rect.right() - 2, y) != section;
+          }
+          expect(end_toward_fields, "the bracket's end reaches toward the fields");
+          expect(!end_away_from_fields, "the bracket has no end on the side away from the fields");
+        }
         expect(near_color(frame, want_frame), "the button has its own frame, from the dialog roles");
         expect(near_color(face, want_face), "the button has its own face, from the dialog roles");
         // The bracket draws its lines on the section, with no fill of its own (Light showed a
@@ -1292,9 +1311,9 @@ patchy::RgbColor rgb(int red, int green, int blue) {
 }
 
 // GitHub #565, point 4: Density, the stroke's Opacity and the four angle rows have a slider
-// before the field, as the Layer rows do. Slider and field follow each other, the slider
-// covers the field's range in whole units, a typed fraction stays in the field, and Reset
-// (which loads the fields without signals) moves every slider, the Layer rows' too.
+// before the field. Slider and field follow each other, the slider covers the field's range
+// in whole units, a typed fraction stays in the field, and Reset (which loads the fields
+// without signals) moves every slider.
 void ui_shape_appearance_rows_have_sliders_that_follow_their_fields() {
   VectorSettingsGuard settings_guard;
   patchy::ui::ShapeAppearanceSettings initial;
@@ -1307,7 +1326,6 @@ void ui_shape_appearance_rows_have_sliders_that_follow_their_fields() {
   initial.stroke.content.kind = VectorFillKind::Pattern;
   initial.stroke.content.pattern_angle_degrees = -30.0;
   initial.stroke.content.gradient.angle_degrees = -60.0F;
-  initial.layer_opacity = 0.7F;
   initial.density = 128;
   patchy::ui::ShapeAppearanceSettings preview = initial;
   bool checked = false;
@@ -1339,7 +1357,6 @@ void ui_shape_appearance_rows_have_sliders_that_follow_their_fields() {
       CHECK(bar->value() == row.opens_at);
       CHECK(bar->minimumWidth() >= 72);
     }
-    CHECK(slider("shapeLayerOpacitySlider")->value() == 70);
 
     // Integer rows: the slider writes the field and the settings, the field moves the slider.
     auto* density = field<QSpinBox>(*dialog, "shapeDensitySpin");
@@ -1376,7 +1393,7 @@ void ui_shape_appearance_rows_have_sliders_that_follow_their_fields() {
     CHECK(std::abs(field<QDoubleSpinBox>(*dialog, "shapeStrokePatternAngleSpin")->value() + 45.0) < 1e-9);
 
     // The rows read slider, field, - / + (an angle row: dial first), and Density's slider
-    // and field sit in the columns the Layer rows use.
+    // starts in the left column's field column, as Feather's field and Fill's Type do.
     QApplication::processEvents();
     for (const char* name : {"shapeDensity", "shapeStrokeOpacity", "shapePatternAngle", "shapeStrokePatternAngle"}) {
       const QString base = QLatin1String(name);
@@ -1392,23 +1409,20 @@ void ui_shape_appearance_rows_have_sliders_that_follow_their_fields() {
         CHECK(left(dial) + dial->width() <= left(bar));
       }
     }
-    CHECK(left(slider("shapeDensitySlider")) == left(slider("shapeLayerOpacitySlider")));
-    CHECK(left(density) == left(field<QSpinBox>(*dialog, "shapeLayerOpacitySpin")));
+    CHECK(left(slider("shapeDensitySlider")) == left(field<QDoubleSpinBox>(*dialog, "shapeFeatherSpin")));
+    CHECK(left(slider("shapeDensitySlider")) == left(field<QComboBox>(*dialog, "shapeFillKindCombo")));
     save_widget_artifact("ui_shape_appearance_row_sliders", *dialog);
 
     // Reset: every field goes back to its default and its slider with it.
     field<QPushButton>(*dialog, "shapeAppearanceResetButton")->click();
     QApplication::processEvents();
     for (const auto& [spin_name, slider_name] :
-         {std::pair{"shapeLayerOpacitySpin", "shapeLayerOpacitySlider"},
-          std::pair{"shapeLayerFillOpacitySpin", "shapeLayerFillOpacitySlider"},
-          std::pair{"shapeDensitySpin", "shapeDensitySlider"},
+         {std::pair{"shapeDensitySpin", "shapeDensitySlider"},
           std::pair{"shapeStrokeOpacitySpin", "shapeStrokeOpacitySlider"},
           std::pair{"shapeGradientAngleSpin", "shapeGradientAngleSlider"},
           std::pair{"shapeStrokeGradientAngleSpin", "shapeStrokeGradientAngleSlider"}}) {
       CHECK(slider(slider_name)->value() == field<QSpinBox>(*dialog, spin_name)->value());
     }
-    CHECK(slider("shapeLayerOpacitySlider")->value() == 100);
     CHECK(slider("shapeDensitySlider")->value() == 100);
     CHECK(slider("shapePatternAngleSlider")->value() == 0);
     CHECK(slider("shapeStrokePatternAngleSlider")->value() == 0);
@@ -1475,8 +1489,10 @@ void ui_shape_appearance_color_swatches_apply_and_remember() {
       CHECK(swatch_color(first) == QColor(0x11, 0x22, 0x33) && first->toolTip() == QStringLiteral("#112233"));
       CHECK(swatch_color(second) == QColor(0x44, 0x55, 0x66));
       CHECK(first->isVisibleTo(dialog) && second->isVisibleTo(dialog) && !third->isVisibleTo(dialog));
-      // The strip starts the row, in the fields' column, and Pick... follows it.
-      CHECK(left(row) == left(field<QComboBox>(*dialog, "shapeFillKindCombo")));
+      // The strip starts the row, in its section's field column, and Pick... follows it.
+      CHECK(left(row) == left(field<QComboBox>(*dialog, QLatin1String(side) == QLatin1String("Fill")
+                                                             ? "shapeFillKindCombo"
+                                                             : "shapeStrokePaintCombo")));
       CHECK(left(fg) == left(row) && left(fg) < left(bg) && left(bg) < left(first) && left(first) < left(second));
       CHECK(left(second) + second->width() <= left(button));
       CHECK(left(button) + button->width() == left(row) + row->width());
@@ -1611,6 +1627,152 @@ void ui_shape_appearance_window_swatches_and_sliders_edit_the_shape() {
   CHECK(panel_usable(*panel));
 }
 
+// GitHub #565, points 1 and 2: Shape Appearance has no Layer section (the Layers panel and
+// Layer Style's Blending Options set a layer's Opacity and Fill Opacity). Fill heads the left
+// column in its place, above Geometry, Radius and Edge, and Stroke has the right column, in
+// the stay-open window and in the modal dialog. Nothing in the window changes a layer's
+// opacity any more: not Reset, and not Apply All Settings to Selected Layers on shapes whose
+// opacities differ.
+void ui_shape_appearance_fill_heads_the_left_column_without_a_layer_section() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer size_setting{QStringLiteral("shapeAppearance/windowSize")};
+  SettingsValueRestorer sized_setting{QStringLiteral("shapeAppearance/windowUserSized")};
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/windowSize"));
+  patchy::ui::app_settings().remove(QStringLiteral("shapeAppearance/windowUserSized"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = Access::document(window);
+  const auto first = make_rect(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto second = make_rect(window, *canvas, QPoint(400, 300), QPoint(560, 420));
+  document.find_layer(first)->set_opacity(0.6F);
+  document.find_layer(first)->set_fill_opacity(0.3F);
+  document.find_layer(second)->set_opacity(0.9F);
+  select_only(window, first);
+  const auto settle = [&] {
+    QTest::qWait(700);  // past the gesture's idle time
+    QApplication::processEvents();
+  };
+
+  // What both hosts must show: `host` is the window or the modal dialog.
+  const auto check_layout = [](QWidget& host, const char* what) {
+    const auto expect = [what](bool ok, const char* rule) {
+      if (!ok) patchy::test::report_failure(std::string(what) + ": " + rule);
+    };
+    const auto rect_of = [&host](const QWidget& widget) {
+      return QRect(widget.mapTo(&host, QPoint(0, 0)), widget.size());
+    };
+    for (const char* gone : {"shapeLayerOpacitySpin", "shapeLayerOpacitySlider", "shapeLayerFillOpacitySpin",
+                             "shapeLayerFillOpacitySlider"}) {
+      expect(host.findChild<QWidget*>(QLatin1String(gone)) == nullptr, "no Layer field is left");
+    }
+    for (const auto* group : host.findChildren<QGroupBox*>()) {
+      expect(group->title() != QStringLiteral("Layer"), "no Layer section is left");
+    }
+    auto* left_column = host.findChild<QWidget*>(QStringLiteral("shapeAppearanceLeftColumn"));
+    auto* right_column = host.findChild<QWidget*>(QStringLiteral("shapeAppearanceRightColumn"));
+    auto* fill = host.findChild<QGroupBox*>(QStringLiteral("shapeFillGroup"));
+    auto* geometry = host.findChild<QGroupBox*>(QStringLiteral("shapeGeometryGroup"));
+    auto* radius = host.findChild<QGroupBox*>(QStringLiteral("shapeRadiusGroup"));
+    auto* feather = host.findChild<QWidget*>(QStringLiteral("shapeFeatherSpin"));
+    auto* stroke_width = host.findChild<QWidget*>(QStringLiteral("shapeStrokeWidthSpin"));
+    expect(left_column != nullptr && right_column != nullptr && fill != nullptr && geometry != nullptr &&
+               radius != nullptr && feather != nullptr && stroke_width != nullptr,
+           "the sections are there");
+    if (left_column == nullptr || right_column == nullptr || fill == nullptr || geometry == nullptr ||
+        radius == nullptr || feather == nullptr || stroke_width == nullptr) {
+      return;
+    }
+    expect(left_column->isAncestorOf(fill) && !right_column->isAncestorOf(fill), "Fill is in the left column");
+    expect(right_column->isAncestorOf(stroke_width) && left_column->isAncestorOf(feather),
+           "Stroke has the right column, Edge stays in the left one");
+    // Fill first, at the top of its column, then Geometry, Radius and Edge.
+    expect(rect_of(*fill).top() == rect_of(*left_column).top(), "Fill starts the left column");
+    expect(rect_of(*fill).bottom() < rect_of(*geometry).top(), "Geometry follows Fill");
+    expect(rect_of(*geometry).bottom() < rect_of(*radius).top(), "Radius follows Geometry");
+    expect(rect_of(*radius).bottom() < rect_of(*feather).top(), "Edge follows Radius");
+    expect(rect_of(*fill).right() < rect_of(*stroke_width).left(), "Fill is left of Stroke");
+    // The links follow their fields (GitHub #723).
+    for (const auto& [button_name, field_name] :
+         {std::pair{"shapeGeometryLinkButton", "shapeGeometryWidthSpin"},
+          std::pair{"shapeGeometryRadiusLinkButton", "shapeGeometryRadiusTopLeftSpin"}}) {
+      auto* button = host.findChild<QWidget*>(QLatin1String(button_name));
+      auto* spin = host.findChild<QWidget*>(QLatin1String(field_name));
+      expect(button != nullptr && spin != nullptr, "the link and its field are there");
+      if (button == nullptr || spin == nullptr) continue;
+      expect(rect_of(*button).left() > rect_of(*spin->parentWidget()).right(),
+             "the link sits after the field and its steppers");
+    }
+    // Tab reaches a section's fields before its link.
+    auto* width = host.findChild<QWidget*>(QStringLiteral("shapeGeometryWidthSpin"));
+    auto* link = host.findChild<QWidget*>(QStringLiteral("shapeGeometryLinkButton"));
+    auto* fill_kind = host.findChild<QWidget*>(QStringLiteral("shapeFillKindCombo"));
+    if (width != nullptr && link != nullptr && fill_kind != nullptr) {
+      int steps_to_width = -1;
+      int steps_to_link = -1;
+      int step = 0;
+      for (QWidget* next = fill_kind->nextInFocusChain(); next != nullptr && next != fill_kind && step < 2000;
+           next = next->nextInFocusChain(), ++step) {
+        if (next == width && steps_to_width < 0) steps_to_width = step;
+        if (next == link && steps_to_link < 0) steps_to_link = step;
+      }
+      expect(steps_to_width >= 0 && steps_to_link > steps_to_width,
+             "Tab goes from Fill to the Geometry fields and then to their link");
+    }
+  };
+
+  auto* panel = open_panel(window);
+  if (panel == nullptr) return;
+  check_layout(*panel, "window");
+  save_widget_artifact("issue565_shape_appearance_fill_first_window", *panel);
+
+  // Reset in the window: the factory appearance, the layer's opacity untouched.
+  field<QDoubleSpinBox>(*panel, "shapeStrokeWidthSpin")->setValue(5.0);
+  settle();
+  field<QPushButton>(*panel, "shapeAppearanceResetButton")->click();
+  settle();
+  CHECK(!shape_of(document, first).stroke.enabled);
+  CHECK(std::abs(std::as_const(document).find_layer(first)->opacity() - 0.6F) < 1e-6F);
+  CHECK(std::abs(std::as_const(document).find_layer(first)->fill_opacity() - 0.3F) < 1e-6F);
+
+  // Two shapes with different opacities: Apply All copies the appearance, not the opacity.
+  Access::select_layers(window, {first, second}, first);
+  QApplication::processEvents();
+  CHECK(process_events_until([&] {
+    return panel->findChild<QPushButton*>(QStringLiteral("shapeAppearanceApplyAllButton")) != nullptr;
+  }));
+  field<QDoubleSpinBox>(*panel, "shapeStrokeWidthSpin")->setValue(7.0);
+  settle();
+  if (auto* apply_all = panel->findChild<QPushButton*>(QStringLiteral("shapeAppearanceApplyAllButton"));
+      apply_all != nullptr) {
+    apply_all->click();
+    settle();
+  }
+  CHECK(shape_of(document, second).stroke.enabled);
+  CHECK(std::abs(shape_of(document, second).stroke.width - 7.0) < 1e-9);
+  CHECK(std::abs(std::as_const(document).find_layer(first)->opacity() - 0.6F) < 1e-6F);
+  CHECK(std::abs(std::as_const(document).find_layer(first)->fill_opacity() - 0.3F) < 1e-6F);
+  CHECK(std::abs(std::as_const(document).find_layer(second)->opacity() - 0.9F) < 1e-6F);
+  CHECK(std::abs(std::as_const(document).find_layer(second)->fill_opacity() - 1.0F) < 1e-6F);
+  page_of(*panel)->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+  QApplication::processEvents();
+
+  // The modal dialog builds the same rows.
+  select_only(window, first);
+  bool modal_checked = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    QApplication::processEvents();
+    check_layout(*dialog, "modal dialog");
+    save_widget_artifact("issue565_shape_appearance_fill_first_dialog", *dialog);
+    modal_checked = true;
+    dialog->reject();
+  }));
+  Access::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(modal_checked);
+}
+
 // GitHub #565: the window on a shape with a solid fill and stroke (the Color rows, Density
 // and the stroke's Opacity) and with a pattern fill and a gradient stroke (the angle rows),
 // for the issue reply. The checks are in the two tests below.
@@ -1662,6 +1824,8 @@ void ui_shape_appearance_window_issue565_shots() {
 std::vector<patchy::test::TestCase> shape_appearance_panel_tests() {
   return {
       {"ui_shape_appearance_window_issue565_shots", ui_shape_appearance_window_issue565_shots},
+      {"ui_shape_appearance_fill_heads_the_left_column_without_a_layer_section",
+       ui_shape_appearance_fill_heads_the_left_column_without_a_layer_section},
       {"ui_shape_appearance_rows_have_sliders_that_follow_their_fields",
        ui_shape_appearance_rows_have_sliders_that_follow_their_fields},
       {"ui_shape_appearance_color_swatches_apply_and_remember", ui_shape_appearance_color_swatches_apply_and_remember},

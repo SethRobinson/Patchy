@@ -8718,10 +8718,6 @@ RGB: %2, %3, %4</translation>
         <translation>Calar:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Restaurar el relleno, trazo, opacidad y borde predeterminados (la geometría se mantiene)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Exportar PDF de varias páginas</translation>
     </message>
@@ -16384,6 +16380,10 @@ Do you want to replace it?</source>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Mostrar separadores entre grupos de herramientas</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Restaurar el relleno, trazo y borde predeterminados (la geometría se mantiene)</translation>
     </message>
 </context>
 <context>

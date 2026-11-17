@@ -8694,10 +8694,6 @@ Mixed selection</source>
         <translation>ぼかし:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>塗り・線・不透明度・エッジを初期設定に戻します（形状はそのまま）</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>複数ページ PDF を書き出し</translation>
     </message>
@@ -16328,6 +16324,10 @@ Do you want to replace it?</source>
     <message>
         <source>Show separators between tool groups</source>
         <translation>ツールグループ間の区切り線を表示</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>塗り・線・エッジを初期設定に戻します（形状はそのまま）</translation>
     </message>
 </context>
 <context>

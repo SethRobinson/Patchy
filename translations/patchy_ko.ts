@@ -8482,10 +8482,6 @@ RGB: %2, %3, %4</translation>
         <translation>점선 패턴:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>기본 채우기, 획, 불투명도 및 가장자리를 복원합니다(기하형상은 그대로 유지됨).</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>모양 채우기 색상</translation>
     </message>
@@ -16328,6 +16324,10 @@ Do you want to replace it?</source>
     <message>
         <source>Show separators between tool groups</source>
         <translation>도구 그룹 사이에 구분선 표시</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>기본 채우기, 획 및 가장자리를 복원합니다(기하형상은 그대로 유지됨).</translation>
     </message>
 </context>
 <context>

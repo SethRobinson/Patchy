@@ -8718,10 +8718,6 @@ RGB: %2, %3, %4</translation>
         <translation>Weiche Kante:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Standardfüllung, -kontur, -deckkraft und -kante wiederherstellen (die Geometrie bleibt)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Mehrseitige PDF exportieren</translation>
     </message>
@@ -16384,6 +16380,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Trennlinien zwischen Werkzeuggruppen anzeigen</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Standardfüllung, -kontur und -kante wiederherstellen (die Geometrie bleibt)</translation>
     </message>
 </context>
 <context>

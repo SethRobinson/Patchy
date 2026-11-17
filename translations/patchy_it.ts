@@ -8718,10 +8718,6 @@ RGB: %2, %3, %4</translation>
         <translation>Sfuma:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Ripristina riempimento, traccia, opacità e bordo predefiniti (la geometria resta)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Esporta PDF multipagina</translation>
     </message>
@@ -16384,6 +16380,10 @@ Sostituirlo?</translation>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Mostra i separatori tra i gruppi di strumenti</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Ripristina riempimento, traccia e bordo predefiniti (la geometria resta)</translation>
     </message>
 </context>
 <context>

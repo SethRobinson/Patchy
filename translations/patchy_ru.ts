@@ -8526,10 +8526,6 @@ RGB: %2, %3, %4</translation>
         <translation>Штрихи:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Восстановите заливку, обводку, непрозрачность и края по умолчанию (геометрия останется).</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>Цвет заливки фигуры</translation>
     </message>
@@ -16440,6 +16436,10 @@ Do you want to replace it?</source>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Показывать разделители между группами инструментов</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Восстановите заливку, обводку и края по умолчанию (геометрия останется).</translation>
     </message>
 </context>
 <context>

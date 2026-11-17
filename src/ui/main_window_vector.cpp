@@ -1185,8 +1185,6 @@ bool MainWindow::edit_active_shape_appearance_modal(bool record_undo,
       auto content = assemble_shape_appearance(*original_content, next);
       ensure_vector_fill_patterns(document(), content, pattern_library(), &available);
       if (!shape_vector_appearance_equal(*original_content, content)) layer.set_vector_shape(std::move(content));
-      if (next.layer_opacity != baseline.layer_opacity) layer.set_opacity(next.layer_opacity);
-      if (next.fill_opacity != baseline.fill_opacity) layer.set_fill_opacity(next.fill_opacity);
     }
     return result;
   };
@@ -3970,8 +3968,6 @@ std::vector<Layer> MainWindow::shape_appearance_edit_layers(const std::vector<co
       mark_layer_vector_block_dirty(layer);
       layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
     }
-    if (after.layer_opacity != before.layer_opacity) layer.set_opacity(after.layer_opacity);
-    if (after.fill_opacity != before.fill_opacity) layer.set_fill_opacity(after.fill_opacity);
     result.push_back(std::move(layer));
   }
   return result;

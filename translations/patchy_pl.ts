@@ -8526,10 +8526,6 @@ RGB: %2, %3, %4</translation>
         <translation>Kreski:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Przywróć domyślne wypełnienie, obrys, krycie i krawędź (geometria pozostaje)</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>Kolor wypełnienia kształtu</translation>
     </message>
@@ -16440,6 +16436,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Show separators between tool groups</source>
         <translation>Pokaż separatory między grupami narzędzi</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Przywróć domyślne wypełnienie, obrys i krawędź (geometria pozostaje)</translation>
     </message>
 </context>
 <context>

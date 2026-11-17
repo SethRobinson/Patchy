@@ -65,10 +65,9 @@ struct ShapeAppearanceSettings {
   // it (GitHub #644 follow-up). Read when the dialog opens; never compared, edited or applied.
   std::string library_shape_id{};
   std::shared_ptr<const VectorPath> library_shape_outline{};
-  // Layer transparency (the Layers panel values) and the shape's vector-mask
-  // Feather / Density (VectorShapeContent::feather/density), all PSD-native.
-  float layer_opacity{1.0F};
-  float fill_opacity{1.0F};
+  // The shape's vector-mask Feather / Density (VectorShapeContent::feather/density),
+  // PSD-native. The layer's Opacity and Fill Opacity are not part of the appearance
+  // (GitHub #565): the Layers panel and Layer Style's Blending Options set them.
   double feather{0.0};
   std::uint8_t density{255};
   std::shared_ptr<const AppearanceEdits<ShapeAppearanceSettings>> edits{};
@@ -142,7 +141,7 @@ inline constexpr int kSavedStrokePresetRow = 1000;
 // choices may reference library-only pattern ids - the caller adopts them
 // into the document PatternStore when applying. foreground/background resolve
 // gradient presets that defer stops to the current tool colors.
-// `reset_defaults` is what the Reset button restores (fill, stroke, opacity,
+// `reset_defaults` is what the Reset button restores (fill, stroke and
 // edge; the geometry in `initial` is kept). `units` presents the geometry,
 // line weight and stroke width fields in the ruler unit through the document
 // PPI (docs/resolution-units.md); every value stays document pixels.

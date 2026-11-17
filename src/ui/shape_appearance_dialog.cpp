@@ -478,8 +478,7 @@ private:
   ColorSwatchStrip* strip_;
 };
 
-// A slider before the field of a stepper row (GitHub #565), as the Layer section's Opacity
-// rows have: slider, field, - / +. It moves in whole units over the field's range and
+// A slider before the field of a stepper row (GitHub #565): slider, field, - / +. It moves in whole units over the field's range and
 // follows the field both ways. A typed fraction (a pattern angle of 12.5) stays in the
 // field: the slider shows the nearest step and writes only when it is moved.
 constexpr char kRowSliderProperty[] = "patchy.shapeRowSlider";
@@ -551,9 +550,10 @@ struct DialogState {
 
 // A chain button at the app's normal button size, centered on a thin bracket
 // that reaches the middle of the first and last rows it ties (the Image Size
-// dialog's Width / Height link). The bracket is painted here, behind the
-// button, from the live positions of the two end rows (siblings in the same
-// grid), so it follows any row height; it brightens while linked.
+// dialog's Width / Height link). It sits after the rows' fields (GitHub #723),
+// so the bracket opens to the left, toward them. The bracket is painted here,
+// behind the button, from the live positions of the two end rows (siblings in
+// the same grid), so it follows any row height; it brightens while linked.
 class LinkBracket : public QWidget {
 public:
   LinkBracket(QToolButton* button, QWidget* first_row, QWidget* last_row, QWidget* parent)
@@ -580,8 +580,8 @@ protected:
     QPainter painter(this);
     painter.setPen(QPen(button_->isChecked() ? theme().dlg_focus_border : theme().dlg_button_border, 1));
     painter.drawLine(x, top, x, bottom);
-    painter.drawLine(x, top, width() - 1, top);
-    painter.drawLine(x, bottom, width() - 1, bottom);
+    painter.drawLine(0, top, x, top);
+    painter.drawLine(0, bottom, x, bottom);
   }
 
 private:
@@ -590,14 +590,15 @@ private:
   QWidget* last_row_;
 };
 
-// The left column's sections share one label column and one field column (GitHub #641).
-// Geometry and Radius are grids: label, link column, field. The link column holds the
-// chain brackets (the Image Size dialog's Width / Height link), which a QFormLayout row
-// cannot span, and stays empty on rows without one. The form sections use the link
-// column's width as their label-to-field gap, so their fields start at the same x.
+// The left column's sections share one label column, so their fields start at the same x
+// (GitHub #641): the widest label, then kSectionColumnGap. Geometry and Radius are grids:
+// label, field, link column. The link column holds the chain brackets (the Image Size
+// dialog's Width / Height link), which a QFormLayout row cannot span. It follows the
+// fields (GitHub #723), stays empty on that grid's rows without a link, so the grid's
+// steppers keep one column, and takes no room in a grid that has no link.
 constexpr int kSectionColumnGap = 8;
-constexpr int kSectionLinkColumnWidth = kLinkToggleButtonSize;
-constexpr int kSectionFormFieldGap = kSectionColumnGap * 2 + kSectionLinkColumnWidth;
+constexpr int kSectionFieldColumn = 1;
+constexpr int kSectionLinkColumn = 2;
 
 struct GridSection {
   QGroupBox* group{nullptr};
@@ -616,8 +617,7 @@ GridSection make_grid_section(const QString& title, QWidget* parent) {
   section.grid->setContentsMargins(0, 0, 0, 0);
   section.grid->setHorizontalSpacing(kSectionColumnGap);
   section.grid->setVerticalSpacing(8);
-  section.grid->setColumnMinimumWidth(1, kSectionLinkColumnWidth);
-  section.grid->setColumnStretch(2, 1);
+  section.grid->setColumnStretch(kSectionFieldColumn, 1);
   section.layout->addLayout(section.grid);
   return section;
 }
@@ -625,7 +625,7 @@ GridSection make_grid_section(const QString& title, QWidget* parent) {
 int add_grid_widget_row(GridSection& section, const QString& label, QWidget* field) {
   const int grid_row = static_cast<int>(section.rows.size());
   section.grid->addWidget(new QLabel(label, section.group), grid_row, 0, Qt::AlignLeft | Qt::AlignVCenter);
-  section.grid->addWidget(field, grid_row, 2);
+  section.grid->addWidget(field, grid_row, kSectionFieldColumn);
   section.rows.push_back(field);
   return grid_row;
 }
@@ -639,15 +639,15 @@ int add_grid_spin_row(GridSection& section, std::map<QWidget*, QWidget*>& field_
 }
 
 // A normal-sized checkable chain button centered on a thin bracket that reaches the first
-// and last of the `row_count` rows from `first_row`. `bracket_name` names the bracket
-// widget (its objectName), `name` the button.
+// and last of the `row_count` rows from `first_row`, after their fields. `bracket_name`
+// names the bracket widget (its objectName), `name` the button.
 QToolButton* add_grid_link_button(GridSection& section, const char* name, const char* bracket_name,
                                   const QString& tooltip, int first_row, int row_count) {
   auto* button = make_link_toggle_button(nullptr, QLatin1String(name), tooltip);
   auto* bracket = new LinkBracket(button, section.rows[static_cast<std::size_t>(first_row)],
                                   section.rows[static_cast<std::size_t>(first_row + row_count - 1)], section.group);
   bracket->setObjectName(QLatin1String(bracket_name));
-  section.grid->addWidget(bracket, first_row, 1, row_count, 1);
+  section.grid->addWidget(bracket, first_row, kSectionLinkColumn, row_count, 1);
   return button;
 }
 
@@ -675,7 +675,7 @@ int share_label_width(const std::vector<QLabel*>& labels) {
 // One label column width for every left-column section: the widest label of them all.
 void align_section_columns(const std::vector<QFormLayout*>& forms, const std::vector<QGridLayout*>& grids) {
   std::vector<QLabel*> labels;
-  for (auto* form : forms) form->setHorizontalSpacing(kSectionFormFieldGap);
+  for (auto* form : forms) form->setHorizontalSpacing(kSectionColumnGap);
   collect_form_labels(forms, labels);
   for (auto* grid : grids)
     for (int row = 0; row < grid->rowCount(); ++row)
@@ -685,8 +685,8 @@ void align_section_columns(const std::vector<QFormLayout*>& forms, const std::ve
   for (auto* grid : grids) grid->setColumnMinimumWidth(0, width);
 }
 
-// One label column for a set of forms that keep their own label-to-field gap
-// (the right column's Fill and Stroke, GitHub #679).
+// One label column for a set of forms that keep their own label-to-field gap (Stroke,
+// and the gradient and pattern blocks nested in Fill and in Stroke, GitHub #679).
 void align_form_columns(const std::vector<QFormLayout*>& forms) {
   std::vector<QLabel*> labels;
   collect_form_labels(forms, labels);
@@ -763,7 +763,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   window.setWindowTitle(QObject::tr("Shape Appearance"));
   auto* dialog_layout = new QVBoxLayout(&dialog);
 
-  // Two columns (Layer / Geometry / Edge left, Fill / Stroke right) inside a
+  // Two columns (Fill / Geometry / Edge left, Stroke right; GitHub #565) inside a
   // scroll area: the worst case (rounded rect, pattern fill, gradient stroke)
   // then fits a 1080p screen, and on a shorter screen the page scrolls
   // instead of running OK/Cancel off the bottom (the brush dynamics recipe;
@@ -922,41 +922,290 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   };
 
 
-  // --- Layer (opacity and fill opacity, the Layers panel values) ---
-  auto* layer_group = new QGroupBox(QObject::tr("Layer"), left_widget);
-  auto* layer_layout = new QVBoxLayout(layer_group);
-  layer_layout->setContentsMargins(10, 8, 10, 8);
-  layer_layout->setSpacing(4);
-  auto* layer_form = new QFormLayout();
-  layer_form->setHorizontalSpacing(10);
-  layer_form->setVerticalSpacing(8);
-  layer_layout->addLayout(layer_form);
-  auto* layer_opacity_spin = add_dialog_slider_spin_row(
-      layer_form, layer_group, QObject::tr("Opacity:"), QStringLiteral("shapeLayerOpacitySlider"),
-      QStringLiteral("shapeLayerOpacitySpin"), 0, 100,
-      static_cast<int>(std::lround(state->settings.layer_opacity * 100.0F)), QStringLiteral("%"), 72,
-      /*row_spacing=*/8, /*step_buttons=*/true);
-  auto* layer_fill_opacity_spin = add_dialog_slider_spin_row(
-      layer_form, layer_group, QObject::tr("Fill Opacity:"),
-      QStringLiteral("shapeLayerFillOpacitySlider"), QStringLiteral("shapeLayerFillOpacitySpin"), 0,
-      100, static_cast<int>(std::lround(state->settings.fill_opacity * 100.0F)), QStringLiteral("%"), 72,
-      /*row_spacing=*/8, /*step_buttons=*/true);
-  // Reset loads the fields under a QSignalBlocker; sync_row_slider then moves these sliders.
-  for (const auto& [spin, slider_name] : {std::pair{layer_opacity_spin, "shapeLayerOpacitySlider"},
-                                          std::pair{layer_fill_opacity_spin, "shapeLayerFillOpacitySlider"}}) {
-    spin->setProperty(kRowSliderProperty, QVariant::fromValue(static_cast<QObject*>(
-                                              layer_group->findChild<QSlider*>(QLatin1String(slider_name)))));
+  // Every left-column section lines its fields up (GitHub #641): the label column width
+  // is shared, set once every section is built.
+  std::vector<QFormLayout*> left_forms;
+  std::vector<QGridLayout*> left_grids;
+
+  // --- Fill ---
+  // First in the left column, where the Layer section (Opacity, Fill Opacity) was until
+  // GitHub #565: the Layers panel and Layer Style's Blending Options set those two.
+  // The fill-only dialog is all Fill, so its section carries no "Fill" heading (GitHub #582
+  // follow-up); the group keeps its frame.
+  auto* fill_group = new QGroupBox(fill_layer_only ? QString() : QObject::tr("Fill"), left_widget);
+  fill_group->setObjectName(QStringLiteral("shapeFillGroup"));
+  auto* fill_layout = new QVBoxLayout(fill_group);
+  fill_layout->setContentsMargins(10, 8, 10, 8);
+  fill_layout->setSpacing(4);
+  auto* fill_form = new QFormLayout();
+  fill_form->setHorizontalSpacing(10);
+  fill_form->setVerticalSpacing(8);
+  fill_layout->addLayout(fill_form);
+
+  auto* fill_kind_combo = new QComboBox(fill_group);
+  fill_kind_combo->setObjectName(QStringLiteral("shapeFillKindCombo"));
+  // A fill layer is its fill: it switches between Solid Color, Gradient and
+  // Pattern (a fill layer of that type in a PSD) but never to none.
+  if (!fill_layer_only) {
+    fill_kind_combo->addItem(QObject::tr("No Fill"), static_cast<int>(VectorFillKind::None));
   }
-  QObject::connect(layer_opacity_spin, &QSpinBox::valueChanged, &dialog, [state, notify](int value) {
-    state->settings.layer_opacity = static_cast<float>(value) / 100.0F;
-    notify({"layer_opacity"});
-  });
-  QObject::connect(layer_fill_opacity_spin, &QSpinBox::valueChanged, &dialog,
-                   [state, notify](int value) {
-    state->settings.fill_opacity = static_cast<float>(value) / 100.0F;
-    notify({"fill_opacity"});
-  });
-  left_column->addWidget(layer_group);
+  fill_kind_combo->addItem(QObject::tr("Solid Color"), static_cast<int>(VectorFillKind::Solid));
+  fill_kind_combo->addItem(QObject::tr("Gradient"), static_cast<int>(VectorFillKind::Gradient));
+  fill_kind_combo->addItem(QObject::tr("Pattern"), static_cast<int>(VectorFillKind::Pattern));
+  fill_form->addRow(QObject::tr("Type:"), fill_kind_combo);
+
+  // The Color rows (GitHub #565): swatches of the foreground, the background and the recent
+  // colors, then Pick... for the color dialog. Fill and Stroke show one recent list; a color
+  // applied for good (a swatch clicked, OK in the color dialog) heads it.
+  struct ColorStrips {
+    ColorSwatchStrip* fill{nullptr};
+    ColorSwatchStrip* stroke{nullptr};
+  };
+  const auto color_strips = std::make_shared<ColorStrips>();
+  const auto remember_color = [color_strips, foreground, background](RgbColor color) {
+    const auto recent = remember_shape_recent_color(color);
+    for (auto* strip : {color_strips->fill, color_strips->stroke}) {
+      if (strip != nullptr) strip->set_colors(foreground, background, recent);
+    }
+  };
+
+  auto* fill_color_button = new QPushButton(fill_group);
+  fill_color_button->setObjectName(QStringLiteral("shapeFillColorButton"));
+  fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
+  fill_color_button->setText(QObject::tr("Pick..."));
+  // A solid fill color, from a swatch or the color dialog (its previews too).
+  const auto set_fill_color = [state, notify, fill_color_button](RgbColor color) {
+    state->settings.fill.kind = VectorFillKind::Solid;
+    state->settings.fill.color = color;
+    state->stroke_paint_touched = true;
+    fill_color_button->setIcon(color_swatch_icon(color));
+    notify({"fill.color"});
+  };
+  color_strips->fill = new ColorSwatchStrip(
+      QStringLiteral("shapeFillColorSwatches"),
+      [set_fill_color, remember_color](RgbColor color) {
+        set_fill_color(color);
+        remember_color(color);
+      },
+      fill_group);
+  auto* fill_color_row =
+      new ColorSwatchRow(QStringLiteral("shapeFillColorRow"), color_strips->fill, fill_color_button, fill_group);
+  fill_form->addRow(QObject::tr("Color:"), fill_color_row);
+
+  // Both the fill and the stroke paint offer the same preset lists, their
+  // Foreground/Background stops drawn in the colors a pick resolves them with (#581).
+  const GradientPreviewColors preview_colors{foreground, background};
+  const auto populate_gradient_combo = [gradient_library, preview_colors](QComboBox* combo) {
+    combo->setIconSize(QSize(64, 16));
+    use_scrolling_list_popup(*combo);
+    if (gradient_library != nullptr) {
+      for (const auto& entry : gradient_library->entries()) {
+        const bool cached = gradient_library->preview_colors() == preview_colors ||
+                            !gradient_has_dynamic_stops(entry.definition);
+        combo->addItem(QIcon(cached ? entry.thumbnail
+                                    : gradient_thumbnail(entry.definition, 112, 28, preview_colors)),
+                       entry.name, entry.storage_id);
+      }
+    }
+  };
+  // Shows the preset the gradient was made from, or a Custom row (empty data, at
+  // the top) holding the gradient when it matches none: an edited or imported one
+  // (GitHub #578, #579). A paint without a gradient yet shows the first preset,
+  // which a switch to Gradient seeds from. Signals stay blocked.
+  const auto select_gradient_row = [gradient_library, preview_colors](
+                                       QComboBox* combo, const GradientDefinition& gradient,
+                                       GradientDefinition& custom) {
+    QSignalBlocker blocker(combo);
+    const auto id = gradient_library != nullptr
+                        ? matching_gradient_library_entry(*gradient_library, gradient, preview_colors)
+                        : QString();
+    if (const auto row = id.isEmpty() ? -1 : combo->findData(id); row >= 0) {
+      combo->setCurrentIndex(row);
+      return;
+    }
+    const int custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty() ? 0 : -1;
+    if (gradient.form == GradientDefinitionForm::Solid && gradient.color_stops.empty()) {
+      combo->setCurrentIndex(custom_row == 0 && combo->count() > 1 ? 1 : 0);
+      return;
+    }
+    custom = gradient;
+    const auto icon = QIcon(gradient_thumbnail(gradient, 112, 28, preview_colors));
+    if (custom_row < 0) {
+      combo->insertItem(0, icon, QObject::tr("Custom"), QString());
+    } else {
+      combo->setItemIcon(0, icon);
+    }
+    combo->setCurrentIndex(0);
+  };
+  // Each row keeps the name the saved paint carries (kPatternSavedNameRole): a Photoshop
+  // preset shows its readable name but writes back its own localization key.
+  const auto populate_pattern_combo = [pattern_library, document_patterns](QComboBox* combo) {
+    combo->setIconSize(QSize(24, 24));
+    use_scrolling_list_popup(*combo);
+    if (document_patterns != nullptr) {
+      for (const auto& resource : document_patterns->patterns) {
+        const auto display = document_pattern_display_name(resource);
+        const auto name = display.isEmpty() ? QObject::tr("Embedded pattern") : display;
+        combo->addItem(QIcon(pattern_thumbnail(resource.tile, combo->iconSize().width())), name,
+                       QString::fromStdString(resource.id));
+        combo->setItemData(combo->count() - 1,
+                           resource.name.empty() ? name : QString::fromStdString(resource.name),
+                           kPatternSavedNameRole);
+      }
+    }
+    if (pattern_library != nullptr) {
+      for (const auto& entry : pattern_library->entries()) {
+        if (combo->findData(entry.id) < 0) {
+          combo->addItem(QIcon(entry.thumbnail), entry.name, entry.id);
+          combo->setItemData(combo->count() - 1, entry.name, kPatternSavedNameRole);
+        }
+      }
+    }
+  };
+  const auto saved_pattern_name = [](const QComboBox* combo) {
+    return combo->currentData(kPatternSavedNameRole).toString().toStdString();
+  };
+  // The Gradient row: the preset list and a Manage... button that opens the
+  // Gradient Manager (GitHub #552 follow-up), where the current gradient can be
+  // saved as a preset (New from Current) and presets renamed, imported or
+  // deleted. Afterwards the list is rebuilt and shows the preset the gradient
+  // matches, or Custom; Use Gradient picks a preset like the list does.
+  const auto add_gradient_row = [&field_rows, &dialog, window_ptr, run_child, state, gradient_library,
+                                 preview_colors, populate_gradient_combo, select_gradient_row](
+                                    QFormLayout* form, QWidget* parent, bool for_stroke) {
+    auto* row = new QWidget(parent);
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(6);
+    auto* combo = new QComboBox(row);
+    combo->setObjectName(for_stroke ? QStringLiteral("shapeStrokeGradientCombo")
+                                    : QStringLiteral("shapeFillGradientCombo"));
+    populate_gradient_combo(combo);
+    auto* manage = new QPushButton(QObject::tr("Manage..."), row);
+    manage->setObjectName(for_stroke ? QStringLiteral("shapeStrokeGradientManageButton")
+                                     : QStringLiteral("shapeFillGradientManageButton"));
+    manage->setToolTip(QObject::tr("Open the Gradient Manager to save, rename, import or delete gradient presets"));
+    manage->setAccessibleName(QObject::tr("Manage gradient presets"));
+    manage->setEnabled(gradient_library != nullptr);
+    row_layout->addWidget(combo, 1);
+    row_layout->addWidget(manage);
+    form->addRow(QObject::tr("Gradient:"), row);
+    field_rows[combo] = row;
+    QObject::connect(manage, &QPushButton::clicked, &dialog, [=] {
+      if (gradient_library == nullptr) return;
+      run_child([=] {
+        const GradientDefinition current =
+            for_stroke ? static_cast<const GradientDefinition&>(state->settings.stroke.content.gradient)
+                       : static_cast<const GradientDefinition&>(state->settings.fill.gradient);
+        auto& custom = for_stroke ? state->custom_stroke_gradient : state->custom_fill_gradient;
+        const auto selected =
+            request_gradient_manager(window_ptr, *gradient_library, combo->currentData().toString(), current);
+        const bool had_custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty();
+        {
+          QSignalBlocker blocker(combo);
+          combo->clear();
+          populate_gradient_combo(combo);
+          if (had_custom_row) {
+            combo->insertItem(0, QIcon(gradient_thumbnail(custom, 112, 28, preview_colors)),
+                              QObject::tr("Custom"), QString());
+          }
+        }
+        select_gradient_row(combo, current, custom);
+        if (const auto picked = selected.isEmpty() ? -1 : combo->findData(selected); picked >= 0) {
+          combo->setCurrentIndex(picked);
+        }
+        return true;
+      });
+    });
+    return combo;
+  };
+
+  auto* fill_gradient_combo = add_gradient_row(fill_form, fill_group, false);
+
+  auto* gradient_type_combo = new QComboBox(fill_group);
+  gradient_type_combo->setObjectName(QStringLiteral("shapeGradientTypeCombo"));
+  gradient_type_combo->addItem(QObject::tr("Linear"), static_cast<int>(LayerStyleGradientType::Linear));
+  gradient_type_combo->addItem(QObject::tr("Radial"), static_cast<int>(LayerStyleGradientType::Radial));
+  gradient_type_combo->addItem(QObject::tr("Angle"), static_cast<int>(LayerStyleGradientType::Angle));
+  gradient_type_combo->addItem(QObject::tr("Reflected"),
+                               static_cast<int>(LayerStyleGradientType::Reflected));
+  gradient_type_combo->addItem(QObject::tr("Diamond"),
+                               static_cast<int>(LayerStyleGradientType::Diamond));
+  const auto fill_gradient = add_paint_block(fill_form, fill_group, "shapeFillGradientBlock");
+  QWidget* const fill_gradient_block = fill_gradient.first;
+  QFormLayout* const fill_gradient_form = fill_gradient.second;
+  fill_gradient_form->addRow(QObject::tr("Style:"), gradient_type_combo);
+
+  auto* gradient_angle_spin = new UnitIntSpinBox(SpinUnit::Degrees, fill_group);
+  gradient_angle_spin->setObjectName(QStringLiteral("shapeGradientAngleSpin"));
+  gradient_angle_spin->setRange(-180, 180);
+  configure_dialog_spinbox(gradient_angle_spin, 72);
+  add_angle_row(fill_gradient_form, QObject::tr("Angle:"), gradient_angle_spin);
+
+  auto* gradient_scale_spin = new QSpinBox(fill_group);
+  gradient_scale_spin->setObjectName(QStringLiteral("shapeGradientScaleSpin"));
+  gradient_scale_spin->setRange(10, 1000);
+  gradient_scale_spin->setSuffix(percent_suffix());
+  configure_dialog_spinbox(gradient_scale_spin, 72);
+  add_spin_row(fill_gradient_form, QObject::tr("Scale:"), gradient_scale_spin);
+
+  auto* gradient_reverse_check = new QCheckBox(QObject::tr("Reverse"), fill_group);
+  gradient_reverse_check->setObjectName(QStringLiteral("shapeGradientReverseCheck"));
+  fill_gradient_form->addRow(QString(), gradient_reverse_check);
+  QCheckBox* const fill_handles_check = make_handles_check(fill_group, "shapeFillGradientHandlesCheck");
+  if (fill_handles_check != nullptr) {
+    fill_gradient_form->addRow(QString(), fill_handles_check);
+  }
+
+  auto* fill_pattern_combo = new QComboBox(fill_group);
+  fill_pattern_combo->setObjectName(QStringLiteral("shapeFillPatternCombo"));
+  populate_pattern_combo(fill_pattern_combo);
+  fill_form->addRow(QObject::tr("Pattern:"), fill_pattern_combo);
+  const auto fill_pattern = add_paint_block(fill_form, fill_group, "shapeFillPatternBlock");
+  QWidget* const fill_pattern_block = fill_pattern.first;
+  QFormLayout* const fill_pattern_form = fill_pattern.second;
+
+  auto* pattern_scale_spin = new QSpinBox(fill_group);
+  pattern_scale_spin->setObjectName(QStringLiteral("shapePatternScaleSpin"));
+  pattern_scale_spin->setRange(1, 1000);
+  pattern_scale_spin->setSuffix(percent_suffix());
+  configure_dialog_spinbox(pattern_scale_spin, 72);
+  add_spin_row(fill_pattern_form, QObject::tr("Scale:"), pattern_scale_spin);
+
+  // Pattern placement (PtFl Angl / phase / Algn; rendered by the shared
+  // PatternTileSampler and round-tripped through the PSD writer).
+  auto* pattern_angle_spin = new UnitSpinBox(SpinUnit::Degrees, fill_group);
+  pattern_angle_spin->setObjectName(QStringLiteral("shapePatternAngleSpin"));
+  pattern_angle_spin->setRange(-180.0, 180.0);
+  pattern_angle_spin->setDecimals(1);
+  configure_dialog_spinbox(pattern_angle_spin, 72);
+  add_angle_row(fill_pattern_form, QObject::tr("Angle:"), pattern_angle_spin);
+
+  auto* pattern_offset_x_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
+  pattern_offset_x_spin->setObjectName(QStringLiteral("shapePatternOffsetXSpin"));
+  pattern_offset_x_spin->set_context_provider(pixel_field_context);
+  pattern_offset_x_spin->setRange(-30000.0, 30000.0);
+  pattern_offset_x_spin->setDecimals(1);
+  configure_dialog_spinbox(pattern_offset_x_spin, 80);
+  add_spin_row(fill_pattern_form, QObject::tr("Offset X:"), pattern_offset_x_spin);
+
+  auto* pattern_offset_y_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
+  pattern_offset_y_spin->setObjectName(QStringLiteral("shapePatternOffsetYSpin"));
+  pattern_offset_y_spin->set_context_provider(pixel_field_context);
+  pattern_offset_y_spin->setRange(-30000.0, 30000.0);
+  pattern_offset_y_spin->setDecimals(1);
+  configure_dialog_spinbox(pattern_offset_y_spin, 80);
+  add_spin_row(fill_pattern_form, QObject::tr("Offset Y:"), pattern_offset_y_spin);
+
+  auto* pattern_align_check = new QCheckBox(QObject::tr("Align with layer"), fill_group);
+  pattern_align_check->setObjectName(QStringLiteral("shapePatternAlignCheck"));
+  pattern_align_check->setToolTip(
+      QObject::tr("Anchor the tile grid to the layer's position; unchecked anchors it to the "
+                  "document origin"));
+  fill_pattern_form->addRow(QString(), pattern_align_check);
+
+  left_column->addWidget(fill_group);
+  left_forms.push_back(fill_form);
 
   // --- Geometry, Radius, Arrowheads, Polygon (GitHub #641, #642, #643, #644, #622) ---
   // Geometry holds the shape's position and size: X, Y, Width, Height for a box shape
@@ -1011,11 +1260,6 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     configure_dialog_spinbox(spin, 72);
     return spin;
   };
-  // Every left-column section lines its fields up (GitHub #641): the label column width
-  // is shared (set once every section is built), and the forms keep the grids' link
-  // column as their label-to-field gap.
-  std::vector<QFormLayout*> left_forms{layer_form};
-  std::vector<QGridLayout*> left_grids;
   GridSection geometry_section;
   const auto ensure_geometry_section = [&]() -> GridSection& {
     if (geometry_section.group == nullptr) {
@@ -1442,283 +1686,6 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     left_column->addWidget(polygon_group);
   }
 
-  // --- Fill ---
-  // The fill-only dialog is all Fill, so its section carries no "Fill" heading (GitHub #582
-  // follow-up); the group keeps its frame.
-  auto* fill_group = new QGroupBox(fill_layer_only ? QString() : QObject::tr("Fill"), right_widget);
-  fill_group->setObjectName(QStringLiteral("shapeFillGroup"));
-  auto* fill_layout = new QVBoxLayout(fill_group);
-  fill_layout->setContentsMargins(10, 8, 10, 8);
-  fill_layout->setSpacing(4);
-  auto* fill_form = new QFormLayout();
-  fill_form->setHorizontalSpacing(10);
-  fill_form->setVerticalSpacing(8);
-  fill_layout->addLayout(fill_form);
-
-  auto* fill_kind_combo = new QComboBox(fill_group);
-  fill_kind_combo->setObjectName(QStringLiteral("shapeFillKindCombo"));
-  // A fill layer is its fill: it switches between Solid Color, Gradient and
-  // Pattern (a fill layer of that type in a PSD) but never to none.
-  if (!fill_layer_only) {
-    fill_kind_combo->addItem(QObject::tr("No Fill"), static_cast<int>(VectorFillKind::None));
-  }
-  fill_kind_combo->addItem(QObject::tr("Solid Color"), static_cast<int>(VectorFillKind::Solid));
-  fill_kind_combo->addItem(QObject::tr("Gradient"), static_cast<int>(VectorFillKind::Gradient));
-  fill_kind_combo->addItem(QObject::tr("Pattern"), static_cast<int>(VectorFillKind::Pattern));
-  fill_form->addRow(QObject::tr("Type:"), fill_kind_combo);
-
-  // The Color rows (GitHub #565): swatches of the foreground, the background and the recent
-  // colors, then Pick... for the color dialog. Fill and Stroke show one recent list; a color
-  // applied for good (a swatch clicked, OK in the color dialog) heads it.
-  struct ColorStrips {
-    ColorSwatchStrip* fill{nullptr};
-    ColorSwatchStrip* stroke{nullptr};
-  };
-  const auto color_strips = std::make_shared<ColorStrips>();
-  const auto remember_color = [color_strips, foreground, background](RgbColor color) {
-    const auto recent = remember_shape_recent_color(color);
-    for (auto* strip : {color_strips->fill, color_strips->stroke}) {
-      if (strip != nullptr) strip->set_colors(foreground, background, recent);
-    }
-  };
-
-  auto* fill_color_button = new QPushButton(fill_group);
-  fill_color_button->setObjectName(QStringLiteral("shapeFillColorButton"));
-  fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
-  fill_color_button->setText(QObject::tr("Pick..."));
-  // A solid fill color, from a swatch or the color dialog (its previews too).
-  const auto set_fill_color = [state, notify, fill_color_button](RgbColor color) {
-    state->settings.fill.kind = VectorFillKind::Solid;
-    state->settings.fill.color = color;
-    state->stroke_paint_touched = true;
-    fill_color_button->setIcon(color_swatch_icon(color));
-    notify({"fill.color"});
-  };
-  color_strips->fill = new ColorSwatchStrip(
-      QStringLiteral("shapeFillColorSwatches"),
-      [set_fill_color, remember_color](RgbColor color) {
-        set_fill_color(color);
-        remember_color(color);
-      },
-      fill_group);
-  auto* fill_color_row =
-      new ColorSwatchRow(QStringLiteral("shapeFillColorRow"), color_strips->fill, fill_color_button, fill_group);
-  fill_form->addRow(QObject::tr("Color:"), fill_color_row);
-
-  // Both the fill and the stroke paint offer the same preset lists, their
-  // Foreground/Background stops drawn in the colors a pick resolves them with (#581).
-  const GradientPreviewColors preview_colors{foreground, background};
-  const auto populate_gradient_combo = [gradient_library, preview_colors](QComboBox* combo) {
-    combo->setIconSize(QSize(64, 16));
-    use_scrolling_list_popup(*combo);
-    if (gradient_library != nullptr) {
-      for (const auto& entry : gradient_library->entries()) {
-        const bool cached = gradient_library->preview_colors() == preview_colors ||
-                            !gradient_has_dynamic_stops(entry.definition);
-        combo->addItem(QIcon(cached ? entry.thumbnail
-                                    : gradient_thumbnail(entry.definition, 112, 28, preview_colors)),
-                       entry.name, entry.storage_id);
-      }
-    }
-  };
-  // Shows the preset the gradient was made from, or a Custom row (empty data, at
-  // the top) holding the gradient when it matches none: an edited or imported one
-  // (GitHub #578, #579). A paint without a gradient yet shows the first preset,
-  // which a switch to Gradient seeds from. Signals stay blocked.
-  const auto select_gradient_row = [gradient_library, preview_colors](
-                                       QComboBox* combo, const GradientDefinition& gradient,
-                                       GradientDefinition& custom) {
-    QSignalBlocker blocker(combo);
-    const auto id = gradient_library != nullptr
-                        ? matching_gradient_library_entry(*gradient_library, gradient, preview_colors)
-                        : QString();
-    if (const auto row = id.isEmpty() ? -1 : combo->findData(id); row >= 0) {
-      combo->setCurrentIndex(row);
-      return;
-    }
-    const int custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty() ? 0 : -1;
-    if (gradient.form == GradientDefinitionForm::Solid && gradient.color_stops.empty()) {
-      combo->setCurrentIndex(custom_row == 0 && combo->count() > 1 ? 1 : 0);
-      return;
-    }
-    custom = gradient;
-    const auto icon = QIcon(gradient_thumbnail(gradient, 112, 28, preview_colors));
-    if (custom_row < 0) {
-      combo->insertItem(0, icon, QObject::tr("Custom"), QString());
-    } else {
-      combo->setItemIcon(0, icon);
-    }
-    combo->setCurrentIndex(0);
-  };
-  // Each row keeps the name the saved paint carries (kPatternSavedNameRole): a Photoshop
-  // preset shows its readable name but writes back its own localization key.
-  const auto populate_pattern_combo = [pattern_library, document_patterns](QComboBox* combo) {
-    combo->setIconSize(QSize(24, 24));
-    use_scrolling_list_popup(*combo);
-    if (document_patterns != nullptr) {
-      for (const auto& resource : document_patterns->patterns) {
-        const auto display = document_pattern_display_name(resource);
-        const auto name = display.isEmpty() ? QObject::tr("Embedded pattern") : display;
-        combo->addItem(QIcon(pattern_thumbnail(resource.tile, combo->iconSize().width())), name,
-                       QString::fromStdString(resource.id));
-        combo->setItemData(combo->count() - 1,
-                           resource.name.empty() ? name : QString::fromStdString(resource.name),
-                           kPatternSavedNameRole);
-      }
-    }
-    if (pattern_library != nullptr) {
-      for (const auto& entry : pattern_library->entries()) {
-        if (combo->findData(entry.id) < 0) {
-          combo->addItem(QIcon(entry.thumbnail), entry.name, entry.id);
-          combo->setItemData(combo->count() - 1, entry.name, kPatternSavedNameRole);
-        }
-      }
-    }
-  };
-  const auto saved_pattern_name = [](const QComboBox* combo) {
-    return combo->currentData(kPatternSavedNameRole).toString().toStdString();
-  };
-  // The Gradient row: the preset list and a Manage... button that opens the
-  // Gradient Manager (GitHub #552 follow-up), where the current gradient can be
-  // saved as a preset (New from Current) and presets renamed, imported or
-  // deleted. Afterwards the list is rebuilt and shows the preset the gradient
-  // matches, or Custom; Use Gradient picks a preset like the list does.
-  const auto add_gradient_row = [&field_rows, &dialog, window_ptr, run_child, state, gradient_library,
-                                 preview_colors, populate_gradient_combo, select_gradient_row](
-                                    QFormLayout* form, QWidget* parent, bool for_stroke) {
-    auto* row = new QWidget(parent);
-    auto* row_layout = new QHBoxLayout(row);
-    row_layout->setContentsMargins(0, 0, 0, 0);
-    row_layout->setSpacing(6);
-    auto* combo = new QComboBox(row);
-    combo->setObjectName(for_stroke ? QStringLiteral("shapeStrokeGradientCombo")
-                                    : QStringLiteral("shapeFillGradientCombo"));
-    populate_gradient_combo(combo);
-    auto* manage = new QPushButton(QObject::tr("Manage..."), row);
-    manage->setObjectName(for_stroke ? QStringLiteral("shapeStrokeGradientManageButton")
-                                     : QStringLiteral("shapeFillGradientManageButton"));
-    manage->setToolTip(QObject::tr("Open the Gradient Manager to save, rename, import or delete gradient presets"));
-    manage->setAccessibleName(QObject::tr("Manage gradient presets"));
-    manage->setEnabled(gradient_library != nullptr);
-    row_layout->addWidget(combo, 1);
-    row_layout->addWidget(manage);
-    form->addRow(QObject::tr("Gradient:"), row);
-    field_rows[combo] = row;
-    QObject::connect(manage, &QPushButton::clicked, &dialog, [=] {
-      if (gradient_library == nullptr) return;
-      run_child([=] {
-        const GradientDefinition current =
-            for_stroke ? static_cast<const GradientDefinition&>(state->settings.stroke.content.gradient)
-                       : static_cast<const GradientDefinition&>(state->settings.fill.gradient);
-        auto& custom = for_stroke ? state->custom_stroke_gradient : state->custom_fill_gradient;
-        const auto selected =
-            request_gradient_manager(window_ptr, *gradient_library, combo->currentData().toString(), current);
-        const bool had_custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty();
-        {
-          QSignalBlocker blocker(combo);
-          combo->clear();
-          populate_gradient_combo(combo);
-          if (had_custom_row) {
-            combo->insertItem(0, QIcon(gradient_thumbnail(custom, 112, 28, preview_colors)),
-                              QObject::tr("Custom"), QString());
-          }
-        }
-        select_gradient_row(combo, current, custom);
-        if (const auto picked = selected.isEmpty() ? -1 : combo->findData(selected); picked >= 0) {
-          combo->setCurrentIndex(picked);
-        }
-        return true;
-      });
-    });
-    return combo;
-  };
-
-  auto* fill_gradient_combo = add_gradient_row(fill_form, fill_group, false);
-
-  auto* gradient_type_combo = new QComboBox(fill_group);
-  gradient_type_combo->setObjectName(QStringLiteral("shapeGradientTypeCombo"));
-  gradient_type_combo->addItem(QObject::tr("Linear"), static_cast<int>(LayerStyleGradientType::Linear));
-  gradient_type_combo->addItem(QObject::tr("Radial"), static_cast<int>(LayerStyleGradientType::Radial));
-  gradient_type_combo->addItem(QObject::tr("Angle"), static_cast<int>(LayerStyleGradientType::Angle));
-  gradient_type_combo->addItem(QObject::tr("Reflected"),
-                               static_cast<int>(LayerStyleGradientType::Reflected));
-  gradient_type_combo->addItem(QObject::tr("Diamond"),
-                               static_cast<int>(LayerStyleGradientType::Diamond));
-  const auto fill_gradient = add_paint_block(fill_form, fill_group, "shapeFillGradientBlock");
-  QWidget* const fill_gradient_block = fill_gradient.first;
-  QFormLayout* const fill_gradient_form = fill_gradient.second;
-  fill_gradient_form->addRow(QObject::tr("Style:"), gradient_type_combo);
-
-  auto* gradient_angle_spin = new UnitIntSpinBox(SpinUnit::Degrees, fill_group);
-  gradient_angle_spin->setObjectName(QStringLiteral("shapeGradientAngleSpin"));
-  gradient_angle_spin->setRange(-180, 180);
-  configure_dialog_spinbox(gradient_angle_spin, 72);
-  add_angle_row(fill_gradient_form, QObject::tr("Angle:"), gradient_angle_spin);
-
-  auto* gradient_scale_spin = new QSpinBox(fill_group);
-  gradient_scale_spin->setObjectName(QStringLiteral("shapeGradientScaleSpin"));
-  gradient_scale_spin->setRange(10, 1000);
-  gradient_scale_spin->setSuffix(percent_suffix());
-  configure_dialog_spinbox(gradient_scale_spin, 72);
-  add_spin_row(fill_gradient_form, QObject::tr("Scale:"), gradient_scale_spin);
-
-  auto* gradient_reverse_check = new QCheckBox(QObject::tr("Reverse"), fill_group);
-  gradient_reverse_check->setObjectName(QStringLiteral("shapeGradientReverseCheck"));
-  fill_gradient_form->addRow(QString(), gradient_reverse_check);
-  QCheckBox* const fill_handles_check = make_handles_check(fill_group, "shapeFillGradientHandlesCheck");
-  if (fill_handles_check != nullptr) {
-    fill_gradient_form->addRow(QString(), fill_handles_check);
-  }
-
-  auto* fill_pattern_combo = new QComboBox(fill_group);
-  fill_pattern_combo->setObjectName(QStringLiteral("shapeFillPatternCombo"));
-  populate_pattern_combo(fill_pattern_combo);
-  fill_form->addRow(QObject::tr("Pattern:"), fill_pattern_combo);
-  const auto fill_pattern = add_paint_block(fill_form, fill_group, "shapeFillPatternBlock");
-  QWidget* const fill_pattern_block = fill_pattern.first;
-  QFormLayout* const fill_pattern_form = fill_pattern.second;
-
-  auto* pattern_scale_spin = new QSpinBox(fill_group);
-  pattern_scale_spin->setObjectName(QStringLiteral("shapePatternScaleSpin"));
-  pattern_scale_spin->setRange(1, 1000);
-  pattern_scale_spin->setSuffix(percent_suffix());
-  configure_dialog_spinbox(pattern_scale_spin, 72);
-  add_spin_row(fill_pattern_form, QObject::tr("Scale:"), pattern_scale_spin);
-
-  // Pattern placement (PtFl Angl / phase / Algn; rendered by the shared
-  // PatternTileSampler and round-tripped through the PSD writer).
-  auto* pattern_angle_spin = new UnitSpinBox(SpinUnit::Degrees, fill_group);
-  pattern_angle_spin->setObjectName(QStringLiteral("shapePatternAngleSpin"));
-  pattern_angle_spin->setRange(-180.0, 180.0);
-  pattern_angle_spin->setDecimals(1);
-  configure_dialog_spinbox(pattern_angle_spin, 72);
-  add_angle_row(fill_pattern_form, QObject::tr("Angle:"), pattern_angle_spin);
-
-  auto* pattern_offset_x_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
-  pattern_offset_x_spin->setObjectName(QStringLiteral("shapePatternOffsetXSpin"));
-  pattern_offset_x_spin->set_context_provider(pixel_field_context);
-  pattern_offset_x_spin->setRange(-30000.0, 30000.0);
-  pattern_offset_x_spin->setDecimals(1);
-  configure_dialog_spinbox(pattern_offset_x_spin, 80);
-  add_spin_row(fill_pattern_form, QObject::tr("Offset X:"), pattern_offset_x_spin);
-
-  auto* pattern_offset_y_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
-  pattern_offset_y_spin->setObjectName(QStringLiteral("shapePatternOffsetYSpin"));
-  pattern_offset_y_spin->set_context_provider(pixel_field_context);
-  pattern_offset_y_spin->setRange(-30000.0, 30000.0);
-  pattern_offset_y_spin->setDecimals(1);
-  configure_dialog_spinbox(pattern_offset_y_spin, 80);
-  add_spin_row(fill_pattern_form, QObject::tr("Offset Y:"), pattern_offset_y_spin);
-
-  auto* pattern_align_check = new QCheckBox(QObject::tr("Align with layer"), fill_group);
-  pattern_align_check->setObjectName(QStringLiteral("shapePatternAlignCheck"));
-  pattern_align_check->setToolTip(
-      QObject::tr("Anchor the tile grid to the layer's position; unchecked anchors it to the "
-                  "document origin"));
-  fill_pattern_form->addRow(QString(), pattern_align_check);
-
-  right_column->addWidget(fill_group);
-
   // --- Edge: the shape's vector-mask Feather / Density (Photoshop's
   // Properties-panel pair on a shape layer; docs/vector-tools-appearance.md) ---
   auto* edge_group = new QGroupBox(QObject::tr("Edge"), left_widget);
@@ -1798,7 +1765,13 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   left_column->addWidget(edge_group);
   left_column->addSpacerItem(density_note_room);
   left_forms.push_back(edge_form);
-  align_section_columns(left_forms, left_grids);
+  // The fill-only dialog shows Fill alone, so the hidden sections' labels do not widen its
+  // label column.
+  if (fill_layer_only) {
+    align_section_columns({fill_form}, {});
+  } else {
+    align_section_columns(left_forms, left_grids);
+  }
 
   // --- Stroke ---
   auto* stroke_group = new QGroupBox(QObject::tr("Stroke"), right_widget);
@@ -2105,21 +2078,18 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
   if (stroke_hint_room != nullptr) {
     right_column->addSpacerItem(stroke_hint_room);
   }
-  // Fill's and Stroke's fields start in one column, and so do the fields of their
-  // nested gradient and pattern blocks (GitHub #679). The fill-only dialog hides
-  // Stroke, so its labels do not widen Fill's column there.
+  // Fill lines up with its column's sections (above). Within Fill, and within Stroke, the
+  // fields of the nested gradient and pattern blocks start in one column (GitHub #679).
+  align_form_columns({stroke_form});
+  align_form_columns({fill_gradient_form, fill_pattern_form});
+  align_form_columns({stroke_gradient_form, stroke_pattern_form});
   if (fill_layer_only) {
-    align_form_columns({fill_form});
-    align_form_columns({fill_gradient_form, fill_pattern_form});
-  } else {
-    align_form_columns({fill_form, stroke_form});
-    align_form_columns({fill_gradient_form, fill_pattern_form, stroke_gradient_form, stroke_pattern_form});
-  }
-  if (fill_layer_only) {
-    for (QWidget* group : std::initializer_list<QWidget*>{layer_group, edge_group, stroke_group}) {
-      group->setVisible(false);
+    // Only Fill shows: every other section of its column and the Stroke column are hidden.
+    for (auto* group : left_widget->findChildren<QGroupBox*>(QString(), Qt::FindDirectChildrenOnly)) {
+      if (group != fill_group) group->setVisible(false);
     }
-    left_widget->setVisible(false);
+    stroke_group->setVisible(false);
+    right_widget->setVisible(false);
   }
 
   left_column->addStretch(1);
@@ -2132,7 +2102,7 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
       &dialog);
   auto* reset_button = buttons->addButton(QObject::tr("Reset"), QDialogButtonBox::ResetRole);
   reset_button->setObjectName(QStringLiteral("shapeAppearanceResetButton"));
-  reset_button->setToolTip(QObject::tr("Restore the default fill, stroke, opacity, and edge (the geometry stays)"));
+  reset_button->setToolTip(QObject::tr("Restore the default fill, stroke, and edge (the geometry stays)"));
   QObject::connect(buttons, &QDialogButtonBox::accepted, window_ptr, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, window_ptr, &QDialog::reject);
   auto* footer = new QHBoxLayout();
@@ -2426,12 +2396,11 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
     QSignalBlocker pattern_align_blocker(pattern_align_check);
     pattern_align_check->setChecked(state->settings.fill.pattern_linked);
     sync_stroke_style_controls();
-      for (auto* spin : {layer_opacity_spin, layer_fill_opacity_spin, stroke_opacity_spin, density_spin}) {
+    for (auto* spin : {stroke_opacity_spin, density_spin}) {
       QSignalBlocker blocker(spin);
-      spin->setValue(spin == layer_opacity_spin ? static_cast<int>(std::lround(state->settings.layer_opacity * 100.0F))
-                     : spin == layer_fill_opacity_spin ? static_cast<int>(std::lround(state->settings.fill_opacity * 100.0F))
-                     : spin == stroke_opacity_spin ? static_cast<int>(std::lround(state->settings.stroke.opacity * 100.0))
-                     : static_cast<int>(std::lround(state->settings.density * 100.0 / 255.0)));
+      spin->setValue(spin == stroke_opacity_spin
+                         ? static_cast<int>(std::lround(state->settings.stroke.opacity * 100.0))
+                         : static_cast<int>(std::lround(state->settings.density * 100.0 / 255.0)));
       sync_row_slider(*spin);
     }
     {
@@ -2589,8 +2558,6 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
                                                         const ShapeAppearanceSettings& source) {
       if (!fill_layer_only) return;
       target.stroke = source.stroke;
-      target.layer_opacity = source.layer_opacity;
-      target.fill_opacity = source.fill_opacity;
       target.feather = source.feather;
       target.density = source.density;
       target.fill_layer_only = source.fill_layer_only;
@@ -3040,8 +3007,6 @@ ShapeAppearanceBody build_shape_appearance_body(QWidget& host, QDialog& window, 
           else notify(keys);
         });
     };
-    bind_field(layer_opacity_spin, {"layer_opacity"});
-    bind_field(layer_fill_opacity_spin, {"fill_opacity"});
     bind_field(feather_spin, {"feather"});
     bind_field(density_spin, {"density"});
     bind_field(stroke_opacity_spin, {"stroke.opacity"});

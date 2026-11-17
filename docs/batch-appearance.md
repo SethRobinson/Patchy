@@ -15,8 +15,11 @@ targets a selected group itself; selecting a group does not select its children.
 
 ## Shape appearance and radii
 
-Fill, stroke, stroke parameters, layer opacity, Fill opacity, feather, and
-density support batch editing. Solid Color changes paint kind and color.
+Fill, stroke, stroke parameters, feather, and density support batch editing.
+Layer opacity and Fill opacity are not Shape Appearance values (GitHub #565):
+the Layers panel sets them on every selected layer, and no edit here, Reset
+and Apply All Settings to Selected Layers included, changes them. Solid Color
+changes paint kind and color.
 Choosing a gradient or pattern changes its definition, preserving placement
 on targets already using that paint kind. Type-specific parameters affect
 matching paints. Paint edits also apply separately to a compound layer's

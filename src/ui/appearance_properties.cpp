@@ -503,8 +503,6 @@ ShapeAppearanceSettings shape_appearance_settings(const Layer& layer) {
   if (!content) return result;
   result.fill = content->fill;
   result.stroke = content->stroke;
-  result.layer_opacity = layer.opacity();
-  result.fill_opacity = layer.fill_opacity();
   result.feather = content->feather;
   result.density = content->density;
   result.fill_layer_only = content->path.empty() && content->parts.empty() &&
@@ -648,8 +646,6 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
   STROKE_FIELD(blend_mode);
   STROKE_FIELD(opacity);
   STROKE_FIELD(resolution);
-  SHAPE_FIELD(layer_opacity);
-  SHAPE_FIELD(fill_opacity);
   SHAPE_FIELD(feather);
   SHAPE_FIELD(density);
 #undef SHAPE_FIELD
@@ -843,7 +839,7 @@ std::vector<AppearanceProperty<LayerStyleSettings>> layer_style_properties(const
 
 bool shape_appearance_equal(const ShapeAppearanceSettings& a, const ShapeAppearanceSettings& b) {
   return a.fill == b.fill && a.stroke == b.stroke && a.geometry == b.geometry &&
-         a.path_box == b.path_box && a.path_shape == b.path_shape && a.layer_opacity == b.layer_opacity && a.fill_opacity == b.fill_opacity &&
+         a.path_box == b.path_box && a.path_shape == b.path_shape &&
          a.feather == b.feather && a.density == b.density;
 }
 
