@@ -19,7 +19,7 @@ QString contributors_link_html(const QString& link_color) {
   // and the README's copy from GitHub (docs/release-process.md), so never edit
   // them by hand.
   static constexpr Contributor kContributors[] = {
-      {"philipzae", "https://github.com/philipzae", 547},
+      {"philipzae", "https://github.com/philipzae", 550},
       {"malnaanah", "https://github.com/malnaanah", 26},
       {"KevDoy", "https://github.com/KevDoy", 22},
       {"lucastucious", "https://github.com/lucastucious", 12},
@@ -27,9 +27,10 @@ QString contributors_link_html(const QString& link_color) {
       {"YuFu-Onship", "https://github.com/YuFu-Onship", 10},
       {"mcapogna", "https://github.com/mcapogna", 7},
       {"ifloppy", "https://github.com/ifloppy", 6},
+      {"spgrhy-lab", "https://github.com/spgrhy-lab", 5},
       {"jackpini", "https://github.com/jackpini", 4},
       {"fivetenth", "https://github.com/fivetenth", 4},
-      {"spgrhy-lab", "https://github.com/spgrhy-lab", 4},
+      {"gabi2d", "https://github.com/gabi2d", 4},
       {"revae", "https://github.com/revae", 3},
       {"c-sanchez", "https://github.com/c-sanchez", 2},
       {"alexanderadam", "https://github.com/alexanderadam", 2},
@@ -51,7 +52,6 @@ QString contributors_link_html(const QString& link_color) {
       {"LiveFreeDead", "https://github.com/LiveFreeDead", 1},
       {"EFIShell0", "https://github.com/EFIShell0", 1},
       {"marshmallows0", "https://github.com/marshmallows0", 1},
-      {"gabi2d", "https://github.com/gabi2d", 1},
   };
 
   QStringList links;

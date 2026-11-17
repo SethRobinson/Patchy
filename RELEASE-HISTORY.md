@@ -3,6 +3,15 @@
 Older Patchy release notes are collected here. The most recent release
 remains in [README.md](README.md#whats-new).
 
+## 1.37 - November 16, 2026
+
+- Erasers: the Eraser has a flyout with two new tools (Shift+E walks the three). The Background Eraser erases the color you paint over and keeps the rest under the brush, with Sampling, Limits and Tolerance settings; the Magic Eraser erases an area of similar color with one click, with Tolerance, Anti-alias, Contiguous, Sample All Layers and Opacity ([issue 727](https://github.com/SethRobinson/Patchy/issues/727))
+- Layer Style: a contour editor for Bevel and Drop Shadow contours (add, move and remove points, corner points, a live preview), saved contours that load and save Photoshop .shc files, and a preview swatch of the current style; each effect page has its own Save as Default, Load Default and Restore Built-in Default buttons ([issue 726](https://github.com/SethRobinson/Patchy/issues/726))
+- Gradient tool: a Gradient Fill finishes drawing in the background after the release, so the next drag starts at once; the drag preview shows through the layer's effects, opacity and blend mode; a drag can start on the pasteboard outside the canvas; Layer > New Fill Layer > Gradient and Pattern open the settings window that stays open, so the canvas handles work; and a Pixels mode gradient is painted on all processor cores when the drag ends ([issue 714](https://github.com/SethRobinson/Patchy/issues/714)), ([issue 725](https://github.com/SethRobinson/Patchy/issues/725))
+- Text: the Type tool shows the path text cursor all along a line of path text and a click there edits that text, the click that opens a text puts the caret where it landed, the alignment buttons show the right sides for right-to-left text, and path and point text show the plain alignment with Justify off where it does not apply ([issue 717](https://github.com/SethRobinson/Patchy/issues/717)), ([issue 683](https://github.com/SethRobinson/Patchy/issues/683))
+- Themes: a guide for theme authors, opened by How to Make a Theme in Preferences > Colors and Themes; Preferences lists what a theme's files got wrong under Problems found, Export Theme Package keeps every theme.json key, and icon-set files that say currentColor take the theme's icon color ([issue 104](https://github.com/SethRobinson/Patchy/issues/104))
+- Also: the Layers panel filter's Has a Blend Mode lists layers set to a mode other than Normal ([issue 671](https://github.com/SethRobinson/Patchy/issues/671)); Shape Appearance's link buttons are framed and centered on their brackets ([issue 723](https://github.com/SethRobinson/Patchy/issues/723)); the color window's 32-bit controls sit in two columns ([issue 255](https://github.com/SethRobinson/Patchy/issues/255)); Object Selection's Model box follows a model that a script downloads
+
 ## 1.36 - November 15, 2026
 
 - Panels: Window > Show Panel Titles hides the title rows of open panels to give them more room; tab groups keep their tabs, collapsed panels keep their row, and Reset Panels turns the titles back on ([issue 721](https://github.com/SethRobinson/Patchy/issues/721))

@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.38" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Text recognition (OCR): Type &gt; Recognize Text makes editable text layers from the text in an image, with the downloadable PP-OCR engine</li>
+          <li>Searchable PDFs from Import PDF, PDF export and Scan a Book to PDF</li>
+          <li>The PDF viewer finds and selects text, follows links and shows the outline</li>
+          <li>A right-click on the canvas opens the brush settings with a live tip preview</li>
+          <li>A Contour Manager for Layer Style contours</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.37" date="2026-11-16">
       <description>
         <ul>
