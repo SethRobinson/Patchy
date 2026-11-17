@@ -189,7 +189,8 @@ void CanvasWidget::reap_retired_context_menus() {
 }
 
 // The canvas right-click menu (a right release within the drag distance of
-// its press; canvas_widget_events.cpp). One builder, four sections: the Move
+// its press; canvas_widget_events.cpp). A footprint painting tool's brush
+// settings rows lead (the host's, GitHub issue 734). One builder, four sections: the Move
 // tool's layers-under-the-pointer entries, the Zoom tool's View zoom commands
 // anywhere on the canvas, the host's selection commands
 // (Remove Object, Fill, ...) when the click landed on the selection, and the
@@ -237,6 +238,11 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
                   [menu](const RetiredContextMenu& retired) { return retired.menu == menu; });
     menu->deleteLater();
   });
+  // A footprint painting tool leads with its brush settings (GitHub issue 734); the
+  // sections below still follow (the selection's commands on a selection).
+  if (brush_context_rows_callback_ && tool_uses_brush_footprint_cursor(tool_)) {
+    brush_context_rows_callback_(*menu, tool_);
+  }
   add_move_layer_menu_entries(*menu, widget_point);
   const auto document_point = document_position(widget_point);
   // The host's QActions, so hotkeys and enable state stay in step; nullptr is

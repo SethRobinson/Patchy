@@ -1170,6 +1170,10 @@ void CanvasWidget::set_screen_mode_context_actions_callback(std::function<QList<
   screen_mode_context_actions_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_brush_context_rows_callback(std::function<void(QMenu&, CanvasTool)> callback) {
+  brush_context_rows_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_unused_escape_callback(std::function<bool()> callback) {
   unused_escape_callback_ = std::move(callback);
 }

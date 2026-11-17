@@ -2042,6 +2042,11 @@ public:
   // Offered last, anywhere on the canvas and the pasteboard, while the window is in a
   // full-screen screen mode (Exit Full Screen, GitHub issue 212); same contract.
   void set_screen_mode_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // Asked first, while a footprint painting tool is active (tool_uses_brush_footprint_cursor),
+  // to put the brush settings rows (Size, Soft, Roundness, Angle, Smooth) at the top of the
+  // canvas menu (GitHub issue 734). The host adds widget actions it creates on `menu`, so they
+  // die with it, and adds nothing for a tool without such settings.
+  void set_brush_context_rows_callback(std::function<void(QMenu& menu, CanvasTool tool)> callback);
   // Asked when a plain Escape reaches the end of keyPressEvent with nothing of the
   // canvas's own to cancel, before Escape's layer deselection; true consumes it (the
   // host leaves a full-screen screen mode, GitHub issue 212).
@@ -5692,6 +5697,7 @@ private:
   std::function<QList<QAction*>()> transform_session_context_actions_callback_;
   std::function<QList<QAction*>()> crop_context_actions_callback_;
   std::function<QList<QAction*>()> screen_mode_context_actions_callback_;
+  std::function<void(QMenu&, CanvasTool)> brush_context_rows_callback_;
   std::function<bool()> unused_escape_callback_;
   std::function<bool(int)> brush_rotate_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;

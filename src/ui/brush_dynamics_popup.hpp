@@ -192,6 +192,10 @@ public:
   // GitHub issue 708): the model and any open popup or window show it. Emits nothing; an
   // edit still waiting on its debounce takes the angle along.
   void set_base_angle(double degrees);
+  // The tip's static angle and roundness set from the canvas menu's rows (GitHub issue 734):
+  // the model and any open panel show them; with `emit_edit` the change is emitted through
+  // dynamics_edited like a panel edit (debounced), so a library tip saves it.
+  void set_base_shape(double degrees, double roundness, bool emit_edit);
   // True while a bitmap tip is active; MainWindow::refresh_options_bar combines this with the
   // document-editability flag instead of blanket-enabling the button.
   [[nodiscard]] bool has_active_tip() const noexcept { return !tip_id_.isEmpty(); }
