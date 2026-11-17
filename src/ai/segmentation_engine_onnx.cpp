@@ -7,6 +7,7 @@
 // simply reports automatic selection unavailable.
 
 #include "ai/ocr_models.hpp"
+#include "ai/onnx_int8_weights.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ai/segmentation_engine_internal.hpp"
 #include "ai/watermark_engine.hpp"
@@ -34,9 +35,12 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <new>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -183,9 +187,33 @@ std::filesystem::path session_path(const char* file) {
   return model_path(file);
 }
 
+// An int8 model on an x64 CPU whose int8 kernels saturate, with its weights as uint8
+// (onnx_int8_weights.hpp): the bytes to load, or nothing to load the file as it is.
+std::optional<std::string> rewritten_int8_model(const std::filesystem::path& path, std::string_view file) {
+  if (!file.ends_with("_int8.onnx") || !int8_weight_rewrite_enabled()) {
+    return std::nullopt;
+  }
+  std::ifstream in(path, std::ios::binary);
+  if (!in) {
+    return std::nullopt;
+  }
+  const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  return matmul_integer_weights_as_uint8(bytes);
+}
+
 std::shared_ptr<Ort::Session> open_session(Ort::Env& env, const char* file) {
   const auto path = session_path(file);
   try {
+    if (const auto rewritten = rewritten_int8_model(path, file); rewritten.has_value()) {
+      try {
+        return std::make_shared<Ort::Session>(env, rewritten->data(), rewritten->size(), session_options());
+      } catch (const Ort::Exception& error) {
+        if (is_out_of_memory_message(error.what())) {
+          throw;
+        }
+        // Never worse than before: the file as it is, with the saturating kernels.
+      }
+    }
     return std::make_shared<Ort::Session>(env, path.c_str(), session_options());
   } catch (const Ort::Exception& error) {
     if (is_out_of_memory_message(error.what())) {

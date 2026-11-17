@@ -53,7 +53,13 @@ Compared with fp32 on real photos (a 3000x1820 photo, the Vermeer IFF fixture, t
 | BiRefNet int8 including Conv | 93 MB (39) | 0.997 to 0.9997 | 2.3x slower (ConvInteger is slow on CPU) |
 | BiRefNet static QDQ int8 (MinMax calibration) | 94 MB (41) | 0.94 on the Vermeer (bleeds into the background) | no faster, 8 s load |
 
-Differences in the chosen variants are sub-pixel edge shifts. Not measured: Apple Silicon and pre-VNNI x86 speed (results stay correct; the speedup may differ). About 43 MB of BiRefNet is float Constant nodes (Swin position tables) that dynamic quantization does not touch.
+Differences in the chosen variants are sub-pixel edge shifts. Not measured: Apple Silicon speed. About 43 MB of BiRefNet is float Constant nodes (Swin position tables) that dynamic quantization does not touch.
+
+### Older x64 CPUs (no VNNI)
+
+The int8 models multiply unsigned activations by signed constant weights (`MatMulInteger`). An x64 CPU without VNNI (AVX2, AVX-512 before VNNI: Intel before about 2019 to 2021, AMD before Zen 4) does that in ONNX Runtime with an instruction that adds two products in 16 bits and saturates. Measured November 2026 on an i7-8700K and an i7-7700K against an i9-14900HX, same model and runtime bytes: MobileSAM's decoder computed the box prompt's positional encoding (a 2 x 128 weight, so one saturated pair is the whole sum) up to 31748 off in int32, its sine and cosine up to 2 off, and the mask logits up to 22 off; a flat rectangle's box selection spread from 10..89 x 10..69 to 2..93 x 2..94 in 329 pieces (`ui_object_select_samples_the_active_shape_layer_alone` failed on those two hosts only). ONNX Runtime's `session.x64quantprecision` made the encoder exact but left that decoder node as it was.
+
+`src/ai/onnx_int8_weights.cpp` therefore loads a `*_int8.onnx` file on such a CPU (`cpu_int8_matmul_saturates`, from CPUID and XCR0) with every `MatMulInteger` weight and zero point moved to uint8 by 128, a lossless edit of the serialized model (`(w - zp)` and every product are unchanged; a raw int8 byte only flips its top bit) that ONNX Runtime then runs unsigned by unsigned, without saturation. The result is bit for bit what a VNNI CPU computes (the same embedding, decoder IoU scores equal, logits within 3.4e-5). A weight is moved only when every use of it is such a node; anything unexpected (a subgraph, a listed initializer, external data) loads the file as it is, and so does a rewritten model ONNX Runtime refuses. CPUs with VNNI and ARM load the files unchanged. Tests: `ai_int8_weights_as_uint8_rewrite_moves_weights_and_zero_points`, `ai_int8_weights_as_uint8_select_the_same_objects` (forces the rewrite on any CPU).
 
 ### Build provisioning and run-time loading
 

@@ -1087,6 +1087,9 @@ void ui_object_select_samples_the_active_shape_layer_alone() {
   CHECK(!region.contains(QPoint(120, 95)));    // the photo inside the box stays out
   CHECK(!region.contains(center));             // and so does the earlier disc selection
   const auto bounds = region.boundingRect();
+  // The rectangle is 10..89 x 10..69; the line says how far a mask strays when it does.
+  std::fprintf(stderr, "  shape layer mask: %d,%d to %d,%d in %d rectangles\n", bounds.left(), bounds.top(),
+               bounds.right(), bounds.bottom(), static_cast<int>(region.rectCount()));
   CHECK(bounds.left() >= 6 && bounds.top() >= 6 && bounds.right() <= 94 && bounds.bottom() <= 74);
 }
 

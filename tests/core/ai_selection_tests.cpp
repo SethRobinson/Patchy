@@ -4,6 +4,7 @@
 // by bytes.
 
 #include "ai/ai_selection_math.hpp"
+#include "ai/onnx_int8_weights.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "core_test_support.hpp"
 #include "formats/stb/stb_image.h"
@@ -20,7 +21,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -557,8 +560,242 @@ void ai_models_load_from_unicode_directory() {
 
 }  // namespace
 
+// --- int8 weights as uint8 (src/ai/onnx_int8_weights.hpp) --------------------------------
+
+// Protobuf pieces to build a model by hand and read the rewrite back.
+void put_varint(std::string& out, std::uint64_t value) {
+  while (value >= 0x80U) {
+    out.push_back(static_cast<char>((value & 0x7fU) | 0x80U));
+    value >>= 7U;
+  }
+  out.push_back(static_cast<char>(value));
+}
+void put_varint_field(std::string& out, std::uint32_t number, std::uint64_t value) {
+  put_varint(out, static_cast<std::uint64_t>(number) << 3U);
+  put_varint(out, value);
+}
+void put_bytes_field(std::string& out, std::uint32_t number, const std::string& payload) {
+  put_varint(out, (static_cast<std::uint64_t>(number) << 3U) | 2U);
+  put_varint(out, payload.size());
+  out += payload;
+}
+std::string node(const std::string& op, const std::vector<std::string>& inputs) {
+  std::string out;
+  for (const auto& input : inputs) {
+    put_bytes_field(out, 1, input);
+  }
+  put_bytes_field(out, 2, op + "_out");
+  put_bytes_field(out, 4, op);
+  return out;
+}
+// An int8 tensor with raw bytes, or with its values as packed int32_data.
+std::string int8_tensor(const std::string& name, const std::vector<int>& values, bool raw) {
+  std::string out;
+  put_varint_field(out, 1, values.size());  // dims
+  put_varint_field(out, 2, 3);              // INT8
+  if (raw) {
+    std::string bytes;
+    for (const int value : values) {
+      bytes.push_back(static_cast<char>(static_cast<std::int8_t>(value)));
+    }
+    put_bytes_field(out, 9, bytes);
+  } else {
+    std::string packed;
+    for (const int value : values) {
+      put_varint(packed, static_cast<std::uint64_t>(static_cast<std::int64_t>(value)));
+    }
+    put_bytes_field(out, 5, packed);
+  }
+  put_bytes_field(out, 8, name);
+  return out;
+}
+
+struct ReadField {
+  std::uint32_t number{0};
+  std::uint64_t varint{0};
+  std::string payload;
+};
+std::uint64_t get_varint(const std::string& data, std::size_t& at) {
+  std::uint64_t value = 0;
+  for (int shift = 0; at < data.size(); shift += 7) {
+    const auto byte = static_cast<std::uint8_t>(data[at++]);
+    value |= static_cast<std::uint64_t>(byte & 0x7fU) << shift;
+    if ((byte & 0x80U) == 0) {
+      break;
+    }
+  }
+  return value;
+}
+std::vector<ReadField> read_fields(const std::string& message) {
+  std::vector<ReadField> fields;
+  std::size_t at = 0;
+  while (at < message.size()) {
+    const auto key = get_varint(message, at);
+    ReadField field;
+    field.number = static_cast<std::uint32_t>(key >> 3U);
+    if ((key & 7U) == 0) {
+      field.varint = get_varint(message, at);
+    } else {
+      const auto length = get_varint(message, at);
+      field.payload = message.substr(at, static_cast<std::size_t>(length));
+      at += static_cast<std::size_t>(length);
+    }
+    fields.push_back(field);
+  }
+  return fields;
+}
+struct ReadTensor {
+  std::uint64_t type{0};
+  std::vector<int> values;  // raw bytes as unsigned, or the int32_data values
+};
+std::map<std::string, ReadTensor> initializers_of(const std::string& model) {
+  std::map<std::string, ReadTensor> out;
+  for (const auto& field : read_fields(model)) {
+    if (field.number != 7) {
+      continue;
+    }
+    for (const auto& part : read_fields(field.payload)) {
+      if (part.number != 5) {
+        continue;
+      }
+      ReadTensor tensor;
+      std::string name;
+      for (const auto& item : read_fields(part.payload)) {
+        if (item.number == 2) {
+          tensor.type = item.varint;
+        } else if (item.number == 8) {
+          name = item.payload;
+        } else if (item.number == 9) {
+          for (const auto byte : item.payload) {
+            tensor.values.push_back(static_cast<std::uint8_t>(byte));
+          }
+        } else if (item.number == 5) {
+          std::size_t at = 0;
+          while (at < item.payload.size()) {
+            tensor.values.push_back(static_cast<int>(static_cast<std::int64_t>(get_varint(item.payload, at))));
+          }
+        }
+      }
+      out[name] = tensor;
+    }
+  }
+  return out;
+}
+
+// The rewrite moves a MatMulInteger's int8 weight and zero point to uint8 by the same 128,
+// raw bytes and packed int32 values alike (a negative int8 there is a ten-byte varint); a
+// weight shared by two such nodes moves once; a weight that something else also reads stays,
+// and so does its zero point; everything else in the model is byte for byte what it was.
+void ai_int8_weights_as_uint8_rewrite_moves_weights_and_zero_points() {
+  std::string graph;
+  put_bytes_field(graph, 1, node("MatMulInteger", {"a", "w", "a_zp", "w_zp"}));
+  put_bytes_field(graph, 1, node("MatMulInteger", {"b", "w", "b_zp", "w_zp"}));
+  put_bytes_field(graph, 1, node("MatMulInteger", {"c", "x", "c_zp", "x_zp"}));
+  put_bytes_field(graph, 1, node("Add", {"x", "x"}));
+  put_bytes_field(graph, 5, int8_tensor("w", {-127, 5, 64, 127, -1, 0}, true));
+  put_bytes_field(graph, 5, int8_tensor("w_zp", {0, -3, 7}, false));
+  put_bytes_field(graph, 5, int8_tensor("x", {-100, 100}, true));
+  put_bytes_field(graph, 5, int8_tensor("x_zp", {0}, false));
+  std::string model;
+  put_varint_field(model, 1, 8);  // ir_version
+  put_bytes_field(model, 2, "test producer");
+  put_bytes_field(model, 7, graph);
+
+  const auto rewritten = patchy::ai::matmul_integer_weights_as_uint8(model);
+  CHECK(rewritten.has_value());
+  if (!rewritten.has_value()) {
+    return;
+  }
+  const auto tensors = initializers_of(*rewritten);
+  CHECK(tensors.at("w").type == 2);
+  CHECK((tensors.at("w").values == std::vector<int>{1, 133, 192, 255, 127, 128}));
+  CHECK(tensors.at("w_zp").type == 2);
+  CHECK((tensors.at("w_zp").values == std::vector<int>{128, 125, 135}));
+  // x is also an Add's input: neither it nor its zero point moves.
+  CHECK(tensors.at("x").type == 3);
+  CHECK((tensors.at("x").values == std::vector<int>{156, 100}));
+  CHECK(tensors.at("x_zp").type == 3);
+  // The model's other fields and every node are as they were.
+  const auto before = read_fields(model);
+  const auto after = read_fields(*rewritten);
+  CHECK(before.size() == after.size());
+  CHECK(after[0].number == 1 && after[0].varint == 8);
+  CHECK(after[1].payload == "test producer");
+  const auto graph_after = read_fields(after[2].payload);
+  const auto graph_before = read_fields(graph);
+  CHECK(graph_before.size() == graph_after.size());
+  for (std::size_t k = 0; k < 4 && k < graph_after.size(); ++k) {
+    CHECK(graph_after[k].payload == graph_before[k].payload);
+  }
+
+  // Nothing to do, a node without a zero point, a subgraph, and bytes that are not a model.
+  std::string plain_graph;
+  put_bytes_field(plain_graph, 1, node("Add", {"x", "x"}));
+  put_bytes_field(plain_graph, 5, int8_tensor("x", {1}, true));
+  std::string plain;
+  put_bytes_field(plain, 7, plain_graph);
+  CHECK(!patchy::ai::matmul_integer_weights_as_uint8(plain).has_value());
+  std::string no_zp_graph;
+  put_bytes_field(no_zp_graph, 1, node("MatMulInteger", {"a", "w"}));
+  put_bytes_field(no_zp_graph, 5, int8_tensor("w", {1, 2}, true));
+  std::string no_zp;
+  put_bytes_field(no_zp, 7, no_zp_graph);
+  CHECK(!patchy::ai::matmul_integer_weights_as_uint8(no_zp).has_value());
+  std::string attribute;
+  put_bytes_field(attribute, 1, "then_branch");
+  put_bytes_field(attribute, 6, plain_graph);
+  std::string if_node = node("If", {"cond"});
+  put_bytes_field(if_node, 5, attribute);
+  std::string sub_graph = graph;
+  put_bytes_field(sub_graph, 1, if_node);
+  std::string with_subgraph;
+  put_bytes_field(with_subgraph, 7, sub_graph);
+  CHECK(!patchy::ai::matmul_integer_weights_as_uint8(with_subgraph).has_value());
+  CHECK(!patchy::ai::matmul_integer_weights_as_uint8(std::string("\x3a\xff\xff", 3)).has_value());
+  CHECK(!patchy::ai::matmul_integer_weights_as_uint8(std::string()).has_value());
+}
+
+// The real MobileSAM models, rewritten (forced on whatever this CPU is) and as shipped, find
+// the same object. On a CPU with VNNI both are exact, so the masks agree; on one without,
+// only the rewritten models are exact, and they must still find the object.
+void ai_int8_weights_as_uint8_select_the_same_objects() {
+  if (!point_engine_at_build_models()) {
+    patchy::test::skip("build without automatic selection");
+  }
+  struct Restore {
+    ~Restore() {
+      patchy::ai::set_int8_weight_rewrite_for_testing(std::nullopt);
+      patchy::ai::release_models();
+    }
+  } restore;
+  AiMask disc;
+  const auto scene = disc_scene(1200, 900, disc);
+  const Rect box{disc.bounds.x - 20, disc.bounds.y - 20, disc.bounds.width + 40, disc.bounds.height + 40};
+  const auto select = [&](bool rewrite) {
+    patchy::ai::release_models();
+    patchy::ai::set_int8_weight_rewrite_for_testing(rewrite);
+    const auto embedding = patchy::ai::sam_encode(scene);
+    CHECK(embedding != nullptr);
+    return patchy::ai::sam_select_box(*embedding, box);
+  };
+  const auto rewritten = select(true);
+  const auto shipped = select(false);
+  const auto rewritten_iou = patchy::ai::mask_iou(rewritten, disc);
+  const auto agreement = patchy::ai::mask_iou(rewritten, shipped);
+  std::printf("  int8 kernels %s; rewritten IoU %.4f, shipped IoU %.4f, rewritten against shipped %.4f\n",
+              patchy::ai::cpu_int8_matmul_saturates() ? "saturate" : "are exact", rewritten_iou,
+              patchy::ai::mask_iou(shipped, disc), agreement);
+  CHECK(rewritten_iou >= 0.9);
+  if (!patchy::ai::cpu_int8_matmul_saturates()) {
+    CHECK(agreement >= 0.999);
+  }
+}
+
 std::vector<patchy::test::TestCase> ai_selection_tests() {
   return {
+      {"ai_int8_weights_as_uint8_rewrite_moves_weights_and_zero_points",
+       ai_int8_weights_as_uint8_rewrite_moves_weights_and_zero_points},
+      {"ai_int8_weights_as_uint8_select_the_same_objects", ai_int8_weights_as_uint8_select_the_same_objects},
       {"ai_sam_transform_scales_longest_side", ai_sam_transform_scales_longest_side},
       {"ai_sam_region_transform_offsets_points", ai_sam_region_transform_offsets_points},
       {"ai_sam_box_region_is_fixed_geometry", ai_sam_box_region_is_fixed_geometry},

@@ -201,6 +201,7 @@ endif()
 add_library(patchy_ai
   src/ai/ai_selection_math.cpp
   src/ai/ocr_model_engine.cpp
+  src/ai/onnx_int8_weights.cpp
   src/ai/segmentation_engine_common.cpp
   src/ai/trustmark_watermark.cpp
 )
