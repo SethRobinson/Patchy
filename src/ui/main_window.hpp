@@ -4144,6 +4144,7 @@ private:
   QComboBox* background_eraser_sampling_combo_{nullptr};
   QComboBox* background_eraser_limits_combo_{nullptr};
   QSpinBox* background_eraser_tolerance_spin_{nullptr};
+  QCheckBox* background_eraser_protect_foreground_check_{nullptr};
   QSpinBox* magic_eraser_tolerance_spin_{nullptr};
   QCheckBox* magic_eraser_anti_alias_check_{nullptr};
   QCheckBox* magic_eraser_contiguous_check_{nullptr};

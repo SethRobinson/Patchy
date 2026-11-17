@@ -10,16 +10,28 @@ A brush that erases the pixels close to a sampled color and leaves the rest unde
 - The erase lowers alpha to alpha x (1 - weight) and leaves the color. Nothing else about the pixel changes: there is no color correction of the pixels that stay (no edge color decontamination).
 - The selection limits the erase (its coverage scales the weight), pixels of the layer outside the canvas are left alone, and the layer never grows.
 - One undo step per stroke ("Background Eraser").
-- It reads and writes the active pixel layer only (no Sample All Layers). Text, shape and Smart Object layers go through the same rasterize prompt or refusal as the toning brushes (it shares their press path, `is_local_adjustment_tool`). It refuses a layer mask, a channel, Quick Mask and a Smart Filter mask with a status message. Alt does nothing on it (no color pick, no opposite tool).
+- It reads and writes the active pixel layer only (no Sample All Layers). Text, shape and Smart Object layers go through the same rasterize prompt or refusal as the toning brushes (it shares their press path, `is_local_adjustment_tool`). It refuses a layer mask, a channel, Quick Mask and a Smart Filter mask with a status message.
 
-Options bar order: Tip, Size | Soft | Sampling, Limits | Tolerance. Tip, Size and Soft are the **Eraser's** own set (`tools/eraserSize`, `tools/eraserSoftness`): the two brushes of the flyout share them, and the Brush keeps its own. There is no Opacity or Flow.
+Options bar order: Tip, Size | Soft | Sampling, Limits | Tolerance | Protect Foreground Color. Tip, Size and Soft are the **Eraser's** own set (`tools/eraserSize`, `tools/eraserSoftness`): the two brushes of the flyout share them, and the Brush keeps its own. There is no Opacity or Flow.
 
 - **Sampling** (`backgroundEraserSamplingCombo`): Continuous (default) reads the stroke-start pixel under the center of every dab; Once keeps the pixel under the first dab that lands on an opaque pixel; Background Swatch uses the background color.
 - **Limits** (`backgroundEraserLimitsCombo`): Discontiguous, Contiguous (default) or Find Edges, with the Color Replacement tool's rules.
 - **Tolerance** (`backgroundEraserToleranceSpin`, 0..100%, default 30): the Color Replacement tool's scale, the Magic Wand's metric on display RGB (`color_match_wand_tolerance`).
 - The edge is always soft: a pixel just past the tolerance distance is partly erased, falling in a straight line to nothing a quarter of that distance further (the Color Replacement tool's Anti-alias, always on; Find Edges gives none).
+- **Protect Foreground Color** (`backgroundEraserProtectForegroundCheck`, default off): below.
 
-Settings keys (permanent): `tools/backgroundEraserSampling` (`continuous`, `once`, `background`), `tools/backgroundEraserLimits` (`discontiguous`, `contiguous`, `findEdges`), `tools/backgroundEraserTolerance`. An unknown token or an unreadable number is the default.
+Settings keys (permanent): `tools/backgroundEraserSampling` (`continuous`, `once`, `background`), `tools/backgroundEraserLimits` (`discontiguous`, `contiguous`, `findEdges`), `tools/backgroundEraserTolerance`, `tools/backgroundEraserProtectForeground`. An unknown token or an unreadable number is the default.
+
+### Protect Foreground Color
+
+GitHub issue 727 follow-up; reviewed 2026-11-17 ([record](patent-research-color-replacement.md), [entry](legal-constraints-selection.md#color-replacement-tool)). With the box checked, a pixel that is closer to the foreground color than to the sampled color is left alone, so the Tolerance can go up without eating into a subject of that color. Alt+click picks the color to keep without leaving the tool.
+
+- The stroke takes the foreground color as it is at the press (`BackgroundEraserStroke::set_protected_color` in `color_match_brush_segment`); a swatch change mid-stroke waits for the next stroke.
+- Each weight the dab worked out is scaled by `color_match_protection_scale` (`ColorMatchStroke::dab`), which compares two plain RGB distances, the match's own metric: the pixel's distance to the dab's sample and its distance to the foreground color. At least as near to the foreground color (a tie included): the pixel is never written. Nearer to the sample by a quarter of the tolerance distance or more (the fringe's width): erased as without the option. Between the two: a straight line, so the kept area's edge is soft (a hard step with Find Edges and at 0%, which have no fringe).
+- Testing the foreground color with the Tolerance alone would not work: a color within the Tolerance of the sample has the sample within its own Tolerance, so both would be kept. Comparing the two distances always erases the sampled color and always keeps the protected one.
+- The test is per pixel and comes after Limits: the connected area is found from the sampled color alone, so protected pixels do not wall it in.
+- When the sampled color is the foreground color, the dab erases nothing.
+- The protected color is one the user names (the foreground swatch, a script's `protectColor`). It is never sampled from the tip's region and never an average or other statistic of pixels; that limit is binding (the entry above).
 
 ## Magic Eraser
 
@@ -38,6 +50,14 @@ Options bar order: Tolerance | Anti-alias, Contiguous, Sample All Layers | Opaci
 - **Opacity** (`magicEraserOpacitySpin`, `magicEraserOpacitySlider`, 0..100%, default 100): how much of the region's alpha goes. 0% erases nothing.
 
 Settings keys (permanent): `tools/magicEraserTolerance`, `tools/magicEraserAntiAlias`, `tools/magicEraserContiguous`, `tools/magicEraserSampleAllLayers`, `tools/magicEraserOpacity`.
+
+## Alt and Ctrl
+
+All three erasers of the flyout share the Eraser's two modifiers (GitHub issue 727 follow-up; [brushes-ui.md](brushes-ui.md#painting-tool-modifiers)):
+
+- **Alt+click** picks the foreground color (`tool_uses_alt_left_for_color_pick`): the eyedropper cursor shows while Alt is held, and nothing is erased. The GIMP-style and Krita-style tool modifiers move the pick to Ctrl for the Eraser only; the two newer tools keep Alt.
+- **Ctrl+drag** moves the selected layers and a Ctrl+click that never drags selects the layer under the pointer (`tool_has_ctrl_temporary_move`), with the four-way arrow while Ctrl is held. The Magic Eraser has it as the one click tool in that list; it takes no brush hint in the status bar (`paint_tool_hint_source` keeps to the footprint brushes).
+- Ctrl+Alt is the pick, not the Move.
 
 ## Background layers and transparency locks
 
@@ -63,17 +83,17 @@ Both tools follow the Eraser's existing rule ([tools.md](tools.md), "Background 
 
 ## Scripting
 
-- `layer.eraseBackground({points, size?, hardness?, sampling?, backgroundColor?, limits?, tolerance?})` erases one stroke with a procedural round tip on the document's active layer and returns the changed bounds `{x, y, width, height}` (all zero when nothing matched). `sampling: "background"` needs `backgroundColor`, which is also the color a transparency-locked layer is erased to (white when not given).
+- `layer.eraseBackground({points, size?, hardness?, sampling?, backgroundColor?, limits?, tolerance?, protectColor?})` erases one stroke with a procedural round tip on the document's active layer and returns the changed bounds `{x, y, width, height}` (all zero when nothing matched). `sampling: "background"` needs `backgroundColor`, which is also the color a transparency-locked layer is erased to (white when not given). `protectColor` is Protect Foreground Color with the color given by the script; without it nothing is protected.
 - `layer.magicErase({x, y, tolerance?, antiAlias?, contiguous?, sampleAllLayers?, opacity?, backgroundColor?})` is one click and returns the changed bounds.
 - Both are strict (an unknown key, a wrong type or an out-of-range value throws before anything is erased) and never change the artist's tool or options.
 
 ## Deliberate differences and limits
 
 - A Background is never converted to a layer by these tools: under its transparency lock they paint the background color, as the Eraser does. Unlock the layer (or use Layer from Background) to erase to transparency.
-- The Background Eraser has no Protect Foreground Color and no Sample All Layers.
+- The Background Eraser has no Sample All Layers. Its Protect Foreground Color is Patchy's own rule (the nearer of two colors, with a short linear ramp), not calibrated against another editor.
 - Sampling reads the stroke-start pixels, so within one stroke a pixel is judged by the color it had when the stroke began.
 - Find Edges is Patchy's own rule (a neighbour step limit), and the tolerance scales are Patchy's own, not calibrated against another editor.
 
 ## Tests
 
-Core `background_eraser_*` and `magic_eraser_*` (tests/core/eraser_tools_tests.cpp): the Background Eraser changes exactly the pixels Color Replacement repaints for the same dab, each Limits and Sampling choice, the lock and no-alpha rules, overlapping dabs, selection, 16 and 32 bits; the Magic Eraser clears exactly the pixels the Fill tool paints for the same click at 8, 16 and 32 bits, Contiguous, Anti-alias, Opacity, selection, Sample All Layers and the lock rules. UI `ui_eraser_*`, `ui_background_eraser_*`, `ui_magic_eraser_*` and `ui_script_erase_background_and_magic_erase` (tests/ui/eraser_tools_tests.cpp): the flyout and Shift+E, each options bar, one undo step, a locked Background, settings across a restart, 16-bit layers, the script calls.
+Core `background_eraser_*` and `magic_eraser_*` (tests/core/eraser_tools_tests.cpp): the Background Eraser changes exactly the pixels Color Replacement repaints for the same dab, each Limits and Sampling choice, the lock and no-alpha rules, overlapping dabs, selection, 16 and 32 bits; the Magic Eraser clears exactly the pixels the Fill tool paints for the same click at 8, 16 and 32 bits, Contiguous, Anti-alias, Opacity, selection, Sample All Layers and the lock rules. UI `ui_eraser_*`, `ui_background_eraser_*`, `ui_magic_eraser_*` and `ui_script_erase_background_and_magic_erase` (tests/ui/eraser_tools_tests.cpp): the flyout and Shift+E, each options bar, one undo step, a locked Background, settings across a restart, 16-bit layers, the script calls, the Alt pick and Ctrl move in all three erasers (`ui_eraser_tools_alt_click_picks_the_foreground_color`, `ui_eraser_tools_ctrl_drag_moves_the_layer`, `ui_eraser_tool_hints_after_modifiers`) and Protect Foreground Color (`ui_background_eraser_protect_foreground_color`; core `background_eraser_protected_color_is_left_alone`).

@@ -36989,6 +36989,14 @@ Bloccato: %1</translation>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Impossibile eliminare i modelli di riconoscimento del testo: %1</translation>
     </message>
+    <message>
+        <source>Protect Foreground Color</source>
+        <translation>Proteggi colore di primo piano</translation>
+    </message>
+    <message>
+        <source>Keep pixels that are closer to the foreground color than to the erased color. %ALT%+click picks the foreground color from the image</source>
+        <translation>Mantiene i pixel più vicini al colore di primo piano che al colore cancellato. %ALT%+clic preleva il colore di primo piano dall&apos;immagine</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

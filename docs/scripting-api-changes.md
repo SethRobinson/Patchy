@@ -23,6 +23,13 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-17 (addition): `layer.eraseBackground` option `protectColor` (a color string): the
+Background Eraser's Protect Foreground Color for scripts
+([eraser-tools.md](eraser-tools.md#protect-foreground-color)). A pixel at least as close to
+that color as to the sampled color is not erased, and one only slightly closer to the sampled
+color is erased in part. Without the option nothing is protected, as before. The key is permanent, as is the settings key
+`tools/backgroundEraserProtectForeground`.
+
 2026-11-17 (addition): `app.buildBookPdf` options `searchable` (boolean; default: the choice
 saved in the book project), `ocrEngine` and `ocrLanguage` (strings; default: the stored picks,
 then the first available engine and its default language). A searchable book PDF recognizes

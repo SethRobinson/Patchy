@@ -667,6 +667,9 @@ struct BackgroundEraserScriptStroke {
   QColor background{Qt::white};  // color-literal-ok: a script stroke's default paint, not chrome
   patchy::BackgroundEraserOptions options{};
   patchy::ColorMatchSampling sampling{patchy::ColorMatchSampling::Continuous};
+  // A script's protectColor: pixels close to it are not erased. (options.protect_foreground
+  // is the tool's own check box and is not read for a script stroke.)
+  std::optional<QColor> protect_color;
 };
 
 // The Magic Eraser's options (docs/eraser-tools.md). Tolerance is the Magic Wand's 0..255.

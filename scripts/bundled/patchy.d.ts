@@ -772,7 +772,9 @@ interface PatchyLayer {
    * `backgroundColor` (required then). `limits`: "discontiguous" every matching pixel under
    * the tip, "contiguous" (default) those connected to the dab's center, "findEdges"
    * connected ones that also stop at abrupt color steps. `tolerance` is 0..100 (default 30;
-   * 0 = exact matches), `size` 1..1024 (default 40), `hardness` 0..100 (default 100). On a
+   * 0 = exact matches), `size` 1..1024 (default 40), `hardness` 0..100 (default 100).
+   * `protectColor` is a color to keep (the tool's Protect Foreground Color): pixels at least
+   * as close to it as to the sampled color are not erased. On a
    * layer whose transparency is locked the pixels are painted with `backgroundColor`
    * (default white) instead and keep their alpha; an unlocked layer without alpha gains one.
    * A selection limits the erase. The layer must be the active layer. Returns the changed
@@ -787,6 +789,7 @@ interface PatchyLayer {
     backgroundColor?: string;
     limits?: "discontiguous" | "contiguous" | "findEdges";
     tolerance?: number;
+    protectColor?: string;
   }): { x: number; y: number; width: number; height: number };
   /**
    * The Magic Eraser: one click at (`x`, `y`) in document pixels that erases the area the

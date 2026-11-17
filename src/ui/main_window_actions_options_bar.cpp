@@ -3943,6 +3943,33 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       current_background_eraser_options_.tolerance = value;
       apply_eraser_tool_settings();
     });
+    // Protect Foreground Color (GitHub issue 727 follow-up): pixels closer to the foreground
+    // color than to the sampled color are left alone; Alt+click picks that color in the tool.
+    add_option_separator({CanvasTool::BackgroundEraser});
+    background_eraser_protect_foreground_check_ = new CheckGlyphBox(tr("Protect Foreground Color"), toolbar);
+    bind_widget_text(background_eraser_protect_foreground_check_, QT_TR_NOOP("Protect Foreground Color"));
+    background_eraser_protect_foreground_check_->setObjectName(
+        QStringLiteral("backgroundEraserProtectForegroundCheck"));
+    background_eraser_protect_foreground_check_->setChecked(current_background_eraser_options_.protect_foreground);
+    {
+      // %ALT% names Option on macOS (resolve_modifier_names), so the tooltip is set by a
+      // callback rather than bound.
+      QPointer<QCheckBox> guarded(background_eraser_protect_foreground_check_);
+      const auto apply_tooltip = [guarded] {
+        if (guarded != nullptr) {
+          guarded->setToolTip(resolve_modifier_names(
+              tr("Keep pixels that are closer to the foreground color than to the erased color. "
+                 "%ALT%+click picks the foreground color from the image")));
+        }
+      };
+      apply_tooltip();
+      register_retranslation(apply_tooltip);
+    }
+    add_option_widget(background_eraser_protect_foreground_check_, {CanvasTool::BackgroundEraser});
+    connect(background_eraser_protect_foreground_check_, &QCheckBox::toggled, this, [this](bool checked) {
+      current_background_eraser_options_.protect_foreground = checked;
+      apply_eraser_tool_settings();
+    });
 
     // Magic Eraser (core magic_erase): the Fill tool's Tolerance and Contiguous on the Magic
     // Wand's 0..255 scale, then how the edge and the sampled layers are treated, then Opacity.

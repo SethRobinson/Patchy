@@ -109,6 +109,23 @@ float color_match_strength(const ColorMatchRgb& pixel, const ColorMatchRgb& samp
   return (fringe_end - distance) / (fringe_end - limit);
 }
 
+float color_match_protection_scale(const ColorMatchRgb& pixel, const ColorMatchRgb& sample,
+                                   const ColorMatchRgb& protected_color, int tolerance_percent,
+                                   bool anti_alias) noexcept {
+  const auto to_sample = std::sqrt(squared_distance(pixel, sample));
+  const auto to_protected = std::sqrt(squared_distance(pixel, protected_color));
+  if (to_protected <= to_sample) {
+    return 0.0F;  // nearer to the protected color, or a tie: kept
+  }
+  // The ramp is as wide as the match's fringe: a quarter of the tolerance distance.
+  const auto limit = 2.0F * static_cast<float>(color_match_wand_tolerance(tolerance_percent));
+  const auto ramp = anti_alias ? limit * (kFringeFactor - 1.0F) : 0.0F;
+  if (ramp <= 0.0F) {
+    return 1.0F;
+  }
+  return std::min(1.0F, (to_protected - to_sample) / ramp);
+}
+
 ColorMatchPixel color_match_pixel_at(const PixelBuffer& pixels, std::int32_t x, std::int32_t y) {
   const auto format = pixels.format();
   const auto* px = pixels.pixel(x, y);
@@ -335,6 +352,8 @@ ColorMatchStroke::Dab ColorMatchStroke::dab(std::int32_t center_x, std::int32_t 
       std::span<const float>(tip, static_cast<std::size_t>(clipped.width) * static_cast<std::size_t>(clipped.height)));
 
   const bool deep = source_.format().bit_depth != BitDepth::UInt8;
+  // The protected color's step is soft when the dab's own edge is (no fringe with Find Edges).
+  const bool protect_fringe = options_.anti_alias && options_.limits != ColorMatchLimits::FindEdges;
   for (std::int32_t row = 0; row < clipped.height; ++row) {
     const auto y = clipped.y + row;
     for (std::int32_t column = 0; column < clipped.width; ++column) {
@@ -344,6 +363,15 @@ ColorMatchStroke::Dab ColorMatchStroke::dab(std::int32_t center_x, std::int32_t 
         continue;
       }
       const auto x = clipped.x + column;
+      if (protected_color_.has_value()) {
+        // A pixel at least as near to the protected color as to the sample is kept.
+        weight *= color_match_protection_scale(color_match_pixel_at(source_, x, y).rgb, *sample_, *protected_color_,
+                                               options_.tolerance, protect_fringe);
+        if (weight <= 0.0F) {
+          weight = 0.0F;
+          continue;
+        }
+      }
       if (selection) {
         weight *= std::clamp(selection(x, y), 0.0F, 1.0F);
         if (weight <= 0.0F) {

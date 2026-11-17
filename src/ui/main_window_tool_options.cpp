@@ -2913,6 +2913,8 @@ void MainWindow::load_tool_settings() {
     current_background_eraser_options_.tolerance =
         stored_int(settings, "tools/backgroundEraserTolerance", patchy::kDefaultColorMatchTolerance,
                    patchy::kMinColorMatchTolerance, patchy::kMaxColorMatchTolerance);
+    current_background_eraser_options_.protect_foreground =
+        stored_bool(settings, "tools/backgroundEraserProtectForeground", false);
     const MagicEraserOptions magic_defaults;
     current_magic_eraser_options_.tolerance =
         stored_int(settings, "tools/magicEraserTolerance", magic_defaults.tolerance, 0, 255);
@@ -3380,6 +3382,7 @@ void MainWindow::sync_eraser_tool_controls() {
   select(background_eraser_sampling_combo_, static_cast<int>(current_background_eraser_sampling_));
   select(background_eraser_limits_combo_, static_cast<int>(current_background_eraser_options_.limits));
   set_value(background_eraser_tolerance_spin_, current_background_eraser_options_.tolerance);
+  set_checked(background_eraser_protect_foreground_check_, current_background_eraser_options_.protect_foreground);
   set_value(magic_eraser_tolerance_spin_, current_magic_eraser_options_.tolerance);
   set_checked(magic_eraser_anti_alias_check_, current_magic_eraser_options_.anti_alias);
   set_checked(magic_eraser_contiguous_check_, current_magic_eraser_options_.contiguous);
@@ -3755,6 +3758,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/backgroundEraserLimits"),
                     token_text(patchy::color_match_limits_token(current_background_eraser_options_.limits)));
   settings.setValue(QStringLiteral("tools/backgroundEraserTolerance"), current_background_eraser_options_.tolerance);
+  settings.setValue(QStringLiteral("tools/backgroundEraserProtectForeground"),
+                    current_background_eraser_options_.protect_foreground);
   settings.setValue(QStringLiteral("tools/magicEraserTolerance"), current_magic_eraser_options_.tolerance);
   settings.setValue(QStringLiteral("tools/magicEraserAntiAlias"), current_magic_eraser_options_.anti_alias);
   settings.setValue(QStringLiteral("tools/magicEraserContiguous"), current_magic_eraser_options_.contiguous);

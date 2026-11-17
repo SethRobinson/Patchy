@@ -380,7 +380,8 @@ const char* paint_tool_hint_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, "
              "%ALT%+right-drag changes size and softness.");
     default:
-      return tool_has_ctrl_temporary_move(tool)
+      // The footprint brushes only: the Magic Eraser has the Ctrl move but is a click tool.
+      return tool_uses_brush_footprint_cursor(tool)
                  ? QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
                                      "%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.")
                  : nullptr;

@@ -321,7 +321,8 @@ bool tool_paints_with_brush_tip(CanvasTool tool) noexcept;
 
 // Painting tools where Ctrl (Command on macOS) is the temporary Move (GitHub issues
 // 380, 421, 423): Ctrl+drag moves the selected layers, a Ctrl+click that never drags
-// selects the layer under the pointer. The footprint-cursor tools.
+// selects the layer under the pointer. The footprint-cursor tools, and the Magic Eraser
+// so every eraser has it (GitHub issue 727 follow-up).
 bool tool_has_ctrl_temporary_move(CanvasTool tool) noexcept;
 
 // The small + at the center of the brush cursors and the overlay outline: a dark

@@ -61,6 +61,15 @@ BackgroundEraserStroke::BackgroundEraserStroke(const PixelBuffer& source, const 
   deep_background_ = {channel(background.r), channel(background.g), channel(background.b)};
 }
 
+void BackgroundEraserStroke::set_protected_color(std::optional<EditColor> color) noexcept {
+  if (!color.has_value()) {
+    match_.set_protected_color(std::nullopt);
+    return;
+  }
+  match_.set_protected_color(
+      ColorMatchRgb{static_cast<float>(color->r), static_cast<float>(color->g), static_cast<float>(color->b)});
+}
+
 Rect BackgroundEraserStroke::dab(PixelBuffer& target, std::int32_t center_x, std::int32_t center_y, Rect rect,
                                  std::span<const float> footprint, const SelectionCoverage& selection) {
   const auto& source = match_.source();

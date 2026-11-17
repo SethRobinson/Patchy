@@ -13,6 +13,13 @@
 // area model, a Gaussian or other smoothing function around the sample, histogram or range
 // normalization before the comparison, a stored spatial or range mask, or anything that can
 // be adjusted after the dab is painted.
+//
+// The Background Eraser's Protect Foreground Color (set_protected_color; docs/eraser-tools.md,
+// decided 2026-11-17) is a second point the owner hands in: a pixel at least as near to it as
+// to the sample is left alone. It is a color the user chose (the foreground swatch, a script's
+// argument): never a color sampled from the tip's region, never an average or other statistic
+// of pixels, and the erase sample stays the one pixel under the dab's center, never a measured
+// region of the tip.
 
 #include "core/palette.hpp"
 #include "core/pixel_buffer.hpp"
@@ -68,6 +75,15 @@ using ColorMatchRgb = std::array<float, 3>;
 // distance; without it, it is 0.
 [[nodiscard]] float color_match_strength(const ColorMatchRgb& pixel, const ColorMatchRgb& sample,
                                          int tolerance_percent, bool anti_alias) noexcept;
+
+// How much of a matching pixel's weight is left when `protected_color` is kept (the Background
+// Eraser's Protect Foreground Color). 0 when the pixel is at least as near to the protected
+// color as to `sample` (plain RGB distance, the metric above); 1 when it is nearer to the
+// sample by a quarter of the tolerance distance or more (the anti-alias fringe's width); a
+// straight line between. Without anti_alias, or at tolerance 0, the step is hard.
+[[nodiscard]] float color_match_protection_scale(const ColorMatchRgb& pixel, const ColorMatchRgb& sample,
+                                                 const ColorMatchRgb& protected_color, int tolerance_percent,
+                                                 bool anti_alias) noexcept;
 
 // One pixel of a color buffer (3 or 4 channels, any depth) as display-encoded RGB, and its
 // alpha as 0..1 (1 without an alpha channel). A 32-bit linear pixel is sRGB-encoded first, so
@@ -140,6 +156,13 @@ class ColorMatchStroke {
   // The color the stroke compares against, once it has one (Continuous: the last dab's).
   [[nodiscard]] const std::optional<ColorMatchRgb>& sample() const noexcept { return sample_; }
 
+  // A color the stroke leaves alone (the Background Eraser's Protect Foreground Color): every
+  // weight is scaled by color_match_protection_scale against the dab's sample, so a pixel at
+  // least as near to this color as to the sample is never written. The owner names the color;
+  // nothing here reads it from the image. Empty (the default) protects nothing.
+  void set_protected_color(std::optional<ColorMatchRgb> color) noexcept { protected_color_ = color; }
+  [[nodiscard]] const std::optional<ColorMatchRgb>& protected_color() const noexcept { return protected_color_; }
+
  private:
   static constexpr std::int32_t kTileShift = 6;
   static constexpr std::int32_t kTileSize = 1 << kTileShift;
@@ -151,6 +174,7 @@ class ColorMatchStroke {
   ColorMatchOptions options_;
   ColorMatchSampling sampling_;
   std::optional<ColorMatchRgb> sample_;
+  std::optional<ColorMatchRgb> protected_color_;
   const PaletteSnapContext* palette_{nullptr};
   std::unordered_map<std::uint64_t, std::unique_ptr<Tile>> caps_;
   std::vector<float> clipped_footprint_;

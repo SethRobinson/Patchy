@@ -37104,6 +37104,14 @@ Locked: %1</source>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Не удалось удалить модели распознавания текста: %1</translation>
     </message>
+    <message>
+        <source>Protect Foreground Color</source>
+        <translation>Защитить основной цвет</translation>
+    </message>
+    <message>
+        <source>Keep pixels that are closer to the foreground color than to the erased color. %ALT%+click picks the foreground color from the image</source>
+        <translation>Сохраняет пиксели, которые ближе к основному цвету, чем к стираемому. %ALT%+щелчок берёт основной цвет с изображения</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

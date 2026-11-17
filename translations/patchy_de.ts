@@ -36989,6 +36989,14 @@ Fixiert: %1</translation>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Die Texterkennungsmodelle konnten nicht gelöscht werden: %1</translation>
     </message>
+    <message>
+        <source>Protect Foreground Color</source>
+        <translation>Vordergrundfarbe schützen</translation>
+    </message>
+    <message>
+        <source>Keep pixels that are closer to the foreground color than to the erased color. %ALT%+click picks the foreground color from the image</source>
+        <translation>Pixel behalten, die der Vordergrundfarbe näher sind als der radierten Farbe. %ALT%+Klick nimmt die Vordergrundfarbe aus dem Bild auf</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1072,6 +1072,10 @@ bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
     case CanvasTool::Smudge:
     case CanvasTool::ColorReplace:
     case CanvasTool::Eraser:
+    // The Eraser's flyout mates pick like the Eraser (GitHub issue 727 follow-up); the
+    // Background Eraser's Protect Foreground Color keeps the color picked this way.
+    case CanvasTool::BackgroundEraser:
+    case CanvasTool::MagicEraser:
     case CanvasTool::Gradient:
     case CanvasTool::Line:
     case CanvasTool::Fill:
@@ -1159,7 +1163,9 @@ bool tool_stroke_uses_tip_shape(CanvasTool tool) noexcept {
 }
 
 bool tool_has_ctrl_temporary_move(CanvasTool tool) noexcept {
-  return tool_uses_brush_footprint_cursor(tool);
+  // Every footprint brush, and the Magic Eraser so all three erasers of the flyout move the
+  // layer under Ctrl (GitHub issue 727 follow-up). It is a click tool with no footprint.
+  return tool_uses_brush_footprint_cursor(tool) || tool == CanvasTool::MagicEraser;
 }
 
 void paint_brush_center_cross(QPainter& painter, QPoint center) {

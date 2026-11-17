@@ -14,6 +14,8 @@
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
+#include "ui/modifier_names.hpp"
+#include "ui/tool_cursors.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 
@@ -26,6 +28,7 @@
 #include <QMenu>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStatusBar>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -50,9 +53,10 @@ const QColor kRed(210, 40, 40);
 const QColor kGreen(40, 170, 60);
 const QColor kYellow(240, 220, 40);
 
-constexpr std::array<const char*, 12> kEraserSettingsKeys{
+constexpr std::array<const char*, 13> kEraserSettingsKeys{
     "tools/activeTool",           "tools/backgroundEraserSampling", "tools/backgroundEraserLimits",
-    "tools/backgroundEraserTolerance", "tools/magicEraserTolerance", "tools/magicEraserAntiAlias",
+    "tools/backgroundEraserTolerance", "tools/backgroundEraserProtectForeground", "tools/magicEraserTolerance",
+    "tools/magicEraserAntiAlias",
     "tools/magicEraserContiguous", "tools/magicEraserSampleAllLayers", "tools/magicEraserOpacity",
     "tools/eraserSize",           "tools/eraserSoftness",           "tools/eraserOpacity"};
 
@@ -670,6 +674,14 @@ void ui_script_erase_background_and_magic_erase() {
     var none = layer.eraseBackground({points: [{x: 125, y: 20}], size: 10, sampling: 'background',
                                       backgroundColor: '#000000'});
     console.log('none=' + none.width + 'x' + none.height);
+    // protectColor: a stroke from the white keeps the near-white it names and still erases white.
+    layer.fillRect(0, 130, 30, 30, '#e6e6e6');
+    var k = layer.eraseBackground({points: [{x: 60, y: 145}, {x: 20, y: 145}], size: 20, sampling: 'once',
+                                   limits: 'discontiguous', protectColor: '#e6e6e6'});
+    console.log('protect=' + at(50, 145) + ' kept=' + at(15, 145) + ' box=' + (k.x >= 30));
+    var u = layer.eraseBackground({points: [{x: 60, y: 145}, {x: 20, y: 145}], size: 20, sampling: 'once',
+                                   limits: 'discontiguous'});
+    console.log('unprotected=' + at(15, 145));
     // Magic Eraser: the rest of the green block with one click, then half of the white.
     var m = layer.magicErase({x: 200, y: 35});
     console.log('magic=' + at(205, 125) + ' box=' + m.x + ',' + m.y + ',' + m.width + ',' + m.height);
@@ -694,6 +706,7 @@ void ui_script_erase_background_and_magic_erase() {
     refuse('sampling', function () { layer.eraseBackground({points: [{x: 1, y: 1}], sampling: 3}); });
     refuse('tolerance', function () { layer.eraseBackground({points: [{x: 1, y: 1}], tolerance: 101}); });
     refuse('swatch', function () { layer.eraseBackground({points: [{x: 1, y: 1}], sampling: 'background'}); });
+    refuse('protect', function () { layer.eraseBackground({points: [{x: 1, y: 1}], protectColor: 7}); });
     refuse('point', function () { layer.eraseBackground({points: [{x: 1}]}); });
     refuse('nox', function () { layer.magicErase({y: 3}); });
     refuse('magicunknown', function () { layer.magicErase({x: 1, y: 1, size: 3}); });
@@ -709,10 +722,13 @@ void ui_script_erase_background_and_magic_erase() {
   CHECK(backlog_contains(window, QStringLiteral("red=210,40,40,0 white=255,255,255,255 far=210,40,40,255")));
   CHECK(backlog_contains(window, QStringLiteral("swatch=40,170,60,0 box=true")));
   CHECK(backlog_contains(window, QStringLiteral("none=0x0")));
+  CHECK(backlog_contains(window, QStringLiteral("protect=255,255,255,0 kept=230,230,230,255 box=true")));
+  CHECK(backlog_contains(window, QStringLiteral("unprotected=230,230,230,0")));
   CHECK(backlog_contains(window, QStringLiteral("magic=40,170,60,0 box=150,30,60,100")));
   CHECK(backlog_contains(window, QStringLiteral("half=true wide=true")));
   CHECK(backlog_contains(window, QStringLiteral("miss=0x0")));
-  for (const char* name : {"nopoints", "noobject", "unknown", "limits", "sampling", "tolerance", "swatch", "point",
+  for (const char* name : {"nopoints", "noobject", "unknown", "limits", "sampling", "tolerance", "swatch", "protect",
+                           "point",
                            "nox", "magicunknown", "magictolerance", "magicbool", "magicopacity", "inactive",
                            "inactivebrush"}) {
     CHECK(backlog_contains(window, QString::fromLatin1(name) + QStringLiteral("-refused=true")));
@@ -722,10 +738,321 @@ void ui_script_erase_background_and_magic_erase() {
   CHECK(require_canvas(window)->tool() == CanvasTool::Brush);
 }
 
+// Protect Foreground Color (GitHub issue 727 follow-up): the Background Eraser's check box.
+// Off, a stroke that starts on red takes the dark red beside it too (it is within the
+// Tolerance). Alt+click the dark red, check the box, and the same stroke keeps it.
+void ui_background_eraser_protect_foreground_color() {
+  const auto restorers = clear_eraser_settings();
+  const QColor dark_red(150, 20, 20);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1500, 780);  // the whole options bar, the new check box included
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    // White, a red block from (30, 40) to (109, 119) whose right half, from x = 70, is dark red.
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      var layer = doc.addLayer('Picture');
+      layer.fillRect(0, 0, 240, 160, '#ffffff');
+      layer.fillRect(30, 40, 40, 80, '#d22828');
+      layer.fillRect(70, 40, 40, 80, '#961414');
+      doc.activeLayer = layer;
+    )JS")));
+    QApplication::processEvents();
+    auto* document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, canvas);
+    CHECK(document != nullptr);
+    if (document == nullptr) {
+      return;
+    }
+    require_action(window, "toolBackgroundEraserAction")->trigger();
+    QApplication::processEvents();
+    auto* protect = window.findChild<QCheckBox*>(QStringLiteral("backgroundEraserProtectForegroundCheck"));
+    auto* sampling = window.findChild<QComboBox*>(QStringLiteral("backgroundEraserSamplingCombo"));
+    auto* tolerance = window.findChild<QSpinBox*>(QStringLiteral("backgroundEraserToleranceSpin"));
+    auto* size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* soft = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+    CHECK(protect != nullptr && sampling != nullptr && tolerance != nullptr && size != nullptr && soft != nullptr);
+    if (protect == nullptr || sampling == nullptr || tolerance == nullptr || size == nullptr || soft == nullptr) {
+      return;
+    }
+    // The check box: on the Background Eraser's bar, after Tolerance, off by default.
+    CHECK(protect->isVisible() && !protect->isChecked());
+    CHECK(protect->text() == QStringLiteral("Protect Foreground Color"));
+    CHECK(!protect->toolTip().isEmpty() && !protect->toolTip().contains(QLatin1Char('%')));
+    CHECK(protect->mapTo(&window, QPoint(0, 0)).x() > tolerance->mapTo(&window, QPoint(0, 0)).x());
+    CHECK(!canvas->background_eraser_options().protect_foreground);
+    require_action(window, "toolEraserAction")->trigger();
+    QApplication::processEvents();
+    CHECK(!protect->isVisible());
+    require_action(window, "toolBackgroundEraserAction")->trigger();
+    QApplication::processEvents();
+
+    size->setValue(60);
+    soft->setValue(0);
+    sampling->setCurrentIndex(sampling->findText(QStringLiteral("Once")));
+    QApplication::processEvents();
+    const auto erase_across = [&] { stroke(*canvas, QPoint(45, 80), QPoint(95, 80)); };
+
+    // Off: the stroke samples the red and erases the dark red with it.
+    erase_across();
+    CHECK(layer_alpha(*document, QPoint(50, 80)) == 0);
+    CHECK(layer_alpha(*document, QPoint(90, 80)) == 0);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(layer_alpha(*document, QPoint(90, 80)) == 255);
+
+    // On, with a foreground color far from both reds: nothing is protected, both go again.
+    protect->setChecked(true);
+    QApplication::processEvents();
+    CHECK(canvas->background_eraser_options().protect_foreground);
+    canvas->set_primary_color(QColor(20, 60, 220));
+    erase_across();
+    CHECK(layer_alpha(*document, QPoint(50, 80)) == 0);
+    CHECK(layer_alpha(*document, QPoint(90, 80)) == 0);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(layer_alpha(*document, QPoint(90, 80)) == 255);
+
+    // Alt+click picks the color to keep; the click erases nothing.
+    const auto pick = canvas->widget_position_for_document_point(QPoint(90, 80));
+    send_mouse(*canvas, QEvent::MouseButtonPress, pick, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, pick, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(color_close(canvas->primary_color(), dark_red, 1));
+    CHECK(layer_alpha(*document, QPoint(90, 80)) == 255);
+
+    // Now the red goes and the dark red stays, in one undo step.
+    const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    erase_across();
+    CHECK(layer_alpha(*document, QPoint(50, 80)) == 0);
+    CHECK(layer_alpha(*document, QPoint(68, 80)) == 0);
+    CHECK(layer_alpha(*document, QPoint(71, 80)) == 255);
+    CHECK(layer_alpha(*document, QPoint(90, 80)) == 255);
+    CHECK(is_color(layer_pixel(*document, QPoint(90, 80)), dark_red));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+    // The follow-up's AFTER shot: the picture alone at 400%, so the erased red shows as
+    // transparency beside the dark red that stayed, under the bar with the new check box.
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      app.activeDocument.layers.forEach(function (other) {
+        if (other.name !== 'Picture') { other.visible = false; }
+      });
+      patchy.ui.zoomTo(80, 80, 400);
+    )JS")));
+    window.resize(1180, 640);
+    QApplication::processEvents();
+    CHECK(protect->isVisible());
+    save_widget_artifact("issue_727_protect_foreground_color", window);
+
+    patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/backgroundEraserProtectForeground")).toBool());
+  }
+  {
+    // "The next launch": the box comes back checked.
+    auto&& [window, canvas] = ShownWindowFixture{};
+    CHECK(canvas->background_eraser_options().protect_foreground);
+    auto* protect = window.findChild<QCheckBox*>(QStringLiteral("backgroundEraserProtectForegroundCheck"));
+    CHECK(protect != nullptr && protect->isChecked());
+  }
+  {
+    // An unreadable value is the default, off.
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/backgroundEraserProtectForeground"), QStringLiteral("maybe"));
+    settings.sync();
+    auto&& [window, canvas] = ShownWindowFixture{};
+    CHECK(!canvas->background_eraser_options().protect_foreground);
+  }
+}
+
+// A 200x120 document for the modifier tests: "Back" is red with a green block from x = 120,
+// and "Dot" above it holds one yellow square from (20, 20) to (39, 39). Back is active.
+struct ModifierPicture {
+  patchy::Document document{200, 120, patchy::PixelFormat::rgba8()};
+  patchy::LayerId back_id{};
+  patchy::LayerId dot_id{};
+
+  ModifierPicture() {
+    auto back = solid_pixels(200, 120, patchy::PixelFormat::rgba8(), kRed);
+    fill_pixel_rect(back, QRect(120, 0, 80, 120), kGreen);
+    back_id = document.add_pixel_layer("Back", std::move(back)).id();
+    auto dot = solid_pixels(200, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+    fill_pixel_rect(dot, QRect(20, 20, 20, 20), kYellow);
+    dot_id = document.add_pixel_layer("Dot", std::move(dot)).id();
+    document.set_active_layer(back_id);
+  }
+
+  // How many pixels of a layer's own buffer are not fully opaque.
+  [[nodiscard]] int pixels_not_opaque(patchy::LayerId id) const {
+    const auto& pixels = document.find_layer(id)->pixels();
+    int count = 0;
+    for (int y = 0; y < pixels.height(); ++y) {
+      for (int x = 0; x < pixels.width(); ++x) {
+        count += pixels.pixel(x, y)[3] == 255 ? 0 : 1;
+      }
+    }
+    return count;
+  }
+};
+
+// Alt+click picks the foreground color in all three erasers, as in the plain Eraser (GitHub
+// issue 727 follow-up): the eyedropper cursor shows while Alt is held, the click sets the
+// foreground color, leaves the background color alone and erases nothing.
+void ui_eraser_tools_alt_click_picks_the_foreground_color() {
+  for (const auto tool : {CanvasTool::Eraser, CanvasTool::BackgroundEraser, CanvasTool::MagicEraser}) {
+    ModifierPicture picture;
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(420, 320);
+    canvas.set_document(&picture.document);
+    canvas.set_zoom(1.0);
+    canvas.set_selected_layer_ids({picture.back_id});
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(tool);
+    canvas.set_brush_size(20);
+    canvas.set_brush_softness(0);
+    canvas.set_primary_color(QColor(1, 2, 3));
+    canvas.set_secondary_color(QColor(250, 250, 250));
+    const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(160, 60)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    // The cursor: the eyedropper while Alt is held, the tool's own again on release.
+    const auto eyedropper = patchy::ui::eyedropper_cursor().pixmap().toImage();
+    send_key_release(canvas, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(canvas.cursor().pixmap().toImage() != eyedropper);
+    send_key_press(canvas, Qt::Key_Alt);
+    CHECK(canvas.cursor().pixmap().toImage() == eyedropper);
+    CHECK(canvas.cursor().hotSpot() == QPoint(5, 27));
+    send_key_release(canvas, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(canvas.cursor().pixmap().toImage() != eyedropper);
+
+    // The click picks the green under the pointer into the foreground and erases nothing.
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(160, 60)), Qt::LeftButton, Qt::LeftButton,
+               Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(160, 60)), Qt::LeftButton, Qt::NoButton,
+               Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(color_close(canvas.primary_color(), kGreen, 1));
+    CHECK(canvas.secondary_color() == QColor(250, 250, 250));
+    CHECK(picture.pixels_not_opaque(picture.back_id) == 0);
+    CHECK(canvas.tool() == tool);
+
+    // Without Alt the same click erases: the pick was the modifier, not the tool.
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(160, 60)), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(160, 60)), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(picture.pixels_not_opaque(picture.back_id) > 0);
+  }
+}
+
+// Ctrl is the temporary Move in all three erasers (GitHub issue 727 follow-up): the four-way
+// arrow shows while it is held, a Ctrl+drag moves the layer and erases nothing, and a
+// Ctrl+click that never drags selects the layer under the pointer and erases nothing.
+void ui_eraser_tools_ctrl_drag_moves_the_layer() {
+  for (const auto tool : {CanvasTool::Eraser, CanvasTool::BackgroundEraser, CanvasTool::MagicEraser}) {
+    ModifierPicture picture;
+    auto& document = picture.document;
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(420, 320);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.set_selected_layer_ids({picture.back_id});
+    canvas.set_snap_enabled(false);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(tool);
+    canvas.set_brush_size(20);
+    canvas.set_brush_softness(0);
+    const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+    const auto bounds = [&document](patchy::LayerId id) { return std::as_const(document).find_layer(id)->bounds(); };
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(70, 80)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    // The cursor: the four-way arrow while Ctrl is held.
+    send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+    CHECK(canvas.cursor().shape() != Qt::SizeAllCursor);
+    send_key_press(canvas, Qt::Key_Control);
+    CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+    send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+    CHECK(canvas.cursor().shape() != Qt::SizeAllCursor);
+
+    // Ctrl+drag: the active layer moves 10 px to the right and keeps every pixel.
+    const auto before = bounds(picture.back_id);
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(70, 80)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier);
+    CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(76, 80)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(80, 80)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(80, 80)), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier);
+    QApplication::processEvents();
+    const auto after = bounds(picture.back_id);
+    CHECK(after.x == before.x + 10);
+    CHECK(after.y == before.y);
+    CHECK(after.width == before.width && after.height == before.height);
+    CHECK(picture.pixels_not_opaque(picture.back_id) == 0);
+    CHECK(bounds(picture.dot_id).x == 0);  // the layer that was not selected stays
+    CHECK(canvas.tool() == tool);
+
+    // Ctrl+click on the yellow square selects its layer; nothing is erased on either layer.
+    const auto dot_holes = picture.pixels_not_opaque(picture.dot_id);
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(30, 30)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(30, 30)), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(std::as_const(document).active_layer_id() == picture.dot_id);
+    CHECK(picture.pixels_not_opaque(picture.dot_id) == dot_holes);
+    CHECK(picture.pixels_not_opaque(picture.back_id) == 0);
+
+    // Ctrl+Alt is not the Move: no layer moves.
+    const auto dot_before = bounds(picture.dot_id);
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(150, 100)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(160, 100)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(160, 100)), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(bounds(picture.dot_id).x == dot_before.x && bounds(picture.back_id).x == after.x);
+  }
+}
+
+// The status bar hints after the follow-up: the two brushes of the flyout share the painting
+// tools' hint, and the Magic Eraser, a click tool, does not take it.
+void ui_eraser_tool_hints_after_modifiers() {
+  const auto restorers = clear_eraser_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1500, 780);
+  QApplication::processEvents();
+  const auto hint = [&window](const char* action) {
+    require_action(window, action)->trigger();
+    QApplication::processEvents();
+    return window.statusBar()->currentMessage();
+  };
+  const auto alt = patchy::ui::alt_key_name();
+  CHECK(hint("toolEraserAction").startsWith(QStringLiteral("Eraser: Shift+click draws a line, ")));
+  const auto background = hint("toolBackgroundEraserAction");
+  CHECK(background.startsWith(QStringLiteral("Background Eraser: Shift+click draws a line, ")));
+  CHECK(background.endsWith(alt + QStringLiteral("+right-drag changes size and softness.")));
+  const auto magic = hint("toolMagicEraserAction");
+  CHECK(!magic.contains(QStringLiteral("Shift+click draws a line")));
+  CHECK(!magic.contains(QStringLiteral("right-drag")));
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> eraser_tools_ui_tests() {
   return {
+      {"ui_eraser_tools_alt_click_picks_the_foreground_color", ui_eraser_tools_alt_click_picks_the_foreground_color},
+      {"ui_eraser_tools_ctrl_drag_moves_the_layer", ui_eraser_tools_ctrl_drag_moves_the_layer},
+      {"ui_eraser_tool_hints_after_modifiers", ui_eraser_tool_hints_after_modifiers},
+      {"ui_background_eraser_protect_foreground_color", ui_background_eraser_protect_foreground_color},
       {"ui_eraser_flyout_holds_the_three_erasers_and_shift_e_cycles",
        ui_eraser_flyout_holds_the_three_erasers_and_shift_e_cycles},
       {"ui_background_eraser_erases_the_sampled_color_in_one_undo_step",
