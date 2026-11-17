@@ -1254,7 +1254,7 @@ void MainWindow::open_style_manager(QWidget* parent) {
 }
 
 void MainWindow::open_contour_manager(QWidget* parent) {
-  request_contour_manager(parent != nullptr ? parent : this, contour_library());
+  (void)request_contour_manager(parent != nullptr ? parent : this, contour_library());
 }
 
 void MainWindow::open_stroke_preset_manager(QWidget* parent) {

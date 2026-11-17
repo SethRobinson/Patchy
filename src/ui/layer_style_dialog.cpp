@@ -16,6 +16,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/contour_editor_dialog.hpp"
 #include "ui/contour_library.hpp"
+#include "ui/contour_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/modifier_names.hpp"
@@ -4119,6 +4120,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     load_action->setObjectName(QStringLiteral("contourLibraryLoadAction"));
     auto* save_action = menu->addAction(QObject::tr("Save Contours…"));
     save_action->setObjectName(QStringLiteral("contourLibrarySaveAction"));
+    // The whole library, from where contours are used (Seth, November 17, 2026).
+    menu->addSeparator();
+    auto* manager_action = menu->addAction(QObject::tr("Contour Manager…"));
+    manager_action->setObjectName(QStringLiteral("contourLibraryManagerAction"));
     picker->library->setMenu(menu);
     picker->library->setEnabled(contour_library != nullptr);
     const auto sync_menu = [&selected_user_contour, contour_library, picker, rename_action, delete_action, save_action] {
@@ -4206,6 +4211,30 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       const auto values = contour_picker_values();
       (void)load_contours_from_file(&dialog, *contour_library, QStringLiteral("layerStyleLoadContoursFileDialog"));
       show_contour_picker_values(values);
+    });
+    // Contour Manager, on the picker's contour. Like the Pattern Manager from here,
+    // Use Contour puts the chosen contour in this picker; Close leaves every picker's
+    // contour as it was, relisted: a renamed one shows its new name, a deleted or
+    // re-curved one stays on its effect as Custom.
+    QObject::connect(manager_action, &QAction::triggered, &dialog, [&, picker, picker_index] {
+      auto values = contour_picker_values();
+      const auto current = picker->combo->currentData().toString();
+      QString storage_id;
+      QString builtin_id;
+      if (current.startsWith(QLatin1String(kContourUserPrefix))) {
+        storage_id = current.mid(static_cast<qsizetype>(std::strlen(kContourUserPrefix)));
+      } else if (current != QLatin1String(kContourCustomId)) {
+        builtin_id = current;
+      }
+      const auto chosen =
+          request_contour_manager(&dialog, *contour_library, storage_id, builtin_id, /*offer_use=*/true);
+      if (chosen.has_value()) {
+        values[picker_index] = *chosen;
+      }
+      show_contour_picker_values(values);
+      if (chosen.has_value()) {
+        preview_contour_change(*picker, true);
+      }
     });
     QObject::connect(save_action, &QAction::triggered, &dialog, [&] {
       (void)save_contours_to_file(&dialog, *contour_library, QStringLiteral("layerStyleSaveContoursFileDialog"));

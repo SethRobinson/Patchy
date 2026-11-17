@@ -16421,6 +16421,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation>Eine neue Kontur aus einer geraden Linie erstellen, eine gespeicherte umbenennen oder löschen oder Konturdateien laden und speichern</translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation>Kontur verwenden</translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation>Die ausgewählte Kontur in der Auswahl verwenden, aus der dies geöffnet wurde</translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation>Konturverwaltung…</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

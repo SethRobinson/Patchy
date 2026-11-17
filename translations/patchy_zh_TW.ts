@@ -16365,6 +16365,18 @@ Do you want to replace it?</source>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation>從直線建立新輪廓，重新命名或刪除已儲存的輪廓，或載入和儲存輪廓檔案</translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation>使用輪廓</translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation>在開啟此視窗的輪廓選擇器中使用所選輪廓</translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation>輪廓管理員…</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

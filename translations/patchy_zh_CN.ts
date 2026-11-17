@@ -16365,6 +16365,18 @@ Do you want to replace it?</source>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation>从直线新建等高线，重命名或删除已保存的等高线，或载入和存储等高线文件</translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation>使用等高线</translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation>在打开此窗口的等高线选择器中使用所选等高线</translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation>等高线管理器…</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
