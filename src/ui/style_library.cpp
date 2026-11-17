@@ -91,6 +91,9 @@ using presets::utf8_from_qstring;
   return result;
 }
 
+// The sample's dark-neutral fill: reads under face overlays and against the card.
+constexpr QRgb kStylePreviewInk = qRgb(58, 62, 69);
+
 }  // namespace
 
 QString style_preset_folder_display_name(const char* english_folder) {
@@ -111,7 +114,8 @@ QString style_library_entry_display_name(const StyleLibraryEntry& entry) {
 
 QPixmap render_style_preview(const LayerStyle& style,
                              const std::optional<psd::AslBlendSettings>& blend_settings,
-                             std::span<const PatternResource> patterns, int extent) {
+                             std::span<const PatternResource> patterns, int extent,
+                             StylePreviewSample sample_shape) {
   // Rendered at the requested extent (the manager's large preview stays crisp);
   // effect sizes are document pixels, so bigger cards show more surrounding
   // room rather than scaled-up effects.
@@ -130,7 +134,15 @@ QPixmap render_style_preview(const LayerStyle& style,
 
   QImage sample(render_size, render_size, QImage::Format_ARGB32_Premultiplied);
   sample.fill(Qt::transparent);
-  {
+  if (sample_shape == StylePreviewSample::Square) {
+    // A plain square (GitHub issue 732): a bevel, stroke or inner effect reads
+    // better on one solid face than on thin letters. The margin leaves room
+    // for a drop shadow, outer glow or outside stroke.
+    const auto inset = render_size * 24 / 100;
+    QPainter painter(&sample);
+    painter.fillRect(QRect(inset, inset, render_size - 2 * inset, render_size - 2 * inset),
+                     QColor(kStylePreviewInk));
+  } else {
     QPainter painter(&sample);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
@@ -138,12 +150,12 @@ QPixmap render_style_preview(const LayerStyle& style,
     font.setBold(true);
     font.setPixelSize(render_size * 11 / 20);
     painter.setFont(font);
-    painter.setPen(QColor(58, 62, 69));
+    painter.setPen(QColor(kStylePreviewInk));
     painter.drawText(sample.rect(), Qt::AlignCenter, QStringLiteral("Aa"));
   }
   auto sample_buffer = rgba_buffer_from_image(sample);
-  auto has_ink = false;
-  if (sample_buffer.has_value()) {
+  auto has_ink = sample_shape == StylePreviewSample::Square;
+  if (!has_ink && sample_buffer.has_value()) {
     for (std::int32_t y = 0; !has_ink && y < sample_buffer->height(); ++y) {
       const auto row = sample_buffer->row(y);
       for (std::int32_t x = 3; x < static_cast<std::int32_t>(row.size()); x += 4) {
@@ -164,7 +176,7 @@ QPixmap render_style_preview(const LayerStyle& style,
     const auto inset = render_size * 30 / 100;
     path.addRoundedRect(QRectF(inset, inset, render_size - 2 * inset, render_size - 2 * inset),
                         6.0, 6.0);
-    painter.fillPath(path, QColor(58, 62, 69));
+    painter.fillPath(path, QColor(kStylePreviewInk));
     painter.end();
     sample_buffer = rgba_buffer_from_image(sample);
   }

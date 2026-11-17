@@ -1232,16 +1232,90 @@ void ui_layer_style_swatch_follows_settings() {
   if (!settings.has_value()) {
     return;
   }
-  // The swatch is the style presets' thumbnail of the settings the dialog returned.
+  // The swatch is the style preview of the settings the dialog returned, on
+  // the square sample a pixel layer gets (GitHub issue 732).
   const auto expected = patchy::ui::render_style_preview(
       settings->style,
       patchy::psd::AslBlendSettings{settings->opacity, settings->blend_mode, settings->blend_if,
                                     settings->fill_opacity},
-      {}, 72);
+      {}, 72, patchy::ui::StylePreviewSample::Square);
   CHECK(final_swatch == expected.toImage());
   CHECK(opening == patchy::ui::render_style_preview(
-                       layer.layer_style(), patchy::psd::AslBlendSettings{100, layer.blend_mode(), {}, 100}, {}, 72)
+                       layer.layer_style(), patchy::psd::AslBlendSettings{100, layer.blend_mode(), {}, 100}, {}, 72,
+                       patchy::ui::StylePreviewSample::Square)
                        .toImage());
+}
+
+// GitHub issue 732: the swatch draws the style on "Aa" for a text layer and on
+// a plain square for every other layer; style preset thumbnails keep "Aa".
+void ui_layer_style_swatch_sample_follows_layer_kind() {
+  using patchy::ui::StylePreviewSample;
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto pixel_layer = contour_test_layer(document);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.color = patchy::RgbColor{240, 200, 60};
+  stroke.size = 2.0F;
+  pixel_layer.layer_style().strokes.push_back(stroke);
+  auto text_layer = patchy::Layer(document.allocate_layer_id(), "Text: Title", patchy::LayerKind::Text);
+  text_layer.layer_style() = pixel_layer.layer_style();
+  const auto& style = std::as_const(pixel_layer).layer_style();
+  const auto letters = patchy::ui::render_style_preview(
+                           style, patchy::psd::AslBlendSettings{100, pixel_layer.blend_mode(), {}, 100}, {}, 72)
+                           .toImage();
+  const auto square = patchy::ui::render_style_preview(
+                          style, patchy::psd::AslBlendSettings{100, pixel_layer.blend_mode(), {}, 100}, {}, 72,
+                          StylePreviewSample::Square)
+                          .toImage();
+  CHECK(!letters.isNull() && !square.isNull());
+  CHECK(letters != square);
+  // The square is one solid face: its center pixel and a pixel a quarter in
+  // from the center toward each corner match (letters leave gaps there).
+  const QPoint center(36, 36);
+  const auto face = square.pixel(center);
+  for (const QPoint offset : {QPoint(-9, -9), QPoint(9, -9), QPoint(-9, 9), QPoint(9, 9)}) {
+    CHECK(qAbs(qGray(square.pixel(center + offset)) - qGray(face)) <= 24);
+  }
+  // Its corners stay the card, with room for the drop shadow.
+  CHECK(qAbs(qGray(square.pixel(3, 3)) - qGray(face)) > 40);
+
+  const auto swatch_for = [](const patchy::Layer& layer) {
+    QImage image;
+    when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+      auto* swatch = dialog.findChild<QLabel*>(QStringLiteral("layerStyleSwatch"));
+      CHECK(swatch != nullptr);
+      if (swatch != nullptr) {
+        image = swatch->pixmap().toImage();
+      }
+      (void)capture_widget_artifact(layer.kind() == patchy::LayerKind::Text ? "ui_layer_style_swatch_text_layer"
+                                                                             : "ui_layer_style_swatch_pixel_layer",
+                                    dialog);
+      dialog.reject();
+    });
+    (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+    return image;
+  };
+  CHECK(swatch_for(pixel_layer) == square);
+  CHECK(swatch_for(text_layer) == letters);
+
+  // The style presets' thumbnails keep the letters.
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("styles")));
+  const auto storage_id = library.add_style(QStringLiteral("Bevel and Shadow"), style, std::nullopt, {});
+  CHECK(!storage_id.isEmpty());
+  CHECK(library.entries().size() == 1U);
+  if (library.entries().size() == 1U) {
+    const auto& entry = library.entries().front();
+    const auto extent = entry.thumbnail.width();
+    CHECK(extent > 0);
+    const auto thumbnail = entry.thumbnail.toImage();
+    CHECK(thumbnail ==
+          patchy::ui::render_style_preview(entry.style, entry.blend_settings, {}, extent).toImage());
+    CHECK(thumbnail != patchy::ui::render_style_preview(entry.style, entry.blend_settings, {}, extent,
+                                                        StylePreviewSample::Square)
+                           .toImage());
+  }
 }
 
 }  // namespace
@@ -1258,6 +1332,7 @@ std::vector<patchy::test::TestCase> contour_editor_tests() {
       {"ui_layer_style_contour_library_new_rename_delete_load_save",
        ui_layer_style_contour_library_new_rename_delete_load_save},
       {"ui_contour_library_persists_and_reads_unicode_paths", ui_contour_library_persists_and_reads_unicode_paths},
+      {"ui_layer_style_swatch_sample_follows_layer_kind", ui_layer_style_swatch_sample_follows_layer_kind},
       {"ui_layer_style_swatch_follows_settings", ui_layer_style_swatch_follows_settings},
       {"ui_contour_name_dialog_fits_its_title_at_one_size", ui_contour_name_dialog_fits_its_title_at_one_size},
       {"ui_contour_editor_save_as_new_contour_names_and_saves_the_curve",
