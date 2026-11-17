@@ -473,6 +473,17 @@ void PresetGridWidget::keyPressEvent(QKeyEvent* event) {
         break;
     }
   }
+#if defined(Q_OS_MACOS)
+  // On macOS Qt's item views take Return as "edit this item" and never report an
+  // activation, so in a grid, whose cells cannot be edited, the key did nothing: the contour
+  // picker's popup stayed open on it. Return picks the current cell there as elsewhere.
+  if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && current != nullptr &&
+      state() != QAbstractItemView::EditingState) {
+    event->accept();
+    emit itemActivated(current);
+    return;
+  }
+#endif
   QListWidget::keyPressEvent(event);
 }
 
