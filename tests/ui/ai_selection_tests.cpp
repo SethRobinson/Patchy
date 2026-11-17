@@ -47,6 +47,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QHostAddress>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -54,6 +55,8 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStatusBar>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QToolBar>
 #include <QTimer>
 #include <cmath>
@@ -520,6 +523,123 @@ void ui_object_selection_model_download_verifies_files() {
   CHECK(!result.ok && !result.cancelled && !result.error.isEmpty());
   CHECK(!QFile::exists(QDir(target).filePath(QStringLiteral("fourth.onnx"))));
 
+  remove_test_scratch_dir(root);
+}
+
+// A loopback HTTP server for the downloader: its first `drops` requests have their connection
+// closed with no answer (what a reset connection is to the client), the rest get `status`
+// and, for 200, the body.
+class FlakyDownloadServer {
+ public:
+  FlakyDownloadServer(QByteArray body, int drops, int status = 200)
+      : body_(std::move(body)), drops_(drops), status_(status) {
+    CHECK(server_.listen(QHostAddress::LocalHost));
+    QObject::connect(&server_, &QTcpServer::newConnection, &server_, [this] {
+      while (auto* socket = server_.nextPendingConnection()) {
+        QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        QObject::connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+          if (!socket->readAll().contains("\r\n\r\n")) {
+            return;
+          }
+          ++requests_;
+          if (requests_ <= drops_) {
+            socket->abort();
+            return;
+          }
+          const QByteArray payload = status_ == 200 ? body_ : QByteArray("no");
+          socket->write("HTTP/1.1 " + QByteArray::number(status_) + (status_ == 200 ? " OK" : " Not Found") +
+                        "\r\nContent-Type: application/octet-stream\r\nConnection: close\r\nContent-Length: " +
+                        QByteArray::number(payload.size()) + "\r\n\r\n" + payload);
+          socket->disconnectFromHost();
+        });
+      }
+    });
+  }
+  [[nodiscard]] QUrl url(const QString& name) const {
+    return QUrl(QStringLiteral("http://127.0.0.1:%1/%2").arg(server_.serverPort()).arg(name));
+  }
+  [[nodiscard]] int requests() const { return requests_; }
+
+ private:
+  QTcpServer server_;
+  QByteArray body_;
+  int drops_;
+  int status_;
+  int requests_{0};
+};
+
+// One bad connection must not fail a download: a link whose connection is closed with no
+// answer is asked again a few times (seen for real: IPv6 connections to a fallback host
+// reset every other time). A link that keeps failing still ends the download, with the host
+// in the message, and an HTTP answer is never asked for twice.
+void ui_model_download_retries_a_dropped_connection() {
+  const auto root = patchy::ui::to_qstring(
+      std::filesystem::absolute(patchy::test::unicode_artifact_dir(patchy::test::kUnicodeCombinedStem)));
+  const auto target = QDir(root).filePath(QStringLiteral("models"));
+  QByteArray body;
+  for (int i = 0; i < 200000; ++i) {
+    body.append(static_cast<char>(i % 241));
+  }
+  const auto sha = QCryptographicHash::hash(body, QCryptographicHash::Sha256).toHex();
+  QObject owner;
+  const auto run = [&owner, &target](std::vector<patchy::ui::DownloadableModelFile> list) {
+    patchy::ui::ModelDownloadResult result;
+    bool done = false;
+    QEventLoop loop;
+    QTimer::singleShot(60000, &loop, &QEventLoop::quit);
+    const auto job = patchy::ui::start_model_download(
+        &owner, target, std::move(list), [](const patchy::ui::ModelDownloadProgress&) {},
+        [&](patchy::ui::ModelDownloadResult finished) {
+          result = std::move(finished);
+          done = true;
+          loop.quit();
+        });
+    if (!done) {
+      loop.exec();
+    }
+    CHECK(done);
+    return result;
+  };
+
+  // Two dropped connections, then the file: the downloader's own retries get there. (Qt
+  // resends by itself only on a connection it was reusing, so the count has a floor only.)
+  {
+    FlakyDownloadServer server(body, 2);
+    const auto result = run({{QStringLiteral("flaky.onnx"), server.url(QStringLiteral("flaky.onnx")), body.size(), sha}});
+    if (!result.ok) {
+      std::fprintf(stderr, "  retried download failed after %d requests: %s\n", server.requests(),
+                   result.error.toUtf8().constData());
+    }
+    CHECK(result.ok && !result.cancelled);
+    CHECK(server.requests() >= 3);
+    QFile landed(QDir(target).filePath(QStringLiteral("flaky.onnx")));
+    CHECK(landed.open(QIODevice::ReadOnly) && landed.readAll() == body);
+  }
+  // Never an answer: the retries end, the failure names the host, nothing is kept.
+  {
+    FlakyDownloadServer server(body, 1000000);
+    const auto result = run({{QStringLiteral("dead.onnx"), server.url(QStringLiteral("dead.onnx")), body.size(), sha}});
+    CHECK(!result.ok && !result.cancelled);
+    CHECK(result.error.contains(QStringLiteral("127.0.0.1")));
+    CHECK(server.requests() >= 4);
+    CHECK(!QFile::exists(QDir(target).filePath(QStringLiteral("dead.onnx"))));
+  }
+  // An HTTP answer is the link's answer: asked once, then the fallback link.
+  {
+    FlakyDownloadServer missing(body, 0, 404);
+    FlakyDownloadServer good(body, 0);
+    patchy::ui::DownloadableModelFile file{QStringLiteral("moved.onnx"), missing.url(QStringLiteral("moved.onnx")),
+                                           body.size(), sha, {good.url(QStringLiteral("moved.onnx"))}};
+    const auto result = run({file});
+    CHECK(result.ok);
+    CHECK(missing.requests() == 1);
+    CHECK(good.requests() == 1);
+    FlakyDownloadServer gone(body, 0, 404);
+    const auto failed = run({{QStringLiteral("gone.onnx"), gone.url(QStringLiteral("gone.onnx")), body.size(), sha}});
+    CHECK(!failed.ok && failed.error.contains(QStringLiteral("HTTP 404")));
+    CHECK(gone.requests() == 1);
+  }
+  CHECK(QDir(target).entryList(QDir::Files).size() == 2);
   remove_test_scratch_dir(root);
 }
 
@@ -1353,6 +1473,7 @@ std::vector<patchy::test::TestCase> ai_selection_ui_tests() {
       {"ui_object_select_tool_and_options_are_listed", ui_object_select_tool_and_options_are_listed},
       {"ui_object_select_model_option_and_zoomed_box", ui_object_select_model_option_and_zoomed_box},
       {"ui_object_selection_model_download_verifies_files", ui_object_selection_model_download_verifies_files},
+      {"ui_model_download_retries_a_dropped_connection", ui_model_download_retries_a_dropped_connection},
       {"ui_model_download_dialog_shows_the_link", ui_model_download_dialog_shows_the_link},
       {"ui_object_selection_model_offer_not_now_keeps_standard",
        ui_object_selection_model_offer_not_now_keeps_standard},

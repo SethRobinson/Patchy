@@ -18,6 +18,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTimer>
 
 #include <utility>
 
@@ -33,6 +34,30 @@ constexpr auto kStandardSettingValue = "standard";
 constexpr int kMaxRedirects = 5;
 // A stalled transfer (no bytes for this long) fails instead of waiting forever.
 constexpr int kTransferTimeoutMs = 60000;
+// A link that fails at the connection (reset, closed, timed out, a failed handshake) is
+// tried again this many times, after a growing pause, before the next link or the failure:
+// one bad connection must not fail a download of a hundred megabytes. Seen for real: IPv6
+// connections to a fallback host reset every other time while IPv4 always answered.
+constexpr int kConnectionRetries = 3;
+constexpr int kRetryDelayMs = 400;
+
+// True for an error of the connection itself, where asking again can help. An HTTP answer
+// (not found, forbidden, a server error) is the link's answer: the next link is the remedy.
+bool connection_level_error(QNetworkReply::NetworkError error) {
+  switch (error) {
+    case QNetworkReply::ConnectionRefusedError:
+    case QNetworkReply::RemoteHostClosedError:
+    case QNetworkReply::HostNotFoundError:
+    case QNetworkReply::TimeoutError:
+    case QNetworkReply::SslHandshakeFailedError:
+    case QNetworkReply::TemporaryNetworkFailureError:
+    case QNetworkReply::NetworkSessionFailedError:
+    case QNetworkReply::UnknownNetworkError:
+      return true;
+    default:
+      return false;
+  }
+}
 
 QByteArray file_sha256_hex(const QString& path) {
   QFile file(path);
@@ -101,6 +126,7 @@ private:
       return;
     }
     redirects_ = 0;
+    retries_ = 0;
     url_index_ = 0;
     received_ = 0;
     report_progress(0);
@@ -118,6 +144,7 @@ private:
     if (!cancelled_ && index_ < files_.size() && url_index_ < files_[index_].fallback_urls.size()) {
       ++url_index_;
       redirects_ = 0;
+      retries_ = 0;
       received_ = 0;
       report_progress(0);
       request(current_url());
@@ -238,8 +265,29 @@ private:
       finish({false, false, QStringLiteral("could not write %1").arg(file.name)});
       return;
     }
+    if (owner_ != nullptr && connection_level_error(reply->error()) && retries_ < kConnectionRetries) {
+      // The same link again from its start (a redirect target may be a short-lived address).
+      ++retries_;
+      output_.reset();
+      redirects_ = 0;
+      received_ = 0;
+      report_progress(0);
+      const std::weak_ptr<ModelDownloadJob> weak = shared_from_this();
+      QTimer::singleShot(kRetryDelayMs * retries_, owner_.data(), [weak] {
+        if (auto self = weak.lock(); self != nullptr && !self->done_) {
+          self->request(self->current_url());
+        }
+      });
+      return;
+    }
     if (reply->error() != QNetworkReply::NoError) {
-      fail_or_fall_back({false, false, reply->errorString()});
+      // The host too: a download goes through several (the link, its redirect targets, the
+      // fallback links), and "Unable to write" alone does not say which one failed.
+      fail_or_fall_back({false, false,
+                         QStringLiteral("%1: %2 (network error %3%4)")
+                             .arg(reply->url().host(), reply->errorString())
+                             .arg(static_cast<int>(reply->error()))
+                             .arg(status > 0 ? QStringLiteral(", HTTP %1").arg(status) : QString())});
       return;
     }
     if (received_ != file.size || hash_->result().toHex() != file.sha256_hex) {
@@ -305,6 +353,7 @@ private:
   std::size_t index_{0};
   std::size_t url_index_{0};  // 0: the file's url, then its fallback_urls in order
   int redirects_{0};
+  int retries_{0};  // connection-level failures of the current link so far
   qint64 total_{0};
   qint64 completed_{0};
   qint64 received_{0};
@@ -340,6 +389,11 @@ qint64 high_quality_model_download_bytes() {
 namespace {
 
 QString default_downloaded_models_folder() {
+  // Isolation knob like PATCHY_USER_FONTS_DIR (docs/visual-qa.md): automation points a run
+  // at its own folder, so a package check reads staged models and never the user's.
+  if (const auto redirected = qEnvironmentVariable("PATCHY_DOWNLOADED_MODELS_DIR"); !redirected.isEmpty()) {
+    return QDir(redirected).absolutePath();
+  }
   // Local, not roaming: hundreds of MB that download again (app_data_migration.hpp).
   return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath(QStringLiteral("ai-models"));
 }

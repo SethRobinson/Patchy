@@ -407,7 +407,7 @@ if (-not $canRun) {
     }
 }
 $savedEnv = @{}
-foreach ($name in "PATH", "PATCHY_SETTINGS_DIR", "PATCHY_NO_SOUND", "QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES") {
+foreach ($name in "PATH", "PATCHY_SETTINGS_DIR", "PATCHY_NO_SOUND", "PATCHY_DOWNLOADED_MODELS_DIR", "QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES") {
     $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
 }
 if ($canRun) { try {
@@ -439,6 +439,44 @@ if ($canRun) { try {
         $problem = "exit code " + $run.ExitCode + "; " + (($outputLines | Select-Object -Last 3) -join " | ")
     }
     Write-Step $selfTestOk "unpacked patchy.exe passes the package self-test" $problem
+
+    # 6b. The downloadable text recognition engine (docs/ocr-engines.md, "PP-OCR"): listed as
+    #     a download while its models folder is empty, then reading drawn text from this
+    #     machine's staged models (.deps\ai-models, scripts\setup-ai-deps.ps1).
+    #     PATCHY_DOWNLOADED_MODELS_DIR keeps the runs out of the user's own models folder;
+    #     nothing is downloaded.
+    $ocrScript = Join-Path $repo "packaging\ocr-models-check.js"
+    $stagedModels = Join-Path $repo ".deps\ai-models"
+    foreach ($ocrMode in "absent", "present") {
+        $ocrStep = "unpacked patchy.exe: text recognition engine, models $ocrMode"
+        $ocrModels = Join-Path $selfTestDir "no-models"
+        $ocrArgs = "--headless --run-script " + (Quote $ocrScript) + " --script-output " + (Quote (Join-Path $selfTestDir "ocr-$ocrMode.txt"))
+        if ($ocrMode -eq "absent") {
+            New-Item -ItemType Directory -Force -Path $ocrModels | Out-Null
+            $ocrArgs += " --script-arg models=absent"
+        } else {
+            $ocrModels = $stagedModels
+            if (-not (Test-Path -LiteralPath (Join-Path $stagedModels "ppocr_v6_small_det.onnx") -PathType Leaf)) {
+                Write-Skip $ocrStep "no staged models in $stagedModels (scripts\setup-ai-deps.ps1)"
+                continue
+            }
+        }
+        $env:PATCHY_DOWNLOADED_MODELS_DIR = $ocrModels
+        $ocrRun = Invoke-Bounded -FilePath (Join-Path $appDir "patchy.exe") -Arguments $ocrArgs -TimeoutSeconds 240 -WorkingDirectory $appDir
+        $ocrLines = @()
+        if (Test-Path -LiteralPath (Join-Path $selfTestDir "ocr-$ocrMode.txt") -PathType Leaf) {
+            $ocrLines = @(Get-Content -LiteralPath (Join-Path $selfTestDir "ocr-$ocrMode.txt") | Where-Object { $_ -ne "" })
+        }
+        $ocrLast = $(if ($ocrLines.Count) { $ocrLines[-1] } else { "(no output file)" })
+        $ocrOk = (-not $ocrRun.TimedOut) -and ($ocrRun.ExitCode -eq 0) -and ($ocrLast -eq "[done]")
+        $ocrProblem = ""
+        if ($ocrRun.TimedOut) {
+            $ocrProblem = "timed out"
+        } elseif (-not $ocrOk) {
+            $ocrProblem = "exit code " + $ocrRun.ExitCode + "; " + (($ocrLines | Select-Object -Last 3) -join " | ")
+        }
+        Write-Step $ocrOk $ocrStep $ocrProblem
+    }
 
     # 7. The connector's own package check, from the unpacked tree.
     $connector = Invoke-Bounded -FilePath (Join-Path $appDir "patchy-mcp.exe") -Arguments "--check" -TimeoutSeconds 120 -WorkingDirectory $appDir

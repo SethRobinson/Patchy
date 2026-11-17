@@ -114,7 +114,7 @@ if ($Target -eq 'windows-arm64') {
   try {
     # The checks run from the host's work tree: it must hold this tree's scripts (the suites
     # step above just pushed it there).
-    $scripts = @('scripts/release/verify-windows-package.ps1', 'packaging/package-selftest.js')
+    $scripts = @('scripts/release/verify-windows-package.ps1', 'packaging/package-selftest.js', 'packaging/ocr-models-check.js')
     $stale = @()
     foreach ($relative in $scripts) {
       $want = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root $relative)).Hash

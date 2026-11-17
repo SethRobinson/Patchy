@@ -107,6 +107,7 @@ After signing, `build-release.bat` runs `scripts\release\verify-windows-package.
   and file/product versions against the package version;
 - reads the imports of every executable and DLL with `dumpbin` and requires each one to be in the package or part of Windows. Qt and Visual C++ runtime DLLs must be in the package even when the build machine has copies in System32;
 - runs `packaging\package-selftest.js` on the unpacked `patchy.exe` with only Windows on `PATH`: every image format plugin writes and reads a file, the bundled font is listed, the scripts, translations, AI kit and TLS plugin are present, and a 32-bit and a 64-bit legacy plug-in run through their hosts;
+- runs `packaging\ocr-models-check.js` on the unpacked `patchy.exe` twice: with an empty models folder the downloadable text recognition engine must be listed as a download, and with the machine's staged models (`.deps\ai-models`; the step prints `SKIP` without them) it must read text the script draws;
 - runs the unpacked `patchy-mcp.exe --check`.
 
 A package that fails is moved to `build\package\rejected` and the build fails, so the upload scripts cannot publish it. The script also runs by itself, with `-Installer` and `-Zip` for files downloaded from a release. The wizard step needs an interactive desktop session (`-NoDesktop` skips it). On a PC that cannot run the package (ARM64 on x64) the self-test and connector steps print `SKIP`; `-RequireRun` makes that a failure, as `verify-remote.ps1 -Target windows-arm64` does on the ARM64 host.

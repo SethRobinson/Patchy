@@ -3,6 +3,7 @@
 # the snapshot checkout: configure + build the given preset, then run the test suites.
 #   build-and-test.sh <preset> [--target <t>[,<t>...]] [--filter <ui substr>]
 #                     [--core-filter <core substr>] [--skip-tests]
+#                     [--test-env 'NAME=value;NAME=value']
 #   build-and-test.sh <preset> --warncheck [--clean]
 #
 # --warncheck runs the warning check instead (warncheck.sh, docs/platform.md "Warning
@@ -15,6 +16,11 @@
 # patchy_ui_visual_tests, and on macOS patchy_mac_a11y_tests); a suite that was not built is
 # reported and skipped, never run from an older binary still in the build directory.
 #
+# --test-env exports each NAME=value for the suites (not the build): a test that runs only on
+# request reads its switch there (remote-build.ps1 -TestEnv). The Flatpak SDK sandbox has no
+# network; a run with --test-env enters it with --share=network, since such a test is the
+# one that reaches out (the text recognition download, docs/ocr-engines.md).
+#
 # The configure and build output also goes to build/<preset>/remote-build.log, and the build
 # ends with a count of the warning lines it printed. Ninja prints only what it compiled or
 # linked in this run, so the count covers exactly the targets built and the sources that
@@ -22,7 +28,7 @@
 # directory (docs/platform.md, "Warning verification").
 set -euo pipefail
 
-USAGE="usage: build-and-test.sh <preset> [--target t1,t2] [--filter substr] [--core-filter substr] [--skip-tests] | <preset> --warncheck [--clean]"
+USAGE="usage: build-and-test.sh <preset> [--target t1,t2] [--filter substr] [--core-filter substr] [--skip-tests] [--test-env 'N=v;N=v'] | <preset> --warncheck [--clean]"
 PRESET="${1:?$USAGE}"
 shift
 
@@ -38,8 +44,13 @@ if [ "$PRESET" = "linux-flatpak-qt" ] && [ ! -f /.flatpak-info ]; then
     echo "ERROR: could not read sdk and runtime-version from $MANIFEST" >&2
     exit 1
   fi
-  echo "== entering $SDK//$SDK_VERSION =="
-  exec flatpak run --user --filesystem=home --command=bash "$SDK//$SDK_VERSION" \
+  SANDBOX_NETWORK=""
+  for ARG in "$@"; do
+    if [ "$ARG" = "--test-env" ]; then SANDBOX_NETWORK="--share=network"; fi
+  done
+  echo "== entering $SDK//$SDK_VERSION${SANDBOX_NETWORK:+ with the network shared} =="
+  # shellcheck disable=SC2086 # one plain option, or nothing
+  exec flatpak run --user --filesystem=home $SANDBOX_NETWORK --command=bash "$SDK//$SDK_VERSION" \
     "$HOME/patchy/src/scripts/remote/build-and-test.sh" "$PRESET" "$@"
 fi
 
@@ -47,6 +58,7 @@ FILTER=""
 CORE_FILTER=""
 TARGETS=""
 SKIP_TESTS=0
+TEST_ENV=""
 WARNCHECK=0
 CLEAN=""
 while [ $# -gt 0 ]; do
@@ -55,6 +67,7 @@ while [ $# -gt 0 ]; do
     --core-filter) CORE_FILTER="${2:?--core-filter needs a value}"; shift 2 ;;
     --target) TARGETS="${2:?--target needs a value}"; shift 2 ;;
     --skip-tests) SKIP_TESTS=1; shift ;;
+    --test-env) TEST_ENV="${2:?--test-env needs a value}"; shift 2 ;;
     --warncheck) WARNCHECK=1; shift ;;
     --clean) CLEAN=clean; shift ;;
     *) echo "unknown arg: $1" >&2; echo "$USAGE" >&2; exit 2 ;;
@@ -153,6 +166,20 @@ fi
 if ! built patchy_core_tests && ! built patchy_ui_visual_tests && ! built patchy_mac_a11y_tests; then
   echo "== no test suite among the built targets; tests skipped =="
   exit 0
+fi
+
+if [ -n "$TEST_ENV" ]; then
+  OLD_IFS="$IFS"
+  IFS=";"
+  for PAIR in $TEST_ENV; do
+    case "$PAIR" in
+      [A-Za-z_]*=*) export "$PAIR" ;;
+      "") ;;
+      *) echo "--test-env pair is not NAME=value: $PAIR" >&2; exit 2 ;;
+    esac
+  done
+  IFS="$OLD_IFS"
+  echo "== test environment: $TEST_ENV =="
 fi
 
 # Every suite runs even when an earlier one fails, as in build-and-test.ps1: one run reports

@@ -4,7 +4,7 @@ and runs the test suites there.
 
   scripts\remote\remote-build.ps1 -Target mac|linux|windows|windows-arm64|wasm [-TestFilter ui_palette] [-CoreTestFilter psd]
                                   [-BuildTarget patchy_ui_visual_tests[,patchy_core_tests]] [-Preset opt-dev]
-                                  [-SkipTests] [-FetchArtifacts]
+                                  [-SkipTests] [-FetchArtifacts] [-TestEnv 'NAME=value;...']
   scripts\remote\remote-build.ps1 -Target <target> -Warncheck [-Clean] [-Preset <preset>]
   linux only:   [-NativeQt]
   windows only: [-WindowsHost <ssh target>] [-WaitMinutes 30] [-PerfScenario startup] [-PerfEnv 'NAME=value;...']
@@ -40,6 +40,11 @@ not built rather than run from a stale binary. -Preset replaces the default pres
 `mac-release`). `opt-dev` (windows) is optimized without /GL and /LTCG, so a relink takes a
 fraction of the release preset's; the release preset stays the release-check and packaging
 build, and the handoff is opt-dev.
+-TestEnv sets environment variables for the suites on the host (NAME=value pairs joined by
+semicolons, plain values only), for a test that runs only on request: -TestEnv
+'PATCHY_TEST_OCR_DOWNLOAD=1' with -TestFilter ui_ocr_model turns on the tests that download
+the text recognition models from the network (docs/ocr-engines.md). On linux the Flatpak SDK
+sandbox the suites run in has no network; with -TestEnv it is entered with --share=network.
 The remote half reports the warnings the build printed; with -BuildTarget, another preset, or
 an incremental build that count covers only what this run compiled and linked, so it is not
 the zero-warning verification (docs/platform.md, "Warning verification").
@@ -97,6 +102,8 @@ param(
   # Replace the default preset (windows release, mac mac-release, linux linux-flatpak-qt).
   [string]$Preset = '',
   [switch]$SkipTests,
+  # Environment variables for the suites on the host: 'NAME=value;NAME=value'.
+  [string]$TestEnv = '',
   # windows only: run `patchy_perf_tests <scenario>` after the suites, with these NAME=value;...
   # variables (docs/startup-performance.md).
   [string]$PerfScenario = '',
@@ -127,6 +134,11 @@ $winTarget = $Target -like 'windows*' -or $Target -eq 'wasm'
 if (($WindowsHost -or $WaitMinutes) -and -not $winTarget) { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows, windows-arm64 and wasm' }
 if (($PerfScenario -or $PerfEnv) -and $Target -notlike 'windows*') { throw '-PerfScenario and -PerfEnv are only supported for -Target windows and windows-arm64' }
 if ($Clean -and -not $Warncheck) { throw '-Clean needs -Warncheck' }
+# The pairs go into a remote command line: plain names and values only.
+foreach ($pair in @($TestEnv -split ';' | Where-Object { $_ })) {
+  if ($pair -notmatch '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_.,:/+-]*$') { throw "-TestEnv pair '$pair' is not NAME=value with a plain value" }
+}
+if ($TestEnv -and ($Warncheck -or $SkipTests -or $Target -eq 'wasm')) { throw '-TestEnv sets variables for the suites: it does not go with -Warncheck, -SkipTests or -Target wasm' }
 if ($Warncheck -and ($TestFilter -or $CoreTestFilter -or $BuildTarget.Count -or $SkipTests -or $PerfScenario -or $PerfEnv -or $FetchArtifacts)) {
   throw '-Warncheck builds the default target and runs no tests: it takes no filters, -BuildTarget, -SkipTests, -PerfScenario, -PerfEnv or -FetchArtifacts'
 }
@@ -245,6 +257,7 @@ try {
     if ($Clean) { $psArgs += '-Clean' }
     if ($PerfScenario) { $psArgs += @('-PerfScenario', "'$PerfScenario'") }
     if ($PerfEnv) { $psArgs += @('-PerfEnv', "'$PerfEnv'") }
+    if ($TestEnv) { $psArgs += @('-TestEnv', "'$TestEnv'") }
     # Optional per-host parallelism from the host config; build-and-test.ps1 defaults to 8.
     if ($remote.jobs) { $psArgs += @('-Jobs', [int]$remote.jobs) }
     $wt = $remote.workTree.Replace('\', '/')
@@ -261,6 +274,7 @@ try {
     if ($SkipTests) { $shArgs += '--skip-tests' }
     if ($Warncheck) { $shArgs += '--warncheck' }
     if ($Clean) { $shArgs += '--clean' }
+    if ($TestEnv) { $shArgs += @('--test-env', "'$TestEnv'") }
     $remoteCmd = 'git -C ~/patchy/src fetch -q origin +refs/snapshots/dev && ' +
       'git -C ~/patchy/src checkout -q -f --detach FETCH_HEAD && ' +
       'bash ~/patchy/src/scripts/remote/build-and-test.sh ' + ($shArgs -join ' ')

@@ -128,6 +128,8 @@ macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (pre
 
 `remote-build.ps1` checks out over the one shared `~/patchy/src`, so it takes the host's lock and then probes it (pgrep for compilers, linkers, ninja, cmake and the suites); a busy host stops the run (exit 75). Neither wait on nor kill that run: for a build beside it, push the snapshot to a private ref (`refs/snapshots/<topic>`), clone `~/patchy.git` into `~/patchy-<topic>/src`, symlink `.deps` to `~/patchy/src/.deps`, configure and build the preset there with the environment lines from `build-and-test.sh`, then delete the clone and the ref.
 
+`-TestEnv 'NAME=value;NAME=value'` (every target but wasm) sets environment variables for the suites on the host, for a test that runs only on request, such as the text recognition download ([ocr-engines.md](ocr-engines.md#pp-ocr)). The Flatpak SDK sandbox the Linux suites run in has no network; a run with `-TestEnv` enters it with `--share=network`, and every other run stays offline, which is how the suites prove they reach nothing.
+
 ### Windows offload build (with Seth's permission)
 
 `remote-build.ps1 -Target windows` builds on another Windows machine when Seth asks for it or has given a standing permission (recorded in `agents_local.md`): `-Preset opt-dev` for development, the default `release` preset only for release checks. The local `build\release` stays the release gate and the only packaging source. `-Warncheck` on any target runs the warning check instead of a build and test run ([platform.md](platform.md#warning-verification)); the release rehearsal's Windows steps use `opt-dev` on an offload host this way.

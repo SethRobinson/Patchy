@@ -6,6 +6,7 @@ developer environment, then run the test suites. Mirrors build-and-test.sh.
   build-and-test.ps1 [-Preset release] [-BuildTarget <target>[,<target>...]]
                      [-Filter <ui substr>] [-CoreFilter <core substr>] [-SkipTests] [-Jobs 8]
                      [-PerfScenario startup] [-PerfEnv 'NAME=value;NAME=value']
+                     [-TestEnv 'NAME=value;NAME=value']
   build-and-test.ps1 -Preset <preset> -Warncheck [-Clean] [-Jobs 8]
 
 -BuildTarget builds only the named CMake targets instead of the preset's default target,
@@ -31,6 +32,9 @@ after a pass, so the next run is incremental; -Clean starts it from an empty fol
 -PerfScenario runs `patchy_perf_tests <scenario>` after the suites (alone with -SkipTests)
 when this run built patchy_perf_tests, with each -PerfEnv NAME=value set first; `startup` is
 the startup timing and regression check (docs/startup-performance.md).
+
+-TestEnv sets each NAME=value for the suites (not the build): a test that runs only on
+request reads its switch there (remote-build.ps1 -TestEnv).
 #>
 param(
   [string]$Preset = 'release',
@@ -40,6 +44,7 @@ param(
   [switch]$SkipTests,
   [string]$PerfScenario = '',
   [string]$PerfEnv = '',
+  [string]$TestEnv = '',
   [switch]$Warncheck,
   [switch]$Clean,
   [int]$Jobs = 8
@@ -108,6 +113,13 @@ $coreArgs = @()
 if ($CoreFilter) { $coreArgs = @($CoreFilter) }
 $uiArgs = @()
 if ($Filter) { $uiArgs = @($Filter) }
+
+if ($TestEnv -and ($runCore -or $runUi)) {
+  foreach ($pair in ($TestEnv -split ';')) {
+    if ($pair -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
+  }
+  Write-Host "== test environment: $TestEnv =="
+}
 
 Push-Location $buildDir
 try {

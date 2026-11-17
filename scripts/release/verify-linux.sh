@@ -4,6 +4,8 @@
 #   - the MCP client suite on the suites' linux-flatpak-qt build (in its SDK), then inside
 #     the installed Flatpak, and
 #     tests/flatpak_mcp_tests.py (attachment between separate app and connector sandboxes);
+#   - the downloadable text recognition engine inside the installed Flatpak and the AppImage
+#     (packaging/ocr-models-check.js with this host's staged models);
 #   - the AppImage: clean-distro containers (test-appimage.sh), the MCP suite through a
 #     patchy-mcp symlink (AppRun's symlink dispatch), attachment across two FUSE launches,
 #     and both full suites on the AppImage toolchain (make-appimage.sh --tests, which writes
@@ -60,6 +62,43 @@ if flatpak info --user com.rtsoft.patchy >/dev/null 2>&1; then
   flatpak uninstall --user -y --noninteractive com.rtsoft.patchy
 fi
 flatpak install --user -y "$FLATPAK_BUNDLE"
+
+# The downloadable PP-OCR engine inside a package (docs/ocr-engines.md, "PP-OCR"): listed as
+# a download while its models folder is empty, then reading drawn text from this host's
+# staged models (.deps/ai-models, scripts/setup-ai-deps.sh). PATCHY_DOWNLOADED_MODELS_DIR
+# keeps the runs out of the user's own models folder; nothing is downloaded. The Flatpak
+# sees these paths through its home permission.
+[ -f .deps/ai-models/ppocr_v6_small_det.onnx ] || { echo 'missing .deps/ai-models/ppocr_*: run scripts/setup-ai-deps.sh' >&2; exit 1; }
+ocr_package_check() {  # flatpak | appimage
+  local kind="$1" work="$PWD/build/verify-ocr/$1" mode models arg
+  mkdir -p "$work/settings" "$work/no-models"
+  for mode in absent present; do
+    models="$PWD/.deps/ai-models"
+    arg=""
+    if [ "$mode" = absent ]; then models="$work/no-models"; arg="--script-arg models=absent"; fi
+    : > "$work/$mode.txt"
+    # shellcheck disable=SC2086 # $arg is two plain words, or nothing
+    if [ "$kind" = flatpak ]; then
+      nice -n 10 timeout 300 flatpak run --user --env=PATCHY_SETTINGS_DIR="$work/settings" --env=PATCHY_NO_SOUND=1 \
+        --env=PATCHY_DOWNLOADED_MODELS_DIR="$models" com.rtsoft.patchy --headless \
+        --run-script "$PWD/packaging/ocr-models-check.js" $arg --script-output "$work/$mode.txt" || true
+    else
+      PATCHY_SETTINGS_DIR="$work/settings" PATCHY_NO_SOUND=1 PATCHY_DOWNLOADED_MODELS_DIR="$models" \
+        nice -n 10 timeout 300 "$APPIMAGE_FILE" --headless \
+        --run-script "$PWD/packaging/ocr-models-check.js" $arg --script-output "$work/$mode.txt" || true
+    fi
+    if [ "$(tail -n 1 "$work/$mode.txt")" != "[done]" ]; then
+      echo "[FAIL] text recognition engine in the $kind (models $mode):"
+      cat "$work/$mode.txt"
+      exit 1
+    fi
+    echo "[PASS] $kind, models $mode: $(tail -n 2 "$work/$mode.txt" | head -n 1)"
+  done
+}
+echo '== FLATPAK TEXT RECOGNITION ENGINE =='
+ocr_package_check flatpak
+echo '== APPIMAGE TEXT RECOGNITION ENGINE =='
+ocr_package_check appimage
 echo '== FLATPAK MCP SUITE =='
 nice -n 10 flatpak run --user --devel --command=bash com.rtsoft.patchy -c 'cd "$HOME/patchy/src" && .deps/mcp-client-flatpak/bin/python tests/mcp_client_tests.py /app/bin/patchy-mcp'
 echo '== SEPARATE SANDBOX ATTACHMENT =='
