@@ -56,6 +56,9 @@ QString hide_expand_button_key() { return QStringLiteral("toolPalette/hideExpand
 QString hide_scroll_arrows_key() { return QStringLiteral("toolPalette/hideScrollArrows"); }
 // True when every tool shows on its own button (GitHub issue 499); absent for tool groups.
 QString ungroup_tools_key() { return QStringLiteral("toolPalette/ungroupTools"); }
+// True when the user hid the separators between the tool groups (GitHub issue 733); absent
+// while they show.
+QString hide_separators_key() { return QStringLiteral("toolPalette/hideSeparators"); }
 // The size the user dragged the Customize Tool Palette dialog to; absent until then.
 QString customize_dialog_size_key() { return QStringLiteral("toolPalette/customizeDialogSize"); }
 // toolPalette/showCustomizeButton belonged to the palette's gear, since removed: never reuse it.
@@ -79,8 +82,8 @@ QStringList normalized_ids(QStringList ids) {
 constexpr int kIdRole = Qt::UserRole;
 
 // A painted miniature of the palette (mockup 1's preview): the slots in one or two columns
-// with the cluster separators and the flyout corner arrows, then the bottom items the choice
-// keeps (color well, Quick Mask, screen mode), drawn at the chosen toolbar icon size. It
+// with the cluster separators (when the choice shows them) and the flyout corner arrows, then
+// the bottom items the choice keeps (color well, Quick Mask, screen mode), drawn at the chosen toolbar icon size. It
 // repaints from the choice the dialog's controls hold, so it follows every tick.
 // It draws as many rows of tools as fit in the height its column gives it (the dialog is
 // resizable, GitHub issue 499 comment): when some rows do not fit, the strip is cut at a torn
@@ -152,7 +155,7 @@ protected:
       if (rows_left == 0) {
         break;
       }
-      if (!first) {
+      if (!first && choice_.customization.show_separators) {
         painter.fillRect(QRect(kMargin, y + kSeparatorMargin, size.width() - 1 - 2 * kMargin, 1),
                          colors.tool_palette_separator);
         y += kSeparatorExtent + kSpacing;
@@ -333,11 +336,12 @@ private:
       footer += kFooterRow;
     }
     constexpr int kRow = kCellHeight + kSpacing;
-    constexpr int kSeparator = kSeparatorExtent + kSpacing;
+    // Without separators a cluster follows the one above it like any other row (issue 733).
+    const int cluster_gap = choice_.customization.show_separators ? kSeparatorExtent + kSpacing : 0;
     Metrics metrics;
     int full = kMargin;
     for (std::size_t index = 0; index < cluster_rows.size(); ++index) {
-      full += (index > 0 ? kSeparator : 0) + cluster_rows[index] * kRow;
+      full += (index > 0 ? cluster_gap : 0) + cluster_rows[index] * kRow;
       metrics.rows += cluster_rows[index];
     }
     const int width = 2 * kMargin + columns * kCellWidth + (columns - 1) * kSpacing + 1;
@@ -350,7 +354,7 @@ private:
     const int limit = available - kTearHeight - footer;
     int height = kMargin;
     for (std::size_t index = 0; index < cluster_rows.size(); ++index) {
-      const int separator = index > 0 ? kSeparator : 0;
+      const int separator = index > 0 ? cluster_gap : 0;
       int drawn = 0;
       while (drawn < cluster_rows[index] &&
              (height + (drawn == 0 ? separator : 0) + kRow <= limit || metrics.shown_rows == 0)) {
@@ -603,6 +607,7 @@ ToolPaletteCustomization stored_tool_palette_customization() {
   value.two_columns = settings.value(layout_key()).toString() == QLatin1String(kTwoColumnsToken);
   value.wheel_scroll = settings.value(wheel_scroll_key(), true).toBool();
   value.ungroup_tools = settings.value(ungroup_tools_key(), false).toBool();
+  value.show_separators = !settings.value(hide_separators_key(), false).toBool();
   value.show_expand_button = !settings.value(hide_expand_button_key(), false).toBool();
   value.show_scroll_arrows = !settings.value(hide_scroll_arrows_key(), false).toBool();
   value.hidden_layer_buttons = settings.value(hidden_layer_buttons_key()).toStringList();
@@ -669,6 +674,7 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
       settings.setValue(key, true);
     }
   };
+  store_hidden(hide_separators_key(), normalized.show_separators);
   store_hidden(hide_expand_button_key(), normalized.show_expand_button);
   store_hidden(hide_scroll_arrows_key(), normalized.show_scroll_arrows);
 }
@@ -766,6 +772,10 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   auto* ungroup_tools = new QCheckBox(QObject::tr("No tool groups: every tool gets its own button"), tools_page);
   ungroup_tools->setObjectName(QStringLiteral("toolPaletteUngroupToolsCheck"));
   side->addWidget(ungroup_tools);
+  // GitHub issue 733: the lines between the tool groups can leave the palette, gap included.
+  auto* separators = new QCheckBox(QObject::tr("Show separators between tool groups"), tools_page);
+  separators->setObjectName(QStringLiteral("toolPaletteShowSeparatorsCheck"));
+  side->addWidget(separators);
   auto* wheel_scroll = new QCheckBox(QObject::tr("Mouse wheel scrolls the palette when it overflows"), tools_page);
   wheel_scroll->setObjectName(QStringLiteral("toolPaletteWheelScrollCheck"));
   side->addWidget(wheel_scroll);
@@ -1070,6 +1080,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     value.two_columns = two_columns->isChecked();
     value.wheel_scroll = wheel_scroll->isChecked();
     value.ungroup_tools = ungroup_tools->isChecked();
+    value.show_separators = separators->isChecked();
     value.show_expand_button = expand_button->isChecked();
     value.show_scroll_arrows = scroll_arrows->isChecked();
     // The default choice already hides the optional buttons: start from the rows alone.
@@ -1170,6 +1181,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     (value.two_columns ? two_columns : one_column)->setChecked(true);
     wheel_scroll->setChecked(value.wheel_scroll);
     ungroup_tools->setChecked(value.ungroup_tools);
+    separators->setChecked(value.show_separators);
     expand_button->setChecked(value.show_expand_button);
     scroll_arrows->setChecked(value.show_scroll_arrows);
     set_layer_rows(value);
@@ -1248,7 +1260,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   QObject::connect(order_up, &QPushButton::clicked, &dialog, [&] { move_current_row(-1); });
   QObject::connect(order_down, &QPushButton::clicked, &dialog, [&] { move_current_row(1); });
   refresh_order_buttons();
-  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll, ungroup_tools, expand_button, scroll_arrows};
+  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll,  ungroup_tools,
+                                        separators,  expand_button, scroll_arrows};
   // Without tool groups there is no flyout to open.
   const auto refresh_flyout_open = [&] { flyout_open->setEnabled(!ungroup_tools->isChecked()); };
   QObject::connect(ungroup_tools, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_flyout_open(); });

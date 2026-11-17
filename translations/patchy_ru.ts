@@ -16437,6 +16437,10 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Текст из групп «Распознанный текст» документа, показанных или скрытых, записывается невидимо поверх изображения каждой страницы, по одной строке, чтобы программа просмотра PDF могла находить, выделять и копировать его. Совпадение внутри длинной строки подсвечивается приблизительно.</translation>
     </message>
+    <message>
+        <source>Show separators between tool groups</source>
+        <translation>Показывать разделители между группами инструментов</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -16363,6 +16363,10 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show separators between tool groups</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
