@@ -1498,7 +1498,7 @@ void ui_contour_manager_buttons_line_up_in_one_column() {
   ColorSchemeRestorer restore_scheme;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
   LanguageRestorer restore_language;
-  for (const auto language : {QStringLiteral("en"), QStringLiteral("de")}) {
+  for (const auto& language : {QStringLiteral("en"), QStringLiteral("de")}) {
     CHECK(patchy::ui::LocalizationManager::instance().set_language(language, false));
     when_dialog_visible(QStringLiteral("contourManagerDialog"), [&](QDialog& dialog) {
       QApplication::processEvents();

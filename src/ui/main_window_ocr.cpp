@@ -46,9 +46,12 @@ namespace {
 // How long a recognition runs before its progress dialog appears.
 constexpr int kOcrProgressDelayMs = 400;
 
+#if !defined(Q_OS_WASM)
+// Only the download speaks in megabytes, and the web build has none.
 int megabytes(qint64 bytes) {
   return static_cast<int>((bytes + 500000) / 1000000);
 }
+#endif
 
 }  // namespace
 

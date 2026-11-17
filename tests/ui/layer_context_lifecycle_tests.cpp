@@ -574,11 +574,25 @@ void ui_move_context_menu_offers_free_transform_on_raster_layer() {
   }
 }
 
+// The brush menu tests below change Size, Soft and Smooth, through the menu's rows, the
+// options bar and the canvas. Those are saved tool settings, so each test puts them back:
+// left as they end, every later brush test in the run starts with a soft, smoothed brush
+// of another size (five stroke tests failed that way on every platform). Declare it before
+// the window, which writes the settings once more when it closes.
+struct BrushToolSettingsRestorer {
+  SettingsValueRestorer size{QStringLiteral("tools/brushSize")};
+  SettingsValueRestorer softness{QStringLiteral("tools/brushSoftness")};
+  SettingsValueRestorer smoothing{QStringLiteral("tools/brushSmoothing")};
+  SettingsValueRestorer eraser_size{QStringLiteral("tools/eraserSize")};
+  SettingsValueRestorer eraser_softness{QStringLiteral("tools/eraserSoftness")};
+};
+
 // A right-click with a footprint painting tool leads the canvas menu with its brush settings
 // rows (GitHub issue 734). Each row edits through its options-bar field, so the bar, the canvas
 // and the cursor follow, and the bar's own changes show in the open menu. The selection's
 // commands follow on a selection; each tool shows only the rows it has.
 void ui_brush_context_menu_rows_follow_options_bar() {
+  const BrushToolSettingsRestorer restore_brush_settings;
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_rulers_visible(false);
   require_action(window, "toolBrushAction")->trigger();
@@ -752,6 +766,7 @@ bool near_px(int value, int expected, int slack = 2) {
 // value pulls straight, and a glyph per row. Every row and the options bar's own fields move
 // it; a tool without Smooth or tip shape shows only what it has.
 void ui_brush_context_menu_preview_follows_rows() {
+  const BrushToolSettingsRestorer restore_brush_settings;
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_rulers_visible(false);
   require_action(window, "toolBrushAction")->trigger();
@@ -944,6 +959,7 @@ void ui_brush_context_menu_preview_follows_rows() {
 // brush is nothing but that cursor). Back over the menu, and after every way the menu closes,
 // the override is gone and the outline with it.
 void ui_brush_context_menu_pointer_off_menu_shows_brush() {
+  const BrushToolSettingsRestorer restore_brush_settings;
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_rulers_visible(false);
   require_action(window, "toolBrushAction")->trigger();
@@ -1091,6 +1107,7 @@ void ui_brush_context_menu_pointer_off_menu_shows_brush() {
 // the pointer travelled between them, at the release, with the sections the press point
 // calls for. The other canvas menus keep the drag threshold, Alt+Right-drag only scrubs.
 void ui_brush_context_menu_opens_on_a_moving_right_click() {
+  const BrushToolSettingsRestorer restore_brush_settings;
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_rulers_visible(false);
   canvas->set_zoom(1.0);
