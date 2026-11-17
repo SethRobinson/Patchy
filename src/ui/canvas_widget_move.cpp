@@ -17,6 +17,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/brush_menu_cursor_guard.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/theme_palette.hpp"
@@ -246,11 +247,14 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
     brush_context_rows_callback_(*menu, tool_);
     if (!menu->isEmpty()) {
       // Off the menu, over the canvas, the pointer shows the brush where the next stroke
-      // lands (eventFilter, GitHub issue 734 follow-up). Whatever the menu set goes when it
-      // hides: the canvas takes the pointer back, or loses it if the pointer is elsewhere.
+      // lands (eventFilter, GitHub issue 734 follow-up), through an override cursor the guard
+      // holds. Whatever the menu set goes when it hides, by any path: the override is popped
+      // (and by the guard's destructor if the menu dies holding it), and the canvas takes the
+      // pointer back, or loses it if the pointer is elsewhere.
       menu->setProperty("patchy.brushRowsMenu", true);
-      connect(menu, &QMenu::aboutToHide, this, [this, menu] {
-        menu->unsetCursor();
+      auto* cursor_guard = new BrushMenuCursorGuard(menu);
+      connect(menu, &QMenu::aboutToHide, this, [this, cursor_guard] {
+        cursor_guard->clear();
         if (!rect().contains(mapFromGlobal(QCursor::pos()))) {
           QEvent leave(QEvent::Leave);
           leaveEvent(&leave);
