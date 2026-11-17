@@ -14,6 +14,8 @@
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
+#include "ui/modifier_names.hpp"
+#include "ui/tool_cursors.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 
@@ -26,6 +28,7 @@
 #include <QMenu>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStatusBar>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -722,10 +725,192 @@ void ui_script_erase_background_and_magic_erase() {
   CHECK(require_canvas(window)->tool() == CanvasTool::Brush);
 }
 
+// A 200x120 document for the modifier tests: "Back" is red with a green block from x = 120,
+// and "Dot" above it holds one yellow square from (20, 20) to (39, 39). Back is active.
+struct ModifierPicture {
+  patchy::Document document{200, 120, patchy::PixelFormat::rgba8()};
+  patchy::LayerId back_id{};
+  patchy::LayerId dot_id{};
+
+  ModifierPicture() {
+    auto back = solid_pixels(200, 120, patchy::PixelFormat::rgba8(), kRed);
+    fill_pixel_rect(back, QRect(120, 0, 80, 120), kGreen);
+    back_id = document.add_pixel_layer("Back", std::move(back)).id();
+    auto dot = solid_pixels(200, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+    fill_pixel_rect(dot, QRect(20, 20, 20, 20), kYellow);
+    dot_id = document.add_pixel_layer("Dot", std::move(dot)).id();
+    document.set_active_layer(back_id);
+  }
+
+  // How many pixels of a layer's own buffer are not fully opaque.
+  [[nodiscard]] int pixels_not_opaque(patchy::LayerId id) const {
+    const auto& pixels = document.find_layer(id)->pixels();
+    int count = 0;
+    for (int y = 0; y < pixels.height(); ++y) {
+      for (int x = 0; x < pixels.width(); ++x) {
+        count += pixels.pixel(x, y)[3] == 255 ? 0 : 1;
+      }
+    }
+    return count;
+  }
+};
+
+// Alt+click picks the foreground color in all three erasers, as in the plain Eraser (GitHub
+// issue 727 follow-up): the eyedropper cursor shows while Alt is held, the click sets the
+// foreground color, leaves the background color alone and erases nothing.
+void ui_eraser_tools_alt_click_picks_the_foreground_color() {
+  for (const auto tool : {CanvasTool::Eraser, CanvasTool::BackgroundEraser, CanvasTool::MagicEraser}) {
+    ModifierPicture picture;
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(420, 320);
+    canvas.set_document(&picture.document);
+    canvas.set_zoom(1.0);
+    canvas.set_selected_layer_ids({picture.back_id});
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(tool);
+    canvas.set_brush_size(20);
+    canvas.set_brush_softness(0);
+    canvas.set_primary_color(QColor(1, 2, 3));
+    canvas.set_secondary_color(QColor(250, 250, 250));
+    const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(160, 60)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    // The cursor: the eyedropper while Alt is held, the tool's own again on release.
+    const auto eyedropper = patchy::ui::eyedropper_cursor().pixmap().toImage();
+    send_key_release(canvas, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(canvas.cursor().pixmap().toImage() != eyedropper);
+    send_key_press(canvas, Qt::Key_Alt);
+    CHECK(canvas.cursor().pixmap().toImage() == eyedropper);
+    CHECK(canvas.cursor().hotSpot() == QPoint(5, 27));
+    send_key_release(canvas, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(canvas.cursor().pixmap().toImage() != eyedropper);
+
+    // The click picks the green under the pointer into the foreground and erases nothing.
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(160, 60)), Qt::LeftButton, Qt::LeftButton,
+               Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(160, 60)), Qt::LeftButton, Qt::NoButton,
+               Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(color_close(canvas.primary_color(), kGreen, 1));
+    CHECK(canvas.secondary_color() == QColor(250, 250, 250));
+    CHECK(picture.pixels_not_opaque(picture.back_id) == 0);
+    CHECK(canvas.tool() == tool);
+
+    // Without Alt the same click erases: the pick was the modifier, not the tool.
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(160, 60)), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(160, 60)), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(picture.pixels_not_opaque(picture.back_id) > 0);
+  }
+}
+
+// Ctrl is the temporary Move in all three erasers (GitHub issue 727 follow-up): the four-way
+// arrow shows while it is held, a Ctrl+drag moves the layer and erases nothing, and a
+// Ctrl+click that never drags selects the layer under the pointer and erases nothing.
+void ui_eraser_tools_ctrl_drag_moves_the_layer() {
+  for (const auto tool : {CanvasTool::Eraser, CanvasTool::BackgroundEraser, CanvasTool::MagicEraser}) {
+    ModifierPicture picture;
+    auto& document = picture.document;
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(420, 320);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.set_selected_layer_ids({picture.back_id});
+    canvas.set_snap_enabled(false);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(tool);
+    canvas.set_brush_size(20);
+    canvas.set_brush_softness(0);
+    const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+    const auto bounds = [&document](patchy::LayerId id) { return std::as_const(document).find_layer(id)->bounds(); };
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(70, 80)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    // The cursor: the four-way arrow while Ctrl is held.
+    send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+    CHECK(canvas.cursor().shape() != Qt::SizeAllCursor);
+    send_key_press(canvas, Qt::Key_Control);
+    CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+    send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+    CHECK(canvas.cursor().shape() != Qt::SizeAllCursor);
+
+    // Ctrl+drag: the active layer moves 10 px to the right and keeps every pixel.
+    const auto before = bounds(picture.back_id);
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(70, 80)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier);
+    CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(76, 80)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(80, 80)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(80, 80)), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier);
+    QApplication::processEvents();
+    const auto after = bounds(picture.back_id);
+    CHECK(after.x == before.x + 10);
+    CHECK(after.y == before.y);
+    CHECK(after.width == before.width && after.height == before.height);
+    CHECK(picture.pixels_not_opaque(picture.back_id) == 0);
+    CHECK(bounds(picture.dot_id).x == 0);  // the layer that was not selected stays
+    CHECK(canvas.tool() == tool);
+
+    // Ctrl+click on the yellow square selects its layer; nothing is erased on either layer.
+    const auto dot_holes = picture.pixels_not_opaque(picture.dot_id);
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(30, 30)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(30, 30)), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(std::as_const(document).active_layer_id() == picture.dot_id);
+    CHECK(picture.pixels_not_opaque(picture.dot_id) == dot_holes);
+    CHECK(picture.pixels_not_opaque(picture.back_id) == 0);
+
+    // Ctrl+Alt is not the Move: no layer moves.
+    const auto dot_before = bounds(picture.dot_id);
+    send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(150, 100)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(160, 100)), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(160, 100)), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    QApplication::processEvents();
+    CHECK(bounds(picture.dot_id).x == dot_before.x && bounds(picture.back_id).x == after.x);
+  }
+}
+
+// The status bar hints after the follow-up: the two brushes of the flyout share the painting
+// tools' hint, and the Magic Eraser, a click tool, does not take it.
+void ui_eraser_tool_hints_after_modifiers() {
+  const auto restorers = clear_eraser_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1500, 780);
+  QApplication::processEvents();
+  const auto hint = [&window](const char* action) {
+    require_action(window, action)->trigger();
+    QApplication::processEvents();
+    return window.statusBar()->currentMessage();
+  };
+  const auto alt = patchy::ui::alt_key_name();
+  CHECK(hint("toolEraserAction").startsWith(QStringLiteral("Eraser: Shift+click draws a line, ")));
+  const auto background = hint("toolBackgroundEraserAction");
+  CHECK(background.startsWith(QStringLiteral("Background Eraser: Shift+click draws a line, ")));
+  CHECK(background.endsWith(alt + QStringLiteral("+right-drag changes size and softness.")));
+  const auto magic = hint("toolMagicEraserAction");
+  CHECK(!magic.contains(QStringLiteral("Shift+click draws a line")));
+  CHECK(!magic.contains(QStringLiteral("right-drag")));
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> eraser_tools_ui_tests() {
   return {
+      {"ui_eraser_tools_alt_click_picks_the_foreground_color", ui_eraser_tools_alt_click_picks_the_foreground_color},
+      {"ui_eraser_tools_ctrl_drag_moves_the_layer", ui_eraser_tools_ctrl_drag_moves_the_layer},
+      {"ui_eraser_tool_hints_after_modifiers", ui_eraser_tool_hints_after_modifiers},
       {"ui_eraser_flyout_holds_the_three_erasers_and_shift_e_cycles",
        ui_eraser_flyout_holds_the_three_erasers_and_shift_e_cycles},
       {"ui_background_eraser_erases_the_sampled_color_in_one_undo_step",

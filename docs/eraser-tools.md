@@ -10,7 +10,7 @@ A brush that erases the pixels close to a sampled color and leaves the rest unde
 - The erase lowers alpha to alpha x (1 - weight) and leaves the color. Nothing else about the pixel changes: there is no color correction of the pixels that stay (no edge color decontamination).
 - The selection limits the erase (its coverage scales the weight), pixels of the layer outside the canvas are left alone, and the layer never grows.
 - One undo step per stroke ("Background Eraser").
-- It reads and writes the active pixel layer only (no Sample All Layers). Text, shape and Smart Object layers go through the same rasterize prompt or refusal as the toning brushes (it shares their press path, `is_local_adjustment_tool`). It refuses a layer mask, a channel, Quick Mask and a Smart Filter mask with a status message. Alt does nothing on it (no color pick, no opposite tool).
+- It reads and writes the active pixel layer only (no Sample All Layers). Text, shape and Smart Object layers go through the same rasterize prompt or refusal as the toning brushes (it shares their press path, `is_local_adjustment_tool`). It refuses a layer mask, a channel, Quick Mask and a Smart Filter mask with a status message.
 
 Options bar order: Tip, Size | Soft | Sampling, Limits | Tolerance. Tip, Size and Soft are the **Eraser's** own set (`tools/eraserSize`, `tools/eraserSoftness`): the two brushes of the flyout share them, and the Brush keeps its own. There is no Opacity or Flow.
 
@@ -38,6 +38,14 @@ Options bar order: Tolerance | Anti-alias, Contiguous, Sample All Layers | Opaci
 - **Opacity** (`magicEraserOpacitySpin`, `magicEraserOpacitySlider`, 0..100%, default 100): how much of the region's alpha goes. 0% erases nothing.
 
 Settings keys (permanent): `tools/magicEraserTolerance`, `tools/magicEraserAntiAlias`, `tools/magicEraserContiguous`, `tools/magicEraserSampleAllLayers`, `tools/magicEraserOpacity`.
+
+## Alt and Ctrl
+
+All three erasers of the flyout share the Eraser's two modifiers (GitHub issue 727 follow-up; [brushes-ui.md](brushes-ui.md#painting-tool-modifiers)):
+
+- **Alt+click** picks the foreground color (`tool_uses_alt_left_for_color_pick`): the eyedropper cursor shows while Alt is held, and nothing is erased. The GIMP-style and Krita-style tool modifiers move the pick to Ctrl for the Eraser only; the two newer tools keep Alt.
+- **Ctrl+drag** moves the selected layers and a Ctrl+click that never drags selects the layer under the pointer (`tool_has_ctrl_temporary_move`), with the four-way arrow while Ctrl is held. The Magic Eraser has it as the one click tool in that list; it takes no brush hint in the status bar (`paint_tool_hint_source` keeps to the footprint brushes).
+- Ctrl+Alt is the pick, not the Move.
 
 ## Background layers and transparency locks
 
@@ -76,4 +84,4 @@ Both tools follow the Eraser's existing rule ([tools.md](tools.md), "Background 
 
 ## Tests
 
-Core `background_eraser_*` and `magic_eraser_*` (tests/core/eraser_tools_tests.cpp): the Background Eraser changes exactly the pixels Color Replacement repaints for the same dab, each Limits and Sampling choice, the lock and no-alpha rules, overlapping dabs, selection, 16 and 32 bits; the Magic Eraser clears exactly the pixels the Fill tool paints for the same click at 8, 16 and 32 bits, Contiguous, Anti-alias, Opacity, selection, Sample All Layers and the lock rules. UI `ui_eraser_*`, `ui_background_eraser_*`, `ui_magic_eraser_*` and `ui_script_erase_background_and_magic_erase` (tests/ui/eraser_tools_tests.cpp): the flyout and Shift+E, each options bar, one undo step, a locked Background, settings across a restart, 16-bit layers, the script calls.
+Core `background_eraser_*` and `magic_eraser_*` (tests/core/eraser_tools_tests.cpp): the Background Eraser changes exactly the pixels Color Replacement repaints for the same dab, each Limits and Sampling choice, the lock and no-alpha rules, overlapping dabs, selection, 16 and 32 bits; the Magic Eraser clears exactly the pixels the Fill tool paints for the same click at 8, 16 and 32 bits, Contiguous, Anti-alias, Opacity, selection, Sample All Layers and the lock rules. UI `ui_eraser_*`, `ui_background_eraser_*`, `ui_magic_eraser_*` and `ui_script_erase_background_and_magic_erase` (tests/ui/eraser_tools_tests.cpp): the flyout and Shift+E, each options bar, one undo step, a locked Background, settings across a restart, 16-bit layers, the script calls, and the Alt pick and Ctrl move in all three erasers (`ui_eraser_tools_alt_click_picks_the_foreground_color`, `ui_eraser_tools_ctrl_drag_moves_the_layer`, `ui_eraser_tool_hints_after_modifiers`).
