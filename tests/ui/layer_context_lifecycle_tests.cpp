@@ -935,6 +935,69 @@ void ui_brush_context_menu_preview_follows_rows() {
   }
 }
 
+// With the brush settings menu open, the pointer off the menu and over the canvas shows the
+// brush where the next stroke lands (GitHub issue 734 follow-up): the canvas follows it as a
+// hover would (a large brush paints its outline there) and the menu takes the canvas cursor.
+// Back over the menu the arrow returns and the outline goes.
+void ui_brush_context_menu_pointer_off_menu_shows_brush() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_rulers_visible(false);
+  require_action(window, "toolBrushAction")->trigger();
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  for (const int size : {400, 20}) {
+    canvas->set_brush_size(size);
+    QApplication::processEvents();
+    const auto before = canvas->grab().toImage();
+    auto* menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+    CHECK(menu != nullptr);
+    if (menu == nullptr) {
+      return;
+    }
+    CHECK(menu->cursor().shape() == Qt::ArrowCursor);
+    // A canvas point left of and above the menu, which opens down and right of the click.
+    const QPoint canvas_point(12, 12);
+    const auto global = canvas->mapToGlobal(canvas_point);
+    CHECK(canvas->rect().contains(canvas_point));
+    CHECK(!menu->geometry().contains(global));
+    send_mouse(*menu, QEvent::MouseMove, menu->mapFromGlobal(global), Qt::NoButton, Qt::NoButton);
+    CHECK(menu->isVisible());
+    CHECK(menu->cursor().shape() == canvas->cursor().shape());
+    CHECK(canvas->cursor().shape() != Qt::ArrowCursor);
+    if (canvas->cursor().shape() == Qt::BitmapCursor) {
+      CHECK(menu->cursor().pixmap().cacheKey() == canvas->cursor().pixmap().cacheKey());
+    }
+    const auto off_menu = canvas->grab().toImage();
+    if (size == 400) {
+      // The large brush draws its outline on the canvas at the pointer.
+      CHECK(off_menu != before);
+    }
+    // Back over the menu: the arrow, and no outline left on the canvas.
+    send_mouse(*menu, QEvent::MouseMove, QPoint(menu->width() / 2, menu->height() / 2), Qt::NoButton, Qt::NoButton);
+    // (A window keeps Qt::WA_SetCursor after unsetCursor; its cursor is the arrow again.)
+    CHECK(menu->cursor().shape() == Qt::ArrowCursor);
+    CHECK(canvas->grab().toImage() == before);
+    // Off the menu again, then closed: nothing the menu set stays behind.
+    send_mouse(*menu, QEvent::MouseMove, menu->mapFromGlobal(global), Qt::NoButton, Qt::NoButton);
+    CHECK(menu->cursor().shape() != Qt::ArrowCursor);
+    menu->close();
+    QApplication::processEvents();
+    CHECK(menu->cursor().shape() == Qt::ArrowCursor);
+  }
+  // The other canvas menus keep Qt's own pointer.
+  require_action(window, "toolZoomAction")->trigger();
+  QApplication::processEvents();
+  auto* zoom_menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+  CHECK(zoom_menu != nullptr);
+  if (zoom_menu != nullptr) {
+    send_mouse(*zoom_menu, QEvent::MouseMove, zoom_menu->mapFromGlobal(canvas->mapToGlobal(QPoint(12, 12))),
+               Qt::NoButton, Qt::NoButton);
+    CHECK(zoom_menu->cursor().shape() == Qt::ArrowCursor);
+    zoom_menu->close();
+    QApplication::processEvents();
+  }
+}
+
 void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
   patchy::Document document(1000, 800, patchy::PixelFormat::rgba8());
   const auto bottom_id = document.add_pixel_layer("Bottom",
@@ -5835,6 +5898,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_right_drag_does_not_pan_canvas", ui_right_drag_does_not_pan_canvas},
       {"ui_brush_context_menu_rows_follow_options_bar", ui_brush_context_menu_rows_follow_options_bar},
       {"ui_brush_context_menu_preview_follows_rows", ui_brush_context_menu_preview_follows_rows},
+      {"ui_brush_context_menu_pointer_off_menu_shows_brush", ui_brush_context_menu_pointer_off_menu_shows_brush},
       {"ui_selection_context_menu_offers_remove_object", ui_selection_context_menu_offers_remove_object},
       {"ui_stroke_selection_from_context_menu_survives_following_mouse_input",
        ui_stroke_selection_from_context_menu_survives_following_mouse_input},
