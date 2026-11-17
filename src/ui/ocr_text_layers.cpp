@@ -318,6 +318,41 @@ QColor sampled_text_color(const QImage& source, const QRectF& box) {
                 static_cast<int>((sum[2] + count / 2) / count));
 }
 
+QColor recognized_text_paper_color(const QImage& source) {
+  const QColor white(Qt::white);  // color-literal-ok: pixel color of a document layer
+  if (source.format() != QImage::Format_RGBA8888 || source.width() < 1 || source.height() < 1) {
+    return white;
+  }
+  // About 20,000 samples on an even grid, as the text colour takes.
+  const int step =
+      std::max(1, static_cast<int>(std::sqrt(static_cast<double>(source.width()) * source.height() / 20000.0)));
+  std::array<std::array<int, 256>, 3> counts{};
+  int samples = 0;
+  for (int y = 0; y < source.height(); y += step) {
+    for (int x = 0; x < source.width(); x += step) {
+      const auto rgb = rgb_over_white(source, x, y);
+      for (std::size_t channel = 0; channel < 3; ++channel) {
+        ++counts[channel][static_cast<std::size_t>(rgb[channel])];
+      }
+      ++samples;
+    }
+  }
+  std::array<int, 3> median_rgb{255, 255, 255};
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    int seen = 0;
+    for (int level = 0; level < 256; ++level) {
+      seen += counts[channel][static_cast<std::size_t>(level)];
+      if (2 * seen > samples) {
+        median_rgb[channel] = level;
+        break;
+      }
+    }
+  }
+  // Darker than mid grey (Rec. 601 weights, integer math): the page is dark.
+  const int luma = (299 * median_rgb[0] + 587 * median_rgb[1] + 114 * median_rgb[2]) / 1000;
+  return luma < 128 ? QColor(median_rgb[0], median_rgb[1], median_rgb[2]) : white;
+}
+
 double measured_slant_degrees(const QImage& source, const QRectF& box) {
   const QRect rect = clamped_rect(source, box);
   if (source.format() != QImage::Format_RGBA8888 || rect.height() < 12 || rect.width() < 3 * rect.height()) {

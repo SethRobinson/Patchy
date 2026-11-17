@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <numeric>
+#include <utility>
 
 namespace patchy::ocr {
 
@@ -89,6 +91,64 @@ bool lines_join(const Line& first, const Line& second) noexcept {
   }
   const double overlap = std::min(a.along_end, b.along_end) - std::max(a.along_start, b.along_start);
   return overlap >= kMinOverlapAlong * std::min(a.length(), b.length());
+}
+
+// Two lines side by side on one row: across the lines their boxes overlap by at least half
+// the thinner one. A block is a stack of rows, so it can hold only one of them.
+bool lines_share_row(const Line& first, const Line& second) noexcept {
+  if (first.vertical != second.vertical) {
+    return false;
+  }
+  const Extent a = extent_of(first);
+  const Extent b = extent_of(second);
+  const double thinner = std::min(a.thickness(), b.thickness());
+  const double overlap = std::min(a.across_end, b.across_end) - std::max(a.across_start, b.across_start);
+  return thinner > 0.0 && overlap >= kMinPitch * thinner;
+}
+
+// Whether two ascending index lists share an entry.
+bool lists_intersect(const std::vector<std::size_t>& a, const std::vector<std::size_t>& b) noexcept {
+  auto left = a.begin();
+  auto right = b.begin();
+  while (left != a.end() && right != b.end()) {
+    if (*left == *right) {
+      return true;
+    }
+    if (*left < *right) {
+      ++left;
+    } else {
+      ++right;
+    }
+  }
+  return false;
+}
+
+// Connected sets over `count` items joined by `pairs`: each set ascending, sets in the order
+// of their smallest item.
+std::vector<std::vector<std::size_t>> connected_sets(std::size_t count,
+                                                     const std::vector<std::pair<std::size_t, std::size_t>>& pairs) {
+  std::vector<std::size_t> parent(count);
+  std::iota(parent.begin(), parent.end(), std::size_t{0});
+  const auto root = [&parent](std::size_t index) {
+    while (parent[index] != index) {
+      parent[index] = parent[parent[index]];
+      index = parent[index];
+    }
+    return index;
+  };
+  for (const auto& [first, second] : pairs) {
+    const std::size_t a = root(first);
+    const std::size_t b = root(second);
+    if (a != b) {
+      parent[std::max(a, b)] = std::min(a, b);
+    }
+  }
+  std::vector<std::vector<std::size_t>> members(count);
+  for (std::size_t index = 0; index < count; ++index) {
+    members[root(index)].push_back(index);
+  }
+  std::erase_if(members, [](const std::vector<std::size_t>& set) { return set.empty(); });
+  return members;
 }
 
 double median(std::vector<double> values) {
@@ -185,35 +245,77 @@ void sort_blocks(std::vector<Block>& blocks) {
 
 std::vector<Block> group_lines_into_blocks(const Result& result) {
   const std::size_t count = result.lines.size();
-  // Union-find over every pair that joins: a block is a connected set.
-  std::vector<std::size_t> parent(count);
-  std::iota(parent.begin(), parent.end(), std::size_t{0});
-  const auto root = [&parent](std::size_t index) {
-    while (parent[index] != index) {
-      parent[index] = parent[parent[index]];
-      index = parent[index];
-    }
-    return index;
-  };
+  // Every pair of lines is asked two things: do they join, and do they share a row.
+  std::vector<std::pair<std::size_t, std::size_t>> joins;
+  std::vector<std::vector<std::size_t>> joined(count);
+  std::vector<std::vector<std::size_t>> row_mates(count);
   for (std::size_t first = 0; first < count; ++first) {
     for (std::size_t second = first + 1; second < count; ++second) {
       if (lines_join(result.lines[first], result.lines[second])) {
-        const std::size_t a = root(first);
-        const std::size_t b = root(second);
-        if (a != b) {
-          parent[std::max(a, b)] = std::min(a, b);
-        }
+        joins.emplace_back(first, second);
+      }
+      if (lines_share_row(result.lines[first], result.lines[second])) {
+        row_mates[first].push_back(second);
+        row_mates[second].push_back(first);
       }
     }
   }
-  std::vector<std::vector<std::size_t>> members(count);
-  for (std::size_t index = 0; index < count; ++index) {
-    members[root(index)].push_back(index);
+  for (auto& mates : row_mates) {
+    std::sort(mates.begin(), mates.end());
   }
+  for (const auto& [first, second] : joins) {
+    joined[first].push_back(second);
+    joined[second].push_back(first);
+  }
+  for (auto& list : joined) {
+    std::sort(list.begin(), list.end());
+  }
+
+  // A block is a stack of rows, one line each. When two lines of one row would both join the
+  // same line (a title and the labels beside it over a paragraph, two columns under a line
+  // that spans them), two boxes cannot say which of them continues that line's block, so
+  // neither join is made. Without this the row's lines became separate lines of one text
+  // layer, whose leading (the median distance between consecutive lines) then fell to
+  // nothing and drew the whole block on top of itself.
+  std::erase_if(joins, [&](const std::pair<std::size_t, std::size_t>& pair) {
+    return lists_intersect(row_mates[pair.first], joined[pair.second]) ||
+           lists_intersect(row_mates[pair.second], joined[pair.first]);
+  });
+
   std::vector<Block> blocks;
-  for (auto& group : members) {
-    if (!group.empty()) {
-      blocks.push_back(finish_block(result, std::move(group)));
+  for (auto& set : connected_sets(count, joins)) {
+    // Row neighbours can still meet through longer chains. Then each of them stands alone,
+    // and what is left of the set is joined again without them.
+    std::vector<std::size_t> crowded;
+    for (const std::size_t member : set) {
+      if (lists_intersect(row_mates[member], set)) {
+        crowded.push_back(member);
+      }
+    }
+    if (crowded.empty()) {
+      blocks.push_back(finish_block(result, std::move(set)));
+      continue;
+    }
+    std::vector<std::size_t> rest;
+    std::set_difference(set.begin(), set.end(), crowded.begin(), crowded.end(), std::back_inserter(rest));
+    std::vector<std::pair<std::size_t, std::size_t>> rest_joins;
+    for (const auto& [first, second] : joins) {
+      const auto a = std::lower_bound(rest.begin(), rest.end(), first);
+      const auto b = std::lower_bound(rest.begin(), rest.end(), second);
+      if (a != rest.end() && *a == first && b != rest.end() && *b == second) {
+        rest_joins.emplace_back(static_cast<std::size_t>(a - rest.begin()), static_cast<std::size_t>(b - rest.begin()));
+      }
+    }
+    for (const auto& positions : connected_sets(rest.size(), rest_joins)) {
+      std::vector<std::size_t> members;
+      members.reserve(positions.size());
+      for (const std::size_t position : positions) {
+        members.push_back(rest[position]);
+      }
+      blocks.push_back(finish_block(result, std::move(members)));
+    }
+    for (const std::size_t member : crowded) {
+      blocks.push_back(finish_block(result, {member}));
     }
   }
   sort_blocks(blocks);

@@ -1,10 +1,10 @@
 #pragma once
 
-// Blocks of text from recognized lines (docs/ocr.md, "Blocks"). A block is a run of
+// Blocks of text from recognized lines (docs/ocr-blocks.md). A block is a run of
 // neighbouring lines that sit close together: what becomes one multi-line text layer.
 //
 // Binding rule (the "Text recognition" entry of docs/legal-constraints-scanning.md): the
-// only inputs are the boxes and character counts of two lines at a time. No line is
+// only inputs are the boxes and character counts of lines, tested two at a time. No line is
 // classified as starting or continuing a paragraph, and nothing about the page (its type,
 // margins, indentation or layout) enters. Two paragraphs with no gap between them are one
 // block; that is the stated limit of this grouping.
@@ -41,9 +41,14 @@ struct Block {
 // thicknesses within a factor of 2.2), or, for a line of fewer than four characters, their
 // thicknesses within 30%. An engine's line box hugs the ink, so thickness alone misjudges a
 // line with no descenders, and the empty gap between two lines swings with the letters they
-// hold: length per character and centre distance do not. Blocks come back in
-// reading order: horizontal blocks top to bottom then left to right, vertical blocks right
-// to left then top to bottom, horizontal before vertical.
+// hold: length per character and centre distance do not.
+// A block is a stack of rows with one line each. Two lines share a row when their boxes
+// overlap across the lines by at least half the thinner one. When two lines of one row
+// would both join the same line (a title and a label beside it over a paragraph, two
+// columns under a line that spans them), neither join is made; row neighbours that still
+// meet through a longer chain each stand alone. So no block ever holds two lines of a row.
+// Blocks come back in reading order: horizontal blocks top to bottom then left to right,
+// vertical blocks right to left then top to bottom, horizontal before vertical.
 [[nodiscard]] std::vector<Block> group_lines_into_blocks(const Result& result);
 
 // Every line as its own block, in the same reading order: the "one layer per line" choice.

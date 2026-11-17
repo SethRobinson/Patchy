@@ -11608,10 +11608,24 @@ std::optional<Layer> MainWindow::make_recognized_text_group(Document& document, 
   group.set_blend_mode(BlendMode::PassThrough);
   group.metadata()[kLayerMetadataOcrGroup] = std::string(engine_id) + ' ' + std::string(language);
   if (options.mode == OcrLayerMode::Replace) {
-    // "Show text and hide original": the text reads on white paper where the source was,
-    // and the source is only hidden (never erased or filled; the caller hides it).
+    // "Show text and hide original": the text reads on paper where the source was, and the
+    // source is only hidden (never erased or filled; the caller hides it). The paper is one
+    // flat colour: white, or a dark page's own background, so the light text sampled from
+    // such a page still shows.
     PixelBuffer paper(source.image.width(), source.image.height(), PixelFormat::rgb8());
     paper.clear(255);
+    if (const QColor paper_color = recognized_text_paper_color(source.image);
+        paper_color != QColor(Qt::white)) {  // color-literal-ok: pixel color of a document layer
+      const std::array<std::uint8_t, 3> rgb{static_cast<std::uint8_t>(paper_color.red()),
+                                            static_cast<std::uint8_t>(paper_color.green()),
+                                            static_cast<std::uint8_t>(paper_color.blue())};
+      for (std::int32_t y = 0; y < paper.height(); ++y) {
+        auto row = paper.row(y);
+        for (std::size_t offset = 0; offset + 3 <= row.size(); offset += 3) {
+          std::copy(rgb.begin(), rgb.end(), row.begin() + static_cast<std::ptrdiff_t>(offset));
+        }
+      }
+    }
     Layer paper_layer(document.allocate_layer_id(), tr("Paper").toStdString(), LayerKind::Pixel);
     paper_layer.set_pixels(convert_pixel_buffer_depth(paper, depth, SampleKind::Color));
     paper_layer.set_bounds(Rect{source.origin.x(), source.origin.y(), source.image.width(), source.image.height()});
