@@ -12,6 +12,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -70,23 +71,33 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
       &dialog);
   builtin_note->setObjectName(QStringLiteral("contourManagerBuiltinNote"));
   builtin_note->setWordWrap(true);
-  // Its room stays when it hides, so the preview keeps its size from row to row.
+  // It sits beside Close, which has that row to itself, and keeps its room while
+  // hidden, so nothing above it moves from row to row.
   auto note_policy = builtin_note->sizePolicy();
+  note_policy.setHorizontalPolicy(QSizePolicy::Ignored);
   note_policy.setRetainSizeWhenHidden(true);
   builtin_note->setSizePolicy(note_policy);
 
-  // The selected contour's curve, drawn by the editor's graph so it reads the same.
+  // The selected contour's curve, drawn by the editor's graph so it reads the same,
+  // with the buttons in one column at its right, where the square graph leaves room:
+  // the contour actions, then after a gap the file actions (Seth, November 17, 2026:
+  // three ragged rows of buttons read as random).
+  auto* preview_row = new QHBoxLayout();
+  preview_row->setSpacing(10);
   auto* preview = new ContourGraphWidget(&dialog);
   preview->setObjectName(QStringLiteral("contourManagerPreview"));
   preview->set_read_only(true);
-  scaffold.right()->addWidget(preview, 1);
+  preview_row->addWidget(preview, 1);
+  auto* button_column = new QVBoxLayout();
+  button_column->setSpacing(6);
+  preview_row->addLayout(button_column);
+  scaffold.right()->addLayout(preview_row, 1);
 
   auto* form = new QFormLayout();
   auto* name_edit = new QLineEdit(&dialog);
   name_edit->setObjectName(QStringLiteral("contourManagerNameEdit"));
   form->addRow(QObject::tr("Name:"), name_edit);
   scaffold.right()->addLayout(form);
-  scaffold.right()->addWidget(builtin_note);
 
   auto* new_button = new QPushButton(QObject::tr("New Contour…"), &dialog);
   new_button->setObjectName(QStringLiteral("contourManagerNewButton"));
@@ -98,16 +109,26 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
   duplicate_button->setObjectName(QStringLiteral("contourManagerDuplicateButton"));
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("contourManagerDeleteButton"));
-  scaffold.add_action_row({new_button, edit_button, duplicate_button}, {delete_button});
   auto* load_button = new QPushButton(QObject::tr("Load Contours…"), &dialog);
   load_button->setObjectName(QStringLiteral("contourManagerLoadButton"));
   auto* save_button = new QPushButton(QObject::tr("Save Contours…"), &dialog);
   save_button->setObjectName(QStringLiteral("contourManagerSaveButton"));
-  scaffold.add_action_row({load_button, save_button}, {});
+  // One width for the column (the widest label's), so the edges line up.
+  for (auto* button : {new_button, edit_button, duplicate_button, delete_button}) {
+    button_column->addWidget(button);
+  }
+  button_column->addSpacing(14);
+  button_column->addWidget(load_button);
+  button_column->addWidget(save_button);
+  button_column->addStretch(1);
 
+  auto* bottom_row = new QHBoxLayout();
+  bottom_row->setSpacing(10);
+  bottom_row->addWidget(builtin_note, 1);
   auto* close_buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
   close_buttons->setObjectName(QStringLiteral("contourManagerButtons"));
-  scaffold.right()->addWidget(close_buttons);
+  bottom_row->addWidget(close_buttons, 0, Qt::AlignBottom);
+  scaffold.right()->addLayout(bottom_row);
   QObject::connect(close_buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   // No button is the default, so Enter in the Name field only commits the name.
   for (auto* button : dialog.findChildren<QPushButton*>()) {

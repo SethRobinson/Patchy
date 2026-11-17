@@ -11,6 +11,7 @@
 #include "ui/contour_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/localization.hpp"
 #include "ui/preset_grid_widget.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/style_library.hpp"
@@ -47,6 +48,7 @@
 #include <QTreeWidget>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -1481,6 +1483,91 @@ void ui_layer_style_contour_list_opens_as_a_grid() {
   }
 }
 
+// Seth, November 17, 2026: the Contour Manager's buttons sat in three ragged rows with a gap
+// under Name. They are one column right of the preview (the contour actions, a gap, the file
+// actions), all one width; Name sits right under the preview; the built-in note shares the
+// Close row and keeps its room while hidden, so nothing moves from row to row. In English
+// and in German, whose labels are longer.
+void ui_contour_manager_buttons_line_up_in_one_column() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  const auto ridge_id = library.add_contour(QStringLiteral("Ridge"), ridge_contour("Ridge"));
+  CHECK(!ridge_id.isEmpty());
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  LanguageRestorer restore_language;
+  for (const auto language : {QStringLiteral("en"), QStringLiteral("de")}) {
+    CHECK(patchy::ui::LocalizationManager::instance().set_language(language, false));
+    when_dialog_visible(QStringLiteral("contourManagerDialog"), [&](QDialog& dialog) {
+      QApplication::processEvents();
+      const auto at = [&dialog](const QWidget* widget) {
+        return QRect(widget->mapTo(&dialog, QPoint(0, 0)), widget->size());
+      };
+      auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("contourManagerTree"));
+      auto* preview = dialog.findChild<QWidget*>(QStringLiteral("contourManagerPreview"));
+      auto* name_edit = dialog.findChild<QLineEdit*>(QStringLiteral("contourManagerNameEdit"));
+      auto* note = dialog.findChild<QLabel*>(QStringLiteral("contourManagerBuiltinNote"));
+      auto* box = dialog.findChild<QDialogButtonBox*>(QStringLiteral("contourManagerButtons"));
+      QList<QPushButton*> column;
+      for (const auto* name : {"contourManagerNewButton", "contourManagerEditButton", "contourManagerDuplicateButton",
+                               "contourManagerDeleteButton", "contourManagerLoadButton", "contourManagerSaveButton"}) {
+        column << dialog.findChild<QPushButton*>(QLatin1String(name));
+        CHECK(column.back() != nullptr);
+      }
+      CHECK(tree != nullptr && preview != nullptr && name_edit != nullptr && note != nullptr && box != nullptr);
+      if (tree == nullptr || preview == nullptr || name_edit == nullptr || note == nullptr || box == nullptr ||
+          column.contains(nullptr)) {
+        dialog.reject();
+        return;
+      }
+      auto* close = box->button(QDialogButtonBox::Close);
+      CHECK(close != nullptr);
+      // One column right of the preview: same left edge and width, top to bottom, each
+      // label whole; a wider gap between the contour actions and the file actions.
+      for (int index = 0; index < column.size(); ++index) {
+        const auto rect = at(column[index]);
+        CHECK(rect.left() == at(column.front()).left());
+        CHECK(rect.width() == at(column.front()).width());
+        CHECK(rect.width() >= column[index]->sizeHint().width());
+        CHECK(rect.left() > at(preview).right());
+        if (index > 0) {
+          const auto gap = rect.top() - at(column[index - 1]).bottom();
+          CHECK(gap > 0);
+          CHECK(index == 4 ? gap >= 14 : gap < 14);
+        }
+      }
+      // Name right under the preview, across its width and the column's.
+      CHECK(at(name_edit).top() > at(preview).bottom());
+      CHECK(at(name_edit).top() - at(preview).bottom() < 24);
+      CHECK(at(name_edit).right() >= at(column.front()).right() - 1);
+      // Close at the bottom right, its right edge on the column's.
+      if (close != nullptr) {
+        CHECK(std::abs(at(close).right() - at(column.front()).right()) <= 2);
+        CHECK(at(close).top() > at(name_edit).bottom());
+      }
+      // A saved contour is selected (no note); a built-in shows the note beside Close and
+      // moves nothing.
+      CHECK(tree->currentItem() != nullptr && tree->currentItem()->text(0) == QStringLiteral("Ridge"));
+      CHECK(!note->isVisible());
+      const auto preview_before = at(preview);
+      const auto name_before = at(name_edit);
+      (void)capture_widget_artifact("ui_contour_manager_layout_" + language.toStdString(), dialog);
+      tree->setCurrentItem(manager_row(*tree, tree->topLevelItem(1)->text(0)));
+      QApplication::processEvents();
+      CHECK(note->isVisible());
+      CHECK(at(preview) == preview_before);
+      CHECK(at(name_edit) == name_before);
+      if (close != nullptr) {
+        CHECK(at(note).right() < at(close).left());
+        CHECK(at(note).top() >= name_before.bottom());
+      }
+      (void)capture_widget_artifact("ui_contour_manager_layout_builtin_" + language.toStdString(), dialog);
+      dialog.reject();
+    });
+    patchy::ui::request_contour_manager(nullptr, library, ridge_id);
+  }
+}
+
 void ui_layer_style_swatch_follows_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   const auto layer = contour_test_layer(document);
@@ -1636,6 +1723,7 @@ std::vector<patchy::test::TestCase> contour_editor_tests() {
        ui_layer_style_contour_editor_save_as_new_selects_it_in_the_picker},
       {"ui_layer_style_new_contour_starts_from_a_straight_line", ui_layer_style_new_contour_starts_from_a_straight_line},
       {"ui_layer_style_contour_list_opens_as_a_grid", ui_layer_style_contour_list_opens_as_a_grid},
+      {"ui_contour_manager_buttons_line_up_in_one_column", ui_contour_manager_buttons_line_up_in_one_column},
       {"ui_contour_manager_lists_renames_edits_duplicates_and_deletes",
        ui_contour_manager_lists_renames_edits_duplicates_and_deletes},
   };
