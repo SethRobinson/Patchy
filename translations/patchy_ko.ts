@@ -15990,10 +15990,6 @@ Do you want to replace it?</source>
         <translation>라이브러리</translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation>이 윤곽선을 이름을 붙여 저장하거나 윤곽선 파일을 불러오고 저장합니다</translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation>새 윤곽선…</translation>
     </message>
@@ -16352,6 +16348,22 @@ Do you want to replace it?</source>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
         <translation>윤곽선 &quot;%1&quot;을(를) 삭제할까요?</translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation>저장된 윤곽선 (%1)</translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation>새 윤곽선에 이름을 붙인 뒤 직선에서부터 그립니다</translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation>새 윤곽선: %1</translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
+        <translation>직선에서 새 윤곽선을 만들거나, 저장된 윤곽선의 이름을 바꾸거나 삭제하거나, 윤곽선 파일을 불러오고 저장합니다</translation>
     </message>
 </context>
 <context>

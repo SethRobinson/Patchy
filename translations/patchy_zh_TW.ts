@@ -15990,10 +15990,6 @@ Do you want to replace it?</source>
         <translation>資料庫</translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation>以名稱儲存此輪廓，或載入和儲存輪廓檔案</translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation>新增輪廓…</translation>
     </message>
@@ -16352,6 +16348,22 @@ Do you want to replace it?</source>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
         <translation>刪除輪廓「%1」？</translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation>已儲存的輪廓 (%1)</translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation>為新輪廓命名，然後從一條直線開始繪製</translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation>新增輪廓：%1</translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
+        <translation>從直線建立新輪廓，重新命名或刪除已儲存的輪廓，或載入和儲存輪廓檔案</translation>
     </message>
 </context>
 <context>

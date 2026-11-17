@@ -16046,10 +16046,6 @@ Deseja substituí-lo?</translation>
         <translation>Biblioteca</translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation>Salvar este contorno com um nome, ou carregar e salvar arquivos de contornos</translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation>Novo contorno…</translation>
     </message>
@@ -16408,6 +16404,22 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
         <translation>Excluir o contorno &quot;%1&quot;?</translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation>Contornos salvos (%1)</translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation>Dê um nome a um novo contorno e desenhe-o a partir de uma linha reta</translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation>Novo contorno: %1</translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
+        <translation>Criar um novo contorno a partir de uma linha reta, renomear ou excluir um contorno salvo, ou carregar e salvar arquivos de contornos</translation>
     </message>
 </context>
 <context>

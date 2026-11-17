@@ -2,8 +2,11 @@
 
 #include "core/layer.hpp"
 
+#include <QComboBox>
+#include <QElapsedTimer>
 #include <QIcon>
 #include <QPointF>
+#include <QPointer>
 #include <QRect>
 #include <QString>
 #include <QStringList>
@@ -13,6 +16,8 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+
+class QFrame;
 
 namespace patchy::ui {
 
@@ -111,7 +116,39 @@ private:
 // otherwise.
 [[nodiscard]] std::optional<StyleContour> request_contour_edit(
     QWidget* parent, const StyleContour& initial, const std::function<void(const StyleContour&)>& changed = {},
-    ContourLibrary* library = nullptr, QString* saved_storage_id = nullptr);
+    ContourLibrary* library = nullptr, QString* saved_storage_id = nullptr, const QString& title = {});
+
+// The straight Linear curve a new contour starts from (New Contour in the Layer
+// Style Library menu and in the Contour Manager; GitHub issue 726 follow-up).
+[[nodiscard]] StyleContour straight_line_contour();
+
+// A Layer Style contour picker (GitHub issue 726 follow-up). It stays a QComboBox,
+// so callers keep currentData, findData, setCurrentIndex and currentIndexChanged,
+// and the closed box shows the current contour's chip and name as before. Its list
+// opens as a grid of curve chips (PresetGridWidget) instead: one cell per entry in
+// the combo's order, the name in the tooltip, the current one selected; the rows
+// after the combo's separator (the saved contours) sit under a "Saved Contours"
+// header. A click or Enter picks the cell (setCurrentIndex, then activated), Esc
+// closes the grid. Object names: <combo>Popup (the frame) and <combo>Grid.
+class ContourPickerCombo final : public QComboBox {
+public:
+  explicit ContourPickerCombo(QWidget* parent = nullptr);
+
+  void showPopup() override;
+  void hidePopup() override;
+  [[nodiscard]] QFrame* picker_popup() const { return popup_; }
+
+  // Columns of the grid before it scrolls sideways (it never does: it wraps).
+  static constexpr int kGridColumns = 6;
+  // A grid cell, and the chip drawn in it (4:3, as in the closed box).
+  static constexpr int kGridCellExtent = 56;
+  static constexpr QSize kGridIconSize{48, 36};
+
+private:
+  QPointer<QFrame> popup_;
+  // The click that dismisses the grid lands on the combo again; ignore it briefly.
+  QElapsedTimer dismissed_;
+};
 
 // "Save Contours": a checklist of the user's saved contours, all ticked to
 // start with. Returns the storage ids to write, in list order; empty on Cancel

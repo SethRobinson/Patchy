@@ -15990,10 +15990,6 @@ Do you want to replace it?</source>
         <translation>ライブラリ</translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation>この輪郭に名前を付けて保存するか、輪郭ファイルを読み込み・保存します</translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation>新規輪郭…</translation>
     </message>
@@ -16352,6 +16348,22 @@ Do you want to replace it?</source>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
         <translation>輪郭「%1」を削除しますか？</translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation>保存した輪郭 (%1)</translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation>新しい輪郭に名前を付けて、直線から描きます</translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation>新規輪郭: %1</translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
+        <translation>直線から新しい輪郭を作成するか、保存した輪郭の名前変更や削除、輪郭ファイルの読み込みと保存を行います</translation>
     </message>
 </context>
 <context>

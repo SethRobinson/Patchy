@@ -16028,10 +16028,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16389,6 +16385,22 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

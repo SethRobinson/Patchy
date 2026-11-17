@@ -88,6 +88,9 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
   scaffold.right()->addLayout(form);
   scaffold.right()->addWidget(builtin_note);
 
+  auto* new_button = new QPushButton(QObject::tr("New Contour…"), &dialog);
+  new_button->setObjectName(QStringLiteral("contourManagerNewButton"));
+  new_button->setToolTip(QObject::tr("Name a new contour, then draw it starting from a straight line"));
   auto* edit_button = new QPushButton(QObject::tr("Edit Curve…"), &dialog);
   edit_button->setObjectName(QStringLiteral("contourManagerEditButton"));
   edit_button->setToolTip(QObject::tr("Edit this contour's curve"));
@@ -95,7 +98,7 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
   duplicate_button->setObjectName(QStringLiteral("contourManagerDuplicateButton"));
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("contourManagerDeleteButton"));
-  scaffold.add_action_row({edit_button, duplicate_button}, {delete_button});
+  scaffold.add_action_row({new_button, edit_button, duplicate_button}, {delete_button});
   auto* load_button = new QPushButton(QObject::tr("Load Contours…"), &dialog);
   load_button->setObjectName(QStringLiteral("contourManagerLoadButton"));
   auto* save_button = new QPushButton(QObject::tr("Save Contours…"), &dialog);
@@ -216,6 +219,27 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
     }
     reload(storage_id);
   };
+  // A name, then the editor on a straight line; OK saves it and selects it.
+  const auto new_contour = [&] {
+    const auto title = QObject::tr("New Contour");
+    const auto name =
+        request_contour_name(&dialog, title, QObject::tr("Contour %1").arg(library.entries().size() + 1U));
+    if (!name.has_value()) {
+      return;
+    }
+    const auto drawn =
+        request_contour_edit(&dialog, straight_line_contour(), {}, nullptr, nullptr,
+                             QObject::tr("New Contour: %1").arg(*name));
+    if (!drawn.has_value()) {
+      return;
+    }
+    const auto id = library.add_contour(*name, *drawn);
+    if (id.isEmpty()) {
+      show_error(title, QObject::tr("Could not save the contour."));
+      return;
+    }
+    reload(id);
+  };
   // A copy of any row, built-in or saved, becomes a new saved contour, selected
   // with its name ready to change.
   const auto duplicate_selected = [&] {
@@ -262,6 +286,7 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
 
   scaffold.connect_selection_changed(refresh_details);
   scaffold.add_delete_plumbing(delete_button, delete_selected);
+  QObject::connect(new_button, &QPushButton::clicked, &dialog, new_contour);
   QObject::connect(edit_button, &QPushButton::clicked, &dialog, edit_selected);
   QObject::connect(duplicate_button, &QPushButton::clicked, &dialog, duplicate_selected);
   QObject::connect(tree, &QTreeWidget::itemDoubleClicked, &dialog, [&](QTreeWidgetItem*, int) { edit_selected(); });

@@ -11,6 +11,7 @@
 #include "ui/contour_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/preset_grid_widget.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/style_library.hpp"
 
@@ -38,6 +39,7 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QScopeGuard>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
@@ -132,6 +134,45 @@ void draw_peak_and_dip(QDialog& editor) {
   corner->click();
   click_graph(*graph, 150.0, 40.0);
   CHECK(graph->contour().points.size() == 4U);
+}
+
+// The curve draw_peak_and_dip makes in an editor that opened on a straight line.
+patchy::StyleContour peak_and_dip_contour() {
+  patchy::StyleContour contour;
+  contour.points = {contour_point(0.0F, 0.0F), contour_point(64.0F, 220.0F, true), contour_point(150.0F, 40.0F),
+                    contour_point(255.0F, 255.0F)};
+  return contour;
+}
+
+// Answers the New Contour prompt with `name`, then checks the editor opens on a straight
+// line titled for the new contour and runs `drive` in it.
+void answer_new_contour(const QString& name, std::function<void(QDialog&)> drive) {
+  answer_name(name);
+  when_dialog_visible(QStringLiteral("contourEditorDialog"), [name, drive = std::move(drive)](QDialog& editor) {
+    auto* graph = editor_graph(editor);
+    CHECK(graph != nullptr);
+    CHECK(editor.windowTitle() == QStringLiteral("New Contour: %1").arg(name));
+    // It starts from a straight line, and has no second way to save.
+    CHECK(graph != nullptr && graph->contour().points.size() == 2U);
+    CHECK(graph != nullptr && patchy::style_contour_is_linear(graph->contour()));
+    CHECK(editor.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton")) == nullptr);
+    drive(editor);
+  });
+}
+
+// The open grid of a contour picker, or nullptr.
+patchy::ui::PresetGridWidget* contour_grid(QComboBox& combo) {
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == combo.objectName() + QStringLiteral("Popup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  if (popup == nullptr) {
+    return nullptr;
+  }
+  return static_cast<patchy::ui::PresetGridWidget*>(
+      popup->findChild<QListWidget*>(combo.objectName() + QStringLiteral("Grid")));
 }
 
 QTreeWidgetItem* manager_row(QTreeWidget& tree, const QString& name) {
@@ -458,6 +499,7 @@ void ui_layer_style_contour_library_new_rename_delete_load_save() {
   patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
   const auto shc_path = directory.filePath(QStringLiteral("saved contours.shc"));
   const auto custom = ridge_contour("Custom");
+  const auto drawn = peak_and_dip_contour();
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   const auto layer = contour_test_layer(document, custom);
   const auto gloss_name = QStringLiteral("layerStyleBevelGlossContourCombo");
@@ -473,8 +515,11 @@ void ui_layer_style_contour_library_new_rename_delete_load_save() {
     CHECK(!library_action(dialog, gloss_name, QStringLiteral("contourLibraryDeleteAction"))->isEnabled());
     CHECK(!library_action(dialog, gloss_name, QStringLiteral("contourLibrarySaveAction"))->isEnabled());
 
-    // New Contour saves the picker's curve under a name; every picker lists it.
-    answer_name(QStringLiteral("My Ridge"));
+    // New Contour names a contour, then draws it from a straight line; every picker lists it.
+    answer_new_contour(QStringLiteral("My Ridge"), [](QDialog& editor) {
+      draw_peak_and_dip(editor);
+      editor.accept();
+    });
     library_action(dialog, gloss_name, QStringLiteral("contourLibraryNewAction"))->trigger();
     CHECK(library.entries().size() == 1U);
     if (library.entries().size() != 1U) {
@@ -483,10 +528,11 @@ void ui_layer_style_contour_library_new_rename_delete_load_save() {
     }
     const auto user_id = QStringLiteral("user:") + library.entries().front().storage_id;
     CHECK(library.entries().front().name == QStringLiteral("My Ridge"));
-    CHECK(patchy::style_contours_same_shape(library.entries().front().contour, custom));
+    CHECK(patchy::style_contours_same_shape(library.entries().front().contour, drawn));
     CHECK(gloss->currentData().toString() == user_id);
     CHECK(gloss->currentText() == QStringLiteral("My Ridge"));
-    CHECK(gloss->findData(QStringLiteral("custom")) < 0);  // the custom curve is a listed contour now
+    // The layer's own curve stays on the list as Custom.
+    CHECK(gloss->findData(QStringLiteral("custom")) == 0);
     CHECK(shadow->findData(user_id) > 0);
     CHECK(shadow->currentData().toString() == QStringLiteral("contour.linear"));
 
@@ -499,13 +545,6 @@ void ui_layer_style_contour_library_new_rename_delete_load_save() {
     QApplication::processEvents();
     save_window_popup_artifact("ui_layer_style_contour_library_menu", dialog, *gloss, *menu);
     menu->close();
-    QApplication::processEvents();
-    // The picker's list shows every name in full, however narrow the picker is.
-    gloss->showPopup();
-    QApplication::processEvents();
-    CHECK(gloss->view()->isVisible());
-    CHECK(gloss->view()->width() >= gloss->view()->sizeHintForColumn(0));
-    gloss->hidePopup();
     QApplication::processEvents();
 
     // Rename.
@@ -534,7 +573,7 @@ void ui_layer_style_contour_library_new_rename_delete_load_save() {
           error);
       CHECK(parsed.has_value() && parsed->contours.size() == 1U);
       CHECK(parsed.has_value() && parsed->contours[0].name == "Ridge Two");
-      CHECK(parsed.has_value() && patchy::style_contours_same_shape(parsed->contours[0], custom));
+      CHECK(parsed.has_value() && patchy::style_contours_same_shape(parsed->contours[0], drawn));
     } else {
       CHECK(false);
     }
@@ -568,7 +607,7 @@ void ui_layer_style_contour_library_new_rename_delete_load_save() {
   }
   const auto& gloss = settings->style.bevels.front().gloss_contour;
   CHECK(gloss.name == "Ridge Two");
-  CHECK(patchy::style_contours_same_shape(gloss, custom));
+  CHECK(patchy::style_contours_same_shape(gloss, drawn));
   // A new library on the same folder reads the contour back.
   patchy::ui::ContourLibrary reopened(library.storage_dir());
   CHECK(reopened.entries().size() == 1U);
@@ -1011,6 +1050,28 @@ void ui_contour_manager_lists_renames_edits_duplicates_and_deletes() {
     QApplication::processEvents();
     (void)capture_widget_artifact("ui_contour_manager", dialog);
 
+    // New Contour: a name, then the editor on a straight line. Cancel saves nothing.
+    auto* new_button = dialog.findChild<QPushButton*>(QStringLiteral("contourManagerNewButton"));
+    CHECK(new_button != nullptr && new_button->isEnabled());
+    if (new_button != nullptr) {
+      const auto before_new = library.entries().size();
+      answer_new_contour(QStringLiteral("Drawn Later"), [](QDialog& editor) { editor.reject(); });
+      new_button->click();
+      CHECK(library.entries().size() == before_new);
+      answer_new_contour(QStringLiteral("Drawn Here"), [](QDialog& editor) {
+        draw_peak_and_dip(editor);
+        editor.accept();
+      });
+      new_button->click();
+      CHECK(library.entries().size() == before_new + 1U);
+      CHECK(selected_name() == QStringLiteral("Drawn Here"));
+      CHECK(patchy::style_contours_same_shape(preview->contour(), peak_and_dip_contour()));
+      // Out of the way of the counts below.
+      const auto drawn_id = tree->currentItem()->data(0, Qt::UserRole).toString();
+      CHECK(library.remove_contour(drawn_id));
+      tree->setCurrentItem(manager_row(*tree, QStringLiteral("Ridge")));
+    }
+
     // A built-in can be duplicated, nothing else.
     auto* cone = manager_row(*tree, QStringLiteral("Cone"));
     CHECK(cone != nullptr);
@@ -1186,6 +1247,240 @@ void ui_contour_manager_lists_renames_edits_duplicates_and_deletes() {
   CHECK(rewritten != nullptr && rewritten->contour.points[1] == contour_point(128.0F, 30.0F));
 }
 
+// GitHub issue 726 follow-up: New Contour asks for a name, then opens the editor on a
+// straight line. OK saves the drawn curve under the name and the picker shows it; Cancel
+// (of the name or of the editor) saves nothing and puts the picker back.
+void ui_layer_style_new_contour_starts_from_a_straight_line() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  const auto* ring = patchy::find_builtin_contour_preset("contour.ring");
+  CHECK(ring != nullptr);
+  if (ring == nullptr) {
+    return;
+  }
+  const auto layer = contour_test_layer(document, ring->contour);
+  std::vector<patchy::LayerStyle> previews;
+  const auto gloss_name = QStringLiteral("layerStyleBevelGlossContourCombo");
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+    select_category(dialog, QStringLiteral("Bevel & Emboss"));
+    auto* gloss = dialog.findChild<QComboBox*>(gloss_name);
+    CHECK(gloss != nullptr);
+    if (gloss == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.ring"));
+    auto* new_action = library_action(dialog, gloss_name, QStringLiteral("contourLibraryNewAction"));
+
+    // Cancel the name: no editor, nothing saved.
+    when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [](QDialog& prompt) { prompt.reject(); });
+    new_action->trigger();
+    CHECK(library.entries().empty());
+    CHECK(find_top_level_dialog(QStringLiteral("contourEditorDialog")) == nullptr);
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.ring"));
+
+    // Cancel the editor: nothing saved, the picker back on Ring.
+    answer_new_contour(QStringLiteral("Not Kept"), [&](QDialog& editor) {
+      // While it is open the picker and the canvas show the straight line, then the edit.
+      CHECK(gloss->currentData().toString() == QStringLiteral("contour.linear"));
+      draw_peak_and_dip(editor);
+      CHECK(gloss->currentData().toString() == QStringLiteral("custom"));
+      CHECK(process_events_until([&] {
+        return !previews.empty() && !previews.back().bevels.empty() &&
+               previews.back().bevels.front().gloss_contour.points.size() == 4U;
+      }));
+      editor.reject();
+    });
+    new_action->trigger();
+    CHECK(library.entries().empty());
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.ring"));
+    CHECK(gloss->findData(QStringLiteral("custom")) < 0);
+    CHECK(process_events_until([&] {
+      return !previews.empty() && !previews.back().bevels.empty() &&
+             patchy::style_contours_same_shape(previews.back().bevels.front().gloss_contour, ring->contour);
+    }));
+
+    // OK: saved under the name, picked in this picker.
+    answer_new_contour(QStringLiteral("Peak and Dip"), [&](QDialog& editor) {
+      draw_peak_and_dip(editor);
+      QApplication::processEvents();
+      (void)capture_widget_artifact("ui_layer_style_new_contour_editor", editor);
+      editor.accept();
+    });
+    new_action->trigger();
+    CHECK(library.entries().size() == 1U);
+    if (library.entries().size() == 1U) {
+      const auto& entry = library.entries().front();
+      CHECK(entry.name == QStringLiteral("Peak and Dip"));
+      CHECK(patchy::style_contours_same_shape(entry.contour, peak_and_dip_contour()));
+      CHECK(gloss->currentData().toString() == QStringLiteral("user:") + entry.storage_id);
+      CHECK(gloss->currentText() == QStringLiteral("Peak and Dip"));
+    }
+    dialog.accept();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&previews](const patchy::ui::LayerStyleSettings& value) { previews.push_back(value.style); },
+      nullptr, nullptr, nullptr, {}, nullptr, patchy::RgbColor{0, 0, 0}, patchy::RgbColor{255, 255, 255}, nullptr,
+      patchy::BitDepth::UInt8, std::nullopt, 0, true, &library);
+  CHECK(settings.has_value() && !settings->style.bevels.empty());
+  if (settings.has_value() && !settings->style.bevels.empty()) {
+    CHECK(settings->style.bevels.front().gloss_contour.name == "Peak and Dip");
+    CHECK(patchy::style_contours_same_shape(settings->style.bevels.front().gloss_contour, peak_and_dip_contour()));
+  }
+}
+
+// GitHub issue 726 follow-up: a contour picker's list opens as a grid of curve chips, the
+// built-in contours first, then the saved ones under a header; the name is the tooltip, the
+// current one is selected, a click or Enter picks, Esc closes.
+void ui_layer_style_contour_list_opens_as_a_grid() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  const auto ridge_id = library.add_contour(QStringLiteral("Ridge"), ridge_contour("Ridge"));
+  CHECK(!library.add_contour(QStringLiteral("Peak and Dip"), peak_and_dip_contour()).isEmpty());
+  CHECK(!ridge_id.isEmpty());
+  const auto builtin_count = static_cast<int>(patchy::builtin_contour_presets().size());
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  const auto layer = contour_test_layer(document);
+  const auto gloss_name = QStringLiteral("layerStyleBevelGlossContourCombo");
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+    select_category(dialog, QStringLiteral("Bevel & Emboss"));
+    auto* gloss = dialog.findChild<QComboBox*>(gloss_name);
+    CHECK(gloss != nullptr);
+    if (gloss == nullptr) {
+      dialog.reject();
+      return;
+    }
+    gloss->setCurrentIndex(gloss->findData(QStringLiteral("contour.cone")));
+    CHECK(gloss->currentText() == QStringLiteral("Cone"));
+    // The app's style sheet, as in the app: it sets the cells' padding and the scroll bar.
+    ensure_capture_themed(dialog);
+
+    gloss->showPopup();
+    QApplication::processEvents();
+    auto* grid = contour_grid(*gloss);
+    CHECK(grid != nullptr);
+    CHECK(!gloss->view()->isVisible());  // the flat list stays shut
+    if (grid == nullptr) {
+      dialog.reject();
+      return;
+    }
+    // Every contour once, in the picker's order: the built-ins, a header, the saved ones.
+    QStringList names;
+    QListWidgetItem* header = nullptr;
+    int header_row = -1;
+    for (int row = 0; row < grid->count(); ++row) {
+      auto* item = grid->item(row);
+      if (patchy::ui::PresetGridWidget::is_folder_item(item)) {
+        header = item;
+        header_row = row;
+        continue;
+      }
+      const auto name = item->data(patchy::ui::PresetGridWidget::kNameRole).toString();
+      names << name;
+      CHECK(item->toolTip() == name);
+      CHECK(!item->isHidden());
+    }
+    QStringList expected;
+    for (int row = 0; row < gloss->count(); ++row) {
+      if (!gloss->itemText(row).isEmpty()) {
+        expected << gloss->itemText(row);
+      }
+    }
+    CHECK(names == expected);
+    CHECK(names.size() == builtin_count + 2);
+    CHECK(header != nullptr && header_row == builtin_count);
+    CHECK(header != nullptr && header->text() == QStringLiteral("Saved Contours (2)"));
+    CHECK(names.mid(builtin_count) == (QStringList{QStringLiteral("Peak and Dip"), QStringLiteral("Ridge")}));
+    // The current contour is selected; nothing scrolls; the cells wrap into rows.
+    CHECK(grid->currentItem() != nullptr && grid->currentItem()->toolTip() == QStringLiteral("Cone"));
+    CHECK(grid->currentItem() != nullptr && grid->currentItem()->isSelected());
+    CHECK(grid->verticalScrollBar()->maximum() == 0);
+    // kGridColumns cells a row: the last of the first row is level with the first.
+    CHECK(grid->visualItemRect(grid->item(patchy::ui::ContourPickerCombo::kGridColumns - 1)).top() ==
+          grid->visualItemRect(grid->item(0)).top());
+    CHECK(grid->visualItemRect(grid->item(patchy::ui::ContourPickerCombo::kGridColumns)).top() >
+          grid->visualItemRect(grid->item(0)).top());
+    CHECK(grid->iconSize() == patchy::ui::ContourPickerCombo::kGridIconSize);
+    QApplication::processEvents();
+    if (auto* popup = grid->window(); popup != nullptr) {
+      save_window_popup_artifact("ui_layer_style_contour_grid", dialog, *gloss, *popup);
+      (void)capture_widget_artifact("ui_layer_style_contour_grid_popup", *popup);
+    }
+
+    // The arrow keys move through the cells and Enter picks: Cone, then Cone - Inverted.
+    QTest::keyClick(grid, Qt::Key_Right);
+    CHECK(grid->currentItem() != nullptr && grid->currentItem()->toolTip() == QStringLiteral("Cone - Inverted"));
+    QTest::keyClick(grid, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(contour_grid(*gloss) == nullptr);
+    CHECK(gloss->currentText() == QStringLiteral("Cone - Inverted"));
+
+    // Esc closes it without a change. (A grid that just closed ignores the combo for a
+    // moment: the click that closed it lands on the combo too.)
+    QTest::qWait(300);
+    gloss->showPopup();
+    QApplication::processEvents();
+    grid = contour_grid(*gloss);
+    CHECK(grid != nullptr);
+    if (grid != nullptr) {
+      QTest::keyClick(grid, Qt::Key_Escape);
+      QApplication::processEvents();
+    }
+    CHECK(contour_grid(*gloss) == nullptr);
+    CHECK(gloss->currentText() == QStringLiteral("Cone - Inverted"));
+
+    // A click on a saved contour picks it; the closed box shows its name.
+    QTest::qWait(300);  // past the guard against the click that closed the grid
+    gloss->showPopup();
+    QApplication::processEvents();
+    grid = contour_grid(*gloss);
+    CHECK(grid != nullptr);
+    if (grid != nullptr) {
+      QListWidgetItem* ridge = nullptr;
+      for (int row = 0; row < grid->count(); ++row) {
+        if (grid->item(row)->toolTip() == QStringLiteral("Ridge")) {
+          ridge = grid->item(row);
+        }
+      }
+      CHECK(ridge != nullptr);
+      if (ridge != nullptr) {
+        QTest::mouseClick(grid->viewport(), Qt::LeftButton, Qt::NoModifier, grid->visualItemRect(ridge).center());
+        QApplication::processEvents();
+      }
+    }
+    CHECK(contour_grid(*gloss) == nullptr);
+    CHECK(gloss->currentText() == QStringLiteral("Ridge"));
+    CHECK(gloss->currentData().toString() == QStringLiteral("user:") + ridge_id);
+
+    // The other pickers open the same way.
+    for (const auto* other : {"layerStyleBevelContourCombo", "layerStyleDropShadowContourCombo"}) {
+      auto* combo = dialog.findChild<QComboBox*>(QLatin1String(other));
+      CHECK(dynamic_cast<patchy::ui::ContourPickerCombo*>(combo) != nullptr);
+      // Bevel's Contour picker is off until its Contour row is ticked.
+      if (combo == nullptr || !combo->isEnabled()) {
+        continue;
+      }
+      QTest::qWait(300);
+      combo->showPopup();
+      QApplication::processEvents();
+      auto* other_grid = contour_grid(*combo);
+      CHECK(other_grid != nullptr);
+      CHECK(other_grid != nullptr && other_grid->count() == builtin_count + 3);
+      combo->hidePopup();
+      QApplication::processEvents();
+    }
+    dialog.accept();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, {}, nullptr, nullptr, nullptr, {}, nullptr, patchy::RgbColor{0, 0, 0},
+      patchy::RgbColor{255, 255, 255}, nullptr, patchy::BitDepth::UInt8, std::nullopt, 0, true, &library);
+  CHECK(settings.has_value() && !settings->style.bevels.empty());
+  if (settings.has_value() && !settings->style.bevels.empty()) {
+    CHECK(settings->style.bevels.front().gloss_contour.name == "Ridge");
+  }
+}
+
 void ui_layer_style_swatch_follows_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   const auto layer = contour_test_layer(document);
@@ -1339,6 +1634,8 @@ std::vector<patchy::test::TestCase> contour_editor_tests() {
        ui_contour_editor_save_as_new_contour_names_and_saves_the_curve},
       {"ui_layer_style_contour_editor_save_as_new_selects_it_in_the_picker",
        ui_layer_style_contour_editor_save_as_new_selects_it_in_the_picker},
+      {"ui_layer_style_new_contour_starts_from_a_straight_line", ui_layer_style_new_contour_starts_from_a_straight_line},
+      {"ui_layer_style_contour_list_opens_as_a_grid", ui_layer_style_contour_list_opens_as_a_grid},
       {"ui_contour_manager_lists_renames_edits_duplicates_and_deletes",
        ui_contour_manager_lists_renames_edits_duplicates_and_deletes},
   };
