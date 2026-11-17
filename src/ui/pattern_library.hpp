@@ -127,8 +127,10 @@ public:
 
   // Re-adds missing built-ins introduced after newer_than_version. The default
   // argument restores every missing built-in (the manager button); startup
-  // passes the stored defaultPatternsVersion to respect deliberate deletions.
-  int restore_default_patterns(int newer_than_version = 0);
+  // passes the stored defaultPatternsVersion to respect deliberate deletions. `stop`, when
+  // given, is asked before each pattern: true ends the restore there, every pattern added so
+  // far complete (startup stops at quit; a later restore adds the rest).
+  int restore_default_patterns(int newer_than_version = 0, const std::function<bool()>& stop = {});
 
   // True when every built-in introduced after newer_than_version is installed.
   // Startup uses this after a restore attempt before advancing its version gate;

@@ -52,6 +52,15 @@ void wait_for_tracked_background_workers();
 // Workers started and not yet finished (diagnostics and tests).
 [[nodiscard]] int tracked_background_worker_count();
 
+// Asks the workers whose result a quitting process will never use to stop early. The quit
+// paths (main.cpp, mcp_server.cpp) call it right before their bounded wait. Only work that
+// is safe to leave half done checks it: the startup seeding of the default patterns stops
+// between two patterns, and the next launch adds the rest. Seeding a fresh connector's
+// settings folder took 1.5 to 2 s, and every quit in that time waited for all of it
+// (docs/ai-control.md). Never cleared: it is for the end of the process.
+void request_background_workers_stop();
+[[nodiscard]] bool background_workers_stop_requested();
+
 // std::async(std::launch::async, fn) with a single-threaded-wasm fallback:
 // there the work runs inline and the returned future is already ready
 // (exceptions land in the future, so .get() rethrows exactly like the async

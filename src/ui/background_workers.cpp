@@ -1,5 +1,6 @@
 #include "ui/background_workers.hpp"
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -12,8 +13,13 @@ namespace {
 std::mutex worker_mutex;
 std::condition_variable worker_finished;
 int live_workers = 0;
+std::atomic<bool> stop_requested{false};
 
 }  // namespace
+
+void request_background_workers_stop() { stop_requested.store(true, std::memory_order_relaxed); }
+
+bool background_workers_stop_requested() { return stop_requested.load(std::memory_order_relaxed); }
 
 void run_tracked_background_worker(std::function<void()> work) {
   {

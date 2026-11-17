@@ -259,6 +259,10 @@ int run_mcp_server(QApplication& app) {
   // Same quit policy as the app's main.cpp: a worker still blocked in the OS after the
   // bounded wait must not see the window and application destroyed under it.
   const auto finish_after_event_loop = [&window](int result) {
+    // A fresh workspace is still seeding its default patterns for about 2 s after it starts,
+    // and an MCP client kills a connector that has not exited 2 s after it closes stdin (the
+    // kill leaves the session's settings folder behind): stop that work first.
+    ui::request_background_workers_stop();
     if (ui::wait_for_tracked_background_workers(std::chrono::seconds(10))) { return result; }
     window.discard_recovery_folder_for_forced_exit();
     ui::end_process_without_destructors(result);

@@ -53,6 +53,33 @@ def headless_without_desktop_bus(exe):
     print("[PASS] Headless startup: MCP EOF and scripting ignore an unresponsive desktop bus")
 
 
+def prompt_exit_after_close(exe):
+    # An MCP client gives a connector 2 s to exit after it closes stdin, then kills it, and a
+    # killed connector cannot remove its session settings folder. A fresh workspace seeds its
+    # default patterns for 1.5 to 2 s after it starts, and the quit used to wait for all of it
+    # (docs/ai-control.md). Closed right after initialize, it must now exit well inside that.
+    for _ in range(2):
+        process = subprocess.Popen([str(exe)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL, env={**os.environ, **TEMP_ENV}, cwd=OUT)
+        process.stdin.write((json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "exit-check", "version": "1"}}}) + "\n").encode())
+        process.stdin.flush()
+        assert json.loads(process.stdout.readline())["id"] == 1
+        closed = time.monotonic()
+        process.stdin.close()
+        try:
+            process.wait(timeout=30)
+        finally:
+            if process.poll() is None:
+                process.kill()
+        took = time.monotonic() - closed
+        assert process.returncode == 0, process.returncode
+        assert took < 1.5, "the connector took %.2f s to exit after stdin closed" % took
+        assert not list(SESSION_TEMP.glob("patchy-mcp-*")), "Session settings were not cleaned up"
+    print("[PASS] Prompt exit: an idle connector exits %.2f s after stdin closes, settings removed" % took)
+
+
 async def sdk_workflow(exe):
     async with stdio_client(StdioServerParameters(command=str(exe), cwd=str(OUT), env=TEMP_ENV)) as (read, write):
         async with ClientSession(read, write) as session:
@@ -752,6 +779,7 @@ if __name__ == "__main__":
         sys.exit(0)
     asyncio.run(shared_recent_history(executable))
     if "--recent-history-only" not in sys.argv[2:]:
+        prompt_exit_after_close(executable)
         asyncio.run(sdk_workflow(executable))
         asyncio.run(visible_options(executable))
         protocol_edges(executable)

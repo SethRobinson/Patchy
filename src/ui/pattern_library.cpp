@@ -711,11 +711,14 @@ struct FactoryPatternEntry {
 
 }  // namespace
 
-int PatternLibrary::restore_default_patterns(int newer_than_version) {
+int PatternLibrary::restore_default_patterns(int newer_than_version, const std::function<bool()>& stop) {
   int restored = 0;
   for (const auto& preset : factory_pattern_roster()) {
     if (preset.introduced_version <= newer_than_version) {
       continue;
+    }
+    if (stop && stop()) {
+      break;  // between two patterns: each one added so far is whole
     }
     if (find_entry_by_pattern_id(preset.id) != nullptr) {
       continue;

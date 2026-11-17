@@ -48,7 +48,9 @@ Run from the repository root; artifacts stay under `test-artifacts/mcp`. The tes
 uses only owned offscreen processes and also accepts a staged package's connector
 (resource discovery without source-relative paths). The shipped connector needs no Python.
 Mac host: `.deps/mcp-client-py312/bin/python` (system Python 3.9 cannot install the MCP
-dependency); linux host: `.deps/mcp-client/bin/python`; run
+dependency). A plain build updates `build/mac-release/patchy-mcp`; the copy inside
+`Patchy.app/Contents/MacOS` is the packager's, so run the suite against the former after a
+change and against the bundle only after `make-dmg.sh`; linux host: `.deps/mcp-client/bin/python`; run
 `nice -n 10 <python> tests/mcp_client_tests.py <connector>` from the remote repository root.
 The suite covers owned and attached workspaces, competing clients, cancellation,
 disconnect cleanup, app restart, stale tokens, and shared history; Unix crash

@@ -593,7 +593,9 @@ int seed_default_patterns(PatternLibrary& library, int stored_version) {
   if (stored_version < kDuplicateDefaultPatternsCleanupVersion) {
     (void)library.remove_duplicate_default_pattern_files();
   }
-  return library.restore_default_patterns(stored_version);
+  // A quit stops the seeding between two patterns (background_workers.hpp): the version gate
+  // advances only once every default is in, so the next launch adds the rest.
+  return library.restore_default_patterns(stored_version, [] { return background_workers_stop_requested(); });
 }
 
 // Runs `work` on a tracked background worker; `done` runs on the worker after the result is

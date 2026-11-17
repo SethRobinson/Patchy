@@ -922,6 +922,7 @@ int main(int argc, char* argv[]) {
     // wait below starts its own Patchy instead of handing its files to one that is quitting.
     single_instance_server.close();
     first_window_gpu_warmup.release();  // its worker is one of those waited for
+    patchy::ui::request_background_workers_stop();  // work nobody will see stops early
     if (patchy::ui::wait_for_tracked_background_workers(std::chrono::seconds(10))) {
       return result;
     }

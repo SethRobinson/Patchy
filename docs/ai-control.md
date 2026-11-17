@@ -99,6 +99,16 @@ forwarding, sound, and updates. `--visible` shows that separate workspace. Its
 documents and history disappear on disconnect. Closing stdin interrupts work and
 waits for workers before destroying that owned workspace.
 
+It must exit well within 2 s of stdin closing: MCP clients kill a connector that has not,
+and a killed connector cannot remove its temporary settings folder (`patchy-mcp-*` in the
+temp folder). A fresh settings folder means the startup worker seeds every default pattern
+into it, 1.5 s on a fast Windows PC and 2 s on the Linux host, and the quit used to wait
+for all of it, so an idle connector closed right after it started took 1.5 to 2.1 s to
+exit. Both quit paths now call `request_background_workers_stop()` before their bounded
+wait, and the seeding stops between two patterns (the defaults version advances only once
+every pattern is in, so the next launch adds the rest). `tests/mcp_client_tests.py`
+("Prompt exit") holds an idle connector to 1.5 s.
+
 Linux offscreen runs do not connect to the desktop D-Bus session. This keeps
 Flatpak's Qt portal theme from blocking MCP startup when no desktop portal answers.
 

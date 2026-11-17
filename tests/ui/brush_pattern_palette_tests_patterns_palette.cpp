@@ -1988,6 +1988,39 @@ void ui_pattern_library_off_thread_load_matches_direct_load() {
   CHECK(adopted->default_patterns_match_factory());
 }
 
+// A quit stops the startup seeding between two patterns (background_workers.hpp): the
+// restore ends where `stop` says, every pattern written so far is whole on disk, the set is
+// not reported complete, and a later restore adds exactly the rest.
+void ui_default_pattern_restore_stops_between_patterns() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto folder = directory.filePath(QStringLiteral("patterns"));
+  int asked = 0;
+  int full = 0;
+  {
+    patchy::ui::PatternLibrary reference(directory.filePath(QStringLiteral("reference")));
+    full = reference.restore_default_patterns(0);
+  }
+  CHECK(full > 4);
+  {
+    patchy::ui::PatternLibrary library(folder);
+    const int first = library.restore_default_patterns(0, [&asked] { return ++asked > 3; });
+    CHECK(first == 3);
+    CHECK(!library.has_all_default_patterns_introduced_after(0));
+  }
+  {
+    // On disk: three patterns, each with its tile and its sidecar.
+    const QDir dir(folder);
+    CHECK(dir.entryList({QStringLiteral("*.png")}, QDir::Files).size() == 3);
+    CHECK(dir.entryList({QStringLiteral("*.json")}, QDir::Files).size() == 3);
+    patchy::ui::PatternLibrary reopened(folder);
+    CHECK(reopened.entries().size() == 3U);
+    CHECK(reopened.restore_default_patterns(0) == full - 3);
+    CHECK(reopened.has_all_default_patterns_introduced_after(0));
+    CHECK(reopened.default_patterns_match_factory());
+  }
+}
+
 // A language switch rebuilds the Pattern Stamp list with translated names. Switching
 // before the startup preload has landed must still list every pattern (the switch adopts
 // the preload), not leave the list empty until the worker's adoption arrives.
@@ -2400,6 +2433,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
       {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
       {"ui_pattern_library_off_thread_load_matches_direct_load",
        ui_pattern_library_off_thread_load_matches_direct_load},
+      {"ui_default_pattern_restore_stops_between_patterns", ui_default_pattern_restore_stops_between_patterns},
       {"ui_pattern_stamp_list_popup_scrolls_on_every_style",
        ui_pattern_stamp_list_popup_scrolls_on_every_style},
       {"ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands",
