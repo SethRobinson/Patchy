@@ -5,8 +5,11 @@
 #include "core/pattern_resource.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 // Pattern tile sampling shared by the layer-style renderer (pattern overlays,
 // bevel texture) and the vector shape rasterizer (pattern fills/strokes).
@@ -18,6 +21,45 @@ struct PatternSampleRgba {
   RgbColor color{};
   float alpha{0.0F};
 };
+
+// Exact per-channel texel sums of a tile over any rectangle of the endlessly
+// tiled plane (a summed-area table). Minification box-averages every texel an
+// output pixel covers, so at 1% Scale one sample reads 100x100 texels: with a
+// photo-sized tile a Bevel Texture preview took seconds (desk card local-060).
+// The table answers any rectangle with a few lookups instead. Sums are kept
+// modulo 2^32: a rectangle's true sum is below 2^32 whenever it covers fewer
+// than 2^32 / 255 texels, which every footprint the sampler asks for does
+// (Scale >= 1% is at most 101x101 texels), so the differences come out exact
+// for tiles of any size.
+class PatternTileSums {
+public:
+  explicit PatternTileSums(const PixelBuffer& tile);
+
+  // 3 when every texel is opaque (alpha is then exactly 1), else 4.
+  [[nodiscard]] int channels() const noexcept { return channels_; }
+
+  // S(x, y) per channel, modulo 2^32: the sum over tiled texels [0, x) x [0, y),
+  // extended to negative coordinates so that S(x1,y1) - S(x0,y1) - S(x1,y0) +
+  // S(x0,y0) is the sum over [x0, x1) x [y0, y1) for any integers.
+  void prefix(std::int64_t x, std::int64_t y, std::array<std::uint32_t, 4>& sums) const noexcept;
+
+private:
+  [[nodiscard]] const std::uint32_t* entry(std::int32_t x, std::int32_t y) const noexcept {
+    return table_.data() +
+           (static_cast<std::size_t>(y) * (static_cast<std::size_t>(width_) + 1U) + static_cast<std::size_t>(x)) *
+               static_cast<std::size_t>(channels_);
+  }
+
+  std::int32_t width_{0};
+  std::int32_t height_{0};
+  int channels_{3};
+  std::vector<std::uint32_t> table_;  // (width+1) x (height+1) x channels
+};
+
+// The tile's sums, built once and shared while the tile's pixels stay the same
+// (a small cache keyed on the tile's shared storage: the preview renders of a
+// slider drag and the strips of one render reuse one table).
+[[nodiscard]] std::shared_ptr<const PatternTileSums> shared_pattern_tile_sums(const PixelBuffer& tile);
 
 // Wrap-tiled pattern sampler in document space. Anchoring follows the Photoshop
 // probes: "Link with Layer" anchors the grid at the layer's fxrp effects
@@ -57,12 +99,39 @@ public:
     // Rotated minification falls back to the linear tap (rare; box footprints
     // do not stay axis-aligned under rotation).
     box_filter_ = !nearest_ && !rotated_ && clamped_scale < 1.0;
+    // Footprints wider than kTileSumsMinFootprint texels read the summed-area
+    // table; smaller ones stay on the texel loop, which is as fast there.
+    if (box_filter_ && inverse_scale_ > kTileSumsMinFootprint) {
+      sums_ = shared_pattern_tile_sums(tile);
+    }
   }
 
+  // Minification footprints (texels per output pixel per axis) above this use
+  // the summed-area table.
+  static constexpr double kTileSumsMinFootprint = 4.0;
+
+  [[nodiscard]] bool uses_tile_sums() const noexcept { return sums_ != nullptr; }
+
   [[nodiscard]] PatternSampleRgba sample(std::int32_t x, std::int32_t y) const noexcept {
+    if (box_filter_) {
+      return sums_ != nullptr ? sample_box_from_sums(x, y) : sample_box_direct(x, y);
+    }
+    return sample_point(x, y);
+  }
+
+  // Blend-If-calibrated integer luminance weights (299/590/111), 0..1.
+  [[nodiscard]] float sample_luminance(std::int32_t x, std::int32_t y) const noexcept {
+    const auto value = sample(x, y);
+    const auto weighted = 299L * value.color.red + 590L * value.color.green + 111L * value.color.blue;
+    return static_cast<float>(weighted) / 255000.0F;
+  }
+
+  // The texel-by-texel box average (the calibrated minification reference);
+  // the summed-area path must give the same bytes. Public for tests.
+  [[nodiscard]] PatternSampleRgba sample_box_direct(std::int32_t x, std::int32_t y) const noexcept {
     const auto width = tile_->width();
     const auto height = tile_->height();
-    if (box_filter_) {
+    {
       // Output pixel [x, x+1) covers source [(x - a) / s, (x + 1 - a) / s):
       // average texels with their covered fractions (PS's minification fit).
       const auto u0 = (static_cast<double>(x) - anchor_x_) * inverse_scale_;
@@ -109,7 +178,68 @@ public:
       result.alpha = clamp_unit(static_cast<float>(sum_a / total));
       return result;
     }
+  }
 
+private:
+  // The same weighted average as sample_box_direct, from the summed-area
+  // table: the footprint splits into a 3x3 grid of cells (partial first
+  // column/row, whole texels, partial last column/row) whose exact integer
+  // sums come from 16 prefix lookups, weighted by the same cover fractions.
+  [[nodiscard]] PatternSampleRgba sample_box_from_sums(std::int32_t x, std::int32_t y) const noexcept {
+    const auto u0 = (static_cast<double>(x) - anchor_x_) * inverse_scale_;
+    const auto u1 = (static_cast<double>(x) + 1.0 - anchor_x_) * inverse_scale_;
+    const auto v0 = (static_cast<double>(y) - anchor_y_) * inverse_scale_;
+    const auto v1 = (static_cast<double>(y) + 1.0 - anchor_y_) * inverse_scale_;
+    const auto first_x = static_cast<std::int64_t>(std::floor(u0));
+    const auto last_x = static_cast<std::int64_t>(std::ceil(u1)) - 1;
+    const auto first_y = static_cast<std::int64_t>(std::floor(v0));
+    const auto last_y = static_cast<std::int64_t>(std::ceil(v1)) - 1;
+    const std::array<double, 3> weight_x{
+        std::min(u1, static_cast<double>(first_x) + 1.0) - std::max(u0, static_cast<double>(first_x)), 1.0,
+        std::min(u1, static_cast<double>(last_x) + 1.0) - std::max(u0, static_cast<double>(last_x))};
+    const std::array<double, 3> weight_y{
+        std::min(v1, static_cast<double>(first_y) + 1.0) - std::max(v0, static_cast<double>(first_y)), 1.0,
+        std::min(v1, static_cast<double>(last_y) + 1.0) - std::max(v0, static_cast<double>(last_y))};
+    const std::array<std::int64_t, 4> edges_x{first_x, first_x + 1, last_x, last_x + 1};
+    const std::array<std::int64_t, 4> edges_y{first_y, first_y + 1, last_y, last_y + 1};
+    std::array<std::array<std::array<std::uint32_t, 4>, 4>, 4> grid{};
+    for (std::size_t row = 0; row < 4; ++row) {
+      for (std::size_t column = 0; column < 4; ++column) {
+        sums_->prefix(edges_x[column], edges_y[row], grid[row][column]);
+      }
+    }
+    const auto channels = static_cast<std::size_t>(sums_->channels());
+    std::array<double, 4> sum{};
+    for (std::size_t cell_y = 0; cell_y < 3; ++cell_y) {
+      std::array<double, 4> row_sum{};
+      for (std::size_t cell_x = 0; cell_x < 3; ++cell_x) {
+        for (std::size_t channel = 0; channel < channels; ++channel) {
+          // Unsigned wraparound: the cell's true sum is below 2^32.
+          const std::uint32_t cell = grid[cell_y + 1][cell_x + 1][channel] - grid[cell_y][cell_x + 1][channel] -
+                                     grid[cell_y + 1][cell_x][channel] + grid[cell_y][cell_x][channel];
+          row_sum[channel] += weight_x[cell_x] * static_cast<double>(cell);
+        }
+      }
+      for (std::size_t channel = 0; channel < channels; ++channel) {
+        sum[channel] += weight_y[cell_y] * row_sum[channel];
+      }
+    }
+    const auto total = (weight_x[0] + static_cast<double>(last_x - first_x - 1) + weight_x[2]) *
+                       (weight_y[0] + static_cast<double>(last_y - first_y - 1) + weight_y[2]);
+    PatternSampleRgba result;
+    if (total <= 0.0) {
+      return result;
+    }
+    result.color.red = static_cast<std::uint8_t>(std::clamp(std::lround(sum[0] / total), 0L, 255L));
+    result.color.green = static_cast<std::uint8_t>(std::clamp(std::lround(sum[1] / total), 0L, 255L));
+    result.color.blue = static_cast<std::uint8_t>(std::clamp(std::lround(sum[2] / total), 0L, 255L));
+    result.alpha = channels >= 4 ? clamp_unit(static_cast<float>(sum[3] / 255.0 / total)) : 1.0F;
+    return result;
+  }
+
+  [[nodiscard]] PatternSampleRgba sample_point(std::int32_t x, std::int32_t y) const noexcept {
+    const auto width = tile_->width();
+    const auto height = tile_->height();
     if (nearest_) {
       // 100%: the tile grid lands on pixel cells directly (P1/P2b byte-exact).
       const auto ix = wrap_index(
@@ -166,14 +296,6 @@ public:
     return result;
   }
 
-  // Blend-If-calibrated integer luminance weights (299/590/111), 0..1.
-  [[nodiscard]] float sample_luminance(std::int32_t x, std::int32_t y) const noexcept {
-    const auto value = sample(x, y);
-    const auto weighted = 299L * value.color.red + 590L * value.color.green + 111L * value.color.blue;
-    return static_cast<float>(weighted) / 255000.0F;
-  }
-
-private:
   [[nodiscard]] static std::int32_t wrap_index(std::int64_t value, std::int32_t extent) noexcept {
     const auto wrapped = value % extent;
     return static_cast<std::int32_t>(wrapped < 0 ? wrapped + extent : wrapped);
@@ -188,6 +310,7 @@ private:
   }
 
   const PixelBuffer* tile_{nullptr};
+  std::shared_ptr<const PatternTileSums> sums_{};
   double anchor_x_{0.0};
   double anchor_y_{0.0};
   double inverse_scale_{1.0};
