@@ -25,6 +25,11 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-17 (behavioral change): `recognizeText` with `layers: "replace"` and the sampled color
+(`matchStyle` on, no `color`) gives a line whose sampled text color has under 3 to 1 contrast
+with the Paper the line's own background color instead, or black or white when that does not
+read either ([ocr.md](ocr.md#text-layers), Color). `"visible"` and `"hidden"` are unchanged.
+
 2026-11-17 (behavioral change): with the `ppocr` engine, `recognizeText` reports each line and
 word about where its ink is, not as the padded rectangle the recognizer reads: short words
 were a third too wide and every line about half again too tall

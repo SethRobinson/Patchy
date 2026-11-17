@@ -45,6 +45,10 @@ struct OcrLayerStyle {
   QColor color{Qt::black};  // color-literal-ok: text color of a document layer
   // A colour the caller fixed (a script's `color`), used even while matching the rest.
   std::optional<QColor> fixed_color;
+  // "Show text and hide original": the Paper colour the text will stand on instead of the
+  // original. A sampled text colour with under 3 to 1 contrast against it is replaced
+  // (recognized_text_color_on_paper). Unset for the modes that leave the original showing.
+  std::optional<QColor> paper;
 };
 
 // A text layer drawn and placed: what MainWindow stores on a Layer.
@@ -77,6 +81,23 @@ struct RecognizedTextLayer {
 // mean of the fifth of the box's pixels farthest from it. Black when nothing in the box
 // stands out from the background.
 [[nodiscard]] QColor sampled_text_color(const QImage& source, const QRectF& box);
+
+// The same sample with the background it was measured against (the ring's median).
+struct SampledLineColors {
+  QColor text;
+  QColor background;
+};
+[[nodiscard]] SampledLineColors sampled_line_colors(const QImage& source, const QRectF& box);
+
+// The WCAG 2 contrast ratio of two opaque sRGB colours, 1 to 21.
+[[nodiscard]] double color_contrast_ratio(const QColor& a, const QColor& b);
+
+// The colour a line's text takes on the Paper of "Show text and hide original": its sampled
+// text colour while that has at least 3 to 1 contrast with `paper`; else the line's own
+// sampled background (dark text on an orange button becomes orange text) when that has; else
+// black or white, whichever contrasts more with `paper`. Only the layer's colour changes:
+// nothing is painted or filled.
+[[nodiscard]] QColor recognized_text_color_on_paper(const SampledLineColors& sampled, const QColor& paper);
 
 // The colour of the Paper layer under the text of "Show text and hide original": white,
 // unless the image that was read is dark (text sampled from a dark page is light, and would

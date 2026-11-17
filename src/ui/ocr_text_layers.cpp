@@ -275,11 +275,17 @@ QString recognized_text_layer_name(const QString& text) {
 }
 
 QColor sampled_text_color(const QImage& source, const QRectF& box) {
+  return sampled_line_colors(source, box).text;
+}
+
+SampledLineColors sampled_line_colors(const QImage& source, const QRectF& box) {
+  const QColor black(Qt::black);  // color-literal-ok: text color of a document layer
   const QRect rect = clamped_rect(source, box);
   if (source.format() != QImage::Format_RGBA8888 || rect.width() < 2 || rect.height() < 2) {
-    return QColor(Qt::black);  // color-literal-ok: text color of a document layer
+    return {black, QColor(Qt::white)};  // color-literal-ok: what an empty box is read over
   }
   const auto background = ring_median(source, rect);
+  const QColor background_color(background[0], background[1], background[2]);
   // At most about 20,000 samples on an even grid: enough for a colour, cheap on a headline.
   const int step = std::max(1, static_cast<int>(std::sqrt(static_cast<double>(rect.width()) * rect.height() / 20000.0)));
   struct Sample {
@@ -294,7 +300,7 @@ QColor sampled_text_color(const QImage& source, const QRectF& box) {
     }
   }
   if (samples.empty()) {
-    return QColor(Qt::black);  // color-literal-ok: text color of a document layer
+    return {black, background_color};
   }
   const auto fifth = samples.begin() + static_cast<std::ptrdiff_t>(samples.size() - std::max<std::size_t>(1, samples.size() / 5));
   std::nth_element(samples.begin(), fifth, samples.end(),
@@ -304,7 +310,7 @@ QColor sampled_text_color(const QImage& source, const QRectF& box) {
           ->distance;
   // Nothing stands out by 24 levels a channel: the box holds no text Patchy can see.
   if (farthest < 3 * 24 * 24) {
-    return QColor(Qt::black);  // color-literal-ok: text color of a document layer
+    return {black, background_color};
   }
   std::array<long long, 3> sum{0, 0, 0};
   long long count = 0;
@@ -314,8 +320,35 @@ QColor sampled_text_color(const QImage& source, const QRectF& box) {
     }
     ++count;
   }
-  return QColor(static_cast<int>((sum[0] + count / 2) / count), static_cast<int>((sum[1] + count / 2) / count),
-                static_cast<int>((sum[2] + count / 2) / count));
+  return {QColor(static_cast<int>((sum[0] + count / 2) / count), static_cast<int>((sum[1] + count / 2) / count),
+                 static_cast<int>((sum[2] + count / 2) / count)),
+          background_color};
+}
+
+double color_contrast_ratio(const QColor& a, const QColor& b) {
+  const auto luminance = [](const QColor& color) {
+    const auto linear = [](int value) {
+      const double v = value / 255.0;
+      return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * linear(color.red()) + 0.7152 * linear(color.green()) + 0.0722 * linear(color.blue());
+  };
+  const double la = luminance(a);
+  const double lb = luminance(b);
+  return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+QColor recognized_text_color_on_paper(const SampledLineColors& sampled, const QColor& paper) {
+  constexpr double kMinimumContrast = 3.0;  // WCAG's floor for large text
+  if (color_contrast_ratio(sampled.text, paper) >= kMinimumContrast) {
+    return sampled.text;
+  }
+  if (color_contrast_ratio(sampled.background, paper) >= kMinimumContrast) {
+    return sampled.background;
+  }
+  const QColor black(Qt::black);  // color-literal-ok: text color of a document layer
+  const QColor white(Qt::white);  // color-literal-ok: text color of a document layer
+  return color_contrast_ratio(black, paper) >= color_contrast_ratio(white, paper) ? black : white;
 }
 
 QColor recognized_text_paper_color(const QImage& source) {
@@ -452,7 +485,15 @@ std::vector<RecognizedTextLayer> build_recognized_text_layers(const ocr::Result&
     });
     const QRectF sample_box(result.lines[longest].box.x, result.lines[longest].box.y, result.lines[longest].box.width,
                             result.lines[longest].box.height);
-    text.color = style.fixed_color.value_or(style.match_style ? sampled_text_color(source, sample_box) : style.color);
+    if (style.fixed_color.has_value()) {
+      text.color = *style.fixed_color;
+    } else if (!style.match_style) {
+      text.color = style.color;
+    } else {
+      const auto sampled = sampled_line_colors(source, sample_box);
+      // On the Paper the original's own background is gone: keep the text readable there.
+      text.color = style.paper.has_value() ? recognized_text_color_on_paper(sampled, *style.paper) : sampled.text;
+    }
     text.italic = style.match_style && !text.vertical && !turned &&
                   measured_slant_degrees(source, sample_box) >= kItalicSlantDegrees;
 

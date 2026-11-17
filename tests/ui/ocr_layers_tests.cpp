@@ -753,6 +753,100 @@ void ui_recognize_text_keeps_row_neighbours_apart() {
   CHECK(patchy::ui::recognized_text_paper_color(QImage()) == QColor(Qt::white));
 }
 
+// "Show text and hide original" puts the text on a flat Paper instead of the original, so a
+// colour sampled against something the Paper hides can vanish: dark text on an orange button
+// over a dark page came out dark on the dark Paper. There the text takes its line's own
+// background (the button's orange); text that already reads on the Paper keeps its sampled
+// colour, and the modes that leave the original showing keep the sampled colour everywhere.
+void ui_recognize_text_keeps_text_readable_on_the_paper() {
+  MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 900, 600);
+  const QColor dark(30, 32, 40);
+  const QColor light(236, 236, 240);
+  const QColor orange(255, 176, 82);
+  const QColor button_text(44, 54, 58);
+  Page page(800, 500, dark);
+  page.draw(QStringLiteral("Light text on the dark page"), 40, 40, arial(30), light);
+  page.draw(QStringLiteral("Orange label"), 40, 160, arial(30), orange);
+  {
+    QPainter painter(&page.image);
+    painter.fillRect(QRect(30, 270, 320, 70), orange);
+  }
+  page.background = orange;
+  page.draw(QStringLiteral("Dark on a button"), 50, 285, arial(30), button_text);
+  page.background = dark;
+  const ScopedOcrEngines engines({fake_for(page)});
+  add_scan_layer(window, page.image, QPoint(0, 0));
+  const auto close_to = [](const QColor& a, const QColor& b, int tolerance) {
+    return std::abs(a.red() - b.red()) <= tolerance && std::abs(a.green() - b.green()) <= tolerance &&
+           std::abs(a.blue() - b.blue()) <= tolerance;
+  };
+  const auto color_of = [&](const std::string& text) {
+    const auto* group = recognized_group(std::as_const(MainWindowTestAccess::document(window)));
+    if (group != nullptr) {
+      for (const auto& child : group->children()) {
+        if (metadata_value(child, patchy::kLayerMetadataText) == text) {
+          return QColor(QString::fromStdString(metadata_value(child, patchy::kLayerMetadataTextColor)));
+        }
+      }
+    }
+    return QColor();
+  };
+  const QColor paper = patchy::ui::recognized_text_paper_color(page.image);
+  CHECK(paper == dark);
+
+  (void)run_ok(window, kRecognizeScan + QStringLiteral("layer.recognizeText({layers: 'replace', grouping: 'lines', font: 'Arial'});"));
+  // On the Paper: the button's dark text takes the button's orange; the light text and the
+  // orange label read there already and keep their sampled colours.
+  CHECK(close_to(color_of("Dark on a button"), orange, 12));
+  CHECK(close_to(color_of("Light text on the dark page"), light, 45));
+  CHECK(close_to(color_of("Orange label"), orange, 45));
+  CHECK(patchy::ui::color_contrast_ratio(color_of("Dark on a button"), paper) >= 3.0);
+
+  // Over the original (shown or hidden) every line keeps its sampled colour.
+  for (const auto* mode : {"visible", "hidden"}) {
+    MainWindowTestAccess::undo(window);
+    (void)run_ok(window, kRecognizeScan + QStringLiteral("layer.recognizeText({layers: '%1', grouping: 'lines', font: 'Arial'});")
+                                              .arg(QLatin1String(mode)));
+    CHECK(close_to(color_of("Dark on a button"), button_text, 45));
+    CHECK(close_to(color_of("Light text on the dark page"), light, 45));
+  }
+
+  // The rule on its own: the background when it reads on the Paper, else black or white,
+  // whichever contrasts more; a text colour that reads is kept.
+  using patchy::ui::recognized_text_color_on_paper;
+  CHECK(recognized_text_color_on_paper({button_text, orange}, dark) == orange);
+  CHECK(recognized_text_color_on_paper({QColor(40, 40, 50), QColor(60, 60, 70)}, dark) == QColor(Qt::white));
+  CHECK(recognized_text_color_on_paper({QColor(230, 230, 230), QColor(210, 210, 210)}, QColor(Qt::white)) ==
+        QColor(Qt::black));
+  CHECK(recognized_text_color_on_paper({light, dark}, dark) == light);
+  CHECK(std::abs(patchy::ui::color_contrast_ratio(QColor(Qt::black), QColor(Qt::white)) - 21.0) < 1e-9);
+}
+
+// A plain page (dark text on white) is untouched by the rule: white Paper, sampled text.
+void ui_recognize_text_plain_page_keeps_sampled_color_on_the_paper() {
+  MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 700, 300);
+  const QColor ink(40, 40, 60);
+  Page page(600, 200);
+  page.draw(QStringLiteral("Dark text on white paper"), 30, 60, arial(32), ink);
+  const ScopedOcrEngines engines({fake_for(page)});
+  add_scan_layer(window, page.image, QPoint(0, 0));
+  (void)run_ok(window, kRecognizeScan + QStringLiteral("layer.recognizeText({layers: 'replace', font: 'Arial'});"));
+  const auto* group = recognized_group(std::as_const(MainWindowTestAccess::document(window)));
+  CHECK(group != nullptr && group->children().size() == 2);
+  if (group == nullptr || group->children().size() != 2) {
+    return;
+  }
+  CHECK(patchy::ui::recognized_text_paper_color(page.image) == QColor(Qt::white));
+  const QColor color(QString::fromStdString(metadata_value(group->children().back(), patchy::kLayerMetadataTextColor)));
+  CHECK(std::abs(color.red() - ink.red()) <= 45 && std::abs(color.blue() - ink.blue()) <= 45);
+  CHECK(color == patchy::ui::sampled_text_color(page.image, QRectF(page.lines[0].box.x, page.lines[0].box.y,
+                                                                    page.lines[0].box.width, page.lines[0].box.height)));
+}
+
 void ui_recognize_text_vertical_and_turned_lines() {
   MainWindow window;
   show_window(window);
@@ -821,6 +915,9 @@ std::vector<patchy::test::TestCase> ocr_layers_ui_tests() {
       {"ui_recognize_text_hidden_layers_keep_composite", ui_recognize_text_hidden_layers_keep_composite},
       {"ui_recognize_text_hide_original_hides_source", ui_recognize_text_hide_original_hides_source},
       {"ui_recognize_text_keeps_row_neighbours_apart", ui_recognize_text_keeps_row_neighbours_apart},
+      {"ui_recognize_text_keeps_text_readable_on_the_paper", ui_recognize_text_keeps_text_readable_on_the_paper},
+      {"ui_recognize_text_plain_page_keeps_sampled_color_on_the_paper",
+       ui_recognize_text_plain_page_keeps_sampled_color_on_the_paper},
       {"ui_recognize_text_vertical_and_turned_lines", ui_recognize_text_vertical_and_turned_lines},
   };
 }
