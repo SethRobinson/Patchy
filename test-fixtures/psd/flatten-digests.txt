@@ -11,8 +11,9 @@ a22fb8a07898c0ab photoshop-area-ellipse.psd
 cf5c85c534a09351 photoshop-artboard-backgrounds.psd
 dbad3717e5bfcccd photoshop-artboard-clip.psd
 db597474773a16b5 photoshop-bevel-default.psd
-4f9d639a6c4e7af3 photoshop-bevel-gloss.psd
+084be0fab36c9c4f photoshop-bevel-gloss.psd
 e7fc2129dee6f178 photoshop-bevel-smooth.psd
+30918e0c15c4a1b1 photoshop-bevel-soften.psd
 1c08336f1f8d49a9 photoshop-bevel-subs.psd
 45b8f89a26239aab photoshop-bevel-texture-clouds.psd
 101cec637a51d20a photoshop-bevel-texture-ramp.psd
@@ -33,7 +34,7 @@ c6dfa66168a0e490 photoshop-compound-text.psd
 60373566b39eefe5 photoshop-curves-masked.psd
 2621b901bd1dc22d photoshop-emboss-styles.psd
 e65b4c811755abd7 photoshop-global-light-shadow.psd
-f5ae3aa9f724f892 photoshop-gloss-contour.psd
+8651be645d4f948c photoshop-gloss-contour.psd
 6914430b2ce9f2cd photoshop-gradient-overlay-geometry.psd
 a68fd5b52acb9015 photoshop-group-fx-blend-fill.psd
 5d111fe381ab9de5 photoshop-group-fx-interior.psd

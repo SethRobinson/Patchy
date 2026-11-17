@@ -188,6 +188,18 @@ std::vector<float> distance_falloff_mask(const std::vector<float>& input, int wi
 std::vector<float> bevel_technique_height_mask(const std::vector<float>& alpha_mask, int width, int height,
                                                const LayerBevelEmboss& bevel);
 
+// Bevel and Emboss Soften blurs the finished shading with Satin's exact tent
+// (N - |k|) / N^2. This is N for a Soften value: max(2, Soften) capped at 16
+// (Photoshop renders Soften 1 and 2 alike), or 0 for no blur
+// (docs/layer-effects-render.md, "Bevel and Emboss").
+int bevel_soften_tent_peak(float soften) noexcept;
+
+// Tent-blurs a signed shading plane that carries `peak - 1` extra pixels on
+// every side and returns the inner (plane_width - 2 * (peak - 1)) wide part.
+// Empty when the plane is too small for the kernel.
+std::vector<float> blur_bevel_shading_plane(const std::vector<float>& plane, int plane_width, int plane_height,
+                                            int peak);
+
 int satin_tent_peak(float size) noexcept;
 
 void blur_satin_tent_mask_in_place(std::vector<float>& mask, int width, int height, float size);

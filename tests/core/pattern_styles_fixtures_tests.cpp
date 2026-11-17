@@ -1370,6 +1370,78 @@ void psd_photoshop_bevel_smooth_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }
 
+// Photoshop 2027 authored photoshop-bevel-soften.psd/.bmp via COM (November
+// 2026, GitHub issue 731): four gray shapes on gray, each with a softened
+// bevel at Size 7, Depth 100 (Inner Bevel Smooth Soften 3, Outer Bevel Smooth
+// Soften 2, Emboss Smooth Soften 5, and an anti-aliased triangle with Outer
+// Bevel Chisel Hard Soften 4), saved alongside Photoshop's own flatten. It pins
+// the Soften model: the finished signed shading, both sides of the contour, is
+// blurred with Satin's tent at N = max(2, Soften), and each style then shows
+// its own side. Blurring the height field instead (the model before issue 731)
+// keeps the shading's hard end at the contour and misses these captures.
+void psd_photoshop_bevel_soften_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-bevel-soften.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-bevel-soften.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(reference.width() == flat.width());
+  CHECK(reference.height() == flat.height());
+
+  struct Probe {
+    const char* layer;
+    patchy::BevelEmbossStyleKind style;
+    patchy::BevelTechnique technique;
+    float soften;
+    patchy::Rect region;
+    int max_delta;
+    double max_mean;
+  };
+  // Capture-time metrics per region (max delta, mean), with the height-blur
+  // model's in brackets: inner 1, 0.044 [12, 0.38]; outer Smooth 2, 0.069
+  // [7, 0.35]; emboss 7, 0.36 [18, 1.62]; outer Chisel Hard 35, 2.39 [32, 2.32].
+  // The last row is dominated by the unsoftened Chisel Hard difference on the
+  // triangle's anti-aliased diagonals, so it only guards against regressions.
+  const Probe probes[] = {
+      {"inner-smooth-s3", patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelTechnique::Smooth, 3.0F,
+       patchy::Rect{10, 10, 110, 110}, 3, 0.10},
+      {"outer-smooth-s2", patchy::BevelEmbossStyleKind::OuterBevel, patchy::BevelTechnique::Smooth, 2.0F,
+       patchy::Rect{140, 10, 110, 110}, 4, 0.12},
+      {"emboss-smooth-s5", patchy::BevelEmbossStyleKind::Emboss, patchy::BevelTechnique::Smooth, 5.0F,
+       patchy::Rect{10, 140, 110, 110}, 10, 0.50},
+      {"outer-hard-s4", patchy::BevelEmbossStyleKind::OuterBevel, patchy::BevelTechnique::ChiselHard, 4.0F,
+       patchy::Rect{140, 140, 110, 110}, 40, 2.80},
+  };
+  for (const auto& probe : probes) {
+    const auto* layer = find_layer_named(document.layers(), probe.layer);
+    CHECK(layer != nullptr);
+    CHECK(layer->layer_style().bevels.size() == 1);
+    const auto& bevel = layer->layer_style().bevels.front();
+    CHECK(bevel.enabled);
+    CHECK(bevel.style == probe.style);
+    CHECK(bevel.technique == probe.technique);
+    CHECK(close_float(bevel.soften, probe.soften));
+    CHECK(close_float(bevel.size, 7.0F));
+
+    int max_delta = 0;
+    std::uint64_t total_delta = 0;
+    for (std::int32_t y = probe.region.y; y < probe.region.y + probe.region.height; ++y) {
+      for (std::int32_t x = probe.region.x; x < probe.region.x + probe.region.width; ++x) {
+        const auto delta = std::abs(static_cast<int>(reference.pixel(x, y)[0]) - static_cast<int>(flat.pixel(x, y)[0]));
+        max_delta = std::max(max_delta, delta);
+        total_delta += static_cast<std::uint64_t>(delta);
+      }
+    }
+    const auto mean = static_cast<double>(total_delta) /
+                      (static_cast<double>(probe.region.width) * static_cast<double>(probe.region.height));
+    CHECK(max_delta <= probe.max_delta);
+    CHECK(mean <= probe.max_mean);
+  }
+}
+
 // Photoshop 2026 authored photoshop-gloss-contour.psd/.bmp via COM (July 2026):
 // the bevel-smooth shapes with non-linear GLOSS contours - the Ring preset at
 // altitudes 30/60 and sizes 5/10, a monotone custom curve, a raised-floor
@@ -2705,6 +2777,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_gradient_overlay_geometry_fixture_matches_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
+      {"psd_photoshop_bevel_soften_fixture_matches_render",
+       psd_photoshop_bevel_soften_fixture_matches_render},
       {"psd_photoshop_bevel_gloss_fixture_matches_render",
        psd_photoshop_bevel_gloss_fixture_matches_render},
       {"psd_pinball_gloss_pillow_renders_clean_background_if_available",
