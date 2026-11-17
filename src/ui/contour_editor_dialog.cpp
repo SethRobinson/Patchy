@@ -1,10 +1,13 @@
 #include "ui/contour_editor_dialog.hpp"
 
 #include "core/contour_editing.hpp"
+#include "core/contour_presets.hpp"
 #include "core/style_contour.hpp"
 #include "ui/contour_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/preset_grid_widget.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -26,6 +29,8 @@
 #include <QPixmap>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QScreen>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStyle>
@@ -62,16 +67,17 @@ public:
     painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
   }
 
+  // The chip keeps its 4:3 shape at any size: 32 x 24 in the pickers, larger in
+  // the pickers' grid (ContourPickerCombo), drawn afresh at the size asked for.
   QSize actualSize(const QSize& size, QIcon::Mode, QIcon::State) override {
-    const QSize native(kWidth, kHeight);
-    if (native.width() <= size.width() && native.height() <= size.height()) {
-      return native;
+    if (!size.isValid() || size.isEmpty()) {
+      return QSize(kWidth, kHeight);
     }
-    return native.scaled(size, Qt::KeepAspectRatio);
+    return QSize(kWidth, kHeight).scaled(size, Qt::KeepAspectRatio).expandedTo(QSize(8, 6));
   }
 
-  QPixmap pixmap(const QSize&, QIcon::Mode mode, QIcon::State) override {
-    auto chip = QPixmap::fromImage(chip_image());
+  QPixmap pixmap(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+    auto chip = QPixmap::fromImage(chip_image(actualSize(size, mode, state)));
     if (mode == QIcon::Disabled) {
       QStyleOption option;
       return QApplication::style()->generatedIconPixmap(QIcon::Disabled, chip, &option);
@@ -85,23 +91,24 @@ private:
   static constexpr int kWidth = 32;
   static constexpr int kHeight = 24;
 
-  [[nodiscard]] QImage chip_image() const {
+  [[nodiscard]] QImage chip_image(QSize size) const {
     const auto& palette = theme();
-    QImage image(kWidth, kHeight, QImage::Format_RGBA8888);
+    const int width = size.width();
+    const int height = size.height();
+    QImage image(width, height, QImage::Format_RGBA8888);
     image.fill(palette.field_bg_large);
     QPainter painter(&image);
     painter.setPen(palette.field_border);
-    painter.drawRect(0, 0, kWidth - 1, kHeight - 1);
+    painter.drawRect(0, 0, width - 1, height - 1);
     const auto lut = build_style_contour_lut(contour_);
     QPolygonF line;
-    for (int x = 0; x < kWidth; ++x) {
-      const auto t = static_cast<float>(x) / static_cast<float>(kWidth - 1);
+    for (int x = 0; x < width; ++x) {
+      const auto t = static_cast<float>(x) / static_cast<float>(width - 1);
       const auto value = sample_style_contour_lut(lut, t, true);
-      line << QPointF(1.0 + x * (kWidth - 3.0) / (kWidth - 1.0),
-                      (kHeight - 2.0) - value * (kHeight - 4.0) + 1.0);
+      line << QPointF(1.0 + x * (width - 3.0) / (width - 1.0), (height - 2.0) - value * (height - 4.0) + 1.0);
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(palette.icon_ink, 1.2));
+    painter.setPen(QPen(palette.icon_ink, std::max(1.2, width / 26.0)));
     painter.drawPolyline(line);
     painter.end();
     return image;
@@ -449,13 +456,14 @@ std::optional<QString> request_contour_name(QWidget* parent, const QString& titl
 
 std::optional<StyleContour> request_contour_edit(QWidget* parent, const StyleContour& initial,
                                                  const std::function<void(const StyleContour&)>& changed,
-                                                 ContourLibrary* library, QString* saved_storage_id) {
+                                                 ContourLibrary* library, QString* saved_storage_id,
+                                                 const QString& title) {
   if (saved_storage_id != nullptr) {
     saved_storage_id->clear();
   }
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("contourEditorDialog"));
-  dialog.setWindowTitle(QObject::tr("Edit Contour"));
+  dialog.setWindowTitle(title.isEmpty() ? QObject::tr("Edit Contour") : title);
   auto* layout = new QVBoxLayout(&dialog);
   auto* body = new QHBoxLayout();
   layout->addLayout(body, 1);
@@ -606,6 +614,152 @@ std::optional<StyleContour> request_contour_edit(QWidget* parent, const StyleCon
     *saved_storage_id = saved_id;
   }
   return result;
+}
+
+StyleContour straight_line_contour() {
+  if (const auto* linear = find_builtin_contour_preset("contour.linear"); linear != nullptr) {
+    return linear->contour;
+  }
+  StyleContour contour;
+  contour.name = "Linear";
+  return contour;
+}
+
+ContourPickerCombo::ContourPickerCombo(QWidget* parent) : QComboBox(parent) {}
+
+void ContourPickerCombo::hidePopup() {
+  if (popup_ != nullptr) {
+    popup_->close();
+  }
+  QComboBox::hidePopup();
+}
+
+void ContourPickerCombo::showPopup() {
+  if (popup_ != nullptr) {
+    popup_->close();
+    return;
+  }
+  if (!isEnabled() || count() == 0 || (dismissed_.isValid() && dismissed_.elapsed() < 250)) {
+    return;
+  }
+  auto* popup = new QFrame(this, Qt::Popup);
+  popup->setAttribute(Qt::WA_DeleteOnClose);
+  popup->setObjectName(objectName() + QStringLiteral("Popup"));
+  popup->setFrameShape(QFrame::StyledPanel);
+  // A top-level popup gets no themed background from the app sheet. The rule
+  // selects it by its property, since the three pickers' popups have three names.
+  popup->setProperty("contourPickerPopup", true);
+  set_themed_style(*popup, QStringLiteral(R"(
+    QFrame[contourPickerPopup="true"] {
+      background: @field_bg_large;
+      border: 1px solid @field_inset_border;
+    }
+  )"));
+  popup_ = popup;
+  connect(popup, &QObject::destroyed, this, [this] { dismissed_.start(); });
+  auto* layout = new QVBoxLayout(popup);
+  layout->setContentsMargins(2, 2, 2, 2);
+  layout->setSpacing(0);
+
+  auto* grid = new PresetGridWidget(popup);
+  grid->setObjectName(objectName() + QStringLiteral("Grid"));
+  grid->setSelectionMode(QAbstractItemView::SingleSelection);
+  grid->setIconSize(kGridIconSize);
+  grid->set_cell_extent(kGridCellExtent);
+  grid->setFrameShape(QFrame::NoFrame);
+  // A click on the header opens or closes it: choosing a folder means nothing here.
+  grid->set_folder_click_toggles(true);
+  // The saved contours' folder key; never shown (the label callback names it).
+  static const QString kSavedFolder = QStringLiteral("saved");
+  grid->set_folder_label_callback(
+      [](const QString&, int count) { return QObject::tr("Saved Contours (%1)").arg(count); });
+  // The cells are the combo's rows by index, so a pick is setCurrentIndex.
+  grid->set_entries_callback([this] {
+    std::vector<PresetTreeEntry> rows;
+    bool after_separator = false;
+    for (int row = 0; row < count(); ++row) {
+      if (itemData(row, Qt::AccessibleDescriptionRole).toString() == QLatin1String("separator")) {
+        after_separator = true;
+        continue;
+      }
+      const auto name = itemText(row);
+      rows.push_back({QString::number(row), name, itemIcon(row), name, after_separator ? kSavedFolder : QString()});
+    }
+    return rows;
+  });
+  grid->reload(QString::number(currentIndex()));
+  layout->addWidget(grid, 1);
+
+  const auto pick = [this, popup](const QString& id) {
+    bool ok = false;
+    const auto row = id.toInt(&ok);
+    if (!ok || row < 0 || row >= count()) {
+      return;
+    }
+    popup->close();
+    setCurrentIndex(row);
+    emit activated(row);
+  };
+  grid->set_entry_clicked_callback(pick);
+  connect(grid, &QListWidget::itemActivated, popup, [pick](QListWidgetItem* item) {
+    if (const auto id = PresetGridWidget::item_entry_id(item); !id.isEmpty()) {
+      pick(id);
+    }
+  });
+
+  // kGridColumns cells a row (at least the box's width), as tall as the rows need,
+  // up to half the screen; a longer saved list scrolls.
+  const int pitch = kGridCellExtent + grid->spacing();
+  const int frame = 2 * (popup->frameWidth() + layout->contentsMargins().left());
+  const int scroll_bar = grid->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, grid);
+  const int width = std::max(this->width(), kGridColumns * pitch + grid->spacing() + scroll_bar + frame + 2);
+  const auto* screen = this->screen();
+  const int height_cap = screen != nullptr ? std::max(160, screen->availableGeometry().height() / 2) : 480;
+  int builtin_cells = 0;
+  int saved_cells = 0;
+  for (int row = 0; row < grid->count(); ++row) {
+    if (!PresetGridWidget::is_folder_item(grid->item(row))) {
+      (grid->item(row)->data(PresetGridWidget::kFolderRole).toString().isEmpty() ? builtin_cells : saved_cells) += 1;
+    }
+  }
+  const auto rows_of = [](int cells) { return (cells + kGridColumns - 1) / kGridColumns; };
+  const int header = saved_cells > 0 ? std::max(24, grid->fontMetrics().height() + 10) + grid->spacing() : 0;
+  const int estimate = grid->spacing() + (rows_of(builtin_cells) + rows_of(saved_cells)) * pitch + header + frame + 2;
+  popup->resize(width, std::min(height_cap, estimate));
+  position_popup_below(*this, *popup);
+  popup->show();
+  // A hidden grid lays out against a stale width, so the checks run once it shows.
+  // The cells' pitch as the style sheet draws them sets the width for kGridColumns
+  // a row (with room kept for a scroll bar), then the height grows until nothing
+  // scrolls (or the cap is reached).
+  layout->activate();
+  grid->doItemsLayout();
+  if (grid->count() > 1 && !PresetGridWidget::is_folder_item(grid->item(1))) {
+    const auto first = grid->visualItemRect(grid->item(0));
+    const auto second = grid->visualItemRect(grid->item(1));
+    const int measured_pitch = second.top() == first.top() && second.left() > first.left()
+                                   ? second.left() - first.left()
+                                   : first.width() + grid->spacing();
+    const int chrome = popup->width() - grid->viewport()->width() +
+                       (grid->verticalScrollBar()->isVisible() ? 0 : scroll_bar);
+    const int wanted = std::max(this->width(), first.left() + kGridColumns * measured_pitch + chrome + 1);
+    if (wanted != popup->width()) {
+      popup->resize(wanted, popup->height());
+      layout->activate();
+      grid->doItemsLayout();
+    }
+  }
+  for (int attempt = 0; attempt < 4 && grid->verticalScrollBar()->maximum() > 0 && popup->height() < height_cap;
+       ++attempt) {
+    popup->resize(popup->width(), std::min(height_cap, popup->height() + grid->verticalScrollBar()->maximum() + 2));
+    layout->activate();
+    grid->doItemsLayout();
+    position_popup_below(*this, *popup);
+  }
+  grid->setFocus(Qt::PopupFocusReason);
+  if (auto* current = grid->currentItem(); current != nullptr) {
+    grid->scrollToItem(current);
+  }
 }
 
 QStringList request_contours_to_save(QWidget* parent, const ContourLibrary& library) {

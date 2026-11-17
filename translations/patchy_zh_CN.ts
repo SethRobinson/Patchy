@@ -15990,10 +15990,6 @@ Do you want to replace it?</source>
         <translation>库</translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation>以名称存储此等高线，或载入和存储等高线文件</translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation>新建等高线…</translation>
     </message>
@@ -16352,6 +16348,22 @@ Do you want to replace it?</source>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
         <translation>删除等高线“%1”？</translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation>已保存的等高线 (%1)</translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation>为新等高线命名，然后从一条直线开始绘制</translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation>新建等高线：%1</translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
+        <translation>从直线新建等高线，重命名或删除已保存的等高线，或载入和存储等高线文件</translation>
     </message>
 </context>
 <context>

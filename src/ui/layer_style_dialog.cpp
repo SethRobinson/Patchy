@@ -2017,7 +2017,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
   auto make_contour_combo = [&](QWidget* combo_parent, const QString& object_name,
                                 const StyleContour& current, const StyleContour& custom_value) {
-    auto* combo = new QComboBox(combo_parent);
+    // Its list opens as a grid of curve chips (GitHub issue 726 follow-up).
+    auto* combo = new ContourPickerCombo(combo_parent);
     combo->setObjectName(object_name);
     combo->setIconSize(QSize(32, 24));
     combo->setToolTip(QObject::tr("Click the curve to edit this contour"));
@@ -2517,7 +2518,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     picker.edit->setToolTip(QObject::tr("Edit this contour's curve"));
     picker.library = new QPushButton(QObject::tr("Library"), row);
     picker.library->setObjectName(stem + QStringLiteral("LibraryButton"));
-    picker.library->setToolTip(QObject::tr("Save this contour under a name, or load and save contour files"));
+    picker.library->setToolTip(
+        QObject::tr("Make a new contour from a straight line, rename or delete a saved one, or load and save contour files"));
     if (auto* row_layout = qobject_cast<QBoxLayout*>(row->layout()); row_layout != nullptr) {
       const auto at = row_layout->indexOf(picker.combo) + 1;
       row_layout->insertWidget(at, picker.edit);
@@ -4035,7 +4037,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
     emit_preview(immediate);
   };
-  const auto edit_contour = [&](ContourPickerTools& picker) {
+  // Runs the contour editor for a picker, starting from `start` (the picker's own
+  // value when null). The picker and the canvas follow every edit. OK returns the
+  // edited curve, which the picker keeps showing; Cancel puts back the picker, the
+  // host's custom curve and the batch edits and returns nothing. `save_as_library`
+  // gives the editor its Save as New Contour button.
+  const auto run_contour_editor = [&](ContourPickerTools& picker, const StyleContour* start,
+                                      ContourLibrary* save_as_library,
+                                      const QString& title) -> std::optional<StyleContour> {
     const auto custom_before = *picker.custom;
     const auto value_before = contour_combo_value(picker.combo, *picker.custom);
     std::optional<AppearanceEdits<LayerStyleSettings>> edits_before;
@@ -4055,12 +4064,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         }
       }
     };
+    const auto& opening = start != nullptr ? *start : value_before;
+    if (start != nullptr) {
+      // The picker and the canvas show the curve the editor opens on.
+      show(opening, false);
+    }
     const auto edited = request_contour_edit(
-        &dialog, value_before, [&show](const StyleContour& value) { show(value, false); }, contour_library);
+        &dialog, opening, [&show](const StyleContour& value) { show(value, false); }, save_as_library, nullptr, title);
     if (edited.has_value()) {
       relist_other_pickers();
       show(*edited, true);
-      return;
+      return edited;
     }
     // Cancel: the picker, the host's custom curve and the batch edits go back. A
     // contour saved from the editor stays in the library and on the lists.
@@ -4072,6 +4086,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       reset_batch_capture();
     }
     emit_preview(true);
+    return std::nullopt;
+  };
+  const auto edit_contour = [&](ContourPickerTools& picker) {
+    (void)run_contour_editor(picker, nullptr, contour_library, {});
   };
   const auto request_contour_name = [&](const QString& title, const QString& initial) {
     return patchy::ui::request_contour_name(&dialog, title, initial);
@@ -4114,14 +4132,26 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     if (contour_library == nullptr) {
       continue;
     }
+    // New Contour (GitHub issue 726 follow-up): a name, then the editor on a
+    // straight line; OK saves the curve under the name and the picker shows it,
+    // Cancel saves nothing. Save as New Contour in the editor keeps the old way of
+    // saving the picker's curve under a name.
     QObject::connect(new_action, &QAction::triggered, &dialog, [&, picker, picker_index] {
       const auto contour_name = request_contour_name(
           QObject::tr("New Contour"), QObject::tr("Contour %1").arg(contour_library->entries().size() + 1U));
       if (!contour_name.has_value()) {
         return;
       }
+      // The picker keeps the curve it had as Custom when that was not a listed one.
+      const auto custom_before = *picker->custom;
+      const auto straight = straight_line_contour();
+      const auto drawn =
+          run_contour_editor(*picker, &straight, nullptr, QObject::tr("New Contour: %1").arg(*contour_name));
+      if (!drawn.has_value()) {
+        return;
+      }
       auto values = contour_picker_values();
-      const auto id = contour_library->add_contour(*contour_name, values[picker_index]);
+      const auto id = contour_library->add_contour(*contour_name, *drawn);
       const auto* entry = contour_library->find_entry(id);
       if (entry == nullptr) {
         show_critical_message(&dialog, QObject::tr("New Contour"), QObject::tr("Could not save the contour."),
@@ -4129,6 +4159,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return;
       }
       // The picker now shows the saved contour (whole levels, under its name).
+      *picker->custom = custom_before;
       values[picker_index] = entry->contour;
       show_contour_picker_values(values);
       preview_contour_change(*picker, true);

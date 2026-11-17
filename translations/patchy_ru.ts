@@ -16102,10 +16102,6 @@ Do you want to replace it?</source>
         <translation>Библиотека</translation>
     </message>
     <message>
-        <source>Save this contour under a name, or load and save contour files</source>
-        <translation>Сохранить этот контур под именем либо загрузить и сохранить файлы контуров</translation>
-    </message>
-    <message>
         <source>New Contour…</source>
         <translation>Новый контур…</translation>
     </message>
@@ -16464,6 +16460,22 @@ Do you want to replace it?</source>
     <message>
         <source>Delete contour &quot;%1&quot;?</source>
         <translation>Удалить контур «%1»?</translation>
+    </message>
+    <message>
+        <source>Saved Contours (%1)</source>
+        <translation>Сохранённые контуры (%1)</translation>
+    </message>
+    <message>
+        <source>Name a new contour, then draw it starting from a straight line</source>
+        <translation>Задать имя нового контура и нарисовать его, начиная с прямой линии</translation>
+    </message>
+    <message>
+        <source>New Contour: %1</source>
+        <translation>Новый контур: %1</translation>
+    </message>
+    <message>
+        <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
+        <translation>Создать новый контур из прямой линии, переименовать или удалить сохранённый, либо загрузить и сохранить файлы контуров</translation>
     </message>
 </context>
 <context>
