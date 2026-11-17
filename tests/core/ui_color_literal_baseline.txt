@@ -85,7 +85,7 @@ src/ui/script_perspective.cpp 1
 src/ui/script_stroke.hpp 2
 src/ui/selection_outline.cpp 1
 src/ui/sprite_sheet_dialog.cpp 1
-src/ui/style_library.cpp 5
+src/ui/style_library.cpp 3
 src/ui/text_document.cpp 4
 src/ui/text_render.cpp 3
 src/ui/theme_effects.cpp 1
