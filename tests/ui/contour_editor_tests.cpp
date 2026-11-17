@@ -15,6 +15,7 @@
 #include "ui/preset_grid_widget.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/style_library.hpp"
+#include "ui/theme_palette.hpp"
 
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
@@ -51,6 +52,7 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <iostream>
 #include <optional>
 #include <span>
 #include <string>
@@ -1707,6 +1709,115 @@ void ui_layer_style_library_menu_opens_the_contour_manager() {
   CHECK(patchy::style_contours_same_shape(settings->style.drop_shadows.front().contour, dip_curve));
 }
 
+// Seth, November 17, 2026: a smooth run that overshoots (points like his: up to the top edge,
+// down, up again, and back to 0) seemed to leave the graph. The table the effects render
+// with already clamps to 0..255, so the curve ran flat along the top, under the frame. The
+// plot now sits inside the frame and the curve is clipped to it: nothing of the curve is
+// drawn on or outside the frame, and the flat run shows just inside it.
+void ui_contour_graph_keeps_an_overshooting_curve_inside_its_frame() {
+  patchy::StyleContour overshoot;
+  overshoot.points = {contour_point(0.0F, 0.0F), contour_point(63.0F, 255.0F), contour_point(84.0F, 136.0F),
+                      contour_point(136.0F, 245.0F), contour_point(255.0F, 0.0F)};
+  // The renderer's table saturates where the smooth runs would pass 255.
+  const auto lut = patchy::build_style_contour_lut(overshoot);
+  int flat_top = -1;
+  for (int input = 20; input < 60; ++input) {
+    if (lut[static_cast<std::size_t>(input)] == 255U && flat_top < 0) {
+      flat_top = input;
+    }
+  }
+  CHECK(flat_top > 0);
+  int saturated_after = 0;
+  for (int input = 137; input < 255; ++input) {
+    saturated_after += lut[static_cast<std::size_t>(input)] == 255U ? 1 : 0;
+  }
+  CHECK(saturated_after > 0);
+
+  patchy::ui::ContourGraphWidget graph;
+  graph.resize(320, 320);
+  graph.set_contour(overshoot);
+  graph.show();
+  QApplication::processEvents();
+  const auto image = graph.grab().toImage();
+  const auto frame = graph.frame_rect();
+  const auto plot = graph.plot_rect();
+  CHECK(frame.contains(plot) && plot.top() - frame.top() == patchy::ui::ContourGraphWidget::kPlotInset);
+  const auto& colors = patchy::ui::theme();
+  const auto near_handle = [&](int x, int y) {
+    for (const auto& point : graph.contour().points) {
+      const auto center = graph.position_for_levels(point.x, point.y);
+      if (std::abs(center.x() - x) <= 8.0 && std::abs(center.y() - y) <= 8.0) {
+        return true;
+      }
+    }
+    return false;
+  };
+  // Outside the frame only the background shows (the widget's corner), but for the handles
+  // of the edge points.
+  const auto background = image.pixelColor(1, 1).rgb();
+  int outside = 0;
+  QPoint first_outside;
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      if (frame.contains(x, y) || near_handle(x, y) || image.pixelColor(x, y).rgb() == background) {
+        continue;
+      }
+      if (outside++ == 0) {
+        first_outside = QPoint(x, y);
+      }
+    }
+  }
+  if (outside != 0) {
+    std::cerr << "outside the frame: " << outside << " pixels, first at " << first_outside.x() << ","
+              << first_outside.y() << " (frame " << frame.left() << "," << frame.top() << " "
+              << frame.width() << "x" << frame.height() << ")" << std::endl;
+  }
+  CHECK(outside == 0);
+  // The frame's top row is one color all along (the frame's, taken at its left end): the flat
+  // runs no longer cover it.
+  const auto frame_color = image.pixelColor(frame.left() + 1, frame.top()).rgb();
+  int covered = 0;
+  for (int x = frame.left() + 1; x < frame.right(); ++x) {
+    if (!near_handle(x, frame.top())) {
+      covered += image.pixelColor(x, frame.top()).rgb() == frame_color ? 0 : 1;
+    }
+  }
+  CHECK(covered == 0);
+  // The flat run is drawn, in the curve's ink, just inside the frame.
+  if (flat_top > 0) {
+    const auto at = graph.position_for_levels(flat_top + 4, 255.0).toPoint();
+    CHECK(at.y() == plot.top());
+    const auto ink = image.pixelColor(at);
+    CHECK(std::abs(ink.red() - colors.curves_graph_ink.red()) <= 3 &&
+          std::abs(ink.green() - colors.curves_graph_ink.green()) <= 3 &&
+          std::abs(ink.blue() - colors.curves_graph_ink.blue()) <= 3);
+  }
+
+  // The chips draw inside their border at any size too.
+  for (const auto size : {QSize(32, 24), QSize(48, 36)}) {
+    const auto chip = patchy::ui::contour_preset_icon(overshoot).pixmap(size).toImage();
+    CHECK(chip.size() == size);
+    int border_changed = 0;
+    for (int x = 0; x < chip.width(); ++x) {
+      border_changed += chip.pixelColor(x, 0).rgb() == colors.field_border.rgb() ? 0 : 1;
+    }
+    CHECK(border_changed == 0);
+  }
+
+  // The editor with Seth's points, the fourth selected, for the card.
+  when_dialog_visible(QStringLiteral("contourEditorDialog"), [](QDialog& dialog) {
+    auto* editor = editor_graph(dialog);
+    if (editor != nullptr) {
+      editor->set_selected_point(3);
+      editor->setFocus();
+    }
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_contour_editor_overshooting_curve", dialog);
+    dialog.reject();
+  });
+  (void)patchy::ui::request_contour_edit(nullptr, overshoot);
+}
+
 void ui_layer_style_swatch_follows_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   const auto layer = contour_test_layer(document);
@@ -1848,6 +1959,8 @@ std::vector<patchy::test::TestCase> contour_editor_tests() {
       {"ui_contour_editor_cancel_and_untouched_curve_keep_the_original",
        ui_contour_editor_cancel_and_untouched_curve_keep_the_original},
       {"ui_contour_graph_drag_coalesces_queued_moves", ui_contour_graph_drag_coalesces_queued_moves},
+      {"ui_contour_graph_keeps_an_overshooting_curve_inside_its_frame",
+       ui_contour_graph_keeps_an_overshooting_curve_inside_its_frame},
       {"ui_layer_style_contour_editor_previews_and_cancel_restores",
        ui_layer_style_contour_editor_previews_and_cancel_restores},
       {"ui_layer_style_contour_library_new_rename_delete_load_save",

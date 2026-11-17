@@ -60,6 +60,16 @@ public:
 
   [[nodiscard]] QSize sizeHint() const override;
 
+  // The framed square of the graph, and the plot inside it: input 0..255 and
+  // output 0..255 map onto plot_rect(), which sits kPlotInset pixels inside the
+  // frame, so a curve flat at 0 or 255 (where build_style_contour_lut clamps a
+  // smooth run that would overshoot) runs visibly along the inside of the frame
+  // instead of under it (Seth, November 17, 2026). The curve is clipped to the
+  // inside of the frame; point handles are not.
+  static constexpr int kPlotInset = 3;
+  [[nodiscard]] QRect frame_rect() const;
+  [[nodiscard]] QRect plot_rect() const;
+
   // The curve changed (any edit, each drag move that changed it).
   std::function<void()> contour_changed;
   // Another point became the selected one, or the selected one's values changed.
@@ -75,7 +85,6 @@ protected:
   void focusOutEvent(QFocusEvent* event) override;
 
 private:
-  [[nodiscard]] QRect graph_rect() const;
   [[nodiscard]] double input_for_x(double x) const;
   [[nodiscard]] double output_for_y(double y) const;
   [[nodiscard]] int hit_point(QPointF position) const;

@@ -108,6 +108,8 @@ private:
       line << QPointF(1.0 + x * (width - 3.0) / (width - 1.0), (height - 2.0) - value * (height - 4.0) + 1.0);
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
+    // Inside the border, as the editor's graph is (the table is already 0..255).
+    painter.setClipRect(1, 1, width - 2, height - 2);
     painter.setPen(QPen(palette.icon_ink, std::max(1.2, width / 26.0)));
     painter.drawPolyline(line);
     painter.end();
@@ -206,26 +208,30 @@ void ContourGraphWidget::delete_selected_point() {
 
 QSize ContourGraphWidget::sizeHint() const { return QSize(300 + 2 * kGraphMargin, 300 + 2 * kGraphMargin); }
 
-QRect ContourGraphWidget::graph_rect() const {
+QRect ContourGraphWidget::frame_rect() const {
   const auto available = rect().adjusted(kGraphMargin, kGraphMargin, -kGraphMargin, -kGraphMargin);
   const auto side = std::max(2, std::min(available.width(), available.height()));
   return QRect(available.left() + (available.width() - side) / 2, available.top() + (available.height() - side) / 2,
                side, side);
 }
 
+QRect ContourGraphWidget::plot_rect() const {
+  return frame_rect().adjusted(kPlotInset, kPlotInset, -kPlotInset, -kPlotInset);
+}
+
 QPointF ContourGraphWidget::position_for_levels(double input, double output) const {
-  const auto graph = graph_rect();
+  const auto graph = plot_rect();
   return QPointF(graph.left() + std::clamp(input, 0.0, 255.0) * (graph.width() - 1) / 255.0,
                  graph.bottom() - std::clamp(output, 0.0, 255.0) * (graph.height() - 1) / 255.0);
 }
 
 double ContourGraphWidget::input_for_x(double x) const {
-  const auto graph = graph_rect();
+  const auto graph = plot_rect();
   return std::clamp((x - graph.left()) / std::max(1, graph.width() - 1), 0.0, 1.0) * 255.0;
 }
 
 double ContourGraphWidget::output_for_y(double y) const {
-  const auto graph = graph_rect();
+  const auto graph = plot_rect();
   return std::clamp((graph.bottom() - y) / std::max(1, graph.height() - 1), 0.0, 1.0) * 255.0;
 }
 
@@ -251,8 +257,10 @@ void ContourGraphWidget::paintEvent(QPaintEvent* event) {
   const auto& colors = theme();
   QPainter painter(this);
   painter.fillRect(rect(), colors.curves_graph_bg);
-  const auto graph = graph_rect();
-  painter.fillRect(graph, colors.curves_graph_well_bg);
+  const auto frame = frame_rect();
+  painter.fillRect(frame, colors.curves_graph_well_bg);
+  const auto graph = plot_rect();
+  const int frame_width = hasFocus() ? 2 : 1;
 
   for (int division = 1; division < 4; ++division) {
     const auto x = graph.left() + division * (graph.width() - 1) / 4;
@@ -266,6 +274,19 @@ void ContourGraphWidget::paintEvent(QPaintEvent* event) {
   painter.setPen(QPen(colors.curves_graph_diagonal, 1, Qt::DashLine));
   painter.drawLine(graph.bottomLeft(), graph.topRight());
 
+  // The frame goes under the curve and the points: a curve flat at 0 or 255 runs
+  // along its inside, and handles at the edges sit on top of it.
+  // Filled strips inside the frame's rect, so the frame never reaches outside it.
+  const auto frame_color = hasFocus() ? colors.curves_graph_focus : colors.curves_graph_border;
+  painter.fillRect(QRect(frame.left(), frame.top(), frame.width(), frame_width), frame_color);
+  painter.fillRect(QRect(frame.left(), frame.bottom() - frame_width + 1, frame.width(), frame_width), frame_color);
+  painter.fillRect(QRect(frame.left(), frame.top(), frame_width, frame.height()), frame_color);
+  painter.fillRect(QRect(frame.right() - frame_width + 1, frame.top(), frame_width, frame.height()), frame_color);
+
+  // The curve is the table the effects render with (build_style_contour_lut, already
+  // clamped to 0..255), drawn inside the frame only.
+  painter.save();
+  painter.setClipRect(frame.adjusted(frame_width, frame_width, -frame_width, -frame_width));
   painter.setRenderHint(QPainter::Antialiasing, true);
   QPainterPath path;
   path.moveTo(position_for_levels(0.0, lut_[0]));
@@ -277,8 +298,10 @@ void ContourGraphWidget::paintEvent(QPaintEvent* event) {
   painter.drawPath(path);
   painter.setPen(QPen(colors.curves_graph_ink, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
   painter.drawPath(path);
+  painter.restore();
 
   // Corner points are squares, smooth points circles.
+  painter.setRenderHint(QPainter::Antialiasing, true);
   for (int index = 0; index < static_cast<int>(contour_.points.size()); ++index) {
     const auto& point = contour_.points[static_cast<std::size_t>(index)];
     const auto center = position_for_levels(point.x, point.y);
@@ -292,11 +315,6 @@ void ContourGraphWidget::paintEvent(QPaintEvent* event) {
       painter.drawEllipse(center, radius, radius);
     }
   }
-
-  painter.setRenderHint(QPainter::Antialiasing, false);
-  painter.setPen(QPen(hasFocus() ? colors.curves_graph_focus : colors.curves_graph_border, hasFocus() ? 2 : 1));
-  painter.setBrush(Qt::NoBrush);
-  painter.drawRect(graph.adjusted(0, 0, -1, -1));
 }
 
 void ContourGraphWidget::focusInEvent(QFocusEvent* event) {
@@ -312,7 +330,7 @@ void ContourGraphWidget::focusOutEvent(QFocusEvent* event) {
 void ContourGraphWidget::mousePressEvent(QMouseEvent* event) {
   const auto position = event->position();
   if (read_only_ || event->button() != Qt::LeftButton ||
-      !graph_rect().adjusted(-kGraphMargin, -kGraphMargin, kGraphMargin, kGraphMargin).contains(position.toPoint())) {
+      !frame_rect().adjusted(-kGraphMargin, -kGraphMargin, kGraphMargin, kGraphMargin).contains(position.toPoint())) {
     QWidget::mousePressEvent(event);
     return;
   }
@@ -342,7 +360,7 @@ void ContourGraphWidget::apply_drag(QPointF position) {
   }
   const auto before = contour_;
   const auto selected_before = selected_;
-  const auto keep_zone = graph_rect().adjusted(-kRemoveDistance, -kRemoveDistance, kRemoveDistance, kRemoveDistance);
+  const auto keep_zone = frame_rect().adjusted(-kRemoveDistance, -kRemoveDistance, kRemoveDistance, kRemoveDistance);
   contour_ = drag_origin_;
   if (!keep_zone.contains(position.toPoint()) && contour_.points.size() > kMinContourPoints) {
     (void)remove_contour_point(contour_, static_cast<std::size_t>(drag_index_));
