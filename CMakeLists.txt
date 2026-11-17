@@ -215,6 +215,7 @@ add_library(patchy_core
   src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
   src/core/pattern_resource.cpp
+  src/core/pattern_sampler.cpp
   src/core/photo_develop.cpp
   src/core/photo_divide.cpp
   src/core/book_scan.cpp
@@ -2605,6 +2606,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pat_asl_abr_tests.cpp
     tests/core/contour_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
+    tests/core/pattern_sampler_tests.cpp
     tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
     tests/core/book_scan_tests.cpp
