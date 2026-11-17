@@ -153,15 +153,20 @@ public:
       if (line.text.empty()) {
         continue;  // the detector saw something the recognizer reads as nothing
       }
-      line.quad = text.quad;
-      line.box = ocr::box_from_quad(text.quad);
+      // The line is reported where its ink is (the map's region, a little grown), not as the
+      // padded rectangle the recognizer read: the padding made short words a third too
+      // wide and every line half again too thick (docs/ocr-engines.md, "Line boxes").
+      line.quad = text.line;
+      line.box = ocr::box_from_quad(text.line);
       line.angle_degrees = text.angle_degrees;
       line.vertical = input.vertical;
       if (input.vertical) {
         line.words.push_back({line.text, line.box, line.quad});
       } else {
-        line.words = ocr::words_from_decoded_line(decoded, steps, static_cast<double>(input.text_width) / input.tensor_width,
-                                                  text.quad);
+        line.words = ocr::words_on_line(
+            ocr::words_from_decoded_line(decoded, steps, static_cast<double>(input.text_width) / input.tensor_width,
+                                         text.quad),
+            text.line);
       }
       result.lines.push_back(std::move(line));
     }

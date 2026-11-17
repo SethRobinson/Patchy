@@ -626,6 +626,107 @@ void ocr_blocks_hold_one_line_per_row() {
   }
 }
 
+// The same screenshot with the boxes the engine reports since its lines hug their ink (the
+// map's region, a quarter of its thickness larger on each side; docs/ocr-engines.md, "Line
+// boxes"). With the padded boxes the first entry's title joined the smaller line above it
+// and was drawn about 200 px off, and the buttons under two paragraphs joined them. Now
+// the three paragraphs are blocks of exactly their own lines and every title, label and
+// button stands alone.
+void ocr_blocks_keep_labels_off_paragraphs() {
+  struct Detected {
+    double x;
+    double y;
+    double width;
+    double height;
+    int characters;
+    double angle;
+  };
+  static const Detected kDetected[] = {
+      {46.0, 33.0, 103.0, 18.0, 9, 0.00},  // 0
+      {45.5, 70.5, 1272.0, 15.0, 165, 0.00},  // 1
+      {51.5, 113.5, 87.0, 15.0, 8, 0.00},  // 2
+      {154.3, 112.1, 1131.4, 17.4, 120, 0.06},  // 3
+      {57.5, 152.5, 178.0, 15.0, 23, 0.00},  // 4
+      {274.5, 151.5, 68.0, 15.0, 7, 0.00},  // 5
+      {366.5, 152.5, 108.0, 15.0, 11, 0.00},  // 6
+      {47.5, 192.5, 1372.0, 15.0, 162, 0.00},  // 7
+      {45.5, 221.5, 1306.0, 15.0, 154, 0.00},  // 8
+      {46.5, 251.5, 1325.0, 15.0, 157, 0.00},  // 9
+      {46.5, 280.5, 1381.0, 15.0, 159, 0.00},  // 10
+      {49.5, 309.5, 1378.0, 15.0, 166, 0.00},  // 11
+      {45.3, 337.6, 1371.3, 17.1, 166, -0.05},  // 12
+      {46.2, 368.2, 1381.5, 16.5, 167, 0.00},  // 13
+      {44.5, 397.5, 188.0, 15.0, 21, 0.00},  // 14
+      {670.2, 443.2, 73.5, 16.5, 7, 0.00},  // 15
+      {255.5, 444.5, 163.0, 15.0, 18, 0.00},  // 16
+      {66.0, 443.0, 140.0, 18.5, 17, 0.48},  // 17
+      {467.2, 443.5, 153.5, 17.4, 19, 0.50},  // 18
+      {787.7, 445.6, 151.6, 14.5, 17, 0.44},  // 19
+      {1366.8, 441.8, 48.5, 19.5, 4, 0.00},  // 20
+      {1324.2, 459.2, 18.5, 16.5, 1, 0.00},  // 21
+      {154.3, 506.7, 467.4, 17.1, 50, 0.13},  // 22
+      {51.5, 509.5, 87.0, 15.0, 8, 0.00},  // 23
+      {647.5, 509.4, 189.1, 15.9, 24, -0.34},  // 24
+      {877.2, 507.2, 66.5, 16.5, 7, 0.00},  // 25
+      {968.8, 510.8, 136.5, 13.5, 14, 0.00},  // 26
+      {46.3, 547.3, 1362.5, 17.4, 165, -0.04},  // 27
+      {47.2, 577.2, 1380.5, 16.5, 163, 0.00},  // 28
+      {46.8, 607.8, 710.5, 13.5, 85, 0.00},  // 29
+      {62.2, 650.2, 49.5, 22.5, 6, 0.00},  // 30
+      {154.9, 652.4, 74.3, 18.9, 7, 1.17},  // 31
+      {275.2, 653.2, 73.5, 16.5, 7, 0.00},  // 32
+      {392.5, 655.5, 151.0, 15.0, 17, 0.00},  // 33
+      {1368.0, 653.0, 47.0, 18.0, 4, 0.00},  // 34
+      {1320.4, 665.2, 24.7, 23.7, 1, -26.57},  // 35
+      {154.5, 718.5, 306.0, 15.0, 31, 0.00},  // 36
+      {51.5, 719.5, 87.0, 15.0, 8, 0.00},  // 37
+      {484.5, 719.5, 190.0, 15.0, 24, 0.00},  // 38
+      {714.2, 717.2, 68.5, 16.5, 7, 0.00},  // 39
+      {806.5, 719.5, 137.0, 15.0, 14, 0.00},  // 40
+      {45.3, 757.3, 1351.3, 17.4, 160, -0.06},  // 41
+      {47.5, 787.5, 1301.0, 15.0, 157, 0.00},  // 42
+      {46.5, 817.5, 1349.0, 15.0, 160, 0.00},  // 43
+      {46.3, 846.3, 950.4, 17.1, 113, 0.06},  // 44
+      {63.8, 890.8, 66.5, 19.5, 8, 0.00},  // 45
+      {502.2, 892.2, 73.5, 16.5, 7, 0.00},  // 46
+      {380.9, 891.6, 74.2, 18.7, 7, 1.17},  // 47
+      {619.8, 894.8, 150.5, 13.5, 17, 0.00},  // 48
+      {175.5, 894.5, 158.0, 15.0, 18, 0.00},  // 49
+      {1367.8, 890.8, 47.5, 19.5, 4, 0.00},  // 50
+      {1323.2, 908.2, 18.5, 16.5, 1, 0.00},  // 51
+  };
+  patchy::ocr::Result screenshot;
+  for (const auto& detected : kDetected) {
+    auto line = line_at(detected.x, detected.y, detected.width, detected.height);
+    line.text.assign(static_cast<std::size_t>(detected.characters), 'x');
+    line.angle_degrees = detected.angle;
+    screenshot.lines.push_back(line);
+  }
+  const auto blocks = patchy::ocr::group_lines_into_blocks(screenshot);
+  const auto exactly = [&](std::size_t from, std::size_t to) {
+    const auto* block = block_holding(blocks, from);
+    std::vector<std::size_t> expected;
+    for (std::size_t line = from; line <= to; ++line) {
+      expected.push_back(line);
+    }
+    return block != nullptr && block->lines == expected;
+  };
+  CHECK(exactly(7, 14));
+  CHECK(exactly(27, 29));
+  CHECK(exactly(41, 44));
+  // The heading, the line under it, the three titles, the DECISION labels and every button.
+  for (const std::size_t line : {0U, 1U, 2U, 3U, 15U, 16U, 17U, 18U, 22U, 23U, 30U, 31U, 32U, 36U, 37U, 45U, 47U, 49U}) {
+    CHECK(exactly(line, line));
+  }
+  for (const auto& block : blocks) {
+    for (std::size_t first = 0; first < block.lines.size(); ++first) {
+      for (std::size_t second = first + 1; second < block.lines.size(); ++second) {
+        CHECK(!on_one_row(screenshot.lines[block.lines[first]], screenshot.lines[block.lines[second]]));
+      }
+    }
+  }
+}
+
 // The operating system's engine as this machine has it (the core suite installs no test
 // list): listed on Windows with its installed languages, absent everywhere else.
 void ocr_windows_engine_lists_languages_if_available() {
@@ -681,6 +782,7 @@ std::vector<patchy::test::TestCase> ocr_tests() {
       {"ocr_blocks_report_alignment_and_vertical_order", ocr_blocks_report_alignment_and_vertical_order},
       {"ocr_blocks_judge_size_by_length_per_character", ocr_blocks_judge_size_by_length_per_character},
       {"ocr_blocks_hold_one_line_per_row", ocr_blocks_hold_one_line_per_row},
+      {"ocr_blocks_keep_labels_off_paragraphs", ocr_blocks_keep_labels_off_paragraphs},
   };
   tests.insert(tests.end(), std::make_move_iterator(model_tests.begin()), std::make_move_iterator(model_tests.end()));
   return tests;

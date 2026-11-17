@@ -34,7 +34,7 @@ struct Block {
 };
 
 // Two lines of the same orientation join when they are the same size, their centres are at
-// most 2.2 thicknesses of the thicker one apart across the lines (and at least half the
+// most 2.2 times their mean thickness apart across the lines (and at least half the
 // thinner one: not the same row twice), and along the lines they overlap by at least half
 // the shorter one. Rotated lines (more than 2 degrees) stay alone.
 // "The same size" is their lengths per character within 30% of each other (with their

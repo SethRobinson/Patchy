@@ -8,9 +8,12 @@
 #include "ai/segmentation_engine.hpp"
 #include "local_psd_fixtures.hpp"
 #include "ocr/ocr_engine.hpp"
+#include "ocr/ocr_layout.hpp"
+#include "ocr_page_fixture.hpp"
 #include "ocr_test_support.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
+#include "ui/ocr_text_layers.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -313,6 +316,93 @@ void ui_ocr_model_engine_matches_the_reference_on_benchmark_pages_if_available()
                  static_cast<long long>(elapsed));
     CHECK(rate <= allowed(name));
     CHECK(result.lines.size() == static_cast<std::size_t>(lines.size()));
+    // A page of horizontal text is one paragraph, so its lines are one block: the engine's
+    // line boxes are thick enough for the join test even where the detector thins the
+    // regions of closely set lines (docs/ocr-blocks.md, "Measurements").
+    if (!page.value(QStringLiteral("vertical")).toBool()) {
+      CHECK(patchy::ocr::group_lines_into_blocks(result).size() == 1);
+    }
+  }
+}
+
+// Short labels read by the model engine come out at their drawn size, on their drawn place.
+// The engine used to report the padded rectangle its recognizer reads, which is a fixed
+// margin wider than the ink on each side: a third too wide for a four-letter word, and the
+// width fit then drew "Send" a third too large (docs/ocr-engines.md, "Line boxes").
+void ui_recognize_text_sizes_short_labels_from_the_model_engine_if_available() {
+  const StagedModels staged;
+  const auto engine = staged_engine();
+  const QStringList labels{QStringLiteral("Send"), QStringLiteral("Fix it"), QStringLiteral("Handled"),
+                           QStringLiteral("Build it")};
+  struct Drawn {
+    QString text;
+    int size;
+    QRect ink;
+  };
+  std::vector<Drawn> drawn;
+  QImage image(900, 520, QImage::Format_RGBA8888);
+  image.fill(QColor(30, 32, 40));
+  {
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    painter.setPen(QColor(236, 236, 240));
+    int y = 40;
+    for (const int size : {18, 24, 33}) {
+      QFont font(QStringLiteral("Arial"));
+      font.setPixelSize(size);
+      font.setStyleStrategy(QFont::PreferAntialias);
+      painter.setFont(font);
+      const QFontMetrics metrics(font);
+      int x = 40;
+      for (const auto& label : labels) {
+        painter.drawText(x, y + metrics.ascent(), label);
+        drawn.push_back({label, size, QRect(x - 4, y, metrics.horizontalAdvance(label) + 8, metrics.height())});
+        x += metrics.horizontalAdvance(label) + 4 * size;
+      }
+      y += metrics.height() * 4;
+    }
+  }
+  for (auto& item : drawn) {
+    item.ink = patchy::test::ui::ocr_ink_box(image, item.ink, QColor(30, 32, 40));
+  }
+  const auto result = engine->open("en")->recognize(view_of(image));
+  patchy::ui::OcrLayerStyle style;
+  style.family = QStringLiteral("Arial");
+  const auto layers =
+      patchy::ui::build_recognized_text_layers(result, image, QPoint(0, 0), patchy::ui::OcrGrouping::Blocks, style);
+  for (const auto& item : drawn) {
+    // The engine's line: about the ink, not the padded cut.
+    const patchy::ocr::Line* line = nullptr;
+    for (const auto& candidate : result.lines) {
+      const QPointF centre(candidate.box.x + candidate.box.width / 2.0, candidate.box.y + candidate.box.height / 2.0);
+      if (item.ink.adjusted(-6, -6, 6, 6).contains(centre.toPoint())) {
+        line = &candidate;
+      }
+    }
+    CHECK(line != nullptr);
+    if (line == nullptr) {
+      continue;
+    }
+    CHECK(QString::fromStdString(line->text) == item.text);
+    std::fprintf(stderr, "  short label %-8s %2d px: ink %3d x %2d, line %5.1f x %4.1f\n", item.text.toUtf8().constData(),
+                 item.size, item.ink.width(), item.ink.height(), line->box.width, line->box.height);
+    CHECK(line->box.width < 1.16 * item.ink.width() && line->box.width > 0.9 * item.ink.width());
+    CHECK(line->box.height < 1.5 * item.ink.height());
+    // Its layer: one of its own (the labels are far apart), drawn at about the drawn size.
+    const patchy::ui::RecognizedTextLayer* layer = nullptr;
+    for (const auto& candidate : layers) {
+      if (candidate.settings.text == item.text &&
+          QRect(candidate.bounds.x, candidate.bounds.y, candidate.bounds.width, candidate.bounds.height)
+              .intersects(item.ink)) {
+        layer = &candidate;
+      }
+    }
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      std::fprintf(stderr, "  short label %-8s %2d px: layer size %d\n", item.text.toUtf8().constData(), item.size,
+                   layer->settings.size);
+      CHECK(std::abs(layer->settings.size - item.size) <= std::max(2.0, 0.12 * item.size));
+    }
   }
 }
 
@@ -323,5 +413,7 @@ std::vector<patchy::test::TestCase> ocr_model_engine_ui_tests() {
       {"ui_ocr_model_engine_reads_rendered_text_if_available", ui_ocr_model_engine_reads_rendered_text_if_available},
       {"ui_ocr_model_engine_matches_the_reference_on_benchmark_pages_if_available",
        ui_ocr_model_engine_matches_the_reference_on_benchmark_pages_if_available},
+      {"ui_recognize_text_sizes_short_labels_from_the_model_engine_if_available",
+       ui_recognize_text_sizes_short_labels_from_the_model_engine_if_available},
   };
 }

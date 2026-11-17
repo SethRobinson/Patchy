@@ -241,6 +241,14 @@ std::vector<DetectedText> detected_text(std::span<const float> probability, std:
       if (std::min(rectangle.length, rectangle.thickness) < settings.min_side) {
         continue;
       }
+      // The region as the map has it, grown a little, is where the line's ink is
+      // (DetectedText::line); the unclip below pads it for the cut. The map's own region,
+      // never the image: no pixel of the image is looked at here.
+      // The thickness is the shorter side, whichever way the rectangle search named them
+      // (a column's is its width).
+      const double line_grow = settings.line_grow * std::min(rectangle.length, rectangle.thickness);
+      const double region_length = rectangle.length + 2.0 * line_grow;
+      const double region_thickness = rectangle.thickness + 2.0 * line_grow;
       const double grow =
           rectangle.length * rectangle.thickness * settings.unclip_ratio / (2.0 * (rectangle.length + rectangle.thickness));
       rectangle.length += 2.0 * grow;
@@ -251,8 +259,11 @@ std::vector<DetectedText> detected_text(std::span<const float> probability, std:
       double uy = rectangle.axis_y;
       double along = rectangle.length;
       double across = rectangle.thickness;
+      double region_along = region_length;
+      double region_across = region_thickness;
       if (std::abs(uy) > std::abs(ux)) {
         std::swap(along, across);
+        std::swap(region_along, region_across);
         const double turned_x = -uy;
         uy = ux;
         ux = turned_x;
@@ -272,6 +283,8 @@ std::vector<DetectedText> detected_text(std::span<const float> probability, std:
       DetectedText text;
       text.quad = {corner(-half_along, -half_across), corner(half_along, -half_across), corner(half_along, half_across),
                    corner(-half_along, half_across)};
+      text.line = {corner(-region_along / 2.0, -region_across / 2.0), corner(region_along / 2.0, -region_across / 2.0),
+                     corner(region_along / 2.0, region_across / 2.0), corner(-region_along / 2.0, region_across / 2.0)};
       // The angle is read off the scaled quad: the two scales may differ a little.
       text.angle_degrees = std::atan2(text.quad[1].y - text.quad[0].y, text.quad[1].x - text.quad[0].x) * 180.0 /
                            3.14159265358979323846;

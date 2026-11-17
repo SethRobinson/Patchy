@@ -11603,8 +11603,14 @@ std::optional<Layer> MainWindow::make_recognized_text_group(Document& document, 
                                                             const OcrSourceImage& source,
                                                             const OcrLayerOptions& options,
                                                             std::string_view engine_id, std::string_view language) {
-  auto built =
-      build_recognized_text_layers(result, source.image, source.origin, options.grouping, options.style);
+  // "Show text and hide original" stands the text on one flat Paper colour, and text whose
+  // sampled colour would vanish on it is recoloured (recognized_text_color_on_paper).
+  const bool replace = options.mode == OcrLayerMode::Replace;
+  auto style = options.style;
+  if (replace) {
+    style.paper = recognized_text_paper_color(source.image);
+  }
+  auto built = build_recognized_text_layers(result, source.image, source.origin, options.grouping, style);
   if (built.empty()) {
     return std::nullopt;
   }
@@ -11612,14 +11618,14 @@ std::optional<Layer> MainWindow::make_recognized_text_group(Document& document, 
   Layer group(document.allocate_layer_id(), tr("Recognized Text").toStdString(), LayerKind::Group);
   group.set_blend_mode(BlendMode::PassThrough);
   group.metadata()[kLayerMetadataOcrGroup] = std::string(engine_id) + ' ' + std::string(language);
-  if (options.mode == OcrLayerMode::Replace) {
+  if (replace) {
     // "Show text and hide original": the text reads on paper where the source was, and the
     // source is only hidden (never erased or filled; the caller hides it). The paper is one
     // flat colour: white, or a dark page's own background, so the light text sampled from
     // such a page still shows.
     PixelBuffer paper(source.image.width(), source.image.height(), PixelFormat::rgb8());
     paper.clear(255);
-    if (const QColor paper_color = recognized_text_paper_color(source.image);
+    if (const QColor paper_color = *style.paper;
         paper_color != QColor(Qt::white)) {  // color-literal-ok: pixel color of a document layer
       const std::array<std::uint8_t, 3> rgb{static_cast<std::uint8_t>(paper_color.red()),
                                             static_cast<std::uint8_t>(paper_color.green()),
