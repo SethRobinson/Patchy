@@ -32,9 +32,11 @@
 #include <QPainter>
 #include <QScrollArea>
 #include <QToolButton>
+#include <QTransform>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <exception>
 #include <filesystem>
 #include <functional>
@@ -77,8 +79,38 @@ inline constexpr int kSwatchesPerRow = 12;
 
 }  // namespace
 
+void paint_swatch_cell(QPainter& painter, const QRect& cell, const QColor& fill, const QColor& frame,
+                       int frame_width) {
+  const QTransform to_device = painter.deviceTransform();
+  if (to_device.type() > QTransform::TxScale || !to_device.isInvertible()) {
+    // Rotated or sheared, which no screen does: there is no pixel grid to snap to.
+    painter.fillRect(cell, frame);
+    painter.fillRect(cell.adjusted(frame_width, frame_width, -frame_width, -frame_width), fill);
+    return;
+  }
+  const QRectF mapped = to_device.mapRect(QRectF(cell));
+  const int left = qRound(mapped.left());
+  const int top = qRound(mapped.top());
+  const QRect outer(left, top, qRound(mapped.right()) - left, qRound(mapped.bottom()) - top);
+  if (outer.isEmpty()) {
+    return;
+  }
+  // A half pixel rounds down (a 1 px border stays 1 px at 150%), so the frame never
+  // grows faster than the swatch it surrounds.
+  const int scaled = static_cast<int>(std::ceil(frame_width * std::abs(to_device.m11()) - 0.5));
+  const int thickness = std::clamp(scaled, 1, std::max(1, std::min(outer.width(), outer.height()) / 2));
+  painter.save();
+  // Device pixels from here: the frame's edges fall on whole pixels by construction.
+  painter.setWorldTransform(to_device.inverted(), /*combine=*/true);
+  painter.fillRect(outer, frame);
+  if (const QRect inner = outer.adjusted(thickness, thickness, -thickness, -thickness); !inner.isEmpty()) {
+    painter.fillRect(inner, fill);
+  }
+  painter.restore();
+}
+
 // The swatch grid custom-paints up to 256 cells; item widgets would be needless
-// churn at this scale and the selection/highlight rings are one drawRect each.
+// churn at this scale and each cell is two fills (paint_swatch_cell).
 class PaletteSwatchGrid final : public QWidget {
 public:
   explicit PaletteSwatchGrid(PalettePanel* panel) : QWidget(panel), panel_(panel) {
@@ -169,14 +201,15 @@ protected:
       const auto row = index / kSwatchesPerRow;
       const QRect rect(column * cell, row * cell, kSwatchSize, kSwatchSize);
       const auto& color = colors_[static_cast<std::size_t>(index)];
-      painter.fillRect(rect, QColor(color.red, color.green, color.blue));
-      painter.setPen(QColor(20, 22, 26));
-      painter.drawRect(rect.adjusted(0, 0, -1, -1));
+      const QColor fill(color.red, color.green, color.blue);
       const auto highlighted = highlight_.has_value() && highlight_->red == color.red &&
                                highlight_->green == color.green && highlight_->blue == color.blue;
-      if (index == selected_ || highlighted) {
-        painter.setPen(QPen(index == selected_ ? theme().accent_pressed_bg : QColor(245, 248, 252), 2));
-        painter.drawRect(rect.adjusted(1, 1, -2, -2));
+      if (index == selected_) {
+        paint_swatch_cell(painter, rect, fill, theme().accent_pressed_bg, 2);
+      } else if (highlighted) {
+        paint_swatch_cell(painter, rect, fill, QColor(245, 248, 252), 2);
+      } else {
+        paint_swatch_cell(painter, rect, fill, QColor(20, 22, 26), 1);
       }
       if (dragging_ && index == drag_target_ && index != selected_) {
         painter.setPen(QPen(QColor(245, 248, 252), 2, Qt::DashLine));

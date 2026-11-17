@@ -33,7 +33,7 @@ src/ui/canvas_widget_view.cpp 3
 src/ui/color_dock_panel.cpp 2
 src/ui/color_dock_panel.hpp 1
 src/ui/color_field_widgets.cpp 6
-src/ui/color_panel.cpp 62
+src/ui/color_panel.cpp 61
 src/ui/divide_photos_dialog.cpp 8
 src/ui/eyedropper_sample_overlay.cpp 5
 src/ui/fill_dialog.cpp 3

@@ -8,8 +8,11 @@
 #include <optional>
 #include <vector>
 
+class QColor;
 class QComboBox;
 class QLabel;
+class QPainter;
+class QRect;
 class QScrollArea;
 class QToolButton;
 
@@ -36,6 +39,14 @@ struct LoadedPaletteFile {
                                                               const std::vector<std::string>& names = {});
 [[nodiscard]] std::optional<QString> prompt_palette_color_name(QWidget* parent, const QString& current);
 [[nodiscard]] QString palette_color_description(RgbColor color, std::string_view name = {});
+
+// Paints one cell of a custom-painted swatch grid (the Palette panel's and the color
+// picker's): `fill`, with a `frame` edge inside the cell that is `frame_width` px wide at
+// 100%. Both are snapped to device pixels together, so at every display scale the frame
+// starts at the cell's edge and is as thick on one side as on the others. A pen stroked
+// around the cell lands off it instead (GitHub issue 730).
+void paint_swatch_cell(QPainter& painter, const QRect& cell, const QColor& fill, const QColor& frame,
+                       int frame_width);
 
 class PaletteSwatchGrid;
 

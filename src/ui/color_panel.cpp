@@ -522,16 +522,13 @@ protected:
     QPainter painter(this);
     for (int index = 0; index < color_count(); ++index) {
       const auto rect = cell_rect(index);
-      painter.fillRect(rect, colors_[static_cast<std::size_t>(index)]);
+      const auto& color = colors_[static_cast<std::size_t>(index)];
       if (index == selected_index_) {
-        painter.setPen(QPen(theme().accent_pressed_bg, 2));
-        painter.drawRect(rect.adjusted(1, 1, -2, -2));
+        paint_swatch_cell(painter, rect, color, theme().accent_pressed_bg, 2);
       } else if (index == hover_index_) {
-        painter.setPen(QPen(theme().accent_ring, 2));
-        painter.drawRect(rect.adjusted(1, 1, -2, -2));
+        paint_swatch_cell(painter, rect, color, theme().accent_ring, 2);
       } else {
-        painter.setPen(QColor(0x74, 0x7b, 0x86));
-        painter.drawRect(rect.adjusted(0, 0, -1, -1));
+        paint_swatch_cell(painter, rect, color, theme().swatch_border, 1);
       }
     }
   }

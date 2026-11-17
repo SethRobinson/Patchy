@@ -20,6 +20,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/tool_cursors.hpp"
 #include "ui/tool_palette_footer.hpp"
 #include <QAbstractButton>
@@ -33,6 +34,7 @@
 #include <QDialog>
 #include <QElapsedTimer>
 #include <QEnterEvent>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -54,6 +56,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 #include "scripting_test_support.hpp"
 #include "test_harness.hpp"
@@ -1889,6 +1893,180 @@ void ui_color_panel_hex_and_rgb_fields_follow_the_foreground() {
   CHECK(picks == 2);
 }
 
+// `window` as a screen at `scale` paints it. At a fractional scale the widgets sit at
+// fractional device offsets, as they do on a 125% or 150% display.
+QImage render_window_at_scale(QWidget& window, qreal scale) {
+  QImage image((QSizeF(window.size()) * scale).toSize().expandedTo(QSize(1, 1)),
+               QImage::Format_ARGB32_Premultiplied);
+  image.setDevicePixelRatio(scale);
+  image.fill(Qt::transparent);
+  window.render(&image);
+  return image;
+}
+
+// One device row or column through a swatch: `count` pixels from `from`, each named
+// o (outside the cell), f (the frame color) or s (the swatch's own color). A frame that
+// fits its cell reads outside, frame, swatch, frame, outside; `lead` and `trail` are then
+// the frame's thickness on the two sides, and -1 otherwise.
+std::string walk_swatch(const QImage& image, QPoint from, QPoint step, int count, QRgb frame, QRgb fill, int& lead,
+                        int& trail) {
+  std::vector<std::pair<char, int>> runs;
+  for (int i = 0; i < count; ++i) {
+    const QPoint point = from + step * i;
+    char kind = 'o';
+    if (image.rect().contains(point)) {
+      const QRgb pixel = image.pixel(point);
+      kind = pixel == frame ? 'f' : (pixel == fill ? 's' : 'o');
+    }
+    if (!runs.empty() && runs.back().first == kind) {
+      ++runs.back().second;
+    } else {
+      runs.emplace_back(kind, 1);
+    }
+  }
+  std::string text;
+  std::string kinds;
+  for (const auto& [kind, length] : runs) {
+    kinds += kind;
+    text += kind + std::to_string(length) + ' ';
+  }
+  const bool fits = kinds == "ofsfo";
+  lead = fits ? runs[1].second : -1;
+  trail = fits ? runs[3].second : -1;
+  return text;
+}
+
+struct SwatchFrameCase {
+  const char* label;
+  QRect cell;  // in the grid's coordinates
+  QColor frame;
+  int width;  // the frame's thickness at 100%
+};
+
+// Renders `window` at 100% to 200% and checks every case's frame: it starts at the cell's
+// edge on all four sides (no swatch color outside it) and is the same thickness on each
+// (GitHub issue 730: the ring sat up and left of its swatch). Saves the grid at each scale
+// as `<name>_<percent>.png`.
+void check_swatch_frames(const std::string& name, QWidget& window, QWidget& grid,
+                         const std::vector<SwatchFrameCase>& cases) {
+  const auto mismatch = capture_theme_mismatch(window);
+  if (!mismatch.isEmpty()) {
+    patchy::test::report_failure("capture '" + name + "' is not themed: " + mismatch.toStdString());
+    return;
+  }
+  const QPoint origin = grid.mapTo(&window, QPoint(0, 0));
+  for (const qreal scale : {1.0, 1.25, 1.5, 1.75, 2.0}) {
+    const QImage image = render_window_at_scale(window, scale);
+    const auto percent = std::to_string(qRound(scale * 100));
+    const auto device = [&](int logical) { return static_cast<int>(std::floor(logical * scale)); };
+    const auto device_end = [&](int logical) { return static_cast<int>(std::ceil(logical * scale)); };
+    for (const auto& item : cases) {
+      const QRect cell = item.cell.translated(origin);
+      const QPoint center(qRound((cell.x() + cell.width() / 2.0) * scale),
+                          qRound((cell.y() + cell.height() / 2.0) * scale));
+      const QRgb fill = image.pixel(center);
+      const QRgb frame = item.frame.rgb();
+      int left = 0;
+      int right = 0;
+      int top = 0;
+      int bottom = 0;
+      const int x0 = device(cell.x() - 1);
+      const int y0 = device(cell.y() - 1);
+      const auto across = walk_swatch(image, QPoint(x0, center.y()), QPoint(1, 0),
+                                      device_end(cell.x() + cell.width() + 1) - x0, frame, fill, left, right);
+      const auto down = walk_swatch(image, QPoint(center.x(), y0), QPoint(0, 1),
+                                    device_end(cell.y() + cell.height() + 1) - y0, frame, fill, top, bottom);
+      const bool whole_scale = scale == std::floor(scale);
+      const bool good = left >= 1 && left == right && left == top && left == bottom &&
+                        (!whole_scale || left == qRound(item.width * scale));
+      if (!good) {
+        patchy::test::report_failure(name + " at " + percent + "%: the " + item.label +
+                                     " swatch's frame does not fit its cell (across: " + across + "| down: " + down +
+                                     ")");
+      }
+    }
+    const QRect shown = QRect(origin, grid.size()).adjusted(-6, -6, 6, 6).intersected(window.rect());
+    save_image_artifact(name + "_" + percent,
+                        image.copy(QRect(device(shown.x()), device(shown.y()), device_end(shown.width()),
+                                         device_end(shown.height()))));
+  }
+}
+
+void ui_color_picker_swatch_ring_fits_its_cell_at_every_scale() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* dialog = open_color_window(window, "foregroundColorButton");
+  if (dialog == nullptr) {
+    return;
+  }
+  const auto close = qScopeGuard([dialog] {
+    dialog->close();
+    QApplication::processEvents();
+  });
+  auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  CHECK(combo != nullptr && grid != nullptr);
+  if (combo == nullptr || grid == nullptr) {
+    return;
+  }
+  combo->setCurrentIndex(combo->findData(QStringLiteral("basic")));
+  QApplication::processEvents();
+  const int size = grid->property("paletteCellSize").toInt();
+  const int pitch = size + grid->property("paletteCellGap").toInt();
+  const int columns = grid->property("paletteColumns").toInt();
+  CHECK(size > 0 && columns >= 5 && grid->property("paletteColorCount").toInt() >= 2 * columns);
+  if (size <= 0 || columns < 5) {
+    return;
+  }
+  const auto cell = [&](int index) {
+    return QRect((index % columns) * pitch, (index / columns) * pitch, size, size);
+  };
+  // The second row of Basic colors holds the saturated ones: yellow is selected (the
+  // swatch in the report), cyan is under the pointer and green is left plain.
+  const int selected = columns + 2;
+  const int plain = columns + 3;
+  const int hovered = columns + 4;
+  click(*grid, cell(selected).center());
+  hover(*grid, cell(hovered).center(), Qt::NoModifier);
+  CHECK(grid->property("paletteSelectedIndex").toInt() == selected);
+  const auto& palette = patchy::ui::theme();
+  check_swatch_frames("ui_color_picker_swatch_ring", *dialog, *grid,
+                      {{"selected", cell(selected), palette.accent_pressed_bg, 2},
+                       {"hovered", cell(hovered), palette.accent_ring, 2},
+                       {"plain", cell(plain), palette.swatch_border, 1}});
+}
+
+void ui_palette_panel_swatch_ring_fits_its_cell_at_every_scale() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = MainWindowTestAccess::document(window);
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  if (preset == nullptr) {
+    return;
+  }
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 904;
+  document.palette_editing() = editing;
+  MainWindowTestAccess::refresh_document_info(window);
+  MainWindowTestAccess::show_panel(window, QStringLiteral("paletteDock"));
+  QApplication::processEvents();
+  QApplication::processEvents();
+  auto* grid = window.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  CHECK(grid != nullptr && grid->isVisible());
+  if (grid == nullptr || !grid->isVisible()) {
+    return;
+  }
+  // 12 cells per row, 18 px cells with a 2 px gap. Swatch 8 (red) is clicked, which
+  // selects it; swatch 10 (yellow) is left plain.
+  const auto cell = [](int index) { return QRect(index * 20, 0, 18, 18); };
+  click(*grid, cell(8).center());
+  check_swatch_frames("ui_palette_panel_swatch_ring", window, *grid,
+                      {{"selected", cell(8), patchy::ui::theme().accent_pressed_bg, 2},
+                       {"plain", cell(10), QColor(20, 22, 26), 1}});
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> color_dock_panel_tests() {
@@ -1922,5 +2100,9 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
       {"ui_color_panel_hex_and_rgb_fields_set_foreground", ui_color_panel_hex_and_rgb_fields_set_foreground},
       {"ui_color_panel_hex_and_rgb_fields_follow_the_foreground",
        ui_color_panel_hex_and_rgb_fields_follow_the_foreground},
+      {"ui_color_picker_swatch_ring_fits_its_cell_at_every_scale",
+       ui_color_picker_swatch_ring_fits_its_cell_at_every_scale},
+      {"ui_palette_panel_swatch_ring_fits_its_cell_at_every_scale",
+       ui_palette_panel_swatch_ring_fits_its_cell_at_every_scale},
   };
 }
