@@ -16365,6 +16365,18 @@ Do you want to replace it?</source>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation>直線から新しい輪郭を作成するか、保存した輪郭の名前変更や削除、輪郭ファイルの読み込みと保存を行います</translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation>輪郭を使用</translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation>選択した輪郭を、このダイアログを開いた輪郭の選択欄で使用します</translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation>輪郭マネージャー…</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

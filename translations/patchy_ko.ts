@@ -16365,6 +16365,18 @@ Do you want to replace it?</source>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation>직선에서 새 윤곽선을 만들거나, 저장된 윤곽선의 이름을 바꾸거나 삭제하거나, 윤곽선 파일을 불러오고 저장합니다</translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation>윤곽선 사용</translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation>선택한 윤곽선을 이 창을 연 윤곽선 선택기에서 사용합니다</translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation>윤곽선 관리자…</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

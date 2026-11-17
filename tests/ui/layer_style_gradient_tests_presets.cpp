@@ -1581,7 +1581,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     grab_dialog(QStringLiteral("saveContoursDialog"), "save_contours");
     (void)patchy::ui::request_contours_to_save(nullptr, contours);
     grab_dialog(QStringLiteral("contourManagerDialog"), "contour_manager");
-    patchy::ui::request_contour_manager(nullptr, contours, contours.entries().front().storage_id);
+    (void)patchy::ui::request_contour_manager(nullptr, contours, contours.entries().front().storage_id);
     grab_dialog(QStringLiteral("layerStyleContourNameDialog"), "contour_name");
     (void)patchy::ui::request_contour_name(nullptr, QStringLiteral("New Contour"), QStringLiteral("Contour 1"));
     grab_dialog(QStringLiteral("cameraRawFilterDialog"), "camera_raw_filter");

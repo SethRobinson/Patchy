@@ -16421,6 +16421,18 @@ Deseja substituí-lo?</translation>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation>Criar um novo contorno a partir de uma linha reta, renomear ou excluir um contorno salvo, ou carregar e salvar arquivos de contornos</translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation>Usar contorno</translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation>Usar o contorno selecionado no seletor de onde isto foi aberto</translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation>Gerenciador de contornos…</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

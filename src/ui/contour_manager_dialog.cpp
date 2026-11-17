@@ -14,6 +14,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -46,9 +47,32 @@ QString contour_copy_name(const QString& name, const ContourLibrary& library) {
   return candidate;
 }
 
+// Enter or Return in the Name field commits the name (editingFinished) and goes no
+// further, so it never presses the dialog's default button.
+class NameFieldKeepsEnter final : public QObject {
+public:
+  explicit NameFieldKeepsEnter(QLineEdit* field) : QObject(field), field_(field) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == field_ && event->type() == QEvent::KeyPress) {
+      const auto key = static_cast<QKeyEvent*>(event)->key();
+      if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+        emit field_->editingFinished();
+        return true;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QLineEdit* field_;
+};
+
 }  // namespace
 
-void request_contour_manager(QWidget* parent, ContourLibrary& library, const QString& initial_storage_id) {
+std::optional<StyleContour> request_contour_manager(QWidget* parent, ContourLibrary& library,
+                                                    const QString& initial_storage_id,
+                                                    const QString& initial_builtin_id, bool offer_use) {
   QDialog dialog(parent);
   PresetManagerScaffold scaffold(dialog, QStringLiteral("contourManagerDialog"), QObject::tr("Contour Manager"));
 
@@ -127,6 +151,16 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
   bottom_row->addWidget(builtin_note, 1);
   auto* close_buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
   close_buttons->setObjectName(QStringLiteral("contourManagerButtons"));
+  // From a Layer Style picker: Use Contour beside Close, as in the Pattern Manager.
+  // A plain button, not one of the box's: the box would make an accept button the
+  // default, and Enter in the Name field must only commit the name.
+  QPushButton* use_button = nullptr;
+  if (offer_use) {
+    use_button = new QPushButton(QObject::tr("Use Contour"), &dialog);
+    use_button->setObjectName(QStringLiteral("contourManagerUseButton"));
+    use_button->setToolTip(QObject::tr("Use the selected contour in the picker this was opened from"));
+    bottom_row->addWidget(use_button, 0, Qt::AlignBottom);
+  }
   bottom_row->addWidget(close_buttons, 0, Qt::AlignBottom);
   scaffold.right()->addLayout(bottom_row);
   QObject::connect(close_buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -135,6 +169,9 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
     button->setAutoDefault(false);
     button->setDefault(false);
   }
+  // The field also keeps Enter to itself: Qt can still make Use Contour the
+  // dialog's default as it shows, and Enter there must rename, not use.
+  name_edit->installEventFilter(new NameFieldKeepsEnter(name_edit));
 
   const auto current_item = [tree]() -> QTreeWidgetItem* {
     auto* item = tree->currentItem();
@@ -158,6 +195,9 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
     edit_button->setEnabled(entry != nullptr);
     duplicate_button->setEnabled(entry != nullptr || builtin != nullptr);
     delete_button->setEnabled(entry != nullptr);
+    if (use_button != nullptr) {
+      use_button->setEnabled(entry != nullptr || builtin != nullptr);
+    }
     save_button->setEnabled(!library.entries().empty());
     const QSignalBlocker blocker(name_edit);
     if (entry != nullptr) {
@@ -336,9 +376,26 @@ void request_contour_manager(QWidget* parent, ContourLibrary& library, const QSt
     save_contours_to_file(&dialog, library, QStringLiteral("contourManagerSaveFileDialog"));
   });
 
-  reload(initial_storage_id);
+  std::optional<StyleContour> chosen;
+  if (use_button != nullptr) {
+    QObject::connect(use_button, &QPushButton::clicked, &dialog, [&] {
+      if (const auto* entry = selected_entry(); entry != nullptr) {
+        chosen = entry->contour;
+      } else if (const auto* builtin = selected_builtin(); builtin != nullptr) {
+        chosen = builtin->contour;
+      } else {
+        return;
+      }
+      dialog.accept();
+    });
+  }
+
+  reload(initial_storage_id, initial_builtin_id);
   dialog.resize(760, 480);
-  exec_dialog(dialog);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return chosen;
 }
 
 }  // namespace patchy::ui

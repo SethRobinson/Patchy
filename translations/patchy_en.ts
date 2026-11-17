@@ -16403,6 +16403,18 @@ Do you want to replace it?</source>
         <source>Make a new contour from a straight line, rename or delete a saved one, or load and save contour files</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Use Contour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use the selected contour in the picker this was opened from</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contour Manager…</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

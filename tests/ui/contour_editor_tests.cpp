@@ -1212,7 +1212,7 @@ void ui_contour_manager_lists_renames_edits_duplicates_and_deletes() {
     CHECK(tree->topLevelItemCount() == builtin_count + static_cast<int>(library.entries().size()));
     dialog.reject();
   });
-  patchy::ui::request_contour_manager(nullptr, library, ridge_id);
+  (void)patchy::ui::request_contour_manager(nullptr, library, ridge_id);
 
   // What the manager left is what a Layer Style contour picker lists, after the built-ins.
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
@@ -1564,8 +1564,147 @@ void ui_contour_manager_buttons_line_up_in_one_column() {
       (void)capture_widget_artifact("ui_contour_manager_layout_builtin_" + language.toStdString(), dialog);
       dialog.reject();
     });
-    patchy::ui::request_contour_manager(nullptr, library, ridge_id);
+    (void)patchy::ui::request_contour_manager(nullptr, library, ridge_id);
   }
+}
+
+// Seth, November 17, 2026: the Contour Manager could not be reached from Layer Style. Each
+// picker's Library menu opens it on the picker's contour; Use Contour puts the selected one in
+// that picker (as the Pattern Manager does from here); after it closes every picker lists what
+// the library holds, and a contour deleted there stays on its effect as Custom.
+void ui_layer_style_library_menu_opens_the_contour_manager() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  const auto ridge_id = library.add_contour(QStringLiteral("Ridge"), ridge_contour("Ridge"));
+  const auto dip_id = library.add_contour(QStringLiteral("Dip"), peak_and_dip_contour());
+  CHECK(!ridge_id.isEmpty() && !dip_id.isEmpty());
+  const auto* ridge = library.find_entry(ridge_id);
+  const auto* dip = library.find_entry(dip_id);
+  CHECK(ridge != nullptr && dip != nullptr);
+  if (ridge == nullptr || dip == nullptr) {
+    return;
+  }
+  const auto ridge_curve = ridge->contour;
+  const auto dip_curve = dip->contour;
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = contour_test_layer(document, ridge_curve);
+  layer.layer_style().drop_shadows.front().contour = dip_curve;
+  const auto gloss_name = QStringLiteral("layerStyleBevelGlossContourCombo");
+  const auto shadow_name = QStringLiteral("layerStyleDropShadowContourCombo");
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+    select_category(dialog, QStringLiteral("Bevel & Emboss"));
+    auto* gloss = dialog.findChild<QComboBox*>(gloss_name);
+    auto* shadow = dialog.findChild<QComboBox*>(shadow_name);
+    CHECK(gloss != nullptr && shadow != nullptr);
+    if (gloss == nullptr || shadow == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(gloss->currentText() == QStringLiteral("Ridge"));
+    CHECK(shadow->currentText() == QStringLiteral("Dip"));
+    // The entry ends the menu, after a separator.
+    auto* menu = dialog.findChild<QMenu*>(gloss_name + QStringLiteral("LibraryMenu"));
+    CHECK(menu != nullptr);
+    auto* manager_action = library_action(dialog, gloss_name, QStringLiteral("contourLibraryManagerAction"));
+    CHECK(manager_action->isEnabled());
+    CHECK(manager_action->text() == QStringLiteral("Contour Manager…"));
+    if (menu != nullptr) {
+      const auto actions = menu->actions();
+      CHECK(actions.size() >= 2 && actions.back() == manager_action && actions[actions.size() - 2]->isSeparator());
+      auto* library_button = dialog.findChild<QPushButton*>(gloss_name + QStringLiteral("LibraryButton"));
+      if (library_button != nullptr) {
+        menu->popup(library_button->mapToGlobal(QPoint(0, library_button->height())));
+        QApplication::processEvents();
+        (void)capture_widget_artifact("ui_layer_style_contour_library_menu_with_manager", *menu);
+        menu->close();
+        QApplication::processEvents();
+      }
+    }
+
+    // It opens on the picker's contour, with Use Contour. Rename Ridge, delete Dip, Close.
+    when_dialog_visible(QStringLiteral("contourManagerDialog"), [&](QDialog& manager) {
+      auto* tree = manager.findChild<QTreeWidget*>(QStringLiteral("contourManagerTree"));
+      auto* name_edit = manager.findChild<QLineEdit*>(QStringLiteral("contourManagerNameEdit"));
+      auto* remove = manager.findChild<QPushButton*>(QStringLiteral("contourManagerDeleteButton"));
+      auto* use = manager.findChild<QPushButton*>(QStringLiteral("contourManagerUseButton"));
+      CHECK(tree != nullptr && name_edit != nullptr && remove != nullptr && use != nullptr);
+      if (tree == nullptr || name_edit == nullptr || remove == nullptr || use == nullptr) {
+        manager.reject();
+        return;
+      }
+      CHECK(manager.parentWidget() == &dialog);
+      CHECK(tree->currentItem() != nullptr && tree->currentItem()->text(0) == QStringLiteral("Ridge"));
+      CHECK(use->isVisible() && use->isEnabled());
+      QApplication::processEvents();
+      (void)capture_widget_artifact("ui_contour_manager_from_layer_style", manager);
+      // Enter in the Name field renames; it does not press Use Contour.
+      name_edit->setFocus();
+      name_edit->setText(QStringLiteral("Ridge Renamed"));
+      QTest::keyClick(name_edit, Qt::Key_Return);
+      QApplication::processEvents();
+      CHECK(manager.isVisible());
+      CHECK(tree->currentItem() != nullptr && tree->currentItem()->text(0) == QStringLiteral("Ridge Renamed"));
+      tree->setCurrentItem(manager_row(*tree, QStringLiteral("Dip")));
+      when_dialog_visible(QStringLiteral("contourManagerDeleteMessageBox"), [](QDialog& box) {
+        auto* message = qobject_cast<QMessageBox*>(&box);
+        if (message != nullptr && message->button(QMessageBox::Yes) != nullptr) {
+          message->button(QMessageBox::Yes)->click();
+        } else {
+          box.reject();
+        }
+      });
+      remove->click();
+      CHECK(library.find_entry(dip_id) == nullptr);
+      manager.reject();
+    });
+    manager_action->trigger();
+    // The pickers list what the library holds: the new name, and the deleted contour's
+    // curve kept on Drop Shadow as Custom.
+    CHECK(gloss->currentText() == QStringLiteral("Ridge Renamed"));
+    CHECK(gloss->currentData().toString() == QStringLiteral("user:") + ridge_id);
+    CHECK(gloss->findData(QStringLiteral("user:") + dip_id) < 0);
+    CHECK(shadow->currentData().toString() == QStringLiteral("custom"));
+    CHECK(shadow->findData(QStringLiteral("user:") + dip_id) < 0);
+    CHECK(shadow->findData(QStringLiteral("user:") + ridge_id) > 0);
+    CHECK(shadow->itemText(shadow->findData(QStringLiteral("user:") + ridge_id)) == QStringLiteral("Ridge Renamed"));
+
+    // Use Contour puts the selected contour in the picker the manager came from.
+    when_dialog_visible(QStringLiteral("contourManagerDialog"), [&](QDialog& manager) {
+      auto* tree = manager.findChild<QTreeWidget*>(QStringLiteral("contourManagerTree"));
+      auto* use = manager.findChild<QPushButton*>(QStringLiteral("contourManagerUseButton"));
+      CHECK(tree != nullptr && use != nullptr);
+      if (tree == nullptr || use == nullptr) {
+        manager.reject();
+        return;
+      }
+      tree->setCurrentItem(manager_row(*tree, QStringLiteral("Cone")));
+      use->click();
+    });
+    manager_action->trigger();
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.cone"));
+    CHECK(shadow->currentData().toString() == QStringLiteral("custom"));
+
+    // Opened again, it starts on the built-in the picker shows.
+    when_dialog_visible(QStringLiteral("contourManagerDialog"), [&](QDialog& manager) {
+      auto* tree = manager.findChild<QTreeWidget*>(QStringLiteral("contourManagerTree"));
+      CHECK(tree != nullptr && tree->currentItem() != nullptr && tree->currentItem()->text(0) == QStringLiteral("Cone"));
+      manager.reject();
+    });
+    manager_action->trigger();
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.cone"));
+    dialog.accept();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, {}, nullptr, nullptr, nullptr, {}, nullptr, patchy::RgbColor{0, 0, 0},
+      patchy::RgbColor{255, 255, 255}, nullptr, patchy::BitDepth::UInt8, std::nullopt, 0, true, &library);
+  CHECK(settings.has_value() && !settings->style.bevels.empty() && !settings->style.drop_shadows.empty());
+  if (!settings.has_value() || settings->style.bevels.empty() || settings->style.drop_shadows.empty()) {
+    return;
+  }
+  const auto* cone = patchy::find_builtin_contour_preset("contour.cone");
+  CHECK(cone != nullptr && patchy::style_contours_same_shape(settings->style.bevels.front().gloss_contour, cone->contour));
+  // The layer's look did not change when its saved contour was deleted.
+  CHECK(patchy::style_contours_same_shape(settings->style.drop_shadows.front().contour, dip_curve));
 }
 
 void ui_layer_style_swatch_follows_settings() {
@@ -1724,6 +1863,7 @@ std::vector<patchy::test::TestCase> contour_editor_tests() {
       {"ui_layer_style_new_contour_starts_from_a_straight_line", ui_layer_style_new_contour_starts_from_a_straight_line},
       {"ui_layer_style_contour_list_opens_as_a_grid", ui_layer_style_contour_list_opens_as_a_grid},
       {"ui_contour_manager_buttons_line_up_in_one_column", ui_contour_manager_buttons_line_up_in_one_column},
+      {"ui_layer_style_library_menu_opens_the_contour_manager", ui_layer_style_library_menu_opens_the_contour_manager},
       {"ui_contour_manager_lists_renames_edits_duplicates_and_deletes",
        ui_contour_manager_lists_renames_edits_duplicates_and_deletes},
   };
