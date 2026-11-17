@@ -142,11 +142,19 @@ private:
 // English name; a user rename is displayed verbatim.
 [[nodiscard]] QString style_library_entry_display_name(const StyleLibraryEntry& entry);
 
-// Renders the style applied to an "Aa" sample (rounded-square fallback when no
-// font ink is available) over a neutral card. Shared by the library thumbnail
-// cache, the Styles page browser, and the manager's large preview.
+// The shape a style preview draws the style on. Letters is the style presets'
+// "Aa" sample; the Layer Style dialog's swatch uses Square for every layer that
+// is not a text layer (GitHub issue 732).
+enum class StylePreviewSample { Letters, Square };
+
+// Renders the style applied to a sample (Letters: "Aa", with a rounded-square
+// fallback when no font ink is available; Square: a plain filled square with
+// room around it for outer effects) over a neutral card. Shared by the library
+// thumbnail cache, the Styles page browser, the manager's large preview and the
+// Layer Style dialog's swatch.
 [[nodiscard]] QPixmap render_style_preview(const LayerStyle& style,
                                            const std::optional<psd::AslBlendSettings>& blend_settings,
-                                           std::span<const PatternResource> patterns, int extent);
+                                           std::span<const PatternResource> patterns, int extent,
+                                           StylePreviewSample sample_shape = StylePreviewSample::Letters);
 
 }  // namespace patchy::ui

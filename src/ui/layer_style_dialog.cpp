@@ -1646,7 +1646,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   set_themed_style(*style_swatch,
                    QStringLiteral("QLabel#layerStyleSwatch { border: 1px solid @field_border; }"));
   category_actions->addWidget(style_swatch);
-  const auto render_style_swatch = [style_swatch, document_patterns, pattern_library](const LayerStyleSettings& settings) {
+  // A text layer keeps the presets' "Aa" sample; every other layer, a group
+  // or a multi-layer edit led by a non-text layer included, shows a plain
+  // square (GitHub issue 732).
+  const auto swatch_sample =
+      layer.kind() == LayerKind::Text ? StylePreviewSample::Letters : StylePreviewSample::Square;
+  const auto render_style_swatch = [style_swatch, document_patterns, pattern_library,
+                                    swatch_sample](const LayerStyleSettings& settings) {
     std::vector<PatternResource> swatch_patterns;
     std::vector<std::string> referenced_ids;
     collect_referenced_pattern_ids(settings.style, referenced_ids);
@@ -1666,7 +1672,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     style_swatch->setPixmap(render_style_preview(
         settings.style,
         psd::AslBlendSettings{settings.opacity, settings.blend_mode, settings.blend_if, settings.fill_opacity},
-        swatch_patterns, kStyleSwatchExtent));
+        swatch_patterns, kStyleSwatchExtent, swatch_sample));
   };
   auto* style_swatch_timer = new QTimer(&dialog);
   style_swatch_timer->setObjectName(QStringLiteral("layerStyleSwatchTimer"));
