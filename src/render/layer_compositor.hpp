@@ -1229,133 +1229,229 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
     gloss_lut = build_style_contour_lut(bevel.gloss_contour);
   }
 
-  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      const auto local_x = x - mask_bounds.x;
-      const auto local_y = y - mask_bounds.y;
-      const auto mask_index = static_cast<std::size_t>(local_y) * static_cast<std::size_t>(mask_width) +
-                              static_cast<std::size_t>(local_x);
-      const auto matte_alpha = clamp_unit(alpha_mask[mask_index]);
-      float effect_alpha = 0.0F;
-      switch (bevel.style) {
-        case BevelEmbossStyleKind::InnerBevel:
-        case BevelEmbossStyleKind::StrokeEmboss:
-          effect_alpha = matte_alpha;
-          break;
-        case BevelEmbossStyleKind::OuterBevel:
-          effect_alpha = 1.0F - matte_alpha;
-          break;
-        case BevelEmbossStyleKind::Emboss:
-        case BevelEmbossStyleKind::PillowEmboss:
-          effect_alpha = 1.0F;
-          break;
+  // What the height field does at one mask pixel. Locally flat surface: the
+  // tent/EDT plateaus far from any contour are exact float constants, so
+  // exact-zero differences identify them.
+  struct BevelSurface {
+    float matte_alpha{0.0F};
+    float gradient_x{0.0F};
+    float gradient_y{0.0F};
+    bool flat{true};
+  };
+  const auto surface_at = [&](std::int32_t local_x, std::int32_t local_y, float matte_alpha) {
+    const auto left = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x - 1, local_y);
+    const auto right = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x + 1, local_y);
+    const auto top = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y - 1);
+    const auto bottom = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y + 1);
+    BevelSurface surface;
+    surface.matte_alpha = matte_alpha;
+    surface.gradient_x = (left - right) * normal_scale;
+    surface.gradient_y = (top - bottom) * normal_scale;
+    surface.flat = left == right && top == bottom;
+    return surface;
+  };
+  const auto matte_at = [&](std::int32_t local_x, std::int32_t local_y) {
+    return clamp_unit(alpha_mask[static_cast<std::size_t>(local_y) * static_cast<std::size_t>(mask_width) +
+                                 static_cast<std::size_t>(local_x)]);
+  };
+  // Which side of the contour a style shows.
+  const auto style_alpha = [&](float matte_alpha) {
+    switch (bevel.style) {
+      case BevelEmbossStyleKind::InnerBevel:
+      case BevelEmbossStyleKind::StrokeEmboss:
+        return matte_alpha;
+      case BevelEmbossStyleKind::OuterBevel:
+        return 1.0F - matte_alpha;
+      case BevelEmbossStyleKind::Emboss:
+      case BevelEmbossStyleKind::PillowEmboss:
+        return 1.0F;
+    }
+    return 0.0F;
+  };
+  // COM-calibrated Lambert shading (July 2026, photoshop-bevel-smooth
+  // fixtures): the surface lighting L = N dot Light with a properly
+  // normalized normal, then the HIGHLIGHT is the excess over the flat-face
+  // value normalized to the headroom, (L - sin(alt)) / (1 - sin(alt)), and
+  // the SHADOW is the deficit normalized to the floor,
+  // (sin(alt) - L) / sin(alt). This reproduces both the full-strength
+  // shadow edge under a low light and the non-monotone highlight band under
+  // a high light (slopes steeper than 90 - altitude tip past the light),
+  // within ~0.4/255 on the altitude 30 and 60 probes. Pillow/Emboss
+  // shadows instead follow the UNNORMALIZED deficit — linear in slope,
+  // saturating early (the probes pin the shadow gain to the highlight's
+  // small-signal gain at every depth, and the shadow side clamps long
+  // before the normalized Lambert would; the lit side's tip-past regime
+  // stays on the normalized value, depth-1000 probe).
+  // Returns the signed shading (above zero highlight, below zero shadow);
+  // `weight` comes back scaled for a flat pixel under a Gloss Contour.
+  const auto lighting_for = [&](const BevelSurface& surface, float sign, float& weight) {
+    if (weight <= 0.0F) {
+      return 0.0F;
+    }
+    const auto gradient_x = surface.gradient_x * sign;
+    const auto gradient_y = surface.gradient_y * sign;
+    const auto length = std::sqrt(gradient_x * gradient_x + gradient_y * gradient_y + 1.0F);
+    const auto raw_light = gradient_x * light_x + gradient_y * light_y + light_z;
+    const auto surface_light = raw_light / std::max(0.0001F, length);
+    auto lighting = surface_light >= light_z
+                        ? (surface_light - light_z) / std::max(0.01F, 1.0F - light_z)
+                        : -((light_z - surface_light) / std::max(0.01F, light_z));
+    if (pillow_family && raw_light < light_z) {
+      lighting = -((light_z - raw_light) / std::max(0.01F, light_z));
+    }
+    if (!gloss_is_linear) {
+      // Gloss Contour remaps the Lambert LIGHT VALUE, not the split
+      // shading: L' = LUT(clamp(L, 0, 1)), and the highlight/shadow split
+      // then runs on L' against the flat-face sin(altitude) (COM-calibrated
+      // July 2026, photoshop-gloss-contour fixtures). Flat INTERIOR
+      // plateaus genuinely carry the constant LUT(sin alt) wash (Ring
+      // at altitude 30 brightens the whole fill by 6/255; the altitude-60
+      // arm DARKENS it, pinning the input as L itself, refuting every
+      // signed-lighting mapping), while flat EXTERIOR ground stays clean -
+      // the shading weight of a locally flat pixel is the matte alpha.
+      // Without that gate the flat remap painted constant fog across the
+      // whole padded effect rect outside the shape (the
+      // pinball_from_photoshop garbage). The pillow shadow keeps its
+      // calibrated unnormalized deficit, fed by the remapped raw light.
+      // Linear short-circuits so plain bevels stay bit-identical to the
+      // historical render.
+      if (surface.flat) {
+        weight *= surface.matte_alpha;
+        if (weight <= 0.0F) {
+          return 0.0F;
+        }
       }
-      if (effect_alpha <= 0.0F) {
-        continue;
+      const auto remapped_surface = sample_style_contour_lut(
+          gloss_lut, clamp_unit(surface_light), bevel.gloss_anti_aliased);
+      lighting = remapped_surface >= light_z
+                     ? (remapped_surface - light_z) / std::max(0.01F, 1.0F - light_z)
+                     : -((light_z - remapped_surface) / std::max(0.01F, light_z));
+      if (pillow_family && remapped_surface < light_z) {
+        const auto remapped_raw = sample_style_contour_lut(
+            gloss_lut, clamp_unit(raw_light), bevel.gloss_anti_aliased);
+        if (remapped_raw < light_z) {
+          lighting = -((light_z - remapped_raw) / std::max(0.01F, light_z));
+        }
       }
-      const auto left = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x - 1, local_y);
-      const auto right = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x + 1, local_y);
-      const auto top = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y - 1);
-      const auto bottom = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y + 1);
-      const auto base_gradient_x = (left - right) * normal_scale;
-      const auto base_gradient_y = (top - bottom) * normal_scale;
-      if (layer_mask_clips_effect_output(layer)) {
-        effect_alpha *= effect_output_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+    }
+    return lighting;
+  };
+  const auto composite_shading = [&](std::int32_t x, std::int32_t y, float lighting, float weight) {
+    if (lighting > 0.0F) {
+      composite_effect_color(destination, x, y, bevel.highlight_color,
+                             clamp_unit(lighting) * weight * bevel.highlight_opacity * layer.opacity(),
+                             bevel.highlight_blend_mode, DissolveField::Bevel);
+    } else if (lighting < 0.0F) {
+      composite_effect_color(destination, x, y, bevel.shadow_color,
+                             clamp_unit(-lighting) * weight * bevel.shadow_opacity * layer.opacity(),
+                             bevel.shadow_blend_mode, DissolveField::Bevel);
+    }
+  };
+  // Pillow: the valley mirrors the rim, and Photoshop composites BOTH sides at
+  // an anti-aliased edge: the exterior-signed shading over the pixel's
+  // backdrop fraction and the flipped interior shading over its content
+  // fraction (pillow-ellipse fringe pixels carry a highlight AND a
+  // shadow simultaneously — photoshop-emboss-styles probes). A hard
+  // 0.5 flip instead speckles curved AA contours with wrong-side
+  // shading. Direction Down ("Out ", title.psd and the probes) is the
+  // calibrated orientation; Direction Up mirrors it.
+  const auto pillow_sign = bevel.direction_up ? -1.0F : 1.0F;
+  const auto clips_output = layer_mask_clips_effect_output(layer);
+  const auto soften_peak = bevel_soften_tent_peak(bevel.soften);
+
+  if (soften_peak == 0) {
+    for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+      for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+        const auto local_x = x - mask_bounds.x;
+        const auto local_y = y - mask_bounds.y;
+        const auto matte_alpha = matte_at(local_x, local_y);
+        auto effect_alpha = style_alpha(matte_alpha);
         if (effect_alpha <= 0.0F) {
           continue;
         }
+        const auto surface = surface_at(local_x, local_y, matte_alpha);
+        if (clips_output) {
+          effect_alpha *= effect_output_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+          if (effect_alpha <= 0.0F) {
+            continue;
+          }
+        }
+        if (pillow) {
+          auto exterior_weight = effect_alpha * (1.0F - matte_alpha);
+          const auto exterior_lighting = lighting_for(surface, pillow_sign, exterior_weight);
+          composite_shading(x, y, exterior_lighting, exterior_weight);
+          auto interior_weight = effect_alpha * matte_alpha;
+          const auto interior_lighting = lighting_for(surface, -pillow_sign, interior_weight);
+          composite_shading(x, y, interior_lighting, interior_weight);
+        } else {
+          auto weight = effect_alpha;
+          const auto lighting = lighting_for(surface, direction, weight);
+          composite_shading(x, y, lighting, weight);
+        }
       }
-      // COM-calibrated Lambert shading (July 2026, photoshop-bevel-smooth
-      // fixtures): the surface lighting L = N dot Light with a properly
-      // normalized normal, then the HIGHLIGHT is the excess over the flat-face
-      // value normalized to the headroom, (L - sin(alt)) / (1 - sin(alt)), and
-      // the SHADOW is the deficit normalized to the floor,
-      // (sin(alt) - L) / sin(alt). This reproduces both the full-strength
-      // shadow edge under a low light and the non-monotone highlight band under
-      // a high light (slopes steeper than 90 - altitude tip past the light),
-      // within ~0.4/255 on the altitude 30 and 60 probes. Pillow/Emboss
-      // shadows instead follow the UNNORMALIZED deficit — linear in slope,
-      // saturating early (the probes pin the shadow gain to the highlight's
-      // small-signal gain at every depth, and the shadow side clamps long
-      // before the normalized Lambert would; the lit side's tip-past regime
-      // stays on the normalized value, depth-1000 probe).
-      // Locally flat surface: the tent/EDT plateaus far from any contour are
-      // exact float constants, so exact-zero differences identify them.
-      const auto surface_is_flat = left == right && top == bottom;
-      const auto shade = [&](float sign, float weight) {
-        if (weight <= 0.0F) {
-          return;
+    }
+    return;
+  }
+
+  // Soften (GitHub issue 731; Photoshop 2027 COM probes, November 2026):
+  // Photoshop blurs the finished SHADING, never the surface. The signed
+  // shading plane (highlight above zero, shadow below, both sides of the
+  // contour whatever the style shows) goes through Satin's exact tent with
+  // N = max(2, Soften); Inner and Outer Bevel then show their own side of the
+  // blurred plane. That fits Photoshop's Emboss, Inner Bevel and Outer Bevel
+  // captures within 1/255. The plane is built in row bands that carry the
+  // kernel's reach on every side, so memory stays bounded and every pixel gets
+  // the same value whichever strip or dirty rectangle draws it.
+  const auto margin = soften_peak - 1;
+  constexpr std::int32_t kSoftenBandRows = 128;
+  const auto plane_width = draw_rect.width + 2 * margin;
+  for (std::int32_t band_y = draw_rect.y; band_y < draw_rect.y + draw_rect.height; band_y += kSoftenBandRows) {
+    const auto band_height = std::min(kSoftenBandRows, draw_rect.y + draw_rect.height - band_y);
+    const auto plane_height = band_height + 2 * margin;
+    std::vector<float> plane(static_cast<std::size_t>(plane_width) * static_cast<std::size_t>(plane_height), 0.0F);
+    for (std::int32_t plane_y = 0; plane_y < plane_height; ++plane_y) {
+      const auto local_y = band_y - margin + plane_y - mask_bounds.y;
+      if (local_y < 0 || local_y >= mask_height) {
+        continue;  // Past the padded mask: flat ground, no shading.
+      }
+      auto* plane_row = plane.data() + static_cast<std::size_t>(plane_y) * static_cast<std::size_t>(plane_width);
+      for (std::int32_t plane_x = 0; plane_x < plane_width; ++plane_x) {
+        const auto local_x = draw_rect.x - margin + plane_x - mask_bounds.x;
+        if (local_x < 0 || local_x >= mask_width) {
+          continue;
         }
-        const auto gradient_x = base_gradient_x * sign;
-        const auto gradient_y = base_gradient_y * sign;
-        const auto length = std::sqrt(gradient_x * gradient_x + gradient_y * gradient_y + 1.0F);
-        const auto raw_light = gradient_x * light_x + gradient_y * light_y + light_z;
-        const auto surface_light = raw_light / std::max(0.0001F, length);
-        auto lighting = surface_light >= light_z
-                            ? (surface_light - light_z) / std::max(0.01F, 1.0F - light_z)
-                            : -((light_z - surface_light) / std::max(0.01F, light_z));
-        if (pillow_family && raw_light < light_z) {
-          lighting = -((light_z - raw_light) / std::max(0.01F, light_z));
+        const auto matte_alpha = matte_at(local_x, local_y);
+        const auto surface = surface_at(local_x, local_y, matte_alpha);
+        if (pillow) {
+          auto exterior_weight = 1.0F - matte_alpha;
+          const auto exterior_lighting = lighting_for(surface, pillow_sign, exterior_weight);
+          auto interior_weight = matte_alpha;
+          const auto interior_lighting = lighting_for(surface, -pillow_sign, interior_weight);
+          plane_row[plane_x] = std::clamp(exterior_lighting, -1.0F, 1.0F) * exterior_weight +
+                               std::clamp(interior_lighting, -1.0F, 1.0F) * interior_weight;
+        } else {
+          auto weight = 1.0F;
+          const auto lighting = lighting_for(surface, direction, weight);
+          plane_row[plane_x] = std::clamp(lighting, -1.0F, 1.0F) * weight;
         }
-        if (!gloss_is_linear) {
-          // Gloss Contour remaps the Lambert LIGHT VALUE, not the split
-          // shading: L' = LUT(clamp(L, 0, 1)), and the highlight/shadow split
-          // then runs on L' against the flat-face sin(altitude) (COM-calibrated
-          // July 2026, photoshop-gloss-contour fixtures). Flat INTERIOR
-          // plateaus genuinely carry the constant LUT(sin alt) wash (Ring
-          // at altitude 30 brightens the whole fill by 6/255; the altitude-60
-          // arm DARKENS it, pinning the input as L itself, refuting every
-          // signed-lighting mapping), while flat EXTERIOR ground stays clean -
-          // the shading weight of a locally flat pixel is the matte alpha.
-          // Without that gate the flat remap painted constant fog across the
-          // whole padded effect rect outside the shape (the
-          // pinball_from_photoshop garbage). The pillow shadow keeps its
-          // calibrated unnormalized deficit, fed by the remapped raw light.
-          // Linear short-circuits so plain bevels stay bit-identical to the
-          // historical render.
-          if (surface_is_flat) {
-            weight *= matte_alpha;
-            if (weight <= 0.0F) {
-              return;
-            }
-          }
-          const auto remapped_surface = sample_style_contour_lut(
-              gloss_lut, clamp_unit(surface_light), bevel.gloss_anti_aliased);
-          lighting = remapped_surface >= light_z
-                         ? (remapped_surface - light_z) / std::max(0.01F, 1.0F - light_z)
-                         : -((light_z - remapped_surface) / std::max(0.01F, light_z));
-          if (pillow_family && remapped_surface < light_z) {
-            const auto remapped_raw = sample_style_contour_lut(
-                gloss_lut, clamp_unit(raw_light), bevel.gloss_anti_aliased);
-            if (remapped_raw < light_z) {
-              lighting = -((light_z - remapped_raw) / std::max(0.01F, light_z));
-            }
+      }
+    }
+    const auto softened = blur_bevel_shading_plane(plane, plane_width, plane_height, soften_peak);
+    for (std::int32_t y = band_y; y < band_y + band_height; ++y) {
+      const auto* softened_row = softened.data() + static_cast<std::size_t>(y - band_y) *
+                                                       static_cast<std::size_t>(draw_rect.width);
+      for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+        auto effect_alpha = style_alpha(matte_at(x - mask_bounds.x, y - mask_bounds.y));
+        if (effect_alpha <= 0.0F) {
+          continue;
+        }
+        if (clips_output) {
+          effect_alpha *= effect_output_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+          if (effect_alpha <= 0.0F) {
+            continue;
           }
         }
-        if (lighting > 0.0F) {
-          composite_effect_color(destination, x, y, bevel.highlight_color,
-                                 clamp_unit(lighting) * weight * bevel.highlight_opacity * layer.opacity(),
-                                 bevel.highlight_blend_mode, DissolveField::Bevel);
-        } else if (lighting < 0.0F) {
-          composite_effect_color(destination, x, y, bevel.shadow_color,
-                                 clamp_unit(-lighting) * weight * bevel.shadow_opacity * layer.opacity(),
-                                 bevel.shadow_blend_mode, DissolveField::Bevel);
-        }
-      };
-      if (pillow) {
-        // The valley mirrors the rim, and Photoshop composites BOTH sides at
-        // an anti-aliased edge: the exterior-signed shading over the pixel's
-        // backdrop fraction and the flipped interior shading over its content
-        // fraction (pillow-ellipse fringe pixels carry a highlight AND a
-        // shadow simultaneously — photoshop-emboss-styles probes). A hard
-        // 0.5 flip instead speckles curved AA contours with wrong-side
-        // shading. Direction Down ("Out ", title.psd and the probes) is the
-        // calibrated orientation; Direction Up mirrors it.
-        const auto base_sign = bevel.direction_up ? -1.0F : 1.0F;
-        shade(base_sign, effect_alpha * (1.0F - matte_alpha));
-        shade(-base_sign, effect_alpha * matte_alpha);
-      } else {
-        shade(direction, effect_alpha);
+        composite_shading(x, y, softened_row[x - draw_rect.x], effect_alpha);
       }
     }
   }

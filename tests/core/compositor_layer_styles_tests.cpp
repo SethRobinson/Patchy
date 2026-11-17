@@ -317,6 +317,167 @@ void compositor_bevel_styles_techniques_and_soften_are_distinct() {
   CHECK(patchy::layer_style_effect_padding(exterior_style) >= 12);
 }
 
+// GitHub issue 731: with a non-Linear Gloss Contour, any Soften above 0 filled the
+// padded layer rectangle around the shape with full-strength streaks. Soften
+// used to blur the height field with a running-sum box blur, whose rounding
+// leftovers made the flat ground around the shape look sloped, and the Gloss
+// Contour's flat-face value was then drawn there. Soften now blurs the finished
+// shading with Satin's tent (Photoshop probes, docs/layer-effects-render.md),
+// so the ground far from the shape must stay untouched at every Soften value.
+void compositor_bevel_soften_keeps_flat_ground_clean_under_gloss_contour() {
+  constexpr std::int32_t kWidth = 140;
+  constexpr std::int32_t kHeight = 100;
+  constexpr float kSize = 7.0F;
+  const auto render = [&](patchy::BevelEmbossStyleKind style, float soften) {
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(kWidth, kHeight, 100, 100, 100));
+    // An anti-aliased ellipse in the middle of a much larger transparent layer:
+    // the bug needed fractional edge alpha and flat ground inside the layer.
+    auto pixels = solid_rgba(120, 80, 30, 30, 30, 0);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        int covered = 0;
+        for (int sub_y = 0; sub_y < 4; ++sub_y) {
+          for (int sub_x = 0; sub_x < 4; ++sub_x) {
+            const auto dx = (static_cast<double>(x) + (static_cast<double>(sub_x) + 0.5) / 4.0 - 60.0) / 26.0;
+            const auto dy = (static_cast<double>(y) + (static_cast<double>(sub_y) + 0.5) / 4.0 - 40.0) / 15.0;
+            covered += dx * dx + dy * dy <= 1.0 ? 1 : 0;
+          }
+        }
+        pixels.pixel(x, y)[3] = static_cast<std::uint8_t>(covered * 255 / 16);
+      }
+    }
+    patchy::Layer styled(document.allocate_layer_id(), "Bevel", std::move(pixels));
+    auto& layer = document.add_layer(std::move(styled));
+    layer.set_bounds(patchy::Rect{10, 10, 120, 80});
+    patchy::LayerBevelEmboss bevel;
+    bevel.enabled = true;
+    bevel.style = style;
+    bevel.technique = patchy::BevelTechnique::Smooth;
+    bevel.depth = 7.41F;
+    bevel.size = kSize;
+    bevel.soften = soften;
+    bevel.angle_degrees = 120.0F;
+    bevel.altitude_degrees = 30.0F;
+    bevel.highlight_blend_mode = patchy::BlendMode::Normal;
+    bevel.highlight_color = patchy::RgbColor{255, 255, 255};
+    bevel.highlight_opacity = 1.0F;
+    bevel.shadow_blend_mode = patchy::BlendMode::Normal;
+    bevel.shadow_color = patchy::RgbColor{0, 0, 0};
+    bevel.shadow_opacity = 1.0F;
+    // A zigzag like the report's custom curve; its value at the flat-face
+    // light (altitude 30: 0.5) is far from 0.5, so shaded flat ground shows.
+    bevel.gloss_contour.name = "Custom";
+    for (int index = 0; index <= 8; ++index) {
+      bevel.gloss_contour.points.push_back(patchy::StyleContourPoint{
+          std::min(255.0F, static_cast<float>(index) * 32.0F), index % 2 == 0 ? 0.0F : 255.0F, true});
+    }
+    layer.layer_style().bevels.push_back(bevel);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  // Pixels the bevel may not reach: outside the ellipse's box (44..96 x 35..65
+  // in document space) grown by Size, Soften and two pixels of slack.
+  const auto stray_pixels = [&](const patchy::PixelBuffer& flat, float soften) {
+    const auto reach = static_cast<std::int32_t>(std::ceil(kSize + soften)) + 2;
+    int stray = 0;
+    for (std::int32_t y = 0; y < kHeight; ++y) {
+      for (std::int32_t x = 0; x < kWidth; ++x) {
+        if (x >= 44 - reach && x <= 96 + reach && y >= 35 - reach && y <= 65 + reach) {
+          continue;
+        }
+        const auto* px = flat.pixel(x, y);
+        stray += (px[0] != 100 || px[1] != 100 || px[2] != 100) ? 1 : 0;
+      }
+    }
+    return stray;
+  };
+  const auto equal_pixels = [](const patchy::PixelBuffer& lhs, const patchy::PixelBuffer& rhs) {
+    return lhs.data().size() == rhs.data().size() &&
+           std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
+  };
+
+  for (const auto style : {patchy::BevelEmbossStyleKind::OuterBevel, patchy::BevelEmbossStyleKind::InnerBevel,
+                           patchy::BevelEmbossStyleKind::Emboss, patchy::BevelEmbossStyleKind::PillowEmboss}) {
+    const auto plain = render(style, 0.0F);
+    CHECK(stray_pixels(plain, 0.0F) == 0);
+    for (const auto soften : {1.0F, 2.0F, 5.0F, 16.0F}) {
+      const auto softened = render(style, soften);
+      CHECK(stray_pixels(softened, soften) == 0);
+      CHECK(!equal_pixels(plain, softened));
+    }
+    // Photoshop renders Soften 1 and Soften 2 alike (one [1 2 1] tent); 3 is wider.
+    CHECK(equal_pixels(render(style, 1.0F), render(style, 2.0F)));
+    CHECK(!equal_pixels(render(style, 2.0F), render(style, 3.0F)));
+  }
+  write_rgb8_bmp_artifact("layer_style_bevel_soften_gloss_contour",
+                          render(patchy::BevelEmbossStyleKind::OuterBevel, 2.0F));
+}
+
+// Soften is a blur of the finished shading: on mid gray, with white and black
+// at 100% Normal, a softened Emboss must equal the [1 2 1] tent of the plain
+// one's signed shading, pixel for pixel (Photoshop's Emboss captures fit that
+// within 1/255). Blurring the surface instead, as Patchy did before GitHub
+// issue 731, moves the shading's peak and fails this.
+void compositor_bevel_soften_is_a_tent_blur_of_the_shading() {
+  constexpr std::int32_t kExtent = 72;
+  const auto render = [&](float soften) {
+    patchy::Document document(kExtent, kExtent, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(kExtent, kExtent, 128, 128, 128));
+    patchy::Layer styled(document.allocate_layer_id(), "Bevel", solid_rgba(28, 28, 128, 128, 128, 255));
+    auto& layer = document.add_layer(std::move(styled));
+    layer.set_bounds(patchy::Rect{22, 22, 28, 28});
+    patchy::LayerBevelEmboss bevel;
+    bevel.enabled = true;
+    bevel.style = patchy::BevelEmbossStyleKind::Emboss;
+    bevel.technique = patchy::BevelTechnique::ChiselHard;
+    bevel.depth = 1.0F;
+    bevel.size = 8.0F;
+    bevel.soften = soften;
+    bevel.angle_degrees = 120.0F;
+    bevel.altitude_degrees = 30.0F;
+    bevel.highlight_blend_mode = patchy::BlendMode::Normal;
+    bevel.highlight_color = patchy::RgbColor{255, 255, 255};
+    bevel.highlight_opacity = 1.0F;
+    bevel.shadow_blend_mode = patchy::BlendMode::Normal;
+    bevel.shadow_color = patchy::RgbColor{0, 0, 0};
+    bevel.shadow_opacity = 1.0F;
+    layer.layer_style().bevels.push_back(bevel);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  // Over gray 128 a highlight h shows as 128 + 127 h and a shadow s as 128 (1 - s).
+  const auto signed_shading = [](std::uint8_t value) {
+    const auto delta = static_cast<double>(value) - 128.0;
+    return delta >= 0.0 ? delta / 127.0 : delta / 128.0;
+  };
+  const auto plain = render(0.0F);
+  const auto softened = render(2.0F);
+  constexpr std::array<double, 3> kTent{0.25, 0.5, 0.25};
+  int shaded = 0;
+  int changed = 0;
+  int worst = 0;
+  for (std::int32_t y = 1; y + 1 < kExtent; ++y) {
+    for (std::int32_t x = 1; x + 1 < kExtent; ++x) {
+      double expected = 0.0;
+      for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+          expected += kTent[static_cast<std::size_t>(dy + 1)] * kTent[static_cast<std::size_t>(dx + 1)] *
+                      signed_shading(plain.pixel(x + dx, y + dy)[0]);
+        }
+      }
+      const auto expected_value =
+          static_cast<int>(std::lround(128.0 + expected * (expected >= 0.0 ? 127.0 : 128.0)));
+      const auto actual = static_cast<int>(softened.pixel(x, y)[0]);
+      worst = std::max(worst, std::abs(actual - expected_value));
+      shaded += plain.pixel(x, y)[0] != 128 ? 1 : 0;
+      changed += actual != static_cast<int>(plain.pixel(x, y)[0]) ? 1 : 0;
+    }
+  }
+  CHECK(shaded > 400);
+  CHECK(changed > 100);
+  // The reference blurs 8-bit shading, the render blurs floats: two levels of slack.
+  CHECK(worst <= 2);
+}
+
 void psd_bevel_styles_techniques_and_soften_round_trip() {
   constexpr std::array styles{
       patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelEmbossStyleKind::OuterBevel,
@@ -2043,6 +2204,10 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        compositor_renders_bevel_across_thin_checkbox_edges},
       {"compositor_bevel_styles_techniques_and_soften_are_distinct",
        compositor_bevel_styles_techniques_and_soften_are_distinct},
+      {"compositor_bevel_soften_keeps_flat_ground_clean_under_gloss_contour",
+       compositor_bevel_soften_keeps_flat_ground_clean_under_gloss_contour},
+      {"compositor_bevel_soften_is_a_tent_blur_of_the_shading",
+       compositor_bevel_soften_is_a_tent_blur_of_the_shading},
       {"psd_bevel_styles_techniques_and_soften_round_trip",
        psd_bevel_styles_techniques_and_soften_round_trip},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},

@@ -996,13 +996,69 @@ std::vector<float> bevel_technique_height_mask(const std::vector<float>& alpha_m
       blur_mask_in_place(height_mask, width, height, 1, 1);
     }
   }
-  if (bevel.soften > 0.0F) {
-    blur_layer_style_mask_in_place(height_mask, width, height, bevel.soften);
-  }
+  // Soften never touches the height field: it blurs the finished shading
+  // (bevel_soften_tent_peak). A blurred height also left rounding leftovers on
+  // the flat ground around the layer, which a non-Linear Gloss Contour then
+  // shaded as streaks (GitHub issue 731).
   for (auto& value : height_mask) {
     value = clamp_unit(value);
   }
   return height_mask;
+}
+
+int bevel_soften_tent_peak(float soften) noexcept {
+  // A view-scaled Soften below half a pixel is no blur. NaN lands here too.
+  if (!(soften >= 0.5F)) {
+    return 0;
+  }
+  return static_cast<int>(std::clamp(std::lround(std::min(soften, 16.0F)), 2L, 16L));
+}
+
+std::vector<float> blur_bevel_shading_plane(const std::vector<float>& plane, int plane_width, int plane_height,
+                                            int peak) {
+  const auto margin = peak - 1;
+  const auto out_width = plane_width - 2 * margin;
+  const auto out_height = plane_height - 2 * margin;
+  if (peak <= 0 || out_width <= 0 || out_height <= 0 ||
+      plane.size() != static_cast<std::size_t>(plane_width) * static_cast<std::size_t>(plane_height)) {
+    return {};
+  }
+  // Every output value is a fixed-order sum of its own taps, so a pixel gets the
+  // same bytes whichever strip, band or dirty rectangle renders it, and a plane
+  // of zeros stays exactly zero (a running sum would drift).
+  const auto taps = static_cast<std::size_t>(2 * margin + 1);
+  std::vector<float> weights(taps, 0.0F);
+  const auto divisor = static_cast<float>(peak) * static_cast<float>(peak);
+  for (int k = -margin; k <= margin; ++k) {
+    weights[static_cast<std::size_t>(k + margin)] = static_cast<float>(peak - std::abs(k)) / divisor;
+  }
+
+  const auto row_width = static_cast<std::size_t>(out_width);
+  std::vector<float> horizontal(row_width * static_cast<std::size_t>(plane_height), 0.0F);
+  for (int y = 0; y < plane_height; ++y) {
+    const auto* in_row = plane.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(plane_width);
+    auto* out_row = horizontal.data() + static_cast<std::size_t>(y) * row_width;
+    for (std::size_t tap = 0; tap < taps; ++tap) {
+      const auto weight = weights[tap];
+      const auto* in = in_row + tap;
+      for (std::size_t x = 0; x < row_width; ++x) {
+        out_row[x] += weight * in[x];
+      }
+    }
+  }
+
+  std::vector<float> output(row_width * static_cast<std::size_t>(out_height), 0.0F);
+  for (int y = 0; y < out_height; ++y) {
+    auto* out_row = output.data() + static_cast<std::size_t>(y) * row_width;
+    for (std::size_t tap = 0; tap < taps; ++tap) {
+      const auto weight = weights[tap];
+      const auto* in = horizontal.data() + (static_cast<std::size_t>(y) + tap) * row_width;
+      for (std::size_t x = 0; x < row_width; ++x) {
+        out_row[x] += weight * in[x];
+      }
+    }
+  }
+  return output;
 }
 
 int satin_tent_peak(float size) noexcept {
