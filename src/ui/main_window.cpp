@@ -7474,6 +7474,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_selection_context_actions_callback([this] { return selection_context_actions_; });
   canvas->set_selection_tool_context_actions_callback([this] { return selection_tool_context_actions_; });
   canvas->set_zoom_tool_context_actions_callback([this] { return zoom_tool_context_actions_; });
+  canvas->set_brush_context_rows_callback([this, canvas](QMenu& menu, CanvasTool tool) {
+    if (canvas == canvas_) {
+      add_brush_context_rows(menu, tool);
+    }
+  });
   // Session menus (GitHub issue 323): a right-click during a transform or a crop.
   canvas->set_transform_session_context_actions_callback([this, canvas] {
     return canvas == canvas_ ? transform_session_context_actions() : QList<QAction*>{};

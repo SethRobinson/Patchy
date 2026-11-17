@@ -145,6 +145,10 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QWidgetAction>
+#include <QMouseEvent>
+#include <QGridLayout>
+#include <QCoreApplication>
 #include <Qt>
 #include <QtGlobal>
 
@@ -889,6 +893,17 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
 
 namespace {
 
+// The canvas menu's brush settings rows (GitHub issue 734). A click between the rows stays
+// with them: QMenu would take it as a pick of their widget action and close the menu.
+class BrushContextRowsPanel final : public QWidget {
+public:
+  using QWidget::QWidget;
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override { event->accept(); }
+  void mouseReleaseEvent(QMouseEvent* event) override { event->accept(); }
+};
+
 // A tip angle as the Brush Dynamics field shows it: (-180, 180].
 [[nodiscard]] double wrapped_brush_tip_angle(double degrees) {
   auto wrapped = std::fmod(degrees, 360.0);
@@ -953,6 +968,115 @@ void MainWindow::flush_pending_brush_rotation() {
   const auto dynamics = entry->dynamics;
   const auto roundness = entry->base_roundness;
   (void)brush_tip_library().set_tip_dynamics(pending.tip_id, dynamics, pending.angle_degrees, roundness);
+}
+
+void MainWindow::set_brush_tip_base_shape(double angle_degrees, int roundness) {
+  if (canvas_ == nullptr || !tool_stroke_uses_tip_shape(canvas_->tool()) || canvas_->pointer_gesture_active()) {
+    return;
+  }
+  const auto angle = wrapped_brush_tip_angle(angle_degrees);
+  roundness = std::clamp(roundness, 1, 100);
+  const bool session_tip = active_preset_tip_ || active_automation_brush_ || active_brush_tip_id_.isEmpty() ||
+                           is_builtin_brush_tip_id(active_brush_tip_id_);
+  if (session_tip) {
+    // Round, Square and a preset's or a script's own tip keep theirs for the session, as the
+    // Brush Dynamics popup edits them.
+    round_brush_base_angle_degrees_ = angle;
+    round_brush_base_roundness_ = roundness;
+  } else if (brush_tip_library().find_entry(active_brush_tip_id_) == nullptr) {
+    return;
+  } else if (pending_brush_rotation_.has_value()) {
+    // The popup's edit below carries the angle a key turn was still waiting to save.
+    pending_brush_rotation_.reset();
+    if (brush_rotation_save_timer_ != nullptr) {
+      brush_rotation_save_timer_->stop();
+    }
+  }
+  canvas_->set_brush_base_shape(angle, roundness);
+  if (brush_dynamics_button_ != nullptr) {
+    // A library tip saves through the popup's own debounced edit (dynamics_edited).
+    brush_dynamics_button_->set_base_shape(angle, roundness, !session_tip);
+  }
+}
+
+void MainWindow::add_brush_context_rows(QMenu& menu, CanvasTool tool) {
+  if (canvas_ == nullptr || !tool_uses_brush_footprint_cursor(tool)) {
+    return;
+  }
+  auto* panel = new BrushContextRowsPanel(&menu);
+  panel->setObjectName(QStringLiteral("canvasBrushSettingsPanel"));
+  auto* grid = new QGridLayout(panel);
+  grid->setContentsMargins(10, 6, 10, 6);
+  grid->setHorizontalSpacing(8);
+  grid->setVerticalSpacing(4);
+  int row = 0;
+  // One row: a scrub label, a slider and the field. The slider follows the field both ways.
+  const auto add_row = [&](const QString& text, const QString& object_name, int minimum, int maximum, int value,
+                           const QString& suffix, bool curved) {
+    auto* label = new QLabel(text, panel);
+    label->setIndent(0);
+    auto* spin = new QSpinBox(panel);
+    spin->setObjectName(object_name);
+    spin->setRange(minimum, maximum);
+    spin->setValue(value);
+    spin->setSuffix(suffix);
+    configure_toolbar_spinbox(spin, 58);
+    label->setBuddy(spin);
+    auto* slider = new QSlider(Qt::Horizontal, panel);
+    slider->setObjectName(object_name + QStringLiteral("Slider"));
+    slider->setFixedWidth(120);
+    if (curved) {
+      bind_curved_slider(*slider, *spin);
+    } else {
+      slider->setRange(minimum, maximum);
+      slider->setValue(value);
+      connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+      connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
+    }
+    grid->addWidget(label, row, 0);
+    grid->addWidget(slider, row, 1);
+    grid->addWidget(spin, row, 2);
+    ++row;
+    // Built after the window's install_scrub_labels_in passes, which never reach a menu.
+    install_scrub_label(label, spin);
+    return spin;
+  };
+  // A row that mirrors an options-bar field edits through it, so the canvas, its cursor, the
+  // saved tool settings and the bar move together, and shows the field's own changes.
+  const auto mirror = [&](const QString& text, const QString& object_name, const QString& bar_name, bool curved) {
+    auto* bar = findChild<QSpinBox*>(bar_name);
+    if (bar == nullptr) {
+      return;
+    }
+    auto* spin = add_row(text, object_name, bar->minimum(), bar->maximum(), bar->value(), bar->suffix(), curved);
+    spin->setEnabled(bar->isEnabled());
+    connect(spin, &QSpinBox::valueChanged, bar, [bar](int value) { bar->setValue(value); });
+    connect(bar, &QSpinBox::valueChanged, spin, [spin](int value) { spin->setValue(value); });
+  };
+  mirror(tr("Size:"), QStringLiteral("canvasBrushSizeSpin"), QStringLiteral("brushSizeSpin"), true);
+  mirror(tr("Soft:"), QStringLiteral("canvasBrushSoftnessSpin"), QStringLiteral("brushSoftnessSpin"), false);
+  if (tool_stroke_uses_tip_shape(tool)) {
+    // The Brush Dynamics popup's Tip Shape fields, in its words, on every tool whose strokes
+    // take the tip's shape; the Left and Right keys turn the same angle.
+    auto* roundness = add_row(QCoreApplication::translate("patchy::ui::BrushDynamicsPanel", "Roundness:"),
+                              QStringLiteral("canvasBrushRoundnessSpin"), 1, 100, canvas_->brush_base_roundness(),
+                              percent_suffix(), false);
+    auto* angle = add_row(QCoreApplication::translate("patchy::ui::BrushDynamicsPanel", "Angle:"),
+                          QStringLiteral("canvasBrushAngleSpin"), -180, 180,
+                          static_cast<int>(std::lround(wrapped_brush_tip_angle(canvas_->brush_base_angle_degrees()))),
+                          degree_suffix(), false);
+    angle->setWrapping(true);
+    const auto apply = [this, roundness, angle] { set_brush_tip_base_shape(angle->value(), roundness->value()); };
+    connect(roundness, &QSpinBox::valueChanged, this, apply);
+    connect(angle, &QSpinBox::valueChanged, this, apply);
+  }
+  if (tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::Eraser) {
+    mirror(tr("Smooth:"), QStringLiteral("canvasBrushSmoothingSpin"), QStringLiteral("brushSmoothingSpin"), false);
+  }
+  auto* action = new QWidgetAction(&menu);
+  action->setObjectName(QStringLiteral("canvasBrushSettingsAction"));
+  action->setDefaultWidget(panel);
+  menu.addAction(action);
 }
 
 void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,

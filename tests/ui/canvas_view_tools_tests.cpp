@@ -5642,13 +5642,21 @@ void ui_zoom_tool_context_menu_offers_view_zoom_commands() {
   }
   CHECK(!zoom_actions[0]->shortcut().isEmpty());
 
-  // A painting tool still opens nothing inside the document.
+  // A painting tool offers no zoom commands inside the document, only its brush settings rows
+  // (GitHub issue 734).
   require_action(window, "toolBrushAction")->trigger();
   canvas->set_view_zoom(0.5);
   QApplication::processEvents();
   const auto inside = canvas->widget_position_for_document_point(QPoint(40, 40));
   CHECK(canvas->rect().contains(inside));
-  CHECK(right_click(inside) == nullptr);
+  auto* brush_menu = right_click(inside);
+  CHECK(brush_menu != nullptr);
+  if (brush_menu != nullptr) {
+    CHECK(brush_menu->actions().size() == 1);
+    CHECK(brush_menu->actions().front()->objectName() == QStringLiteral("canvasBrushSettingsAction"));
+    brush_menu->close();
+    QApplication::processEvents();
+  }
 
   require_action_by_text(window, QStringLiteral("Zoom"))->trigger();
   QApplication::processEvents();
@@ -5762,8 +5770,12 @@ void ui_canvas_backdrop_context_menu_sets_color() {
     CHECK(!canvas->backdrop_color_override().has_value());
     CHECK(canvas->backdrop_color() == patchy::ui::theme().canvas_backdrop);
 
-    // A painting tool inside the document still has no menu.
-    CHECK(right_click(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100))) == nullptr);
+    // A painting tool inside the document offers only its brush settings rows (GitHub issue 734).
+    auto* inside = right_click(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)));
+    CHECK(inside != nullptr && inside->actions().size() == 1);
+    CHECK(inside->findChild<QAction*>(QStringLiteral("canvasBackdropDefaultAction")) == nullptr);
+    inside->close();
+    QApplication::processEvents();
 
     auto* menu = right_click(*canvas, backdrop_point);
     CHECK(menu != nullptr);

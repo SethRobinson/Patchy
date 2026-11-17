@@ -3013,6 +3013,13 @@ private:
   // keys rest (flush_pending_brush_rotation), Round and Square keep theirs for the session.
   bool rotate_brush_tip(int degrees);
   void flush_pending_brush_rotation();
+  // Sets the active tip's static angle and roundness as the Brush Dynamics popup's Tip Shape
+  // fields do (the canvas menu's rows, GitHub issue 734): the canvas and its cursor at once,
+  // the popup's model, and for a library tip the sidecar once the edits rest.
+  void set_brush_tip_base_shape(double angle_degrees, int roundness);
+  // The canvas menu's brush settings rows for a footprint tool (GitHub issue 734): Size and
+  // Soft, Roundness and Angle where its strokes take the tip shape, Smooth where it smooths.
+  void add_brush_context_rows(QMenu& menu, CanvasTool tool);
   void import_brush_tips_from_abr();
   void open_brush_tip_manager(QWidget* parent = nullptr);
   // Edit > Presets and the Preferences Presets page (GitHub issue 485): the

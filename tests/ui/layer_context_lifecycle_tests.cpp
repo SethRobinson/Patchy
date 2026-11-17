@@ -17,6 +17,7 @@
 #include "formats/tga_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/dialog_utils.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
@@ -541,8 +542,19 @@ void ui_move_context_menu_offers_free_transform_on_raster_layer() {
   // Off the layer there is nothing under the pointer and no menu.
   CHECK(right_click_move_canvas(*canvas, QPoint(120, 100)) == nullptr);
 
-  // Other tools keep a right-click on a raster layer menu-free.
+  // Other tools offer no Free Transform on a raster layer; a painting tool's menu holds only its
+  // brush settings rows (GitHub issue 734).
   canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  menu = right_click_move_canvas(*canvas, QPoint(30, 30));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(free_transform_in(*menu) == nullptr);
+    CHECK(menu->actions().size() == 1);
+    CHECK(menu->actions().front()->objectName() == QStringLiteral("canvasBrushSettingsAction"));
+    menu->close();
+    QApplication::processEvents();
+  }
+  canvas->set_tool(patchy::ui::CanvasTool::Gradient);
   CHECK(right_click_move_canvas(*canvas, QPoint(30, 30)) == nullptr);
 
   // A position-locked layer would refuse Free Transform, so it is not offered.
@@ -557,6 +569,162 @@ void ui_move_context_menu_offers_free_transform_on_raster_layer() {
     menu->close();
     QApplication::processEvents();
   }
+}
+
+// A right-click with a footprint painting tool leads the canvas menu with its brush settings
+// rows (GitHub issue 734). Each row edits through its options-bar field, so the bar, the canvas
+// and the cursor follow, and the bar's own changes show in the open menu. The selection's
+// commands follow on a selection; each tool shows only the rows it has.
+void ui_brush_context_menu_rows_follow_options_bar() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_rulers_visible(false);
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  auto* bar_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* bar_soft = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  auto* bar_smooth = window.findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
+  CHECK(bar_size != nullptr && bar_soft != nullptr && bar_smooth != nullptr);
+  const auto row_names = [](QMenu& menu) {
+    QStringList names;
+    if (auto* panel = menu.findChild<QWidget*>(QStringLiteral("canvasBrushSettingsPanel")); panel != nullptr) {
+      for (auto* spin : panel->findChildren<QSpinBox*>()) {
+        names.push_back(spin->objectName());
+      }
+    }
+    return names;
+  };
+
+  auto* menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) {
+    return;
+  }
+  CHECK(menu->actions().size() == 1);
+  CHECK(menu->actions().front()->objectName() == QStringLiteral("canvasBrushSettingsAction"));
+  CHECK(row_names(*menu) == QStringList({QStringLiteral("canvasBrushSizeSpin"),
+                                         QStringLiteral("canvasBrushSoftnessSpin"),
+                                         QStringLiteral("canvasBrushRoundnessSpin"),
+                                         QStringLiteral("canvasBrushAngleSpin"),
+                                         QStringLiteral("canvasBrushSmoothingSpin")}));
+  auto* size = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushSizeSpin"));
+  auto* soft = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushSoftnessSpin"));
+  auto* roundness = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushRoundnessSpin"));
+  auto* angle = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushAngleSpin"));
+  auto* smooth = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushSmoothingSpin"));
+  CHECK(size != nullptr && soft != nullptr && roundness != nullptr && angle != nullptr && smooth != nullptr);
+  CHECK(size->value() == bar_size->value());
+  CHECK(soft->value() == bar_soft->value());
+  CHECK(roundness->value() == canvas->brush_base_roundness());
+  // Every row's label scrubs its field, as on the options bar.
+  CHECK(size->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+  CHECK(angle->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+
+  size->setValue(73);
+  soft->setValue(40);
+  smooth->setValue(25);
+  roundness->setValue(45);
+  angle->setValue(30);
+  QApplication::processEvents();
+  CHECK(bar_size->value() == 73 && canvas->brush_size() == 73);
+  CHECK(bar_soft->value() == 40 && canvas->brush_softness() == 40);
+  CHECK(bar_smooth->value() == 25 && canvas->brush_smoothing() == 25);
+  CHECK(canvas->brush_base_roundness() == 45);
+  CHECK(std::abs(canvas->brush_base_angle_degrees() - 30.0) < 0.01);
+  // The slider beside the field follows it.
+  auto* size_slider = menu->findChild<QSlider*>(QStringLiteral("canvasBrushSizeSpinSlider"));
+  CHECK(size_slider != nullptr && size_slider->value() > size_slider->minimum());
+  // The bar's own change (the [ and ] keys, a script) shows in the open menu.
+  bar_size->setValue(64);
+  QApplication::processEvents();
+  CHECK(size->value() == 64);
+  // A click between the rows keeps the menu open.
+  auto* panel = menu->findChild<QWidget*>(QStringLiteral("canvasBrushSettingsPanel"));
+  CHECK(panel != nullptr);
+  if (panel != nullptr) {
+    const QPoint margin(2, 2);
+    send_mouse(*panel, QEvent::MouseButtonPress, margin, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*panel, QEvent::MouseButtonRelease, margin, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(menu->isVisible());
+  }
+  save_widget_artifact("ui_brush_context_menu_rows", *menu);
+  menu->close();
+  QApplication::processEvents();
+
+  // A menu opened again starts from the values in use.
+  menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    auto* again = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushRoundnessSpin"));
+    CHECK(again != nullptr && again->value() == 45);
+    auto* again_angle = menu->findChild<QSpinBox*>(QStringLiteral("canvasBrushAngleSpin"));
+    CHECK(again_angle != nullptr && again_angle->value() == 30);
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // On a selection its commands follow the rows.
+  require_action(window, "toolMarqueeAction")->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(80, 80)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  require_action(window, "toolEraserAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(menu->actions().front()->objectName() == QStringLiteral("canvasBrushSettingsAction"));
+    CHECK(menu->actions().size() > 2 && menu->actions()[1]->isSeparator());
+    bool deselect = false;
+    for (auto* action : menu->actions()) {
+      deselect = deselect || action->objectName() == QStringLiteral("editDeselectAction");
+    }
+    CHECK(deselect);
+    // The Eraser smooths and takes the tip shape: every row.
+    CHECK(row_names(*menu).size() == 5);
+    save_widget_artifact("ui_brush_context_menu_rows_selection", *menu);
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // The Clone Stamp has no Smooth; Spot Healing takes no tip shape either.
+  canvas->clear_selection();
+  require_action(window, "toolCloneAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(row_names(*menu) == QStringList({QStringLiteral("canvasBrushSizeSpin"),
+                                           QStringLiteral("canvasBrushSoftnessSpin"),
+                                           QStringLiteral("canvasBrushRoundnessSpin"),
+                                           QStringLiteral("canvasBrushAngleSpin")}));
+    menu->close();
+    QApplication::processEvents();
+  }
+  require_action(window, "toolSpotHealingAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(row_names(*menu) ==
+          QStringList({QStringLiteral("canvasBrushSizeSpin"), QStringLiteral("canvasBrushSoftnessSpin")}));
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // Alt+Right-drag still sets the size and opens nothing.
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  const auto before = canvas->brush_size();
+  const auto start = canvas->widget_position_for_document_point(QPoint(100, 100));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(60, 0), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(60, 0), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->brush_size() != before);
+  CHECK(move_layer_menu(*canvas) == nullptr);
 }
 
 void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
@@ -5457,6 +5625,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks",
        ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks},
       {"ui_right_drag_does_not_pan_canvas", ui_right_drag_does_not_pan_canvas},
+      {"ui_brush_context_menu_rows_follow_options_bar", ui_brush_context_menu_rows_follow_options_bar},
       {"ui_selection_context_menu_offers_remove_object", ui_selection_context_menu_offers_remove_object},
       {"ui_stroke_selection_from_context_menu_survives_following_mouse_input",
        ui_stroke_selection_from_context_menu_survives_following_mouse_input},
