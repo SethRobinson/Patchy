@@ -6,6 +6,7 @@
 // behavior must stay identical.
 
 #include "ui/canvas_widget.hpp"
+#include "ui/brush_menu_cursor_guard.hpp"
 
 #include "core/document.hpp"
 #include "core/document_channel.hpp"
@@ -238,10 +239,12 @@ QRegion stroke_samples_dirty_region(const std::vector<QRect>& rects) {
 }  // namespace
 
 bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
-  // The brush settings menu (GitHub issue 734 follow-up). Its popup grab keeps every move from
+  // The brush settings menu (GitHub issue 734 follow-ups). Its popup grab keeps every move from
   // the canvas, so the canvas would show no brush until the menu closed. Off the menu and over
-  // the canvas, follow the pointer as a hover would and give the menu the canvas cursor; over
-  // the menu (its own rows included) or anywhere else, the arrow and no outline.
+  // the canvas, follow the pointer as a hover would and show the canvas cursor as an override
+  // (the only cursor that reaches the screen through the grab: a widget cursor set on the menu
+  // changed nothing for a small brush, whose brush is the cursor itself); over the menu (its own
+  // rows included) or anywhere else, the override goes, so the arrow, and no outline.
   if (event->type() == QEvent::MouseMove && canvas_context_menu_ != nullptr &&
       canvas_context_menu_->property("patchy.brushRowsMenu").toBool()) {
     auto* menu = canvas_context_menu_.data();
@@ -251,10 +254,12 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       if (!menu->rect().contains(menu->mapFromGlobal(global).toPoint()) && isVisible() && rect().contains(local)) {
         track_brush_hover_position(local);
         refresh_tool_cursor();
-        menu->setCursor(cursor());
+        if (auto* guard = BrushMenuCursorGuard::of(*menu); guard != nullptr) {
+          guard->show(cursor());
+        }
       } else {
-        if (menu->cursor().shape() != Qt::ArrowCursor) {
-          menu->unsetCursor();
+        if (auto* guard = BrushMenuCursorGuard::of(*menu); guard != nullptr) {
+          guard->clear();
         }
         if (brush_hover_position_valid_) {
           QEvent leave(QEvent::Leave);

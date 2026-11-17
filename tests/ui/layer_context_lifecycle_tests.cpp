@@ -27,6 +27,8 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QCursor>
+#include <QGuiApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -936,16 +938,35 @@ void ui_brush_context_menu_preview_follows_rows() {
 }
 
 // With the brush settings menu open, the pointer off the menu and over the canvas shows the
-// brush where the next stroke lands (GitHub issue 734 follow-up): the canvas follows it as a
-// hover would (a large brush paints its outline there) and the menu takes the canvas cursor.
-// Back over the menu the arrow returns and the outline goes.
+// brush where the next stroke lands (GitHub issue 734 follow-ups): the canvas follows it as a
+// hover would (a large brush paints its outline there) and its cursor becomes the application
+// override cursor, the one shape that reaches the screen through the menu's grab (a small
+// brush is nothing but that cursor). Back over the menu, and after every way the menu closes,
+// the override is gone and the outline with it.
 void ui_brush_context_menu_pointer_off_menu_shows_brush() {
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_rulers_visible(false);
   require_action(window, "toolBrushAction")->trigger();
   canvas->set_zoom(1.0);
   QApplication::processEvents();
-  for (const int size : {400, 20}) {
+  CHECK(QGuiApplication::overrideCursor() == nullptr);
+  // A canvas point left of and above the menu, which opens down and right of the click.
+  const QPoint canvas_point(12, 12);
+  const auto global = canvas->mapToGlobal(canvas_point);
+  CHECK(canvas->rect().contains(canvas_point));
+  const auto move_off = [&](QMenu& menu) {
+    CHECK(!menu.geometry().contains(global));
+    send_mouse(menu, QEvent::MouseMove, menu.mapFromGlobal(global), Qt::NoButton, Qt::NoButton);
+  };
+  const auto override_matches_canvas = [&] {
+    const auto* override_cursor = QGuiApplication::overrideCursor();
+    if (override_cursor == nullptr || override_cursor->shape() != canvas->cursor().shape()) {
+      return false;
+    }
+    return override_cursor->shape() != Qt::BitmapCursor ||
+           override_cursor->pixmap().cacheKey() == canvas->cursor().pixmap().cacheKey();
+  };
+  for (const int size : {400, 10}) {
     canvas->set_brush_size(size);
     QApplication::processEvents();
     const auto before = canvas->grab().toImage();
@@ -954,47 +975,114 @@ void ui_brush_context_menu_pointer_off_menu_shows_brush() {
     if (menu == nullptr) {
       return;
     }
-    CHECK(menu->cursor().shape() == Qt::ArrowCursor);
-    // A canvas point left of and above the menu, which opens down and right of the click.
-    const QPoint canvas_point(12, 12);
-    const auto global = canvas->mapToGlobal(canvas_point);
-    CHECK(canvas->rect().contains(canvas_point));
-    CHECK(!menu->geometry().contains(global));
-    send_mouse(*menu, QEvent::MouseMove, menu->mapFromGlobal(global), Qt::NoButton, Qt::NoButton);
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+    move_off(*menu);
     CHECK(menu->isVisible());
-    CHECK(menu->cursor().shape() == canvas->cursor().shape());
     CHECK(canvas->cursor().shape() != Qt::ArrowCursor);
-    if (canvas->cursor().shape() == Qt::BitmapCursor) {
-      CHECK(menu->cursor().pixmap().cacheKey() == canvas->cursor().pixmap().cacheKey());
+    CHECK(override_matches_canvas());
+    if (size == 10) {
+      // A small brush is drawn by the cursor itself: the brush footprint cursor, not a crosshair.
+      CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
     }
+    // More moves off the menu change the override in place, never stack another.
+    send_mouse(*menu, QEvent::MouseMove, menu->mapFromGlobal(global + QPoint(3, 4)), Qt::NoButton, Qt::NoButton);
+    CHECK(override_matches_canvas());
     const auto off_menu = canvas->grab().toImage();
     if (size == 400) {
       // The large brush draws its outline on the canvas at the pointer.
       CHECK(off_menu != before);
     }
-    // Back over the menu: the arrow, and no outline left on the canvas.
+    // Back over the menu: no override (the arrow), and no outline left on the canvas.
     send_mouse(*menu, QEvent::MouseMove, QPoint(menu->width() / 2, menu->height() / 2), Qt::NoButton, Qt::NoButton);
-    // (A window keeps Qt::WA_SetCursor after unsetCursor; its cursor is the arrow again.)
-    CHECK(menu->cursor().shape() == Qt::ArrowCursor);
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
     CHECK(canvas->grab().toImage() == before);
     // Off the menu again, then closed: nothing the menu set stays behind.
-    send_mouse(*menu, QEvent::MouseMove, menu->mapFromGlobal(global), Qt::NoButton, Qt::NoButton);
-    CHECK(menu->cursor().shape() != Qt::ArrowCursor);
+    move_off(*menu);
+    CHECK(override_matches_canvas());
     menu->close();
     QApplication::processEvents();
-    CHECK(menu->cursor().shape() == Qt::ArrowCursor);
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
   }
+
+  // Every other way the menu closes drops the override too.
+  canvas->set_brush_size(10);
+  QApplication::processEvents();
+  // Escape.
+  auto* menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    move_off(*menu);
+    CHECK(override_matches_canvas());
+    send_key(*menu, Qt::Key_Escape);
+    QApplication::processEvents();
+    CHECK(!menu->isVisible());
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+  }
+  // A click outside the menu.
+  menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    move_off(*menu);
+    CHECK(override_matches_canvas());
+    const auto outside = menu->mapFromGlobal(global);
+    send_mouse(*menu, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*menu, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(!menu->isVisible());
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+  }
+  // The menu deleted while it holds the override.
+  menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    move_off(*menu);
+    CHECK(override_matches_canvas());
+    delete menu;
+    QApplication::processEvents();
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+  }
+  // A command picked from the menu (Deselect, on a selection).
+  require_action(window, "toolMarqueeAction")->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(220, 220)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click_move_canvas(*canvas, QPoint(150, 150));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    move_off(*menu);
+    CHECK(override_matches_canvas());
+    QAction* deselect = nullptr;
+    for (auto* action : menu->actions()) {
+      if (action->objectName() == QStringLiteral("editDeselectAction")) {
+        deselect = action;
+      }
+    }
+    CHECK(deselect != nullptr);
+    if (deselect != nullptr) {
+      click_move_menu_action(*menu, deselect);
+    }
+    QApplication::processEvents();
+    CHECK(!canvas->has_selection());
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+  }
+
   // The other canvas menus keep Qt's own pointer.
   require_action(window, "toolZoomAction")->trigger();
   QApplication::processEvents();
   auto* zoom_menu = right_click_move_canvas(*canvas, QPoint(150, 150));
   CHECK(zoom_menu != nullptr);
   if (zoom_menu != nullptr) {
-    send_mouse(*zoom_menu, QEvent::MouseMove, zoom_menu->mapFromGlobal(canvas->mapToGlobal(QPoint(12, 12))),
-               Qt::NoButton, Qt::NoButton);
-    CHECK(zoom_menu->cursor().shape() == Qt::ArrowCursor);
+    move_off(*zoom_menu);
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
     zoom_menu->close();
     QApplication::processEvents();
+  }
+  // Never leave an override for the tests after this one.
+  while (QGuiApplication::overrideCursor() != nullptr) {
+    QGuiApplication::restoreOverrideCursor();
   }
 }
 

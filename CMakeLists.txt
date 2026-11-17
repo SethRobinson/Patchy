@@ -1288,6 +1288,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/brush_stroke_preview.cpp
       src/ui/brush_context_preview.hpp
       src/ui/brush_context_preview.cpp
+      src/ui/brush_menu_cursor_guard.hpp
       src/ui/brush_presets.cpp
       src/ui/brush_automation.cpp
       src/ui/main_window_brush_automation.cpp
