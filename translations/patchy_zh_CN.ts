@@ -16325,6 +16325,10 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>文档中“已识别的文字”组内的文字，无论显示还是隐藏，都会逐行以不可见的方式写在每页图像之上，这样 PDF 阅读器就能查找、选择和复制它。长行中的匹配项只会大致高亮。</translation>
     </message>
+    <message>
+        <source>Show separators between tool groups</source>
+        <translation>显示工具组之间的分隔线</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

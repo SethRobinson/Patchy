@@ -16381,6 +16381,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Der Text in den Gruppen „Erkannter Text“ des Dokuments, sichtbar oder ausgeblendet, wird Zeile für Zeile unsichtbar über jedes Seitenbild geschrieben, sodass ein PDF-Programm ihn finden, auswählen und kopieren kann. Ein Treffer innerhalb einer langen Zeile wird nur ungefähr hervorgehoben.</translation>
     </message>
+    <message>
+        <source>Show separators between tool groups</source>
+        <translation>Trennlinien zwischen Werkzeuggruppen anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -89,7 +89,8 @@ struct CustomizationSettingsGuard {
                             "layersPanel/footerButtonOrder", "preferences/toolbarIconSize",
                             "preferences/toolFlyoutOpenMode", "layersPanel/footerIconSize",
                             "toolPalette/ungroupTools", "toolPalette/customizeDialogSize",
-                            "toolPalette/hideExpandButton", "toolPalette/hideScrollArrows"}) {
+                            "toolPalette/hideExpandButton", "toolPalette/hideScrollArrows",
+                            "toolPalette/hideSeparators"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -829,6 +830,261 @@ void ui_tool_palette_wheel_rows_can_be_hidden() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideScrollArrows")).toBool());
 }
 
+// The palette's cluster separators that show.
+int visible_palette_separators(const QToolBar& palette) {
+  int count = 0;
+  for (const auto* action : palette.actions()) {
+    if (action->isSeparator() && action->isVisible()) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+// Rows of the dialog's painted preview that are a separator: most of the row in the separator
+// role (the torn gap's zigzag edges never fill a row).
+int preview_separator_lines(QWidget& preview) {
+  const QImage image = preview.grab().toImage();
+  const QColor ink = patchy::ui::theme().tool_palette_separator;
+  int lines = 0;
+  for (int y = 0; y < image.height(); ++y) {
+    int matching = 0;
+    for (int x = 0; x < image.width(); ++x) {
+      const QColor pixel = image.pixelColor(x, y);
+      if (std::abs(pixel.red() - ink.red()) + std::abs(pixel.green() - ink.green()) +
+              std::abs(pixel.blue() - ink.blue()) <= 12) {
+        ++matching;
+      }
+    }
+    if (matching * 10 >= image.width() * 6) {
+      ++lines;
+    }
+  }
+  return lines;
+}
+
+// GitHub issue 733: the separators between the palette's tool groups can leave it (shown by
+// default, stored only when hidden). Off, the palette has no separator item, so no line and no
+// gap: each group follows the one above it at a tool's spacing and the column gets shorter by
+// every separator's extent, in one and in two columns (where a group still starts a row of its
+// own). The wheel scrolls such a column to its last tool and back. The dialog's box sits under
+// No tool groups, its preview drops the lines, Reset to Default ticks it again and OK stores it.
+void ui_tool_palette_separators_can_be_hidden() {
+  CustomizationSettingsGuard settings_guard;
+  CHECK(patchy::ui::stored_tool_palette_customization().show_separators);
+
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.setAnimated(false);
+  auto* palette = tool_palette(window);
+  auto* layout = window.tool_palette_layout();
+  CHECK(layout != nullptr);
+  if (palette == nullptr || layout == nullptr) {
+    return;
+  }
+  auto* move = button_named(window, "moveToolButton");
+  auto* marquee = button_named(window, "marqueeToolButton");
+  auto* lasso = button_named(window, "lassoToolButton");
+  auto* crop = button_named(window, "cropToolButton");
+  auto* brush = button_named(window, "brushToolButton");
+  auto* eraser = button_named(window, "eraserToolButton");
+  auto* zoom = button_named(window, "zoomToolButton");
+  if (move == nullptr || marquee == nullptr || lasso == nullptr || crop == nullptr || brush == nullptr ||
+      eraser == nullptr || zoom == nullptr) {
+    return;
+  }
+  const auto top = [&](const QToolButton* button) { return geometry_in_palette(*palette, *button).top(); };
+  const auto left = [&](const QToolButton* button) { return geometry_in_palette(*palette, *button).left(); };
+  int default_separators = 0;
+
+  for (const bool two_columns : {false, true}) {
+    std::printf("  %s\n", two_columns ? "two columns" : "one column");
+    ToolPaletteCustomization customization;
+    customization.two_columns = two_columns;
+    window.apply_tool_palette_customization(customization);
+    window.resize(window.width(), 1400);
+    settle();
+    // Shown: a line and its gap between Crop, the select group's last tool, and Brush, the
+    // paint group's first.
+    const int separators = visible_palette_separators(*palette);
+    CHECK(separators >= 3);
+    if (!two_columns) {
+      default_separators = separators;
+    }
+    const int shown_height = palette->sizeHint().height();
+    // The next row down from Move: Marquee in one column, Lasso in two.
+    const auto* next_row = two_columns ? lasso : marquee;
+    const int row_step = top(next_row) - top(move);
+    CHECK(row_step > 0);
+    const int separator_extent = top(brush) - top(crop) - row_step;
+    if (separator_extent < 3) {
+      std::printf("  separators shown: Crop %d, Brush %d, row step %d\n", top(crop), top(brush), row_step);
+    }
+    CHECK(separator_extent >= 3);
+    (void)capture_widget_artifact(
+        two_columns ? "ui_tool_palette_733_separators_shown_two_columns" : "ui_tool_palette_733_separators_shown",
+        *palette);
+    settle();
+
+    // Hidden: no separator item, the groups a row apart, the column shorter by every separator.
+    customization.show_separators = false;
+    window.apply_tool_palette_customization(customization);
+    settle();
+    CHECK(visible_palette_separators(*palette) == 0);
+    for (const auto* action : palette->actions()) {
+      CHECK(!action->isSeparator());
+    }
+    if (top(brush) - top(crop) != row_step ||
+        palette->sizeHint().height() != shown_height - separators * separator_extent) {
+      std::printf("  separators hidden: Crop %d, Brush %d, row step %d; hint %d, was %d with %d separators of %d px\n",
+                  top(crop), top(brush), row_step, palette->sizeHint().height(), shown_height, separators,
+                  separator_extent);
+    }
+    CHECK(top(next_row) - top(move) == row_step);
+    CHECK(top(brush) - top(crop) == row_step);
+    CHECK(palette->sizeHint().height() == shown_height - separators * separator_extent);
+    if (two_columns) {
+      // A group still starts in the left column, on a row of its own.
+      CHECK(left(brush) == left(move));
+      CHECK(top(eraser) == top(brush));
+      CHECK(top(marquee) == top(move));
+    }
+    CHECK(move->isVisible() && zoom->isVisible());
+    (void)capture_widget_artifact(
+        two_columns ? "ui_tool_palette_733_separators_hidden_two_columns" : "ui_tool_palette_733_separators_hidden",
+        *palette);
+    settle();
+
+    // A short window: the wheel scrolls the column to its last tool and back, and a taller
+    // window brings every tool back. Two columns need the biggest icons to overflow.
+    if (two_columns) {
+      window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Biggest,
+                                            patchy::ui::ToolFlyoutOpenMode::Hold);
+    }
+    shrink_palette(window, *palette, 150);
+    if (!layout->can_scroll_down()) {
+      std::printf("  no overflow: window %d, palette %d, hint %d\n", window.height(), palette->height(),
+                  palette->sizeHint().height());
+    }
+    CHECK(layout->can_scroll_down());
+    CHECK(!zoom->isVisible());
+    for (int notches = 0; notches < 30 && layout->can_scroll_down(); ++notches) {
+      send_wheel(*palette, -120);
+    }
+    CHECK(zoom->isVisible());
+    CHECK(!move->isVisible());
+    CHECK(layout->scroll_offset() > 0);
+    CHECK(!layout->can_scroll_down());
+    CHECK(visible_palette_separators(*palette) == 0);
+    for (int notches = 0; notches < 30 && layout->scroll_offset() > 0; ++notches) {
+      send_wheel(*palette, 120);
+    }
+    CHECK(layout->scroll_offset() == 0);
+    CHECK(move->isVisible());
+    for (int notches = 0; notches < 3; ++notches) {
+      send_wheel(*palette, -120);
+    }
+    CHECK(layout->scroll_offset() > 0);
+    if (two_columns) {
+      window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hold);
+    }
+    window.resize(window.width(), 1400);
+    settle();
+    CHECK(layout->scroll_offset() == 0);
+    CHECK(move->isVisible() && zoom->isVisible());
+  }
+
+  // Stored only when hidden; a new window reads it.
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideSeparators")).toBool());
+  CHECK(!patchy::ui::stored_tool_palette_customization().show_separators);
+  {
+    patchy::ui::MainWindow second;
+    CHECK(!second.tool_palette_customization().show_separators);
+    auto* second_palette = second.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    CHECK(second_palette != nullptr && visible_palette_separators(*second_palette) == 0);
+  }
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("toolPalette/hideSeparators")));
+  CHECK(patchy::ui::stored_tool_palette_customization().show_separators);
+  CHECK(default_separators > 0 && visible_palette_separators(*palette) == default_separators);
+
+  // The dialog: the box is ticked, under No tool groups and above the wheel option; unticked,
+  // the preview draws no line and gets shorter or shows more rows; Reset to Default ticks it
+  // again; OK stores what was unticked.
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* box = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowSeparatorsCheck"));
+    auto* ungroup = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteUngroupToolsCheck"));
+    auto* wheel = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteWheelScrollCheck"));
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("toolPaletteCustomizePreview"));
+    auto* reset = dialog.findChild<QPushButton*>(QStringLiteral("toolPaletteCustomizeResetButton"));
+    CHECK(box != nullptr && ungroup != nullptr && wheel != nullptr && preview != nullptr && reset != nullptr);
+    if (box == nullptr || ungroup == nullptr || wheel == nullptr || preview == nullptr || reset == nullptr) {
+      dialog.reject();
+      return;
+    }
+    settle();
+    CHECK(box->isChecked() && box->isEnabled());
+    CHECK(box->text() == QStringLiteral("Show separators between tool groups"));
+    const auto in_dialog = [&](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)); };
+    CHECK(in_dialog(box).y() > in_dialog(ungroup).y());
+    CHECK(in_dialog(box).y() < in_dialog(wheel).y());
+    CHECK(in_dialog(box).x() == in_dialog(ungroup).x());
+    // The whole options column and the preview still fit in the dialog.
+    CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
+
+    const int rows = preview->property("toolRows").toInt();
+    const int strip = preview->property("stripHeight").toInt();
+    const int shown_rows = preview->property("shownToolRows").toInt();
+    CHECK(preview_separator_lines(*preview) >= 1);
+    (void)capture_widget_artifact("ui_tool_palette_733_customize_dialog_separators_shown", dialog);
+    box->setChecked(false);
+    settle();
+    CHECK(preview_separator_lines(*preview) == 0);
+    CHECK(preview->property("toolRows").toInt() == rows);
+    const int hidden_strip = preview->property("stripHeight").toInt();
+    const int hidden_rows = preview->property("shownToolRows").toInt();
+    if (hidden_strip >= strip && hidden_rows <= shown_rows) {
+      std::printf("  preview: strip %d then %d, rows %d then %d\n", strip, hidden_strip, shown_rows, hidden_rows);
+    }
+    CHECK(hidden_strip < strip || hidden_rows > shown_rows);
+    CHECK(hidden_strip <= preview->height());
+    (void)capture_widget_artifact("ui_tool_palette_733_customize_dialog_separators_hidden", dialog);
+
+    reset->click();
+    settle();
+    CHECK(box->isChecked());
+    CHECK(preview_separator_lines(*preview) >= 1);
+    box->setChecked(false);
+    settle();
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization();
+  CHECK(ran);
+  settle();
+  CHECK(!window.tool_palette_customization().show_separators);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideSeparators")).toBool());
+  CHECK(visible_palette_separators(*palette) == 0);
+
+  // The dialog opens with the box unticked, and Cancel keeps it so.
+  ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* box = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowSeparatorsCheck"));
+    CHECK(box != nullptr && !box->isChecked());
+    if (box != nullptr) {
+      box->setChecked(true);
+    }
+    press_dialog_button(dialog, QDialogButtonBox::Cancel);
+  });
+  window.show_tool_palette_customization();
+  CHECK(ran);
+  settle();
+  CHECK(!window.tool_palette_customization().show_separators);
+  CHECK(visible_palette_separators(*palette) == 0);
+}
+
 // GitHub issue 199: a right-click on any Layers footer button lists the buttons with a tick
 // each; an unticked button leaves the footer and is stored; Show All Buttons brings every one
 // back; the last one shown cannot be unticked.
@@ -1240,7 +1496,8 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
     auto settings = patchy::ui::app_settings();
     for (const auto* key : {"toolPalette/hiddenTools", "toolPalette/layout", "toolPalette/wheelScroll",
                             "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
-                            "layersPanel/shownFooterButtons", "layersPanel/footerButtonOrder"}) {
+                            "layersPanel/shownFooterButtons", "layersPanel/footerButtonOrder",
+                            "toolPalette/hideSeparators"}) {
       CHECK(!settings.contains(QString::fromLatin1(key)));
     }
   }
@@ -3502,12 +3759,13 @@ void ui_tool_palette_customize_preview_fits_its_height() {
     settle();
     CHECK(grip->isVisible());
     // It opens short and inside the screen; the default single column does not fit, so the
-    // preview is cut, with the gap drawn, and its strip stays inside the preview. About 505 px
-    // since the expand button and scroll arrow boxes (GitHub issue 668).
-    if (dialog.height() > 520) {
+    // preview is cut, with the gap drawn, and its strip stays inside the preview. About 527 px
+    // since the expand button and scroll arrow boxes (GitHub issue 668) and the separators box
+    // (issue 733).
+    if (dialog.height() > 545) {
       std::printf("  opens %d px tall\n", dialog.height());
     }
-    CHECK(dialog.height() <= 520);
+    CHECK(dialog.height() <= 545);
     CHECK(dialog.width() <= available.width() && dialog.height() <= available.height());
     CHECK(dialog.minimumHeight() <= dialog.height());
     CHECK(preview_is_cut(*preview));
@@ -3828,6 +4086,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_scroll_mode_keeps_expand_button_reachable",
        ui_tool_palette_scroll_mode_keeps_expand_button_reachable},
       {"ui_tool_palette_wheel_rows_can_be_hidden", ui_tool_palette_wheel_rows_can_be_hidden},
+      {"ui_tool_palette_separators_can_be_hidden", ui_tool_palette_separators_can_be_hidden},
       {"ui_layer_footer_buttons_hide_from_their_menu", ui_layer_footer_buttons_hide_from_their_menu},
       {"ui_layers_panel_gear_opens_layer_button_customize", ui_layers_panel_gear_opens_layer_button_customize},
       {"ui_tool_palette_customize_dialog_applies_cancels_and_resets",

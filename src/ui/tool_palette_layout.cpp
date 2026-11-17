@@ -316,7 +316,9 @@ void ToolPaletteLayout::build_items() {
     if (shown.empty()) {
       continue;
     }
-    if (!first) {
+    // Without separators (GitHub issue 733) the clusters follow each other with a tool's
+    // spacing; two columns still start each cluster on a row of its own.
+    if (!first && customization_.show_separators) {
       items_.push_back({palette_->addSeparator(), true, nullptr});
     }
     first = false;
