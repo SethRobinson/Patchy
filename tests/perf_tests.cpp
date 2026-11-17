@@ -4442,140 +4442,151 @@ void levels_clipping_drag_perf() {
 
   bool inspected = false;
   QTimer::singleShot(0, [&] {
-    QWidget* dialog = nullptr;
-    for (auto* widget : QApplication::topLevelWidgets()) {
-      if (widget->objectName() == QStringLiteral("patchyLevelsDialog") && widget->isVisible()) {
-        dialog = widget;
-      }
-    }
-    CHECK(dialog != nullptr);
-    if (dialog == nullptr) {
-      return;
-    }
-    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
-    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
-    CHECK(graph != nullptr && preview != nullptr);
-    if (graph == nullptr || preview == nullptr) {
-      dialog->close();
-      return;
-    }
-    const auto at = [&](int value) {
-      const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
-      return QPointF(static_cast<double>(graph_rect.left() + std::lround(value / 255.0 * (graph_rect.width() - 1))),
-                     static_cast<double>(graph_rect.center().y()));
-    };
-    const auto send = [&](QEvent::Type type, int value, Qt::MouseButton button, Qt::MouseButtons buttons,
-                          Qt::KeyboardModifiers modifiers) {
-      const auto local = at(value);
-      QMouseEvent event(type, local, graph->mapToGlobal(local), button, buttons, modifiers);
-      QApplication::sendEvent(graph, &event);
-    };
-    const auto press = [&](int value, Qt::KeyboardModifiers modifiers) {
-      send(QEvent::MouseButtonPress, value, Qt::LeftButton, Qt::LeftButton, modifiers);
-    };
-    const auto move = [&](int value, Qt::KeyboardModifiers modifiers) {
-      send(QEvent::MouseMove, value, Qt::NoButton, Qt::LeftButton, modifiers);
-    };
-    const auto release = [&](int value, Qt::KeyboardModifiers modifiers) {
-      send(QEvent::MouseButtonRelease, value, Qt::LeftButton, Qt::NoButton, modifiers);
-    };
-    // Waits for the probe to read as `want`, painting on every poll like the screen does;
-    // -1 when it never does within ten seconds.
-    const auto wait_for = [&](const std::function<bool(const QColor&)>& want) {
-      const auto start = Clock::now();
-      const auto deadline = start + std::chrono::seconds(10);
-      while (Clock::now() < deadline) {
-        QApplication::processEvents(QEventLoop::AllEvents, 5);
-        if (want(probe_color())) {
-          return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    // A CHECK must not throw across Qt event dispatch (docs/testing.md): record it and
+    // close the dialog so the test fails instead of aborting the run.
+    try {
+      QWidget* dialog = nullptr;
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (widget->objectName() == QStringLiteral("patchyLevelsDialog") && widget->isVisible()) {
+          dialog = widget;
         }
       }
-      return -1.0;
-    };
-    const auto run_drag = [&](const char* label) {
-      press(60, Qt::AltModifier);
-      const auto first_ms = wait_for(light);
-      std::vector<double> moves;
-      for (int step = 0; step < 8; ++step) {
-        const bool to_dark = step % 2 == 0;
-        move(to_dark ? 140 : 60, Qt::AltModifier);
-        moves.push_back(wait_for(to_dark ? dark : light));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
       }
-      release(60, Qt::AltModifier);
-      auto sorted = moves;
-      std::sort(sorted.begin(), sorted.end());
-      const auto mean = std::accumulate(moves.begin(), moves.end(), 0.0) / static_cast<double>(moves.size());
-      std::cout << std::fixed << std::setprecision(1) << "[PERF] levelsclip " << label << ' ' << width << 'x'
-                << height << " threads=" << patchy::hardware_worker_threads() << " first_ms=" << first_ms
-                << " move_mean_ms=" << mean << " move_median_ms=" << sorted[sorted.size() / 2]
-                << " move_max_ms=" << sorted.back() << " moves=";
-      for (const auto ms : moves) {
-        std::cout << ms << ' ';
+      auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
+      CHECK(graph != nullptr && preview != nullptr);
+      if (graph == nullptr || preview == nullptr) {
+        dialog->close();
+        return;
       }
-#ifdef Q_OS_WIN
-      PROCESS_MEMORY_COUNTERS_EX memory{};
-      if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory),
-                                  sizeof(memory))) {
-        std::cout << "private_mb=" << memory.PrivateUsage / (1024 * 1024)
-                  << " working_set_mb=" << memory.WorkingSetSize / (1024 * 1024)
-                  << " page_faults=" << memory.PageFaultCount;
-      }
-#endif
-      std::cout << std::defaultfloat << std::setprecision(6) << '\n';
-      CHECK(first_ms >= 0.0);
-      CHECK(std::none_of(moves.begin(), moves.end(), [](double ms) { return ms < 0.0; }));
-    };
+      const auto at = [&](int value) {
+        const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
+        return QPointF(static_cast<double>(graph_rect.left() + std::lround(value / 255.0 * (graph_rect.width() - 1))),
+                       static_cast<double>(graph_rect.center().y()));
+      };
+      const auto send = [&](QEvent::Type type, int value, Qt::MouseButton button, Qt::MouseButtons buttons,
+                            Qt::KeyboardModifiers modifiers) {
+        const auto local = at(value);
+        QMouseEvent event(type, local, graph->mapToGlobal(local), button, buttons, modifiers);
+        QApplication::sendEvent(graph, &event);
+      };
+      const auto press = [&](int value, Qt::KeyboardModifiers modifiers) {
+        send(QEvent::MouseButtonPress, value, Qt::LeftButton, Qt::LeftButton, modifiers);
+      };
+      const auto move = [&](int value, Qt::KeyboardModifiers modifiers) {
+        send(QEvent::MouseMove, value, Qt::NoButton, Qt::LeftButton, modifiers);
+      };
+      const auto release = [&](int value, Qt::KeyboardModifiers modifiers) {
+        send(QEvent::MouseButtonRelease, value, Qt::LeftButton, Qt::NoButton, modifiers);
+      };
+      // Waits for the probe to read as `want`, painting on every poll like the screen does;
+      // -1 when it never does within ten seconds.
+      const auto wait_for = [&](const std::function<bool(const QColor&)>& want) {
+        const auto start = Clock::now();
+        const auto deadline = start + std::chrono::seconds(10);
+        while (Clock::now() < deadline) {
+          QApplication::processEvents(QEventLoop::AllEvents, 5);
+          if (want(probe_color())) {
+            return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+          }
+        }
+        return -1.0;
+      };
+      const auto run_drag = [&](const char* label) {
+        press(60, Qt::AltModifier);
+        const auto first_ms = wait_for(light);
+        std::vector<double> moves;
+        for (int step = 0; step < 8; ++step) {
+          const bool to_dark = step % 2 == 0;
+          move(to_dark ? 140 : 60, Qt::AltModifier);
+          moves.push_back(wait_for(to_dark ? dark : light));
+        }
+        release(60, Qt::AltModifier);
+        auto sorted = moves;
+        std::sort(sorted.begin(), sorted.end());
+        const auto mean = std::accumulate(moves.begin(), moves.end(), 0.0) / static_cast<double>(moves.size());
+        std::cout << std::fixed << std::setprecision(1) << "[PERF] levelsclip " << label << ' ' << width << 'x'
+                  << height << " threads=" << patchy::hardware_worker_threads() << " first_ms=" << first_ms
+                  << " move_mean_ms=" << mean << " move_median_ms=" << sorted[sorted.size() / 2]
+                  << " move_max_ms=" << sorted.back() << " moves=";
+        for (const auto ms : moves) {
+          std::cout << ms << ' ';
+        }
+  #ifdef Q_OS_WIN
+        PROCESS_MEMORY_COUNTERS_EX memory{};
+        if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory),
+                                    sizeof(memory))) {
+          std::cout << "private_mb=" << memory.PrivateUsage / (1024 * 1024)
+                    << " working_set_mb=" << memory.WorkingSetSize / (1024 * 1024)
+                    << " page_faults=" << memory.PageFaultCount;
+        }
+  #endif
+        std::cout << std::defaultfloat << std::setprecision(6) << '\n';
+        CHECK(first_ms >= 0.0);
+        CHECK(std::none_of(moves.begin(), moves.end(), [](double ms) { return ms < 0.0; }));
+      };
 
-    // PATCHY_PERF_LEVELSCLIP_PAUSE_MS idles between the drags, so a host that slows under
-    // sustained all-core load (a laptop past its turbo budget) can recover first.
-    const int pause_ms = std::max(0, qEnvironmentVariableIntValue("PATCHY_PERF_LEVELSCLIP_PAUSE_MS"));
-    // The process CPU an idle stretch costs: anything still running after a drag shows here.
-    const auto idle = [](int ms) {
-      const auto cpu_before = process_cpu_ms();
-      const auto wall = elapsed_ms([&] { wait_event_loop_ms(std::max(ms, 1000)); });
-      std::cout << std::fixed << std::setprecision(1) << "[PERF] levelsclip idle wall_ms=" << wall
-                << " cpu_ms=" << (process_cpu_ms() - cpu_before) << std::defaultfloat << std::setprecision(6)
-                << '\n';
-    };
-    run_drag("preview_on");
-    settle();
-    preview->setChecked(false);
-    settle();
-    idle(pause_ms);
-    run_drag("preview_off");
-    settle();
-    // Ticked again: tells a slower machine state (a laptop throttling) from a slower path.
-    preview->setChecked(true);
-    settle();
-    idle(pause_ms);
-    run_drag("preview_on_again");
-    settle();
-    preview->setChecked(false);
-    settle();
+      // PATCHY_PERF_LEVELSCLIP_PAUSE_MS idles between the drags, so a host that slows under
+      // sustained all-core load (a laptop past its turbo budget) can recover first.
+      const int pause_ms = std::max(0, qEnvironmentVariableIntValue("PATCHY_PERF_LEVELSCLIP_PAUSE_MS"));
+      // The process CPU an idle stretch costs: anything still running after a drag shows here.
+      const auto idle = [](int ms) {
+        const auto cpu_before = process_cpu_ms();
+        const auto wall = elapsed_ms([&] { wait_event_loop_ms(std::max(ms, 1000)); });
+        std::cout << std::fixed << std::setprecision(1) << "[PERF] levelsclip idle wall_ms=" << wall
+                  << " cpu_ms=" << (process_cpu_ms() - cpu_before) << std::defaultfloat << std::setprecision(6)
+                  << '\n';
+      };
+      run_drag("preview_on");
+      settle();
+      preview->setChecked(false);
+      settle();
+      idle(pause_ms);
+      run_drag("preview_off");
+      settle();
+      // Ticked again: tells a slower machine state (a laptop throttling) from a slower path.
+      preview->setChecked(true);
+      settle();
+      idle(pause_ms);
+      run_drag("preview_on_again");
+      settle();
+      preview->setChecked(false);
+      settle();
 
-    // Preview unticked, no Alt: the image does not change, so nothing may render.
-    const auto before = canvas->render_cache_diagnostics();
-    const auto plain_ms = elapsed_ms([&] {
-      press(60, Qt::NoModifier);
-      for (int step = 0; step < 8; ++step) {
-        move(step % 2 == 0 ? 140 : 60, Qt::NoModifier);
-        wait_event_loop_ms(60);
-        (void)probe_color();
+      // Preview unticked, no Alt: the image does not change, so nothing may render.
+      const auto before = canvas->render_cache_diagnostics();
+      const auto plain_ms = elapsed_ms([&] {
+        press(60, Qt::NoModifier);
+        for (int step = 0; step < 8; ++step) {
+          move(step % 2 == 0 ? 140 : 60, Qt::NoModifier);
+          wait_event_loop_ms(60);
+          (void)probe_color();
+        }
+        release(60, Qt::NoModifier);
+        wait_event_loop_ms(400);
+      });
+      const auto after = canvas->render_cache_diagnostics();
+      const auto refreshes = (after.full_refreshes - before.full_refreshes) +
+                             (after.live_preview_async_refreshes - before.live_preview_async_refreshes) +
+                             (after.partial_patches - before.partial_patches);
+      const auto busy_frames = after.processing_overlay_frames - before.processing_overlay_frames;
+      std::cout << "[PERF] levelsclip preview_off_plain_drag refreshes=" << refreshes << " busy_frames=" << busy_frames
+                << " ms=" << plain_ms << '\n';
+      CHECK(refreshes == 0);
+      CHECK(busy_frames == 0);
+      inspected = true;
+      dialog->close();
+    } catch (const std::exception& error) {
+      patchy::test::report_failure(error.what());
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (widget->objectName() == QStringLiteral("patchyLevelsDialog")) {
+          widget->close();
+        }
       }
-      release(60, Qt::NoModifier);
-      wait_event_loop_ms(400);
-    });
-    const auto after = canvas->render_cache_diagnostics();
-    const auto refreshes = (after.full_refreshes - before.full_refreshes) +
-                           (after.live_preview_async_refreshes - before.live_preview_async_refreshes) +
-                           (after.partial_patches - before.partial_patches);
-    const auto busy_frames = after.processing_overlay_frames - before.processing_overlay_frames;
-    std::cout << "[PERF] levelsclip preview_off_plain_drag refreshes=" << refreshes << " busy_frames=" << busy_frames
-              << " ms=" << plain_ms << '\n';
-    CHECK(refreshes == 0);
-    CHECK(busy_frames == 0);
-    inspected = true;
-    dialog->close();
+    }
   });
   if (auto* action = window.findChild<QAction*>(QStringLiteral("imageAdjustLevelsAction")); action != nullptr) {
     action->trigger();

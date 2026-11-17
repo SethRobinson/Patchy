@@ -4736,7 +4736,7 @@ void ui_background_layer_marker_and_short_menu() {
   const auto right_click_background = [&](const char* pick) {
     QStringList seen;
     export_seen.clear();
-    QTimer::singleShot(0, [&window, &seen, &export_seen, layers_dock, pick] {
+    QTimer::singleShot(0, guarded([&window, &seen, &export_seen, layers_dock, pick] {
       for (auto* widget : QApplication::topLevelWidgets()) {
         auto* menu = qobject_cast<QMenu*>(widget);
         if (menu == nullptr || !menu->isVisible() || menu->objectName() != QStringLiteral("layerContextMenu")) {
@@ -4799,7 +4799,7 @@ void ui_background_layer_marker_and_short_menu() {
         }
         return;
       }
-    });
+    }));
     const auto point = layer_list->visualItemRect(layer_list->item(layer_list->count() - 1)).center();
     QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, layer_list->viewport()->mapToGlobal(point));
     QApplication::sendEvent(layer_list->viewport(), &context_event);
