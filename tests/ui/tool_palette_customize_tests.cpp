@@ -3759,12 +3759,13 @@ void ui_tool_palette_customize_preview_fits_its_height() {
     settle();
     CHECK(grip->isVisible());
     // It opens short and inside the screen; the default single column does not fit, so the
-    // preview is cut, with the gap drawn, and its strip stays inside the preview. About 505 px
-    // since the expand button and scroll arrow boxes (GitHub issue 668).
-    if (dialog.height() > 520) {
+    // preview is cut, with the gap drawn, and its strip stays inside the preview. About 527 px
+    // since the expand button and scroll arrow boxes (GitHub issue 668) and the separators box
+    // (issue 733).
+    if (dialog.height() > 545) {
       std::printf("  opens %d px tall\n", dialog.height());
     }
-    CHECK(dialog.height() <= 520);
+    CHECK(dialog.height() <= 545);
     CHECK(dialog.width() <= available.width() && dialog.height() <= available.height());
     CHECK(dialog.minimumHeight() <= dialog.height());
     CHECK(preview_is_cut(*preview));
