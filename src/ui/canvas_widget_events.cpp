@@ -27,6 +27,7 @@
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
+#include <QMenu>
 #include <QEnterEvent>
 #include <QEvent>
 #include <QFocusEvent>
@@ -237,6 +238,31 @@ QRegion stroke_samples_dirty_region(const std::vector<QRect>& rects) {
 }  // namespace
 
 bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
+  // The brush settings menu (GitHub issue 734 follow-up). Its popup grab keeps every move from
+  // the canvas, so the canvas would show no brush until the menu closed. Off the menu and over
+  // the canvas, follow the pointer as a hover would and give the menu the canvas cursor; over
+  // the menu (its own rows included) or anywhere else, the arrow and no outline.
+  if (event->type() == QEvent::MouseMove && canvas_context_menu_ != nullptr &&
+      canvas_context_menu_->property("patchy.brushRowsMenu").toBool()) {
+    auto* menu = canvas_context_menu_.data();
+    if (const auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == menu) {
+      const auto global = static_cast<QMouseEvent*>(event)->globalPosition();
+      const auto local = mapFromGlobal(global).toPoint();
+      if (!menu->rect().contains(menu->mapFromGlobal(global).toPoint()) && isVisible() && rect().contains(local)) {
+        track_brush_hover_position(local);
+        refresh_tool_cursor();
+        menu->setCursor(cursor());
+      } else {
+        if (menu->cursor().shape() != Qt::ArrowCursor) {
+          menu->unsetCursor();
+        }
+        if (brush_hover_position_valid_) {
+          QEvent leave(QEvent::Leave);
+          leaveEvent(&leave);
+        }
+      }
+    }
+  }
   // The source key held (Alt, or Ctrl in the GIMP-style and Krita-style tool modifiers, GitHub
   // issue 302) aims a new Clone or Healing source: the old source's overlay hides until it is
   // released (GitHub issue 573). The key event itself says which way the key went.
