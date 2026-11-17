@@ -17,6 +17,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
@@ -43,6 +44,12 @@ constexpr int kGraphMargin = 10;
 // How far outside the graph a dragged point must be pulled before it is removed.
 constexpr int kRemoveDistance = 24;
 constexpr double kHitRadius = 10.0;
+// The name prompt's width, unless its title needs more.
+constexpr int kContourNameDialogWidth = 340;
+
+QString graph_tool_tip() {
+  return QObject::tr("Click to add a point. Drag a point to move it, or off the graph to remove it.");
+}
 
 // Thumbnail of a contour curve: the engine LUT drawn as a polyline on a chip. The
 // chip is painted from theme() roles when the icon is drawn, never baked into a
@@ -113,7 +120,7 @@ ContourGraphWidget::ContourGraphWidget(QWidget* parent) : QWidget(parent) {
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   setFocusPolicy(Qt::StrongFocus);
   setAccessibleName(QObject::tr("Contour graph"));
-  setToolTip(QObject::tr("Click to add a point. Drag a point to move it, or off the graph to remove it."));
+  setToolTip(graph_tool_tip());
   // A drag move re-renders the layer's effects through the caller's preview.
   coalesce_widget_drag_moves(*this);
   set_contour(StyleContour{});
@@ -124,6 +131,17 @@ void ContourGraphWidget::set_contour(const StyleContour& contour) {
   lut_ = build_style_contour_lut(contour_);
   selected_ = std::clamp(selected_, 0, static_cast<int>(contour_.points.size()) - 1);
   drag_index_ = -1;
+  update();
+}
+
+void ContourGraphWidget::set_read_only(bool read_only) {
+  if (read_only == read_only_) {
+    return;
+  }
+  read_only_ = read_only;
+  drag_index_ = -1;
+  setFocusPolicy(read_only ? Qt::NoFocus : Qt::StrongFocus);
+  setToolTip(read_only ? QString() : graph_tool_tip());
   update();
 }
 
@@ -257,7 +275,7 @@ void ContourGraphWidget::paintEvent(QPaintEvent* event) {
   for (int index = 0; index < static_cast<int>(contour_.points.size()); ++index) {
     const auto& point = contour_.points[static_cast<std::size_t>(index)];
     const auto center = position_for_levels(point.x, point.y);
-    const bool selected = index == selected_;
+    const bool selected = !read_only_ && index == selected_;
     const auto radius = selected ? 5.5 : 4.2;
     painter.setPen(QPen(selected ? colors.curves_graph_focus : colors.curves_graph_ink, selected ? 2.0 : 1.4));
     painter.setBrush(selected ? colors.curves_graph_point_selected_bg : colors.curves_graph_point_bg);
@@ -286,7 +304,7 @@ void ContourGraphWidget::focusOutEvent(QFocusEvent* event) {
 
 void ContourGraphWidget::mousePressEvent(QMouseEvent* event) {
   const auto position = event->position();
-  if (event->button() != Qt::LeftButton ||
+  if (read_only_ || event->button() != Qt::LeftButton ||
       !graph_rect().adjusted(-kGraphMargin, -kGraphMargin, kGraphMargin, kGraphMargin).contains(position.toPoint())) {
     QWidget::mousePressEvent(event);
     return;
@@ -351,6 +369,10 @@ void ContourGraphWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void ContourGraphWidget::keyPressEvent(QKeyEvent* event) {
+  if (read_only_) {
+    QWidget::keyPressEvent(event);
+    return;
+  }
   if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
     delete_selected_point();
     event->accept();
@@ -388,8 +410,49 @@ void ContourGraphWidget::keyPressEvent(QKeyEvent* event) {
   event->accept();
 }
 
+std::optional<QString> request_contour_name(QWidget* parent, const QString& title, const QString& initial) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("layerStyleContourNameDialog"));
+  dialog.setWindowTitle(title);
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* label = new QLabel(QObject::tr("Name:"), &dialog);
+  layout->addWidget(label);
+  auto* name_edit = new QLineEdit(initial, &dialog);
+  name_edit->setObjectName(QStringLiteral("contourNameEdit"));
+  label->setBuddy(name_edit);
+  layout->addWidget(name_edit);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  match_ok_cancel_widths(*buttons);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  // One size. The window manager draws the title in its own font beside its icon
+  // and buttons and cuts what does not fit (KDE showed "New ...tour"), so the
+  // dialog is at least as wide as the whole title needs; nothing in it would
+  // show more after a resize.
+  layout->activate();
+  const auto hint = dialog.sizeHint();
+  const auto width =
+      std::max({kContourNameDialogWidth, hint.width(), fit_progress_dialog_title(dialog, title, {}).minimum_width});
+  dialog.setFixedSize(width, hint.height());
+  name_edit->selectAll();
+  name_edit->setFocus();
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  const auto name = name_edit->text().trimmed();
+  if (name.isEmpty()) {
+    return std::nullopt;
+  }
+  return name;
+}
+
 std::optional<StyleContour> request_contour_edit(QWidget* parent, const StyleContour& initial,
-                                                 const std::function<void(const StyleContour&)>& changed) {
+                                                 const std::function<void(const StyleContour&)>& changed,
+                                                 ContourLibrary* library, QString* saved_storage_id) {
+  if (saved_storage_id != nullptr) {
+    saved_storage_id->clear();
+  }
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("contourEditorDialog"));
   dialog.setWindowTitle(QObject::tr("Edit Contour"));
@@ -436,16 +499,36 @@ std::optional<StyleContour> request_contour_edit(QWidget* parent, const StyleCon
   hint->setWordWrap(true);
   layout->addWidget(hint);
 
+  // Save as New Contour sits at the left of the OK and Cancel row, away from the
+  // point tools: it acts on the whole curve.
+  auto* footer = new QHBoxLayout();
+  layout->addLayout(footer);
+  QPushButton* save_as_new = nullptr;
+  if (library != nullptr) {
+    save_as_new = new QPushButton(QObject::tr("Save as New Contour…"), &dialog);
+    save_as_new->setObjectName(QStringLiteral("contourEditorSaveAsNewButton"));
+    save_as_new->setToolTip(QObject::tr("Save this curve as a new contour under a name of your choice"));
+    save_as_new->setAutoDefault(false);
+    footer->addWidget(save_as_new);
+  }
+  footer->addStretch(1);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   match_ok_cancel_widths(*buttons);
-  layout->addWidget(buttons);
+  footer->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
   const auto starting = graph->contour();
-  // The value handed back and previewed: the caller's own contour while the
-  // curve is as it came, the new points as "Custom" once it differs.
-  const auto current_value = [graph, &initial, &starting]() {
+  // The contour Save as New Contour last added to the library.
+  QString saved_id;
+  StyleContour saved_contour;
+  // The value handed back and previewed: the contour just saved while the curve
+  // is still that one, the caller's own contour while the curve is as it came,
+  // the new points as "Custom" once it differs.
+  const auto current_value = [graph, &initial, &starting, &saved_id, &saved_contour]() {
+    if (!saved_id.isEmpty() && style_contours_same_shape(graph->contour(), saved_contour)) {
+      return saved_contour;
+    }
     if (style_contours_same_shape(graph->contour(), starting)) {
       return initial;
     }
@@ -488,10 +571,41 @@ std::optional<StyleContour> request_contour_edit(QWidget* parent, const StyleCon
     }
   });
 
+  if (save_as_new != nullptr) {
+    QObject::connect(save_as_new, &QPushButton::clicked, &dialog, [&] {
+      const auto title = QObject::tr("New Contour");
+      const auto name =
+          request_contour_name(&dialog, title, QObject::tr("Contour %1").arg(library->entries().size() + 1U));
+      if (!name.has_value()) {
+        return;
+      }
+      const auto id = library->add_contour(*name, graph->contour());
+      const auto* entry = library->find_entry(id);
+      if (entry == nullptr) {
+        show_critical_message(&dialog, title, QObject::tr("Could not save the contour."),
+                              QStringLiteral("layerStyleContourErrorDialog"));
+        return;
+      }
+      saved_id = id;
+      saved_contour = entry->contour;
+      // The editor goes on from the contour as the library holds it (whole levels).
+      graph->set_contour(saved_contour);
+      sync_fields();
+      if (changed) {
+        changed(current_value());
+      }
+    });
+  }
+
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return current_value();
+  auto result = current_value();
+  if (saved_storage_id != nullptr && !saved_id.isEmpty() &&
+      style_contours_same_shape(graph->contour(), saved_contour)) {
+    *saved_storage_id = saved_id;
+  }
+  return result;
 }
 
 QStringList request_contours_to_save(QWidget* parent, const ContourLibrary& library) {
@@ -526,6 +640,48 @@ QStringList request_contours_to_save(QWidget* parent, const ContourLibrary& libr
     }
   }
   return ids;
+}
+
+QStringList load_contours_from_file(QWidget* parent, ContourLibrary& library, const QString& file_dialog_object_name) {
+  const auto title = QObject::tr("Load Contours");
+  const auto path = get_open_file_name(parent, title, {}, QObject::tr("Photoshop Contours (*.shc)"), nullptr,
+                                       file_dialog_object_name);
+  if (path.isEmpty()) {
+    return {};
+  }
+  QString error;
+  QStringList warnings;
+  const auto ids = library.import_shc(path, error, warnings);
+  if (!error.isEmpty()) {
+    show_critical_message(parent, title, error, QStringLiteral("layerStyleContourErrorDialog"));
+  } else if (!warnings.isEmpty()) {
+    show_information_message(parent, title, warnings.join(QLatin1Char('\n')),
+                             QStringLiteral("layerStyleContourWarningsDialog"));
+  }
+  return ids;
+}
+
+bool save_contours_to_file(QWidget* parent, const ContourLibrary& library, const QString& file_dialog_object_name) {
+  const auto ids = request_contours_to_save(parent, library);
+  if (ids.isEmpty()) {
+    return false;
+  }
+  const auto title = QObject::tr("Save Contours");
+  auto path = get_save_file_name(parent, title, QObject::tr("Contours.shc"), QObject::tr("Photoshop Contours (*.shc)"),
+                                 nullptr, file_dialog_object_name);
+  if (path.isEmpty()) {
+    return false;
+  }
+  if (!path.endsWith(QStringLiteral(".shc"), Qt::CaseInsensitive)) {
+    path += QStringLiteral(".shc");
+  }
+  QString error;
+  if (!library.export_shc(ids, path, error)) {
+    show_critical_message(parent, title, error, QStringLiteral("layerStyleContourErrorDialog"));
+    return false;
+  }
+  offer_browser_download_for_saved_file(path);
+  return true;
 }
 
 }  // namespace patchy::ui

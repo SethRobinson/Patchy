@@ -16381,6 +16381,30 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Der Text in den Gruppen „Erkannter Text“ des Dokuments, sichtbar oder ausgeblendet, wird Zeile für Zeile unsichtbar über jedes Seitenbild geschrieben, sodass ein PDF-Programm ihn finden, auswählen und kopieren kann. Ein Treffer innerhalb einer langen Zeile wird nur ungefähr hervorgehoben.</translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation>Als neue Kontur speichern…</translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation>Diese Kurve unter einem Namen Ihrer Wahl als neue Kontur speichern</translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation>Konturverwaltung</translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Integrierte Kontur: Sie kann nicht umbenannt, bearbeitet oder gelöscht werden. Duplizieren Sie sie, um eine bearbeitbare Kopie zu erhalten.</translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation>Kurve bearbeiten…</translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation>Kontur &quot;%1&quot; löschen?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22411,6 +22435,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
         <translation>Den Text in der Auswahl oder Ebene lesen und kopieren</translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
+        <translation>Gespeicherte Konturen für Ebenenstile verwalten</translation>
     </message>
 </context>
 <context>
@@ -36988,6 +37016,14 @@ Fixiert: %1</translation>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Die Texterkennungsmodelle konnten nicht gelöscht werden: %1</translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation>Konturverwaltung...</translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
+        <translation>Die Konturen der Ebenenstile umbenennen, bearbeiten, laden und speichern.</translation>
     </message>
 </context>
 <context>

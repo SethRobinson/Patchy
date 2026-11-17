@@ -159,6 +159,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"edit.presets_saved_brushes", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage saved brushes")},
     {"edit.presets_custom_shapes", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage custom shape presets")},
     {"edit.presets_stroke_presets", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage built-in and saved stroke presets")},
+    {"edit.presets_contours", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage saved layer style contours")},
     // Image
     {"image.size", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize or scale the image")},
     {"image.canvas_size", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add or remove space around the image")},

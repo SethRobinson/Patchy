@@ -16325,6 +16325,30 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>文件中「已辨識的文字」群組內的文字，無論顯示或隱藏，都會逐行以不可見的方式寫在每頁影像之上，這樣 PDF 閱讀器就能尋找、選取和複製它。長行中的相符項目只會大致標示。</translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation>儲存為新輪廓…</translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation>以您選擇的名稱將此曲線儲存為新輪廓</translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation>輪廓管理員</translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>內建輪廓：不能重新命名、編輯或刪除。複製它可得到可編輯的拷貝。</translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation>編輯曲線…</translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation>刪除輪廓「%1」？</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22349,6 +22373,10 @@ Do you want to replace it?</source>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
         <translation>讀取選取範圍或圖層中的文字並複製</translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
+        <translation>管理已儲存的圖層樣式輪廓</translation>
     </message>
 </context>
 <context>
@@ -36873,6 +36901,14 @@ Locked: %1</source>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>無法刪除文字辨識模型：%1</translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation>輪廓管理員...</translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
+        <translation>重新命名、編輯、載入和儲存圖層樣式使用的輪廓。</translation>
     </message>
 </context>
 <context>

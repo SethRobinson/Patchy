@@ -1,5 +1,6 @@
-// The contour editor, the contour library and its Photoshop .shc files, and the
-// Layer Style dialog's contour tools and style preview swatch (GitHub issue 726).
+// The contour editor, the contour library and its Photoshop .shc files, the
+// Layer Style dialog's contour tools and style preview swatch, and the Contour
+// Manager (GitHub issue 726 and its follow-up).
 #include "core/contour_editing.hpp"
 #include "core/contour_presets.hpp"
 #include "core/document.hpp"
@@ -7,6 +8,7 @@
 #include "psd/shc_io.hpp"
 #include "ui/contour_editor_dialog.hpp"
 #include "ui/contour_library.hpp"
+#include "ui/contour_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/qt_paths.hpp"
@@ -23,15 +25,16 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QScopeGuard>
@@ -39,7 +42,9 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QTreeWidget>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -109,11 +114,29 @@ void select_category(QDialog& dialog, const QString& text) {
 
 void answer_name(const QString& name) {
   when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [name](QDialog& dialog) {
-    auto* input = qobject_cast<QInputDialog*>(&dialog);
+    auto* input = dialog.findChild<QLineEdit*>(QStringLiteral("contourNameEdit"));
     CHECK(input != nullptr);
-    input->setTextValue(name);
+    if (input != nullptr) {
+      input->setText(name);
+    }
     dialog.accept();
   });
+}
+
+// The curve the editor tests draw: a corner peak and a smooth dip.
+void draw_peak_and_dip(QDialog& editor) {
+  auto* graph = editor_graph(editor);
+  auto* corner = editor.findChild<QCheckBox*>(QStringLiteral("contourEditorCornerCheck"));
+  CHECK(graph != nullptr && corner != nullptr);
+  click_graph(*graph, 64.0, 220.0);
+  corner->click();
+  click_graph(*graph, 150.0, 40.0);
+  CHECK(graph->contour().points.size() == 4U);
+}
+
+QTreeWidgetItem* manager_row(QTreeWidget& tree, const QString& name) {
+  const auto items = tree.findItems(name, Qt::MatchExactly, 0);
+  return items.isEmpty() ? nullptr : items.front();
 }
 
 void answer_file_when_visible(const QString& object_name, const QString& path) {
@@ -156,6 +179,8 @@ void ui_contour_editor_adds_moves_deletes_and_toggles_corners() {
     auto* reset = dialog.findChild<QPushButton*>(QStringLiteral("contourEditorResetButton"));
     CHECK(graph != nullptr && input != nullptr && output != nullptr && corner != nullptr);
     CHECK(delete_point != nullptr && reset != nullptr);
+    // No library was handed in, so there is nothing to save a new contour into.
+    CHECK(dialog.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton")) == nullptr);
     const auto& points = graph->contour().points;
     CHECK(points.size() == 2U);
     CHECK(!delete_point->isEnabled());  // two points are the minimum
@@ -643,6 +668,524 @@ void ui_contour_library_persists_and_reads_unicode_paths() {
   CHECK(library.entries().size() == 2U);
 }
 
+// GitHub issue 726 follow-up: the name prompt was a stock input dialog about 200 px wide, too
+// narrow for the window manager to show "New Contour" in its title bar. It has one size now,
+// wide enough for its whole title.
+void ui_contour_name_dialog_fits_its_title_at_one_size() {
+  const auto title = QStringLiteral("New Contour");
+  when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [&](QDialog& dialog) {
+    auto* input = dialog.findChild<QLineEdit*>(QStringLiteral("contourNameEdit"));
+    CHECK(input != nullptr);
+    CHECK(dialog.windowTitle() == title);
+    // One fixed size: nothing to resize.
+    CHECK(dialog.minimumSize() == dialog.maximumSize());
+    CHECK(dialog.size() == dialog.minimumSize());
+    CHECK(dialog.width() >= 340);
+    // The title in the title bar's font, beside the icon and buttons a title bar holds.
+    CHECK(dialog.width() >= patchy::ui::progress_dialog_title_text_width(dialog, title) +
+                                patchy::ui::progress_dialog_title_reserved_width(dialog));
+    // The suggested name is selected, ready to be typed over.
+    CHECK(input != nullptr && input->text() == QStringLiteral("Contour 1"));
+    CHECK(input != nullptr && input->selectedText() == QStringLiteral("Contour 1"));
+    CHECK(input != nullptr && dialog.focusWidget() == input);
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_contour_name_dialog", dialog);
+    if (input != nullptr) {
+      input->setText(QStringLiteral("  Steep Ridge  "));
+    }
+    dialog.accept();
+  });
+  const auto named = patchy::ui::request_contour_name(nullptr, title, QStringLiteral("Contour 1"));
+  CHECK(named.has_value() && *named == QStringLiteral("Steep Ridge"));
+
+  // A longer title widens the dialog, up to the cap every fitted title has (three fifths of
+  // the screen, 520 px at most).
+  const auto long_title = QStringLiteral("Rename the Contour Saved for the Bevel and Emboss Gloss");
+  int long_width = 0;
+  when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [&](QDialog& dialog) {
+    long_width = dialog.width();
+    CHECK(dialog.minimumSize() == dialog.maximumSize());
+    CHECK(dialog.width() >= std::min(patchy::ui::progress_dialog_title_text_width(dialog, long_title) +
+                                         patchy::ui::progress_dialog_title_reserved_width(dialog),
+                                     patchy::ui::progress_dialog_title_width_cap(dialog)));
+    dialog.reject();
+  });
+  CHECK(!patchy::ui::request_contour_name(nullptr, long_title, QStringLiteral("Ridge")).has_value());
+  CHECK(long_width > 340);
+
+  // An empty name is no name.
+  when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [](QDialog& dialog) {
+    auto* input = dialog.findChild<QLineEdit*>(QStringLiteral("contourNameEdit"));
+    CHECK(input != nullptr);
+    if (input != nullptr) {
+      input->setText(QStringLiteral("   "));
+    }
+    dialog.accept();
+  });
+  CHECK(!patchy::ui::request_contour_name(nullptr, title, QStringLiteral("Contour 1")).has_value());
+}
+
+// GitHub issue 726 follow-up: Save as New Contour in the editor asks for a name, adds the
+// curve to the library and goes on from the saved contour.
+void ui_contour_editor_save_as_new_contour_names_and_saves_the_curve() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  std::vector<patchy::StyleContour> heard;
+  const auto changed = [&heard](const patchy::StyleContour& value) { heard.push_back(value); };
+
+  // Save, then OK: the saved contour comes back under its name.
+  QString saved_id;
+  when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& dialog) {
+    auto* save = dialog.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton"));
+    auto* ok = dialog.findChild<QDialogButtonBox*>();
+    CHECK(save != nullptr && save->isVisible() && save->isEnabled());
+    CHECK(ok != nullptr);
+    if (save == nullptr) {
+      dialog.reject();
+      return;
+    }
+    // Left of OK and Cancel, on their row.
+    if (ok != nullptr) {
+      CHECK(save->geometry().right() < ok->geometry().left());
+      CHECK(save->geometry().center().y() >= ok->geometry().top() &&
+            save->geometry().center().y() <= ok->geometry().bottom());
+    }
+    draw_peak_and_dip(dialog);
+    CHECK(!heard.empty() && heard.back().name == "Custom");
+
+    // Cancelling the name saves nothing.
+    when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [](QDialog& prompt) { prompt.reject(); });
+    save->click();
+    CHECK(library.entries().empty());
+
+    // The prompt suggests "Contour 1"; the typed name is the one saved.
+    when_dialog_visible(QStringLiteral("layerStyleContourNameDialog"), [](QDialog& prompt) {
+      auto* input = prompt.findChild<QLineEdit*>(QStringLiteral("contourNameEdit"));
+      CHECK(input != nullptr && input->text() == QStringLiteral("Contour 1"));
+      CHECK(prompt.windowTitle() == QStringLiteral("New Contour"));
+      if (input != nullptr) {
+        input->setText(QStringLiteral("Peak and Dip"));
+      }
+      prompt.accept();
+    });
+    save->click();
+    CHECK(library.entries().size() == 1U);
+    if (library.entries().size() != 1U) {
+      dialog.reject();
+      return;
+    }
+    const auto& entry = library.entries().front();
+    CHECK(entry.name == QStringLiteral("Peak and Dip"));
+    CHECK(entry.contour.points.size() == 4U);
+    CHECK(entry.contour.points[1] == contour_point(64.0F, 220.0F, true));
+    CHECK(entry.contour.points[2] == contour_point(150.0F, 40.0F));
+    // The caller hears the saved contour, and the graph goes on from it.
+    CHECK(!heard.empty() && heard.back() == entry.contour);
+    CHECK(heard.back().name == "Peak and Dip");
+    auto* graph = editor_graph(dialog);
+    CHECK(graph != nullptr && patchy::style_contours_same_shape(graph->contour(), entry.contour));
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_contour_editor_save_as_new", dialog);
+    dialog.accept();
+  });
+  const auto saved = patchy::ui::request_contour_edit(nullptr, patchy::StyleContour{}, changed, &library, &saved_id);
+  CHECK(saved.has_value() && library.entries().size() == 1U);
+  if (!saved.has_value() || library.entries().size() != 1U) {
+    return;
+  }
+  CHECK(saved->name == "Peak and Dip");
+  CHECK(*saved == library.entries().front().contour);
+  CHECK(saved_id == library.entries().front().storage_id);
+
+  // Save, edit on, OK: the library keeps what was saved; the result is the newer curve.
+  QString second_id = QStringLiteral("stale");
+  when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& dialog) {
+    auto* save = dialog.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton"));
+    auto* graph = editor_graph(dialog);
+    CHECK(save != nullptr && graph != nullptr);
+    if (save == nullptr || graph == nullptr) {
+      dialog.reject();
+      return;
+    }
+    click_graph(*graph, 128.0, 30.0);
+    answer_name(QStringLiteral("Low Middle"));
+    save->click();
+    CHECK(library.entries().size() == 2U);
+    click_graph(*graph, 200.0, 250.0);
+    CHECK(!heard.empty() && heard.back().name == "Custom");
+    dialog.accept();
+  });
+  const auto edited_on = patchy::ui::request_contour_edit(nullptr, patchy::StyleContour{}, changed, &library, &second_id);
+  CHECK(edited_on.has_value() && edited_on->name == "Custom" && edited_on->points.size() == 4U);
+  CHECK(second_id.isEmpty());
+  CHECK(library.entries().size() == 2U);
+  const auto* low_middle = library.find_matching([] {
+    patchy::StyleContour contour;
+    contour.points = {contour_point(0.0F, 0.0F), contour_point(128.0F, 30.0F), contour_point(255.0F, 255.0F)};
+    return contour;
+  }());
+  CHECK(low_middle != nullptr && low_middle->name == QStringLiteral("Low Middle"));
+
+  // Save, then Cancel: nothing comes back, the contour stays saved.
+  when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& dialog) {
+    auto* save = dialog.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton"));
+    auto* graph = editor_graph(dialog);
+    CHECK(save != nullptr && graph != nullptr);
+    if (save == nullptr || graph == nullptr) {
+      dialog.reject();
+      return;
+    }
+    click_graph(*graph, 30.0, 200.0);
+    answer_name(QStringLiteral("Kept"));
+    save->click();
+    dialog.reject();
+  });
+  QString third_id = QStringLiteral("stale");
+  CHECK(!patchy::ui::request_contour_edit(nullptr, patchy::StyleContour{}, changed, &library, &third_id).has_value());
+  CHECK(third_id.isEmpty());
+  CHECK(library.entries().size() == 3U);
+  // A new library on the same folder reads all three back.
+  patchy::ui::ContourLibrary reopened(library.storage_dir());
+  CHECK(reopened.entries().size() == 3U);
+}
+
+// The same button from the Layer Style dialog: the picker the editor came from shows the saved
+// contour, and the other pickers list it.
+void ui_layer_style_contour_editor_save_as_new_selects_it_in_the_picker() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  const auto layer = contour_test_layer(document);
+  std::vector<patchy::LayerStyle> previews;
+  const auto gloss_name = QStringLiteral("layerStyleBevelGlossContourCombo");
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+    select_category(dialog, QStringLiteral("Bevel & Emboss"));
+    auto* gloss = dialog.findChild<QComboBox*>(gloss_name);
+    auto* shadow = dialog.findChild<QComboBox*>(QStringLiteral("layerStyleDropShadowContourCombo"));
+    auto* edit = dialog.findChild<QPushButton*>(gloss_name + QStringLiteral("EditButton"));
+    CHECK(gloss != nullptr && shadow != nullptr && edit != nullptr);
+    if (gloss == nullptr || shadow == nullptr || edit == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.linear"));
+
+    // Save as New Contour, then Cancel: the layer's contour goes back, the saved one stays listed.
+    when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& editor) {
+      auto* save = editor.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton"));
+      auto* graph = editor_graph(editor);
+      CHECK(save != nullptr && graph != nullptr);
+      if (save == nullptr || graph == nullptr) {
+        editor.reject();
+        return;
+      }
+      click_graph(*graph, 30.0, 200.0);
+      answer_name(QStringLiteral("Early Rise"));
+      save->click();
+      CHECK(gloss->currentText() == QStringLiteral("Early Rise"));
+      editor.reject();
+    });
+    edit->click();
+    CHECK(library.entries().size() == 1U);
+    if (library.entries().size() != 1U) {
+      dialog.reject();
+      return;
+    }
+    const auto early_id = QStringLiteral("user:") + library.entries().front().storage_id;
+    CHECK(gloss->currentData().toString() == QStringLiteral("contour.linear"));
+    CHECK(gloss->findData(early_id) > 0);
+    CHECK(gloss->findData(QStringLiteral("custom")) < 0);
+    CHECK(shadow->findData(early_id) > 0);
+    CHECK(shadow->currentData().toString() == QStringLiteral("contour.linear"));
+
+    // Save as New Contour, then OK: the picker shows the saved contour and the layer gets it.
+    QString saved_user_id;
+    when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& editor) {
+      auto* save = editor.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton"));
+      CHECK(save != nullptr);
+      if (save == nullptr) {
+        editor.reject();
+        return;
+      }
+      draw_peak_and_dip(editor);
+      CHECK(gloss->currentData().toString() == QStringLiteral("custom"));
+      answer_name(QStringLiteral("Peak and Dip"));
+      save->click();
+      CHECK(library.entries().size() == 2U);
+      // Shown in the picker at once, behind the open editor, and previewed on the canvas.
+      CHECK(gloss->currentText() == QStringLiteral("Peak and Dip"));
+      saved_user_id = gloss->currentData().toString();
+      CHECK(saved_user_id.startsWith(QStringLiteral("user:")));
+      CHECK(gloss->findData(QStringLiteral("custom")) < 0);
+      CHECK(process_events_until([&] {
+        return !previews.empty() && !previews.back().bevels.empty() &&
+               previews.back().bevels.front().gloss_contour.name == "Peak and Dip";
+      }));
+      editor.accept();
+    });
+    edit->click();
+    CHECK(gloss->currentText() == QStringLiteral("Peak and Dip"));
+    CHECK(gloss->currentData().toString() == saved_user_id);
+    CHECK(shadow->findData(saved_user_id) > 0);
+    CHECK(shadow->currentData().toString() == QStringLiteral("contour.linear"));
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_layer_style_contour_saved_from_editor", dialog);
+    dialog.accept();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&previews](const patchy::ui::LayerStyleSettings& value) { previews.push_back(value.style); },
+      nullptr, nullptr, nullptr, {}, nullptr, patchy::RgbColor{0, 0, 0}, patchy::RgbColor{255, 255, 255}, nullptr,
+      patchy::BitDepth::UInt8, std::nullopt, 0, true, &library);
+  CHECK(settings.has_value());
+  if (!settings.has_value() || settings->style.bevels.empty()) {
+    CHECK(false);
+    return;
+  }
+  const auto& gloss = settings->style.bevels.front().gloss_contour;
+  CHECK(gloss.name == "Peak and Dip");
+  CHECK(gloss.points.size() == 4U);
+  CHECK(gloss.points[1] == contour_point(64.0F, 220.0F, true));
+  CHECK(settings->style.drop_shadows.front().contour.points.empty() ||
+        patchy::style_contour_is_linear(settings->style.drop_shadows.front().contour));
+}
+
+// GitHub issue 726 follow-up: the Contour Manager (Edit > Presets, Preferences > Presets) lists
+// the built-in contours, locked, and the saved ones, which it renames, edits, duplicates,
+// deletes, loads and saves; the Layer Style pickers list what it leaves.
+void ui_contour_manager_lists_renames_edits_duplicates_and_deletes() {
+  QTemporaryDir directory;
+  patchy::ui::ContourLibrary library(directory.filePath(QStringLiteral("contours")));
+  const auto ridge = ridge_contour("Ridge");
+  const auto ridge_id = library.add_contour(QStringLiteral("Ridge"), ridge);
+  patchy::StyleContour dip;
+  dip.points = {contour_point(0.0F, 0.0F), contour_point(128.0F, 30.0F), contour_point(255.0F, 255.0F)};
+  const auto dip_id = library.add_contour(QStringLiteral("Dip"), dip);
+  CHECK(!ridge_id.isEmpty() && !dip_id.isEmpty());
+  const auto shc_path = directory.filePath(QStringLiteral("managed contours.shc"));
+  const auto builtin_count = static_cast<int>(patchy::builtin_contour_presets().size());
+  CHECK(builtin_count > 0);
+
+  when_dialog_visible(QStringLiteral("contourManagerDialog"), [&](QDialog& dialog) {
+    auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("contourManagerTree"));
+    auto* name_edit = dialog.findChild<QLineEdit*>(QStringLiteral("contourManagerNameEdit"));
+    auto* note = dialog.findChild<QLabel*>(QStringLiteral("contourManagerBuiltinNote"));
+    auto* edit = dialog.findChild<QPushButton*>(QStringLiteral("contourManagerEditButton"));
+    auto* duplicate = dialog.findChild<QPushButton*>(QStringLiteral("contourManagerDuplicateButton"));
+    auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("contourManagerDeleteButton"));
+    auto* load = dialog.findChild<QPushButton*>(QStringLiteral("contourManagerLoadButton"));
+    auto* save = dialog.findChild<QPushButton*>(QStringLiteral("contourManagerSaveButton"));
+    auto* preview =
+        static_cast<patchy::ui::ContourGraphWidget*>(dialog.findChild<QWidget*>(QStringLiteral("contourManagerPreview")));
+    CHECK(tree != nullptr && name_edit != nullptr && note != nullptr && edit != nullptr && duplicate != nullptr &&
+          remove != nullptr && load != nullptr && save != nullptr && preview != nullptr);
+    if (tree == nullptr || name_edit == nullptr || note == nullptr || edit == nullptr || duplicate == nullptr ||
+        remove == nullptr || load == nullptr || save == nullptr || preview == nullptr) {
+      dialog.reject();
+      return;
+    }
+    const auto selected_name = [&] {
+      return tree->currentItem() != nullptr ? tree->currentItem()->text(0) : QString();
+    };
+    const auto rename_to = [&](const QString& name) {
+      name_edit->setText(name);
+      name_edit->editingFinished();
+    };
+
+    // Built-ins first, marked and locked; then the saved contours by name.
+    CHECK(tree->topLevelItemCount() == builtin_count + 2);
+    CHECK(tree->topLevelItem(0)->text(0) == QStringLiteral("Linear"));
+    CHECK(tree->topLevelItem(0)->text(1) == QStringLiteral("Built-in"));
+    CHECK(tree->topLevelItem(builtin_count)->text(0) == QStringLiteral("Dip"));
+    CHECK(tree->topLevelItem(builtin_count)->text(1).isEmpty());
+    CHECK(tree->topLevelItem(builtin_count + 1)->text(0) == QStringLiteral("Ridge"));
+    // It opened on the contour it was asked for, with its curve in the preview.
+    CHECK(selected_name() == QStringLiteral("Ridge"));
+    CHECK(name_edit->isEnabled() && name_edit->text() == QStringLiteral("Ridge"));
+    CHECK(!note->isVisible());
+    CHECK(edit->isEnabled() && duplicate->isEnabled() && remove->isEnabled() && save->isEnabled());
+    CHECK(preview->read_only());
+    CHECK(patchy::style_contours_same_shape(preview->contour(), ridge));
+    // The preview only shows the curve: a click adds no point.
+    click_graph(*preview, 128.0, 128.0);
+    CHECK(preview->contour().points.size() == ridge.points.size());
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_contour_manager", dialog);
+
+    // A built-in can be duplicated, nothing else.
+    auto* cone = manager_row(*tree, QStringLiteral("Cone"));
+    CHECK(cone != nullptr);
+    if (cone == nullptr) {
+      dialog.reject();
+      return;
+    }
+    tree->setCurrentItem(cone);
+    CHECK(note->isVisible());
+    CHECK(!name_edit->isEnabled() && name_edit->text() == QStringLiteral("Cone"));
+    CHECK(!edit->isEnabled() && !remove->isEnabled() && duplicate->isEnabled());
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_contour_manager_builtin", dialog);
+    duplicate->click();
+    CHECK(library.entries().size() == 3U);
+    CHECK(selected_name() == QStringLiteral("Cone copy"));
+    CHECK(name_edit->isEnabled() && edit->isEnabled() && remove->isEnabled());
+    const auto* cone_preset = patchy::find_builtin_contour_preset("contour.cone");
+    CHECK(cone_preset != nullptr);
+    CHECK(cone_preset != nullptr && patchy::style_contours_same_shape(preview->contour(), cone_preset->contour));
+    // A second copy gets its own name (the list was rebuilt, so the row is found again).
+    cone = manager_row(*tree, QStringLiteral("Cone"));
+    CHECK(cone != nullptr);
+    if (cone == nullptr) {
+      dialog.reject();
+      return;
+    }
+    tree->setCurrentItem(cone);
+    duplicate->click();
+    CHECK(selected_name() == QStringLiteral("Cone copy 2"));
+    CHECK(library.entries().size() == 4U);
+
+    // Rename: the list re-sorts and the row stays selected. An empty name changes nothing.
+    rename_to(QStringLiteral("Zigzag"));
+    CHECK(selected_name() == QStringLiteral("Zigzag"));
+    CHECK(tree->topLevelItem(tree->topLevelItemCount() - 1)->text(0) == QStringLiteral("Zigzag"));
+    rename_to(QStringLiteral("   "));
+    CHECK(selected_name() == QStringLiteral("Zigzag") && name_edit->text() == QStringLiteral("Zigzag"));
+    {
+      const auto* zigzag = library.find_entry(tree->currentItem()->data(0, Qt::UserRole).toString());
+      CHECK(zigzag != nullptr && zigzag->name == QStringLiteral("Zigzag") && zigzag->contour.name == "Zigzag");
+    }
+
+    // Edit Curve changes the saved curve and keeps the name; Cancel keeps the curve.
+    auto* dip_row = manager_row(*tree, QStringLiteral("Dip"));
+    CHECK(dip_row != nullptr);
+    if (dip_row == nullptr) {
+      dialog.reject();
+      return;
+    }
+    tree->setCurrentItem(dip_row);
+    when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& editor) {
+      auto* graph = editor_graph(editor);
+      CHECK(graph != nullptr && graph->contour().points.size() == 3U);
+      CHECK(editor.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton")) != nullptr);
+      if (graph != nullptr) {
+        click_graph(*graph, 200.0, 250.0);
+      }
+      editor.reject();
+    });
+    edit->click();
+    CHECK(library.find_entry(dip_id) != nullptr && library.find_entry(dip_id)->contour.points.size() == 3U);
+    when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& editor) {
+      auto* graph = editor_graph(editor);
+      CHECK(graph != nullptr);
+      if (graph != nullptr) {
+        click_graph(*graph, 200.0, 250.0);
+      }
+      editor.accept();
+    });
+    edit->click();
+    {
+      const auto* edited = library.find_entry(dip_id);
+      CHECK(edited != nullptr && edited->name == QStringLiteral("Dip") && edited->contour.name == "Dip");
+      CHECK(edited != nullptr && edited->contour.points.size() == 4U);
+      CHECK(edited != nullptr && edited->contour.points[2] == contour_point(200.0F, 250.0F));
+      CHECK(selected_name() == QStringLiteral("Dip"));
+      CHECK(preview->contour().points.size() == 4U);
+    }
+
+    // Save as New Contour from the editor: the new contour is selected, the edited one untouched.
+    const auto entries_before = library.entries().size();
+    when_dialog_visible(QStringLiteral("contourEditorDialog"), [&](QDialog& editor) {
+      auto* graph = editor_graph(editor);
+      auto* save_as_new = editor.findChild<QPushButton*>(QStringLiteral("contourEditorSaveAsNewButton"));
+      CHECK(graph != nullptr && save_as_new != nullptr);
+      if (graph == nullptr || save_as_new == nullptr) {
+        editor.reject();
+        return;
+      }
+      click_graph(*graph, 60.0, 120.0);
+      answer_name(QStringLiteral("Dip Variant"));
+      save_as_new->click();
+      editor.accept();
+    });
+    edit->click();
+    CHECK(library.entries().size() == entries_before + 1U);
+    CHECK(selected_name() == QStringLiteral("Dip Variant"));
+    CHECK(preview->contour().points.size() == 5U);
+    CHECK(library.find_entry(dip_id) != nullptr && library.find_entry(dip_id)->contour.points.size() == 4U);
+
+    // Save Contours writes the ticked contours; Delete asks first.
+    when_dialog_visible(QStringLiteral("saveContoursDialog"), [&](QDialog& chooser) {
+      auto* list = chooser.findChild<QListWidget*>(QStringLiteral("saveContoursList"));
+      CHECK(list != nullptr && list->count() == static_cast<int>(library.entries().size()));
+      answer_file_when_visible(QStringLiteral("contourManagerSaveFileDialog"), shc_path);
+      chooser.accept();
+    });
+    save->click();
+    CHECK(QFileInfo::exists(shc_path));
+
+    const auto count_before_delete = library.entries().size();
+    when_dialog_visible(QStringLiteral("contourManagerDeleteMessageBox"), [](QDialog& box) { box.reject(); });
+    remove->click();
+    CHECK(library.entries().size() == count_before_delete);
+    when_dialog_visible(QStringLiteral("contourManagerDeleteMessageBox"), [](QDialog& box) {
+      auto* message = qobject_cast<QMessageBox*>(&box);
+      CHECK(message != nullptr && message->button(QMessageBox::Yes) != nullptr);
+      if (message != nullptr && message->button(QMessageBox::Yes) != nullptr) {
+        message->button(QMessageBox::Yes)->click();
+      } else {
+        box.reject();
+      }
+    });
+    remove->click();
+    CHECK(library.entries().size() == count_before_delete - 1U);
+    CHECK(manager_row(*tree, QStringLiteral("Dip Variant")) == nullptr);
+    // The selection moved to a neighbouring saved contour.
+    CHECK(tree->currentItem() != nullptr && !tree->currentItem()->data(0, Qt::UserRole).toString().isEmpty());
+
+    // Load Contours brings the deleted one back from the file and selects the file's first.
+    answer_file_when_visible(QStringLiteral("contourManagerLoadFileDialog"), shc_path);
+    load->click();
+    CHECK(library.entries().size() == count_before_delete);
+    CHECK(manager_row(*tree, QStringLiteral("Dip Variant")) != nullptr);
+    CHECK(tree->topLevelItemCount() == builtin_count + static_cast<int>(library.entries().size()));
+    dialog.reject();
+  });
+  patchy::ui::request_contour_manager(nullptr, library, ridge_id);
+
+  // What the manager left is what a Layer Style contour picker lists, after the built-ins.
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  const auto layer = contour_test_layer(document);
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+    select_category(dialog, QStringLiteral("Bevel & Emboss"));
+    auto* gloss = dialog.findChild<QComboBox*>(QStringLiteral("layerStyleBevelGlossContourCombo"));
+    CHECK(gloss != nullptr);
+    if (gloss != nullptr) {
+      for (const auto& entry : library.entries()) {
+        const auto index = gloss->findData(QStringLiteral("user:") + entry.storage_id);
+        CHECK(index > builtin_count);
+        CHECK(index < 0 || gloss->itemText(index) == entry.name);
+      }
+      CHECK(gloss->findText(QStringLiteral("Zigzag")) > 0);
+      CHECK(gloss->findText(QStringLiteral("Cone copy")) > 0);
+      CHECK(gloss->findText(QStringLiteral("Dip Variant")) > 0);
+    }
+    dialog.reject();
+  });
+  (void)patchy::ui::request_layer_style_settings(
+      nullptr, layer, {}, nullptr, nullptr, nullptr, {}, nullptr, patchy::RgbColor{0, 0, 0},
+      patchy::RgbColor{255, 255, 255}, nullptr, patchy::BitDepth::UInt8, std::nullopt, 0, true, &library);
+
+  // The library call the manager's Edit Curve uses: whole levels, name kept, written to disk.
+  auto fractional = dip;
+  fractional.points[1].y = 30.4F;
+  CHECK(library.set_contour_curve(ridge_id, fractional));
+  CHECK(!library.set_contour_curve(QStringLiteral("no-such-id"), fractional));
+  patchy::ui::ContourLibrary reopened(library.storage_dir());
+  const auto* rewritten = reopened.find_entry(ridge_id);
+  CHECK(rewritten != nullptr && rewritten->name == QStringLiteral("Ridge") && rewritten->contour.name == "Ridge");
+  CHECK(rewritten != nullptr && rewritten->contour.points.size() == 3U);
+  CHECK(rewritten != nullptr && rewritten->contour.points[1] == contour_point(128.0F, 30.0F));
+}
+
 void ui_layer_style_swatch_follows_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   const auto layer = contour_test_layer(document);
@@ -716,5 +1259,12 @@ std::vector<patchy::test::TestCase> contour_editor_tests() {
        ui_layer_style_contour_library_new_rename_delete_load_save},
       {"ui_contour_library_persists_and_reads_unicode_paths", ui_contour_library_persists_and_reads_unicode_paths},
       {"ui_layer_style_swatch_follows_settings", ui_layer_style_swatch_follows_settings},
+      {"ui_contour_name_dialog_fits_its_title_at_one_size", ui_contour_name_dialog_fits_its_title_at_one_size},
+      {"ui_contour_editor_save_as_new_contour_names_and_saves_the_curve",
+       ui_contour_editor_save_as_new_contour_names_and_saves_the_curve},
+      {"ui_layer_style_contour_editor_save_as_new_selects_it_in_the_picker",
+       ui_layer_style_contour_editor_save_as_new_selects_it_in_the_picker},
+      {"ui_contour_manager_lists_renames_edits_duplicates_and_deletes",
+       ui_contour_manager_lists_renames_edits_duplicates_and_deletes},
   };
 }

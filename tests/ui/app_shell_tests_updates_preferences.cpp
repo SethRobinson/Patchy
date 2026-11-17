@@ -3213,6 +3213,7 @@ void ui_preferences_presets_page_opens_each_manager() {
   ColorSchemeRestorer restore_scheme;
   const std::vector<std::pair<const char*, QString>> dialogs{
       {"preferencesPresetsStylesButton", QStringLiteral("styleManagerDialog")},
+      {"preferencesPresetsContoursButton", QStringLiteral("contourManagerDialog")},
       {"preferencesPresetsBrushTipsButton", QStringLiteral("brushTipManagerDialog")},
       {"preferencesPresetsSavedBrushesButton", QStringLiteral("brushPresetManager")},
       {"preferencesPresetsGradientsButton", QStringLiteral("gradientManagerDialog")},

@@ -16437,6 +16437,30 @@ Czy chcesz go zastąpić?</translation>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Tekst z grup „Rozpoznany tekst” dokumentu, widocznych lub ukrytych, jest zapisywany niewidocznie na obrazie każdej strony, wiersz po wierszu, aby czytnik PDF mógł go znaleźć, zaznaczyć i skopiować. Trafienie wewnątrz długiego wiersza jest podświetlane w przybliżeniu.</translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation>Zapisz jako nowy kontur…</translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation>Zapisz tę krzywą jako nowy kontur pod wybraną nazwą</translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation>Menedżer konturów</translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Wbudowany kontur: nie można zmienić jego nazwy, edytować go ani usunąć. Zduplikuj go, aby uzyskać kopię do edycji.</translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation>Edytuj krzywą…</translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation>Usunąć kontur „%1”?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22473,6 +22497,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
         <translation>Odczytaj tekst z zaznaczenia lub warstwy i skopiuj go</translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
+        <translation>Zarządzaj zapisanymi konturami stylów warstw</translation>
     </message>
 </context>
 <context>
@@ -37103,6 +37131,14 @@ Zablokowano: %1</translation>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>Nie udało się usunąć modeli rozpoznawania tekstu: %1</translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation>Menedżer konturów...</translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
+        <translation>Zmieniaj nazwy, edytuj, wczytuj i zapisuj kontury używane przez style warstw.</translation>
     </message>
 </context>
 <context>

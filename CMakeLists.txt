@@ -1753,6 +1753,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/contour_editor_dialog.cpp
       src/ui/contour_library.hpp
       src/ui/contour_library.cpp
+      src/ui/contour_manager_dialog.hpp
+      src/ui/contour_manager_dialog.cpp
       src/ui/style_library.hpp
       src/ui/style_library.cpp
       src/ui/style_manager_dialog.hpp

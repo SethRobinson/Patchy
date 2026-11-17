@@ -16325,6 +16325,30 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>문서의 &apos;인식된 텍스트&apos; 그룹에 있는 텍스트는 표시 여부와 관계없이 각 페이지 이미지 위에 한 줄씩 보이지 않게 기록되므로 PDF 리더에서 찾고 선택하고 복사할 수 있습니다. 긴 줄 안의 일치 항목은 대략적인 위치로 강조 표시됩니다.</translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation>새 윤곽선으로 저장…</translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation>이 곡선을 원하는 이름의 새 윤곽선으로 저장합니다</translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation>윤곽선 관리자</translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>기본 제공 윤곽선: 이름 바꾸기, 편집, 삭제는 할 수 없습니다. 복제하면 편집할 수 있는 사본이 만들어집니다.</translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation>곡선 편집…</translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation>윤곽선 &quot;%1&quot;을(를) 삭제할까요?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22349,6 +22373,10 @@ Do you want to replace it?</source>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
         <translation>선택 영역 또는 레이어의 텍스트를 읽어 복사합니다</translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
+        <translation>저장된 레이어 스타일 윤곽선 관리</translation>
     </message>
 </context>
 <context>
@@ -36873,6 +36901,14 @@ Locked: %1</source>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>텍스트 인식 모델을 삭제할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation>윤곽선 관리자...</translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
+        <translation>레이어 스타일에 쓰는 윤곽선의 이름 변경, 편집, 불러오기, 저장을 합니다.</translation>
     </message>
 </context>
 <context>

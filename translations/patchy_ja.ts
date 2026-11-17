@@ -16325,6 +16325,30 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>ドキュメントの「認識されたテキスト」グループのテキストは、表示・非表示にかかわらず、各ページ画像の上に 1 行ずつ見えない形で書き込まれるため、PDF リーダーで検索、選択、コピーができます。長い行の中の一致箇所は、おおよその位置で強調表示されます。</translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation>新規輪郭として保存…</translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation>このカーブに好きな名前を付けて、新しい輪郭として保存します</translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation>輪郭マネージャー</translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>組み込みの輪郭: 名前の変更、編集、削除はできません。複製すると編集できるコピーが作成されます。</translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation>カーブを編集…</translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation>輪郭「%1」を削除しますか？</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22349,6 +22373,10 @@ Do you want to replace it?</source>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
         <translation>選択範囲またはレイヤー内の文字を読み取ってコピーします</translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
+        <translation>保存したレイヤースタイルの輪郭を管理</translation>
     </message>
 </context>
 <context>
@@ -36873,6 +36901,14 @@ Locked: %1</source>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>文字認識モデルを削除できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation>輪郭マネージャー...</translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
+        <translation>レイヤースタイルで使う輪郭の名前変更、編集、読み込み、保存を行います。</translation>
     </message>
 </context>
 <context>

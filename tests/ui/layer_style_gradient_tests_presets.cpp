@@ -17,6 +17,7 @@
 #include "ui/camera_raw_filter_dialog.hpp"
 #include "ui/contour_editor_dialog.hpp"
 #include "ui/contour_library.hpp"
+#include "ui/contour_manager_dialog.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/custom_shape_manager_dialog.hpp"
 #include "ui/pattern_library.hpp"
@@ -1579,6 +1580,10 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::request_contour_edit(nullptr, sweep_ring->contour);
     grab_dialog(QStringLiteral("saveContoursDialog"), "save_contours");
     (void)patchy::ui::request_contours_to_save(nullptr, contours);
+    grab_dialog(QStringLiteral("contourManagerDialog"), "contour_manager");
+    patchy::ui::request_contour_manager(nullptr, contours, contours.entries().front().storage_id);
+    grab_dialog(QStringLiteral("layerStyleContourNameDialog"), "contour_name");
+    (void)patchy::ui::request_contour_name(nullptr, QStringLiteral("New Contour"), QStringLiteral("Contour 1"));
     grab_dialog(QStringLiteral("cameraRawFilterDialog"), "camera_raw_filter");
     patchy::ui::CameraRawFilterRequest camera_raw_request;
     camera_raw_request.source = std::make_shared<const patchy::PixelBuffer>(
@@ -1696,7 +1701,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 54);
+  CHECK(captured == 58);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

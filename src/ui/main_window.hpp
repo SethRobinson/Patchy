@@ -3021,6 +3021,7 @@ private:
   // `parent` owns the dialog (Preferences passes itself so the manager opens
   // over it); null means the main window.
   void open_style_manager(QWidget* parent = nullptr);
+  void open_contour_manager(QWidget* parent = nullptr);
   void open_gradient_manager(QWidget* parent = nullptr);
   void open_pattern_manager(QWidget* parent = nullptr);
   void open_custom_shape_manager(QWidget* parent = nullptr);

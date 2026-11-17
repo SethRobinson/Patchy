@@ -135,6 +135,21 @@ bool ContourLibrary::rename_contour(const QString& storage_id, const QString& na
   });
 }
 
+bool ContourLibrary::set_contour_curve(const QString& storage_id, const StyleContour& contour) {
+  const auto found = entry_iterator(storage_id);
+  if (found == entries_.end()) {
+    return false;
+  }
+  auto updated = *found;
+  updated.contour = stored_form(updated.name, contour);
+  if (!write_entry(updated)) {
+    return false;
+  }
+  *found = std::move(updated);
+  emit changed();
+  return true;
+}
+
 bool ContourLibrary::remove_contour(const QString& storage_id) {
   return remove_entry(storage_id, [this](const QString& id) {
     const auto path = shc_path(id);

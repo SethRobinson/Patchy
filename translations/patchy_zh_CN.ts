@@ -16325,6 +16325,30 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>文档中“已识别的文字”组内的文字，无论显示还是隐藏，都会逐行以不可见的方式写在每页图像之上，这样 PDF 阅读器就能查找、选择和复制它。长行中的匹配项只会大致高亮。</translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation>存储为新等高线…</translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation>以您选择的名称将此曲线存储为新等高线</translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation>等高线管理器</translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>内置等高线：不能重命名、编辑或删除。复制它可得到一个可编辑的副本。</translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation>编辑曲线…</translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation>删除等高线“%1”？</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22349,6 +22373,10 @@ Do you want to replace it?</source>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
         <translation>读取选区或图层中的文字并复制</translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
+        <translation>管理已保存的图层样式等高线</translation>
     </message>
 </context>
 <context>
@@ -36873,6 +36901,14 @@ Locked: %1</source>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
         <translation>无法删除文字识别模型：%1</translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation>等高线管理器...</translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
+        <translation>重命名、编辑、载入和存储图层样式使用的等高线。</translation>
     </message>
 </context>
 <context>

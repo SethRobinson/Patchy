@@ -16363,6 +16363,30 @@ Do you want to replace it?</source>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Save as New Contour…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save this curve as a new contour under a name of your choice</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contour Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in contour: it cannot be renamed, edited or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Curve…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete contour &quot;%1&quot;?</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22392,6 +22416,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Read the text in the selection or layer and copy it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage saved layer style contours</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -36905,6 +36933,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>The text recognition models could not be deleted: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contour Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
