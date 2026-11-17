@@ -10,6 +10,8 @@
 #include "test_groups.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <memory>
@@ -451,6 +453,179 @@ void ocr_blocks_judge_size_by_length_per_character() {
   CHECK(patchy::ocr::group_lines_into_blocks(japanese).size() == 1);
 }
 
+// Whether two lines sit side by side: their boxes overlap across the lines by at least half
+// the thinner one (the rule's own measure, restated here so the test does not lean on it).
+bool on_one_row(const patchy::ocr::Line& a, const patchy::ocr::Line& b) {
+  const double overlap = std::min(a.box.y + a.box.height, b.box.y + b.box.height) - std::max(a.box.y, b.box.y);
+  return overlap >= 0.5 * std::min(a.box.height, b.box.height);
+}
+
+const patchy::ocr::Block* block_holding(const std::vector<patchy::ocr::Block>& blocks, std::size_t line) {
+  for (const auto& block : blocks) {
+    if (std::find(block.lines.begin(), block.lines.end(), line) != block.lines.end()) {
+      return &block;
+    }
+  }
+  return nullptr;
+}
+
+void ocr_blocks_hold_one_line_per_row() {
+  // Two columns under a line that spans both, everything one size and 26 apart. Both column
+  // heads would join the spanning line, so neither does: three blocks, not one in which the
+  // columns' lines alternate.
+  patchy::ocr::Result columns;
+  columns.lines.push_back(line_at(100, 100, 800, 20));  // 0: spans both columns
+  columns.lines.push_back(line_at(100, 126, 380, 20));  // 1: left column
+  columns.lines.push_back(line_at(520, 126, 380, 20));  // 2: right column
+  columns.lines.push_back(line_at(100, 152, 380, 20));  // 3
+  columns.lines.push_back(line_at(520, 152, 380, 20));  // 4
+  auto blocks = patchy::ocr::group_lines_into_blocks(columns);
+  CHECK(blocks.size() == 3);
+  if (blocks.size() == 3) {
+    CHECK(blocks[0].lines == std::vector<std::size_t>{0});
+    CHECK((blocks[1].lines == std::vector<std::size_t>{1, 3}));
+    CHECK((blocks[2].lines == std::vector<std::size_t>{2, 4}));
+    CHECK(near(blocks[1].line_pitch, 26) && near(blocks[2].line_pitch, 26));
+  }
+
+  // A row in two pieces inside a paragraph: the lines above and below it cannot tell which
+  // piece is theirs, so the pieces stand alone and keep their places.
+  patchy::ocr::Result pieces;
+  pieces.lines = {line_at(100, 100, 800, 20), line_at(100, 126, 300, 20), line_at(600, 126, 300, 20),
+                  line_at(100, 152, 800, 20)};
+  CHECK(patchy::ocr::group_lines_into_blocks(pieces).size() == 4);
+
+  // Row neighbours that meet only through a longer chain (each heads its own staggered
+  // column, and one wide line under both joins the columns): the two stand alone and the
+  // rest stays a block.
+  patchy::ocr::Result chain;
+  chain.lines.push_back(line_at(100, 100, 300, 20));  // 0: row neighbour of 1
+  chain.lines.push_back(line_at(500, 100, 300, 20));  // 1
+  chain.lines.push_back(line_at(100, 126, 300, 20));  // 2: under 0
+  chain.lines.push_back(line_at(500, 139, 300, 20));  // 3: under 1, half a line lower than 2
+  chain.lines.push_back(line_at(100, 165, 700, 20));  // 4: under both
+  blocks = patchy::ocr::group_lines_into_blocks(chain);
+  CHECK(blocks.size() == 3);
+  if (blocks.size() == 3) {
+    CHECK(blocks[0].lines == std::vector<std::size_t>{0});
+    CHECK(blocks[1].lines == std::vector<std::size_t>{1});
+    CHECK((blocks[2].lines == std::vector<std::size_t>{2, 3, 4}));
+  }
+
+  // The boxes, character counts and angles a line detector reported for a screenshot of a
+  // list in a dark interface: three entries, each a title with labels beside it on one row,
+  // a paragraph, and a row of buttons. Every title, label and button joined the paragraph
+  // next to it, so two of the entries became one block of 26 "lines" a pixel apart, which
+  // was drawn as one pile.
+  struct Detected {
+    double x;
+    double y;
+    double width;
+    double height;
+    int characters;
+    double angle;
+  };
+  static const Detected kDetected[] = {
+      {41.5, 28.5, 112.0, 27.0, 9, 0.00},  // 0
+      {41.1, 66.1, 1280.9, 23.9, 165, 0.00},  // 1
+      {47.8, 109.8, 94.5, 22.5, 8, 0.00},  // 2
+      {149.5, 107.3, 1141.0, 27.0, 120, 0.06},  // 3
+      {53.4, 148.4, 186.2, 23.2, 23, 0.00},  // 4
+      {271.0, 148.0, 75.1, 22.1, 7, 0.00},  // 5
+      {362.6, 148.6, 115.8, 22.8, 11, 0.00},  // 6
+      {43.1, 188.1, 1380.9, 23.9, 162, 0.00},  // 7
+      {41.1, 217.1, 1314.9, 23.9, 154, 0.00},  // 8
+      {42.1, 247.1, 1333.9, 23.9, 157, 0.00},  // 9
+      {42.1, 276.1, 1389.9, 23.9, 159, 0.00},  // 10
+      {45.1, 305.1, 1386.9, 23.9, 166, 0.00},  // 11
+      {40.6, 332.9, 1380.8, 26.5, 166, -0.05},  // 12
+      {41.4, 363.4, 1391.3, 26.3, 167, 0.00},  // 13
+      {40.4, 393.4, 196.3, 23.3, 21, 0.00},  // 14
+      {666.4, 439.4, 81.3, 24.3, 7, 0.00},  // 15
+      {251.4, 440.4, 171.2, 23.2, 18, 0.00},  // 16
+      {61.4, 438.4, 149.1, 27.7, 17, 0.48},  // 17
+      {462.9, 439.2, 162.3, 26.2, 19, 0.50},  // 18
+      {784.0, 442.0, 159.0, 21.9, 17, 0.44},  // 19
+      {1363.1, 438.1, 55.9, 26.9, 4, 0.00},  // 20
+      {1322.8, 457.8, 21.3, 19.3, 1, 0.00},  // 21
+      {149.7, 502.0, 476.6, 26.3, 50, 0.13},  // 22
+      {47.8, 505.8, 94.5, 22.5, 8, 0.00},  // 23
+      {643.4, 505.3, 197.3, 24.2, 24, -0.34},  // 24
+      {873.5, 503.5, 74.0, 24.0, 7, 0.00},  // 25
+      {965.1, 507.1, 143.8, 20.8, 14, 0.00},  // 26
+      {41.4, 542.5, 1372.2, 27.1, 165, -0.04},  // 27
+      {42.4, 572.4, 1390.3, 26.3, 163, 0.00},  // 28
+      {42.8, 603.8, 718.4, 21.4, 85, 0.00},  // 29
+      {58.3, 646.3, 57.5, 30.5, 6, 0.00},  // 30
+      {150.7, 648.3, 82.5, 27.1, 7, 1.17},  // 31
+      {271.4, 649.4, 81.3, 24.3, 7, 0.00},  // 32
+      {388.4, 651.4, 159.1, 23.1, 17, 0.00},  // 33
+      {1364.5, 649.5, 54.0, 25.0, 4, 0.00},  // 34
+      {1318.5, 663.3, 28.7, 27.7, 1, -26.57},  // 35
+      {150.2, 714.2, 314.5, 23.5, 31, 0.00},  // 36
+      {47.8, 715.8, 94.5, 22.5, 8, 0.00},  // 37
+      {480.4, 715.4, 198.3, 23.3, 24, 0.00},  // 38
+      {710.4, 713.4, 76.1, 24.1, 7, 0.00},  // 39
+      {802.5, 715.5, 145.0, 23.0, 14, 0.00},  // 40
+      {40.6, 752.6, 1360.8, 26.8, 160, -0.06},  // 41
+      {43.1, 783.1, 1309.9, 23.9, 157, 0.00},  // 42
+      {42.1, 813.1, 1357.9, 23.9, 160, 0.00},  // 43
+      {41.6, 841.6, 959.9, 26.6, 113, 0.06},  // 44
+      {59.5, 886.5, 75.0, 28.0, 8, 0.00},  // 45
+      {498.4, 888.4, 81.3, 24.3, 7, 0.00},  // 46
+      {376.8, 887.5, 82.4, 26.8, 7, 1.17},  // 47
+      {616.1, 891.1, 157.9, 20.9, 17, 0.00},  // 48
+      {171.4, 890.4, 166.1, 23.1, 18, 0.00},  // 49
+      {1364.1, 887.1, 54.8, 26.8, 4, 0.00},  // 50
+      {1321.8, 906.8, 21.3, 19.3, 1, 0.00},  // 51
+  };
+  patchy::ocr::Result screenshot;
+  for (const auto& detected : kDetected) {
+    auto line = line_at(detected.x, detected.y, detected.width, detected.height);
+    line.text.assign(static_cast<std::size_t>(detected.characters), 'x');
+    line.angle_degrees = detected.angle;
+    screenshot.lines.push_back(line);
+  }
+  blocks = patchy::ocr::group_lines_into_blocks(screenshot);
+  std::size_t placed = 0;
+  for (const auto& block : blocks) {
+    placed += block.lines.size();
+    for (std::size_t first = 0; first < block.lines.size(); ++first) {
+      for (std::size_t second = first + 1; second < block.lines.size(); ++second) {
+        CHECK(!on_one_row(screenshot.lines[block.lines[first]], screenshot.lines[block.lines[second]]));
+      }
+    }
+    // Lines of a block are a line apart, never a pixel.
+    CHECK(block.lines.size() == 1 || block.line_pitch > 20.0);
+  }
+  CHECK(placed == screenshot.lines.size());
+  // The three paragraphs are blocks at their own 29 to 30 px pitch.
+  const auto holds = [&](std::size_t line, std::size_t from, std::size_t to) {
+    const auto* block = block_holding(blocks, line);
+    if (block == nullptr) {
+      return false;
+    }
+    for (std::size_t member = from; member <= to; ++member) {
+      if (std::find(block->lines.begin(), block->lines.end(), member) == block->lines.end()) {
+        return false;
+      }
+    }
+    return block->line_pitch > 28.0 && block->line_pitch < 31.0;
+  };
+  CHECK(holds(7, 7, 14));
+  CHECK(holds(27, 27, 29));
+  CHECK(holds(41, 41, 44));
+  const auto* second = block_holding(blocks, 27);
+  const auto* third = block_holding(blocks, 41);
+  CHECK(second != nullptr && second->lines.size() == 3);
+  CHECK(third != nullptr && third->lines.size() == 4);
+  // A title and the labels on its row each keep their own place.
+  for (const std::size_t line : {22U, 24U, 25U, 26U, 36U, 38U, 39U, 40U}) {
+    const auto* block = block_holding(blocks, line);
+    CHECK(block != nullptr && block->lines.size() == 1);
+  }
+}
+
 // The operating system's engine as this machine has it (the core suite installs no test
 // list): listed on Windows with its installed languages, absent everywhere else.
 void ocr_windows_engine_lists_languages_if_available() {
@@ -505,6 +680,7 @@ std::vector<patchy::test::TestCase> ocr_tests() {
       {"ocr_blocks_group_lines_by_spacing", ocr_blocks_group_lines_by_spacing},
       {"ocr_blocks_report_alignment_and_vertical_order", ocr_blocks_report_alignment_and_vertical_order},
       {"ocr_blocks_judge_size_by_length_per_character", ocr_blocks_judge_size_by_length_per_character},
+      {"ocr_blocks_hold_one_line_per_row", ocr_blocks_hold_one_line_per_row},
   };
   tests.insert(tests.end(), std::make_move_iterator(model_tests.begin()), std::make_move_iterator(model_tests.end()));
   return tests;

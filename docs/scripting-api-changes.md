@@ -29,6 +29,13 @@ Background Eraser's Protect Foreground Color for scripts
 that color as to the sampled color is not erased, and one only slightly closer to the sampled
 color is erased in part. Without the option nothing is protected, as before. The key is permanent, as is the settings key
 `tools/backgroundEraserProtectForeground`.
+2026-11-17 (behavioral change): `recognizeText` with `grouping: "blocks"` never puts two lines of
+one row into one text layer. Lines that sit side by side (a title and a label beside it, a row of
+buttons, two columns under a line that spans them) used to become separate lines of one layer
+when each was close to the same line above or below; now each such line is its own layer on its
+own place ([ocr.md](ocr-blocks.md#one-line-per-row)). With `layers: "replace"` the Paper layer is white as before,
+except over a dark image, where it takes that image's background color so the light text sampled
+from it shows.
 
 2026-11-17 (addition): `app.buildBookPdf` options `searchable` (boolean; default: the choice
 saved in the book project), `ocrEngine` and `ocrLanguage` (strings; default: the stored picks,

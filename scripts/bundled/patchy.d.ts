@@ -2240,9 +2240,10 @@ interface PatchyOcrOptions {
   /**
    * What to add to the document: "none" (default) adds nothing; "visible" adds editable
    * text layers over the image, in a group named "Recognized Text"; "hidden" adds the same
-   * group hidden, so the image looks unchanged; "replace" shows the text on a white Paper
-   * layer and hides the original (the layer read, or every other top-level layer for
-   * doc.recognizeText). The original is only hidden, never erased.
+   * group hidden, so the image looks unchanged; "replace" shows the text on a Paper layer
+   * (white, or a dark image's own background color) and hides the original (the layer read,
+   * or every other top-level layer for doc.recognizeText). The original is only hidden,
+   * never erased.
    */
   layers?: "none" | "visible" | "hidden" | "replace";
   /** "blocks" (default): lines that sit close together share one multi-line text layer. "lines": one layer per line. */

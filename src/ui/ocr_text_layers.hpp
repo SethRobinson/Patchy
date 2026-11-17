@@ -78,6 +78,12 @@ struct RecognizedTextLayer {
 // stands out from the background.
 [[nodiscard]] QColor sampled_text_color(const QImage& source, const QRectF& box);
 
+// The colour of the Paper layer under the text of "Show text and hide original": white,
+// unless the image that was read is dark (text sampled from a dark page is light, and would
+// not show on white). Then it is the image's own background: the per-channel median of the
+// whole image, read over white. One flat colour for the whole area, whatever the text.
+[[nodiscard]] QColor recognized_text_paper_color(const QImage& source);
+
 // The slant of the ink inside `box`, in degrees clockwise from upright (an italic face
 // leans about 10 to 14): the shear that makes the box's column profile sharpest, tried in
 // two-degree steps from -4 to 24. 0 when the box holds too little to measure.

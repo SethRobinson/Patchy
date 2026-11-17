@@ -659,6 +659,100 @@ void ui_recognize_text_hide_original_hides_source() {
   CHECK(recognized_group(std::as_const(MainWindowTestAccess::document(window))) == nullptr);
 }
 
+// A list entry as a dark interface draws one: a title with two labels beside it on one
+// row, a paragraph under them and a row of buttons under that, all one size. Every title,
+// label and button would join the paragraph next to it, and they used to become lines of
+// one text layer whose leading (the median distance between its lines) was next to nothing,
+// so the whole entry was drawn on top of itself.
+void ui_recognize_text_keeps_row_neighbours_apart() {
+  MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 800, 260);
+  const QColor dark(30, 32, 40);
+  const QColor light(236, 236, 240);
+  Page page(800, 260, dark);
+  const QFont font = arial(26);
+  struct Drawn {
+    QString text;
+    QRect ink;
+  };
+  std::vector<Drawn> singles;
+  const auto single = [&](const QString& text, int x, int y) { singles.push_back({text, page.draw(text, x, y, font, light)}); };
+  single(QStringLiteral("Entry title here"), 40, 30);
+  single(QStringLiteral("Label one"), 300, 30);
+  single(QStringLiteral("Waiting"), 480, 30);
+  const QStringList paragraph{QStringLiteral("The first line of this paragraph goes right across the page"),
+                              QStringLiteral("the second line follows it at the same pitch"),
+                              QStringLiteral("and the third line ends the paragraph here.")};
+  QRect paragraph_ink;
+  for (qsizetype index = 0; index < paragraph.size(); ++index) {
+    paragraph_ink = paragraph_ink.united(page.draw(paragraph[index], 40, 66 + static_cast<int>(index) * 32, font, light));
+  }
+  single(QStringLiteral("Accept it"), 40, 170);
+  single(QStringLiteral("Not today"), 240, 170);
+  single(QStringLiteral("Later"), 440, 170);
+
+  const ScopedOcrEngines engines({fake_for(page)});
+  add_scan_layer(window, page.image, QPoint(0, 0));
+  (void)run_ok(window, kRecognizeScan + QStringLiteral("layer.recognizeText({layers: 'replace', font: 'Arial'});"));
+  const auto& document = std::as_const(MainWindowTestAccess::document(window));
+  const auto* group = recognized_group(document);
+  // Seven text layers (the paragraph and six lines of their own) over the Paper.
+  CHECK(group != nullptr && group->children().size() == 8);
+  if (group == nullptr || group->children().size() != 8) {
+    return;
+  }
+  const auto layer_with = [&](const std::string& text) -> const patchy::Layer* {
+    for (const auto& child : group->children()) {
+      if (metadata_value(child, patchy::kLayerMetadataText) == text) {
+        return &child;
+      }
+    }
+    return nullptr;
+  };
+  // Each line of a shared row is its own layer, on its own drawn place.
+  for (const auto& drawn : singles) {
+    const auto* layer = layer_with(drawn.text.toStdString());
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      continue;
+    }
+    const QRect ink = layer_ink(*layer);
+    CHECK(near(ink.center().x(), drawn.ink.center().x(), 4.0));
+    CHECK(near(ink.center().y(), drawn.ink.center().y(), 4.0));
+    CHECK(near(ink.width(), drawn.ink.width(), 0.08 * drawn.ink.width() + 3.0));
+  }
+  // The paragraph is one layer at its own pitch, where it was drawn.
+  const auto* block = layer_with(paragraph.join(QLatin1Char('\n')).toStdString());
+  CHECK(block != nullptr);
+  if (block != nullptr) {
+    const QRect ink = layer_ink(*block);
+    CHECK(near(ink.top(), paragraph_ink.top(), 4.0));
+    CHECK(near(ink.bottom(), paragraph_ink.bottom(), 4.0));
+    // The width is fitted to within 2%, and the block is centred on its lines.
+    CHECK(near(ink.center().x(), paragraph_ink.center().x(), 4.0));
+    CHECK(near(ink.width(), paragraph_ink.width(), 0.03 * paragraph_ink.width() + 3.0));
+  }
+
+  // The page is dark, so the Paper under the text is the page's own colour, not white: the
+  // light text sampled from it shows.
+  const auto& paper = group->children().front();
+  CHECK(paper.name() == "Paper" && !patchy::layer_is_text(paper));
+  CHECK(patchy::ui::recognized_text_paper_color(page.image) == dark);
+  const QImage shown = patchy::ui::qimage_from_document(document, true);
+  CHECK(shown.pixelColor(4, 4) == dark);
+  CHECK(shown.pixelColor(795, 255) == dark);
+  if (const auto* title = layer_with("Entry title here"); title != nullptr) {
+    CHECK(QColor(QString::fromStdString(metadata_value(*title, patchy::kLayerMetadataTextColor))).lightness() > 180);
+  }
+
+  // A light page keeps white paper, whatever its tint; an image with nothing to read too.
+  QImage cream(64, 64, QImage::Format_RGBA8888);
+  cream.fill(QColor(230, 220, 200));
+  CHECK(patchy::ui::recognized_text_paper_color(cream) == QColor(Qt::white));
+  CHECK(patchy::ui::recognized_text_paper_color(QImage()) == QColor(Qt::white));
+}
+
 void ui_recognize_text_vertical_and_turned_lines() {
   MainWindow window;
   show_window(window);
@@ -726,6 +820,7 @@ std::vector<patchy::test::TestCase> ocr_layers_ui_tests() {
       {"ui_recognize_text_detects_slanted_text", ui_recognize_text_detects_slanted_text},
       {"ui_recognize_text_hidden_layers_keep_composite", ui_recognize_text_hidden_layers_keep_composite},
       {"ui_recognize_text_hide_original_hides_source", ui_recognize_text_hide_original_hides_source},
+      {"ui_recognize_text_keeps_row_neighbours_apart", ui_recognize_text_keeps_row_neighbours_apart},
       {"ui_recognize_text_vertical_and_turned_lines", ui_recognize_text_vertical_and_turned_lines},
   };
 }
