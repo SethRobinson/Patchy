@@ -8482,10 +8482,6 @@ RGB: %2, %3, %4</translation>
         <translation>점선 패턴:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>기본 채우기, 획, 불투명도 및 가장자리를 복원합니다(기하형상은 그대로 유지됨).</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>모양 채우기 색상</translation>
     </message>
@@ -16324,6 +16320,10 @@ Do you want to replace it?</source>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>문서의 &apos;인식된 텍스트&apos; 그룹에 있는 텍스트는 표시 여부와 관계없이 각 페이지 이미지 위에 한 줄씩 보이지 않게 기록되므로 PDF 리더에서 찾고 선택하고 복사할 수 있습니다. 긴 줄 안의 일치 항목은 대략적인 위치로 강조 표시됩니다.</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>기본 채우기, 획 및 가장자리를 복원합니다(기하형상은 그대로 유지됨).</translation>
     </message>
 </context>
 <context>

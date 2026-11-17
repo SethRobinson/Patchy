@@ -8718,10 +8718,6 @@ RVB : %2, %3, %4</translation>
         <translation>Contour progressif :</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Rétablir le fond, le contour, l&apos;opacité et le bord par défaut (la géométrie reste)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Exporter un PDF multipage</translation>
     </message>
@@ -16380,6 +16376,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Le texte des groupes « Texte reconnu » du document, affichés ou masqués, est écrit de façon invisible sur l&apos;image de chaque page, ligne par ligne, afin qu&apos;un lecteur PDF puisse le trouver, le sélectionner et le copier. Une occurrence dans une longue ligne est surlignée de façon approximative.</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Rétablir le fond, le contour et le bord par défaut (la géométrie reste)</translation>
     </message>
 </context>
 <context>

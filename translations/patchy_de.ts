@@ -8718,10 +8718,6 @@ RGB: %2, %3, %4</translation>
         <translation>Weiche Kante:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Standardfüllung, -kontur, -deckkraft und -kante wiederherstellen (die Geometrie bleibt)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Mehrseitige PDF exportieren</translation>
     </message>
@@ -16380,6 +16376,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Der Text in den Gruppen „Erkannter Text“ des Dokuments, sichtbar oder ausgeblendet, wird Zeile für Zeile unsichtbar über jedes Seitenbild geschrieben, sodass ein PDF-Programm ihn finden, auswählen und kopieren kann. Ein Treffer innerhalb einer langen Zeile wird nur ungefähr hervorgehoben.</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Standardfüllung, -kontur und -kante wiederherstellen (die Geometrie bleibt)</translation>
     </message>
 </context>
 <context>

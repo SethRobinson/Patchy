@@ -3491,20 +3491,23 @@ void ui_shape_appearance_gradient_rows_indent() {
                 "shapeGradientScaleSpin", "shapeGradientReverseCheck");
     check_block(stroke_block, align, "shapeStrokeGradientCombo", "shapeStrokeGradientTypeCombo",
                 "shapeStrokeGradientAngleSpin", "shapeStrokeGradientScaleSpin", "shapeStrokeGradientReverseCheck");
-    // GitHub #679: Fill's and Stroke's fields start in one column, and so do the
-    // fields of their gradient blocks.
+    // GitHub #679, across two columns since #565: Fill heads the left column and starts its
+    // fields where that column's other sections do, Stroke's fields share one column on the
+    // right, and each section's gradient block has one field column (check_block above).
     const auto x_of = [&](const char* name) {
       auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
       CHECK(widget != nullptr);
       return widget != nullptr ? left(widget) : -1;
     };
-    CHECK(left(fill_kind) == left(width->parentWidget()));
-    CHECK(left(fill_kind) == left(stroke_paint));
+    CHECK(left(stroke_paint) == left(width->parentWidget()));
+    CHECK(left(fill_kind) < left(stroke_paint));
+    CHECK(left(fill_kind) == x_of("shapeFeatherSpin"));
+    CHECK(left(fill_kind) == x_of("shapeGeometryXSpin"));
     // The Color row starts with its swatches (GitHub #565); Pick... follows them.
     CHECK(x_of("shapeFillColorRow") == left(fill_kind));
     CHECK(x_of("shapeFillColorButton") > left(fill_kind));
-    CHECK(x_of("shapeFillGradientCombo") == x_of("shapeStrokeGradientCombo"));
-    CHECK(x_of("shapeGradientTypeCombo") == x_of("shapeStrokeGradientTypeCombo"));
+    CHECK(x_of("shapeFillGradientCombo") == left(fill_kind));
+    CHECK(x_of("shapeStrokeGradientCombo") == left(stroke_paint));
     // GitHub issue 618: each angle field has its round dial in its row (before
     // the field since #713), and the dial drives the field.
     for (const auto* name : {"shapeGradientAngleDial", "shapeStrokeGradientAngleDial", "shapePatternAngleDial",
@@ -3760,21 +3763,17 @@ void ui_shape_appearance_pattern_rows_indent() {
                 {"shapeStrokePatternScaleSpin", "shapeStrokePatternAngleSpin", "shapeStrokePatternOffsetXSpin",
                  "shapeStrokePatternOffsetYSpin"},
                 "shapeStrokePatternAlignCheck");
-    // GitHub #679: the Pattern rows and their blocks line up across Fill and Stroke.
+    // GitHub #679, across two columns since #565: each section's Pattern row starts in its
+    // own field column (the blocks' own columns are checked above).
     const auto x_of = [&](const char* name) {
       auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
       CHECK(widget != nullptr);
       return widget != nullptr ? left(widget) : -1;
     };
-    CHECK(left(fill_kind) == left(width->parentWidget()));
-    CHECK(x_of("shapeFillPatternCombo") == x_of("shapeStrokePatternCombo"));
-    CHECK(x_of("shapePatternAlignCheck") == x_of("shapeStrokePatternAlignCheck"));
-    auto* fill_scale = dialog->findChild<QAbstractSpinBox*>(QStringLiteral("shapePatternScaleSpin"));
-    auto* stroke_scale = dialog->findChild<QAbstractSpinBox*>(QStringLiteral("shapeStrokePatternScaleSpin"));
-    CHECK(fill_scale != nullptr && stroke_scale != nullptr);
-    if (fill_scale != nullptr && stroke_scale != nullptr) {
-      CHECK(left(fill_scale->parentWidget()) == left(stroke_scale->parentWidget()));
-    }
+    CHECK(left(stroke_paint) == left(width->parentWidget()));
+    CHECK(left(fill_kind) < left(stroke_paint));
+    CHECK(x_of("shapeFillPatternCombo") == left(fill_kind));
+    CHECK(x_of("shapeStrokePatternCombo") == left(stroke_paint));
     patchy::test::ui::save_widget_artifact("issue552_shape_appearance_pattern_block", *dialog);
     // The Fill group down to the stroke's pattern block, for the issue reply.
     auto* fill_group = fill_kind->parentWidget();
@@ -6179,7 +6178,7 @@ void ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill() {
     CHECK(kind->count() == 3);
     CHECK(kind->findData(static_cast<int>(patchy::VectorFillKind::None)) < 0);
     for (const char* hidden : {"shapeStrokeWidthSpin", "shapeFeatherSpin", "shapeDensitySpin",
-                               "shapeAppearanceLeftColumn"}) {
+                               "shapeAppearanceRightColumn"}) {
       auto* widget = dialog->findChild<QWidget*>(QLatin1String(hidden));
       CHECK(widget != nullptr && !widget->isVisibleTo(dialog));
     }
@@ -6216,7 +6215,8 @@ void ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill() {
     if (dialog == nullptr) return;
     auto* kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
     CHECK(kind != nullptr && kind->findData(static_cast<int>(patchy::VectorFillKind::None)) >= 0);
-    for (const char* shown : {"shapeStrokeWidthSpin", "shapeFeatherSpin", "shapeAppearanceLeftColumn"}) {
+    for (const char* shown : {"shapeStrokeWidthSpin", "shapeFeatherSpin", "shapeAppearanceLeftColumn",
+                              "shapeAppearanceRightColumn"}) {
       auto* widget = dialog->findChild<QWidget*>(QLatin1String(shown));
       CHECK(widget != nullptr && widget->isVisibleTo(dialog));
     }
@@ -10821,11 +10821,17 @@ void ui_layer_dialogs_refuse_during_transform() {
   CHECK(appearance_seen);
 }
 
-void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
+// Feather, Density and the stroke's own opacity are edited here. The layer's Opacity and Fill
+// Opacity are not (GitHub #565: the Layer section is gone; the Layers panel and Layer Style's
+// Blending Options set them): the dialog has no field for them, and neither OK, Reset nor
+// Cancel changes them.
+void ui_shape_appearance_dialog_edits_feather_density_and_stroke_opacity() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  document.find_layer(layer_id)->set_opacity(0.5F);
+  document.find_layer(layer_id)->set_fill_opacity(0.4F);
   const auto history_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   QTimer::singleShot(0, guarded([&] {
@@ -10834,18 +10840,27 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
     if (dialog == nullptr) {
       return;
     }
-    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerOpacitySpin"));
-    auto* fill_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerFillOpacitySpin"));
+    for (const char* gone : {"shapeLayerOpacitySpin", "shapeLayerOpacitySlider", "shapeLayerFillOpacitySpin",
+                             "shapeLayerFillOpacitySlider"}) {
+      CHECK(dialog->findChild<QWidget*>(QLatin1String(gone)) == nullptr);
+    }
+    for (const auto* group : dialog->findChildren<QGroupBox*>()) {
+      CHECK(group->title() != QStringLiteral("Layer"));
+    }
     auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
     auto* stroke_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeStrokeOpacitySpin"));
     auto* feather = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"));
     auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("shapeDensitySpin"));
-    CHECK(opacity != nullptr && fill_opacity != nullptr && stroke_width != nullptr &&
-          stroke_opacity != nullptr && feather != nullptr && density != nullptr);
-    CHECK(opacity->value() == 100 && fill_opacity->value() == 100 && density->value() == 100);
+    auto* reset = dialog->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton"));
+    CHECK(stroke_width != nullptr && stroke_opacity != nullptr && feather != nullptr && density != nullptr &&
+          reset != nullptr);
+    if (stroke_width == nullptr || stroke_opacity == nullptr || feather == nullptr || density == nullptr ||
+        reset == nullptr) {
+      return;
+    }
+    CHECK(density->value() == 100);
     CHECK(stroke_opacity->isEnabled());  // the stroke rows stay enabled (issue 311)
-    opacity->setValue(50);
-    fill_opacity->setValue(40);
+    reset->click();  // the factory appearance: the layer's opacity is not part of it
     stroke_width->setValue(3.0);
     stroke_opacity->setValue(30);
     feather->setValue(4.0);
@@ -10866,13 +10881,10 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   CHECK(std::abs(content->feather - 4.0) < 1e-9);
   CHECK(content->density == 153);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == history_before + 1);
-  // The Layers panel mirrors the new opacity, and the edge is soft: partial
-  // alpha on the path edge, and the Density wash far from the shape. The shape has a
-  // stroke, so the wash is the stroke's paint (docs/vector-tools-appearance.md, "Density
-  // with a stroke"): 40% of the stroke's own 30% far away, and 60% of the feathered edge
-  // plus that wash on the path.
-  auto* panel_opacity = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
-  CHECK(panel_opacity != nullptr && panel_opacity->value() == 50);
+  // The edge is soft: partial alpha on the path edge, and the Density wash far from the
+  // shape. The shape has a stroke, so the wash is the stroke's paint
+  // (docs/vector-tools-appearance.md, "Density with a stroke"): 40% of the stroke's own 30%
+  // far away, and 60% of the feathered edge plus that wash on the path.
   const auto bounds = layer->bounds();
   CHECK(bounds.x == 0 && bounds.width == document.width());  // the wash covers the whole canvas
   const auto far_pixel = layer->pixels().pixel(20 - bounds.x, 20 - bounds.y);
@@ -10883,16 +10895,13 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   const auto edge_alpha = static_cast<int>(layer->pixels().pixel(100 - bounds.x, 160 - bounds.y)[3]);
   CHECK(edge_alpha > far_alpha + 40 && edge_alpha < 160);
 
-  // Cancel restores everything, including the layer opacity.
+  // Cancel restores the appearance.
   QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
       return;
     }
-    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerOpacitySpin"));
-    CHECK(opacity != nullptr && opacity->value() == 50);
-    opacity->setValue(10);
     dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"))->setValue(20.0);
     QApplication::processEvents();
     dialog->reject();
@@ -10901,12 +10910,14 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   QApplication::processEvents();
   layer = document.find_layer(layer_id);
   CHECK(std::abs(layer->opacity() - 0.5F) < 0.01F);
+  CHECK(std::abs(layer->fill_opacity() - 0.4F) < 0.01F);
   CHECK(std::abs(layer->vector_shape()->feather - 4.0) < 1e-9);
 
   require_action_by_text(window, QStringLiteral("Undo"))->trigger();
   QApplication::processEvents();
   layer = document.find_layer(layer_id);
-  CHECK(std::abs(layer->opacity() - 1.0F) < 0.01F);
+  CHECK(std::abs(layer->opacity() - 0.5F) < 0.01F);
+  CHECK(std::abs(layer->fill_opacity() - 0.4F) < 0.01F);
   CHECK(std::abs(layer->vector_shape()->feather) < 1e-9);
   CHECK(layer->vector_shape()->density == 255);
 }
@@ -11007,8 +11018,9 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
     radius_link->setChecked(false);
     corners[1]->setValue(5.0);
     // Layout: each link is a normal small button centered between the rows
-    // it ties, sitting on a bracket widget that spans those rows, between the
-    // label column and the fields (the Image Size dialog's Width / Height link).
+    // it ties, sitting on a bracket widget that spans those rows, after the
+    // fields and their steppers (GitHub #723; before, between the labels and
+    // the fields).
     auto* size_link = dialog->findChild<QToolButton*>(QStringLiteral("shapeGeometryLinkButton"));
     auto* size_bracket = dialog->findChild<QWidget*>(QStringLiteral("shapeGeometryLinkBracket"));
     auto* radius_bracket = dialog->findChild<QWidget*>(QStringLiteral("shapeGeometryRadiusLinkBracket"));
@@ -11029,7 +11041,13 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
       CHECK(bracket_rect.contains(link_rect));  // the bracket cuts nothing off (GitHub issue 723)
       CHECK(bracket_rect.top() <= width_top && bracket_rect.bottom() + 1 >= height_bottom);
       CHECK(link_rect.top() > width_top && link_rect.bottom() < height_bottom);
-      CHECK(link_rect.right() < width->mapTo(dialog, QPoint(0, 0)).x());
+      CHECK(link_rect.left() > rect_in_dialog(*width->parentWidget()).right());
+      CHECK(link_rect.left() > rect_in_dialog(*height->parentWidget()).right());
+      CHECK(bracket_rect.right() <= rect_in_dialog(*size_bracket->parentWidget()).right());
+      // The rows without a link end where the linked ones do: one stepper column.
+      if (auto* x_field = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryXSpin")); x_field != nullptr) {
+        CHECK(rect_in_dialog(*x_field->parentWidget()).right() == rect_in_dialog(*width->parentWidget()).right());
+      }
       const auto radius_rect = rect_in_dialog(*radius_link);
       const auto radius_bracket_rect = rect_in_dialog(*radius_bracket);
       const int corners_top = corners[0]->mapTo(dialog, QPoint(0, 0)).y();
@@ -11038,7 +11056,9 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
       CHECK(radius_bracket_rect.contains(radius_rect));
       CHECK(radius_bracket_rect.top() <= corners_top && radius_bracket_rect.bottom() + 1 >= corners_bottom);
       CHECK(radius_rect.top() > corners_top && radius_rect.bottom() < corners_bottom);
-      CHECK(radius_rect.right() < corners[0]->mapTo(dialog, QPoint(0, 0)).x());
+      for (const auto* corner : corners) {
+        CHECK(radius_rect.left() > rect_in_dialog(*corner->parentWidget()).right());
+      }
       CHECK(radius_rect.left() == link_rect.left());
       CHECK(radius_rect.top() > link_rect.bottom());
     }
@@ -11128,7 +11148,9 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
     // Fits a 1080p screen (about 1040 px usable) even in the worst case, and
     // never grows past the screen it is on.
     CHECK(dialog->height() <= 1000);
-    CHECK(dialog->width() <= 900);
+    // Fill and Stroke sit side by side since GitHub #565, and each needs about 450 px for
+    // its gradient and pattern rows (856 px wide before, about 940 now).
+    CHECK(dialog->width() <= 1000);
     // Sized to the VISIBLE rows at open (solid fill, stroke off): no empty band
     // from rows hidden after the width measurement.
     auto* page = dialog->findChild<QWidget*>(QStringLiteral("shapeAppearancePage"));
@@ -11137,13 +11159,14 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
       CHECK(dialog->height() <= screen->availableGeometry().height());
     }
     CHECK(dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll")) != nullptr);
-    // Two columns: Layer / Geometry / Edge left, Fill / Stroke right.
+    // Two columns: Fill / Geometry / Edge left, Stroke right (GitHub #565).
     auto* feather = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"));
     auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
-    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerOpacitySpin"));
-    CHECK(feather != nullptr && stroke_width != nullptr && opacity != nullptr);
+    auto* geometry_x = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryXSpin"));
+    CHECK(feather != nullptr && stroke_width != nullptr && geometry_x != nullptr);
     CHECK(feather->mapTo(dialog, QPoint(0, 0)).x() < stroke_width->mapTo(dialog, QPoint(0, 0)).x());
-    CHECK(opacity->mapTo(dialog, QPoint(0, 0)).x() < fill_kind->mapTo(dialog, QPoint(0, 0)).x());
+    CHECK(fill_kind->mapTo(dialog, QPoint(0, 0)).x() < stroke_width->mapTo(dialog, QPoint(0, 0)).x());
+    CHECK(fill_kind->mapTo(dialog, QPoint(0, 0)).y() < geometry_x->mapTo(dialog, QPoint(0, 0)).y());
     // The right column's steppers stay inside the viewport after the paint
     // kinds switched (the width was measured with every row visible).
     auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"));
@@ -11184,16 +11207,17 @@ void ui_shape_appearance_grows_to_fit_gradient_stroke() {
     auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
     auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"));
     auto* page = dialog->findChild<QWidget*>(QStringLiteral("shapeAppearancePage"));
-    auto* opacity = dialog->findChild<QSlider*>(QStringLiteral("shapeLayerOpacitySlider"));
-    auto* fill_opacity = dialog->findChild<QSlider*>(QStringLiteral("shapeLayerFillOpacitySlider"));
+    // Density's and the stroke's Opacity sliders (the Layer section's two until GitHub #565).
+    auto* density_slider = dialog->findChild<QSlider*>(QStringLiteral("shapeDensitySlider"));
+    auto* stroke_opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("shapeStrokeOpacitySlider"));
     CHECK(stroke_paint != nullptr && fill_kind != nullptr && scroll != nullptr && page != nullptr &&
-          opacity != nullptr && fill_opacity != nullptr);
+          density_slider != nullptr && stroke_opacity_slider != nullptr);
     if (stroke_paint == nullptr || fill_kind == nullptr || scroll == nullptr || page == nullptr ||
-        opacity == nullptr || fill_opacity == nullptr) {
+        density_slider == nullptr || stroke_opacity_slider == nullptr) {
       return;
     }
     const int opened_height = dialog->height();
-    const int opened_slider_width = opacity->width();
+    const int opened_slider_width = density_slider->width();
     const auto* screen = dialog->screen();
     CHECK(screen != nullptr);
     const int max_height = screen != nullptr ? screen->availableGeometry().height() - 40
@@ -11222,7 +11246,7 @@ void ui_shape_appearance_grows_to_fit_gradient_stroke() {
     // Scroll bar or not, the columns keep their preferred width: nothing is squeezed.
     CHECK(page->width() >= page->sizeHint().width());
     // The sliders never collapse: a floor of their own, and still their opening width.
-    for (auto* slider : {opacity, fill_opacity}) {
+    for (auto* slider : {density_slider, stroke_opacity_slider}) {
       CHECK(slider->minimumWidth() >= 72);
       CHECK(slider->width() >= slider->minimumWidth());
       CHECK(slider->width() >= std::min(opened_slider_width, 72));
@@ -11301,6 +11325,7 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
   QApplication::processEvents();
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
   canvas->set_primary_color(Qt::red);
+  document.find_layer(layer_id)->set_opacity(0.5F);  // not part of the appearance (GitHub #565)
 
   bool reset_seen = false;
   QTimer::singleShot(0, guarded([&] {
@@ -11315,19 +11340,17 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
     auto* stroke_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeStrokeOpacitySpin"));
     auto* feather = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"));
     auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("shapeDensitySpin"));
-    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerOpacitySpin"));
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryWidthSpin"));
     auto* reset = dialog->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton"));
     CHECK(fill_kind != nullptr && stroke_paint != nullptr &&
           stroke_width != nullptr && stroke_opacity != nullptr && feather != nullptr &&
-          density != nullptr && opacity != nullptr && width != nullptr && reset != nullptr);
+          density != nullptr && width != nullptr && reset != nullptr);
     fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
     stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
     stroke_width->setValue(12.0);
     stroke_opacity->setValue(40);
     feather->setValue(4.0);
     density->setValue(60);
-    opacity->setValue(50);
     width->setValue(400.0);
     QApplication::processEvents();
     reset->click();
@@ -11339,7 +11362,6 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
     CHECK(stroke_opacity->value() == 100);
     CHECK(std::abs(feather->value()) < 1e-9);
     CHECK(density->value() == 100);
-    CHECK(opacity->value() == 100);
     CHECK(std::abs(width->value() - 400.0) < 1e-9);  // geometry survives the reset
     dialog->accept();
   }));
@@ -11357,7 +11379,7 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
   CHECK(content->stroke.alignment == patchy::VectorStrokeAlignment::Inside);
   CHECK(std::abs(content->feather) < 1e-9);
   CHECK(content->density == 255);
-  CHECK(std::abs(layer->opacity() - 1.0F) < 1e-6F);
+  CHECK(std::abs(layer->opacity() - 0.5F) < 1e-6F);  // the layer's own opacity stays
   CHECK(content->origination.size() == 1 && std::abs(content->origination[0].right - 500.0) < 0.5);
   // The options-bar defaults synced from the reset layer: the next shape is red.
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -12107,8 +12129,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_layer_outline_shows_only_under_path_and_shape_tools},
       {"ui_path_overlay_follows_free_transform", ui_path_overlay_follows_free_transform},
       {"ui_layer_dialogs_refuse_during_transform", ui_layer_dialogs_refuse_during_transform},
-      {"ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity",
-       ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity},
+      {"ui_shape_appearance_dialog_edits_feather_density_and_stroke_opacity",
+       ui_shape_appearance_dialog_edits_feather_density_and_stroke_opacity},
       {"ui_shape_geometry_link_keeps_aspect", ui_shape_geometry_link_keeps_aspect},
       {"ui_shape_geometry_radius_link_edits_all_corners",
        ui_shape_geometry_radius_link_edits_all_corners},

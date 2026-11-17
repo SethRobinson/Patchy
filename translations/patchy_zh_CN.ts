@@ -8694,10 +8694,6 @@ RGB：%2, %3, %4</translation>
         <translation>羽化:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>恢复默认的填充、描边、不透明度和边缘（几何形状保持不变）</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>导出多页 PDF</translation>
     </message>
@@ -16324,6 +16320,10 @@ Do you want to replace it?</source>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>文档中“已识别的文字”组内的文字，无论显示还是隐藏，都会逐行以不可见的方式写在每页图像之上，这样 PDF 阅读器就能查找、选择和复制它。长行中的匹配项只会大致高亮。</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>恢复默认的填充、描边和边缘（几何形状保持不变）</translation>
     </message>
 </context>
 <context>

@@ -1,6 +1,6 @@
 # Shape Appearance and fill layers
 
-Split from [vector-tools.md](vector-tools.md): Shape Appearance (the stay-open window and the modal dialog: paint, stroke and dash presets, geometry, opacity, Edge), the dialog's worker-thread preview, and fill layers (New Fill Layer, Fill Layer Settings, 16/32-bit rendering).
+Split from [vector-tools.md](vector-tools.md): Shape Appearance (the stay-open window and the modal dialog: paint, stroke and dash presets, geometry, Edge), the dialog's worker-thread preview, and fill layers (New Fill Layer, Fill Layer Settings, 16/32-bit rendering).
 
 Related documents:
 
@@ -33,9 +33,10 @@ Dash offset (`shapeStrokeDashOffsetSpin`, stroke widths; vstk strokeStyleLineDas
 dash lengths clamp to the raster lattice; excessive boundary counts fall
 back to a solid stroke. Saved stroke presets join the built-ins in one Dashes list (#557):
 [style-presets-strokes.md](style-presets-strokes.md#shape-appearance-stroke-presets). A gradient's and a pattern's own
-rows are a nested form in their picker row's field column (#552). The right column lines up
-the same way (#679, `align_form_columns`): Fill's and Stroke's forms share one label width, and
-the four nested gradient and pattern forms share another; the fill-only dialog measures Fill alone.
+rows are a nested form in their picker row's field column (#552). Fill lines its fields up
+with the rest of the left column (below); Stroke is the right column's one form, and within
+Fill and within Stroke the nested gradient and pattern forms share one label width (#679,
+`align_form_columns`). The fill-only dialog measures Fill alone.
 An angle row (`add_angle_row`, #713) reads dial, slider, field, - / + (the dial first, as Layer
 Style's angle rows), so its steppers stay in the rows' stepper column; its label is as tall as the dial,
 which centers the text on the row (QFormLayout gives a shorter label 7/4 of its height, near the row's
@@ -45,14 +46,12 @@ reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
 Sliders (#565): Density, the stroke's Opacity and the four angle rows have a slider before the
-field, as the Layer section's Opacity rows do (`add_row_slider`, named after the field:
+field (`add_row_slider`, named after the field:
 `shapeDensitySpin` has `shapeDensitySlider`). The slider covers the field's range in whole units and
-takes the row's spare width; the field keeps the Layer rows' 72 px, so the left column's sliders
-share one column. Field and slider follow each other without an echo: the slider writes the field
+takes the row's spare width; the field keeps 72 px. Field and slider follow each other without an echo: the slider writes the field
 only when it is moved, so a pattern angle typed as 12.5 stays 12.5 with the slider on 13. A field
 loaded under a `QSignalBlocker` (opening, Reset, a paint kind's first values) is followed by
-`sync_row_slider`, as `sync_angle_dial` does for the dial; the Layer rows' sliders are registered
-for it too (Reset used to leave them behind). Every slider on the page has a 72 px minimum width.
+`sync_row_slider`, as `sync_angle_dial` does for the dial. Every slider on the page has a 72 px minimum width.
 Test: `ui_shape_appearance_rows_have_sliders_that_follow_their_fields`.
 
 Color rows (#565): Fill's and Stroke's Color row is a strip of swatches and then Pick...
@@ -96,11 +95,19 @@ the rows below Align close up, and the page and the dialog keep their size when 
 comes and goes (`ui_shape_appearance_inside_stroke_hint_on_lines`). Reset gives a line
 Center, the stroke a new line gets.
 
-The left column is Layer, Geometry (`shapeGeometryGroup`), Radius (`shapeRadiusGroup`),
-Arrowheads, Polygon (`shapePolygonGroup`) and Edge. Every section lines its fields up
-(#641): Geometry and Radius are grids (label, link column, field), the others forms whose
-label-to-field gap is the link column, and `align_section_columns` gives all of them the
-widest label's width. Geometry (X, Y, Width, Height, or a line's Start, End and Weight)
+The left column is Fill (`shapeFillGroup`), Geometry (`shapeGeometryGroup`), Radius
+(`shapeRadiusGroup`), Arrowheads, Polygon (`shapePolygonGroup`) and Edge; Stroke has the right
+column. Fill took the place of a Layer section (Opacity, Fill Opacity) in #565: a layer's opacity
+is not part of `ShapeAppearanceSettings`, so nothing here, Reset and Apply All Settings to
+Selected Layers included, changes it; the Layers panel and Layer Style's Blending Options do.
+Fill is built first, so Tab starts there. Every left-column section lines its fields up (#641):
+Geometry and Radius are grids (label, field, link column), the others forms, and
+`align_section_columns` gives all of them the widest label's width and one gap. The link column
+follows the fields (#723): it holds the chain brackets, is empty on that grid's rows without a
+link (X and Y end where Width and Height do, one stepper column) and takes no room in a grid
+without a link, so only Geometry's and Radius's fields end short of their section's right edge.
+Tests: `ui_shape_appearance_fill_heads_the_left_column_without_a_layer_section`,
+`ui_shape_appearance_window_link_buttons_sit_on_their_brackets`. Geometry (X, Y, Width, Height, or a line's Start, End and Weight)
 needs one modeled origination covering every subpath (rect, ellipse or polygon bounds,
 line endpoints) or, for a plain path with no modeled origination (custom shape, Pen
 outline; #642), the path's bounds (`ShapeAppearanceSettings::path_box`): a changed box
@@ -120,11 +127,11 @@ Weight, Shape, Radius, Arrowheads and Polygon apply per field to the layers they
 line's arrowheads (a Heads: row with Start and End, `shapeArrowHeadsLabel`; Width, Length,
 Concavity) are its Arrowheads section
 ([vector-tools-lines.md](vector-tools-lines.md#weight-and-arrowheads)). A radius makes a
-rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
+rect rounded. Chain buttons sit after the fields they tie: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
 on by default only when the corners agree. Each is `make_link_toggle_button` (dialog_utils: a framed 24 px
-button, `link_toggle_button_style()`, the Shape dialog's Radius link too), centered on a `LinkBracket` that
-reaches the middle of the first and last row it ties. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
+button, `link_toggle_button_style()`, the Shape dialog's Radius link too, which follows its Radius field), centered on a `LinkBracket` that
+reaches the middle of the first and last row it ties and opens toward the fields. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits
 the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
 (Edge group); all PSD-native, one undo entry.
 

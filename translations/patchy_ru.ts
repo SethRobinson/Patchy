@@ -8526,10 +8526,6 @@ RGB: %2, %3, %4</translation>
         <translation>Штрихи:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Восстановите заливку, обводку, непрозрачность и края по умолчанию (геометрия останется).</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>Цвет заливки фигуры</translation>
     </message>
@@ -16436,6 +16432,10 @@ Do you want to replace it?</source>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Текст из групп «Распознанный текст» документа, показанных или скрытых, записывается невидимо поверх изображения каждой страницы, по одной строке, чтобы программа просмотра PDF могла находить, выделять и копировать его. Совпадение внутри длинной строки подсвечивается приблизительно.</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Восстановите заливку, обводку и края по умолчанию (геометрия останется).</translation>
     </message>
 </context>
 <context>

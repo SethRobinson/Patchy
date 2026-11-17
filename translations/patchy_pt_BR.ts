@@ -8504,10 +8504,6 @@ RGB: %2, %3, %4</translation>
         <translation>Traços:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Restaure o preenchimento, o traçado, a opacidade e a borda padrão (a geometria permanece)</translation>
-    </message>
-    <message>
         <source>Shape Fill Color</source>
         <translation>Cor de preenchimento da forma</translation>
     </message>
@@ -16380,6 +16376,10 @@ Deseja substituí-lo?</translation>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>O texto dos grupos &quot;Texto reconhecido&quot; do documento, visíveis ou ocultos, é gravado de forma invisível sobre a imagem de cada página, uma linha por vez, para que um leitor de PDF possa localizá-lo, selecioná-lo e copiá-lo. Uma ocorrência dentro de uma linha longa é destacada de forma aproximada.</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Restaure o preenchimento, o traçado e a borda padrão (a geometria permanece)</translation>
     </message>
 </context>
 <context>

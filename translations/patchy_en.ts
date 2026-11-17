@@ -8710,10 +8710,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16361,6 +16357,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

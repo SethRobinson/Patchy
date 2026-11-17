@@ -1596,14 +1596,17 @@ void ui_shape_appearance_radius_section_layout() {
       CHECK(labels.contains(QLatin1String(text)));
     CHECK(dialog_y(dialog, "shapeRadiusGroup") > dialog_y(dialog, "shapeGeometryGroup"));
     CHECK(field<QToolButton>(dialog, "shapeGeometryRadiusLinkButton")->isChecked());
-    // One field column: Layer, Geometry, Radius and Edge fields start at the same x.
+    // One field column: Fill, Geometry, Radius and Edge fields start at the same x.
     const auto x = [&](const char* name) { return field<QWidget>(dialog, name)->mapTo(&dialog, QPoint(0, 0)).x(); };
     const int column = x("shapeGeometryXSpin");
     CHECK(x("shapeGeometryRadiusTopLeftSpin") == column);
     CHECK(x("shapeFeatherSpin") == column);
-    CHECK(x("shapeLayerOpacitySlider") == column);
-    // And the brackets share their column.
+    CHECK(x("shapeFillKindCombo") == column);
+    CHECK(x("shapeDensitySlider") == column);
+    // And the brackets share their column, after the fields (GitHub #723).
     CHECK(x("shapeGeometryLinkButton") == x("shapeGeometryRadiusLinkButton"));
+    CHECK(x("shapeGeometryLinkButton") > x("shapeGeometryWidthSpinIncreaseButton"));
+    CHECK(x("shapeGeometryRadiusLinkButton") > x("shapeGeometryRadiusTopLeftSpinIncreaseButton"));
     field<QDoubleSpinBox>(dialog, "shapeGeometryRadiusTopRightSpin")->setValue(14);
     CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
     save_widget_artifact("ui_shape_appearance_radius_section", dialog);

@@ -8718,10 +8718,6 @@ RGB: %2, %3, %4</translation>
         <translation>Sfuma:</translation>
     </message>
     <message>
-        <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Ripristina riempimento, traccia, opacità e bordo predefiniti (la geometria resta)</translation>
-    </message>
-    <message>
         <source>Export Multi-Page PDF</source>
         <translation>Esporta PDF multipagina</translation>
     </message>
@@ -16380,6 +16376,10 @@ Sostituirlo?</translation>
     <message>
         <source>The text in the document&apos;s Recognized Text groups, shown or hidden, is written invisibly over each page image, one line at a time, so a PDF reader can find, select and copy it. A match inside a long line is highlighted approximately.</source>
         <translation>Il testo dei gruppi «Testo riconosciuto» del documento, visibili o nascosti, viene scritto in modo invisibile sull&apos;immagine di ogni pagina, una riga alla volta, così un lettore PDF può trovarlo, selezionarlo e copiarlo. Una corrispondenza all&apos;interno di una riga lunga viene evidenziata in modo approssimativo.</translation>
+    </message>
+    <message>
+        <source>Restore the default fill, stroke, and edge (the geometry stays)</source>
+        <translation>Ripristina riempimento, traccia e bordo predefiniti (la geometria resta)</translation>
     </message>
 </context>
 <context>
