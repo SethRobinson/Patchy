@@ -19,7 +19,7 @@ constexpr double kMinAdvanceRatio = 0.7;
 constexpr double kMinThicknessRatioWithAdvance = 0.45;
 constexpr double kMinThicknessRatioAlone = 0.7;
 constexpr std::size_t kMinCharactersForAdvance = 4;
-constexpr double kMaxPitch = 2.2;           // centre to centre, of the thicker line's thickness
+constexpr double kMaxPitch = 2.2;           // centre to centre, of the two lines' mean thickness
 constexpr double kMinPitch = 0.5;           // of the thinner line's thickness: not the same row twice
 constexpr double kMinOverlapAlong = 0.5;    // of the shorter line's length
 constexpr double kMaxUprightAngle = 2.0;    // degrees
@@ -85,8 +85,11 @@ bool lines_join(const Line& first, const Line& second) noexcept {
   // The pitch, not the gap: an engine's line box hugs the ink, so the empty space between
   // two lines swings with which letters they hold (a line with no descenders leaves half
   // again as much), while the distance between their centres barely moves.
+  // Measured against the two lines' mean thickness, not the thicker one's: a short label
+  // whose box is thick for its size (a button's word) must not reach a paragraph line two
+  // lines away (docs/ocr-blocks.md, "Measurements").
   const double pitch = std::abs((a.across_start + a.across_end) - (b.across_start + b.across_end)) / 2.0;
-  if (pitch > kMaxPitch * thicker || pitch < kMinPitch * thinner) {
+  if (pitch > kMaxPitch * (thinner + thicker) / 2.0 || pitch < kMinPitch * thinner) {
     return false;
   }
   const double overlap = std::min(a.along_end, b.along_end) - std::max(a.along_start, b.along_start);

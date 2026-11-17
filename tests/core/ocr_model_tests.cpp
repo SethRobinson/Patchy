@@ -125,6 +125,12 @@ void ocr_detected_text_reads_rectangles_off_the_map() {
   CHECK(near(column.quad[1].x, (200.0 + grow) * 2.0, 1e-6));
   CHECK(near(column.quad[3].y, (120.0 + grow) * 3.0, 1e-6));
   CHECK(side(column.quad[0], column.quad[3]) > 2.0 * side(column.quad[0], column.quad[1]));
+  // The reported line is the region itself grown by a quarter of its thickness (its shorter
+  // side) on each side, same frame: 5 map pixels here, for the line and for the column.
+  CHECK(near(line.line[0].x, (20.0 - 5.0) * 2.0, 1e-6) && near(line.line[0].y, (30.0 - 5.0) * 3.0, 1e-6));
+  CHECK(near(line.line[2].x, (120.0 + 5.0) * 2.0, 1e-6) && near(line.line[2].y, (50.0 + 5.0) * 3.0, 1e-6));
+  CHECK(near(column.line[0].x, (180.0 - 5.0) * 2.0, 1e-6) && near(column.line[0].y, (20.0 - 5.0) * 3.0, 1e-6));
+  CHECK(near(column.line[2].x, (200.0 + 5.0) * 2.0, 1e-6) && near(column.line[2].y, (120.0 + 5.0) * 3.0, 1e-6));
 
   // A line turned 20 degrees clockwise comes back as one rectangle at that angle, its long
   // side the reading direction.
@@ -151,6 +157,12 @@ void ocr_detected_text_reads_rectangles_off_the_map() {
     const double centre_x = (rotated[0].quad[0].x + rotated[0].quad[2].x) / 2.0;
     const double centre_y = (rotated[0].quad[0].y + rotated[0].quad[2].y) / 2.0;
     CHECK(near(centre_x, 150.0, 1.0) && near(centre_y, 110.0, 1.0));
+    // The reported line turns with it: the region (about 180 x 24) a quarter of 24 larger on
+    // each side, on the same centre.
+    CHECK(near(side(rotated[0].line[0], rotated[0].line[1]), 180.0 + 2.0 * 0.25 * 24.0, 3.0));
+    CHECK(near(side(rotated[0].line[0], rotated[0].line[3]), 24.0 + 2.0 * 0.25 * 24.0, 3.0));
+    CHECK(near((rotated[0].line[0].x + rotated[0].line[2].x) / 2.0, centre_x, 1e-6));
+    CHECK(near((rotated[0].line[0].y + rotated[0].line[2].y) / 2.0, centre_y, 1e-6));
   }
 
   // Regions that touch only at a corner are one region; the map itself is never widened, so
@@ -284,6 +296,21 @@ void ocr_ctc_decoding_collapses_repeats_and_places_words() {
     CHECK(near(words[1].box.x + words[1].box.width, 120.0, 1e-9));
     CHECK(near(words[1].box.height, 20.0, 1e-9));
   }
+  // The same words moved onto the line's reported rectangle, which starts 10 px in and ends
+  // 10 px early, 4 px in from top and bottom: each keeps its place along the line, clamped to
+  // the line's ends, and takes the line's edges.
+  const Quad inner{{{10.0, 4.0}, {110.0, 4.0}, {110.0, 16.0}, {10.0, 16.0}}};
+  const auto moved = patchy::ocr::words_on_line(words, inner);
+  CHECK(moved.size() == 2);
+  if (moved.size() == 2) {
+    CHECK(moved[0].text == "aab" && near(moved[0].box.x, 10.0, 1e-9));
+    CHECK(near(moved[0].box.x + moved[0].box.width, 120.0 * 5.5 / 12.0, 1e-9));
+    CHECK(near(moved[1].box.x, 120.0 * 7.5 / 12.0, 1e-9) && near(moved[1].box.x + moved[1].box.width, 110.0, 1e-9));
+    CHECK(near(moved[0].box.y, 4.0, 1e-9) && near(moved[0].box.height, 12.0, 1e-9));
+  }
+  // A word wholly past the line's end has no length left and is dropped.
+  const Quad short_line{{{0.0, 0.0}, {50.0, 0.0}, {50.0, 20.0}, {0.0, 20.0}}};
+  CHECK(patchy::ocr::words_on_line(words, short_line).size() == 1);
   // Half of the input was padding: the steps cover twice the line.
   const auto padded = patchy::ocr::words_from_decoded_line(line, 12, 0.5, quad);
   CHECK(padded.size() == 2 && near(padded[0].box.x + padded[0].box.width, 120.0 * 5.5 / 6.0, 1e-9));

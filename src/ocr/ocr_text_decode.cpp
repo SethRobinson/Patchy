@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace patchy::ocr {
 
@@ -258,6 +259,37 @@ std::vector<Word> words_from_decoded_line(const DecodedLine& line, std::int32_t 
     first = last + 1;
   }
   return words;
+}
+
+std::vector<Word> words_on_line(const std::vector<Word>& words, const Quad& line) {
+  std::vector<Word> placed;
+  const double dx = line[1].x - line[0].x;
+  const double dy = line[1].y - line[0].y;
+  const double length = std::hypot(dx, dy);
+  if (!(length > 0.0)) {
+    return placed;
+  }
+  // Where a point lies along the line's top edge, 0 at its start and 1 at its end.
+  const auto along = [&](const Point& point) { return ((point.x - line[0].x) * dx + (point.y - line[0].y) * dy) / (length * length); };
+  const auto at = [&](double t) {
+    return std::pair{Point{line[0].x + dx * t, line[0].y + dy * t},
+                     Point{line[3].x + (line[2].x - line[3].x) * t, line[3].y + (line[2].y - line[3].y) * t}};
+  };
+  for (const auto& word : words) {
+    const double start = std::clamp(std::min(along(word.quad[0]), along(word.quad[3])), 0.0, 1.0);
+    const double end = std::clamp(std::max(along(word.quad[1]), along(word.quad[2])), 0.0, 1.0);
+    if (!(end > start)) {
+      continue;
+    }
+    const auto [top_left, bottom_left] = at(start);
+    const auto [top_right, bottom_right] = at(end);
+    Word moved;
+    moved.text = word.text;
+    moved.quad = {top_left, top_right, bottom_right, bottom_left};
+    moved.box = box_from_quad(moved.quad);
+    placed.push_back(std::move(moved));
+  }
+  return placed;
 }
 
 }  // namespace patchy::ocr

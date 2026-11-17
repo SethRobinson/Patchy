@@ -39,6 +39,10 @@ struct TextDetectSettings {
   float threshold{0.2F};       // a map pixel belongs to text above this
   float box_threshold{0.45F};  // a region is kept when its mean probability reaches this
   double unclip_ratio{1.4};    // each side grows by area * ratio / perimeter
+  // The line reported to the caller is the region before the unclip with each side grown by
+  // this share of its thickness (its shorter side): about where the line's ink is (docs/ocr-engines.md,
+  // "Line boxes"). Only the cut gets the unclip.
+  double line_grow{0.25};
   double min_side{3.0};        // regions thinner than this many map pixels are dropped
   std::size_t max_boxes{3000};
 };
@@ -46,7 +50,13 @@ struct TextDetectSettings {
 struct DetectedText {
   // In image pixels, in the frame closest to upright: top left, top right, bottom right,
   // bottom left.
+  // The unclipped rectangle: what the recognizer is given to read. Its padding is what the
+  // recognizer was trained on, so it is never cut tighter.
   Quad quad;
+  // Where the line is, as reported: the region as the map has it, before the unclip, grown
+  // by `line_grow` of its thickness on each side. Same centre and frame as `quad`, inside
+  // it. Never cut out.
+  Quad line;
   // Clockwise turn of that frame, y down, in (-45, 45].
   double angle_degrees{0.0};
   double score{0.0};

@@ -75,4 +75,9 @@ struct DecodedLine {
 [[nodiscard]] std::vector<Word> words_from_decoded_line(const DecodedLine& line, std::int32_t steps,
                                                         double text_fraction, const Quad& quad);
 
+// `words` (placed along a line's cut) moved onto `line`, a rectangle in the same frame:
+// each word keeps where it starts and ends along the line, clamped to `line`'s ends, and
+// takes `line`'s top and bottom edges. A word left with no length is dropped.
+[[nodiscard]] std::vector<Word> words_on_line(const std::vector<Word>& words, const Quad& line);
+
 }  // namespace patchy::ocr

@@ -89,6 +89,10 @@ The Windows engine's Japanese recognizer is in between on vertical pages (3.5 to
 - **Until then the engine should say so**: with Japanese picked, a result that contains vertical lines can carry a note that punctuation and small kana in vertical text are often missed.
 - **manga-ocr was not measured.** The ONNX repository approved for download (`onnx-community/manga-ocr-base-ONNX`) has the two networks but not the vocabulary the decoder's output needs, which is in the original author's repository; and a fair test needs real manga pages. Its smallest usable pair is about 110 MB, the full-precision pair 440 MB, and it is the weakest of the three on provenance.
 
+## The C++ engine on the clean pages
+
+`ui_ocr_model_engine_matches_the_reference_on_benchmark_pages_if_available` reads the clean 300 ppi pages through the engine Patchy ships (November 17, 2026, METROID, i9-11900KF): English Times 0.14%, English Arial 0.14%, Latin 2.10%, Russian 0.39%, Korean 0.54%, Japanese horizontal Mincho 0.20% and Gothic 0.27%, Japanese vertical 12.0 to 12.4%, every line found, 1.7 to 7.3 s a page. These are the reference pipeline's figures within its margin. Reporting tighter line boxes ([ocr-engines.md](ocr-engines.md#pp-ocr), "Line boxes") changed none of them: the recognizer still reads the same padded cut. The pages are generated, not stored: run `make_pages.py` and the script below on each machine that runs the test (`local-test-fixtures\ocr-bench`).
+
 ## Running it again
 
 ```
