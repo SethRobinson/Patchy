@@ -57,7 +57,10 @@ if (!doc) {
       if (match) { highest = Math.max(highest, parseInt(match[1], 10)); }
     }
     var next = highest + 1;
-    var target = folder + "/" + base + "_v" + ("00" + next).slice(-3) + ".psd";
+    if (!Number.isSafeInteger(next)) {
+      throw new Error("Save Version cannot increment the largest version number in this folder.");
+    }
+    var target = folder + "/" + base + "_v" + String(next).padStart(3, "0") + ".psd";
     if (doc.exportAs(target)) {
       console.log("Saved version " + next + ": " + target);
       app.alert("Saved version " + next + ":\n" + target);

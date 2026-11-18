@@ -1999,6 +1999,38 @@ void ui_script_data_merge_keeps_template_runs_and_history() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
 }
 
+void ui_script_save_version_advances_past_999() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const QDir folder(temp.path());
+  patchy::ui::ScriptEngineHost::RunOptions setup;
+  setup.unattended = true;
+  setup.args = {"dir=" + folder.path()};
+  auto& host = window.script_engine_host();
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    var d = app.newDocument(4, 4);
+    if (!d.saveAs(patchy.args.dir + '/painting.psd')) throw Error('save');
+    ['000','999'].forEach(function(n) {
+      patchy.io.writeTextFile(patchy.args.dir + '/painting_v' + n + '.psd', n);
+    });
+  )JS"), std::move(setup)));
+  wait_for_run_end(host);
+  CHECK(run_export_utility(window, "save-version.js", {}));
+  CHECK(run_export_utility(window, "save-version.js", {}));
+  for (const auto& n : {QStringLiteral("000"), QStringLiteral("999"), QStringLiteral("1000"), QStringLiteral("1001")}) {
+    QFile version(folder.filePath("painting_v" + n + ".psd"));
+    CHECK(version.open(QIODevice::ReadOnly));
+    if (n.size() == 3) {
+      CHECK(version.readAll() == n.toUtf8());
+    } else {
+      CHECK(version.read(4) == "8BPS");
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> scripting_tests_part3() {
@@ -2041,5 +2073,6 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_script_layer_duplicate_to_document", ui_script_layer_duplicate_to_document},
       {"ui_script_batch_export_checks_all_names_before_writing", ui_script_batch_export_checks_all_names_before_writing},
       {"ui_script_data_merge_keeps_template_runs_and_history", ui_script_data_merge_keeps_template_runs_and_history},
+      {"ui_script_save_version_advances_past_999", ui_script_save_version_advances_past_999},
   };
 }
