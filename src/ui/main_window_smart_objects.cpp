@@ -1783,7 +1783,8 @@ void MainWindow::convert_smart_object_to_layers() {
   unpack.exact_offset = offset;
   unpack.keep_names = true;
   QString error;
-  const auto copied_ids = copy_layers_between_documents(std::as_const(*contents), root_ids, staged, unpack,
+  const auto copied_ids = copy_layers_between_documents(std::as_const(*contents), session().path, root_ids,
+                                                        staged, session().path, unpack,
                                                         [] { return true; }, &error);
   if (copied_ids.empty()) {
     show_status_error(error.isEmpty() ? tr("Could not convert the smart object to layers") : error);

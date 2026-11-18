@@ -3025,7 +3025,7 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
       unique_paths.push_back(path);
     }
   }
-  std::vector<Document> loaded_documents;
+  std::vector<std::pair<Document, QString>> loaded_documents;
   loaded_documents.reserve(static_cast<std::size_t>(unique_paths.size()));
   const int total = static_cast<int>(unique_paths.size());
   for (int index = 0; index < total; ++index) {
@@ -3078,7 +3078,7 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
         document.layers().push_back(std::move(folder));
         document.set_active_layer(folder_id);
       }
-      loaded_documents.push_back(std::move(document));
+      loaded_documents.emplace_back(std::move(document), path);
     } catch (const std::exception& load_error) {
       note_failure(path, translated_file_message(load_error.what()));
     }
@@ -3104,10 +3104,10 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
   std::vector<LayerId> added_top_to_bottom;
   CrossDocumentLayerPlacement placement;
   placement.keep_source_position = true;
-  for (const auto& loaded : loaded_documents) {
+  for (const auto& [loaded, source_path] : loaded_documents) {
     const std::vector<LayerId> root_ids{loaded.layers().front().id()};
     QString copy_error;
-    const auto ids = copy_layers_between_documents(loaded, root_ids, staged, placement,
+    const auto ids = copy_layers_between_documents(loaded, source_path, root_ids, staged, live_target->path, placement,
                                                    [] { return true; }, &copy_error);
     if (ids.empty()) {
       return fail(copy_error);
@@ -4226,7 +4226,7 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
     placement.keep_names = true;
     QString error;
     const auto copied =
-        copy_layers_between_documents(std::as_const(page), {root_id}, merged, placement, [] { return true; }, &error);
+        copy_layers_between_documents(std::as_const(page), {}, {root_id}, merged, {}, placement, [] { return true; }, &error);
     if (!copied.empty()) {
       if (const auto source = std::as_const(page).metadata().pdf_source_page; source != nullptr) {
         page_sources.emplace_back(copied.front(), source);

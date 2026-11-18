@@ -318,15 +318,22 @@ std::optional<QString> resolve_smart_object_external_path(const SmartObjectSourc
     }
     return std::nullopt;
   };
+  bool try_sibling = true;
   if (!parent_document_dir.isEmpty() && !source.external_rel_path.empty()) {
-    if (auto found = existing(QDir(parent_document_dir)
-                                  .absoluteFilePath(QString::fromStdString(source.external_rel_path)))) {
+    const auto relative = QString::fromStdString(source.external_rel_path);
+    const auto candidate = QDir(parent_document_dir).absoluteFilePath(relative);
+    if (auto found = existing(candidate)) {
       return found;
     }
+    // When both stored paths agree, this is a known missing file. A different
+    // file next to the PSD may have the same name, particularly after copying
+    // a layer from another project. A moved folder's old absolute path differs.
+    const auto original = QDir::fromNativeSeparators(QString::fromStdString(source.external_original_path));
+    try_sibling = !QDir::isRelativePath(relative) || QDir::cleanPath(candidate) != QDir::cleanPath(original);
   }
   // A bare filename fallback next to the parent covers files whose stored relative
   // path pointed elsewhere (the tent-file case after the folder was copied).
-  if (!parent_document_dir.isEmpty() && !source.filename.empty()) {
+  if (try_sibling && !parent_document_dir.isEmpty() && !source.filename.empty()) {
     if (auto found =
             existing(QDir(parent_document_dir).absoluteFilePath(QString::fromStdString(source.filename)))) {
       return found;
@@ -411,10 +418,8 @@ bool smart_object_link_changed_on_disk(const SmartObjectSource& source, const QF
   return !matches(modified.toUTC()) && !matches(modified.toLocalTime());
 }
 
-void set_smart_object_link_target(SmartObjectSource& source, const QFileInfo& file, const QString& document_dir) {
+void set_smart_object_link_paths(SmartObjectSource& source, const QFileInfo& file, const QString& document_dir) {
   const auto absolute = file.absoluteFilePath();
-  source.filename = file.fileName().toStdString();
-  source.filetype = smart_object_filetype_for_extension(file.suffix().toLower());
   // Photoshop stores the URI undecorated: forward slashes, no percent-encoding, spaces
   // and non-ASCII characters as they are ("file:///D:/art/logo one.svg").
   source.external_full_path =
@@ -427,10 +432,16 @@ void set_smart_object_link_target(SmartObjectSource& source, const QFileInfo& fi
   source.external_original_path = QDir::toNativeSeparators(absolute).toStdString();
   source.external_rel_path =
       (document_dir.isEmpty() ? file.fileName() : QDir(document_dir).relativeFilePath(absolute)).toStdString();
-  stamp_smart_object_link(source, file);
   source.dirty = true;
+}
+
+void set_smart_object_link_target(SmartObjectSource& source, const QFileInfo& file, const QString& document_dir) {
+  source.filename = file.fileName().toStdString();
+  source.filetype = smart_object_filetype_for_extension(file.suffix().toLower());
+  set_smart_object_link_paths(source, file, document_dir);
+  stamp_smart_object_link(source, file);
   // The user chose this file, so its server is one they mean to use.
-  allow_network_link_server(absolute);
+  allow_network_link_server(file.absoluteFilePath());
 }
 
 bool refresh_smart_object_link_relative_paths(SmartObjectStore& store, const QString& current_document_dir,

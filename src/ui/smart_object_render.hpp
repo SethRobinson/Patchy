@@ -83,7 +83,8 @@ enum class SmartObjectContentsFormat {
 
 // Resolves an ExternalFile source to an existing file on disk: the stored relative
 // path against the owning document's folder first (Photoshop's same-folder rule),
-// then the bare file name there, then the stored absolute path, then the file:// URI.
+// then the bare file name there (unless the relative and absolute paths agree on
+// the missing location), then the stored absolute path, then the file:// URI.
 // Returns nullopt when none exist (the caller offers Relink to File...). Candidates on a
 // network server that is not allowed (network_link_trust.hpp) are skipped unread; the
 // first such server lands in `blocked_server` when given.
@@ -109,6 +110,10 @@ void stamp_smart_object_link(SmartObjectSource& source, const QFileInfo& file);
 // document has no folder yet), and a fresh stamp. Marks the source dirty. The file is one
 // the user chose, so its network server (if any) joins the allowed list.
 void set_smart_object_link_target(SmartObjectSource& source, const QFileInfo& file, const QString& document_dir);
+
+// Set just the link paths when carrying an existing link into another document.
+// The source's timestamp, type and server permissions stay with the original link.
+void set_smart_object_link_paths(SmartObjectSource& source, const QFileInfo& file, const QString& document_dir);
 // Photoshop computes each link's relative path against the document's folder when it
 // saves, so a document that had no folder at placement time, or is saved somewhere
 // else, still finds files that travel with it. Every link that resolves from

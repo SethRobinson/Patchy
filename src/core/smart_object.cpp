@@ -137,8 +137,9 @@ void SmartObjectStore::adopt(const SmartObjectSource& source) {
     return;
   }
   SmartObjectLinkBlock* target = nullptr;
+  const auto key = source.kind == SmartObjectSourceKind::ExternalFile ? "lnkE" : "lnk2";
   for (auto& block : blocks) {
-    if (block.key == "lnk2" && !block.opaque) {
+    if (block.key == key && !block.opaque) {
       target = &block;
       break;
     }
@@ -146,6 +147,7 @@ void SmartObjectStore::adopt(const SmartObjectSource& source) {
   if (target == nullptr) {
     blocks.push_back(SmartObjectLinkBlock{});
     target = &blocks.back();
+    target->key = key;
   }
   target->original_payload.reset();  // the block's element list changes
   target->sources.push_back(source);

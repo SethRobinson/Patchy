@@ -53,6 +53,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPixmap>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QFileDialog>
 #include <QLineEdit>
@@ -2733,6 +2734,132 @@ void ui_smart_object_place_linked_links_the_file() {
   CHECK(!message.contains(QStringLiteral("not found")));
 }
 
+void ui_linked_layer_transfers_keep_the_source_file() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  const auto dir = linked_test_dir(QStringLiteral("transfer"));
+  const auto a = dir + QStringLiteral("/A");
+  const auto b = dir + QStringLiteral("/B");
+  CHECK(QDir().mkpath(a) && QDir().mkpath(b));
+  const auto art = write_linked_test_png(a + QStringLiteral("/logo.png"), Qt::red);
+  write_linked_test_png(b + QStringLiteral("/logo.png"), Qt::blue);
+  const auto source_path = a + QStringLiteral("/poster.psd");
+  const auto target_path = b + QStringLiteral("/poster.psd");
+  add_linked_test_document(window, 80, 60);
+  Access::place_linked_file_with_path(window, art);
+  CHECK(Access::save_document_to_path(window, source_path));
+  const auto layer_id = *Access::document(window).active_layer_id();
+  auto* source_canvas = require_canvas(window);
+  const auto source_session = Access::session_id_for_canvas(window, source_canvas);
+
+  // These project copies share even the original element UUID. The destination
+  // layer must keep its own blue file while the transferred layer uses A's file.
+  CHECK(QFile::copy(source_path, target_path));
+  Access::open_document_path(window, target_path);
+  CHECK(QFileInfo(Access::active_session_path(window)) == QFileInfo(target_path));
+  auto* target_canvas = require_canvas(window);
+  const auto target_session = Access::session_id_for_canvas(window, target_canvas);
+  const auto& target = Access::document(window);
+  const auto existing = linked_layers(target).front()->id();
+  Access::select_layers(window, {existing}, existing);
+  require_action(window, "layerSmartObjectUpdateAction")->trigger();
+  CHECK(layer_center_color(*target.find_layer(existing)) == QColor(Qt::blue));
+  write_linked_test_png(art, Qt::green);
+
+  enum class Transfer { Duplicate, Paste, Drag };
+  for (const auto route : {Transfer::Duplicate, Transfer::Paste, Transfer::Drag}) {
+    Access::activate_canvas(window, source_canvas);
+    Access::select_layers(window, {layer_id}, layer_id);
+    if (route == Transfer::Duplicate) {
+      CHECK(Access::duplicate_layers_to_session(window, source_session, {layer_id}, target_session));
+    } else if (route == Transfer::Paste) {
+      require_action(window, "editCopyAction")->trigger();
+      Access::activate_canvas(window, target_canvas);
+      require_action(window, "editPasteAction")->trigger();
+    } else {
+      auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+      CHECK(tabs != nullptr);
+      auto* bar = tabs->tabBar();
+      bool accepted = false;
+      send_layer_drop_to_widget(*bar, bar->tabRect(tabs->indexOf(target_canvas)).center(),
+                                {layer_id}, source_session, Qt::NoModifier, &accepted);
+      CHECK(accepted);
+    }
+    CHECK(require_canvas(window) == target_canvas);
+    CHECK(linked_layers(target).size() == 2);
+    const auto copied = *target.active_layer_id();
+    CHECK(copied != existing);
+    require_action(window, "layerSmartObjectUpdateAction")->trigger();
+    CHECK(layer_center_color(*target.find_layer(copied)) == QColor(Qt::green));
+    CHECK(layer_center_color(*target.find_layer(existing)) == QColor(Qt::blue));
+    if (route != Transfer::Drag) {
+      Access::undo(window);  // Update
+      Access::undo(window);  // transfer
+      CHECK(linked_layers(target).size() == 1);
+    }
+  }
+  CHECK(Access::save_document_to_path(window, target_path));
+  const auto reopened = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(target_path));
+  const auto& store = reopened.metadata().smart_objects;
+  const auto copies = linked_layers(reopened);
+  CHECK(copies.size() == 2);
+  const auto* source = store.find(patchy::smart_object_source_uuid(*copies.back()));
+  CHECK(source != nullptr && source->external_rel_path == "../A/logo.png");
+  CHECK(patchy::ui::resolve_smart_object_external_path(*source, b) == art);
+  for (const auto& block : store.blocks) {
+    for (const auto& element : block.sources) {
+      CHECK(element.kind != patchy::SmartObjectSourceKind::ExternalFile || block.key == "lnkE");
+    }
+  }
+  // A copy of the project tree resolves through its new A directory.
+  const auto moved = dir + QStringLiteral("/moved");
+  CHECK(QDir().mkpath(moved + QStringLiteral("/A")) && QDir().mkpath(moved + QStringLiteral("/B")));
+  const auto moved_art = write_linked_test_png(moved + QStringLiteral("/A/logo.png"), Qt::yellow);
+  CHECK(patchy::ui::resolve_smart_object_external_path(*source, moved + QStringLiteral("/B")) == moved_art);
+
+  // An unsaved destination resolves by absolute path until its first Save As.
+  Access::activate_canvas(window, source_canvas);
+  Access::select_layers(window, {layer_id}, layer_id);
+  require_action(window, "editCopyAction")->trigger();
+  add_linked_test_document(window, 80, 60);
+  require_action(window, "editPasteAction")->trigger();
+  const auto& untitled = Access::document(window);
+  const auto* unsaved_link = linked_sources(untitled).front();
+  CHECK(patchy::ui::resolve_smart_object_external_path(*unsaved_link, {}) == art);
+  CHECK(Access::save_document_to_path(window, b + QStringLiteral("/untitled.psd")));
+  CHECK(linked_sources(untitled).front()->external_rel_path == "../A/logo.png");
+
+  // Same-folder forks can also share a UUID while their link descriptors name
+  // different assets. They require no path rebase, but still need separate IDs.
+  const auto fork_path = a + QStringLiteral("/fork.psd");
+  CHECK(QFile::copy(source_path, fork_path));
+  Access::open_document_path(window, fork_path);
+  const auto fork_session = Access::session_id_for_canvas(window, require_canvas(window));
+  auto& fork = Access::document(window);
+  const auto uuid = linked_sources(fork).front()->uuid;
+  const auto other_art = write_linked_test_png(a + QStringLiteral("/alternative.png"), Qt::cyan);
+  auto* fork_link = fork.metadata().smart_objects.find(uuid);
+  patchy::ui::set_smart_object_link_target(*fork_link, QFileInfo(other_art), a);
+  CHECK(Access::save_document_to_path(window, fork_path));
+  CHECK(Access::duplicate_layers_to_session(window, source_session, {layer_id}, fork_session));
+  const auto fork_layers = linked_layers(fork);
+  CHECK(fork_layers.size() == 2);
+  const auto& fork_store = std::as_const(fork).metadata().smart_objects;
+  const auto* added = fork_store.find(patchy::smart_object_source_uuid(*std::as_const(fork).find_layer(*fork.active_layer_id())));
+  CHECK(added != nullptr && added->uuid != uuid);
+  CHECK(patchy::ui::resolve_smart_object_external_path(*added, a) == art);
+  CHECK(patchy::ui::resolve_smart_object_external_path(*fork_store.find(uuid), a) == other_art);
+
+  // If A's file disappears, Update must report it missing despite B's intact
+  // namesake. Restore the fixture so this PSD can also be opened in Photoshop.
+  const auto offline = a + QStringLiteral("/offline.png");
+  CHECK(QFile::rename(art, offline));
+  const auto restore_art = qScopeGuard([&] { QFile::rename(offline, art); });
+  CHECK(!patchy::ui::resolve_smart_object_external_path(*source, b).has_value());
+  CHECK(patchy::ui::resolve_smart_object_external_path(*source, moved + QStringLiteral("/B")) == moved_art);
+}
+
 // An SVG is vector contents: Photoshop's 'SVG ' filetype and Type 1 placement for
 // both linked and embedded placements, and a render at the placement's own scale
 // instead of a resampled natural-size raster.
@@ -4295,6 +4422,7 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
        ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available},
       {"ui_smart_object_place_linked_links_the_file", ui_smart_object_place_linked_links_the_file},
       {"ui_smart_object_placed_svg_is_vector_contents", ui_smart_object_placed_svg_is_vector_contents},
+      {"ui_linked_layer_transfers_keep_the_source_file", ui_linked_layer_transfers_keep_the_source_file},
       {"ui_smart_object_place_dialogs_remember_folder", ui_smart_object_place_dialogs_remember_folder},
       {"ui_smart_object_edit_in_default_app_reembeds_saves", ui_smart_object_edit_in_default_app_reembeds_saves},
       {"ui_smart_object_linked_svg_child_saves_vectors_without_warning",

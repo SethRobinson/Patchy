@@ -660,6 +660,7 @@ private:
     // Sources referenced by copied smart-object layers so a cross-document paste can
     // adopt them into the target's store (shared_ptr payloads: copies are cheap).
     std::vector<SmartObjectSource> smart_object_sources{};
+    QString source_document_path{};
     // Native FEid/FXid records for copied filtered Smart Object instances. Paste
     // adopts each raw record directly under a fresh `placed` uuid.
     std::vector<SmartFilterEffectsRecord> smart_filter_effect_records{};
@@ -2171,8 +2172,9 @@ private:
   // as Layers, whose source is a temporary Document decoded from a file rather
   // than a session. Same contract: mutates target only, before_mutation runs
   // after validation, returns the new root ids top to bottom.
-  std::vector<LayerId> copy_layers_between_documents(const Document& source, std::vector<LayerId> ids,
-                                                     Document& target, const CrossDocumentLayerPlacement& placement,
+  std::vector<LayerId> copy_layers_between_documents(const Document& source, const QString& source_path,
+                                                     std::vector<LayerId> ids, Document& target,
+                                                     const QString& target_path, const CrossDocumentLayerPlacement& placement,
                                                      const std::function<bool()>& before_mutation, QString* error);
   // The interactive flow around copy_layers_between_sessions: the target's
   // undo snapshot, refresh, activation of the target, and selecting the

@@ -21,6 +21,8 @@
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QFileInfo>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFormLayout>
@@ -107,6 +109,7 @@
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/smart_object_render.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/modifier_names.hpp"
@@ -145,6 +148,7 @@
 #include <functional>
 #include <future>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -453,6 +457,77 @@ void collect_referenced_smart_filter_records(const Layer& layer,
   }
   for (const auto& child : layer.children()) {
     collect_referenced_smart_filter_records(child, store, records);
+  }
+}
+
+// Resolve in the source document before a same-named sibling of the destination
+// can take precedence. Shared UUIDs can occur when copying between two versions
+// of a PSD whose relative links now resolve to different files.
+QString prepare_transferred_links(std::vector<SmartObjectSource>& sources, const QString& source_path,
+                                  const QString& target_path, SmartObjectStore& target_store,
+                                  std::map<std::string, std::string>& remapped) {
+  if (sources.empty()) {
+    return {};
+  }
+  const auto source_dir = source_path.isEmpty() ? QString{} : QFileInfo(source_path).absolutePath();
+  const auto target_dir = target_path.isEmpty() ? QString{} : QFileInfo(target_path).absolutePath();
+  const bool same_folder = source_dir == target_dir;
+  for (auto& source : sources) {
+    if (source.kind != SmartObjectSourceKind::ExternalFile) {
+      continue;
+    }
+    const auto* existing = target_store.find(source.uuid);
+    const bool same_link = existing != nullptr && existing->kind == source.kind &&
+                           existing->filename == source.filename &&
+                           existing->external_rel_path == source.external_rel_path &&
+                           existing->external_original_path == source.external_original_path &&
+                           existing->external_full_path == source.external_full_path;
+    if (same_folder && (existing == nullptr || same_link)) {
+      continue;  // Keep the original element verbatim.
+    }
+    QString blocked_server;
+    const auto resolved = resolve_smart_object_external_path(source, source_dir, &blocked_server);
+    if (!same_folder && resolved.has_value()) {
+      set_smart_object_link_paths(source, QFileInfo(*resolved), target_dir);
+    } else if (!same_folder && blocked_server.isEmpty() && !source_dir.isEmpty() && !source.external_rel_path.empty() &&
+               QDir::isRelativePath(QString::fromStdString(source.external_rel_path))) {
+      // Keep the intended location if the artist restores a missing asset later.
+      const QFileInfo expected(QDir(source_dir), QString::fromStdString(source.external_rel_path));
+      set_smart_object_link_paths(source, expected, target_dir);
+    }
+    // A missing file, or a server the destination may not access, must never
+    // silently turn into the destination's identically named sibling.
+    const auto target = same_folder ? resolved : resolve_smart_object_external_path(source, target_dir);
+    if (target.has_value() && (!resolved.has_value() || QFileInfo(*target) != QFileInfo(*resolved))) {
+      return QObject::tr("Linked file %1 was not found").arg(QString::fromStdString(source.filename));
+    }
+    if (existing != nullptr) {
+      const auto* shared = target.has_value()
+                               ? find_smart_object_link_for_file(target_store, QFileInfo(*target), target_dir)
+                               : nullptr;
+      if (shared != existing) {
+        const auto uuid = shared != nullptr ? shared->uuid : generate_smart_object_uuid();
+        remapped.emplace(source.uuid, uuid);
+        source.uuid = uuid;
+        source.dirty = true;  // a forked element must write its new UUID
+      }
+    }
+  }
+  return {};
+}
+
+void remap_copied_links(Layer& layer, const std::map<std::string, std::string>& remapped) {
+  if (remapped.empty()) {
+    return;
+  }
+  if (const auto it = remapped.find(smart_object_source_uuid(layer)); it != remapped.end()) {
+    layer.metadata()[kLayerMetadataSmartObject] = it->second;
+    mark_layer_smart_object_block_dirty(layer);
+  }
+  if (!std::as_const(layer).children().empty()) {
+    for (auto& child : layer.children()) {
+      remap_copied_links(child, remapped);
+    }
   }
 }
 
@@ -949,6 +1024,7 @@ bool MainWindow::copy_selected_pixels(bool cutting) {
       });
   if (!canvas_->selected_document_rect().has_value() || contains_non_pixel_layer) {
     ClipboardPayload payload;
+    payload.source_document_path = session().path;
     payload.layers_top_to_bottom.reserve(selected_layers.size());
     for (const auto* layer : selected_layers) {
       payload.layers_top_to_bottom.push_back(*layer);
@@ -1231,9 +1307,17 @@ void MainWindow::paste_clipboard(bool in_place) {
     std::set<std::string> existing_names;
     collect_layer_names(doc.layers(), existing_names);
 
+    auto sources = clipboard_->smart_object_sources;
+    std::map<std::string, std::string> remapped;
+    const auto link_error = prepare_transferred_links(sources, clipboard_->source_document_path,
+                                                      session().path, doc.metadata().smart_objects, remapped);
+    if (!link_error.isEmpty()) {
+      show_status_error(link_error);
+      return;
+    }
     push_undo_snapshot(in_place ? tr("Paste in Place") : tr("Paste"));
     canvas_->clear_selection();
-    for (const auto& source : clipboard_->smart_object_sources) {
+    for (const auto& source : sources) {
       doc.metadata().smart_objects.adopt(source);
     }
     for (const auto& resource : clipboard_->pattern_resources) {
@@ -1252,6 +1336,7 @@ void MainWindow::paste_clipboard(bool in_place) {
         return;
       }
       pasted->set_name(next_duplicate_name(it->name(), existing_names));
+      remap_copied_links(*pasted, remapped);
       existing_names.insert(pasted->name());
       convert_layer_depth(*pasted, std::as_const(doc).color_state().bit_depth);
       const auto pasted_id = pasted->id();
@@ -2885,12 +2970,13 @@ std::vector<LayerId> MainWindow::copy_layers_between_sessions(DocumentSession& s
   if (&source == &target) {
     return fail(tr("Choose a different document to copy the layers into"));
   }
-  return copy_layers_between_documents(std::as_const(source.document), std::move(ids), target.document, placement,
-                                       before_mutation, error);
+  return copy_layers_between_documents(std::as_const(source.document), source.path, std::move(ids), target.document,
+                                       target.path, placement, before_mutation, error);
 }
 
 std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& source_document,
-                                                               std::vector<LayerId> ids, Document& target_document,
+                                                               const QString& source_path, std::vector<LayerId> ids,
+                                                               Document& target_document, const QString& target_path,
                                                                const CrossDocumentLayerPlacement& placement,
                                                                const std::function<bool()>& before_mutation,
                                                                QString* error) {
@@ -2934,6 +3020,12 @@ std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& s
   if (!caches_available) {
     return fail(tr("Smart Filter cache data could not be duplicated safely"));
   }
+  std::map<std::string, std::string> remapped;
+  const auto link_error = prepare_transferred_links(payload.smart_object_sources, source_path, target_path,
+                                                    target_document.metadata().smart_objects, remapped);
+  if (!link_error.isEmpty()) {
+    return fail(link_error);
+  }
   if (!before_mutation()) {
     return {};
   }
@@ -2949,6 +3041,7 @@ std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& s
     if (!clone.has_value()) {
       return fail(tr("Smart Filter cache data could not be duplicated safely"));
     }
+    remap_copied_links(*clone, remapped);
     // Photoshop keeps the name on a cross-document copy; only a collision earns
     // the copy suffix.
     if (!placement.keep_names && existing_names.contains(it->name())) {

@@ -36,6 +36,14 @@ explicitly so the copy stays one unit. The UI then activates the target and sele
 and `ui_layer_drag_to_float_canvas_centers_at_drop_point` (float_window_tests.cpp);
 `send_layer_drop_to_widget` synthesizes the drag.
 
+Duplicate to Document, drag, whole-layer Paste and Files as Layers resolve each linked
+Smart Object in its source document's folder. The copy stores a path to that same file
+relative to the destination. Two project copies can have matching element UUIDs and
+different assets at the same relative path. When that happens, each file gets its own
+linked element in the destination (`ui_linked_layer_transfers_keep_the_source_file`).
+If both stored paths identify the same missing file, Update reports the missing
+file even when the destination has a sibling with that name.
+
 Duplicate Layer (`layerDuplicateAction`, the footer button and its drop target) runs
 `MainWindow::duplicate_layers`: the copies land as one block directly above the topmost
 selected root, in its parent and in source order, and become the selection. `ui_duplicate_layer_inserts_copies_above_source` pins it.
