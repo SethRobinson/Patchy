@@ -7,6 +7,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/format_registry.hpp"
+#include "formats/ico_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/layered_blend_support.hpp"
 #include "formats/metadata/metadata_edit.hpp"
@@ -24,6 +25,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QUuid>
+#include <algorithm>
 #include <utility>
 
 namespace patchy::ui {
@@ -71,12 +73,10 @@ bool is_tiff_extension(const QString& extension) {
 
 // Formats whose writers keep the document's layer structure: PSD/PSB, Aseprite and
 // OpenRaster save the layer tree (OpenRaster bakes what it cannot hold after its own
-// warning, docs/ora.md), and ICO/CUR are exempt because multi-size icons deliberately live
-// as one hidden "WxH" layer per size that their writers round-trip.
+// warning, docs/ora.md).
 bool save_extension_preserves_layers(const QString& extension) {
   return is_photoshop_document_extension(extension) || extension == QStringLiteral("aseprite") ||
-         extension == QStringLiteral("ase") || extension == QStringLiteral("ora") ||
-         extension == QStringLiteral("ico") || extension == QStringLiteral("cur");
+         extension == QStringLiteral("ase") || extension == QStringLiteral("ora");
 }
 
 // True when the session's file came from a format Patchy can only read (camera raw):
@@ -139,6 +139,9 @@ bool save_discards_layers(const Document& document, const QString& extension) {
   if (extension == QStringLiteral("svg")) {
     return !svg::DocumentIo::baked_content(document).empty();
   }
+  if (extension == QStringLiteral("ico") || extension == QStringLiteral("cur")) {
+    return ico::icon_size_layers(document).empty();
+  }
   return true;
 }
 
@@ -194,6 +197,15 @@ ImageSaveOptions DocumentSaveCoordinator::effective_options(
     if (session.image_save_options.has_value() && session.image_save_options_path == path &&
         session.image_save_options_extension == extension) {
       effective = *session.image_save_options;
+      // An artist can add another size layer after saving. Ordinary Save keeps
+      // both the authored sizes and any extra generated sizes requested last time.
+      if (extension == QStringLiteral("ico") || extension == QStringLiteral("cur")) {
+        for (const auto& entry : ico::icon_size_layers(session.document)) {
+          if (std::find(effective.ico_sizes.begin(), effective.ico_sizes.end(), entry.first) == effective.ico_sizes.end()) {
+            effective.ico_sizes.push_back(entry.first);
+          }
+        }
+      }
     }
   }
   return effective;

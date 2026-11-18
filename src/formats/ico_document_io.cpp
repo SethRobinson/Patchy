@@ -1,5 +1,6 @@
 #include "formats/ico_document_io.hpp"
 
+#include "core/vector_shape.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_file_io.hpp"
@@ -307,24 +308,6 @@ struct DirectoryEntry {
   return out;
 }
 
-// Finds a pixel layer named exactly "WxH" with matching dimensions anywhere in the layer
-// tree (visibility does not matter: imported non-largest sizes are hidden on purpose).
-[[nodiscard]] const Layer* find_exact_size_layer(const std::vector<Layer>& layers, int size) {
-  const auto expected = std::to_string(size) + "x" + std::to_string(size);
-  for (const auto& layer : layers) {
-    if (layer.kind() == LayerKind::Pixel && layer.name() == expected && layer.pixels().width() == size &&
-        layer.pixels().height() == size) {
-      return &layer;
-    }
-    if (!layer.children().empty()) {
-      if (const auto* found = find_exact_size_layer(layer.children(), size); found != nullptr) {
-        return found;
-      }
-    }
-  }
-  return nullptr;
-}
-
 [[nodiscard]] std::vector<std::uint8_t> encode_bmp_entry(const RgbaImage& image) {
   LittleEndianWriter writer;
   const auto width = image.width;
@@ -387,6 +370,28 @@ struct DirectoryEntry {
 }
 
 }  // namespace
+
+std::map<int, const Layer*> icon_size_layers(const Document& document) {
+  std::map<int, const Layer*> sizes;
+  for (const auto& layer : document.layers()) {
+    const auto size = layer.pixels().width();
+    if (layer.kind() != LayerKind::Pixel || size < 1 || size > kMaxIconSize || layer.pixels().height() != size ||
+        layer.name() != std::to_string(size) + "x" + std::to_string(size) ||
+        layer.bounds() != Rect::from_size(size, size) || layer.pixels().format().bit_depth != BitDepth::UInt8 ||
+        !layer.children().empty() || layer.mask() || layer.vector_mask() || layer_pixels_are_procedural(layer) ||
+        layer.clipped() || layer.opacity() != 1.0F || layer.fill_opacity() != 1.0F ||
+        layer.blend_mode() != BlendMode::Normal || !layer.layer_style().empty() ||
+        layer.restricted_channels() != 0 ||
+        blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_blending_ranges()) ||
+        !sizes.emplace(size, &layer).second) {
+      return {};
+    }
+  }
+  if (!sizes.empty() && (document.width() != sizes.rbegin()->first || document.height() != sizes.rbegin()->first)) {
+    return {};
+  }
+  return sizes;
+}
 
 void set_png_codec(PngDecodeFn decode, PngEncodeFn encode) {
   png_decoder = decode;
@@ -524,9 +529,10 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document, WriteOptio
   }
 
   std::optional<RgbaImage> flattened;
+  const auto layers = icon_size_layers(document);
   const auto source_for_size = [&](int size) -> RgbaImage {
-    if (const auto* exact = find_exact_size_layer(document.layers(), size); exact != nullptr) {
-      return rgba_from_pixels(exact->pixels());
+    if (const auto exact = layers.find(size); exact != layers.end()) {
+      return rgba_from_pixels(exact->second->pixels());
     }
     if (!flattened.has_value()) {
       flattened = rgba_from_pixels(flatten_document_rgba8(document));

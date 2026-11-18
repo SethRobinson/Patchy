@@ -592,6 +592,11 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
     } else if (!options.ico_sizes.empty()) {
       options.ico_sizes.erase(options.ico_sizes.begin() + 1, options.ico_sizes.end());
     }
+    const auto icon_layers = ico::icon_size_layers(std::as_const(document()));
+    if (!icon_layers.empty()) {
+      options.ico_sizes.clear();
+      for (const auto& entry : icon_layers) options.ico_sizes.push_back(entry.first);
+    }
     for (const auto& layer : std::as_const(document()).layers()) {
       const auto found = layer.metadata().find(ico::kLayerMetadataCursorHotspot);
       if (found == layer.metadata().end()) {

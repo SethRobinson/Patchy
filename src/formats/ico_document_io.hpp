@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <span>
 #include <string>
 #include <vector>
@@ -14,6 +15,10 @@ namespace patchy::ico {
 // .cur round trip can prefill the export dialog. Session-only: no file format persists it
 // except CUR itself.
 inline constexpr const char* kLayerMetadataCursorHotspot = "patchy.cursor_hotspot";
+
+// The distinct size layers in a document composed entirely of plain, origin-aligned
+// icon pixels. An empty result means the writer must render the visible composite.
+[[nodiscard]] std::map<int, const Layer*> icon_size_layers(const Document& document);
 
 // ICO entries at 256 px are PNG-compressed per the Vista+ spec. The formats library is
 // Qt-free, so the PNG codec is injected by the UI layer once at startup (capture-free
@@ -41,7 +46,7 @@ public:
   [[nodiscard]] static bool can_read(std::span<const std::uint8_t> bytes) noexcept;
   // Every embedded size imports as its own layer named "WxH" (only the largest visible),
   // so hand-authored small sizes survive a round trip; the writer reuses a pixel layer
-  // named exactly "WxH" with matching dimensions verbatim for that size.
+  // named exactly "WxH" with matching dimensions when all layers are icon sizes.
   [[nodiscard]] static Document read(std::span<const std::uint8_t> bytes,
                                      std::vector<std::string>* notices = nullptr);
   [[nodiscard]] static Document read_file(const std::filesystem::path& path,

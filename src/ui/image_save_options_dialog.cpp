@@ -1695,8 +1695,12 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     sizes_layout->setContentsMargins(10, 8, 10, 8);
     sizes_layout->setSpacing(4);
     std::vector<QCheckBox*> size_checks;
-    size_checks.reserve(kIcoSizeChoices.size());
-    for (const auto size : kIcoSizeChoices) {
+    std::vector<int> size_choices(kIcoSizeChoices.begin(), kIcoSizeChoices.end());
+    for (const auto size : options.ico_sizes) {
+      if (std::find(size_choices.begin(), size_choices.end(), size) == size_choices.end()) size_choices.push_back(size);
+    }
+    std::sort(size_choices.begin(), size_choices.end());
+    for (const auto size : size_choices) {
       auto* check = new QCheckBox(QStringLiteral("%1 x %1").arg(size), sizes_group);
       check->setObjectName(QStringLiteral("icoSize%1Check").arg(size));
       check->setChecked(std::find(options.ico_sizes.begin(), options.ico_sizes.end(), size) !=
@@ -1759,9 +1763,9 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       return std::nullopt;
     }
     options.ico_sizes.clear();
-    for (std::size_t i = 0; i < kIcoSizeChoices.size(); ++i) {
+    for (std::size_t i = 0; i < size_choices.size(); ++i) {
       if (size_checks[i]->isChecked()) {
-        options.ico_sizes.push_back(kIcoSizeChoices[i]);
+        options.ico_sizes.push_back(size_choices[i]);
       }
     }
     options.ico_resample = static_cast<IcoResample>(resample->currentData().toInt());

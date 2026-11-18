@@ -1067,6 +1067,35 @@ void ui_vector_mask_protects_flat_source_and_survives_layered_tiff() {
   CHECK(pixel[0] == 160 && pixel[1] == 30 && pixel[2] == 60);
 }
 
+void ui_icon_saves_flatten_new_art() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QTemporaryDir temp;
+  const auto path = temp.filePath(QStringLiteral("icon.ico"));
+  patchy::Document sprite(32, 32, patchy::PixelFormat::rgba8());
+  sprite.add_pixel_layer("art", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), Qt::blue));
+  patchy::ico::DocumentIo::write_file(sprite, patchy::ui::to_filesystem_path(path), {{16, 32}});
+  patchy::ui::MainWindow window;
+  show_window(window);
+  Access::open_document_path(window, path);
+  CHECK(Access::save_document(window));
+  const auto saved = patchy::ico::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  CHECK(saved.layers().size() == 2);
+  Access::push_undo_snapshot(window, QStringLiteral("Paint over icon"));
+  Access::document(window).add_pixel_layer("New artwork", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), Qt::red));
+  check_save_redirects_to_psd(window, path);
+  auto options = patchy::ui::ImageSaveOptions{};
+  options.ico_sizes = {16, 32};
+  const auto copy = temp.filePath(QStringLiteral("flattened.ico"));
+  CHECK(Access::save_document_to_path_flatten_confirmed(window, copy, options));
+  CHECK(Access::active_session_is_modified(window));
+  const auto icon = patchy::ico::DocumentIo::read_file(patchy::ui::to_filesystem_path(copy));
+  CHECK(icon.layers().size() == 2);
+  for (const auto& entry : icon.layers()) {
+    const auto* pixel = entry.pixels().pixel(1, 1);
+    CHECK(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
+  }
+}
+
 void ui_ico_export_dialog_sizes_and_resample() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("saveOptions"));
@@ -4321,6 +4350,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
       {"ui_partial_tiff_and_aseprite_imports_protect_source", ui_partial_tiff_and_aseprite_imports_protect_source},
       {"ui_vector_mask_protects_flat_source_and_survives_layered_tiff", ui_vector_mask_protects_flat_source_and_survives_layered_tiff},
+      {"ui_icon_saves_flatten_new_art", ui_icon_saves_flatten_new_art},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},
