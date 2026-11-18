@@ -7,7 +7,9 @@ Split from [scripting.md](scripting.md). Script and API identifiers are permanen
   run means stored QJSValues die with their engine (canvas windows drop theirs first).
 - **One undo entry per run and session by default.** The first mutation a run makes to a
   session pushes one "Script: name" snapshot (`prepare_mutation`); everything after rides
-  it, so a 60fps animation undoes in one step. `app.undoEnabled = false` (per run,
+  it, so a 60fps animation undoes in one step. Saving partway through a group marks
+  that content revision saved. Every subsequent mutation advances the revision for
+  the dirty indicator, close prompt and recovery. `app.undoEnabled = false` (per run,
   resets each run) skips the snapshot for speed; those edits cannot be undone, but
   sessions are still marked modified so closing protects the work. Connector sessions
   reject it so failed edits remain recoverable. `patchy.ui.slowMode` instead separates

@@ -27,7 +27,7 @@ Preferences > Application: "Automatically save recovery information every" with 
 - A session is written only if it is modified (`session_is_modified`) and its
   `(revision, current_state_id)` pair differs from the pair its current copy holds
   (`DocumentRecoveryCoordinator::marks_`). Each content edit gets a fresh revision from the
-  session. Undo and Redo restore the recorded
+  session, including edits grouped into one Undo step. Undo and Redo restore the recorded
   revision. Returning to the saved revision clears the dirty indicator. Selection-only
   steps change the history state id and keep the content revision.
 - A tick is skipped entirely when the app is busy: `QApplication::activeModalWidget()`,

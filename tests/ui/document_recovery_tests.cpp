@@ -334,6 +334,31 @@ void ui_recovery_file_removed_on_save_and_on_close() {
   CHECK(window.list_recovery_entries().empty());
 }
 
+void ui_recovery_tracks_edits_after_grouped_script_save() {
+  RecoveryEnvRestorer env;
+  const auto root = fresh_recovery_root(QStringLiteral("script-save"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var d = app.newDocument(8, 8);
+    d.activeLayer.fill('#bb0000');
+    if (!d.saveAs('test-artifacts/recovery/script-save/red.psd') || d.modified) throw Error('save');
+    d.activeLayer.fill('#00aa00');
+    if (!d.modified) throw Error('later edit');
+  )JS")));
+  using Access = patchy::ui::MainWindowTestAccess;
+  CHECK(Access::active_session_undo_depth(window) == 1);
+  const auto written = window.write_recovery_now(true);
+  CHECK(written.size() == 1);
+  CHECK(psb_pixel(written.front(), 1, 0) == QColor(0, 0xaa, 0));
+  CHECK(psb_pixel(root + QStringLiteral("/red.psd"), 1, 0) == QColor(0xbb, 0, 0));
+  Access::undo(window);
+  CHECK(Access::active_session_is_modified(window));
+  Access::redo(window);
+  CHECK(Access::active_session_is_modified(window));
+}
+
 void ui_recovery_timer_skips_while_modal_dialog_open() {
   RecoveryEnvRestorer env;
   fresh_recovery_root(QStringLiteral("timer"));
@@ -796,6 +821,7 @@ std::vector<patchy::test::TestCase> document_recovery_tests() {
       {"ui_recovery_skips_unchanged_session_and_rewrites_after_undo_then_edit",
        ui_recovery_skips_unchanged_session_and_rewrites_after_undo_then_edit},
       {"ui_recovery_file_removed_on_save_and_on_close", ui_recovery_file_removed_on_save_and_on_close},
+      {"ui_recovery_tracks_edits_after_grouped_script_save", ui_recovery_tracks_edits_after_grouped_script_save},
       {"ui_recovery_timer_skips_while_modal_dialog_open", ui_recovery_timer_skips_while_modal_dialog_open},
       {"ui_recovery_orphaned_folder_recovers_as_modified_document",
        ui_recovery_orphaned_folder_recovers_as_modified_document},

@@ -1385,6 +1385,12 @@ bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
       run_->snapshotted_sessions.insert(session_id);
       run_->undo_group_sessions.insert(session_id);
       ++run_->undo_steps[session_id];
+    } else if (window_.session_is_modified(*session)) {
+      // Keep recovery current without refreshing the tab for every grouped edit.
+      session->advance_revision();
+    } else {
+      // A save inside this group protects only the edits up to that save.
+      window_.mark_session_modified(*session);
     }
   } else {
     // Defensive: wrappers should never outlive their run, but a mutation with
