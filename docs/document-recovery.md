@@ -26,11 +26,10 @@ Preferences > Application: "Automatically save recovery information every" with 
   Liquify session are both "one action").
 - A session is written only if it is modified (`session_is_modified`) and its
   `(revision, current_state_id)` pair differs from the pair its current copy holds
-  (`DocumentRecoveryCoordinator::marks_`). `revision` alone is not monotonic: `rotate_history_state` restores
-  the old value on undo, and the next edit after an undo reuses the number. The state id
-  is minted fresh per history push and only ever goes back through undo/redo, so the pair
-  identifies a distinct document state (scripts with `app.undoEnabled = false` bump only
-  the revision, still covered).
+  (`DocumentRecoveryCoordinator::marks_`). Each content edit gets a fresh revision from the
+  session. Undo and Redo restore the recorded
+  revision. Returning to the saved revision clears the dirty indicator. Selection-only
+  steps change the history state id and keep the content revision.
 - A tick is skipped entirely when the app is busy: `QApplication::activeModalWidget()`,
   the preview-dialog edit lock, or `any_canvas_interaction_active()` (pointer gesture,
   Free Transform, warp, path transform, crop session, inline text editor; the same

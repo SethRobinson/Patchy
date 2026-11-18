@@ -271,8 +271,7 @@ void ui_recovery_skips_unchanged_session_and_rewrites_after_undo_then_edit() {
   // Redo restores the exact state the copy holds (same revision AND state id).
   CHECK(run_script(window, "app.activeDocument.redo();"));
   CHECK(window.write_recovery_now(true).isEmpty());
-  // Undo then a different edit: the revision number repeats, the state id does
-  // not, so the copy must be rewritten with the new content.
+  // Undo then a different edit must replace the copy with the new content.
   CHECK(run_script(window, "app.activeDocument.undo();app.activeDocument.activeLayer.fill('#00ff00');"));
   const auto rewritten = window.write_recovery_now(true);
   CHECK(rewritten.size() == 1);
@@ -298,9 +297,24 @@ void ui_recovery_file_removed_on_save_and_on_close() {
   CHECK(window.list_recovery_entries().empty());
   CHECK(window.write_recovery_now(true).isEmpty());
 
-  // Modified again: a new copy, now carrying the file's path.
+  // Undo and Redo back to the saved pixels. A selection-only history entry
+  // also represents the same saved content.
+  using Access = patchy::ui::MainWindowTestAccess;
+  Access::undo(window);
+  CHECK(Access::active_session_is_modified(window));
+  Access::redo(window);
+  CHECK(!Access::active_session_is_modified(window));
+  require_action(window, "editSelectAllAction")->trigger();
+  CHECK(!Access::active_session_is_modified(window));
+  Access::undo(window);
+  Access::undo(window);
+  // Branch at the same history depth as the saved edit.
   CHECK(run_script(window, "app.activeDocument.activeLayer.fill('#654321');"));
-  CHECK(window.write_recovery_now(true).size() == 1);
+  CHECK(Access::active_session_is_modified(window));
+  const auto written = window.write_recovery_now(true);
+  CHECK(written.size() == 1);
+  CHECK(psb_pixel(written.front(), 1, 0) == QColor(0x65, 0x43, 0x21));
+  CHECK(psb_pixel(saved_path, 1, 0) == QColor(0x12, 0x34, 0x56));
   const auto entries = window.list_recovery_entries();
   CHECK(entries.size() == 1);
   if (!entries.empty()) {

@@ -3801,7 +3801,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
         if (auto* session = target(); session != nullptr && session->revision == revision) {
           convert_af_image_layers(session->document);
           layer_thumbnail_cache_.clear();
-          ++session->revision;
+          session->advance_revision();
           session->saved_revision = session->revision;
           if (session->canvas != nullptr) {
             session->canvas->document_changed();
@@ -4430,7 +4430,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     target_session.collapsed_smart_filters.clear();
     collect_initial_layer_fx_disclosure(target_session.document.layers(), target_session.expanded_layer_effects,
                                         target_session.collapsed_smart_filters);
-    ++target_session.revision;
+    target_session.advance_revision();
     target_session.saved_revision = target_session.revision;
     if (loaded->cmyk_source) {
       open_cmyk_source_in_proof_mode(target_session);

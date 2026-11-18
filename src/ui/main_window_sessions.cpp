@@ -1657,7 +1657,7 @@ void MainWindow::set_session_saved(DocumentSession& target_session) {
 }
 
 void MainWindow::mark_session_modified(DocumentSession& target_session) {
-  ++target_session.revision;
+  target_session.advance_revision();
   refresh_document_tab_titles();
   update_undo_redo_actions();
   refresh_document_info();

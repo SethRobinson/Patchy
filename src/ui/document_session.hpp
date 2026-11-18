@@ -140,6 +140,9 @@ struct DocumentSession {
   std::optional<VisibilityIsolation> visibility_isolation;
   std::int64_t revision{0};
   std::int64_t saved_revision{0};
+  // Undo restores a content revision, but never rewinds the allocator.
+  std::int64_t next_revision{1};
+  void advance_revision() noexcept { revision = next_revision++; }
 
   // The document as a layered save writes it: a copy-on-write copy whose groups carry the
   // Layers panel's open/closed state (`collapsed_layer_groups`, which layer metadata only
