@@ -113,7 +113,7 @@ bool flat_save_discards_layers(const Document& document) {
       layer_pixels_are_procedural(layer)) {
     return true;
   }
-  if (layer.mask().has_value() && !layer_mask_is_document_alpha(layer)) {
+  if (layer.vector_mask() != nullptr || (layer.mask().has_value() && !layer_mask_is_document_alpha(layer))) {
     return true;
   }
   const auto blend_if_status = layer.blend_if_payload_status();

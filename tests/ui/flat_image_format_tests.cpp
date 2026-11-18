@@ -1038,6 +1038,35 @@ void ui_partial_tiff_and_aseprite_imports_protect_source() {
   CHECK(Access::save_document(window));
 }
 
+void ui_vector_mask_protects_flat_source_and_survives_layered_tiff() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QTemporaryDir temp;
+  const auto path = temp.filePath(QStringLiteral("base.png"));
+  QImage original(8, 8, QImage::Format_RGB32);
+  original.fill(QColor(160, 30, 60));
+  CHECK(original.save(path));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  Access::open_document_path(window, path);
+  require_action(window, "layerVectorMaskHideAllAction")->trigger();
+  CHECK(std::as_const(Access::document(window)).layers().front().vector_mask() != nullptr);
+  check_save_redirects_to_psd(window, path);
+  const auto copy = temp.filePath(QStringLiteral("flat.png"));
+  CHECK(Access::save_document_to_path_flatten_confirmed(window, copy, {}));
+  CHECK(QImage(copy).pixelColor(3, 3).alpha() == 0);
+  CHECK(Access::active_session_is_modified(window));
+  ensure_artifact_dir();
+  const auto layered = QFileInfo(QStringLiteral("test-artifacts/hidden-vector-mask.tif")).absoluteFilePath();
+  CHECK(Access::save_document_to_path(window, layered));
+  patchy::ui::MainWindow reader;
+  show_window(reader);
+  Access::open_document_path(reader, layered);
+  const auto& restored = std::as_const(Access::document(reader)).layers().front();
+  CHECK(restored.vector_mask() != nullptr);
+  const auto* pixel = restored.pixels().pixel(3, 3);
+  CHECK(pixel[0] == 160 && pixel[1] == 30 && pixel[2] == 60);
+}
+
 void ui_ico_export_dialog_sizes_and_resample() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("saveOptions"));
@@ -4291,6 +4320,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_export_dialog_offers_cmyk_for_print_formats", ui_export_dialog_offers_cmyk_for_print_formats},
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
       {"ui_partial_tiff_and_aseprite_imports_protect_source", ui_partial_tiff_and_aseprite_imports_protect_source},
+      {"ui_vector_mask_protects_flat_source_and_survives_layered_tiff", ui_vector_mask_protects_flat_source_and_survives_layered_tiff},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},
