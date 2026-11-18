@@ -2208,6 +2208,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
         QObject::tr("The 32-bit image was converted to 16 bits per channel: the web version edits up to 16."));
   }
   if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension) &&
+      extension != QStringLiteral("aseprite") && extension != QStringLiteral("ase") &&
       extension != QStringLiteral("ico") && extension != QStringLiteral("cur") &&
       extension != QStringLiteral("ora") && !is_kra_extension(extension) && !is_xcf_extension(extension)) {
     prepare_flat_image_alpha(opened,

@@ -45,7 +45,7 @@ Everything reads and writes except camera raw, HEIF/HEIC, .af, .pdn, .xcf, .kra 
 - BMP: includes 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds [document-alpha import](file-formats-psd.md#saved-psd-channels-and-flat-image-alpha)).
 - ICO/CUR: each embedded size imports as a pixel layer named "WxH", with the largest visible. Save preserves each size when these layers make up the whole document. Extra artwork goes through the flat-save guard and the visible composite supplies every entry in a flattened copy. CUR hotspots ride layer metadata `patchy.cursor_hotspot`. 256px entries are PNG-compressed via `ico::set_png_codec` (installed in the MainWindow ctor).
 - TGA: types 1/2/3/9/10/11, both origin flags; 15/16-bit rejected; palette-mode documents write type 1 indexed.
-- Aseprite opens frame 1. Layer nesting, supported blend modes, opacity and closed folders (layer flag 32) round-trip. Multi-frame imports use Save As. Zlib cels use vendored `src/formats/miniz/`.
+- Aseprite opens frame 1. Cel positions and transparency, layer nesting, supported blend modes, opacity and closed folders (layer flag 32) round-trip. Multi-frame imports use Save As. Zlib cels use vendored `src/formats/miniz/`.
 - PCX: 8-bit indexed EOF-palette plus 24-bit 3-plane RLE.
 - ILBM/PBM: ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected; writer emits planar ILBM with masking type 2.
 - Portable anymaps `.pbm/.pgm/.ppm/.pnm`: a read-only filter row, no registry row; Qt's PPM handler reads P1 to P6 and sniffs the magic behind `.pnm` (`ui_portable_anymap_files_open`). No PAM or PFM.

@@ -21,6 +21,7 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/gif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
+#include "formats/document_flatten.hpp"
 #include "flat_tiff_fixture.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
@@ -1036,6 +1037,33 @@ void ui_partial_tiff_and_aseprite_imports_protect_source() {
   show_window(window);
   Access::open_document_path(window, single);
   CHECK(Access::save_document(window));
+}
+
+void ui_single_frame_aseprite_keeps_offset_and_saves_in_place() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QTemporaryDir temp;
+  const auto path = temp.filePath(QStringLiteral("positioned.ase"));
+  patchy::Document sprite(20, 20, patchy::PixelFormat::rgba8());
+  const patchy::Rect cel_bounds{7, 3, 4, 4};
+  patchy::Layer cel(sprite.allocate_layer_id(), "Cel", solid_pixels(4, 4, patchy::PixelFormat::rgba8(), Qt::red));
+  cel.set_bounds(cel_bounds);
+  sprite.add_layer(std::move(cel));
+  const auto original = patchy::flatten_document_rgba8(sprite);
+  CHECK(original.pixel(0, 0)[3] == 0);
+  CHECK(original.pixel(7, 3)[0] == 255 && original.pixel(7, 3)[3] == 255);
+  for (const auto mask : {false, true}) {
+    ScopedFlatAlphaAsLayerMask pref(mask);
+    patchy::aseprite::DocumentIo::write_file(sprite, patchy::ui::to_filesystem_path(path));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    Access::open_document_path(window, path);
+    const auto& opened = std::as_const(Access::document(window));
+    CHECK(opened.layers().front().bounds() == cel_bounds);
+    CHECK(Access::save_document(window));
+    const auto saved = patchy::aseprite::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+    const auto rendered = patchy::flatten_document_rgba8(saved);
+    CHECK(std::ranges::equal(original.data(), rendered.data()));
+  }
 }
 
 void ui_vector_mask_protects_flat_source_and_survives_layered_tiff() {
@@ -4349,6 +4377,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_export_dialog_offers_cmyk_for_print_formats", ui_export_dialog_offers_cmyk_for_print_formats},
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
       {"ui_partial_tiff_and_aseprite_imports_protect_source", ui_partial_tiff_and_aseprite_imports_protect_source},
+      {"ui_single_frame_aseprite_keeps_offset_and_saves_in_place", ui_single_frame_aseprite_keeps_offset_and_saves_in_place},
       {"ui_vector_mask_protects_flat_source_and_survives_layered_tiff", ui_vector_mask_protects_flat_source_and_survives_layered_tiff},
       {"ui_icon_saves_flatten_new_art", ui_icon_saves_flatten_new_art},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
