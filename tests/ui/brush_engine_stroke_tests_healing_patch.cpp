@@ -1302,6 +1302,55 @@ QDialog* find_remove_object_dialog() {
 // continues after the last variation instead of repeating variation 1.
 // Every fill runs on an explicit click or a settled value, never per slider
 // move (US 8050498; see canvas_widget_spot_healing.cpp).
+void ui_remove_object_duplicate_preserves_deep_preview_pixels() {
+  using namespace patchy;
+  SettingsValueRestorer feather(QStringLiteral("tools/removeObjectFeather"));
+  ui::app_settings().setValue(QStringLiteral("tools/removeObjectFeather"), 0);
+  for (const auto depth : {BitDepth::UInt16, BitDepth::Float32}) {
+    Document document(24, 24, PixelFormat::rgb8());
+    document.add_pixel_layer("Source", solid_pixels(24, 24, PixelFormat::rgba8(), QColor(56, 139, 215)));
+    convert_document_depth(document, depth);
+    const QRect area(9, 9, 5, 5);
+    auto& pixels = document.layers().front().pixels();
+    for (int y = area.top(); y <= area.bottom(); ++y) {
+      for (int x = area.left(); x <= area.right(); ++x) {
+        store_pixel(pixels.format(), pixels.pixel(x, y), {130.12F, 5.78F, 20.34F, 255.0F});
+      }
+    }
+    ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Deep variation"));
+    show_window(window);
+    PixelBuffer selection(area.width(), area.height(), PixelFormat::gray8());
+    selection.clear(255);
+    require_canvas(window)->set_selection_from_coverage(area, selection);
+    when_dialog_visible(QStringLiteral("patchyRemoveObjectDialog"), [&](QDialog& dialog) {
+      auto* duplicate = dialog.findChild<QPushButton*>(QStringLiteral("removeObjectDuplicateButton"));
+      CHECK(duplicate != nullptr);
+      for (int i = 0; !duplicate->isEnabled() && i < 400; ++i) process_events_for(25);
+      CHECK(duplicate->isEnabled());
+      const auto& doc = std::as_const(ui::MainWindowTestAccess::document(window));
+      const PixelBuffer preview = doc.layers().front().pixels();
+      duplicate->click();
+      CHECK(doc.layers().size() == 2);
+      const auto& copy = doc.layers().back().pixels();
+      CHECK(copy.format() == preview.format());
+      CHECK(copy.format().bit_depth == depth);
+      const auto count = bytes_per_pixel(copy.format());
+      for (int y = 0; y < doc.height(); ++y) {
+        for (int x = 0; x < doc.width(); ++x) {
+          if (area.contains(x, y)) {
+            CHECK(std::memcmp(copy.pixel(x, y), preview.pixel(x, y), count) == 0);
+          } else {
+            CHECK(pixel_alpha_at(copy, x, y) == 0.0F);
+          }
+        }
+      }
+      dialog.reject();
+    });
+    require_action(window, "editRemoveObjectAction")->trigger();
+  }
+}
+
 void ui_remove_object_dialog_previews_rerolls_and_is_undoable() {
   SettingsValueRestorer tone_restorer(QStringLiteral("tools/removeObjectToneMatch"));
   SettingsValueRestorer feather_restorer(QStringLiteral("tools/removeObjectFeather"));
@@ -3394,6 +3443,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_remove_object_content_aware_restores_stripes", ui_remove_object_content_aware_restores_stripes},
       {"ui_remove_object_dialog_previews_rerolls_and_is_undoable",
        ui_remove_object_dialog_previews_rerolls_and_is_undoable},
+      {"ui_remove_object_duplicate_preserves_deep_preview_pixels", ui_remove_object_duplicate_preserves_deep_preview_pixels},
       {"ui_remove_object_dialog_status_never_crops_rows", ui_remove_object_dialog_status_never_crops_rows},
       {"ui_remove_object_banner_variations_tone_and_feather", ui_remove_object_banner_variations_tone_and_feather},
       {"ui_remove_object_parallel_heal_detaches_shared_pixels",

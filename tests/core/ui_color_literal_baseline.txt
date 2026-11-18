@@ -55,7 +55,7 @@ src/ui/main_window_actions_menus.cpp 8
 src/ui/main_window_actions_options_bar.cpp 3
 src/ui/main_window_docks.cpp 3
 src/ui/main_window_document_dialogs.cpp 14
-src/ui/main_window_layer_ops.cpp 21
+src/ui/main_window_layer_ops.cpp 20
 src/ui/main_window_layer_panel.cpp 103
 src/ui/main_window_palette.cpp 1
 src/ui/main_window_perspective.cpp 1

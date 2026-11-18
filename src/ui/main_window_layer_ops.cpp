@@ -6566,11 +6566,18 @@ void MainWindow::remove_object_dialog() {
     if (worker != nullptr || !result_layer.has_value() || canvas_ == nullptr) {
       return;
     }
-    auto copy = make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0), PixelFormat::rgba8());
     const auto& bounds = result_job.bounds;
     const auto source_bounds = result_layer->bounds();
     const auto& source_pixels = std::as_const(*result_layer).pixels();
-    const auto source_channels = source_pixels.format().channels;
+    const auto format = source_pixels.format();
+    const auto rgba = with_bit_depth(PixelFormat::rgba8(), format.bit_depth);
+    PixelBuffer copy(doc.width(), doc.height(), rgba);
+    const auto sample_bytes = bytes_per_channel(format.bit_depth);
+    const auto color_bytes = 3U * sample_bytes;
+    const auto source_bytes = std::min(bytes_per_pixel(format), bytes_per_pixel(rgba));
+    // Preserve the preview's native samples, including linear HDR color.
+    std::array<std::uint8_t, 4 * sizeof(float)> opaque{};
+    store_pixel(rgba, opaque.data(), {0, 0, 0, 255});
     for (int y = 0; y < bounds.height(); ++y) {
       for (int x = 0; x < bounds.width(); ++x) {
         if (result_job.mask[static_cast<std::size_t>(y) * static_cast<std::size_t>(bounds.width()) + x] == 0U) {
@@ -6586,10 +6593,10 @@ void MainWindow::remove_object_dialog() {
         }
         const auto* src = source_pixels.pixel(sx, sy);
         auto* dst = copy.pixel(doc_x, doc_y);
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        dst[3] = source_channels >= 4 ? src[3] : 255;
+        std::copy_n(src, source_bytes, dst);
+        if (format.channels < 4) {
+          std::copy_n(opaque.data() + color_bytes, sample_bytes, dst + color_bytes);
+        }
       }
     }
     restore_original();
