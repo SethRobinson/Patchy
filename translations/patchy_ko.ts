@@ -36950,6 +36950,14 @@ Locked: %1</source>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>뒤틀기 굽힘: 드래그하면서 레이어가 바뀌는 모습을 확인합니다</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>레이어 마스크의 밀도와 페더를 조정합니다</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>벡터 마스크의 밀도와 페더를 조정합니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -11,6 +11,7 @@
 #include "core/vector_shape.hpp"
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/command_search.hpp"
 #include "ui/main_window.hpp"
 #include "ui/paths_panel.hpp"
 #include "render/compositor.hpp"
@@ -25,6 +26,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStatusBar>
@@ -32,6 +34,7 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -300,6 +303,50 @@ void ui_vector_mask_pen_and_direct_select_edit_with_one_undo() {
   CHECK(!fixture.canvas->free_transform_active());
   send_key(*fixture.canvas, Qt::Key_Escape);
   QApplication::processEvents();
+}
+
+void ui_mask_properties_menu_commands() {
+  VectorSettingsGuard settings_guard;
+  MaskWindow fixture;
+  auto* menu = fixture.window.findChild<QMenu*>(QStringLiteral("layerMaskMenu"));
+  auto* vector_menu = fixture.window.findChild<QMenu*>(QStringLiteral("layerVectorMaskMenu"));
+  const auto& registry = fixture.window.hotkey_registry();
+  const auto* raster = registry.find_command(QStringLiteral("layer.mask_properties"));
+  const auto* vector = registry.find_command(QStringLiteral("layer.vector_mask_properties"));
+  CHECK(menu && vector_menu && raster && vector && raster->action && vector->action);
+  CHECK(menu->actions().contains(raster->action) && vector_menu->actions().contains(vector->action));
+  CHECK(raster->action->menuRole() == QAction::NoRole && vector->action->menuRole() == QAction::NoRole);
+  CHECK(raster->default_shortcuts.empty() && vector->default_shortcuts.empty());
+  CHECK(!raster->action->isEnabled() && !vector->action->isEnabled());
+  fixture.trigger("layerAddMaskAction");
+  CHECK(raster->action->isEnabled() && !vector->action->isEnabled());
+  menu->popup(fixture.window.mapToGlobal(QPoint(100, 100)));
+  QApplication::processEvents();
+  save_widget_artifact("layer_mask_properties_menu", *menu);
+  menu->hide();
+
+  Access::select_layers(fixture.window, {fixture.blue}, fixture.blue);
+  fixture.trigger("layerVectorMaskRevealAllAction");
+  CHECK(!raster->action->isEnabled() && vector->action->isEnabled());
+  Access::select_layers(fixture.window, {fixture.red}, fixture.red);
+  CHECK(raster->action->isEnabled() && !vector->action->isEnabled());
+  fixture.trigger("layerVectorMaskRevealAllAction");
+  CHECK(raster->action->isEnabled() && vector->action->isEnabled());
+
+  const auto entries = patchy::ui::collect_search_commands(fixture.window.menuBar(), registry);
+  const auto matches = patchy::ui::match_menu_commands(entries, QStringLiteral("Mask Properties"));
+  const auto open = [&](const patchy::ui::HotkeyCommand& command, const QString& title) {
+    CHECK(std::any_of(matches.begin(), matches.end(), [&](int index) { return entries[index].id == command.id; }));
+    bool opened = false;
+    when_dialog_shown(QStringLiteral("maskPropertiesDialog"), [&](QDialog& dialog) {
+      opened = dialog.windowTitle() == title;
+      dialog.reject();
+    });
+    command.action->trigger();
+    CHECK(opened);
+  };
+  open(*raster, QStringLiteral("Layer Mask Properties"));
+  open(*vector, QStringLiteral("Vector Mask Properties"));
 }
 
 // A double-click on the vector mask thumbnail opens Mask Properties: Density
@@ -650,6 +697,7 @@ void ui_vector_mask_anchor_drag_patches_only_the_moved_area() {
 
 std::vector<patchy::test::TestCase> vector_mask_editing_tests() {
   return {
+      {"ui_mask_properties_menu_commands", ui_mask_properties_menu_commands},
       {"ui_vector_mask_thumbnail_click_targets_and_highlights", ui_vector_mask_thumbnail_click_targets_and_highlights},
       {"ui_vector_mask_pen_and_direct_select_edit_with_one_undo", ui_vector_mask_pen_and_direct_select_edit_with_one_undo},
       {"ui_vector_mask_double_click_opens_mask_properties", ui_vector_mask_double_click_opens_mask_properties},

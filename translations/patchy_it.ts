@@ -37065,6 +37065,14 @@ Bloccato: %1</translation>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>Piega dell&apos;alterazione: trascina per vedere il livello cambiare</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>Regola la densità e la sfumatura della maschera di livello</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>Regola la densità e la sfumatura della maschera vettoriale</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

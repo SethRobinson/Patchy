@@ -2382,6 +2382,24 @@ void MainWindow::set_active_layer_vector_mask_linked(bool linked, MaskCommandSco
   statusBar()->showMessage(linked ? tr("Layer and vector mask linked") : tr("Layer and vector mask unlinked"));
 }
 
+void MainWindow::refresh_mask_properties_action_states() {
+  if (layer_mask_properties_action_ == nullptr || vector_mask_properties_action_ == nullptr) {
+    return;
+  }
+  const auto id = has_active_document() ? std::as_const(document()).active_layer_id() : std::nullopt;
+  const auto* layer = id ? std::as_const(document()).find_layer(*id) : nullptr;
+  using Target = CanvasWidget::LayerEditTarget;
+  const bool layer_target = canvas_ != nullptr && !canvas_->quick_mask_active() &&
+                            (canvas_->layer_edit_target() == Target::Content ||
+                             canvas_->layer_edit_target() == Target::Mask ||
+                             canvas_->layer_edit_target() == Target::VectorMask);
+  const bool editable = layer != nullptr && layer_target && !preview_dialog_edit_locked() &&
+                        !layer_id_locks_image_pixels(layer->id());
+  layer_mask_properties_action_->setEnabled(editable && layer->mask().has_value());
+  vector_mask_properties_action_->setEnabled(editable && layer->vector_mask() != nullptr &&
+                                             vector_lock_reason(*layer).empty());
+}
+
 void MainWindow::edit_layer_mask_properties(LayerId id, bool vector_mask) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();

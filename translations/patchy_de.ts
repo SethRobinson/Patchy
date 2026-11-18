@@ -37065,6 +37065,14 @@ Fixiert: %1</translation>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>Verkrümmungsbiegung: ziehen und die Ebene dabei verfolgen</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>Dichte und weiche Kante der Ebenenmaske anpassen</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>Dichte und weiche Kante der Vektormaske anpassen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

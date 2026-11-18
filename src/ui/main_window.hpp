@@ -2115,6 +2115,7 @@ private:
   // selection to build one from. Drives the Layers panel footer button.
   [[nodiscard]] bool can_add_layer_mask() const;
   void refresh_add_layer_mask_button_state();
+  void refresh_mask_properties_action_states();
   // Whether Edit Layer Styles... has a layer to edit: a selected or active
   // layer that is not locked (the filter edit_active_layer_style applies).
   // Drives the Layers panel footer's Layer Styles button (GitHub issue 94).
@@ -4525,6 +4526,8 @@ private:
   QAction* invert_layer_mask_action_{nullptr};
   QAction* apply_layer_mask_action_{nullptr};
   QAction* edit_layer_mask_action_{nullptr};
+  QAction* layer_mask_properties_action_{nullptr};
+  QAction* vector_mask_properties_action_{nullptr};
   QAction* mask_overlay_action_{nullptr};
   QAction* view_layer_mask_action_{nullptr};
   QAction* channel_new_action_{nullptr};

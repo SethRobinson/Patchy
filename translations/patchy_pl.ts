@@ -37180,6 +37180,14 @@ Zablokowano: %1</translation>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>Wygięcie wypaczenia: przeciągnij i obserwuj zmianę warstwy</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>Dostosuj gęstość i wtapianie maski warstwy</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>Dostosuj gęstość i wtapianie maski wektorowej</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

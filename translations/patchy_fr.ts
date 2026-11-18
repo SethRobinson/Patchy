@@ -37065,6 +37065,14 @@ Verrouillé : %1</translation>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>Inflexion de la déformation : faites glisser pour voir le calque changer</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>Régler la densité et le contour progressif du masque de fusion</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>Régler la densité et le contour progressif du masque vectoriel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

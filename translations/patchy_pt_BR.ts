@@ -37065,6 +37065,14 @@ Bloqueado: %1</translation>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>Curvatura: arraste para ver a camada mudar</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>Ajustar a densidade e a difusão da máscara de camada</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>Ajustar a densidade e a difusão da máscara vetorial</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -37180,6 +37180,14 @@ Locked: %1</source>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>Изгиб деформации: перетаскивайте и следите, как меняется слой</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>Настроить плотность и растушёвку маски слоя</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>Настроить плотность и растушёвку векторной маски</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1270,6 +1270,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // Select Subject applied as a layer mask (main_window_ai_selection.cpp); hidden without the models.
   layer_mask_menu->addAction(remove_background_action_);
   edit_layer_mask_action_ = layer_mask_menu->addAction(tr("&Edit Layer Mask"));
+  const auto edit_active_mask_properties = [this](bool vector_mask) {
+    if (has_active_document()) {
+      if (const auto id = std::as_const(document()).active_layer_id()) {
+        edit_layer_mask_properties(*id, vector_mask);
+      }
+    }
+  };
+  layer_mask_properties_action_ = add_menu_command(
+      layer_mask_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Mask Properties..."),
+      "layerMaskPropertiesAction", "layer.mask_properties",
+      QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Adjust the density and feather of the layer mask"),
+      [edit_active_mask_properties] { edit_active_mask_properties(false); });
   mask_overlay_action_ = layer_mask_menu->addAction(tr("Show Mask &Overlay"));
   view_layer_mask_action_ = layer_mask_menu->addAction(tr("View Layer Mask"));
   layer_mask_menu->addSeparator();
@@ -1284,6 +1296,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* vector_mask_menu = new QMenu(tr("&Vector Mask"), layer_menu);
   vector_mask_menu->setObjectName(QStringLiteral("layerVectorMaskMenu"));
   populate_vector_mask_menu(vector_mask_menu, QStringLiteral("layer"));
+  vector_mask_properties_action_ = add_menu_command(
+      vector_mask_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Mask Properties..."),
+      "layerVectorMaskPropertiesAction", "layer.vector_mask_properties",
+      QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Adjust the density and feather of the vector mask"),
+      [edit_active_mask_properties] { edit_active_mask_properties(true); });
   // Layer > Fill and Adjustment Layer (GitHub issue 627): the text names the layer kind beside
   // Fill Layer Settings...; the object name and the layer.edit_adjustment id stay.
   auto* edit_adjustment_action = new QAction(tr("&Adjustment Layer Settings..."), layer_menu);

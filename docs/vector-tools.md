@@ -218,9 +218,11 @@ with an unlinked mask targeted drags only the mask path
 (`handle_move_vector_mask_press` latches the path-edit handlers as Path Select).
 
 Mask Properties (`mask_properties_dialog.cpp`, `edit_layer_mask_properties`):
-a double-click on the vector mask or layer mask thumbnail, or the thumbnail
-menu, opens a non-modal Density (0 to 100%) and Feather (0 to 1000 px) dialog
-for that mask. Edits preview live under the preview-dialog edit lock; OK is
+choose Mask Properties... under Layer > Layer Mask or Layer > Vector Mask to
+edit that mask on the active layer. Search Commands lists each available entry.
+Double-clicking a mask thumbnail or choosing Mask Properties... from its menu
+opens the same non-modal Density (0 to 100%) and Feather (0 to 1000 px) dialog.
+Edits preview live under the preview-dialog edit lock; OK is
 one undo step, Cancel restores; a field left alone keeps its exact stored
 value.
 

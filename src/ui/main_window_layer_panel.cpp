@@ -5644,6 +5644,7 @@ void MainWindow::refresh_layer_controls() {
   refresh_convert_for_smart_filters_action_state();
   refresh_smart_object_action_states();
   refresh_add_layer_mask_button_state();
+  refresh_mask_properties_action_states();
   refresh_layer_styles_button_state();
   refresh_layer_link_action_states();
   refresh_flip_text_on_path_action_state();

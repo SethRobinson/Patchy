@@ -36950,6 +36950,14 @@ Locked: %1</source>
         <source>Warp bend: drag to watch the layer change</source>
         <translation>彎曲程度：拖曳時可看到圖層的變化</translation>
     </message>
+    <message>
+        <source>Adjust the density and feather of the layer mask</source>
+        <translation>調整圖層遮色片的濃度與羽化程度</translation>
+    </message>
+    <message>
+        <source>Adjust the density and feather of the vector mask</source>
+        <translation>調整向量圖遮色片的濃度與羽化程度</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

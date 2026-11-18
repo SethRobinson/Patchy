@@ -15289,6 +15289,7 @@ void MainWindow::update_document_action_state() {
     layer_list_->setEnabled(has_document && (!locked || eyes_only));
   }
   refresh_add_layer_mask_button_state();
+  refresh_mask_properties_action_states();
   refresh_layer_styles_button_state();
   refresh_layer_link_action_states();
   refresh_revert_action();
