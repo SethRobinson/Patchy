@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.39" date="2026-11-19">
+      <description>
+        <ul>
+          <li>Layer Style: Use Global Light on shadows and Bevel &amp; Emboss, and contours for Inner Shadow, the glows and Satin</li>
+          <li>Mask Properties in the Layer menu sets a mask's Density and Feather</li>
+          <li>Aseprite animations open as one group per frame with the original timing</li>
+          <li>A Bend slider for Warp Transform</li>
+          <li>Safer saves of imported multi-page TIFF files and Aseprite animations, and many smaller fixes</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.38" date="2026-11-17">
       <description>
         <ul>
