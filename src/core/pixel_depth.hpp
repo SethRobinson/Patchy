@@ -92,6 +92,8 @@ void load_coverage_row(const PixelBuffer& buffer, std::int32_t y, std::int32_t x
 void store_coverage_row(PixelBuffer& buffer, std::int32_t y, std::int32_t x, std::int32_t count,
                         std::span<const float> in);
 
+// Replace each native coverage sample with its complement.
+void invert_coverage(PixelBuffer& buffer);
 // One sample of a coverage buffer (any depth) as 0..1.
 [[nodiscard]] float coverage_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y);
 // The alpha of one pixel of a color buffer (any depth) as 0..1; 1 without an alpha channel.

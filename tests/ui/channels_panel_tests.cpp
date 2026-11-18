@@ -5,6 +5,8 @@
 #include "local_psd_fixtures.hpp"
 #include "color/color_management.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/tool_cursors.hpp"
@@ -321,6 +323,43 @@ void ui_channels_panel_targets_and_alpha_edits() {
   CHECK(*static_cast<const patchy::Document&>(active_document).find_channel(alpha_id)->pixels().pixel(12, 12) == 0);
   CHECK(chip->isVisible());
   CHECK(chip->text().contains(QStringLiteral("Alpha A")));
+}
+
+void ui_channel_invert_preserves_native_coverage() {
+  using namespace patchy;
+  for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16, BitDepth::Float32}) {
+    Document document(3, 1, PixelFormat::rgb8());
+    document.add_pixel_layer("Pixels", PixelBuffer(3, 1, PixelFormat::rgb8()));
+    convert_document_depth(document, depth);
+    PixelBuffer alpha(3, 1, with_bit_depth(PixelFormat::gray8(), depth));
+    store_coverage_row(alpha, 0, 0, 3, std::array{0.0F, 63.75F, 255.0F});
+    const auto quarter = coverage_at(alpha, 1, 0);
+    const auto id = document.allocate_channel_id();
+    document.add_channel(DocumentChannel(id, "Alpha", DocumentChannelKind::Alpha, std::move(alpha)));
+    ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Invert"));
+    show_window(window);
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+    CHECK(list != nullptr);
+    list->setCurrentItem(require_layer_item(*list, QStringLiteral("Alpha")));
+    auto* invert = require_action(window, "channelInvertAction");
+    auto check = [&](bool inverted) {
+      const auto& doc = std::as_const(ui::MainWindowTestAccess::document(window));
+      const auto& samples = doc.find_channel(id)->pixels();
+      CHECK(coverage_at(samples, 0, 0) == (inverted ? 1.0F : 0.0F));
+      CHECK(std::abs(coverage_at(samples, 1, 0) - (inverted ? 1.0F - quarter : quarter)) < 0.000001F);
+      CHECK(coverage_at(samples, 2, 0) == (inverted ? 0.0F : 1.0F));
+    };
+    invert->trigger();
+    check(true);
+    ui::MainWindowTestAccess::undo(window);
+    check(false);
+    ui::MainWindowTestAccess::redo(window);
+    check(true);
+    list->setCurrentItem(require_layer_item(*list, QStringLiteral("Alpha")));
+    invert->trigger();
+    check(false);
+  }
 }
 
 void ui_channel_ctrl_click_context_menu_and_compact_actions() {
@@ -1636,6 +1675,7 @@ void ui_channel_rows_become_new_layers() {
 std::vector<patchy::test::TestCase> channels_panel_tests() {
   return {
       {"ui_channels_panel_targets_and_alpha_edits", ui_channels_panel_targets_and_alpha_edits},
+      {"ui_channel_invert_preserves_native_coverage", ui_channel_invert_preserves_native_coverage},
       {"ui_channel_ctrl_click_context_menu_and_compact_actions",
        ui_channel_ctrl_click_context_menu_and_compact_actions},
       {"ui_channel_shape_previews_match_committed_grayscale_and_overlay",

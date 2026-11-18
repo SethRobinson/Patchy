@@ -295,6 +295,19 @@ void store_coverage_row(PixelBuffer& buffer, std::int32_t y, std::int32_t x, std
   }
 }
 
+void invert_coverage(PixelBuffer& buffer) {
+  auto bytes = buffer.data();
+  if (buffer.format().bit_depth == BitDepth::Float32) {
+    for (std::size_t i = 0; i < bytes.size(); i += sizeof(float)) {
+      const float sample = std::clamp(finite_or_zero(read_f32(bytes.data() + i)), 0.0F, 1.0F);
+      write_f32(bytes.data() + i, 1.0F - sample);
+    }
+  } else {
+    // Complementing the bytes exactly inverts both 8-bit and 16-bit samples.
+    for (auto& value : bytes) value = static_cast<std::uint8_t>(255U - value);
+  }
+}
+
 float coverage_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y) {
   const auto* sample = buffer.pixel(x, y);
   switch (buffer.format().bit_depth) {

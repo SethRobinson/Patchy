@@ -2648,22 +2648,7 @@ void MainWindow::invert_active_layer_mask(MaskCommandScope scope) {
     }
     auto& mask = *layer->mask();
     mask.default_color = static_cast<std::uint8_t>(255 - mask.default_color);
-    if (!mask.pixels.empty() && mask.pixels.format().bit_depth == BitDepth::Float32) {
-      // 32-bit masks hold floats: invert the values, not their bytes.
-      std::vector<float> row(static_cast<std::size_t>(mask.pixels.width()));
-      for (std::int32_t y = 0; y < mask.pixels.height(); ++y) {
-        load_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
-        for (auto& value : row) {
-          value = 255.0F - value;
-        }
-        store_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
-      }
-    } else if (!mask.pixels.empty()) {
-      // 8 and 16 bits: complementing every byte complements the sample (65535 - v).
-      for (auto& value : mask.pixels.data()) {
-        value = static_cast<std::uint8_t>(255 - value);
-      }
-    }
+    invert_coverage(mask.pixels);
     dirty = unite_rect(dirty, unite_rect(layer_render_bounds(*layer), mask.bounds.empty() ? layer->bounds() : mask.bounds));
   }
   canvas_->invalidate_mask_display();

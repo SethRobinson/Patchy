@@ -1056,11 +1056,7 @@ void MainWindow::invert_active_channel() {
     return;
   }
   push_undo_snapshot(tr("Invert channel"));
-  auto& pixels = channel->pixels();
-  auto bytes = pixels.data();
-  for (auto& value : bytes) {
-    value = static_cast<std::uint8_t>(255U - value);
-  }
+  invert_coverage(channel->pixels());
   canvas_->grayscale_target_changed(QRect(0, 0, document().width(), document().height()));
   refresh_channel_panel();
   statusBar()->showMessage(tr("Inverted channel"));
