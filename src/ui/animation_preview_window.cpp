@@ -696,25 +696,30 @@ void AnimationPreviewWindow::stop_playback(bool restore_visibility) {
     return;
   }
   auto* document = playback_document_;
-  playback_document_ = nullptr;
   // Restore only while the playback document is verifiably the live active one; a
   // mismatch means a lifecycle path was missed and the pointer cannot be trusted.
-  if (restore_visibility && provider_ != nullptr && provider_() == document) {
-    for (const auto& [id, visible] : saved_visibility_) {
-      // Writes go through find_layer: mutable children() bumps revisions.
-      if (auto* layer = document->find_layer(id); layer != nullptr) {
-        layer->set_visible(visible);
-      }
-    }
-    if (visuals_changed_ != nullptr) {
-      visuals_changed_(true);
-    }
+  const bool restore = restore_visibility && provider_ != nullptr && provider_() == document;
+  if (restore) {
+    restore_authored_visibility(*document, *document);
+  }
+  playback_document_ = nullptr;
+  if (restore && visuals_changed_ != nullptr) {
+    visuals_changed_(true);
   }
   saved_visibility_.clear();
   frames_.clear();
   frames_reversed_ = false;
   frame_index_ = 0;
   update_playback_controls();
+}
+
+void AnimationPreviewWindow::restore_authored_visibility(const Document& source, Document& target) const {
+  if (playback_document_ != &source) return;
+  for (const auto& [id, visible] : saved_visibility_) {
+    if (auto* layer = target.find_layer(id); layer != nullptr) {
+      layer->set_visible(visible);
+    }
+  }
 }
 
 void AnimationPreviewWindow::stop_playback_for(const Document* document) {

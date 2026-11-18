@@ -30,6 +30,8 @@ Preferences > Application: "Automatically save recovery information every" with 
   session, including edits grouped into one Undo step. Undo and Redo restore the recorded
   revision. Returning to the saved revision clears the dirty indicator. Selection-only
   steps change the history state id and keep the content revision.
+- During animation playback, the recovery snapshot takes each frame's authored visibility
+  from Animation Preview. Playback continues on the live canvas.
 - A tick is skipped entirely when the app is busy: `QApplication::activeModalWidget()`,
   the preview-dialog edit lock, or `any_canvas_interaction_active()` (pointer gesture,
   Free Transform, warp, path transform, crop session, inline text editor; the same

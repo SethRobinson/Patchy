@@ -35,6 +35,7 @@
 #include "core/document_recovery_store.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/document_recovery.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
@@ -357,6 +358,33 @@ void ui_recovery_tracks_edits_after_grouped_script_save() {
   CHECK(Access::active_session_is_modified(window));
   Access::redo(window);
   CHECK(Access::active_session_is_modified(window));
+}
+
+void ui_recovery_keeps_authored_visibility_during_animation() {
+  RecoveryEnvRestorer env;
+  fresh_recovery_root(QStringLiteral("animation"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  add_filled_document(window, "#102030");
+  CHECK(run_script(window, "app.activeDocument.addLayer('Frame').fill('#417ea3');"));
+  require_action(window, "imageAnimationPreviewAction")->trigger();
+  auto* preview = window.findChild<patchy::ui::AnimationPreviewWindow*>();
+  CHECK(preview != nullptr);
+  preview->start_playback();
+  CHECK(preview->playing());
+  const auto& layers = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers();
+  CHECK(layers.size() == 2);
+  CHECK(layers.front().visible() != layers.back().visible());
+  const auto written = window.write_recovery_now(true);
+  CHECK(written.size() == 1);
+  CHECK(preview->playing());
+  preview->stop_playback(true);
+  CHECK(window.write_recovery_now(true).isEmpty());
+  const auto recovered = patchy::psd::DocumentIo::read_file(fs(written.front()));
+  CHECK(recovered.layers().size() == 2);
+  CHECK(recovered.layers().front().visible() && recovered.layers().back().visible());
+  const auto* px = recovered.layers().back().pixels().pixel(1, 0);
+  CHECK(px[0] == 0x41 && px[1] == 0x7e && px[2] == 0xa3);
 }
 
 void ui_recovery_timer_skips_while_modal_dialog_open() {
@@ -822,6 +850,7 @@ std::vector<patchy::test::TestCase> document_recovery_tests() {
        ui_recovery_skips_unchanged_session_and_rewrites_after_undo_then_edit},
       {"ui_recovery_file_removed_on_save_and_on_close", ui_recovery_file_removed_on_save_and_on_close},
       {"ui_recovery_tracks_edits_after_grouped_script_save", ui_recovery_tracks_edits_after_grouped_script_save},
+      {"ui_recovery_keeps_authored_visibility_during_animation", ui_recovery_keeps_authored_visibility_during_animation},
       {"ui_recovery_timer_skips_while_modal_dialog_open", ui_recovery_timer_skips_while_modal_dialog_open},
       {"ui_recovery_orphaned_folder_recovers_as_modified_document",
        ui_recovery_orphaned_folder_recovers_as_modified_document},

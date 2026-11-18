@@ -64,6 +64,8 @@ public:
   // calls this on tab switches (while the outgoing document is still active) and before a
   // closing session's document is destroyed.
   void stop_playback_for(const Document* document);
+  // Restore the captured visibility into a snapshot or the live playback document.
+  void restore_authored_visibility(const Document& source, Document& target) const;
   // Advances to the next frame and rearms the timer; public so tests can step
   // deterministically (the playback timer calls this).
   void advance_frame();

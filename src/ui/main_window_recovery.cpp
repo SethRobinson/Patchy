@@ -10,6 +10,7 @@
 
 #include "core/document_recovery_store.hpp"
 #include "support/path_utils.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/document_recovery.hpp"
@@ -90,6 +91,9 @@ public:
       // A copy shares pixel storage with the live document until the user's next edit
       // detaches the live side; the worker only reads it (const Document&).
       job.snapshot = std::as_const(*target_session).document_for_write();
+      if (window_.animation_preview_window_ != nullptr) {
+        window_.animation_preview_window_->restore_authored_visibility(target_session->document, job.snapshot);
+      }
       job.entry = entry_for(*target_session);
       jobs.push_back(std::move(job));
     }
