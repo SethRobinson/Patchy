@@ -555,6 +555,12 @@ void ScriptEngineHost::finish_run() {
   const auto undo_sessions =
       run_->undo_after_stop ? run_->undo_steps : std::map<std::int64_t, std::size_t>{};
   teardown_run_resources();
+  // Interrupting QJSEngine can skip JavaScript finally blocks. Release any
+  // remaining working tabs here, children first, while the host is still live.
+  const auto copies = std::move(run_->temporary_copies);
+  for (auto it = copies.rbegin(); it != copies.rend(); ++it) {
+    close_session(*it);
+  }
   flush_pending_refresh();
   if (script_activity_) { script_activity_->set_disconnected(); }
   run_.reset();
@@ -1112,6 +1118,32 @@ std::int64_t ScriptEngineHost::create_document(int width, int height, const QStr
   return active_session_id();
 }
 
+std::int64_t ScriptEngineHost::create_temporary_copy(std::int64_t session_id) {
+  pump_progress_indicator();
+  const auto* source = window_.session_with_id(session_id);
+  if (source == nullptr || run_ == nullptr || engine_->isInterrupted()) {
+    return 0;
+  }
+  if (window_.preview_dialog_edit_locked()) {
+    throw_js_error(MainWindow::tr("Finish the open dialog before editing the document"));
+    return 0;
+  }
+  if (window_.animation_preview_window_ != nullptr) {
+    window_.animation_preview_window_->stop_playback_for(&source->document);
+  }
+  const auto previous = active_session_id();
+  const bool proof = source->cmyk_proof;
+  window_.add_document_session(source->document_for_write(), QObject::tr("%1 copy").arg(source->title),
+                               {}, {}, MainWindow::SessionActivation::Background);
+  auto& copy = **window_.sessions_.rbegin();
+  const auto copy_id = copy.session_id;
+  copy.script_copy_return_session = previous;
+  copy.cmyk_proof = proof;
+  run_->temporary_copies.insert(copy_id);
+  activate_session(copy_id);
+  return copy_id;
+}
+
 bool ScriptEngineHost::save_session_to_path(std::int64_t session_id, const QString& path,
                                             std::optional<ImageSaveOptions> options, bool export_copy) {
   pump_progress_indicator();
@@ -1322,8 +1354,19 @@ bool ScriptEngineHost::close_session(std::int64_t session_id) {
   }
   // Scripts close without prompting (the script author decided); mark saved so
   // the close path cannot raise a modified-document confirmation.
+  const auto return_to = session->script_copy_return_session;
+  const bool was_active = active_session_id() == session_id;
   window_.set_session_saved(*session);
-  return window_.close_document_session(*session);
+  if (!window_.close_document_session(*session)) {
+    return false;
+  }
+  if (return_to && run_) {
+    run_->temporary_copies.erase(session_id);
+    if (was_active) {
+      activate_session(*return_to);
+    }
+  }
+  return true;
 }
 
 void ScriptEngineHost::activate_session(std::int64_t session_id) {

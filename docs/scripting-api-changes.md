@@ -25,8 +25,9 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
-2026-11-18 (addition): `patchy.io.pathKey(path)` returns Patchy's file name comparison
-key for preflighting output paths.
+2026-11-18 (additions): `doc.createTemporaryCopy()` opens a disposable working tab that
+the host closes at run end, including on interruption. `patchy.io.pathKey(path)` returns
+Patchy's file name comparison key for preflighting output paths.
 
 2026-11-17 (behavioral change): `recognizeText` with `layers: "replace"` and the sampled color
 (`matchStyle` on, no `color`) gives a line whose sampled text color has under 3 to 1 contrast

@@ -4409,6 +4409,15 @@ bool ScriptDocumentObject::exportAnimatedPng(const QString& path, const QJSValue
   return true;
 }
 
+QJSValue ScriptDocumentObject::createTemporaryCopy() {
+  const ScriptApiCall api_call(host_);
+  if (read_document() == nullptr) {
+    return QJSValue();
+  }
+  const auto id = host_.create_temporary_copy(session_id_);
+  return id != 0 ? make_document_value(host_, id) : QJSValue();
+}
+
 void ScriptDocumentObject::close() {
   const ScriptApiCall api_call(host_);
   if (read_document() == nullptr) {

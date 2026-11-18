@@ -1425,7 +1425,7 @@ MainWindow::CloseBatchScope::~CloseBatchScope() {
 }
 
 bool MainWindow::confirm_close_session(DocumentSession& target_session) {
-  if (!session_is_modified(target_session)) {
+  if (target_session.script_copy_return_session || !session_is_modified(target_session)) {
     return true;
   }
   if (unattended_automation()) {
@@ -1471,7 +1471,7 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
     if (close_batch_.has_value()) {
       const bool others_waiting = std::ranges::any_of(close_batch_->pending_ids, [&](std::int64_t id) {
         const auto* other = id == session_id ? nullptr : session_with_id(id);
-        return other != nullptr && session_is_modified(*other);
+        return other != nullptr && !other->script_copy_return_session && session_is_modified(*other);
       });
       if (others_waiting) {
         buttons |= QMessageBox::NoToAll;

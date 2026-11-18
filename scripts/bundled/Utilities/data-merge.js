@@ -6,7 +6,7 @@
 // @cli --script-arg csv=C:\data\people.csv --script-arg out=C:\data\output template.psd
 //
 // The CSV's header row names the text layers to fill; each following row
-// becomes one exported file. The template document is restored afterwards.
+// becomes one exported file. The script fills a temporary working copy.
 // Unattended runs (patchy --run-script) pass --script-arg csv=... and
 // --script-arg out=... (plus any other option keys).
 
@@ -65,7 +65,7 @@ if (!doc) {
                  "2. Pick the output folder.\n" +
                  "3. The filename pattern can use {n} for the row number and {Column} for a " +
                  "value (e.g. badge-{Name}).\n\n" +
-                 "The template's own text is restored when the merge finishes.",
+                 "Rows are filled in a working copy so the template keeps its formatting.",
     fields: [
       { key: "csv", label: "CSV data file", type: "file", value: OPTIONS.csv,
         filter: "CSV files (*.csv *.txt)" },
@@ -87,14 +87,14 @@ if (!doc) {
       app.alert("The CSV needs a header row plus at least one data row.");
     } else {
       var header = rows[0];
-      var columns = [];  // {name, layer} for header columns that match a text layer
+      var columns = [];  // CSV columns matched to text layers
       var missing = [];
       for (var c = 0; c < header.length; c++) {
         var name = header[c].trim();
         if (!name) { continue; }
         var layer = doc.findLayer(name);
         if (layer && layer.isText) {
-          columns.push({ index: c, name: name, layer: layer });
+          columns.push({ index: c, name: name });
         } else {
           missing.push(name);
         }
@@ -106,36 +106,32 @@ if (!doc) {
         app.alert("None of the CSV columns match a text layer name in this document.\n" +
                   "Columns: " + header.join(", "));
       } else {
-        var options = { pattern: setup.pattern, format: setup.format };
-        {
-          // Remember the template's text so it can be restored at the end.
-          var original = [];
+        var copy = doc.createTemporaryCopy();
+        try {
           for (var i = 0; i < columns.length; i++) {
-            original.push(columns[i].layer.text);
+            columns[i].layer = copy.findLayer(columns[i].name);
           }
           var exported = 0;
           for (var r = 1; r < rows.length; r++) {
             var row = rows[r];
             if (row.length === 1 && row[0].trim() === "") { continue; }  // blank line
-            var fileName = options.pattern.replace(/\{n\}/g, ("00" + r).slice(-3));
+            var fileName = setup.pattern.replace(/\{n\}/g, ("00" + r).slice(-3));
             for (i = 0; i < columns.length; i++) {
               var value = columns[i].index < row.length ? row[columns[i].index] : "";
               columns[i].layer.text = value;
               fileName = fileName.split("{" + columns[i].name + "}").join(sanitize(value));
             }
-            var target = outFolder + "/" + (sanitize(fileName) || "merge-" + r) + "." + options.format;
-            if (doc.exportAs(target)) {
+            var target = outFolder + "/" + (sanitize(fileName) || "merge-" + r) + "." + setup.format;
+            if (copy.exportAs(target)) {
               console.log("Exported " + target);
               exported++;
             } else {
               console.warn("Could not export " + target);
             }
           }
-          for (i = 0; i < columns.length; i++) {
-            columns[i].layer.text = original[i];
-          }
-          console.log(exported + " file(s) merged from " + (rows.length - 1) +
-                      " data row(s); template text restored.");
+          console.log(exported + " file(s) merged from " + (rows.length - 1) + " data row(s).");
+        } finally {
+          copy.close();
         }
       }
     }

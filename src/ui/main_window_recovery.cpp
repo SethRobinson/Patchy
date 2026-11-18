@@ -76,7 +76,8 @@ public:
       const std::unordered_map<std::int64_t, RecoveryMark>& marks) override {
     std::vector<RecoveryJob> jobs;
     for (const auto& target_session : window_.sessions_) {
-      if (target_session == nullptr || !window_.session_is_modified(*target_session)) {
+      if (target_session == nullptr || target_session->script_copy_return_session ||
+          !window_.session_is_modified(*target_session)) {
         continue;
       }
       const auto mark = marks.find(target_session->session_id);
@@ -97,7 +98,8 @@ public:
 
   [[nodiscard]] std::optional<RecoveryMark> modified_session_mark(std::int64_t session_id) override {
     const auto* target_session = window_.session_with_id(session_id);
-    if (target_session == nullptr || !window_.session_is_modified(*target_session)) {
+    if (target_session == nullptr || target_session->script_copy_return_session ||
+        !window_.session_is_modified(*target_session)) {
       return std::nullopt;
     }
     return RecoveryMark{session_id, target_session->revision, target_session->history.current_state_id()};

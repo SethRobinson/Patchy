@@ -131,7 +131,10 @@ Browse; values travel as "/" paths) and the `description` header. Games delibera
 show no dialog (OPTIONS block only: a game should just start); trim-to-content and
 save-version stay instant too.
 
-Batch Export checks every input and destination with `patchy.io.pathKey` before opening any source.
+Data Merge fills each row in the same disposable `doc.createTemporaryCopy()`. The
+template keeps its text runs, history and modified state. The host also closes working
+copies after an interrupted run, when JavaScript cleanup may not execute. Batch Export
+checks every input and destination with `patchy.io.pathKey` before opening any source.
 
 ## Shadow overrides (saving over a bundled script)
 

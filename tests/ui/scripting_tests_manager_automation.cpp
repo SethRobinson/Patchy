@@ -1940,6 +1940,65 @@ void ui_script_batch_export_checks_all_names_before_writing() {
   CHECK(read_source() == bytes);
 }
 
+void ui_script_data_merge_keeps_template_runs_and_history() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions setup;
+  setup.unattended = true;
+  setup.args = {"dir=" + temp.path()};
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    var template = app.newDocument(96, 48);
+    var text = template.addTextLayer([{text:'A',color:'#ff0000',bold:true},
+                                       {text:'B',color:'#0000ff',italic:true,size:22}],
+                                      {x:4,y:30,size:14});
+    text.name = 'Name';
+    if (!template.saveAs(patchy.args.dir + '/template.psd')) throw Error('save');
+    patchy.io.writeTextFile(patchy.args.dir + '/data.csv', 'Name\nW\nII\n');
+  )JS"), std::move(setup)));
+  wait_for_run_end(host);
+  const auto template_state = [&] {
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var d = app.activeDocument;
+      patchy.setResult([app.documents.length, d.id, d.modified, d.findLayer('Name').textRuns]);
+    )JS")));
+    return host.last_result();
+  };
+  const auto before = template_state();
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto merge = [&](const QString& output) {
+    return run_export_utility(window, "data-merge.js", {"csv=" + temp.filePath("data.csv"), "out=" + output});
+  };
+  CHECK(merge(temp.path()));
+  const QImage first(temp.filePath("merge-001.png"));
+  const QImage second(temp.filePath("merge-002.png"));
+  CHECK(!first.isNull() && !second.isNull() && first != second);
+  CHECK(template_state() == before);
+  CHECK(merge(temp.filePath("missing")));
+  CHECK(backlog_contains(window, QStringLiteral("Could not export")));
+  CHECK(template_state() == before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+
+  // Stop can cut off JS cleanup. The host owns outstanding copies.
+  start_script(window, QStringLiteral(R"JS(
+    var copy = app.activeDocument.createTemporaryCopy();
+    copy.findLayer('Name').text = 'scratch';
+    if (!copy.modified) throw Error('working copy edit not reported');
+    if (patchy.recovery.writeNow().length) throw Error('recovered a working copy');
+    console.log('working copy ready for Stop');
+    setInterval(function() {}, 60000);
+  )JS"));
+  CHECK(!host.last_run_had_error());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(backlog_contains(window, QStringLiteral("working copy ready for Stop")));
+  host.stop_active_run();
+  CHECK(template_state() == before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> scripting_tests_part3() {
@@ -1981,5 +2040,6 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_script_geometry_rgb_fill_and_empty_text_regressions", ui_script_geometry_rgb_fill_and_empty_text_regressions},
       {"ui_script_layer_duplicate_to_document", ui_script_layer_duplicate_to_document},
       {"ui_script_batch_export_checks_all_names_before_writing", ui_script_batch_export_checks_all_names_before_writing},
+      {"ui_script_data_merge_keeps_template_runs_and_history", ui_script_data_merge_keeps_template_runs_and_history},
   };
 }

@@ -68,6 +68,9 @@ struct DocumentSession {
   Document document;
   QString title;
   QString path;
+  // A script's disposable working copy returns to this tab when closed. It never
+  // needs a recovery file or a save prompt, even when the script is interrupted.
+  std::optional<std::int64_t> script_copy_return_session;
   // The file at `path` opened by its content because its name says another format or none
   // (GitHub issue 362): the extension of what it really is ("psd"). Save goes to Save As
   // with that extension suggested, so a mislabeled file never gets bytes its name hides;

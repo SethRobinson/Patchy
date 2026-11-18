@@ -434,6 +434,7 @@ public:
   Q_INVOKABLE QJSValue encodeForWeb(const QString& format, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedPng(const QString& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE QJSValue createTemporaryCopy();
   Q_INVOKABLE void close();
   Q_INVOKABLE void activate();
   // Artboards (script_artboards.cpp).

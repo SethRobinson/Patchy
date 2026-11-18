@@ -209,6 +209,7 @@ public:
   std::int64_t open_document_file(const QString& path);  // 0 on failure
   // An empty `title` is "Untitled".
   std::int64_t create_document(int width, int height, const QString& title = {});
+  std::int64_t create_temporary_copy(std::int64_t session_id);
   // doc.saveAs / doc.exportAs. `options` set = the script's explicit choices overlaid on
   // the per-document defaults (see save_options_for_session); nullopt keeps today's
   // defaults-or-remembered path. export_copy writes a copy without retargeting the session.
@@ -755,6 +756,7 @@ private:
     int include_depth{0};
     std::set<std::int64_t> snapshotted_sessions;
     std::set<std::int64_t> undo_group_sessions;
+    std::set<std::int64_t> temporary_copies;
     std::set<std::int64_t> pending_mutations;
     std::set<std::int64_t> slow_mutations;
     std::map<std::int64_t, std::size_t> undo_steps;

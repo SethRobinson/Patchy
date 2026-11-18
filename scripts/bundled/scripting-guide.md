@@ -387,6 +387,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. A layer named "all" is drawn in every frame instead of being one; a group named "all" makes each layer inside it a frame (see Animated WebP below). Leaves the document path and modified state unchanged. |
 | `doc.exportAnimatedPng(path, options?)` | The same frames as an animated PNG (APNG). Options `frameDelayMs` and `loopCount`, as for WebP. |
 | `doc.close()` | Closes without prompting. |
+| `doc.createTemporaryCopy()` | Opens the current layers, pixels and document settings in a disposable tab for editing and exporting. It starts without a path or history. Patchy excludes it from save prompts and recovery. Close it to return to the previous tab. Patchy closes any remaining copies when the script finishes, fails or stops. |
 | `doc.activate()` | Makes this the active tab. |
 
 ### Save options

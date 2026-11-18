@@ -1619,6 +1619,10 @@ interface PatchyDocument {
    * options, paths not ending in .png or .apng and export failures throw. saveAs/exportAs with
    * .png continue to write a single flattened image. */
   exportAnimatedPng(path: string, options?: { frameDelayMs?: number; loopCount?: number }): boolean;
+  /** Opens a disposable working tab with this document's current contents. It starts
+   * without a path or history and stays out of save prompts and recovery. Close it when
+   * finished, or the script host closes it when the run ends, including after Stop. */
+  createTemporaryCopy(): PatchyDocument;
   /** Closes without prompting (the script decided). */
   close(): void;
   /** Makes this the active document tab. */
