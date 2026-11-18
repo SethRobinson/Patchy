@@ -67,7 +67,7 @@ class LogoIntro final : public QAbstractAnimation {
         const double x = size.width() * (-0.45 + 1.75 * progress(ms, 900, duration()));
         QLinearGradient band(x, 0, x + size.width() * 0.25, size.height() * 0.06);
         band.setColorAt(0, Qt::transparent);
-        band.setColorAt(0.5, QColor(255, 255, 255, 132));
+        band.setColorAt(0.5, QColor(255, 255, 255, 132));  // color-literal-ok: glint on the logo artwork
         band.setColorAt(1, Qt::transparent);
         overlay.setCompositionMode(QPainter::CompositionMode_SourceAtop);
         overlay.fillRect(QRectF(QPointF(), size), band);
