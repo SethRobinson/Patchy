@@ -36,6 +36,9 @@ it makes no offline support promise. Both production and beta upload lists
 include every branding asset before publishing HTML.
 
 Welcome and About share `SplashArtwork`, which renders the embedded SVG at the
-display's pixel density. The welcome header pairs it with the existing title
+display's pixel density. Their intro uses the SVG's existing element IDs for the
+tile, letter, folds and paper patch. The patch turns around its left edge, then
+a diagonal highlight crosses the finished icon inside its alpha mask. At rest
+both widgets paint the ordinary application icon. The welcome header pairs it with the existing title
 and tagline; About aligns it with the information column. The browser loader
 uses a larger centered logo and the brand yellow for download progress.

@@ -84,6 +84,10 @@ Windows open and close by themselves (about one per second). For a cold real-win
 
 On an offload host the console session paints a real window: run `patchy_perf_tests.exe startup` from a temporary scheduled task registered with `-LogonType Interactive` for the logged-on user (ssh itself is session 0), wait for its log, unregister the task. A machine someone is using (a video playing, a build) inflates window-mode numbers; measure on an idle one.
 
+## Welcome logo
+
+The welcome panel queues its logo intro from the first visible artwork paint. The SVG renderer and animation clock are created on the next animation frame. Only the artwork widget repaints during playback. Hiding the panel stops the clock, and returning to the empty workspace shows the resting logo. Help > About creates a fresh widget on each open. Offscreen runs, including the headless startup benchmark, paint the static icon on the first frame. The same applies when the Qt style disables widget animations, Windows disables animation effects, or Qt reports a reduced-motion preference.
+
 ## Real window
 
 A real window costs more than `--headless` for reasons the offscreen platform never meets. Two were Patchy's to fix (November 2026):
