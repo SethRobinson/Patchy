@@ -845,6 +845,49 @@ QString write_paste_path_png(const QString& name, QColor color, QSize size = QSi
 
 QString same_path_key(const QString& path) { return QDir::cleanPath(QDir::fromNativeSeparators(path)); }
 
+void ui_paste_file_paths_replace_a_hidden_layer_copy() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto path = write_paste_path_png(QStringLiteral("external.png"), Qt::green);
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document built(20, 18, format);
+  built.add_pixel_layer("Base", solid_pixels(20, 18, format, Qt::white));
+  auto& hidden = built.add_pixel_layer("Hidden", solid_pixels(20, 18, format, Qt::blue));
+  hidden.set_visible(false);
+  const auto hidden_id = hidden.id();
+  window.add_document_session(std::move(built), QStringLiteral("Hidden"));
+  const auto& doc = Access::document(window);
+  const auto copy = [&] {
+    Access::select_layers(window, {hidden_id}, hidden_id);
+    require_action(window, "editCopyAction")->trigger();
+    CHECK(QApplication::clipboard()->image().isNull());
+  };
+  auto* paste = require_action(window, "editPasteAction");
+  copy();
+  paste->trigger();
+  CHECK(doc.layers().size() == 3);
+  CHECK(!doc.find_layer(*doc.active_layer_id())->visible());
+
+  copy();
+  auto* files = new QMimeData();
+  files->setUrls({QUrl::fromLocalFile(path)});
+  QApplication::clipboard()->setMimeData(files);
+  QApplication::processEvents();
+  paste->trigger();
+  CHECK(doc.layers().size() == 4);
+  CHECK(doc.find_layer(*doc.active_layer_id())->name() == "external");
+
+  copy();
+  QApplication::clipboard()->setText(path);
+  QApplication::processEvents();
+  paste->trigger();
+  CHECK(Access::session_count(window) == 2);
+  CHECK(same_path_key(Access::active_session_path(window)) == same_path_key(path));
+  CHECK(doc.layers().size() == 4);
+  QApplication::clipboard()->clear();
+}
+
 void ui_paste_text_path_opens_the_file() {
   using Access = patchy::ui::MainWindowTestAccess;
   QApplication::clipboard()->clear();
@@ -3944,6 +3987,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
       {"ui_paste_returns_copied_pixels_to_their_place", ui_paste_returns_copied_pixels_to_their_place},
       {"ui_copy_and_cut_overlapping_selected_layers_keep_stack_order", ui_copy_and_cut_overlapping_selected_layers_keep_stack_order},
+      {"ui_paste_file_paths_replace_a_hidden_layer_copy", ui_paste_file_paths_replace_a_hidden_layer_copy},
       {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
       {"ui_clipboard_format_probe_defers_to_qt_off_native_platform",
        ui_clipboard_format_probe_defers_to_qt_off_native_platform},

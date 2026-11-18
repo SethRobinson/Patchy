@@ -59,7 +59,9 @@ would reach a Wayland compositor as `set_selection(nil)` and leave a paste in an
 program empty. Paste inside Patchy prefers the layer payload because
 `set_system_clipboard_image` records the image's signature as Patchy's own; an image copied
 elsewhere afterwards wins (`ui_external_clipboard_image_paste_overrides_internal_payload`).
-Hidden copied layers render nothing, so then the clipboard is cleared. Test:
+Hidden copied layers render nothing. Their private copy stays available while the
+system clipboard is empty. Copying text paths or file URLs replaces it and Paste reads
+the new paths (`ui_paste_file_paths_replace_a_hidden_layer_copy`). Test:
 `ui_whole_layer_copy_puts_its_pixels_on_the_system_clipboard`.
 
 A pixel Copy, Cut or Copy Merged whose selected area holds no visible pixel (a marquee

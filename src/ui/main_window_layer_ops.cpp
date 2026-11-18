@@ -867,9 +867,17 @@ void MainWindow::ungroup_selected_layers() {
 }
 
 void MainWindow::clear_internal_clipboard_on_external_change() {
-  const auto current_signature = clipboard_image_signature(QApplication::clipboard()->image());
-  if (patchy_system_clipboard_signature_.has_value() && current_signature == *patchy_system_clipboard_signature_) {
-    return;
+  if (patchy_system_clipboard_signature_.has_value()) {
+    const auto* clipboard = QApplication::clipboard();
+    if (patchy_system_clipboard_signature_->isEmpty()) {
+      // Hidden layers have no bitmap. Only an empty clipboard is our own clear.
+      const auto* mime = clipboard->mimeData();
+      if (mime == nullptr || mime->formats().isEmpty()) {
+        return;
+      }
+    } else if (clipboard_image_signature(clipboard->image()) == *patchy_system_clipboard_signature_) {
+      return;
+    }
   }
   clipboard_.reset();
   patchy_system_clipboard_signature_.reset();
