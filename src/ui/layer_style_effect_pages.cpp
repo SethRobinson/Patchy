@@ -22,6 +22,23 @@ namespace patchy::ui::layer_style_detail {
 namespace {
 // Photoshop's Drop/Inner Shadow Distance maximum.
 constexpr int kShadowDistanceMaximum = 30000;
+
+std::pair<QComboBox*, QCheckBox*> add_contour_row(LayerStylePageContext& context, QFormLayout* form,
+                                                  const QString& prefix, const StyleContour& curve,
+                                                  bool anti_aliased) {
+  auto* row = new QWidget(form->parentWidget());
+  auto* layout = new QHBoxLayout(row);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(8);
+  auto* combo = context.make_contour_combo(row, prefix + QStringLiteral("ContourCombo"), curve, curve);
+  auto* check = new QCheckBox(QObject::tr("Anti-aliased"), row);
+  check->setObjectName(prefix + QStringLiteral("AntiAliasedCheck"));
+  check->setChecked(anti_aliased);
+  layout->addWidget(combo, 1);
+  layout->addWidget(check);
+  form->addRow(QObject::tr("Contour:"), row);
+  return {combo, check};
+}
 }
 
 BevelPageControls build_bevel_page(LayerStylePageContext& context, QVBoxLayout* bevel_layout, const LayerBevelEmboss& bevel, const StyleContour& custom_gloss_contour) {
@@ -363,6 +380,8 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
       add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Choke:"),
                           QStringLiteral("layerStyleInnerShadowChokeSpin"), 0, 100,
                           static_cast<int>(std::round(inner_shadow.choke)), QStringLiteral("%"));
+  const auto [contour, anti_aliased] = add_contour_row(context, inner_shadow_form, QStringLiteral("layerStyleInnerShadow"),
+                                                        inner_shadow.contour, inner_shadow.anti_aliased);
   const auto inner_shadow_rows = make_color_rows(
       inner_shadow_form, inner_shadow_group, QStringLiteral("layerStyleInnerShadow"), inner_shadow.color);
   auto* inner_shadow_red = inner_shadow_rows.red;
@@ -386,7 +405,7 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
   inner_shadow_layout->addWidget(inner_shadow_group);
   inner_shadow_layout->addStretch(1);
 
-  return {inner_shadow_blend, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance, inner_shadow_size, inner_shadow_choke, inner_shadow_rows, inner_shadow_red, inner_shadow_green, inner_shadow_blue, add_inner_shadow, remove_inner_shadow};
+  return {inner_shadow_blend, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance, inner_shadow_size, inner_shadow_choke, inner_shadow_rows, inner_shadow_red, inner_shadow_green, inner_shadow_blue, add_inner_shadow, remove_inner_shadow, contour, anti_aliased};
 }
 
 InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBoxLayout* inner_glow_layout, const LayerInnerGlow& inner_glow) {
@@ -425,6 +444,8 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
       QObject::tr("Edge"), QStringLiteral("layerStyleInnerGlowSourceEdgeRadio"),
       inner_glow.source == LayerInnerGlowSource::Center);
   inner_glow_form->addRow(QObject::tr("Source:"), inner_glow_source.row);
+  const auto [contour, anti_aliased] = add_contour_row(context, inner_glow_form, QStringLiteral("layerStyleInnerGlow"),
+                                                        inner_glow.contour, inner_glow.anti_aliased);
   const auto inner_glow_rows = make_color_rows(inner_glow_form, inner_glow_group,
                                                QStringLiteral("layerStyleInnerGlow"), inner_glow.color);
   auto* inner_glow_red = inner_glow_rows.red;
@@ -448,7 +469,7 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
   inner_glow_layout->addWidget(inner_glow_group);
   inner_glow_layout->addStretch(1);
 
-  return {inner_glow_blend, inner_glow_technique, inner_glow_opacity, inner_glow_size, inner_glow_choke, inner_glow_range, inner_glow_source, inner_glow_rows, inner_glow_red, inner_glow_green, inner_glow_blue, add_inner_glow, remove_inner_glow};
+  return {inner_glow_blend, inner_glow_technique, inner_glow_opacity, inner_glow_size, inner_glow_choke, inner_glow_range, inner_glow_source, inner_glow_rows, inner_glow_red, inner_glow_green, inner_glow_blue, add_inner_glow, remove_inner_glow, contour, anti_aliased};
 }
 
 SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* satin_layout, const LayerSatin& satin) {
@@ -479,6 +500,8 @@ SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* 
   satin_invert->setObjectName(QStringLiteral("layerStyleSatinInvertCheck"));
   satin_invert->setChecked(satin.invert);
   satin_form->addRow(QString(), satin_invert);
+  const auto [contour, anti_aliased] = add_contour_row(context, satin_form, QStringLiteral("layerStyleSatin"),
+                                                        satin.contour, satin.anti_aliased);
   const auto satin_rows =
       make_color_rows(satin_form, satin_group, QStringLiteral("layerStyleSatin"), satin.color);
   auto* satin_red = satin_rows.red;
@@ -487,7 +510,7 @@ SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* 
   satin_layout->addWidget(satin_group);
   satin_layout->addStretch(1);
 
-  return {satin_blend, satin_opacity, satin_angle, satin_distance, satin_size, satin_invert, satin_rows, satin_red, satin_green, satin_blue};
+  return {satin_blend, satin_opacity, satin_angle, satin_distance, satin_size, satin_invert, satin_rows, satin_red, satin_green, satin_blue, contour, anti_aliased};
 }
 
 ColorOverlayPageControls build_color_overlay_page(LayerStylePageContext& context, QVBoxLayout* color_overlay_layout, const LayerColorOverlay& color_overlay) {
@@ -568,6 +591,8 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
                                                QStringLiteral("layerStyleOuterGlowRangeSpin"), 1, 100,
                                                static_cast<int>(std::round(outer_glow.range)),
                                                QStringLiteral("%"));
+  const auto [contour, anti_aliased] = add_contour_row(context, outer_glow_form, QStringLiteral("layerStyleOuterGlow"),
+                                                        outer_glow.contour, outer_glow.anti_aliased);
   const auto outer_glow_rows = make_color_rows(outer_glow_form, outer_glow_group,
                                                QStringLiteral("layerStyleOuterGlow"), outer_glow.color);
   auto* outer_glow_red = outer_glow_rows.red;
@@ -576,7 +601,7 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
   outer_glow_layout->addWidget(outer_glow_group);
   outer_glow_layout->addStretch(1);
 
-  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue};
+  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased};
 }
 
 ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour) {

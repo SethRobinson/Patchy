@@ -167,15 +167,6 @@ constexpr std::array<const char*, 4> kBlendIfChannelIds{"Gry ", "Rd  ", "Grn ", 
   const auto* effects = descriptor_object(styl, "Lefx");
   if (effects != nullptr) {
     style.style = layer_style_from_lefx_descriptor(*effects, cmyk_icc);
-    // Library entries are modeled data with no raw lfx2 block behind them;
-    // custom Satin contours normalize to Linear at import.
-    for (auto& satin : style.style.satins) {
-      if (satin.unsupported_contour_options) {
-        satin.unsupported_contour_options = false;
-        warnings.push_back(label +
-                           ": custom Satin contour options are approximated with the Linear contour");
-      }
-    }
   }
   if (const auto* options = descriptor_object(styl, "blendOptions"); options != nullptr) {
     style.blend_settings = parse_blend_options(*options, label, warnings);

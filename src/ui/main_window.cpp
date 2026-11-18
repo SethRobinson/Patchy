@@ -12338,6 +12338,7 @@ void MainWindow::merge_down() {
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
   merge_document.metadata().patterns = std::as_const(doc).metadata().patterns;
+  merge_document.set_global_light(std::as_const(doc).metadata().global_light);
   // A 16/32-bit document merges at its depth (docs/high-bit-depth.md).
   const auto merge_depth = std::as_const(doc).color_state().bit_depth;
   merge_document.color_state().bit_depth = merge_depth;

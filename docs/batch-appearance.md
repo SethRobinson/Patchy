@@ -61,8 +61,9 @@ Presets intentionally replace the effect stacks. Blending values are replaced
 only when carried by the preset; No Style removes effects while preserving
 blending settings. Unsupported native Blend If and channel restrictions stay
 protected. The existing explicit Blend If replacement action remains required.
-Effect changes normalize preserved unsupported Satin contours, with affected
-layers identified in the dialog. Opacity-only edits preserve native effects.
+Satin retains its contour and Anti-aliased setting. Pasted styles and presets
+use the destination document’s light for each linked shadow and bevel.
+Opacity-only edits preserve native effects.
 
 ## Apply All, previews, and history
 

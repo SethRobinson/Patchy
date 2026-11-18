@@ -1,6 +1,7 @@
 #include "render/layer_style_mask_ops.hpp"
 
 #include "core/pixel_depth.hpp"
+#include "core/style_contour.hpp"
 #include "core/vector_shape.hpp"
 #include "core/worker_budget.hpp"
 #include "render/layer_render_facade.hpp"
@@ -1119,24 +1120,65 @@ void blur_satin_tent_mask_in_place(std::vector<float>& mask, int width, int heig
   mask.swap(output);
 }
 
-std::vector<float> satin_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
-                                           Rect mask_bounds, int offset_x, int offset_y, float size, bool invert,
-                                           std::optional<Rect> layer_mask_bounds) {
-  // Two copies of the layer matte move in opposite directions. Photoshop blurs
-  // their signed difference before taking its absolute value; folding first
-  // would incorrectly join overlapping lobes.
-  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, offset_x, offset_y, layer_mask_bounds);
-  const auto opposite =
-      layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
-  for (std::size_t index = 0; index < mask.size(); ++index) {
-    mask[index] -= opposite[index];
+void apply_effect_contour(std::vector<float>& mask, int width, const StyleContour& contour, bool anti_aliased,
+                          float gain, bool exterior_glow) {
+  if (style_contour_is_linear(contour)) return;
+  const auto lut = build_style_contour_lut(contour);
+  const auto mapped = [&](float coverage) {
+    return sample_style_contour_lut(lut, clamp_unit(coverage * gain), anti_aliased);
+  };
+  // A constant-white Photoshop contour reveals the exterior reach limiter:
+  // coverage ramps to full at 12% of the original blurred matte at any Range.
+  const auto limited = [exterior_glow](float mapped_value, float coverage) {
+    return exterior_glow ? std::min(mapped_value, coverage / 0.12F) : mapped_value;
+  };
+  if (!anti_aliased) {
+    for (auto& value : mask) value = limited(mapped(value), value);
+    return;
   }
-  blur_satin_tent_mask_in_place(mask, mask_bounds.width, mask_bounds.height, size);
+  // Photoshop averages subpixel coverage after the transfer. Sampling towards
+  // the right and bottom at thirds matches both edges of a rectangular matte.
+  // Forward iteration leaves all three neighbour samples intact.
+  for (std::size_t i = 0; i < mask.size(); ++i) {
+    const auto stride = static_cast<std::size_t>(width);
+    const auto right = (i + 1) % stride == 0 ? i : i + 1;
+    const auto down = i + stride < mask.size() ? stride : 0;
+    if (mask[i] == mask[right] && mask[i] == mask[i + down] && mask[i] == mask[right + down]) {
+      mask[i] = limited(mapped(mask[i]), mask[i]);
+      continue;
+    }
+    float sum = 0.0F;
+    for (int sy = 0; sy < 3; ++sy) {
+      const auto fy = static_cast<float>(sy) / 3.0F;
+      const auto left_edge = std::lerp(mask[i], mask[i + down], fy);
+      const auto right_edge = std::lerp(mask[right], mask[right + down], fy);
+      for (int sx = 0; sx < 3; ++sx) {
+        sum += mapped(std::lerp(left_edge, right_edge, static_cast<float>(sx) / 3.0F));
+      }
+    }
+    mask[i] = limited(sum / 9.0F, mask[i]);
+  }
+}
+
+std::vector<float> satin_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
+                                    Rect mask_bounds, int offset_x, int offset_y, const LayerSatin& satin,
+                                    std::optional<Rect> layer_mask_bounds) {
+  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, offset_x, offset_y, layer_mask_bounds);
+  auto opposite = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
+  const bool shaped = !style_contour_is_linear(satin.contour);
+  // Map the two blurred mattes independently before subtracting. For the
+  // identity curve, linearity permits the original single convolution.
+  if (shaped) {
+    blur_satin_tent_mask_in_place(mask, mask_bounds.width, mask_bounds.height, satin.size);
+    blur_satin_tent_mask_in_place(opposite, mask_bounds.width, mask_bounds.height, satin.size);
+    apply_effect_contour(mask, mask_bounds.width, satin.contour, satin.anti_aliased);
+    apply_effect_contour(opposite, mask_bounds.width, satin.contour, satin.anti_aliased);
+  }
+  for (std::size_t index = 0; index < mask.size(); ++index) mask[index] -= opposite[index];
+  if (!shaped) blur_satin_tent_mask_in_place(mask, mask_bounds.width, mask_bounds.height, satin.size);
   for (auto& value : mask) {
     value = clamp_unit(std::abs(value));
-    if (invert) {
-      value = 1.0F - value;
-    }
+    if (satin.invert) value = 1.0F - value;
   }
   return mask;
 }
@@ -1159,8 +1201,8 @@ PreparedSatin prepare_satin(const Layer& layer, const PixelBuffer& source, Rect 
       masks, layer, StyleMaskKind::Satin, effect_index, full_domain, bounds, legacy_mask_bounds, bounds,
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
-        computed.primary = satin_alpha_mask(source, layer, bounds, domain, offset_x, offset_y, satin.size,
-                                            satin.invert, layer_mask_bounds);
+        computed.primary = satin_alpha_mask(source, layer, bounds, domain, offset_x, offset_y, satin,
+                                            layer_mask_bounds);
         return computed;
       });
   return PreparedSatin{&satin, std::move(entry), mask_bounds};

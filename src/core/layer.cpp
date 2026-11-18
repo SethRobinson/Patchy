@@ -138,6 +138,27 @@ std::vector<std::uint8_t> encode_layer_blend_if(const LayerBlendIf& settings,
   return encoded;
 }
 
+bool LayerStyle::uses_global_light() const {
+  const auto linked = [](const auto& effect) { return effect.use_global_light; };
+  return std::any_of(drop_shadows.begin(), drop_shadows.end(), linked) ||
+         std::any_of(inner_shadows.begin(), inner_shadows.end(), linked) ||
+         std::any_of(bevels.begin(), bevels.end(), linked);
+}
+
+void LayerStyle::apply_global_light(GlobalLight light) {
+  const auto set_angles = [light](auto& effects) {
+    for (auto& effect : effects) {
+      if (effect.use_global_light) effect.angle_degrees = static_cast<float>(light.angle);
+    }
+  };
+  set_angles(drop_shadows);
+  set_angles(inner_shadows);
+  set_angles(bevels);
+  for (auto& bevel : bevels) {
+    if (bevel.use_global_light) bevel.altitude_degrees = static_cast<float>(light.altitude);
+  }
+}
+
 bool LayerStyle::empty() const noexcept {
   const auto has_enabled_shadow =
       std::any_of(drop_shadows.begin(), drop_shadows.end(), [](const LayerDropShadow& shadow) {

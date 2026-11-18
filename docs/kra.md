@@ -121,7 +121,7 @@ Masks and selections are one byte per pixel.
 - Layer styles: `annotations/layerstyles.asl` is Photoshop's ASL; each style's id is the
   `layerstyle` uuid. Read with `psd::read_asl`, patterns adopted into the document; the
   style's blending options give the layer's Fill and Blend If. Effects set to use global
-  light take the angle and altitude Krita keeps from an imported PSD
+  light stay linked to the document and take the angle and altitude Krita keeps from an imported PSD
   (`annotations/PSD Resource Block: 1037` and `: 1049`, big-endian degrees), else 120 and 30.
   Krita renders effects with its own engine; Patchy renders Photoshop's look, so the
   fixtures made from Patchy's PSDs are judged against Patchy's render of the PSD.

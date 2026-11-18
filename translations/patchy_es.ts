@@ -5571,10 +5571,6 @@
         <translation>El motivo &quot;%1&quot; no está incrustado en este documento, por lo que el efecto que lo utiliza no se puede renderizar hasta que elija otro motivo.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Los contornos personalizados de Satinado de Photoshop y el suavizado del contorno se conservan hasta que edite los estilos de capa. Patchy previsualiza y guarda el Satinado editado con el contorno Lineal sin suavizado.</translation>
-    </message>
-    <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
         <translation>Esta capa contiene datos de Fusionar si de Photoshop para un modo de color o una estructura de datos no compatibles. Patchy los conserva sin cambios y no los previsualiza a menos que los reemplace.</translation>
     </message>
@@ -15890,10 +15886,6 @@ Do you want to replace it?</source>
         <translation>La capa &apos;%1&apos; es un objeto inteligente que Patchy solo puede conservar, no editar (%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>La capa &apos;%1&apos; contiene ajustes de contorno de Satinado de Photoshop que Patchy no puede representar ni editar (una curva personalizada o suavizado). Patchy los conserva hasta que se editan los estilos de capa; a partir de entonces usa el contorno Lineal sin suavizado.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>La capa &apos;%1&apos; contiene datos de Fusionar si de Photoshop para un modo de color o una estructura de datos no compatibles. Patchy los conserva para el intercambio con PSD, pero no los representa ni los edita.</translation>
     </message>
@@ -16432,6 +16424,10 @@ Do you want to replace it?</source>
     <message>
         <source>Contour Manager…</source>
         <translation>Gestor de contornos…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>Usar luz global</translation>
     </message>
 </context>
 <context>
@@ -30930,10 +30926,6 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: los datos de fusión conservados siguen protegidos.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: editar efectos normaliza los contornos Satinado no compatibles.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

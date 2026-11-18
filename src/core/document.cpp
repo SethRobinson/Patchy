@@ -14,6 +14,15 @@ namespace patchy {
 
 namespace {
 
+void sync_layer_light(Layer& layer, GlobalLight light) {
+  if (std::as_const(layer).layer_style().uses_global_light()) {
+    layer.layer_style().apply_global_light(light);
+  }
+  if (!std::as_const(layer).children().empty()) {
+    for (auto& child : layer.children()) sync_layer_light(child, light);
+  }
+}
+
 void collect_smart_filter_placed_uuids(const Layer& layer,
                                        std::vector<std::string>& placed_uuids) {
   const auto placed_uuid = smart_object_placed_uuid(layer);
@@ -155,11 +164,18 @@ Layer& Document::add_pixel_layer(std::string name, PixelBuffer pixels) {
   return layers_.back();
 }
 
+void Document::set_global_light(GlobalLight light) {
+  if (metadata_.global_light == light) return;
+  metadata_.global_light = light;
+  for (auto& layer : layers_) sync_layer_light(layer, light);
+}
+
 Layer& Document::add_layer(Layer layer) {
   if (layer.id() == 0) {
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Layer id 0 is reserved"));
   }
   next_layer_id_ = std::max(next_layer_id_, layer.id() + 1);
+  sync_layer_light(layer, metadata_.global_light);
   layers_.push_back(std::move(layer));
   sync_layer_mask_feather_canvas(layers_.back(), Rect::from_size(width_, height_));
   active_layer_id_ = layers_.back().id();

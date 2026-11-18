@@ -49,6 +49,7 @@ struct DocumentArtboardSettings {
 };
 
 struct DocumentMetadata {
+  GlobalLight global_light;
   std::map<std::string, std::string> values;
   // Document-global PSD tagged blocks (the additional layer information that follows
   // the layer info), preserved verbatim — except the 'lnk*' smart-object source blocks,
@@ -145,6 +146,7 @@ struct DocumentGridSettings {
 class Document {
 public:
   Document() = default;
+  void set_global_light(GlobalLight light);
   Document(std::int32_t width, std::int32_t height, PixelFormat format);
 
   [[nodiscard]] std::int32_t width() const noexcept;

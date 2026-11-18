@@ -623,6 +623,7 @@ std::optional<LayerCopyPixels> collect_layer_copy_pixels(const Document& documen
   } else {
     Document selected_document(document.width(), document.height(), document.format());
     selected_document.color_state().bit_depth = document.color_state().bit_depth;
+    selected_document.set_global_light(document.metadata().global_light);
     for (const auto* layer : layers_to_copy) {
       selected_document.add_layer(*layer);
     }
@@ -655,6 +656,7 @@ QImage MainWindow::render_layers_for_system_clipboard(const std::vector<Layer>& 
   const auto& source = std::as_const(document());
   Document scratch(source.width(), source.height(), source.format());
   scratch.color_state().bit_depth = source.color_state().bit_depth;
+  scratch.set_global_light(source.metadata().global_light);
   // What the copied layers may reference while they render: Smart Object sources,
   // filter records and pattern tiles (shared payloads, so the copies are cheap).
   scratch.metadata().smart_objects = source.metadata().smart_objects;
@@ -757,6 +759,7 @@ void MainWindow::copy_as_svg() {
   // place. The writer rasterizes whatever SVG cannot express and says so.
   Document svg_document(doc.width(), doc.height(), doc.format());
   svg_document.print_settings() = doc.print_settings();
+  svg_document.set_global_light(std::as_const(doc).metadata().global_light);
   svg_document.metadata().patterns = doc.metadata().patterns;
   svg_document.metadata().smart_objects = doc.metadata().smart_objects;
   svg_document.metadata().smart_filter_effects = doc.metadata().smart_filter_effects;
@@ -1106,6 +1109,7 @@ bool MainWindow::copy_selected_pixels(bool cutting) {
   } else {
     Document selected_document(document().width(), document().height(), document().format());
     selected_document.color_state().bit_depth = std::as_const(document()).color_state().bit_depth;
+    selected_document.set_global_light(std::as_const(document()).metadata().global_light);
     for (auto it = layers_to_copy.rbegin(); it != layers_to_copy.rend(); ++it) {
       selected_document.add_layer(**it);
     }
@@ -3450,19 +3454,15 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       if (!context.notices.isEmpty()) context.notices += QLatin1Char('\n');
       context.notices += tr("%1: preserved blending data remains protected.").arg(context.names.back());
     }
-    if (std::any_of(layer.layer_style().satins.begin(), layer.layer_style().satins.end(),
-                    [](const auto& satin) { return satin.unsupported_contour_options; })) {
-      if (!context.notices.isEmpty()) context.notices += QLatin1Char('\n');
-      context.notices += tr("%1: editing effects normalizes unsupported Satin contours.").arg(context.names.back());
-    }
   }
+  const auto original_light = doc.metadata().global_light;
   const auto original_patterns = doc.metadata().patterns;
   const auto effects_equal = [](const LayerStyle& a, const LayerStyle& b) {
     LayerStyleSettings left, right;
     left.style = a; right.style = b;
     return layer_style_settings_equal(left, right);
   };
-  const auto apply_settings = [&](Layer& target, const Layer& original, const LayerStyleSettings& next) {
+  const auto apply_settings = [&](Layer& target, const Layer& original, const LayerStyleSettings& next, GlobalLight light) {
     const auto baseline = layer_style_settings(original);
     // Percent controls must not quantize untouched imported opacity values.
     target.set_opacity(!next.opacity_edited && next.opacity == baseline.opacity ? original.opacity() : next.opacity / 100.0F);
@@ -3471,10 +3471,11 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
     if (next.blend_mode != BlendMode::PassThrough || target.kind() == LayerKind::Group) {
       target.set_blend_mode(next.blend_mode);
     }
-    const bool style_changed = !effects_equal(original.layer_style(), next.style);
+    auto original_style = original.layer_style();
+    original_style.apply_global_light(light);
+    const bool style_changed = !effects_equal(original_style, next.style);
     target.layer_style() = next.style;
     if (style_changed) {
-      for (auto& satin : target.layer_style().satins) satin.unsupported_contour_options = false;
       clear_layer_psd_style_source(target);
     }
     if (original.channel_restriction_supported()) target.set_restricted_channels(next.restricted_channels);
@@ -3484,6 +3485,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       (void)target.set_blend_if(next.blend_if, next.replace_unsupported_blend_if);
   };
   const auto restore = [&] {
+    doc.set_global_light(original_light);
     doc.metadata().patterns = original_patterns;
     for (const auto& original : originals)
       if (auto* target = doc.find_layer(original.id())) *target = original;
@@ -3493,11 +3495,13 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
     const auto available = doc.metadata().patterns;
     restore();
     if (!settings.preview_enabled) return;
+    doc.set_global_light(settings.global_light);
     for (std::size_t index = 0; index < originals.size(); ++index) {
       const auto& original = originals[index];
-      const auto next = apply_layer_style_edits(context.originals[index], settings);
+      auto next = apply_layer_style_edits(context.originals[index], settings);
+      next.style.apply_global_light(settings.global_light);
       ensure_patterns_for_style(doc, next.style, pattern_library(), &available);
-      if (auto* target = doc.find_layer(original.id())) apply_settings(*target, original, next);
+      if (auto* target = doc.find_layer(original.id())) apply_settings(*target, original, next, settings.global_light);
     }
     if (canvas_) canvas_->document_changed_async_preview();
   };
@@ -3533,7 +3537,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
       &context, std::as_const(doc).color_state().bit_depth, start_effect, start_index, enable_start_effect,
-      &contour_library());
+      &contour_library(), original_light);
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;
@@ -3541,6 +3545,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
     std::vector<std::pair<std::size_t, LayerStyleSettings>> changes;
     for (std::size_t index = 0; index < originals.size(); ++index) {
       auto next = apply_layer_style_edits(context.originals[index], *accepted);
+      next.style.apply_global_light(accepted->global_light);
       // Unsupported native payloads require the existing explicit replacement action.
       if (originals[index].blend_if_payload_status() == BlendIfPayloadStatus::Unsupported &&
           !next.replace_unsupported_blend_if) next.blend_if = context.originals[index].blend_if;
@@ -3552,14 +3557,15 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
           (next.fill_opacity_edited && originals[index].fill_opacity() != next.fill_opacity / 100.0F))
         changes.emplace_back(index, std::move(next));
     }
-    if (!changes.empty()) {
+    if (!changes.empty() || accepted->global_light != original_light) {
       // Finish allocations and pattern resolution before publishing anything or
       // recording history. Applying fields to the prepared tree also keeps an
       // explicitly selected child independent of its selected parent group.
       auto prepared = doc;
+      prepared.set_global_light(accepted->global_light);
       for (const auto& [index, next] : changes) {
         ensure_patterns_for_style(prepared, next.style, pattern_library(), &available);
-        if (auto* target = prepared.find_layer(originals[index].id())) apply_settings(*target, originals[index], next);
+        if (auto* target = prepared.find_layer(originals[index].id())) apply_settings(*target, originals[index], next, accepted->global_light);
       }
       push_undo_snapshot(tr("Layer style"));
       doc = std::move(prepared);
@@ -3781,12 +3787,7 @@ void MainWindow::copy_active_layer_style() {
       layer_style_clipboard_->patterns.push_back(*resource);
     }
   }
-  // The style clipboard carries modeled settings, not the source layer's raw
-  // lfx2 bytes. Pasted custom Satin curves and contour anti-aliasing are
-  // therefore normalized to the Linear contour that Patchy can regenerate.
-  for (auto& satin : layer_style_clipboard_->style.satins) {
-    satin.unsupported_contour_options = false;
-  }
+
   statusBar()->showMessage(tr("Copied layer style"));
   refresh_layer_style_action_states();
 }
@@ -3835,6 +3836,7 @@ void MainWindow::paste_layer_style_to_selected_layers() {
       reveal_layer_effects(id);
     }
     layer->layer_style() = layer_style_clipboard_->style;
+    layer->layer_style().apply_global_light(mutable_doc.metadata().global_light);
     if (layer_style_clipboard_->blend_if.has_value()) {
       (void)layer->set_blend_if(*layer_style_clipboard_->blend_if, true);
     }

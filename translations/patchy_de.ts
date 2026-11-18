@@ -5571,10 +5571,6 @@
         <translation>Das Muster &quot;%1&quot; ist nicht in dieses Dokument eingebettet, daher kann der Effekt, der darauf verweist, erst gerendert werden, wenn Sie ein anderes Muster wählen.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Benutzerdefinierte Konturen und die Konturglättung von Photoshop-Glanz bleiben erhalten, bis Sie die Ebenenstile bearbeiten. Patchy zeigt bearbeiteten Glanz mit der nicht geglätteten Kontur Linear an und speichert ihn so.</translation>
-    </message>
-    <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
         <translation>Diese Ebene enthält Mischen-wenn-Daten von Photoshop für einen nicht unterstützten Farbmodus oder eine nicht unterstützte Datenstruktur. Patchy behält sie unverändert bei und zeigt sie nicht in der Vorschau, es sei denn, Sie ersetzen sie.</translation>
     </message>
@@ -15890,10 +15886,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Die Ebene „%1“ ist ein Smartobjekt, das Patchy nur beibehalten, aber nicht bearbeiten kann (%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>Die Ebene „%1“ enthält Photoshop-Kontureinstellungen für Glanz, die Patchy weder rendern noch bearbeiten kann (eine benutzerdefinierte Kurve oder Glättung). Patchy behält sie bei, bis Ebenenstile bearbeitet werden, und verwendet dann die nicht geglättete lineare Kontur.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>Die Ebene „%1“ enthält Photoshop-Daten zu „Mischen, wenn“ für einen nicht unterstützten Farbmodus oder eine nicht unterstützte Datenstruktur. Patchy behält sie beim Öffnen und Speichern als PSD bei, rendert oder bearbeitet sie jedoch nicht.</translation>
     </message>
@@ -16432,6 +16424,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Contour Manager…</source>
         <translation>Konturverwaltung…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>Globales Licht verwenden</translation>
     </message>
 </context>
 <context>
@@ -30930,10 +30926,6 @@ In Bilder umgewandelt: %1.</translation>
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: Erhaltene Mischdaten bleiben geschützt.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: Das Bearbeiten von Effekten normalisiert nicht unterstützte Satin-Konturen.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

@@ -5571,10 +5571,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15872,10 +15868,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16413,6 +16405,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Contour Manager…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -30875,10 +30871,6 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>%1: preserved blending data remains protected.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

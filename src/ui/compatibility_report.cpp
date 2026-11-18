@@ -73,21 +73,6 @@ int unknown_layer_block_count(const Layer& layer) {
                     [](const UnknownPsdBlock& block) { return !known_round_trip_layer_block(block); }));
 }
 
-void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings) {
-  const auto& style = layer.layer_style();
-  const auto has_unsupported_satin_contour =
-      std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& satin) {
-        return satin.unsupported_contour_options;
-      });
-  if (has_unsupported_satin_contour) {
-    warnings << QObject::tr("Layer '%1' contains Photoshop Satin contour settings that Patchy cannot render or edit "
-                            "(a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, "
-                            "then uses the non-anti-aliased Linear contour.")
-                    .arg(QString::fromStdString(layer.name()));
-  }
-
-}
-
 // What the layer walk needs from the document, and what it counts for the document-level lines.
 struct LayerWarningContext {
   bool native_color_candidate{false};
@@ -98,7 +83,6 @@ struct LayerWarningContext {
 // Every line about one layer starts "Layer 'Name'", so the name cannot read as part of the
 // sentence (GitHub issue 712).
 void append_layer_warnings(const Layer& layer, QStringList& warnings, LayerWarningContext& context) {
-  append_unrendered_style_warnings(layer, warnings);
   if (!layer.raw_psd_blending_ranges().empty() &&
       layer.blend_if_payload_status() == BlendIfPayloadStatus::Unsupported) {
     warnings << QObject::tr("Layer '%1' contains Photoshop Blend If data for an unsupported color mode or payload "

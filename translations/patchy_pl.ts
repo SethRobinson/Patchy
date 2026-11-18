@@ -5761,10 +5761,6 @@
         <translation>Wzorek „%1” nie jest osadzony w tym dokumencie, więc efekt, który się do niego odwołuje, nie będzie mógł być renderowany, dopóki nie wybierzesz innego wzorka.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Niestandardowe kontury i wygładzanie konturów programu Photoshop Satin zostaną zachowane do czasu edycji stylów warstw. Patchy wyświetla podgląd i zapisuje edytowaną satynę z niewygładzonym konturem liniowym.</translation>
-    </message>
-    <message>
         <source>renders a regular drop shadow at the Distance value</source>
         <translation>renderuje zwykły cień przy wartości Odległość</translation>
     </message>
@@ -15946,10 +15942,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Warstwa &apos;%1&apos; to obiekt inteligentny, który Patchy może tylko zachować, ale nie edytować (%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>Warstwa &apos;%1&apos; zawiera ustawienia konturów programu Photoshop Satin, których Patchy nie może renderować ani edytować (niestandardowa krzywa lub wygładzanie). Patchy zachowuje je do czasu edycji stylów warstw, a następnie używa niewygładzonego konturu liniowego.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>Warstwa &apos;%1&apos; zawiera dane opcji Mieszaj gdy programu Photoshop dla nieobsługiwanego trybu kolorów lub formatu danych. Patchy zachowuje je przy ponownym zapisie PSD, ale ich nie renderuje ani nie edytuje.</translation>
     </message>
@@ -16488,6 +16480,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Contour Manager…</source>
         <translation>Menedżer konturów…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>Użyj światła globalnego</translation>
     </message>
 </context>
 <context>
@@ -31020,10 +31016,6 @@ Y: %2
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: zachowane dane mieszania pozostają chronione.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: edycja efektów normalizuje nieobsługiwane kontury satyny.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

@@ -422,6 +422,7 @@ LayerDropShadow builtin_default_drop_shadow() {
   shadow.enabled = true;
   shadow.color = RgbColor{0, 0, 0};
   shadow.opacity = 0.75F;
+  shadow.use_global_light = true;
   shadow.angle_degrees = 120.0F;
   shadow.distance = 5.0F;
   shadow.spread = 0.0F;
@@ -434,6 +435,7 @@ LayerInnerShadow builtin_default_inner_shadow() {
   shadow.enabled = true;
   shadow.color = RgbColor{0, 0, 0};
   shadow.opacity = 0.75F;
+  shadow.use_global_light = true;
   shadow.angle_degrees = 120.0F;
   shadow.distance = 5.0F;
   shadow.choke = 0.0F;
@@ -502,6 +504,7 @@ LayerBevelEmboss builtin_default_bevel_emboss() {
   bevel.shadow_blend_mode = BlendMode::Multiply;
   bevel.shadow_color = RgbColor{0, 0, 0};
   bevel.shadow_opacity = 0.75F;
+  bevel.use_global_light = true;
   bevel.angle_degrees = 120.0F;
   bevel.altitude_degrees = 30.0F;
   bevel.depth = 1.0F;
@@ -1382,7 +1385,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     GradientLibrary *gradient_library, RgbColor foreground,
     RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
     std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect,
-    ContourLibrary* contour_library) {
+    ContourLibrary* contour_library, GlobalLight global_light) {
   const auto request_started = std::chrono::steady_clock::now();
   load_stored_effect_defaults();
   const LayerStyleSettings original_settings{
@@ -1524,26 +1527,6 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             .arg(names.join(QStringLiteral("\", \""))));
     set_themed_style(*warning, QStringLiteral(
         "QLabel#layerStyleMissingPatternWarning { background: @warning_banner_bg; border: "
-        "1px solid @warning_banner_border; "
-        "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
-    root->addWidget(warning);
-  }
-  const bool has_unsupported_satin_contour =
-      std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& effect) {
-        return effect.unsupported_contour_options;
-      });
-  if (has_unsupported_satin_contour) {
-    auto* warning = new QLabel(
-        QObject::tr("Photoshop Satin custom contours and contour anti-aliasing "
-                    "are preserved until you edit layer "
-                    "styles. Patchy previews and saves edited Satin with the "
-                    "non-anti-aliased Linear contour."),
-        &dialog);
-    warning->setObjectName(QStringLiteral("layerStyleSatinContourWarning"));
-    warning->setWordWrap(true);
-    warning->setProperty("warningBanner", true);
-    set_themed_style(*warning, QStringLiteral(
-        "QLabel#layerStyleSatinContourWarning { background: @warning_banner_bg; border: "
         "1px solid @warning_banner_border; "
         "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
     root->addWidget(warning);
@@ -2420,6 +2403,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto inner_shadow_page = build_inner_shadow_page(page_context, inner_shadow_layout, inner_shadow);
   auto& inner_shadow_blend = inner_shadow_page.inner_shadow_blend;
+  StyleContour custom_inner_shadow_contour = inner_shadow.contour;
   auto& inner_shadow_opacity = inner_shadow_page.inner_shadow_opacity;
   auto& inner_shadow_angle = inner_shadow_page.inner_shadow_angle;
   auto& inner_shadow_distance = inner_shadow_page.inner_shadow_distance;
@@ -2434,6 +2418,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto inner_glow_page = build_inner_glow_page(page_context, inner_glow_layout, inner_glow);
   auto& inner_glow_blend = inner_glow_page.inner_glow_blend;
+  StyleContour custom_inner_glow_contour = inner_glow.contour;
   auto& inner_glow_technique = inner_glow_page.inner_glow_technique;
   auto& inner_glow_opacity = inner_glow_page.inner_glow_opacity;
   auto& inner_glow_size = inner_glow_page.inner_glow_size;
@@ -2449,6 +2434,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto satin_page = build_satin_page(page_context, satin_layout, satin);
   auto& satin_blend = satin_page.satin_blend;
+  StyleContour custom_satin_contour = satin.contour;
   auto& satin_opacity = satin_page.satin_opacity;
   auto& satin_angle = satin_page.satin_angle;
   auto& satin_distance = satin_page.satin_distance;
@@ -2474,6 +2460,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto outer_glow_page = build_outer_glow_page(page_context, outer_glow_layout, outer_glow);
   auto& outer_glow_blend = outer_glow_page.outer_glow_blend;
+  StyleContour custom_outer_glow_contour = outer_glow.contour;
   auto& outer_glow_technique = outer_glow_page.outer_glow_technique;
   auto& outer_glow_opacity = outer_glow_page.outer_glow_opacity;
   auto& outer_glow_size = outer_glow_page.outer_glow_size;
@@ -2488,6 +2475,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& shadow_blend = shadow_page.shadow_blend;
   auto& shadow_opacity = shadow_page.shadow_opacity;
   auto& shadow_angle = shadow_page.shadow_angle;
+  const auto global_light_checkbox = [](QSpinBox* angle, bool linked) {
+    auto* row = angle->parentWidget();
+    auto* check = new QCheckBox(QObject::tr("Use Global Light"), row);
+    check->setObjectName(angle->objectName().chopped(9) + QStringLiteral("GlobalLightCheck"));
+    check->setChecked(linked);
+    static_cast<QHBoxLayout*>(row->layout())->insertWidget(1, check);
+    return check;
+  };
+  auto* shadow_link = global_light_checkbox(shadow_angle, shadow.use_global_light);
+  auto* inner_shadow_link = global_light_checkbox(inner_shadow_angle, inner_shadow.use_global_light);
+  auto* bevel_link = global_light_checkbox(bevel_angle, bevel.use_global_light);
   auto& shadow_distance = shadow_page.shadow_distance;
   auto& shadow_size = shadow_page.shadow_size;
   auto& shadow_spread = shadow_page.shadow_spread;
@@ -2500,17 +2498,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   // The Edit and Library buttons sit between each contour list and its
   // Anti-aliased box (GitHub issue 726); they are wired up further down, once
   // emit_preview exists.
-  std::vector<ContourPickerTools> contour_pickers(3);
-  const auto bind_contour_picker = [&contour_pickers](std::size_t slot, QComboBox* combo, StyleContour* custom,
-                                                      LayerStyleEffectKind kind, const char* leaf) {
-    contour_pickers[slot].combo = combo;
-    contour_pickers[slot].custom = custom;
-    contour_pickers[slot].kind = kind;
-    contour_pickers[slot].leaf = leaf;
+  std::vector<ContourPickerTools> contour_pickers{
+      {bevel_gloss_contour, &custom_gloss_contour, LayerStyleEffectKind::BevelEmboss, "gloss_contour"},
+      {bevel_contour_combo, &custom_bevel_sub_contour, LayerStyleEffectKind::BevelContour, "contour"},
+      {shadow_contour, &custom_shadow_contour, LayerStyleEffectKind::DropShadow, "contour"},
+      {inner_shadow_page.contour, &custom_inner_shadow_contour, LayerStyleEffectKind::InnerShadow, "contour"},
+      {inner_glow_page.contour, &custom_inner_glow_contour, LayerStyleEffectKind::InnerGlow, "contour"},
+      {outer_glow_page.contour, &custom_outer_glow_contour, LayerStyleEffectKind::OuterGlow, "contour"},
+      {satin_page.contour, &custom_satin_contour, LayerStyleEffectKind::Satin, "contour"},
   };
-  bind_contour_picker(0, bevel_gloss_contour, &custom_gloss_contour, LayerStyleEffectKind::BevelEmboss, "gloss_contour");
-  bind_contour_picker(1, bevel_contour_combo, &custom_bevel_sub_contour, LayerStyleEffectKind::BevelContour, "contour");
-  bind_contour_picker(2, shadow_contour, &custom_shadow_contour, LayerStyleEffectKind::DropShadow, "contour");
   for (auto& picker : contour_pickers) {
     auto* row = picker.combo->parentWidget();
     const auto stem = picker.combo->objectName();
@@ -2731,6 +2727,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.size = static_cast<float>(bevel_size->value());
         target.soften = static_cast<float>(bevel_soften->value());
         target.depth = static_cast<float>(bevel_depth->value()) / 100.0F;
+        target.use_global_light = bevel_link->isChecked();
         target.angle_degrees = static_cast<float>(bevel_angle->value());
         target.altitude_degrees = static_cast<float>(bevel_altitude->value());
         target.direction_up = bevel_direction.first->isChecked();
@@ -2806,6 +2803,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(inner_shadow_blend->currentData().toInt());
         target.opacity = static_cast<float>(inner_shadow_opacity->value()) / 100.0F;
+        target.contour = contour_combo_value(inner_shadow_page.contour, custom_inner_shadow_contour);
+        target.anti_aliased = inner_shadow_page.anti_aliased->isChecked();
+        target.use_global_light = inner_shadow_link->isChecked();
         target.angle_degrees = static_cast<float>(inner_shadow_angle->value());
         target.distance = static_cast<float>(inner_shadow_distance->value());
         target.size = static_cast<float>(inner_shadow_size->value());
@@ -2823,6 +2823,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(inner_glow_blend->currentData().toInt());
         target.opacity = static_cast<float>(inner_glow_opacity->value()) / 100.0F;
+        target.contour = contour_combo_value(inner_glow_page.contour, custom_inner_glow_contour);
+        target.anti_aliased = inner_glow_page.anti_aliased->isChecked();
         target.size = static_cast<float>(inner_glow_size->value());
         target.choke = static_cast<float>(inner_glow_choke->value());
         target.technique = static_cast<LayerGlowTechnique>(inner_glow_technique->currentData().toInt());
@@ -2841,6 +2843,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(satin_blend->currentData().toInt());
         target.opacity = static_cast<float>(satin_opacity->value()) / 100.0F;
+        target.contour = contour_combo_value(satin_page.contour, custom_satin_contour);
+        target.anti_aliased = satin_page.anti_aliased->isChecked();
         target.angle_degrees = static_cast<float>(satin_angle->value());
         target.distance = static_cast<float>(satin_distance->value());
         target.size = static_cast<float>(satin_size->value());
@@ -2900,6 +2904,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.blend_mode = static_cast<BlendMode>(outer_glow_blend->currentData().toInt());
         target.technique = static_cast<LayerGlowTechnique>(outer_glow_technique->currentData().toInt());
         target.opacity = static_cast<float>(outer_glow_opacity->value()) / 100.0F;
+        target.contour = contour_combo_value(outer_glow_page.contour, custom_outer_glow_contour);
+        target.anti_aliased = outer_glow_page.anti_aliased->isChecked();
         target.size = static_cast<float>(outer_glow_size->value());
         target.spread = static_cast<float>(outer_glow_spread->value());
         target.range = static_cast<float>(outer_glow_range->value());
@@ -2916,6 +2922,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(shadow_blend->currentData().toInt());
         target.opacity = static_cast<float>(shadow_opacity->value()) / 100.0F;
+        target.use_global_light = shadow_link->isChecked();
         target.angle_degrees = static_cast<float>(shadow_angle->value());
         target.distance = static_cast<float>(shadow_distance->value());
         target.size = static_cast<float>(shadow_size->value());
@@ -2951,16 +2958,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     result.blend_clipped_elements = blend_clipped->isChecked();
     apply_enabled_states(result);
     save_controls_to_style(result, category);
-    // Accepting any style edit regenerates the complete native lfx2 descriptor.
-    // Every modeled Satin is therefore written with the Linear contour, even
-    // when a different effect page is active.
-    if (batch == nullptr) for (auto& satin : result.satins) {
-      satin.unsupported_contour_options = false;
-    }
-    return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
+    result.apply_global_light(global_light);
+    auto settings = LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
                               std::move(result), blend_if, replace_unsupported_blend_if,
                               fill_opacity->value(), current_restricted_channels(),
                               static_cast<std::uint8_t>(knockout->currentData().toInt())};
+    settings.global_light = global_light;
+    return settings;
   };
   auto build_current_settings = [&]() {
     return build_current_settings_for_item(categories->currentItem());
@@ -2993,8 +2997,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         bevel_size->setValue(static_cast<int>(std::round(value.size)));
         bevel_soften->setValue(static_cast<int>(std::round(value.soften)));
         bevel_depth->setValue(static_cast<int>(std::round(value.depth * 100.0F)));
-        bevel_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
-        bevel_altitude->setValue(static_cast<int>(std::round(value.altitude_degrees)));
+        bevel_link->setChecked(value.use_global_light);
+        bevel_angle->setValue(value.use_global_light ? global_light.angle : static_cast<int>(std::round(value.angle_degrees)));
+        bevel_altitude->setValue(value.use_global_light ? global_light.altitude : static_cast<int>(std::round(value.altitude_degrees)));
         bevel_direction.set_first(value.direction_up);
         set_combo_data(bevel_highlight_blend, static_cast<int>(value.highlight_blend_mode));
         bevel_highlight_color = value.highlight_color;
@@ -3050,8 +3055,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                ? style.inner_shadows[static_cast<std::size_t>(index)]
                                : default_inner_shadow();
         set_combo_data(inner_shadow_blend, static_cast<int>(value.blend_mode));
+        load_contour_picker(inner_shadow_page.contour, custom_inner_shadow_contour, value.contour);
+        inner_shadow_page.anti_aliased->setChecked(value.anti_aliased);
         inner_shadow_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
-        inner_shadow_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
+        inner_shadow_link->setChecked(value.use_global_light);
+        inner_shadow_angle->setValue(value.use_global_light ? global_light.angle : static_cast<int>(std::round(value.angle_degrees)));
         inner_shadow_distance->setValue(static_cast<int>(std::round(value.distance)));
         inner_shadow_size->setValue(static_cast<int>(std::round(value.size)));
         inner_shadow_choke->setValue(static_cast<int>(std::round(value.choke)));
@@ -3065,6 +3073,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                ? style.inner_glows[static_cast<std::size_t>(index)]
                                : default_inner_glow();
         set_combo_data(inner_glow_blend, static_cast<int>(value.blend_mode));
+        load_contour_picker(inner_glow_page.contour, custom_inner_glow_contour, value.contour);
+        inner_glow_page.anti_aliased->setChecked(value.anti_aliased);
         inner_glow_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         inner_glow_size->setValue(static_cast<int>(std::round(value.size)));
         inner_glow_choke->setValue(static_cast<int>(std::round(value.choke)));
@@ -3081,6 +3091,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                ? style.satins[static_cast<std::size_t>(index)]
                                : default_satin();
         set_combo_data(satin_blend, static_cast<int>(value.blend_mode));
+        load_contour_picker(satin_page.contour, custom_satin_contour, value.contour);
+        satin_page.anti_aliased->setChecked(value.anti_aliased);
         satin_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         satin_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
         satin_distance->setValue(static_cast<int>(std::round(value.distance)));
@@ -3134,6 +3146,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             style.outer_glows.size() > static_cast<std::size_t>(index) ? style.outer_glows[static_cast<std::size_t>(index)]
                                                                        : default_outer_glow();
         set_combo_data(outer_glow_blend, static_cast<int>(value.blend_mode));
+        load_contour_picker(outer_glow_page.contour, custom_outer_glow_contour, value.contour);
+        outer_glow_page.anti_aliased->setChecked(value.anti_aliased);
         set_combo_data(outer_glow_technique, static_cast<int>(value.technique));
         outer_glow_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         outer_glow_size->setValue(static_cast<int>(std::round(value.size)));
@@ -3150,7 +3164,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                : default_drop_shadow();
         set_combo_data(shadow_blend, static_cast<int>(value.blend_mode));
         shadow_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
-        shadow_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
+        shadow_link->setChecked(value.use_global_light);
+        shadow_angle->setValue(value.use_global_light ? global_light.angle : static_cast<int>(std::round(value.angle_degrees)));
         shadow_distance->setValue(static_cast<int>(std::round(value.distance)));
         shadow_size->setValue(static_cast<int>(std::round(value.size)));
         shadow_spread->setValue(static_cast<int>(std::round(value.spread)));
@@ -3629,6 +3644,29 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   for (auto* channel_check : {channel_red, channel_green, channel_blue}) {
     QObject::connect(channel_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   }
+  const auto bind_light = [&](QCheckBox* link, QSpinBox* angle, QSpinBox* altitude) {
+    QObject::connect(angle, &QSpinBox::valueChanged, &dialog, [&, link](int value) {
+      if (!loading_controls && link->isChecked()) global_light.angle = value;
+    });
+    if (altitude) {
+      QObject::connect(altitude, &QSpinBox::valueChanged, &dialog, [&, link](int value) {
+        if (!loading_controls && link->isChecked()) global_light.altitude = value;
+      });
+    }
+    QObject::connect(link, &QCheckBox::toggled, &dialog, [&, angle, altitude](bool checked) {
+      if (loading_controls) return;
+      if (checked) {
+        loading_controls = true;
+        angle->setValue(global_light.angle);
+        if (altitude) altitude->setValue(global_light.altitude);
+        loading_controls = false;
+      }
+      emit_preview(true);
+    });
+  };
+  bind_light(shadow_link, shadow_angle, nullptr);
+  bind_light(inner_shadow_link, inner_shadow_angle, nullptr);
+  bind_light(bevel_link, bevel_angle, bevel_altitude);
   for (auto* spin : {bevel_size, bevel_soften, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, bevel_contour_range, bevel_texture_scale, bevel_texture_depth,
                      pattern_overlay_opacity, pattern_overlay_angle, pattern_overlay_scale,
@@ -3807,6 +3845,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     loading_controls = true;
     show_effects->setChecked(true);
     loading_controls = false;
+    applied.apply_global_light(global_light);
     style = std::move(applied);
     if (entry->blend_settings.has_value()) {
       loading_controls = true;
@@ -4010,6 +4049,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(shadow_conceals, &QCheckBox::toggled, &dialog,
                    [&emit_preview](bool) { emit_preview(true); });
+  for (auto* combo : {inner_shadow_page.contour, inner_glow_page.contour, outer_glow_page.contour, satin_page.contour}) {
+    QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(true); });
+  }
+  for (auto* check : {inner_shadow_page.anti_aliased, inner_glow_page.anti_aliased,
+                      outer_glow_page.anti_aliased, satin_page.anti_aliased}) {
+    QObject::connect(check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  }
   QObject::connect(shadow_contour, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
 
@@ -4542,6 +4588,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(bevel_size, LayerStyleEffectKind::BevelEmboss, "size");
     effect(bevel_soften, LayerStyleEffectKind::BevelEmboss, "soften");
     effect(bevel_depth, LayerStyleEffectKind::BevelEmboss, "depth");
+    effect(bevel_link, LayerStyleEffectKind::BevelEmboss, "use_global_light");
     effect(bevel_angle, LayerStyleEffectKind::BevelEmboss, "angle_degrees");
     effect(bevel_altitude, LayerStyleEffectKind::BevelEmboss, "altitude_degrees");
     effect(bevel_direction.first, LayerStyleEffectKind::BevelEmboss, "direction_up");
@@ -4577,12 +4624,16 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(gradient_blend, LayerStyleEffectKind::GradientOverlay, "blend_mode");
     effect(gradient_opacity, LayerStyleEffectKind::GradientOverlay, "opacity");
     effect(outer_glow_blend, LayerStyleEffectKind::OuterGlow, "blend_mode");
+    effect(outer_glow_page.contour, LayerStyleEffectKind::OuterGlow, "contour");
+    effect(outer_glow_page.anti_aliased, LayerStyleEffectKind::OuterGlow, "anti_aliased");
     effect(outer_glow_technique, LayerStyleEffectKind::OuterGlow, "technique");
     effect(outer_glow_opacity, LayerStyleEffectKind::OuterGlow, "opacity");
     effect(outer_glow_size, LayerStyleEffectKind::OuterGlow, "size");
     effect(outer_glow_spread, LayerStyleEffectKind::OuterGlow, "spread");
     effect(outer_glow_range, LayerStyleEffectKind::OuterGlow, "range");
     effect(inner_glow_blend, LayerStyleEffectKind::InnerGlow, "blend_mode");
+    effect(inner_glow_page.contour, LayerStyleEffectKind::InnerGlow, "contour");
+    effect(inner_glow_page.anti_aliased, LayerStyleEffectKind::InnerGlow, "anti_aliased");
     effect(inner_glow_technique, LayerStyleEffectKind::InnerGlow, "technique");
     effect(inner_glow_source.first, LayerStyleEffectKind::InnerGlow, "source");
     effect(inner_glow_source.second, LayerStyleEffectKind::InnerGlow, "source");
@@ -4591,6 +4642,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(inner_glow_choke, LayerStyleEffectKind::InnerGlow, "choke");
     effect(inner_glow_range, LayerStyleEffectKind::InnerGlow, "range");
     effect(satin_blend, LayerStyleEffectKind::Satin, "blend_mode");
+    effect(satin_page.contour, LayerStyleEffectKind::Satin, "contour");
+    effect(satin_page.anti_aliased, LayerStyleEffectKind::Satin, "anti_aliased");
     effect(satin_opacity, LayerStyleEffectKind::Satin, "opacity");
     effect(satin_angle, LayerStyleEffectKind::Satin, "angle_degrees");
     effect(satin_distance, LayerStyleEffectKind::Satin, "distance");
@@ -4598,6 +4651,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(satin_invert, LayerStyleEffectKind::Satin, "invert");
     effect(shadow_blend, LayerStyleEffectKind::DropShadow, "blend_mode");
     effect(shadow_opacity, LayerStyleEffectKind::DropShadow, "opacity");
+    effect(shadow_link, LayerStyleEffectKind::DropShadow, "use_global_light");
     effect(shadow_angle, LayerStyleEffectKind::DropShadow, "angle_degrees");
     effect(shadow_distance, LayerStyleEffectKind::DropShadow, "distance");
     effect(shadow_size, LayerStyleEffectKind::DropShadow, "size");
@@ -4608,7 +4662,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(shadow_continuous, LayerStyleEffectKind::DropShadow, "continuous");
     effect(shadow_fade, LayerStyleEffectKind::DropShadow, "fade");
     effect(inner_shadow_blend, LayerStyleEffectKind::InnerShadow, "blend_mode");
+    effect(inner_shadow_page.contour, LayerStyleEffectKind::InnerShadow, "contour");
+    effect(inner_shadow_page.anti_aliased, LayerStyleEffectKind::InnerShadow, "anti_aliased");
     effect(inner_shadow_opacity, LayerStyleEffectKind::InnerShadow, "opacity");
+    effect(inner_shadow_link, LayerStyleEffectKind::InnerShadow, "use_global_light");
     effect(inner_shadow_angle, LayerStyleEffectKind::InnerShadow, "angle_degrees");
     effect(inner_shadow_distance, LayerStyleEffectKind::InnerShadow, "distance");
     effect(inner_shadow_size, LayerStyleEffectKind::InnerShadow, "size");

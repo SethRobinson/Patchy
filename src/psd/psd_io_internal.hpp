@@ -113,8 +113,6 @@ constexpr std::uint32_t kPatchyFileInfoTextMagic = 0x5074634DU;  // 'PtcM'
 constexpr std::uint16_t kImageResourcePatchyRecognizedText = 4214;
 constexpr std::uint32_t kPatchyRecognizedTextMagic = 0x5074634FU;  // 'PtcO'
 constexpr std::size_t kPatchyRecognizedTextMaxValueBytes = 255;
-constexpr float kDefaultGlobalLightAngle = 120.0F;
-constexpr float kDefaultGlobalLightAltitude = 30.0F;
 constexpr std::int32_t kDefaultGridCycle32 = 576;
 constexpr std::array<char, 4> kPatchyLayerStyleBlockKey{'p', 'l', 'F', 'X'};
 constexpr std::array<char, 4> kPatchyLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
@@ -800,7 +798,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
                                   const CmykColorConverter& cmyk);
 LayerStyle layer_style_from_lefx_descriptor(const DescriptorObject& root, const CmykColorConverter& cmyk);
 LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload, const CmykColorConverter& cmyk);
-void resolve_global_light(LayerStyle& style, float angle_degrees, float altitude_degrees);
+std::optional<std::vector<std::uint8_t>> layer_effects_with_global_light(std::span<const std::uint8_t> payload, GlobalLight light);
 void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source);
 std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t> payload);
 
@@ -814,7 +812,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 // smart-object layer that has none preserved (see write_layer_record).
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
                         bool large_document, std::uint32_t synthesized_photoshop_layer_id,
-                        Rect canvas);
+                        Rect canvas, GlobalLight light);
 // `canvas` identifies Photoshop's Background record: the only pixel record written without a
 // transparency channel is the bottom one covering exactly the canvas (see encode_layer).
 // `depth` is the document's: deep documents write their channels at it.

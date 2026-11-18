@@ -5750,10 +5750,6 @@
         <translation>O padrão &quot;%1&quot; não está incorporado neste documento, portanto, o efeito que faz referência a ele não poderá ser renderizado até que você escolha outro padrão.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Os contornos personalizados e a suavização de contorno de Acetinado do Photoshop são preservados até que você edite os estilos de camada. O Patchy visualiza e salva o Acetinado editado com o contorno Linear sem suavização de serrilhado.</translation>
-    </message>
-    <message>
         <source>renders a regular drop shadow at the Distance value</source>
         <translation>renderiza uma sombra projetada regular no valor Distância</translation>
     </message>
@@ -15890,10 +15886,6 @@ Deseja substituí-lo?</translation>
         <translation>A camada &apos;%1&apos; é um objeto inteligente que Patchy só pode preservar, não editar (%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>A camada &apos;%1&apos; contém configurações de contorno de Acetinado do Photoshop que o Patchy não pode renderizar nem editar (uma curva personalizada ou suavização de serrilhado). O Patchy as preserva até que os estilos de camada sejam editados; depois, usa o contorno Linear sem suavização de serrilhado.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>A camada &apos;%1&apos; contém dados de Mesclar se do Photoshop para um modo de cor ou estrutura de dados não suportado. O Patchy os preserva ao abrir e salvar o PSD, mas não os renderiza nem edita.</translation>
     </message>
@@ -16432,6 +16424,10 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Contour Manager…</source>
         <translation>Gerenciador de contornos…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>Usar luz global</translation>
     </message>
 </context>
 <context>
@@ -30930,10 +30926,6 @@ Y: %2
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: os dados de mesclagem preservados continuam protegidos.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: editar efeitos normaliza os contornos de Cetim sem suporte.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

@@ -3320,10 +3320,6 @@ RGB: %2, %3, %4</translation>
         <translation>シャドウ（内側）を追加</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Photoshop のサテンのカスタム輪郭と輪郭アンチエイリアスは、レイヤースタイルを編集するまでは保持されます。Patchy でのプレビューおよび編集後の保存には、アンチエイリアスなしのリニア輪郭が使用されます。</translation>
-    </message>
-    <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
         <translation>このレイヤーには、未対応のカラーモードまたはペイロード形式の Photoshop「ブレンド条件 (Blend If)」データが含まれています。置き換えない限り、Patchy はデータを変更せずに保持し、プレビューしません。</translation>
     </message>
@@ -15834,10 +15830,6 @@ Do you want to replace it?</source>
         <translation>レイヤー「%1」は Patchy では保持のみ可能で編集できないスマートオブジェクトです (%2)。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>レイヤー「%1」には、Patchy で描画または編集できない Photoshop のサテン輪郭設定（カスタムカーブまたはアンチエイリアス）が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はアンチエイリアスなしのリニア輪郭が使用されます。</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>レイヤー「%1」には、未対応のカラーモードまたはデータ形式の Photoshop「ブレンド条件 (Blend If)」データが含まれています。Patchy は PSD の再保存時にこのデータを保持しますが、描画や編集は行いません。</translation>
     </message>
@@ -16376,6 +16368,10 @@ Do you want to replace it?</source>
     <message>
         <source>Contour Manager…</source>
         <translation>輪郭マネージャー…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>包括光源を使用</translation>
     </message>
 </context>
 <context>
@@ -30840,10 +30836,6 @@ Baked into images: %1.</source>
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1：保持されている描画設定データは保護されます。</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1：効果を編集すると、未対応のサテン輪郭が標準化されます。</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

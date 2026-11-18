@@ -204,8 +204,11 @@ int satin_tent_peak(float size) noexcept;
 
 void blur_satin_tent_mask_in_place(std::vector<float>& mask, int width, int height, float size);
 
+void apply_effect_contour(std::vector<float>& mask, int width, const StyleContour& contour, bool anti_aliased,
+                          float gain = 1.0F, bool exterior_glow = false);
+
 std::vector<float> satin_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
-                                    Rect mask_bounds, int offset_x, int offset_y, float size, bool invert,
+                                    Rect mask_bounds, int offset_x, int offset_y, const LayerSatin& satin,
                                     std::optional<Rect> layer_mask_bounds);
 
 struct PreparedSatin {

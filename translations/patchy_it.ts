@@ -5571,10 +5571,6 @@
         <translation>Il pattern &quot;%1&quot; non è incorporato in questo documento, quindi l&apos;effetto che vi fa riferimento non può essere visualizzato finché non scegli un altro pattern.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>I contorni personalizzati e l&apos;anti-alias del contorno di Finitura lucida di Photoshop vengono conservati finché non modifichi gli stili di livello. Patchy visualizza in anteprima e salva la Finitura lucida modificata con il contorno Lineare senza anti-alias.</translation>
-    </message>
-    <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
         <translation>Questo livello contiene dati Fondi se di Photoshop per un metodo di colore o una struttura dati non supportati. Patchy li conserva invariati e non li visualizza in anteprima a meno che non li sostituisca.</translation>
     </message>
@@ -15890,10 +15886,6 @@ Sostituirlo?</translation>
         <translation>Il livello &apos;%1&apos; è un oggetto avanzato che Patchy può solo conservare, non modificare (%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>Il livello &apos;%1&apos; contiene impostazioni di contorno Finitura lucida di Photoshop che Patchy non può visualizzare né modificare (una curva personalizzata o l&apos;anti-alias). Patchy le conserva finché gli stili di livello non vengono modificati, poi usa il contorno Lineare senza anti-alias.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>Il livello &apos;%1&apos; contiene dati Fondi se di Photoshop per un metodo di colore o una struttura dati non supportati. Patchy li conserva per il round-trip PSD ma non li visualizza né li modifica.</translation>
     </message>
@@ -16432,6 +16424,10 @@ Sostituirlo?</translation>
     <message>
         <source>Contour Manager…</source>
         <translation>Gestione contorni…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>Usa luce globale</translation>
     </message>
 </context>
 <context>
@@ -30930,10 +30926,6 @@ Convertiti in immagini: %1.</translation>
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: i dati di fusione conservati restano protetti.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: la modifica degli effetti normalizza i contorni Satinatura non supportati.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

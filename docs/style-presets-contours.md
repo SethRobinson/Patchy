@@ -4,13 +4,13 @@ Split from [style-presets.md](style-presets.md) (GitHub issue 726): the contour 
 
 ## What has a contour
 
-`StyleContour` (`src/core/layer.hpp`) is a name and a list of points (input, output, 0..255, with a corner flag); no points means Linear. Three places carry one: Bevel & Emboss's Gloss Contour, its Contour sub-option, and Drop Shadow's Contour. Satin, the glows and Inner Shadow have no contour in Patchy's model, so they have no picker.
+`StyleContour` (`src/core/layer.hpp`) is a name and a list of points (input, output, 0..255, with a corner flag); no points means Linear. Bevel & Emboss has Gloss Contour and its Contour sub-option. Drop Shadow, Inner Shadow, Inner Glow, Outer Glow and Satin each have an effect contour.
 
 `build_style_contour_lut` (`src/core/style_contour.hpp`) is the only evaluator: a 256-entry table, natural cubic through the points, corner points splitting the curve into separate runs, flat outside the first and last point. The compositor, the picker chips and the editor's graph all read that table, so the editor draws exactly what the effect renders. Never add a second evaluator for drawing.
 
 ## Pickers
 
-Each picker is a combo box (`layerStyleBevelGlossContourCombo`, `layerStyleBevelContourCombo`, `layerStyleDropShadowContourCombo`) with two buttons beside it, named after the combo: `<combo>EditButton` (Edit…) and `<combo>LibraryButton` (Library, a menu). A press on the curve chip at the left of the combo opens the editor too (`ContourSwatchClickFilter`); the rest of the combo opens its list.
+Each picker is a combo box with two buttons beside it, named after the combo: `<combo>EditButton` (Edit…) and `<combo>LibraryButton` (Library, a menu). A press on the curve chip at the left of the combo opens the editor too (`ContourSwatchClickFilter`); the rest of the combo opens its list.
 
 The list (`fill_contour_combo` in `src/ui/layer_style_dialog.cpp`) holds, in order:
 
@@ -79,7 +79,7 @@ Checks against Photoshop 2027 (COM, Action Manager; the throwaway contours were 
 
 ## PSD
 
-Nothing changed in the PSD writer: an edited curve is a custom `ShpC` (name, `Crv ` list with `Cnty` on every point), which the writer already produced for curves read from files. `psd_edited_contours_with_corner_and_smooth_points_round_trip` saves an edited curve on all three contours and reads the same points back, and writes `test-artifacts/psd_edited_contours_round_trip.psd`, which Photoshop 2027 opens without a prompt (`scripts\dev\photoshop-open-check.ps1`, November 2026) and whose three curves it returns through Action Manager with the same points and `Cnty` flags (it drops the name "Custom" and keeps any other).
+An edited curve is a custom `ShpC` (name, `Crv ` list with `Cnty` on every point), which the writer already produced for curves read from files. `psd_edited_contours_with_corner_and_smooth_points_round_trip` saves an edited curve on both Bevel contours and Drop Shadow and reads the same points back, and writes `test-artifacts/psd_edited_contours_round_trip.psd`, which Photoshop 2027 opens without a prompt (`scripts\dev\photoshop-open-check.ps1`, November 2026) and whose three curves it returns through Action Manager with the same points and `Cnty` flags (it drops the name "Custom" and keeps any other).
 
 ## Tests
 

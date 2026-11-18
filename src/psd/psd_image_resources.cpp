@@ -1271,6 +1271,25 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
       sanitized_grid_cycle_32(document.grid_settings().horizontal_cycle_32) != kDefaultGridCycle32 ||
       sanitized_grid_cycle_32(document.grid_settings().vertical_cycle_32) != kDefaultGridCycle32;
 
+  // Absent resources already mean 120/30. Preserve that compact encoding on
+  // new default documents, and replace existing resources even on a reset.
+  const auto has_links = [](const auto& self, const std::vector<Layer>& layers) -> bool {
+    for (const auto& layer : layers) {
+      if (layer.layer_style().uses_global_light() || self(self, layer.children())) return true;
+    }
+    return false;
+  };
+  const bool linked = has_links(has_links, document.layers());
+  const auto write_light = [&](std::uint16_t id, std::int32_t value, std::int32_t fallback) {
+    if (!linked && value == fallback && std::none_of(parsed->begin(), parsed->end(),
+        [id](const ImageResource& resource) { return resource.id == id; })) return;
+    BigEndianWriter payload;
+    payload.write_u32(static_cast<std::uint32_t>(value));
+    upsert_image_resource(*parsed, id, payload.bytes());
+  };
+  const auto light = document.metadata().global_light;
+  write_light(kImageResourceGlobalLightAngle, light.angle, GlobalLight{}.angle);
+  write_light(kImageResourceGlobalLightAltitude, light.altitude, GlobalLight{}.altitude);
   upsert_document_path_resources(*parsed, document);
   upsert_image_resource(*parsed, kImageResourceResolutionInfo, resolution_resource_for_document(document));
   if (had_grid_guides_resource || has_non_default_grid_guides) {

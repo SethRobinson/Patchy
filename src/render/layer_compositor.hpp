@@ -674,11 +674,16 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
       bounds, layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
         auto base = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
+        const bool shaped = !style_contour_is_linear(glow.contour);
         if (softer) {
-          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, glow.range);
+          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, shaped ? 100.0F : glow.range);
           computed.primary = std::move(base);
         } else {
           computed.primary = distance_falloff_mask(base, domain.width, domain.height, glow.size, glow.spread);
+        }
+        if (shaped) {
+          apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased,
+                               100.0F / std::clamp(glow.range, 1.0F, 100.0F), true);
         }
         return computed;
       });
@@ -752,6 +757,7 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
             layer_alpha_mask(source, layer, bounds, domain, -offset_x, -offset_y, layer_mask_bounds);
         prepare_photoshop_interior_soft_mask(computed.primary, domain.width, domain.height, shadow.size,
                                              shadow.choke);
+        apply_effect_contour(computed.primary, domain.width, shadow.contour, shadow.anti_aliased);
         return computed;
       });
   const auto width = mask_bounds.width;
@@ -841,6 +847,15 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
             }
           }
         }
+        if (!softer && !style_contour_is_linear(glow.contour)) {
+          const auto gain = 100.0F / std::clamp(glow.range, 1.0F, 100.0F);
+          for (auto& value : computed.primary) {
+            value = glow.source == LayerInnerGlowSource::Center
+                        ? 1.0F - clamp_unit((1.0F - value) * gain)
+                        : clamp_unit(value * gain);
+          }
+        }
+        apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased);
         return computed;
       });
   const auto width = mask_bounds.width;

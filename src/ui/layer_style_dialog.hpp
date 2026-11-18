@@ -37,6 +37,7 @@ struct LayerStyleSettings {
   bool preview_enabled{true};
   bool opacity_edited{false};
   bool fill_opacity_edited{false};
+  GlobalLight global_light{};
 };
 
 // The effect pages the dialog can open on (the Layers panel footer's Layer
@@ -88,6 +89,6 @@ void clear_stored_layer_style_effect_defaults();
     const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr,
     BitDepth document_depth = BitDepth::UInt8,
     std::optional<LayerStyleEffect> start_effect = std::nullopt, std::size_t start_effect_index = 0,
-    bool enable_start_effect = true, ContourLibrary* contour_library = nullptr);
+    bool enable_start_effect = true, ContourLibrary* contour_library = nullptr, GlobalLight global_light = {});
 
 }  // namespace patchy::ui

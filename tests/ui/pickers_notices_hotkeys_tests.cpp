@@ -1009,8 +1009,7 @@ void ui_compatibility_report_flags_grayscale_rgb_conversion() {
 }
 void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   // Group layer effects RENDER since July 2026, so a styled group must NOT
-  // raise a compatibility warning anymore (the Satin-contour warning below
-  // stays: that limitation is per-effect, not per-kind).
+  // raise a compatibility warning.
   patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
   patchy::Layer group(document.allocate_layer_id(), "Styled Group", patchy::LayerKind::Group);
   patchy::LayerSatin satin;
@@ -1030,12 +1029,10 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   CHECK(!text.contains(QStringLiteral("Pattern Overlay")));
   auto& imported_satin = document.layers().front().layer_style().satins.front();
   imported_satin.enabled = false;
-  imported_satin.unsupported_contour_options = true;
+  imported_satin.anti_aliased = true;
   const auto contour_text =
       patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(contour_text.contains(QStringLiteral("Layer 'Styled Group' contains Photoshop Satin contour settings")));
-  CHECK(contour_text.contains(QStringLiteral("custom curve or anti-aliasing")));
-  CHECK(contour_text.contains(QStringLiteral("non-anti-aliased Linear contour")));
+  CHECK(!contour_text.contains(QStringLiteral("Satin contour")));
 }
 void ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if() {
   constexpr std::array<std::uint8_t, 8> identity_range{0, 0, 255, 255, 0, 0, 255, 255};
