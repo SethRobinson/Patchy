@@ -135,7 +135,8 @@ Data Merge fills each row in the same disposable `doc.createTemporaryCopy()`. Th
 template keeps its text runs, history and modified state. The host also closes working
 copies after an interrupted run, when JavaScript cleanup may not execute. Batch Export
 checks every input and destination with `patchy.io.pathKey` before opening any source.
-Save Version pads short numbers and keeps every digit of long numbers.
+Save Version, Data Merge and numbered Export All Layers pad short numbers and keep
+every digit of long numbers.
 
 ## Shadow overrides (saving over a bundled script)
 

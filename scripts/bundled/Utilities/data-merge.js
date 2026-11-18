@@ -115,7 +115,7 @@ if (!doc) {
           for (var r = 1; r < rows.length; r++) {
             var row = rows[r];
             if (row.length === 1 && row[0].trim() === "") { continue; }  // blank line
-            var fileName = setup.pattern.replace(/\{n\}/g, ("00" + r).slice(-3));
+            var fileName = setup.pattern.replace(/\{n\}/g, String(r).padStart(3, "0"));
             for (i = 0; i < columns.length; i++) {
               var value = columns[i].index < row.length ? row[columns[i].index] : "";
               columns[i].layer.text = value;

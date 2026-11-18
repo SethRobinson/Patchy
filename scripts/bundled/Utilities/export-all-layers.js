@@ -57,7 +57,7 @@ if (!doc) {
     for (i = 0; i < layers.length; i++) {
       layers[i].visible = true;
       var safe = layers[i].name.replace(/[^A-Za-z0-9_-]+/g, "_");
-      var number = options.numbered ? ("00" + (i + 1)).slice(-2) + "_" : "";
+      var number = options.numbered ? String(i + 1).padStart(2, "0") + "_" : "";
       var target = folder + "/" + options.prefix + number + safe + "." + options.format;
       if (doc.exportAs(target)) {
         console.log("Exported " + target);
