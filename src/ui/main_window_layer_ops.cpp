@@ -2074,48 +2074,33 @@ bool layer_kind_takes_layer_mask(const Layer& layer) {
 
 // Multiplies a pixel layer's alpha by its mask and drops the mask (Apply Layer Mask).
 void apply_layer_mask_to_pixels(Layer& target) {
-  auto* layer = &target;
-  auto& pixels = layer->pixels();
-  const auto bounds = layer->bounds();
-  const auto channels = pixels.format().channels;
-  if (pixels.format().bit_depth != BitDepth::UInt8) {
-    // 16/32-bit (docs/high-bit-depth.md): alpha times the mask's coverage on float rows.
-    const auto depth = pixels.format().bit_depth;
-    const auto domain = depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
-    PixelBuffer rgba(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgba8(), depth));
+  const auto bounds = target.bounds();
+  const auto raster_alpha = [&](std::int32_t x, std::int32_t y) {
+    return layer_mask_alpha_at(target, bounds.x + x, bounds.y + y, LayerMaskParts{true, false});
+  };
+  ensure_layer_alpha_for_erase(target);
+  auto& pixels = target.pixels();
+  const auto depth = pixels.format().bit_depth;
+  if (depth == BitDepth::UInt8) {
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto& alpha = pixels.pixel(x, y)[3];
+        alpha = static_cast<std::uint8_t>(std::lround(static_cast<float>(alpha) * raster_alpha(x, y)));
+      }
+    }
+  } else {
+    const auto domain = deep_domain_for(depth);
     std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       load_rgba_row(pixels, y, 0, pixels.width(), domain, row);
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        row[static_cast<std::size_t>(x) * 4U + 3U] *= layer_mask_coverage_at(*layer, bounds.x + x, bounds.y + y);
+        row[static_cast<std::size_t>(x) * 4U + 3U] *= raster_alpha(x, y);
       }
-      store_rgba_row(rgba, y, 0, pixels.width(), domain, row);
+      store_rgba_row(pixels, y, 0, pixels.width(), domain, row);
     }
-    pixels = std::move(rgba);
-  } else if (channels >= 4) {
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        const auto mask_alpha = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
-        px[3] = static_cast<std::uint8_t>((static_cast<int>(px[3]) * static_cast<int>(mask_alpha)) / 255);
-      }
-    }
-  } else {
-    PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        const auto* src = pixels.pixel(x, y);
-        auto* dst = rgba.pixel(x, y);
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        dst[3] = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
-      }
-    }
-    pixels = std::move(rgba);
   }
-  layer->clear_mask();
-  layer->metadata().erase(kLayerMetadataMaskLinked);
+  target.clear_mask();
+  target.metadata().erase(kLayerMetadataMaskLinked);
 }
 
 }  // namespace

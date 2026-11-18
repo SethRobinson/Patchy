@@ -2,6 +2,7 @@
 #include "ui/canvas_widget_shared.hpp"
 #include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -264,6 +265,53 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   CHECK(mask_label->text().isEmpty());
   CHECK(!mask_label->isVisible());
   save_widget_artifact("ui_layer_mask_target_editing", window);
+}
+
+void ui_apply_layer_mask_bakes_rendered_raster_coverage_at_depth() {
+  using namespace patchy;
+  ui::MainWindow window;
+  for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16, BitDepth::Float32}) {
+    for (int mode = 0; mode < 3; ++mode) {
+      Document document(9, 1, PixelFormat::rgb8());
+      document.add_pixel_layer("Ink", solid_pixels(9, 1, PixelFormat::rgba8(), QColor(32, 84, 230)));
+      convert_document_depth(document, depth);
+      auto& layer = document.layers().front();
+      LayerMask mask;
+      mask.bounds = layer.bounds();
+      mask.feather_canvas = mask.bounds;
+      mask.pixels = PixelBuffer(9, 1, with_bit_depth(PixelFormat::gray8(), depth));
+      mask.density = mode == 0 ? 0 : 255;
+      if (mode != 0) {
+        store_coverage_row(mask.pixels, 0, 4, 5, std::array{91.37F, 255.0F, 255.0F, 255.0F, 255.0F});
+        mask.feather = mode == 1 ? 1.5 : 0.0;
+      }
+      layer.set_mask(std::move(mask));
+      LayerVectorMask vector;
+      vector.cache_bounds = layer.bounds();
+      vector.cache = PixelBuffer(9, 1, PixelFormat::gray8());
+      vector.cache.clear(128);
+      layer.set_vector_mask(std::move(vector));
+      window.add_document_session(std::move(document), QStringLiteral("Apply Mask"));
+      show_window(window);
+      const auto& doc = std::as_const(ui::MainWindowTestAccess::document(window));
+      std::array<float, 9> expected{};
+      for (int x = 0; x < 9; ++x) {
+        expected[x] = layer_mask_alpha_at(doc.layers().front(), x, 0, LayerMaskParts{true, false});
+      }
+      std::vector<std::uint8_t> before, after;
+      (void)Compositor{}.flatten_rgb8(doc, &before);
+      require_action(window, "layerApplyMaskAction")->trigger();
+      const auto& applied = doc.layers().front();
+      CHECK(!applied.mask().has_value() && applied.vector_mask() != nullptr);
+      (void)Compositor{}.flatten_rgb8(doc, &after);
+      CHECK(before.size() == 9 && after.size() == 9);
+      for (int x = 0; x < 9; ++x) {
+        CHECK(std::abs(static_cast<int>(before[x]) - static_cast<int>(after[x])) <= 1);
+        const float tolerance = depth == BitDepth::UInt8 ? 0.5F / 255.0F : 0.5F / 65535.0F;
+        CHECK(std::abs(pixel_alpha_at(applied.pixels(), x, 0) - expected[x]) <= tolerance + 1e-7F);
+      }
+    }
+  }
 }
 
 void ui_group_layer_mask_add_paint_and_delete() {
@@ -1898,6 +1946,7 @@ std::vector<patchy::test::TestCase> layer_mask_tests() {
       {"ui_layer_mask_target_paints_inverts_disables_and_applies",
        ui_layer_mask_target_paints_inverts_disables_and_applies},
       {"ui_group_layer_mask_add_paint_and_delete", ui_group_layer_mask_add_paint_and_delete},
+      {"ui_apply_layer_mask_bakes_rendered_raster_coverage_at_depth", ui_apply_layer_mask_bakes_rendered_raster_coverage_at_depth},
       {"ui_mask_paint_updates_distant_drop_shadow", ui_mask_paint_updates_distant_drop_shadow},
       {"ui_layer_mask_add_without_selection_targets_mask_and_chip_exits",
        ui_layer_mask_add_without_selection_targets_mask_and_chip_exits},
