@@ -34,6 +34,9 @@
 #include <QApplication>
 #include <QContextMenuEvent>
 #include <QFormLayout>
+#include <QLabel>
+#include <QMouseEvent>
+#include <QScreen>
 #include <QSlider>
 #include <QTest>
 #include <QLineEdit>
@@ -71,6 +74,98 @@ void commit_text(QAbstractSpinBox& spin, const QString& text) {
   editor->setText(text);
   send_key(spin, Qt::Key_Return);
   QApplication::processEvents();
+}
+
+// Drive the real label with global mouse coordinates. Record the native warp request
+// so these checks work on offscreen Qt and never move the desktop pointer.
+class ScreenEdgeScrub {
+ public:
+  explicit ScreenEdgeScrub(QAbstractSpinBox& spin) {
+    patchy::ui::install_scrub_label(&label_, &spin);
+    patchy::ui::set_scrub_warp_destination_for_testing(&destination);
+    patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::AllMoves);
+  }
+
+  ~ScreenEdgeScrub() {
+    patchy::ui::set_scrub_warp_destination_for_testing(nullptr);
+    patchy::ui::set_scrub_move_coalescing_for_testing(patchy::ui::ScrubMoveCoalescing::Default);
+  }
+
+  void send(QEvent::Type type, int x) {
+    const QPoint global(x, bounds.center().y());
+    QMouseEvent event(type, label_.mapFromGlobal(global), global,
+                      type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                      type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&label_, &event);
+  }
+
+  const QRect bounds = QGuiApplication::primaryScreen()->geometry();
+  QPoint destination = bounds.center();
+
+ private:
+  QLabel label_;
+};
+
+void ui_scrub_stops_at_range_limits_and_reverses_from_edge() {
+  QSpinBox spin;
+  ScreenEdgeScrub scrub(spin);
+  // Install first, then change the range. An overshoot near INT_MAX must clamp
+  // before conversion to int so the widget reports the correct edge.
+  spin.setRange(13, std::numeric_limits<int>::max() - 2);
+  const int drag = QApplication::startDragDistance() + 1;
+  for (const int direction : {-1, 1}) {
+    const int limit = direction > 0 ? spin.maximum() : spin.minimum();
+    const int edge = direction > 0 ? scrub.bounds.right() : scrub.bounds.left();
+    const int start = edge - direction * (drag + 12);
+    spin.setValue(limit - direction);
+    scrub.send(QEvent::MouseButtonPress, start);
+    scrub.send(QEvent::MouseMove, start + direction * drag);
+    CHECK(spin.value() == limit);
+    scrub.send(QEvent::MouseMove, edge - 5 * direction);  // opens a coalescing pass
+    scrub.send(QEvent::MouseMove, edge - 3 * direction);
+    scrub.send(QEvent::MouseMove, edge);
+    CHECK(scrub.destination == scrub.bounds.center());
+    scrub.send(QEvent::MouseMove, edge - direction);  // still inside the two-pixel edge zone
+    scrub.send(QEvent::MouseButtonRelease, edge - direction);
+    CHECK(spin.value() == limit - direction);
+    CHECK(scrub.destination == scrub.bounds.center());
+    QApplication::processEvents();
+  }
+}
+
+void ui_scrub_wraps_while_the_value_can_still_change() {
+  QDoubleSpinBox spin;
+  ScreenEdgeScrub scrub(spin);
+  spin.setSingleStep(0.25);
+  const double limit = (scrub.bounds.width() + 1) * spin.singleStep();
+  spin.setRange(-limit, limit);
+  for (const int direction : {-1, 1}) {
+    const int edge = direction > 0 ? scrub.bounds.right() : scrub.bounds.left();
+    const int start = scrub.bounds.center().x();
+    spin.setValue(0.5);
+    scrub.send(QEvent::MouseButtonPress, start);
+    scrub.send(QEvent::MouseMove, edge);
+    const int landing = direction > 0 ? scrub.bounds.left() + 2 : scrub.bounds.right() - 2;
+    CHECK(scrub.destination == QPoint(landing, scrub.bounds.center().y()));
+    const double at_edge = 0.5 + (edge - start) * spin.singleStep();
+    CHECK(spin.value() == at_edge);
+    scrub.send(QEvent::MouseMove, landing);
+    CHECK(spin.value() == at_edge);
+    scrub.send(QEvent::MouseMove, landing + direction * 4);
+    QApplication::processEvents();
+    CHECK(spin.value() == at_edge + direction);
+    // The next screenful reaches the fractional limit. The earlier wrap's offset
+    // still counts when anchoring the return trip.
+    scrub.destination = scrub.bounds.center();
+    scrub.send(QEvent::MouseMove, edge);
+    CHECK(spin.value() == direction * limit);
+    CHECK(scrub.destination == scrub.bounds.center());
+    scrub.send(QEvent::MouseMove, edge - direction);
+    scrub.send(QEvent::MouseButtonRelease, edge - direction);
+    CHECK(spin.value() == direction * (limit - spin.singleStep()));
+    CHECK(scrub.destination == scrub.bounds.center());
+    QApplication::processEvents();
+  }
 }
 
 void unit_spin_box_parses_unit_tokens() {
@@ -710,6 +805,8 @@ void unit_spin_box_slider_row_echo_keeps_typed_text() {
 
 std::vector<patchy::test::TestCase> unit_spin_box_tests() {
   return {
+      {"ui_scrub_stops_at_range_limits_and_reverses_from_edge", ui_scrub_stops_at_range_limits_and_reverses_from_edge},
+      {"ui_scrub_wraps_while_the_value_can_still_change", ui_scrub_wraps_while_the_value_can_still_change},
       {"unit_spin_box_parses_unit_tokens", unit_spin_box_parses_unit_tokens},
       {"unit_spin_box_converts_between_units", unit_spin_box_converts_between_units},
       {"unit_spin_box_pixel_field_accepts_percent_and_physical", unit_spin_box_pixel_field_accepts_percent_and_physical},

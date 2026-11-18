@@ -104,8 +104,9 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 // - A horizontal drag past the drag distance changes `spin`'s value by one singleStep
 //   per pixel, ten with Shift, a tenth with Alt (integer fields then move every ten
 //   pixels); changing a modifier mid-drag continues from the current value. The
-//   pointer wraps at the screen edge where the platform allows it.
-// - Only the newest move of an event-loop pass sets the value (GitHub #700; the rule and
+//   pointer wraps at the screen edge while the value can move farther in that direction,
+//   on platforms that support pointer warping.
+// - Moves between edges coalesce to the newest position in an event-loop pass (GitHub #700; the rule and
 //   its test switch are at set_scrub_move_coalescing_for_testing below).
 // - A scrub ends with the spin box's editingFinished, so undo paths that coalesce an
 //   edit session record one step per scrub.
@@ -466,6 +467,8 @@ void set_slider_drag_coalescing_all_moves_for_testing(bool all_moves);
 enum class ScrubMoveCoalescing { Default, AllMoves, Off };
 void set_scrub_move_coalescing_for_testing(ScrubMoveCoalescing mode);
 [[nodiscard]] int scrub_moves_coalesced_for_testing();
+// While set, record scrub warps here so offscreen tests can drive the next pointer move.
+void set_scrub_warp_destination_for_testing(QPoint* destination);
 // The X glyph the dark dialog chrome's title bar uses, for a frameless dialog
 // that draws its own corner close button (About).
 QIcon dialog_chrome_close_icon();

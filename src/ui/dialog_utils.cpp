@@ -520,7 +520,9 @@ void set_scrub_value(QAbstractSpinBox* spin, double anchor, double steps) {
     if (int_spin->stepType() == QAbstractSpinBox::AdaptiveDecimalStepType && std::abs(anchor) >= 100.0) {
       step = std::max(step, std::pow(10.0, std::floor(std::log10(std::abs(anchor))) - 1.0));
     }
-    int_spin->setValue(static_cast<int>(std::lround(anchor + std::trunc(steps) * step)));
+    const double requested = anchor + std::trunc(steps) * step;
+    const double value = std::clamp(requested, double(int_spin->minimum()), double(int_spin->maximum()));
+    int_spin->setValue(static_cast<int>(std::lround(value)));
   } else if (auto* double_spin = qobject_cast<QDoubleSpinBox*>(spin); double_spin != nullptr) {
     double_spin->setValue(anchor + steps * double_spin->singleStep());
   }
@@ -545,6 +547,27 @@ bool scrub_can_warp_pointer() {
   const auto platform = QGuiApplication::platformName();
   return !platform.startsWith(QLatin1String("wayland")) && platform != QLatin1String("offscreen") &&
          platform != QLatin1String("minimal");
+}
+
+QPoint* scrub_warp_destination_for_testing = nullptr;
+
+// Only an outward move enters a wrap zone. The first pixel back from a stopped edge
+// is still inside that zone and must travel normally.
+std::optional<int> scrub_wrap_target(QPoint global, int from_x) {
+  if (global.x() == from_x) {
+    return std::nullopt;
+  }
+  const auto* screen = QGuiApplication::screenAt(global);
+  if (screen != nullptr) {
+    const auto bounds = screen->geometry();
+    if (global.x() > from_x && global.x() >= bounds.right() - 1) {
+      return bounds.left() + 2;
+    }
+    if (global.x() < from_x && global.x() <= bounds.left() + 1) {
+      return bounds.right() - 2;
+    }
+  }
+  return std::nullopt;
 }
 
 // Scrub move coalescing (docs/ui-conventions-dialogs.md, "Scrub move coalescing"): the test
@@ -576,6 +599,7 @@ public:
     pressed_ = true;
     scrubbing_ = false;
     press_ = global;
+    last_x_ = global.x();
     wrap_offset_ = 0;
   }
 
@@ -589,7 +613,8 @@ public:
   // newest move of an event-loop pass is applied (GitHub #700): the first move of a pass
   // runs at once, later ones are recorded, and the pass end applies the latest. A scrub
   // value depends only on the pointer position and the anchor, so a dropped move changes
-  // nothing. The one exception is a move at another rate (Shift or Alt changed): it
+  // nothing while the anchor stays put. An outward screen-edge move can wrap or reset
+  // the anchor and applies immediately. A move at another rate (Shift or Alt changed)
   // re-anchors at the value the last move at the old rate gave and at its own position, so
   // the recorded move is applied first and the move itself at once. A recorded move
   // therefore always has the anchor's rate. `window_system` is the event's spontaneous():
@@ -611,6 +636,12 @@ public:
     }
     if (!pass_active_) {
       begin_pass();
+      drop_pending();
+      return apply_move(global, modifiers);
+    }
+    // An edge can warp or reset the anchor. Apply it before a queued reversal
+    // can replace it, even if both moves arrive in the same event-loop pass.
+    if (scrub_wrap_target(global, last_x_).has_value()) {
       drop_pending();
       return apply_move(global, modifiers);
     }
@@ -658,7 +689,7 @@ private:
   };
 
   bool apply_move(QPoint global, Qt::KeyboardModifiers modifiers) {
-    const int x = global.x() + wrap_offset_;
+    const auto x = global.x() + wrap_offset_;
     if (!scrubbing_) {
       if (std::abs(x - press_.x()) < QApplication::startDragDistance()) {
         return false;
@@ -706,33 +737,40 @@ private:
   }
 
   void wrap_pointer(QPoint global) {
-    if (!scrub_can_warp_pointer()) {
+    const int previous_x = std::exchange(last_x_, global.x());
+    const auto target = scrub_wrap_target(global, previous_x);
+    if (!target || spin_.isNull()) {
       return;
     }
-    const auto* screen = QGuiApplication::screenAt(global);
-    if (screen == nullptr) {
+    // Both spin box types expose their live bounds, including slider-backed fields.
+    const double value = scrub_value(spin_);
+    const double limit = spin_->property(global.x() > previous_x ? "maximum" : "minimum").toDouble();
+    if (value == limit) {
+      // Discard travel past the limit so the first step back changes the value.
+      anchor_x_ = global.x() + wrap_offset_;
+      anchor_value_ = value;
       return;
     }
-    const auto bounds = screen->geometry();
-    if (global.x() <= bounds.left() + 1) {
-      const int target = bounds.right() - 2;
-      QCursor::setPos(target, global.y());
-      wrap_offset_ -= target - global.x();
-    } else if (global.x() >= bounds.right() - 1) {
-      const int target = bounds.left() + 2;
-      QCursor::setPos(target, global.y());
-      wrap_offset_ += global.x() - target;
+    if (scrub_warp_destination_for_testing != nullptr) {
+      *scrub_warp_destination_for_testing = QPoint(*target, global.y());
+    } else if (scrub_can_warp_pointer()) {
+      QCursor::setPos(*target, global.y());
+    } else {
+      return;
     }
+    wrap_offset_ += qint64(global.x()) - *target;
+    last_x_ = *target;
   }
 
   QPointer<QAbstractSpinBox> spin_;
   bool pressed_{false};
   bool scrubbing_{false};
   QPoint press_;
-  int anchor_x_{0};
+  qint64 anchor_x_{0};
   double anchor_value_{0.0};
   double anchor_rate_{1.0};
-  int wrap_offset_{0};
+  qint64 wrap_offset_{0};
+  int last_x_{0};
   bool pass_active_{false};
   std::optional<PendingMove> pending_;
   QObject pass_context_;  // dies with the gesture, taking a queued pass end with it
@@ -3665,6 +3703,10 @@ int slider_drag_moves_coalesced_for_testing() { return SliderDragCoalescer::inst
 void set_scrub_move_coalescing_for_testing(ScrubMoveCoalescing mode) { scrub_coalescing_state().mode = mode; }
 
 int scrub_moves_coalesced_for_testing() { return scrub_coalescing_state().coalesced; }
+
+void set_scrub_warp_destination_for_testing(QPoint* destination) {
+  scrub_warp_destination_for_testing = destination;
+}
 
 int exec_dialog(QDialog& dialog) {
   if (unattended_dialog(dialog)) {

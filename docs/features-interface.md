@@ -10,6 +10,7 @@ Split from [features.md](features.md): supported platforms, privacy and file met
 - Help > About Patchy checks for a newer version; when it finds one, its Update button opens the update prompt (one-click update, the download, or the Flatpak update command)
 - Help > About Patchy credits everyone whose pull requests and issues were accepted, by GitHub handle with their count, most first
 - File > File Info shows and edits a document's metadata (EXIF, XMP, IPTC, thumbnails, AI generation data), sets the IPTC Data Mining value (for example "Prohibited for AI/ML training", also a Preferences default for new saves), flags information you may not want to share and strips it. PSD and JPEG saves record Patchy, the save dates, color mode and document IDs as Photoshop does, with a fresh thumbnail
+- Drag a numeric field or its label to adjust the value. On platforms that support pointer wrapping, the drag can continue across screen edges until it reaches the field's limit.
 - **Panels**: group panels into tabs (drag, reorder) and collapse them; Window > Show Panel Titles hides the title rows of open panels to give them more room (tab groups keep their tabs, collapsed panels keep their row)
 - **Color panel**: hue cube with hex and RGB boxes (right-click sets background, also in the Foreground Color window) or RGB/HSB/CMYK sliders (gear)
 - **Layers panel**
