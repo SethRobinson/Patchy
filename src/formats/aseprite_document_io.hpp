@@ -27,7 +27,8 @@ public:
   // vendored miniz, indexed/grayscale/RGBA color modes, and the palette into
   // Document::indexed_palette() for the adopt-on-open prompt.
   [[nodiscard]] static Document read(std::span<const std::uint8_t> bytes,
-                                     std::vector<std::string>* notices = nullptr);
+                                     std::vector<std::string>* notices = nullptr,
+                                     bool* partial_import = nullptr);
   [[nodiscard]] static Document read_file(const std::filesystem::path& path,
                                           std::vector<std::string>* notices = nullptr);
   // Writes a single-frame file: palette-mode documents with room for a transparent slot

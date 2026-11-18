@@ -999,24 +999,29 @@ void check_save_redirects_to_psd(patchy::ui::MainWindow& window, const QString& 
   CHECK(Access::active_session_is_modified(window));
 }
 
-void ui_partial_tiff_imports_protect_source() {
+void ui_partial_tiff_and_aseprite_imports_protect_source() {
   using Access = patchy::ui::MainWindowTestAccess;
   QTemporaryDir temp;
   SettingsValueRestorer open_mode(QStringLiteral("imports/tiffPagesOpen"));
   SettingsValueRestorer notes(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer palette(QStringLiteral("imports/adoptIndexedPalette"));
   auto settings = patchy::ui::app_settings();
   settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), false);
+  settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("never"));
   const auto tiff = temp.filePath(QStringLiteral("pages.tif"));
   patchy::test::flat_tiff::Spec page;
   page.value = [](std::uint32_t x, std::uint32_t y, std::uint32_t channel) { return x + y + 10.0 * channel; };
   const auto pages = patchy::test::flat_tiff::write_tiff(std::vector{page, page, page});
   patchy::formats::write_file_bytes(patchy::ui::to_filesystem_path(tiff), pages, "TIFF");
-  for (const auto& mode : {QStringLiteral("first"), QStringLiteral("documents")}) {
+  const auto sprite = temp.filePath(QStringLiteral("animation.aseprite"));
+  CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::committed_format_fixture_path(
+      "aseprite", "aseprite-indexed-frames.aseprite")), sprite));
+  for (const auto& mode : {QStringLiteral("first"), QStringLiteral("documents"), QStringLiteral("aseprite")}) {
     patchy::ui::MainWindow window;
     show_window(window);
-    settings.setValue(QStringLiteral("imports/tiffPagesOpen"), mode);
+    if (mode != QStringLiteral("aseprite")) settings.setValue(QStringLiteral("imports/tiffPagesOpen"), mode);
     const auto initial_count = Access::session_count(window);
-    const auto& path = tiff;
+    const auto path = mode == QStringLiteral("aseprite") ? sprite : tiff;
     Access::open_document_path(window, path);
     CHECK(Access::session_count(window) == initial_count + (mode == QStringLiteral("documents") ? 3U : 1U));
     CHECK(Access::active_session_path(window) == path);
@@ -4285,7 +4290,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
       {"ui_export_dialog_offers_cmyk_for_print_formats", ui_export_dialog_offers_cmyk_for_print_formats},
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
-      {"ui_partial_tiff_imports_protect_source", ui_partial_tiff_imports_protect_source},
+      {"ui_partial_tiff_and_aseprite_imports_protect_source", ui_partial_tiff_and_aseprite_imports_protect_source},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},

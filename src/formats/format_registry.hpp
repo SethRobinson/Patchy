@@ -18,6 +18,7 @@ namespace patchy {
 struct FormatReadResult {
   Document document;
   std::vector<std::string> notices;
+  bool partial_import{false};
 };
 
 using FormatReadFn = std::function<FormatReadResult(std::span<const std::uint8_t>)>;

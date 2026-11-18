@@ -282,7 +282,8 @@ bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
   return sniff(bytes);
 }
 
-Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::string>* notices) {
+Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::string>* notices,
+                          bool* partial_import) {
   if (bytes.size() >= 4 && bytes[0] == 'A' && bytes[1] == 'S' && bytes[2] == 'E' && bytes[3] == 'F') {
     throw std::runtime_error(
         PATCHY_TRANSLATE_NOOP("QObject", "This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel's "
@@ -296,6 +297,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   reader.skip(4);  // file size
   reader.skip(2);  // magic (verified by sniff)
   header.frames = reader.read_u16();
+  if (partial_import != nullptr) *partial_import = header.frames > 1;
   header.width = reader.read_u16();
   header.height = reader.read_u16();
   header.depth = reader.read_u16();

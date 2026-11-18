@@ -103,7 +103,7 @@ void register_builtin_formats(FormatRegistry& registry) {
                              {".aseprite", ".ase"},
                              [](std::span<const std::uint8_t> bytes) {
                                FormatReadResult result;
-                               result.document = aseprite::DocumentIo::read(bytes, &result.notices);
+                               result.document = aseprite::DocumentIo::read(bytes, &result.notices, &result.partial_import);
                                return result;
                              },
                              [](const Document& document) { return aseprite::DocumentIo::write(document); },

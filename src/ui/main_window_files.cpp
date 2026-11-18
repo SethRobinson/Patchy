@@ -2133,6 +2133,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     try {
       auto result = handler->read(read_all_file_bytes(path));
       opened = std::move(result.document);
+      partial_import = result.partial_import;
       for (const auto& notice : result.notices) {
         import_notices.push_back(translated_file_message(notice));
       }
